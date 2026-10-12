@@ -1,11 +1,11 @@
 ---
 name: project-setup
-description: "Set up or update a repository's agent tooling for Claude Code and Codex: AGENTS.md, stack-specific skills, language servers, OpenSpec, codegraph. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, language servers, OpenSpec, codegraph. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 ---
 
 # Project setup
 
-Run in the repository root. On a repository whose working tree already has `AGENTS.md`, `skills-lock.json`, `openspec/`, or `.codegraph/`, every step compares the current state with what it would create and proposes only the differences.
+Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, `openspec/`, or `.codegraph/`, every step compares the current state with what it would create and proposes only the differences.
 
 Rules for every step: show the planned change and ask before writing; never commit; never run sudo or AUR installs (give the user the command).
 
@@ -13,12 +13,41 @@ Rules for every step: show the planned change and ask before writing; never comm
 
 Identify languages, frameworks, and infrastructure tools from build files, dependency manifests, config files, and file extensions. Count only technologies the repository contains code or config for (not ones its docs merely mention), and skip a language with fewer than about 10 files unless it is the main one. Show the list; the user confirms or edits it.
 
-## 2. AGENTS.md and CLAUDE.md
+## 2. Development container
 
-- `AGENTS.md`: what the project is (two lines), the real install, build, test, lint, and run commands (run those that are local, read-only, and finish within a minute; never ones that use the network, SSH, or deploy), layout, conventions found in the code. Update: fix failing or changed commands; keep the user's text.
+Use standard devcontainers for development in every repository. Reuse `.devcontainer/devcontainer.json`, `.devcontainer.json`, or an existing named configuration. Otherwise create `.devcontainer/devcontainer.json` and only the Dockerfile or Compose services the confirmed stack needs. Preserve existing settings and services. Use an exact image version or digest and pin installed CLI/package versions. [Configuration reference](https://containers.dev/implementors/json_reference/)
+
+Run the agent on the host and prepare and start the project container from there. Keep agent CLIs, authentication, BenchKeeper, global rules, and skills on the host. Apply `global-setup` on the host; run project commands through `devcontainer exec --workspace-folder . ...`. No agent installation or sign-in inside the container is required.
+
+- Install the project toolchain and required local MCP/browser tools inside the image, resolving exact package versions before writing install commands. Configure project-local MCP launchers to execute inside the container; verify their execution location before using them.
+- For project Playwright, use the MCP pin in `global-setup` part 6 and install its matching browser inside the container. Use a project-specific stdio launcher through `devcontainer exec`; verify the workspace, protocol connection, and browser access to the application. Inspect effective client configuration and override or disable inherited host Playwright entries for this project. If routing is unavailable, keep the project integration disabled and report it.
+- Run project commands as a non-root container user. Mount only the project and required project data; do not mount the host home or Docker socket, enable privileged mode, or forward credentials by default. Review existing mounts, Features, and lifecycle commands before launch. `initializeCommand` runs on the host. [Lifecycle reference](https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-reference.md)
+- Keep the same configuration for all clients. Run the agent in a host terminal, including CLI and Orca terminals, and route project commands through the commands below from the intended repository or worktree. VS Code may attach to the same container for project terminals, builds, and debugging; keep the agent on the host. Verify execution location separately for native chat or agent extensions. [VS Code](https://code.visualstudio.com/docs/devcontainers/containers), [Orca terminals](https://github.com/stablyai/orca#supported-agents)
+- Before VS Code attachment, disable host Git credential integration and SSH-agent forwarding, then check the effective container environment and mounts. VS Code can forward these automatically; do not assume this policy changes the client's defaults. [Credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)
+
+Host launch and verification ([CLI reference](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli)):
+```sh
+devcontainer read-configuration --workspace-folder .
+devcontainer up --workspace-folder .
+devcontainer exec --workspace-folder . git status --short
+devcontainer exec --workspace-folder . id -un
+```
+Launch `claude` or `codex` on the host in the repository or worktree. Host inspection, file edits, Git operations, and agent configuration stay on the host. Route project dependency installs, builds, lint, tests, and local MCP/browser tools through `devcontainer exec --workspace-folder . ...`. From an existing container terminal, run project commands directly.
+
+Keep compound project commands inside the container shell: `devcontainer exec --workspace-folder . sh -lc 'npm test && npm run lint'` is an example for a project with those scripts. Resolve the workspace and named configuration for every launcher; do not assume an MCP server starts in the agent's working directory. Host agents retain host access under the client's permissions; this setup contains project command execution, not the agent process.
+
+For a named configuration, pass its `--config` path consistently. For linked Git worktrees, inspect the `.git` file and `git rev-parse --git-common-dir`; preserve the referenced paths with narrowly scoped mounts for the required Git metadata, then verify `git status` inside the container. That metadata is shared with the repository's other worktrees; do not mount a broad parent directory. [Git worktree layout](https://git-scm.com/docs/git-worktree#_details)
+
+Configuration parsing alone is not runtime validation. If the container cannot start or a required tool is missing, report the failure and stop dependent development commands; do not fall back to the host.
+
+After changing the image, Dockerfile, or container creation settings, rebuild instead of reusing the old container: VS Code **Dev Containers: Rebuild Container**, or `devcontainer up --workspace-folder . --remove-existing-container`. First identify data in the old container's writable layer and ask before removing it; preserve required data in project storage. Repeat container-local setup and checks after rebuilding.
+
+## 3. AGENTS.md and CLAUDE.md
+
+- `AGENTS.md`: what the project is (two lines), host agent launch and permitted host operations, container command prefixes, the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), layout, conventions found in the code. Update: fix failing or changed commands; keep the user's text.
 - `CLAUDE.md`: exactly `@AGENTS.md`. Move any other content into `AGENTS.md` first.
 
-## 3. Stack skills
+## 4. Stack skills
 
 The global `agent-skills@addy-agent-skills` plugin already covers the workflow (list: `ls ~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills`: spec, planning, TDD, debugging, code review, simplification, security, performance, git, CI/CD, docs, shipping). Add only knowledge about the confirmed stack.
 
@@ -30,34 +59,34 @@ The global `agent-skills@addy-agent-skills` plugin already covers the workflow (
 
 Update: `npx -y skills@1.7.2 update -p`, then review `git diff .agents/skills` with the same checks. Run `npx -y skills@1.7.2 experimental_install` for skills that are locked but missing. Propose removing skills for technologies that are gone, duplicates of agent-skills skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> -y`, passing one name per argument.
 
-## 4. Language servers
+## 5. Language servers
 
 For each confirmed language, find its LSP plugin in `~/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json`. The plugin's `lspServers.*.command` field names the server binary it needs.
 
-- If the plugin is not enabled (`claude plugin list`), install it with `claude plugin install <name>@claude-plugins-official`.
-- If the binary is not on PATH, install it with npm, go, or rustup without sudo. Otherwise give the user the command.
+- Install the plugin on the host with `claude plugin install <name>@claude-plugins-official` when missing. Merge `false` for its full plugin ID into project `enabledPlugins` until container routing is verified, including for already-installed plugins. Check local or managed overrides before claiming it is disabled.
+- Install the server and required language runtime inside the container with exact versions; use `global-setup` part 8 for the Python and TypeScript defaults.
+- Use a supported client configuration to connect the host plugin to the container server. Verify diagnostics on a project file and matching host/container file paths or supported URI translation. Do not edit installed plugin files or treat an executable wrapper alone as proof. If the client cannot route the server correctly, disable its use for this project and report the limitation instead of installing a host fallback.
 - No plugin for a language (shell, YAML, HCL, ...): skip it and list it in the report.
 
-## 5. OpenSpec (ask)
+## 6. OpenSpec (ask)
 
 Recommend it for application code where changes span several files or features. Recommend skipping it for config, infrastructure, and docs repositories.
 
 - Setup: `openspec init --tools claude,codex --no-animation`.
 - Update: run `openspec update`. Then list open changes with `openspec list` and point out finished ones that are not archived.
 
-## 6. codegraph (ask)
+## 7. codegraph (ask)
 
 Recommend it at about 50 or more source files in languages codegraph indexes. Recommend skipping it below that, and for config or docs repositories.
 
-- Setup: `codegraph init -y`. Add `.codegraph/` to `.gitignore`. Wire the MCP server and merge it into existing files:
-  - `.mcp.json`: `{"mcpServers": {"codegraph": {"type": "stdio", "command": "codegraph", "args": ["serve", "--mcp"]}}}`
-  - `.codex/config.toml`: `[mcp_servers.codegraph]`, `command = "codegraph"`, `args = ["serve", "--mcp"]`
-- Update: run `codegraph sync`, then check the wiring above.
+- Install the codegraph pin from `global-setup` part 3 inside the container. Setup: `devcontainer exec --workspace-folder . codegraph init -y`. Add `.codegraph/` to `.gitignore`.
+- Merge a container stdio launcher into `.mcp.json` and `.codex/config.toml`: use `command = "devcontainer"` and arguments `exec`, `--workspace-folder`, the resolved host workspace path, `codegraph`, `serve`, `--mcp`. Add `--config` when needed. Use a client-supported workspace variable only after checking its expansion; keep machine-specific paths out of shared config. Verify a project query, returned paths, and protocol output before enabling the integration.
+- Update: run `devcontainer exec --workspace-folder . codegraph sync`, then check the connection. If the client cannot resolve the workspace or file paths correctly, report the integration as unavailable; do not fall back to a host MCP process.
 
-## 7. Dead config
+## 8. Dead config
 
-Hooks and MCP servers in `.claude/settings*.json`, `.mcp.json`, and `.codex/` that call a missing command (check with `command -v`) fail on every use. Propose removing them.
+Check hooks and MCP servers in `.claude/settings*.json`, `.mcp.json`, and `.codex/` in their execution environment: host agent hooks on the host, container tools through `devcontainer exec`. A missing host binary does not make a container launcher obsolete. Propose removing entries whose required commands or project integration are no longer present.
 
-## 8. Report
+## 9. Report
 
-Give a table of each changed file, the skills added or removed (with their source), any binaries still missing, and steps skipped with the reason. Then tell the user to restart the agent.
+Give a table of each changed file, the skills added or removed (with their source), any binaries still missing, and steps skipped with the reason. Include the container launch result and the project checks actually run inside it; report MCP/browser and LSP connections separately as verified, unavailable, or untested. Then give the host agent launch command and the container command prefix for project work.

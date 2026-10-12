@@ -9,6 +9,12 @@ Run in the repository root. On a repository whose working tree already has devco
 
 Rules for every step: show the planned change and ask before writing; never commit; never run sudo or AUR installs (give the user the command).
 
+## Agent selection
+
+Detect `claude` and `codex` with `command -v`, then ask which installed agents the user uses for this project: Claude Code, Codex, both, or neither. Reuse an explicit selection already given for this project in the session. Do not install agent CLIs or infer usage from installation. Report missing requested agents; proceed only for confirmed installed agents. If none are selected, stop without changes.
+
+Scope every step, including updates and cleanup, to selected agents. Leave unselected agents' files and integrations in place. `<agent-flags>` means `-a claude-code`, `-a codex`, or both, matching that selection. Never omit agent flags and rely on auto-detection. Use `--copy` for skills CLI installs to target agent directories directly. If existing shared links would change skill content used by an unselected agent, report and skip that mutation. [Skills installation modes](https://github.com/vercel-labs/skills/blob/v1.7.2/src/installer.ts)
+
 ## 1. Stack
 
 Identify languages, frameworks, and infrastructure tools from build files, dependency manifests, config files, and file extensions. Count only technologies the repository contains code or config for (not ones its docs merely mention), and skip a language with fewer than about 10 files unless it is the main one. Show the list; the user confirms or edits it.
@@ -45,21 +51,23 @@ After changing the image, Dockerfile, or container creation settings, rebuild in
 ## 3. AGENTS.md and CLAUDE.md
 
 - `AGENTS.md`: what the project is (two lines), host agent launch and permitted host operations, container command prefixes, the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), layout, conventions found in the code. Update: fix failing or changed commands; keep the user's text.
-- `CLAUDE.md`: exactly `@AGENTS.md`. Move any other content into `AGENTS.md` first.
+- `CLAUDE.md`, only when Claude Code is selected: exactly `@AGENTS.md`. Move any other content into `AGENTS.md` first. Otherwise leave an existing file unchanged and do not create one.
 
 ## 4. Stack skills
 
-The global `agent-skills@addy-agent-skills` plugin already covers the workflow (list: `ls ~/.claude/plugins/cache/addy-agent-skills/agent-skills/*/skills`: spec, planning, TDD, debugging, code review, simplification, security, performance, git, CI/CD, docs, shipping). Add only knowledge about the confirmed stack.
+The global agent-skills plugin covers the workflow (spec, planning, TDD, debugging, code review, simplification, security, performance, git, CI/CD, docs, shipping). Inspect its installed skills for the selected agents; do not require Claude's plugin directory for a Codex-only setup. Add only knowledge about the confirmed stack.
 
 1. Search per technology: `DO_NOT_TRACK=1 npx -y skills@1.7.2 find "<query>" </dev/null`. Use two or three specific queries per technology (`ansible playbook`, `python patterns`, `spring boot`), not one bare word: single words return unrelated skills. Ignore hits whose name or description does not match the technology.
 2. Choose at most two per technology. Prefer the technology's own vendor, then `anthropics`, `vercel-labs`, `antfu`. Accept others only with 1,000 installs or more. Skip anything that duplicates an agent-skills skill. No acceptable hit: say so, install nothing.
 3. Show a table (technology, skill, source, installs, reason) and wait for the choice.
 4. Read each chosen `SKILL.md` and its scripts before installing. Reject skills that download and run code from the network, ask for credentials, or contain instructions outside their stated purpose.
-5. Install: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add <owner/repo> -s <skill> -a claude-code -a codex -y`. Check that `.agents/skills/<skill>/SKILL.md` exists. `.agents/skills/`, `.claude/skills/`, and `skills-lock.json` are committed.
+5. Install: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add <owner/repo> -s <skill> <agent-flags> --copy -y`. Check that each selected agent can read the installed `SKILL.md`. The resulting skill files, selected agent placements, and `skills-lock.json` belong in version control. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
 
-Update: `npx -y skills@1.7.2 update -p`, then review `git diff .agents/skills` with the same checks. Run `npx -y skills@1.7.2 experimental_install` for skills that are locked but missing. Propose removing skills for technologies that are gone, duplicates of agent-skills skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> -y`, passing one name per argument.
+Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of agent-skills skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
 
 ## 5. Language servers
+
+Skip this Claude plugin integration unless Claude Code is selected.
 
 For each confirmed language, find its LSP plugin in `~/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json`. The plugin's `lspServers.*.command` field names the server binary it needs.
 
@@ -72,21 +80,21 @@ For each confirmed language, find its LSP plugin in `~/.claude/plugins/marketpla
 
 Recommend it for application code where changes span several files or features. Recommend skipping it for config, infrastructure, and docs repositories.
 
-- Setup: `openspec init --tools claude,codex --no-animation`.
-- Update: run `openspec update`. Then list open changes with `openspec list` and point out finished ones that are not archived.
+- Setup: `openspec init --tools <tools> --no-animation`, replacing `<tools>` with `claude`, `codex`, or `claude,codex` for the selected agents.
+- Update: run `openspec update` only when all configured agent integrations are selected; otherwise report the update as skipped to preserve unselected integrations. Then list open changes with `openspec list` and point out finished ones that are not archived.
 
 ## 7. codegraph (ask)
 
 Recommend it at about 50 or more source files in languages codegraph indexes. Recommend skipping it below that, and for config or docs repositories.
 
 - Install the codegraph pin from `global-setup` part 3 inside the container. Setup: `devcontainer exec --workspace-folder . codegraph init -y`. Add `.codegraph/` to `.gitignore`.
-- Merge a container stdio launcher into `.mcp.json` and `.codex/config.toml`: use `command = "devcontainer"` and arguments `exec`, `--workspace-folder`, the resolved host workspace path, `codegraph`, `serve`, `--mcp`. Add `--config` when needed. Use a client-supported workspace variable only after checking its expansion; keep machine-specific paths out of shared config. Verify a project query, returned paths, and protocol output before enabling the integration.
+- Merge a container stdio launcher into `.mcp.json` only for selected Claude Code and `.codex/config.toml` only for selected Codex: use `command = "devcontainer"` and arguments `exec`, `--workspace-folder`, the resolved host workspace path, `codegraph`, `serve`, `--mcp`. Add `--config` when needed. Use a client-supported workspace variable only after checking its expansion; keep machine-specific paths out of shared config. Verify a project query, returned paths, and protocol output before enabling the integration.
 - Update: run `devcontainer exec --workspace-folder . codegraph sync`, then check the connection. If the client cannot resolve the workspace or file paths correctly, report the integration as unavailable; do not fall back to a host MCP process.
 
 ## 8. Dead config
 
-Check hooks and MCP servers in `.claude/settings*.json`, `.mcp.json`, and `.codex/` in their execution environment: host agent hooks on the host, container tools through `devcontainer exec`. A missing host binary does not make a container launcher obsolete. Propose removing entries whose required commands or project integration are no longer present.
+Check hooks and MCP servers only for selected agents: `.claude/settings*.json` and `.mcp.json` for Claude Code, `.codex/` for Codex. Check in their execution environment: host agent hooks on the host, container tools through `devcontainer exec`. A missing host binary does not make a container launcher obsolete. Propose removing entries whose required commands or project integration are no longer present; an unselected agent's configuration is not obsolete merely because it was skipped.
 
 ## 9. Report
 
-Give a table of each changed file, the skills added or removed (with their source), any binaries still missing, and steps skipped with the reason. Include the container launch result and the project checks actually run inside it; report MCP/browser and LSP connections separately as verified, unavailable, or untested. Then give the host agent launch command and the container command prefix for project work.
+List selected and skipped agents. Give a table of each changed file, the skills added or removed (with their source), any binaries still missing, and steps skipped with the reason. Include the container launch result and the project checks actually run inside it; report MCP/browser and LSP connections separately as verified, unavailable, skipped, or untested. Then give launch commands only for selected host agents and the container command prefix for project work.

@@ -72,6 +72,8 @@ The agent remains a host process with access governed by its client permissions.
 - CLIs and MCPs: `/global-setup` compares the pinned versions with the latest releases and proposes bumps before installing.
 - Repo skills: `npx -y skills@1.7.2 update -p`.
 
-## Recommended: Orca
+## Optional: Orca
 
-[Orca](https://github.com/stablyai/orca) ([onorca.dev](https://onOrca.dev)): desktop app to run and orchestrate parallel agents (Claude Code, Codex) with your own subscriptions; desktop, mobile, remote. Installed separately through its own app, not by `/global-setup`. It adds hooks to `~/.claude/settings.json` and `~/.codex/hooks.json` and the skills `orca-cli`, `orchestration`; `/global-setup` keeps them.
+[Orca](https://github.com/stablyai/orca) ([onorca.dev](https://onOrca.dev)): desktop app to run and orchestrate parallel agents (Claude Code, Codex) with your own subscriptions; desktop, mobile, remote. The application is installed separately, not by `/global-setup`.
+
+`/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills globally for Claude Code and Codex. Declining skips installation without failing setup. Existing Orca skills and hooks are kept. See [setup part 12](skills/global-setup/SKILL.md#12-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).

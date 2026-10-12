@@ -5,7 +5,7 @@ description: "Check, install, and clean the machine-wide agent setup for Claude 
 
 # Global setup
 
-Brings the machine to exactly the state below: every part present, nothing else agent-related. `$B` is this skill's repository (`$B/skills/global-setup/`; normally `/mnt/data/Projects/benchkeeper`).
+Brings the machine to the state below: required parts present, optional parts installed only when requested. `$B` is this skill's repository (`$B/skills/global-setup/`; normally `/mnt/data/Projects/benchkeeper`).
 
 Process: run every **Check**, show one table (part, ok or failing, what is wrong), ask, then run the **Install** block of each failing part and check again. Never run sudo. Merge into `~/.claude/settings.json` and `~/.codex/config.toml`; never overwrite them (Orca keeps hooks there).
 
@@ -112,13 +112,25 @@ npm i -g @devcontainers/cli@0.89.0
 ```
 If Docker is missing or inaccessible, report the failure and give the platform's [Docker installation](https://docs.docker.com/engine/install/) or daemon-start instructions; never run sudo. If the VS Code extension is missing, resolve and pin its exact version before installing it. `project-setup` owns each repository's configuration and launch checks. Do not report the development environment as ready until a container starts and its project checks run inside it.
 
+### 12. Orca skills (optional, ask)
+Check: `orca-cli/SKILL.md` and `orchestration/SKILL.md` are readable through both `~/.agents/skills/` and `~/.claude/skills/`. Keep existing installations. Missing optional skills are not a setup failure.
+
+If either skill is missing for either agent, ask: "Install the optional Orca skills (`orca-cli` and `orchestration`) globally for Claude Code and Codex?" Install only after an explicit yes. A no or no answer means skip; do not remove existing Orca skills or hooks.
+
+Install only the missing skills or agent placements on the host, restricting `-a` to the agents missing that skill. These commands target both agents when both are missing the skill ([Orca installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx)):
+```sh
+DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/stablyai/orca -s orca-cli -g -a claude-code -a codex -y
+DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/stablyai/orca -s orchestration -g -a claude-code -a codex -y
+```
+Check the skill files again after installation. The Orca application and CLI are installed separately; skill installation alone does not verify a working Orca runtime.
+
 ## Extras (clean)
 
 List and propose removing everything agent-related that is not a part above:
 
 - Plugins and marketplaces other than `ponytail`, `addy-agent-skills` (Codex: `agent-skills`), `claude-plugins-official` with its LSP plugins: `claude plugin uninstall`, `claude plugin marketplace remove`, `codex plugin remove`, `codex plugin marketplace remove`.
 - User MCP servers other than `context7`, `playwright`: `claude mcp remove --scope user`, `codex mcp remove`.
-- Global skills other than part 7: `npx -y skills@1.7.2 remove -g <name>`, or delete the symlink.
+- Global skills other than parts 7 and 12: `npx -y skills@1.7.2 remove -g <name>`, or delete the symlink.
 - Hooks in `~/.claude/settings.json` and `~/.codex/hooks.json` other than RTK.
 - Leftovers: a `statusLine` pointing to a missing file, rules files or `~/.codex/AGENTS.md` blocks from other toolkits, `*.bak` of the settings files, cache folders in `~/.claude/plugins/cache/` and `~/.codex/plugins/cache/` of plugins no longer installed, npm globals not used by a part above (except `@openai/codex`). Keep `@devcontainers/cli` on the host.
 
@@ -128,4 +140,4 @@ Kept unless the user says otherwise: Orca (`~/.orca`, its hooks, skills `orca-cl
 
 ## Report
 
-Table of parts 1 to 11 (ok or fixed or failing), extras removed or kept. Report the container runtime and CLI separately from project container readiness. Then: restart Claude Code and Codex on the host; in Codex run `/hooks` and trust new plugin hooks; in new sessions check Ponytail reports `full`, agent-skills commands (`/spec`, `/plan`) exist in Claude, the advisor is available, Remote Control connects.
+Table of parts 1 to 11 (ok or fixed or failing), optional part 12 (kept, installed, skipped, or failed), extras removed or kept. Report the container runtime and CLI separately from project container readiness. Then: restart Claude Code and Codex on the host; in Codex run `/hooks` and trust new plugin hooks; in new sessions check Ponytail reports `full`, agent-skills commands (`/spec`, `/plan`) exist in Claude, the advisor is available, Remote Control connects.

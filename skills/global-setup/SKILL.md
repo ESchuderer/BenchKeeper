@@ -118,12 +118,13 @@ claude plugin disable typescript-lsp@claude-plugins-official --scope user
 ```
 
 ### 9. Settings and telemetry
-Check: `~/.claude/settings.json` has `advisorModel` `opus`, `remoteControlAtStartup` true, `env.DISABLE_ERROR_REPORTING` `1`, `env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` `1`; `~/.codex/config.toml` has `[analytics]` `enabled = false`.
+Check: `~/.claude/settings.json` has `advisorModel` `opus`, `remoteControlAtStartup` true, `attribution.commit` `""` (disables commit co-author attribution), `env.DISABLE_ERROR_REPORTING` `1`, `env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` `1`; `~/.codex/config.toml` has `[analytics]` `enabled = false`. [Claude attribution settings](https://code.claude.com/docs/en/agent-sdk/modifying-system-prompts)
 Install:
 Claude Code only:
 ```sh
 f=~/.claude/settings.json
 jq '.advisorModel="opus" | .remoteControlAtStartup=true | .showClearContextOnPlanAccept=true
+    | .attribution.commit=""
     | .env=((.env//{}) + {"DISABLE_ERROR_REPORTING":"1","CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY":"1"})' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 ```
 Codex only:

@@ -27,7 +27,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 ## Ponytail and agent-skills
 - Use Ponytail `full` by default during applicable agent-skills phases, unless the user selects another mode.
 - Ponytail guides implementation choices within agreed scope. Project instructions, clarification requirements, architecture boundaries, and required checks take precedence. Sources, confidence levels, and response structure still apply.
-- Assess simplicity within `code-review-and-quality`; use `code-simplification` where needed within scope. Ponytail review and audit run on request, not as additional required gates.
+- Assess simplicity within `code-review-and-quality`; use `code-simplification` where needed within scope. Ponytail review runs on request, not as an additional required gate; `ponytail-audit` and `ponytail-debt` run in the Maintain step (SDLC).
 
 ## Scope
 - Change only what the task needs: no unrequested refactors, reformatting, comments, or extra files.
@@ -61,4 +61,11 @@ Skills from agent-skills (addyosmani) drive each phase; OpenSpec owns the spec f
 - Build: `incremental-implementation`, tests first where the repository has a test suite (`test-driven-development`); with OpenSpec through `openspec-apply-change`.
 - Verify: build, types, lint, tests before reporting done; UI changes in a browser (Playwright MCP). Report failures as they are.
 - Review and ship: code review before push (above); `openspec-archive-change` when the change is done.
+- Maintain: after each milestone, about every 10 merged changes, or on request, run a repo-wide pass:
+  - `ponytail-audit`: dead code, unused options, config and dependencies, duplicate helpers, risky code without tests;
+  - `ponytail-debt`: each `shortcut:` comment is still valid, upgraded, or becomes an issue;
+  - dependencies: the package manager's audit and unused dependencies (`security-and-hardening`);
+  - docs drift: ADRs, `AGENTS.md` and docs against the code (`documentation-and-adrs`);
+  - repository hygiene: unarchived OpenSpec changes, merged branches and worktrees, stopped containers.
+  Findings become issues. Delete code, tests or docs only after confirmation; remove a test only together with the code it covers (`deprecation-and-migration`).
 - A skill starts a phase directly: `/<skill>` (Claude Code), `$<skill>` or `@<skill>` (Codex).

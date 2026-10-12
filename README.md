@@ -4,6 +4,8 @@
 
 Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 
+Claude Code and Codex are independently optional. Setup detects installed agents and asks which you use. Only selected agents receive configuration, plugins, hooks, and skills. Agent CLIs are not installed by setup; unused or absent agents are skipped.
+
 ## Contents
 
 | Path | What | Linked as |
@@ -27,7 +29,7 @@ Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `project-setup` |
 | LSP `pyright-lsp`, `typescript-lsp` | host plugins, container servers | diagnostics after `project-setup` verifies the connection and file paths |
 
-Per repo (committed): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`. Not committed: `.codegraph/`.
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`. Not committed: `.codegraph/`.
 
 Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.md#ponytail-and-agent-skills) integrate them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
 
@@ -43,17 +45,17 @@ Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.m
 
 ## Setup steps
 
-1. Needs: `claude`, `codex`, `npm` (prefix `~/.local`, no sudo), `jq`, `curl`.
+1. Needs: at least one installed agent you use (`claude` or `codex`), plus `npm` (prefix `~/.local`, no sudo), `jq`, `curl` for applicable steps.
 2. Clone to `/mnt/data/Projects/benchkeeper`, open it in Claude Code or Codex.
-3. Run `/global-setup` (Codex: `$global-setup`). It checks each part, installs what is missing after confirmation, and removes extras. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
-4. Restart both agents; in Codex run `/hooks` and trust the plugin hooks.
-5. Java LSP: `project-setup` installs the JDK and server inside the project container and verifies the host plugin connection.
+3. Run `/global-setup` (Codex: `$global-setup`). Confirm which installed agents you use. It checks applicable parts, installs what is missing after confirmation, and proposes cleanup only within that scope. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
+4. Restart selected agents; if Codex is selected, run `/hooks` and trust the plugin hooks.
+5. Java LSP, when Claude Code is selected: `project-setup` installs the JDK and server inside the project container and verifies the host plugin connection.
 
 Rerun `/global-setup` after editing `rules/global.md` (Codex gets a copy, not a link).
 
 ## Per repo
 
-Run `/project-setup` (Codex: `$project-setup`). New repo: sets up. Existing setup: updates and cleans. Commit the result. Fresh clone: run `npx -y skills@1.7.2 experimental_install` on the host to restore agent skills.
+Run `/project-setup` (Codex: `$project-setup`). Confirm the agents used for this project. New repo: sets up. Existing setup: updates and cleans selected integrations. Commit the result. Fresh clone: use `project-setup` to restore skills for selected agents from their recorded sources.
 
 Agents run on the host and use standard devcontainers for project commands. `global-setup` configures host agent tooling, checks host Docker, and installs the pinned Dev Containers CLI; `project-setup` creates or updates the repository's container and project toolchain. Agent authentication, BenchKeeper, global rules, and skills stay on the host. Rootless engines, VMs, and microVMs are not required.
 
@@ -68,10 +70,12 @@ The agent remains a host process with access governed by its client permissions.
 
 ## Update
 
-- Plugins: `claude plugin marketplace update`, `codex plugin marketplace update` (not pinned).
+- Plugins: run `claude plugin marketplace update` only for selected Claude Code, `codex plugin marketplace update` only for selected Codex (not pinned).
 - CLIs and MCPs: `/global-setup` compares the pinned versions with the latest releases and proposes bumps before installing.
-- Repo skills: `npx -y skills@1.7.2 update -p`.
+- Repo skills: use `project-setup` to update selected skills and agent placements.
 
-## Recommended: Orca
+## Optional: Orca
 
-[Orca](https://github.com/stablyai/orca) ([onorca.dev](https://onOrca.dev)): desktop app to run and orchestrate parallel agents (Claude Code, Codex) with your own subscriptions; desktop, mobile, remote. Installed separately through its own app, not by `/global-setup`. It adds hooks to `~/.claude/settings.json` and `~/.codex/hooks.json` and the skills `orca-cli`, `orchestration`; `/global-setup` keeps them.
+[Orca](https://github.com/stablyai/orca) ([onorca.dev](https://onOrca.dev)): desktop app to run and orchestrate parallel agents (Claude Code, Codex) with your own subscriptions; desktop, mobile, remote. The application is installed separately, not by `/global-setup`.
+
+`/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills globally for selected agents only. Declining skips installation without failing setup. Existing Orca skills and hooks are kept. See [setup part 12](skills/global-setup/SKILL.md#12-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).

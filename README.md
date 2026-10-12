@@ -16,17 +16,20 @@ Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 
 | Component | Scope | Purpose |
 |---|---|---|
-| [Ponytail](https://github.com/DietrichGebert/ponytail), level `lite` | global, Claude + Codex | smallest-change coding |
+| [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | agents run on the host; project commands run inside the container |
+| [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity within agent-skills phases |
 | [agent-skills](https://github.com/addyosmani/agent-skills) | global, Claude + Codex | workflow: spec, plan, TDD, review, ship |
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | CLI global, wired per repo | spec files (owns the artifacts; agent-skills drives the process, [#166](https://github.com/addyosmani/agent-skills/issues/166)) |
 | [codegraph](https://github.com/colbymchenry/codegraph) | CLI global, wired per repo | code index + MCP |
 | [RTK](https://github.com/rtk-ai/rtk) | global, Claude + Codex | condensed command output |
 | [Context7 MCP](https://github.com/upstash/context7) | global, Claude + Codex | library docs |
-| [Playwright MCP](https://github.com/microsoft/playwright-mcp) | global, Claude + Codex | browser checks |
+| [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `project-setup` |
-| LSP `pyright-lsp`, `typescript-lsp` | global, Claude | type errors after edits; more per repo via `project-setup` |
+| LSP `pyright-lsp`, `typescript-lsp` | host plugins, container servers | diagnostics after `project-setup` verifies the connection and file paths |
 
-Per repo (committed): `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`. Not committed: `.codegraph/`.
+Per repo (committed): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`. Not committed: `.codegraph/`.
+
+Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.md#ponytail-and-agent-skills) integrate them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
 
 ## Telemetry
 
@@ -44,13 +47,24 @@ Per repo (committed): `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skil
 2. Clone to `/mnt/data/Projects/benchkeeper`, open it in Claude Code or Codex.
 3. Run `/global-setup` (Codex: `$global-setup`). It checks each part, installs what is missing after confirmation, and removes extras. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
 4. Restart both agents; in Codex run `/hooks` and trust the plugin hooks.
-5. Java LSP (needs sudo, by hand): `sudo pacman -S jdk-openjdk`, `jdtls` (AUR), `claude plugin install jdtls-lsp@claude-plugins-official`.
+5. Java LSP: `project-setup` installs the JDK and server inside the project container and verifies the host plugin connection.
 
 Rerun `/global-setup` after editing `rules/global.md` (Codex gets a copy, not a link).
 
 ## Per repo
 
-Run `/project-setup` (Codex: `$project-setup`). New repo: sets up. Existing setup: updates and cleans. Commit the result. Fresh clone: `npx -y skills@1.7.2 experimental_install`.
+Run `/project-setup` (Codex: `$project-setup`). New repo: sets up. Existing setup: updates and cleans. Commit the result. Fresh clone: run `npx -y skills@1.7.2 experimental_install` on the host to restore agent skills.
+
+Agents run on the host and use standard devcontainers for project commands. `global-setup` configures host agent tooling, checks host Docker, and installs the pinned Dev Containers CLI; `project-setup` creates or updates the repository's container and project toolchain. Agent authentication, BenchKeeper, global rules, and skills stay on the host. Rootless engines, VMs, and microVMs are not required.
+
+- CLI or an Orca worktree terminal: start the container with `devcontainer up --workspace-folder .`, then launch `claude` or `codex` on the host.
+- VS Code may attach to the same container for project terminals, builds, and debugging. Keep the agent in a host terminal.
+- Route project dependency installs, builds, lint, tests, and local MCP/browser tools through `devcontainer exec --workspace-folder . ...`. Host file inspection, edits, and Git operations remain available. Container startup failures stop dependent commands; they do not trigger a host fallback. Native chat and extension execution locations need separate verification.
+- Project MCP/browser and language-server connections need verified container launchers and file paths. A host plugin or binary installation alone does not establish container execution; unsupported connections are reported as unavailable.
+
+Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli), [VS Code](https://code.visualstudio.com/docs/devcontainers/containers). The setup policy scopes mounts to the project and excludes host homes, engine sockets, privileged mode, and credential forwarding. Client defaults need checking; VS Code can forward Git credentials and SSH agents automatically. [Credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)
+
+The agent remains a host process with access governed by its client permissions. The devcontainer scopes project commands and their mounts; it does not isolate the host agent. [Container security](https://docs.docker.com/engine/security/)
 
 ## Update
 

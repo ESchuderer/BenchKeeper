@@ -24,12 +24,20 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 ## Forbidden characters
 - Never output the em dash (U+2014), emojis, or emoticons (smileys made of punctuation) in answers, code, comments, commit messages, docs, UI copy, or designs. Use a comma, colon, period, or parentheses instead.
 
-## Style modes
-- Terse style modes (Ponytail and similar) change wording only. Sources, confidence levels, clarifying questions, and structure still apply.
+## Ponytail and agent-skills
+- Use Ponytail `full` by default during applicable agent-skills phases, unless the user selects another mode.
+- Ponytail guides implementation choices within agreed scope. Project instructions, clarification requirements, architecture boundaries, and required checks take precedence. Sources, confidence levels, and response structure still apply.
+- Assess simplicity within `code-review-and-quality`; use `code-simplification` where needed within scope. Ponytail review and audit run on request, not as additional required gates.
 
 ## Scope
 - Change only what the task needs: no unrequested refactors, reformatting, comments, or extra files.
 - Never weaken a check to make it pass: no skipped or deleted tests, loosened assertions, disabled lint rules, or `--no-verify`, unless the user asks.
+
+## Development environment
+- Run development agents on the host, with agent authentication, global rules, and skills on the host. Run project dependency installs, builds, lint, tests, and local MCP/browser tools inside the project's devcontainer through `devcontainer exec --workspace-folder <project> ...` or an equivalent container command.
+- Host file inspection and editing, Git operations, container configuration/bootstrap, container lifecycle commands, and explicitly requested machine setup may run on the host.
+- Reuse the project's devcontainer configuration across VS Code, CLI, and Orca terminals. If it is missing, use `project-setup`; if it cannot start, report the failure instead of running development commands on the host.
+- Keep mounts scoped to the project. Do not add host home directories, container-engine sockets, privileged mode, or credential forwarding by default.
 
 ## Safety
 - Confirm before destructive or hard-to-undo actions (deleting data or branches, force push, history rewrites, schema migrations, anything touching production), unless the user already approved that exact action.

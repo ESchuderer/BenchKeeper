@@ -1,0 +1,205 @@
+{
+  "description": "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.",
+  "prerequisites": [
+    {
+      "name": "Claude Code",
+      "url": "https://code.claude.com/docs/en/setup",
+      "for": "agent (one or both)"
+    },
+    {
+      "name": "Codex CLI",
+      "url": "https://developers.openai.com/codex/cli",
+      "for": "agent (one or both)"
+    },
+    {
+      "name": "Git",
+      "url": "https://git-scm.com/downloads",
+      "for": "clone, branches, commits"
+    },
+    {
+      "name": "GitHub CLI",
+      "url": "https://cli.github.com/",
+      "for": "issues and pull requests (optional, local branches without it)"
+    },
+    {
+      "name": "Node.js and npm",
+      "url": "https://nodejs.org/en/download",
+      "for": "global CLIs, prefix `~/.local`"
+    },
+    {
+      "name": "uv",
+      "url": "https://docs.astral.sh/uv/getting-started/installation/",
+      "for": "Spec Kit"
+    },
+    {
+      "name": "jq",
+      "url": "https://jqlang.org/download/",
+      "for": "setup scripts"
+    },
+    {
+      "name": "curl",
+      "url": "https://curl.se/download.html",
+      "for": "setup scripts"
+    },
+    {
+      "name": "Docker Engine",
+      "url": "https://docs.docker.com/engine/install/",
+      "for": "devcontainers"
+    },
+    {
+      "name": "VS Code",
+      "url": "https://code.visualstudio.com/download",
+      "for": "optional, attach to the devcontainer"
+    }
+  ],
+  "parallelTools": [
+    {
+      "name": "Orca",
+      "url": "https://github.com/stablyai/orca",
+      "platforms": "macOS, Windows, Linux",
+      "icon": "stack",
+      "points": [
+        "one git worktree per agent; the same prompt across several agents to compare results",
+        "terminal splits, SSH remote worktrees, mobile companion app",
+        "`/global-setup` offers its `orca-cli` and `orchestration` skills, only after asking"
+      ],
+      "when": "you want terminal-centered parallel agents with worktrees, remote machines or mobile access"
+    },
+    {
+      "name": "Nimbalyst",
+      "url": "https://github.com/Nimbalyst/nimbalyst",
+      "platforms": "macOS, Windows, Linux",
+      "icon": "kanban",
+      "points": [
+        "parallel sessions on a kanban board, one-click worktree per session",
+        "every agent edit arrives as a diff you approve or reject",
+        "visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app"
+      ],
+      "when": "you want to review each change visually and work on docs, mockups and tasks next to the agents"
+    },
+    {
+      "name": "cmux",
+      "url": "https://github.com/manaflow-ai/cmux",
+      "platforms": "macOS only",
+      "icon": "terminal",
+      "points": [
+        "Ghostty-based terminal with vertical tabs",
+        "notifications when an agent needs input; sidebar with branch, PR status and ports",
+        "browser pane inside the terminal"
+      ],
+      "when": "you are on macOS and want a terminal-first workflow without a separate app layer"
+    }
+  ],
+  "openhands": {
+    "name": "OpenHands",
+    "url": "https://github.com/OpenHands/OpenHands",
+    "summary": "A different role from the three above: a self-hosted agent server with a web UI that runs work without you at the terminal.",
+    "points": [
+      "Each conversation can run in its own Docker container (`OH_CONVERSATION_RUNTIME=docker`), one of the isolation options BenchKeeper does not provide.",
+      "Runs its own agent or hosts Claude Code, Codex and Gemini CLI; works with any LLM.",
+      "Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks.",
+      "Without a sandbox, the local agent has full access to your filesystem.",
+      "Unverified: whether agents inside its containers load the BenchKeeper rules and skills; they are installed on the host, not in those containers."
+    ]
+  },
+  "sdlc": {
+    "requirements": "Requests come from you, GitHub issues, Jira, Linear or other trackers, bug reports, reviews and Maintain findings, linked or pasted; only GitHub issues are automated.",
+    "phases": [
+      {
+        "name": "Define",
+        "key": "define",
+        "color": "teal"
+      },
+      {
+        "name": "Build",
+        "key": "build",
+        "color": "cyan"
+      },
+      {
+        "name": "Ship",
+        "key": "ship",
+        "color": "indigo"
+      },
+      {
+        "name": "Maintain",
+        "key": "maintain",
+        "color": "gray"
+      }
+    ],
+    "steps": [
+      {
+        "name": "Understand",
+        "phase": "define",
+        "sub": "request, AGENTS.md, code",
+        "tip": "Reads the request, AGENTS.md and the code it touches. No edits yet.",
+        "text": "Read the request, `AGENTS.md` and the code the change touches before any edit."
+      },
+      {
+        "name": "Track",
+        "phase": "define",
+        "sub": "GitHub issue",
+        "human": "approve issue",
+        "tip": "Turns the request into a GitHub issue with goal, acceptance criteria and tasks. You approve it.",
+        "text": "No GitHub issue yet: the agent turns the request into title, goal, acceptance criteria and tasks, and creates the issue after your approval."
+      },
+      {
+        "name": "Branch",
+        "phase": "define",
+        "sub": "type/issue-slug",
+        "tip": "Creates <type>/<issue>-<slug> from the default branch.",
+        "text": "`<type>/<issue>-<slug>`, never work on the default branch without being told to."
+      },
+      {
+        "name": "Specify",
+        "phase": "define",
+        "sub": "OpenSpec / Spec Kit",
+        "tip": "Writes the spec as an OpenSpec change or a Spec Kit feature spec, or uses plan mode.",
+        "text": "`spec-driven-development`, written as an OpenSpec change or a Spec Kit feature spec when the repository has one."
+      },
+      {
+        "name": "Plan",
+        "phase": "build",
+        "sub": "tasks.md",
+        "tip": "Breaks the spec into small tasks with acceptance criteria.",
+        "text": "`planning-and-task-breakdown` into small tasks with acceptance criteria."
+      },
+      {
+        "name": "Build",
+        "phase": "build",
+        "sub": "small slices, tests first",
+        "tip": "Implements task by task, tests first, the smallest complete change.",
+        "text": "`incremental-implementation`, tests first where a test suite exists, Ponytail `full` for the smallest complete change."
+      },
+      {
+        "name": "Verify",
+        "phase": "build",
+        "sub": "build, lint, tests, browser",
+        "tip": "Runs build, types, lint and tests in the devcontainer; checks UI changes in a browser.",
+        "text": "Build, types, lint and tests inside the devcontainer; UI changes in a browser through Playwright MCP."
+      },
+      {
+        "name": "Review",
+        "phase": "ship",
+        "sub": "code review before push",
+        "human": "findings stop push",
+        "tip": "Reviews the commits for correctness before push. Findings wait for you.",
+        "text": "Correctness review of the commits before `git push`; findings stop the push until you decide."
+      },
+      {
+        "name": "Ship",
+        "phase": "ship",
+        "sub": "draft PR, checks, ready",
+        "human": "you merge",
+        "tip": "Opens a draft pull request, waits for checks, marks it ready. You merge.",
+        "text": "Draft pull request with `Closes #n`, wait for checks, mark ready. Merge only on your instruction."
+      },
+      {
+        "name": "Maintain",
+        "phase": "maintain",
+        "sub": "findings: new requests",
+        "tip": "About every 10 merges: audit, debt, dependencies, docs drift. Findings become new requests.",
+        "text": "About every 10 merged changes: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, repository hygiene. Findings become new requests."
+      }
+    ]
+  }
+}

@@ -287,7 +287,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="How it reduces cost" intro={<>Ponytail is the component with an independent cost measurement. OpenSpec, Spec Kit and agent-skills publish no cost figures and have no independent measurement. Vendor figures are not measurements of your repositories. Components evaluated and removed: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="How it reduces cost" intro={<>Ponytail is the component with an independent cost measurement. OpenSpec, Spec Kit and agent-skills publish no cost figures and have no independent measurement. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>

@@ -2,10 +2,10 @@
 import math
 C, R = 320, 220
 steps = [
-    ("Understand", "AGENTS.md, issue, code"), ("Track", "GitHub issue"), ("Branch", "type/issue-slug"),
+    ("Understand", "request, AGENTS.md, code"), ("Track", "GitHub issue"), ("Branch", "type/issue-slug"),
     ("Specify", "OpenSpec / Spec Kit"), ("Plan", "tasks.md"), ("Build", "small slices, tests first"),
     ("Verify", "build, lint, tests, browser"), ("Review", "code review before push"),
-    ("Ship", "draft PR, checks, ready"), ("Maintain", "audit, debt, drift"),
+    ("Ship", "draft PR, checks, ready"), ("Maintain", "findings: new requests"),
 ]
 you = {1: "approve issue", 7: "findings stop push", 8: "you merge"}
 phases = [("Define", "define", 0, 3), ("Build", "build", 4, 6), ("Ship", "ship", 7, 8), ("Maintain", "maintain", 9, 9)]
@@ -19,10 +19,10 @@ def arc(a0, a1, r=R):
     large = 1 if (a1 - a0) % 360 > 180 else 0
     return f"M{x0:.1f} {y0:.1f}A{r} {r} 0 {large} 1 {x1:.1f} {y1:.1f}"
 
-o = ['<svg class="ring" viewBox="-140 -10 920 670" role="img" aria-labelledby="ring-t ring-d">',
+o = ['<svg class="ring" viewBox="-140 -40 920 700" role="img" aria-labelledby="ring-t ring-d">',
      '<title id="ring-t">BenchKeeper SDLC loop</title>',
      '<desc id="ring-d">Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. '
-     'Build: Plan, Build, Verify. Ship: Review, Ship. Maintain. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>',
+     'Build: Plan, Build, Verify. Ship: Review, Ship. Maintain. A request enters at Understand; Maintain findings become new requests. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>',
      f'<circle class="track" cx="{C}" cy="{C}" r="{R}"/>']
 for name, cls, i0, i1 in phases:
     a0, a1 = i0 * 36 - 13, i1 * 36 + 13
@@ -30,6 +30,10 @@ for name, cls, i0, i1 in phases:
     mid = (a0 + a1) / 2
     x, y = pt(mid, 160)
     o.append(f'<text class="ph-l {cls}" x="{x:.1f}" y="{y + 4:.1f}" text-anchor="middle">{name.upper()}</text>')
+o.append('<path class="flow" d="M320 -36V2"/><path class="flow-head" d="M313 0L320 13 327 0z"/>')
+o.append('<text class="flow-t" x="330" y="-14">request</text>')
+o.append('<path class="flow back" d="M168 112C140 40 210 -24 306 -28"/><path class="flow-head back" d="M300 -34L314 -28 301 -21z"/>')
+o.append('<text class="flow-t" x="148" y="40" text-anchor="end">findings</text>')
 for k in range(10):
     x, y = pt(k * 36 + 18)
     o.append(f'<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate({x:.1f} {y:.1f}) rotate({k * 36 + 18})"/>')

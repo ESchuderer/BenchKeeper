@@ -1,6 +1,6 @@
-<svg class="ring" viewBox="-140 -10 920 670" role="img" aria-labelledby="ring-t ring-d">
+<svg class="ring" viewBox="-140 -40 920 700" role="img" aria-labelledby="ring-t ring-d">
 <title id="ring-t">BenchKeeper SDLC loop</title>
-<desc id="ring-d">Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. Build: Plan, Build, Verify. Ship: Review, Ship. Maintain. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>
+<desc id="ring-d">Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. Build: Plan, Build, Verify. Ship: Review, Ship. Maintain. A request enters at Understand; Maintain findings become new requests. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>
 <circle class="track" cx="320" cy="320" r="220"/>
 <path class="phase define" d="M270.5 105.6A220 220 0 0 1 508.6 433.3"/>
 <text class="ph-l define" x="449.4" y="230.0" text-anchor="middle">DEFINE</text>
@@ -10,6 +10,10 @@
 <text class="ph-l ship" x="160.0" y="324.0" text-anchor="middle">SHIP</text>
 <path class="phase maintain" d="M154.0 175.7A220 220 0 0 1 234.0 117.5"/>
 <text class="ph-l maintain" x="226.0" y="194.6" text-anchor="middle">MAINTAIN</text>
+<path class="flow" d="M320 -36V2"/><path class="flow-head" d="M313 0L320 13 327 0z"/>
+<text class="flow-t" x="330" y="-14">request</text>
+<path class="flow back" d="M168 112C140 40 210 -24 306 -28"/><path class="flow-head back" d="M300 -34L314 -28 301 -21z"/>
+<text class="flow-t" x="148" y="40" text-anchor="end">findings</text>
 <path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(388.0 110.8) rotate(18)"/>
 <path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(498.0 190.7) rotate(54)"/>
 <path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(540.0 320.0) rotate(90)"/>
@@ -28,7 +32,7 @@
 <text class="core-s" x="320" y="382" text-anchor="middle">everything else: the agent</text>
 <g class="node"><circle cx="320.0" cy="100.0" r="27"/><text class="n" x="320.0" y="106.0" text-anchor="middle">1</text></g>
 <text class="lbl" x="320.0" y="30.0" text-anchor="middle">Understand</text>
-<text class="sub" x="320.0" y="48.0" text-anchor="middle">AGENTS.md, issue, code</text>
+<text class="sub" x="320.0" y="48.0" text-anchor="middle">request, AGENTS.md, code</text>
 <circle class="you-ring" cx="449.3" cy="142.0" r="35"/>
 <g class="node"><circle cx="449.3" cy="142.0" r="27"/><text class="n" x="449.3" y="148.0" text-anchor="middle">2</text></g>
 <text class="lbl" x="493.8" y="83.9" text-anchor="start">Track</text>
@@ -61,5 +65,5 @@
 <text class="you-t" x="43.8" y="267.9" text-anchor="end">you merge</text>
 <g class="node"><circle cx="190.7" cy="142.0" r="27"/><text class="n" x="190.7" y="148.0" text-anchor="middle">10</text></g>
 <text class="lbl" x="146.2" y="83.9" text-anchor="end">Maintain</text>
-<text class="sub" x="146.2" y="101.9" text-anchor="end">audit, debt, drift</text>
+<text class="sub" x="146.2" y="101.9" text-anchor="end">findings: new requests</text>
 </svg>

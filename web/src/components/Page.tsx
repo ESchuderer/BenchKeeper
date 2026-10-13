@@ -5,7 +5,7 @@ import {
 import {
   IconArrowDown, IconArrowRight, IconBook, IconBox, IconBrandGithub, IconBrowser, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
-  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconShieldHalf, IconSun, IconTopologyStar3, IconArrowsMinimize,
+  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconInbox, IconSun, IconTopologyStar3, IconArrowsMinimize,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import sdlc from '../assets/sdlc.svg?raw';
@@ -82,8 +82,8 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 const steps: [string, ReactNode][] = [
-  ['Understand', <>Read <Code>AGENTS.md</Code>, the issue and the code the change touches before any edit.</>],
-  ['Track', 'No issue yet: the agent presents title, goal, acceptance criteria and tasks, and creates the issue after approval.'],
+  ['Understand', <>Read the request (prompt, issue or ticket), <Code>AGENTS.md</Code> and the code the change touches before any edit.</>],
+  ['Track', 'No GitHub issue yet: the agent turns the request into title, goal, acceptance criteria and tasks, and creates the issue after your approval.'],
   ['Branch', <><Code>{'<type>/<issue>-<slug>'}</Code>, never work on the default branch without being told to.</>],
   ['Specify', <><Code>spec-driven-development</Code>, written as an OpenSpec change or a Spec Kit feature spec when the repository has one.</>],
   ['Plan', <><Code>planning-and-task-breakdown</Code> into small tasks with acceptance criteria.</>],
@@ -91,7 +91,7 @@ const steps: [string, ReactNode][] = [
   ['Verify', 'Build, types, lint and tests inside the devcontainer; UI changes in a browser through Playwright MCP.'],
   ['Review', <>Correctness review of the commits before <Code>git push</Code>; findings stop the push until you decide.</>],
   ['Ship', <>Draft pull request with <Code>Closes #n</Code>, wait for checks, mark ready. Merge only on your instruction.</>],
-  ['Maintain', <>About every 10 merged changes: <Code>ponytail-audit</Code>, <Code>ponytail-debt</Code>, dependency audit, docs drift, repository hygiene.</>],
+  ['Maintain', <>About every 10 merged changes: <Code>ponytail-audit</Code>, <Code>ponytail-debt</Code>, dependency audit, docs drift, repository hygiene. Findings become new requests.</>],
 ];
 
 const decides = new Set([1, 7, 8]);
@@ -195,6 +195,18 @@ export default function Page({ base }: { base: string }) {
         </Section>
 
         <Section id="sdlc" title="One loop for every change" intro="The global rules route each change through the same ten steps. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec or Spec Kit holds the spec files when the repository uses one.">
+          <Paper withBorder radius="lg" p="md" maw={760} mx="auto" className="sources">
+            <Group gap="xs" justify="center" wrap="nowrap">
+              <ThemeIcon variant="light" size={30} radius="xl"><IconInbox size={18} /></ThemeIcon>
+              <Text fw={700}>Every change starts with a request</Text>
+            </Group>
+            <Group gap={8} justify="center" mt="sm">
+              {['You, in the chat', 'GitHub issue', 'Ticket in Jira, Linear or another tracker', 'Bug report', 'Review comment', 'Maintain finding'].map((t) => (
+                <Badge key={t} variant="default" size="lg" radius="sm" tt="none" fw={500}>{t}</Badge>
+              ))}
+            </Group>
+            <Text size="xs" c="dimmed" ta="center" mt="sm">The agent reads what you link or paste. The rules track work as GitHub issues; other trackers need their own integration, not part of BenchKeeper.</Text>
+          </Paper>
           <div dangerouslySetInnerHTML={{ __html: sdlc }} />
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} mt={40}>
             <StepList from={0} />
@@ -226,7 +238,7 @@ export default function Page({ base }: { base: string }) {
               </Stack>
             </Paper>
           </Box>
-          <Alert mt="xl" variant="default" icon={<IconShieldHalf size={20} />} title="Not full isolation">
+          <Alert mt="xl" variant="light" color="yellow" className="warn" icon={<IconAlertTriangle size={20} />} title="Not full isolation">
             <Text size="sm">The agent runs on the host with its client permissions; the devcontainer only scopes project commands. Options for stronger isolation, not part of BenchKeeper:</Text>
             <List size="sm" mt="xs" spacing={4}>
               <List.Item><b>Shared VM</b>: agents and all projects in one VM; protects the host, not projects from each other.</List.Item>
@@ -280,19 +292,19 @@ export default function Page({ base }: { base: string }) {
         </Section>
 
         <Section id="quality" title="How it raises quality" intro={<>Each item is a rule the agents load in every session. Source: <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor>.</>}>
-          <SimpleGrid cols={{ base: 1, md: 2 }}>
-            <Card withBorder padding="lg"><List spacing="md" styles={listTop}>
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48}>
+            <List spacing="lg" styles={listTop}>
               <Check ok title="Ask, do not assume.">Ambiguous requests stop for precise questions instead of a guess.</Check>
               <Check ok title="Spec before code.">Non-trivial changes get a written spec and a task list.</Check>
               <Check ok title="Tests first">where the repository has a test suite; non-trivial logic leaves a test.</Check>
               <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions, disabled lint rules or --no-verify unless you ask.</Check>
-            </List></Card>
-            <Card withBorder padding="lg"><List spacing="md" styles={listTop}>
+            </List>
+            <List spacing="lg" styles={listTop}>
               <Check ok title="Review before push.">A correctness review runs on the commits; findings wait for your decision.</Check>
               <Check ok title="Sources and confidence.">External claims carry an official URL; uncertain topics state a confidence level.</Check>
               <Check ok title="Reproducible tools.">Exact versions for every install and container image.</Check>
               <Check ok title="Scheduled cleanup.">The Maintain pass finds dead code, stale shortcuts, vulnerable dependencies and docs drift.</Check>
-            </List></Card>
+            </List>
           </SimpleGrid>
         </Section>
 
@@ -349,17 +361,17 @@ export default function Page({ base }: { base: string }) {
         </Section>
 
         <Section id="not" title="What it is not">
-          <SimpleGrid cols={{ base: 1, md: 2 }}>
-            <Card withBorder padding="lg"><List spacing="md" styles={listTop}>
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48}>
+            <List spacing="lg" styles={listTop}>
               <Check ok={false} title="Not an agent.">It configures Claude Code and Codex; it does not replace them and does not install their CLIs.</Check>
               <Check ok={false} title="Not a sandbox for the agent.">The devcontainer scopes project commands and mounts; the agent stays a host process under its client permissions.</Check>
               <Check ok={false} title="Not a hosted service.">BenchKeeper is files in a Git repository; it runs no server and has no account.</Check>
-            </List></Card>
-            <Card withBorder padding="lg"><List spacing="md" styles={listTop}>
+            </List>
+            <List spacing="lg" styles={listTop}>
               <Check ok={false} title="Not a build system or framework.">Your project keeps its own toolchain.</Check>
               <Check ok={false} title="Not auto-updating.">Versions change only when /global-setup proposes a bump and you accept it.</Check>
               <Check ok={false} title="Not autonomous on your machine or repository.">Setup applies only the plan you approve and confirms destructive items again; merges and pushes to the default branch need your instruction.</Check>
-            </List></Card>
+            </List>
           </SimpleGrid>
         </Section>
 

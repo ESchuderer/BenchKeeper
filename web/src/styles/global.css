@@ -86,3 +86,16 @@ html:root[data-mantine-color-scheme="dark"] { --mantine-color-dimmed: #b0b0b0; -
 .skip:focus { top: 8px; }
 main:focus { outline: none; }
 .decide { color: var(--decide); border-color: var(--decide); }
+
+/* warning text: Mantine's yellow light variant is too pale for AA on light backgrounds */
+html:root[data-mantine-color-scheme="light"] .warn { --alert-color: #8a5a00; }
+.ring .flow { fill: none; stroke: var(--mantine-color-dimmed); stroke-width: 2; }
+.ring .flow.back { stroke-dasharray: 5 5; }
+.ring .flow-head { fill: var(--mantine-color-dimmed); }
+.ring .flow-t { fill: var(--mantine-color-dimmed); font-size: 12.5px; font-style: italic; }
+.sources { position: relative; z-index: 1; }
+@media (max-width: 639px) { .ring .flow-t { display: none; } }
+html:root[data-mantine-color-scheme="light"] .warn .mantine-Alert-title { color: #8a5a00; }
+html:root[data-mantine-color-scheme="light"] .warn a { color: #05664a; }
+html:root[data-mantine-color-scheme="dark"] .warn.mantine-Alert-root { background: color-mix(in srgb, var(--mantine-color-yellow-7) 12%, var(--mantine-color-body)); border: 1px solid color-mix(in srgb, var(--mantine-color-yellow-6) 40%, transparent); }
+html:root[data-mantine-color-scheme="dark"] .warn .mantine-Alert-title, html:root[data-mantine-color-scheme="dark"] .warn .mantine-Alert-icon { color: var(--mantine-color-yellow-4); }

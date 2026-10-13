@@ -24,7 +24,7 @@ Blocks listing both `claude` and `codex` commands are alternatives: run only sel
 
 In commands below, replace `<agent-flags>` with the selected agents' flags and `<skill-dir>` with a selected agent's directory; repeat directory-specific commands for each selection. Never omit the flags and rely on auto-detection. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
 
-Needs `npm` with prefix `~/.local`, `jq`, `curl`, and `gh` (authenticated, for the issue and pull request flow in `rules/global.md`) for applicable steps. Missing: stop and tell the user.
+Needs `npm` with prefix `~/.local`, `jq`, `curl` for applicable steps. Missing: stop and tell the user. `gh` missing or `gh auth status` failing: warn that the issue and pull request flow in `rules/global.md` falls back to local branches, and continue.
 
 Agents run on the host; project development commands run in standard devcontainers. Apply this skill to the host agent setup and check part 11 before project setup. Keep BenchKeeper, agent authentication, global rules, and skills on the host. `project-setup` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials. Rootless engines, VMs, and microVMs are not required.
 

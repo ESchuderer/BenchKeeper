@@ -118,18 +118,19 @@ claude plugin disable typescript-lsp@claude-plugins-official --scope user
 ```
 
 ### 9. Settings and telemetry
-Check: `~/.claude/settings.json` has `advisorModel` `opus`, `remoteControlAtStartup` true, `attribution.commit` `""` (disables commit co-author attribution), `env.DISABLE_ERROR_REPORTING` `1`, `env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` `1`; `~/.codex/config.toml` has `[analytics]` `enabled = false`. [Claude attribution settings](https://code.claude.com/docs/en/agent-sdk/modifying-system-prompts)
+Check: `~/.claude/settings.json` has `advisorModel` `opus`, `remoteControlAtStartup` true, `attribution` `{"commit":"Assisted-by: generative AI","pr":"Created with the assistance of generative AI.","sessionUrl":false}` (neutral AI disclosure, no model name, no claude.ai session link), `env.DISABLE_ERROR_REPORTING` `1`, `env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` `1`; `~/.codex/config.toml` has `[analytics]` `enabled = false` and `[feedback]` `enabled = false` (Codex has no attribution setting). [Claude attribution settings](https://code.claude.com/docs/en/settings-reference#attribution), [Codex config](https://developers.openai.com/codex/config-reference)
 Install:
 Claude Code only:
 ```sh
 f=~/.claude/settings.json
 jq '.advisorModel="opus" | .remoteControlAtStartup=true | .showClearContextOnPlanAccept=true
-    | .attribution.commit=""
+    | .attribution={"commit":"Assisted-by: generative AI","pr":"Created with the assistance of generative AI.","sessionUrl":false}
     | .env=((.env//{}) + {"DISABLE_ERROR_REPORTING":"1","CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY":"1"})' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 ```
 Codex only:
 ```sh
 grep -q '^\[analytics\]' ~/.codex/config.toml || printf '\n[analytics]\nenabled = false\n' >> ~/.codex/config.toml
+grep -q '^\[feedback\]' ~/.codex/config.toml || printf '\n[feedback]\nenabled = false\n' >> ~/.codex/config.toml
 ```
 
 ### 10. Advisor and Remote Control not disabled

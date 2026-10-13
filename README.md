@@ -2,7 +2,9 @@
 
 # BenchKeeper
 
+<!-- generated:description -->
 BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.
+<!-- /generated:description -->
 
 Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 
@@ -117,9 +119,9 @@ Not installed by BenchKeeper. Each one works with the agents and rules set up he
 
 Orca only: `/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills for selected agents. Declining skips them without failing setup; existing Orca skills and hooks are kept. See [setup part 12](skills/global-setup/SKILL.md#12-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
 
-**Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A different role from the three above: a self-hosted agent server with a web UI.
-
 <!-- generated:openhands -->
+**Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A different role from the three above: a self-hosted agent server with a web UI that runs work without you at the terminal.
+
 - Each conversation can run in its own Docker container (`OH_CONVERSATION_RUNTIME=docker`), one of the isolation options BenchKeeper does not provide.
 - Runs its own agent or hosts Claude Code, Codex and Gemini CLI; works with any LLM.
 - Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks.

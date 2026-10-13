@@ -31,8 +31,6 @@ jobs:
       - run: npm ci
       - run: node scripts/readme.mjs --check
       - run: npm run build
-      # Astro emits the React client renderer; the page has no islands and never loads it.
-      - run: rm -f dist/_astro/client.*.js
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - uses: lycheeverse/lychee-action@v2.9.0

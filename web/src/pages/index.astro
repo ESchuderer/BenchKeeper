@@ -28,12 +28,13 @@ import '@mantine/core/styles/Title.css';
 import '@fontsource-variable/inter';
 import '../styles/global.css';
 import Page from '../components/Page';
+import facts from '../data/facts.json';
 
 import { execSync } from 'node:child_process';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const pageUrl = new URL(`${base}/`, Astro.site).href;
-const description = "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.";
+const { description } = facts;
 // Last commit for the footer; builds without git (e.g. a slim container) omit it.
 let updated: string | undefined, commit: string | undefined;
 try {
@@ -81,10 +82,11 @@ try {
       var status = document.querySelector('[data-copy-status]');
       document.querySelectorAll('[data-copy]').forEach(function (b) {
         b.addEventListener('click', function () {
-          navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () {
-            b.classList.add('copied'); status.textContent = 'Copied';
-            setTimeout(function () { b.classList.remove('copied'); status.textContent = ''; }, 1500);
-          });
+          function done(msg) { status.textContent = msg; setTimeout(function () { b.classList.remove('copied'); status.textContent = ''; }, 1500); }
+          // Clipboard needs a secure context (https or localhost).
+          if (!navigator.clipboard) return done('Copy is not available here; select the command instead');
+          navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () { b.classList.add('copied'); done('Copied'); },
+            function () { done('Copy failed; select the command instead'); });
         });
       });
       // SDLC loop: tooltip follows the cursor on hover devices; a tap or click on a step jumps to its description.

@@ -117,9 +117,10 @@ td code { white-space: normal; overflow-wrap: anywhere; }
 .ring-wrap { position: relative; }
 .ring-tip { position: absolute; z-index: 5; max-width: 280px; padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45; pointer-events: none;
   background: var(--mantine-color-body); color: var(--mantine-color-text); border: 1px solid var(--mantine-color-default-border); box-shadow: var(--mantine-shadow-md); }
-.ring [data-tip], .ring a.step { cursor: pointer; }
+.ring [data-tip] { cursor: pointer; }
 .ring a.step:focus-visible .node circle { stroke: var(--mantine-color-teal-6); stroke-width: 3; }
-.ring a.step:focus { outline: none; }
+.ring a:focus { outline: none; }
+.ring a.req:focus-visible rect, .ring a.human:focus-visible .you-ring { stroke-width: 4; }
 .mantine-Timeline-item { scroll-margin-top: 80px; }
 .mantine-Timeline-item:target { animation: flash 1.6s ease-out; border-radius: 8px; }
 @keyframes flash { from { background: color-mix(in srgb, var(--mantine-color-teal-5) 22%, transparent); } to { background: transparent; } }

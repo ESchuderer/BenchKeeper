@@ -17,11 +17,12 @@ in `web/` (Astro, Mantine) built and deployed by CI.
 - `.agents/skills/skill-creator`: vendored from `anthropics/skills` (`skills-lock.json`), update with `npx -y skills@1.7.2 update -p`, do not edit
 - `assets/logo.svg`: logo
 - `web/`: site; `src/components/Page.tsx` content, `src/data/facts.json` facts shared with the README, `tests/` axe test
-- `web/scripts/`: `readme.mjs` writes the README blocks marked `generated` from `facts.json`; `sdlc.py` writes `src/assets/sdlc.svg`; `og.svg` is the source of `public/og.png` (`rsvg-convert -w 1200 -h 630`)
+- `web/scripts/`: `readme.mjs` writes the README blocks marked `generated` from `facts.json`; `og.svg` is the source of `public/og.png` (`rsvg-convert -w 1200 -h 630`)
+- `web/src/lib/sdlc.ts`: builds the SDLC loop SVG from `facts.json` at build time
 
 ## Conventions
 - `rules/global.md` applies here: no em dash, no emojis, facts only.
 - Every install command pins an exact version (`pkg@x.y.z`, RTK tag); `/global-setup` bumps them at install time.
 - SKILL.md front matter: `description` in double quotes (it contains colons).
 - After editing `rules/global.md`, rerun `/global-setup`.
-- Prerequisites and recommended tools: edit `web/src/data/facts.json`, then run `node web/scripts/readme.mjs`; never edit the generated README blocks by hand.
+- Description, SDLC steps, prerequisites and recommended tools: edit `web/src/data/facts.json`, then run `node web/scripts/readme.mjs`; never edit the generated README blocks by hand.

@@ -8,7 +8,7 @@ import {
   IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun, IconTopologyStar3, IconArrowsMinimize,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
-import sdlc from '../assets/sdlc.svg?raw';
+import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
 
 const theme = createTheme({
@@ -25,8 +25,6 @@ const REPO = 'https://github.com/ESchuderer/BenchKeeper';
 const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
 const toolIcons: Record<string, ReactNode> = { stack: <IconStack2 size={20} />, kanban: <IconLayoutKanban size={20} />, terminal: <IconTerminal2 size={20} /> };
 
-const DESCRIPTION =
-  "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.";
 
 function Section({ id, title, intro, children }: { id: string; title: string; intro?: ReactNode; children: ReactNode }) {
   return (
@@ -86,29 +84,15 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-const steps: [string, ReactNode][] = [
-  ['Understand', <>Read the request (prompt, issue or ticket), <Code>AGENTS.md</Code> and the code the change touches before any edit.</>],
-  ['Track', 'No GitHub issue yet: the agent turns the request into title, goal, acceptance criteria and tasks, and creates the issue after your approval.'],
-  ['Branch', <><Code>{'<type>/<issue>-<slug>'}</Code>, never work on the default branch without being told to.</>],
-  ['Specify', <><Code>spec-driven-development</Code>, written as an OpenSpec change or a Spec Kit feature spec when the repository has one.</>],
-  ['Plan', <><Code>planning-and-task-breakdown</Code> into small tasks with acceptance criteria.</>],
-  ['Build', <><Code>incremental-implementation</Code>, tests first where a test suite exists, Ponytail <Code>full</Code> for the smallest complete change.</>],
-  ['Verify', 'Build, types, lint and tests inside the devcontainer; UI changes in a browser through Playwright MCP.'],
-  ['Review', <>Correctness review of the commits before <Code>git push</Code>; findings stop the push until you decide.</>],
-  ['Ship', <>Draft pull request with <Code>Closes #n</Code>, wait for checks, mark ready. Merge only on your instruction.</>],
-  ['Maintain', <>About every 10 merged changes: <Code>ponytail-audit</Code>, <Code>ponytail-debt</Code>, dependency audit, docs drift, repository hygiene. Findings become new requests.</>],
-];
-
-const decides = new Set([1, 7, 8]);
-const phaseColor = (k: number) => (k <= 3 ? 'teal' : k <= 6 ? 'cyan' : k <= 8 ? 'indigo' : 'gray');
+const phaseColor = Object.fromEntries(facts.sdlc.phases.map((p) => [p.key, p.color]));
 
 function StepList({ from }: { from: number }) {
   return (
     <Timeline active={10} bulletSize={30} lineWidth={2}>
-      {steps.slice(from, from + 5).map(([t, d], i) => (
-        <Timeline.Item key={t} id={`step-${from + i + 1}`} color={phaseColor(from + i)} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
-          title={<Group gap="xs"><Text fw={700}>{t}</Text>{decides.has(from + i) && <Badge size="xs" variant="outline" className="decide">human in the loop</Badge>}</Group>}>
-          <Text size="sm" c="dimmed">{d}</Text>
+      {facts.sdlc.steps.slice(from, from + 5).map((st, i) => (
+        <Timeline.Item key={st.name} id={`step-${from + i + 1}`} color={phaseColor[st.phase]} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
+          title={<Group gap="xs"><Text fw={700}>{st.name}</Text>{st.human && <Badge size="xs" variant="outline" className="decide">human in the loop</Badge>}</Group>}>
+          <Text size="sm" c="dimmed">{md(st.text)}</Text>
         </Timeline.Item>
       ))}
     </Timeline>
@@ -173,7 +157,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02} style={{ letterSpacing: '-0.03em' }}>
                   <span className="grad">BenchKeeper</span>
                 </Title>
-                <Text size="xl" maw={560}>{DESCRIPTION}</Text>
+                <Text size="xl" maw={560}>{facts.description}</Text>
                 <Group mt="sm">
                   <Button component="a" href="#prereq" size="md">Get started</Button>
                   <Button component="a" href="#sdlc" size="md" variant="default">See the SDLC</Button>
@@ -202,7 +186,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="sdlc" title="One loop for every change" intro="The global rules route each change through the same ten steps. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec or Spec Kit holds the spec files when the repository uses one.">
           <div className="ring-wrap">
-            <div dangerouslySetInnerHTML={{ __html: sdlc }} />
+            <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
           </div>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} mt={40}>
@@ -401,7 +385,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         </Section>
 
         <Section id="prereq" title="Before you start" intro="BenchKeeper does not install these. Use each official page.">
-          <Table.ScrollContainer minWidth={300}>
+          <Table.ScrollContainer minWidth={300} type="native">
             <Table withTableBorder striped highlightOnHover verticalSpacing="sm" horizontalSpacing="md">
               <Table.Thead><Table.Tr><Table.Th>Tool</Table.Th><Table.Th>Needed for</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
@@ -437,7 +421,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         </Section>
 
         <Section id="files" title="Files it touches">
-          <Table.ScrollContainer minWidth={300}>
+          <Table.ScrollContainer minWidth={300} type="native">
             <Table withTableBorder verticalSpacing="sm" horizontalSpacing="md">
               <Table.Thead><Table.Tr><Table.Th>Scope</Table.Th><Table.Th>Files</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>

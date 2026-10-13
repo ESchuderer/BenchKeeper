@@ -15,6 +15,6 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: lycheeverse/lychee-action@v2.9.0
         with:
-          args: --no-progress './**/*.md'
+          args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 './**/*.md'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

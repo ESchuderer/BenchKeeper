@@ -87,15 +87,25 @@ html:root[data-mantine-color-scheme="dark"] { --mantine-color-dimmed: #b0b0b0; -
 main:focus { outline: none; }
 .decide { color: var(--decide); border-color: var(--decide); }
 
-/* warning text: Mantine's yellow light variant is too pale for AA on light backgrounds */
-html:root[data-mantine-color-scheme="light"] .warn { --alert-color: #8a5a00; }
 .ring .flow { fill: none; stroke: var(--mantine-color-dimmed); stroke-width: 2; }
 .ring .flow.back { stroke-dasharray: 5 5; }
 .ring .flow-head { fill: var(--mantine-color-dimmed); }
 .ring .flow-t { fill: var(--mantine-color-dimmed); font-size: 12.5px; font-style: italic; }
 .sources { position: relative; z-index: 1; }
 @media (max-width: 639px) { .ring .flow-t { display: none; } }
-html:root[data-mantine-color-scheme="light"] .warn .mantine-Alert-title { color: #8a5a00; }
-html:root[data-mantine-color-scheme="light"] .warn a { color: #05664a; }
-html:root[data-mantine-color-scheme="dark"] .warn.mantine-Alert-root { background: color-mix(in srgb, var(--mantine-color-yellow-7) 12%, var(--mantine-color-body)); border: 1px solid color-mix(in srgb, var(--mantine-color-yellow-6) 40%, transparent); }
-html:root[data-mantine-color-scheme="dark"] .warn .mantine-Alert-title, html:root[data-mantine-color-scheme="dark"] .warn .mantine-Alert-icon { color: var(--mantine-color-yellow-4); }
+
+/* isolation note: neutral box, yellow accent only */
+.warn.mantine-Alert-root { background: var(--mantine-color-body); border: 1px solid var(--mantine-color-default-border); border-left: 4px solid var(--mantine-color-yellow-6); }
+.warn .mantine-Alert-title { color: var(--mantine-color-bright); }
+.warn .mantine-Alert-icon { color: var(--mantine-color-yellow-8); }
+[data-mantine-color-scheme="dark"] .warn .mantine-Alert-icon { color: var(--mantine-color-yellow-5); }
+.warn .mantine-Alert-message { color: var(--mantine-color-text); }
+
+.dot { flex: none; width: 7px; height: 7px; margin-top: 8px; border-radius: 50%; }
+.host-list .dot { background: var(--mantine-color-teal-6); }
+.ctr-list .dot { background: var(--mantine-color-orange-6); }
+
+.cmd { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+[data-copy] .i-done, [data-copy].copied .i-copy { display: none; }
+[data-copy].copied .i-done { display: block; color: var(--mantine-color-teal-7); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

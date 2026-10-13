@@ -24,12 +24,10 @@
 <path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(100.0 320.0) rotate(270)"/>
 <path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(142.0 190.7) rotate(306)"/>
 <path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(252.0 110.8) rotate(342)"/>
-<circle class="core" cx="320" cy="320" r="118"/>
-<text class="core-t" x="320" y="290" text-anchor="middle">issue to merged PR</text>
-<text class="core-s" x="320" y="314" text-anchor="middle">agent-skills drives each phase</text>
-<circle class="you-dot" cx="258" cy="348" r="9"/>
-<text class="core-s" x="274" y="352">your decision</text>
-<text class="core-s" x="320" y="382" text-anchor="middle">everything else: the agent</text>
+<circle class="core" cx="320" cy="320" r="108"/>
+<text class="core-t" x="320" y="314" text-anchor="middle">request to merge</text>
+<circle class="you-dot" cx="280" cy="344" r="8"/>
+<text class="core-s" x="295" y="349">you decide</text>
 <g class="node"><circle cx="320.0" cy="100.0" r="27"/><text class="n" x="320.0" y="106.0" text-anchor="middle">1</text></g>
 <text class="lbl" x="320.0" y="30.0" text-anchor="middle">Understand</text>
 <text class="sub" x="320.0" y="48.0" text-anchor="middle">request, AGENTS.md, code</text>

@@ -29,7 +29,16 @@ import '@fontsource-variable/inter';
 import '../styles/global.css';
 import Page from '../components/Page';
 
+import { execSync } from 'node:child_process';
+
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const pageUrl = new URL(`${base}/`, Astro.site).href;
+const description = "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.";
+// Last commit for the footer; builds without git (e.g. a slim container) omit it.
+let updated: string | undefined, commit: string | undefined;
+try {
+  [updated, commit] = execSync('git log -1 --format=%cs%n%H', { encoding: 'utf8' }).trim().split('\n');
+} catch {}
 ---
 <!doctype html>
 <html lang="en" data-mantine-color-scheme="light">
@@ -37,7 +46,17 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BenchKeeper</title>
-  <meta name="description" content="BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.">
+  <meta name="description" content={description}>
+  <link rel="canonical" href={pageUrl}>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="BenchKeeper">
+  <meta property="og:description" content={description}>
+  <meta property="og:url" content={pageUrl}>
+  <meta property="og:image" content={new URL('og.png', pageUrl).href}>
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="BenchKeeper logo and tagline">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href={`${base}/logo.svg`} type="image/svg+xml">
   <script is:inline>
     (function () {
@@ -49,7 +68,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   </script>
 </head>
 <body>
-  <Page base={base} />
+  <Page base={base} updated={updated} commit={commit} />
   <script is:inline>
     (function () {
       var root = document.documentElement, key = 'mantine-color-scheme-value', mq = matchMedia('(prefers-color-scheme: dark)');
@@ -58,6 +77,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         var next = root.getAttribute('data-mantine-color-scheme') === 'dark' ? 'light' : 'dark';
         root.setAttribute('data-mantine-color-scheme', next);
         try { localStorage.setItem(key, next); } catch (e) {}
+      });
+      var status = document.querySelector('[data-copy-status]');
+      document.querySelectorAll('[data-copy]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () {
+            b.classList.add('copied'); status.textContent = 'Copied';
+            setTimeout(function () { b.classList.remove('copied'); status.textContent = ''; }, 1500);
+          });
+        });
       });
       mq.addEventListener('change', function () {
         var v = stored();

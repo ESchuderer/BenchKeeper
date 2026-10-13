@@ -37,12 +37,10 @@ o.append('<text class="flow-t" x="148" y="40" text-anchor="end">findings</text>'
 for k in range(10):
     x, y = pt(k * 36 + 18)
     o.append(f'<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate({x:.1f} {y:.1f}) rotate({k * 36 + 18})"/>')
-o.append(f'<circle class="core" cx="{C}" cy="{C}" r="118"/>')
-o.append(f'<text class="core-t" x="{C}" y="{C - 30}" text-anchor="middle">issue to merged PR</text>')
-o.append(f'<text class="core-s" x="{C}" y="{C - 6}" text-anchor="middle">agent-skills drives each phase</text>')
-o.append(f'<circle class="you-dot" cx="{C - 62}" cy="{C + 28}" r="9"/>')
-o.append(f'<text class="core-s" x="{C - 46}" y="{C + 32}">your decision</text>')
-o.append(f'<text class="core-s" x="{C}" y="{C + 62}" text-anchor="middle">everything else: the agent</text>')
+o.append(f'<circle class="core" cx="{C}" cy="{C}" r="108"/>')
+o.append(f'<text class="core-t" x="{C}" y="{C - 6}" text-anchor="middle">request to merge</text>')
+o.append(f'<circle class="you-dot" cx="{C - 40}" cy="{C + 24}" r="8"/>')
+o.append(f'<text class="core-s" x="{C - 25}" y="{C + 29}">you decide</text>')
 for k, (lbl, sub) in enumerate(steps):
     deg = k * 36
     x, y = pt(deg)

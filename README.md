@@ -6,6 +6,8 @@ BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Code
 
 Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 
+Site: [eschuderer.github.io/BenchKeeper](https://eschuderer.github.io/BenchKeeper/)
+
 Claude Code and Codex are independently optional. Setup detects installed agents and asks which you use. Only selected agents receive configuration, plugins, hooks, and skills. Agent CLIs are not installed by setup; unused or absent agents are skipped.
 
 ## Contents
@@ -15,6 +17,7 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 | [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink); copy in `~/.codex/AGENTS.md` |
 | [skills/global-setup](skills/global-setup/SKILL.md) | install, check, and clean the global setup (all commands) | `~/.claude/skills/`, `~/.agents/skills/`, and in this repo |
 | [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, LSP, OpenSpec or Spec Kit, codegraph | `~/.claude/skills/`, `~/.agents/skills/` |
+| [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 
 ## Components
 
@@ -48,8 +51,9 @@ Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.m
 
 ## Prerequisites
 
-Not installed by BenchKeeper; see each official page.
+Not installed by BenchKeeper; see each official page. Tables marked as generated come from [web/src/data/facts.json](web/src/data/facts.json) (`node web/scripts/readme.mjs`).
 
+<!-- generated:prerequisites -->
 | Tool | Needed for |
 |---|---|
 | [Claude Code](https://code.claude.com/docs/en/setup) | agent (one or both) |
@@ -58,10 +62,11 @@ Not installed by BenchKeeper; see each official page.
 | [GitHub CLI](https://cli.github.com/) | issues and pull requests (optional, local branches without it) |
 | [Node.js and npm](https://nodejs.org/en/download) | global CLIs, prefix `~/.local` |
 | [uv](https://docs.astral.sh/uv/getting-started/installation/) | Spec Kit |
-| [jq](https://jqlang.org/download/), [curl](https://curl.se/download.html) | setup scripts |
+| [jq](https://jqlang.org/download/) | setup scripts |
+| [curl](https://curl.se/download.html) | setup scripts |
 | [Docker Engine](https://docs.docker.com/engine/install/) | devcontainers |
 | [VS Code](https://code.visualstudio.com/download) | optional, attach to the devcontainer |
-| [Orca](https://onorca.dev) | optional, parallel agents |
+<!-- /generated:prerequisites -->
 
 ## Setup steps
 
@@ -100,18 +105,22 @@ Not installed by BenchKeeper. Each one works with the agents and rules set up he
 
 **Parallel agents: pick one.** Orca, Nimbalyst and cmux all manage several agent sessions side by side; running more than one duplicates that layer, each tracking its own sessions and worktrees for the same repositories.
 
+<!-- generated:tools -->
 | Tool | Platforms | Gives you | Choose it when |
 |---|---|---|---|
-| [Orca](https://github.com/stablyai/orca) | macOS, Windows, Linux | one git worktree per agent, the same prompt across several agents to compare results, terminal splits, SSH remote worktrees, mobile companion app | you want worktree-per-task workflows, Linux or Windows, or remote and mobile access |
-| [Nimbalyst](https://github.com/Nimbalyst/nimbalyst) | macOS, Windows, Linux | parallel sessions on a kanban board, one-click worktree per session, every agent edit as a diff you approve or reject, visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app | you want to review each change visually and work on docs, mockups and tasks next to the agents |
-| [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs, notifications when an agent needs input, sidebar with branch, PR status and ports, browser pane | you are on macOS and want a terminal-first workflow without a separate app layer |
+| [Orca](https://github.com/stablyai/orca) | macOS, Windows, Linux | one git worktree per agent; the same prompt across several agents to compare results; terminal splits, SSH remote worktrees, mobile companion app; `/global-setup` offers its `orca-cli` and `orchestration` skills, only after asking | you want terminal-centered parallel agents with worktrees, remote machines or mobile access |
+| [Nimbalyst](https://github.com/Nimbalyst/nimbalyst) | macOS, Windows, Linux | parallel sessions on a kanban board, one-click worktree per session; every agent edit arrives as a diff you approve or reject; visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app | you want to review each change visually and work on docs, mockups and tasks next to the agents |
+| [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs; notifications when an agent needs input; sidebar with branch, PR status and ports; browser pane inside the terminal | you are on macOS and want a terminal-first workflow without a separate app layer |
+<!-- /generated:tools -->
 
 Orca only: `/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills for selected agents. Declining skips them without failing setup; existing Orca skills and hooks are kept. See [setup part 12](skills/global-setup/SKILL.md#12-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
 
 **Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A different role from the three above: a self-hosted agent server with a web UI.
 
+<!-- generated:openhands -->
 - Each conversation can run in its own Docker container (`OH_CONVERSATION_RUNTIME=docker`), one of the isolation options BenchKeeper does not provide.
 - Runs its own agent or hosts Claude Code, Codex and Gemini CLI; works with any LLM.
 - Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks.
 - Without a sandbox, the local agent has full access to your filesystem.
-- Unverified: whether agents inside OpenHands containers load the BenchKeeper rules and skills; they are installed on the host, not in those containers.
+- Unverified: whether agents inside its containers load the BenchKeeper rules and skills; they are installed on the host, not in those containers.
+<!-- /generated:openhands -->

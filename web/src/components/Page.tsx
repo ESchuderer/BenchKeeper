@@ -5,10 +5,11 @@ import {
 import {
   IconArrowDown, IconArrowRight, IconBook, IconBox, IconBrandGithub, IconBrowser, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
-  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconInbox, IconSun, IconTopologyStar3, IconArrowsMinimize,
+  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconInbox, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun, IconTopologyStar3, IconArrowsMinimize,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import sdlc from '../assets/sdlc.svg?raw';
+import facts from '../data/facts.json';
 
 const theme = createTheme({
   primaryColor: 'teal',
@@ -20,6 +21,10 @@ const theme = createTheme({
 });
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
+// Backticks in facts.json become inline code, the same text the README renders.
+const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
+const toolIcons: Record<string, ReactNode> = { stack: <IconStack2 size={20} />, kanban: <IconLayoutKanban size={20} />, terminal: <IconTerminal2 size={20} /> };
+
 const DESCRIPTION =
   "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.";
 
@@ -53,13 +58,13 @@ function FeatureCard({ icon, title, href, scope, gives, children }: { icon: Reac
   );
 }
 
-function ToolCard({ icon, name, href, platforms, points, when }: { icon: ReactNode; name: string; href: string; platforms: string; points: ReactNode[]; when: string }) {
+function ToolCard({ icon, name, href, platforms, points, when }: { icon: ReactNode; name: string; href: string; platforms: string; points: string[]; when: string }) {
   return (
     <Card withBorder padding="lg" className="lift linked">
       <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}>{icon}</ThemeIcon><Anchor href={href} fw={700} className="stretched" underline="hover">{name}</Anchor></Group>
       <Badge variant="outline" color="gray" mt="sm" w="fit-content">{platforms}</Badge>
-      <List size="sm" mt="md" spacing={6}>{points.map((t, k) => <List.Item key={k}>{t}</List.Item>)}</List>
-      <Text size="sm" mt="auto" pt="md"><Text span fw={700}>Choose it when</Text> {when}</Text>
+      <List size="sm" mt="md" spacing={6}>{points.map((t, k) => <List.Item key={k}>{md(t)}</List.Item>)}</List>
+      <Text size="sm" mt="auto" pt="md"><Text span fw={700}>Choose it when</Text> {when}.</Text>
     </Card>
   );
 }
@@ -110,25 +115,26 @@ function StepList({ from }: { from: number }) {
   );
 }
 
-const prereqs: [string, string, string][] = [
-  ['Claude Code', 'https://code.claude.com/docs/en/setup', 'agent (one or both)'],
-  ['Codex CLI', 'https://developers.openai.com/codex/cli', 'agent (one or both)'],
-  ['Git', 'https://git-scm.com/downloads', 'clone, branches, commits'],
-  ['GitHub CLI', 'https://cli.github.com/', 'issues and pull requests (optional, local branches without it)'],
-  ['Node.js and npm', 'https://nodejs.org/en/download', 'global CLIs, prefix ~/.local'],
-  ['uv', 'https://docs.astral.sh/uv/getting-started/installation/', 'Spec Kit'],
-  ['jq', 'https://jqlang.org/download/', 'setup scripts'],
-  ['curl', 'https://curl.se/download.html', 'setup scripts'],
-  ['Docker Engine', 'https://docs.docker.com/engine/install/', 'devcontainers'],
-  ['VS Code', 'https://code.visualstudio.com/download', 'optional, attach to the devcontainer'],
-  ['Orca', 'https://onorca.dev', 'optional, parallel agents'],
+
+const checks: [ReactNode, string, string, ReactNode][] = [
+  [<IconTestPipe size={18} />, 'Tests', 'steps 6, 7', <>Tests first where a suite exists; Verify runs build, types, lint and tests; checks are never weakened.</>],
+  [<IconShieldLock size={18} />, 'Security', 'any step, step 10', <><Code>security-and-hardening</Code> for input, auth, data and dependencies; secrets are never printed or committed; Maintain audits dependencies.</>],
+  [<IconGauge size={18} />, 'Performance', 'any step, step 10', <><Code>performance-optimization</Code> when performance requirements exist; <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
+  [<IconAccessible size={18} />, 'UI and accessibility', 'step 7', <>UI changes are checked in a real browser through Playwright MCP; <Code>frontend-ui-engineering</Code> covers WCAG when building interfaces.</>],
+];
+
+const quickstart: [string, string, string][] = [
+  ['Clone BenchKeeper and open it in your agent', 'git clone https://github.com/ESchuderer/BenchKeeper.git && cd BenchKeeper && claude', 'Codex: run codex instead of claude.'],
+  ['Set up the machine', '/global-setup', 'Codex: $global-setup. Pick your agents, review the plan, approve.'],
+  ['Restart the agents', '', 'Codex: run /hooks and trust the plugin hooks.'],
+  ['Set up each repository', '/project-setup', 'Codex: $project-setup. Run it in the repository root, then commit the result.'],
 ];
 
 const listTop = { root: { paddingInlineStart: 0 }, itemWrapper: { alignItems: 'flex-start' }, itemIcon: { marginTop: 1 } };
 
 const ponytail: [string, number][] = [['Lines of code', 53], ['Output tokens', 45], ['Time', 41], ['Cost', 26]];
 
-export default function Page({ base }: { base: string }) {
+export default function Page({ base, updated, commit }: { base: string; updated?: string; commit?: string }) {
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
       <a className="skip" href="#main">Skip to content</a>
@@ -195,22 +201,30 @@ export default function Page({ base }: { base: string }) {
         </Section>
 
         <Section id="sdlc" title="One loop for every change" intro="The global rules route each change through the same ten steps. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec or Spec Kit holds the spec files when the repository uses one.">
-          <Paper withBorder radius="lg" p="md" maw={760} mx="auto" className="sources">
-            <Group gap="xs" justify="center" wrap="nowrap">
-              <ThemeIcon variant="light" size={30} radius="xl"><IconInbox size={18} /></ThemeIcon>
-              <Text fw={700}>Every change starts with a request</Text>
-            </Group>
-            <Group gap={8} justify="center" mt="sm">
-              {['You, in the chat', 'GitHub issue', 'Ticket in Jira, Linear or another tracker', 'Bug report', 'Review comment', 'Maintain finding'].map((t) => (
-                <Badge key={t} variant="default" size="lg" radius="sm" tt="none" fw={500}>{t}</Badge>
+          <Stack gap={6} align="center" className="sources">
+            <Group gap={8} justify="center">
+              <Group gap={6} wrap="nowrap"><ThemeIcon variant="light" size={26} radius="xl"><IconInbox size={15} /></ThemeIcon><Text fw={700} size="sm">Requests from</Text></Group>
+              {['you', 'GitHub issues', 'Jira, Linear or other trackers', 'bug reports', 'reviews', 'Maintain findings'].map((t) => (
+                <Badge key={t} variant="default" radius="xl" tt="none" fw={500} size="md">{t}</Badge>
               ))}
             </Group>
-            <Text size="xs" c="dimmed" ta="center" mt="sm">The agent reads what you link or paste. The rules track work as GitHub issues; other trackers need their own integration, not part of BenchKeeper.</Text>
-          </Paper>
+            <Text size="xs" c="dimmed" ta="center">Linked or pasted into the chat; only GitHub issues are automated.</Text>
+          </Stack>
           <div dangerouslySetInnerHTML={{ __html: sdlc }} />
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} mt={40}>
             <StepList from={0} />
             <StepList from={5} />
+          </SimpleGrid>
+          <Text fw={700} mt={48} mb="xs">Checks built into the loop</Text>
+          <Text size="sm" c="dimmed" mb="md" maw={760}><Code>using-agent-skills</Code> adds the matching agent-skills skill in any phase where a change needs it.</Text>
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
+            {checks.map(([icon, title, when, text]) => (
+              <Stack key={title as string} gap={6}>
+                <Group gap="xs" wrap="nowrap"><ThemeIcon variant="light" size={30} radius="md">{icon}</ThemeIcon><Text fw={700}>{title}</Text></Group>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>{when}</Text>
+                <Text size="sm">{text}</Text>
+              </Stack>
+            ))}
           </SimpleGrid>
         </Section>
 
@@ -218,9 +232,9 @@ export default function Page({ base }: { base: string }) {
           <Box className="split">
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
-              <Stack gap={8}>
+              <Stack gap={10} className="host-list">
                 {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'RTK, Context7 MCP, OpenSpec and Spec Kit CLIs', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
-                  <Paper key={t} bg="var(--mantine-color-default-hover)" px="sm" py={8}><Text size="sm">{t}</Text></Paper>
+                  <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
             </Paper>
@@ -231,9 +245,9 @@ export default function Page({ base }: { base: string }) {
             </Stack>
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-orange-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline" className="decide">Devcontainer</Badge><Text fw={700}>one per repository</Text></Group>
-              <Stack gap={8}>
+              <Stack gap={10} className="ctr-list">
                 {['Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'codegraph index and MCP server', 'Playwright browser, language servers', 'Non-root user, project mount only, no host home, no engine socket, no credential forwarding'].map((t) => (
-                  <Paper key={t} bg="var(--mantine-color-default-hover)" px="sm" py={8}><Text size="sm">{t}</Text></Paper>
+                  <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
             </Paper>
@@ -379,31 +393,17 @@ export default function Page({ base }: { base: string }) {
           <Text fw={700} mb="xs">Parallel agents: pick one</Text>
           <Text size="sm" c="dimmed" mb="md" maw={760}>Orca, Nimbalyst and cmux all manage several agent sessions side by side. Running more than one duplicates that layer: each would track its own sessions and worktrees for the same repositories.</Text>
           <SimpleGrid cols={{ base: 1, md: 3 }}>
-            <ToolCard icon={<IconStack2 size={20} />} name="Orca" href="https://github.com/stablyai/orca" platforms="macOS, Windows, Linux"
-              points={['One git worktree per agent; the same prompt across several agents to compare results', 'Terminal splits, SSH remote worktrees, mobile companion app', <><Code>/global-setup</Code> offers its <Code>orca-cli</Code> and <Code>orchestration</Code> skills, only after asking</>]}
-              when="you want terminal-centered parallel agents with worktrees, remote machines or mobile access." />
-            <ToolCard icon={<IconLayoutKanban size={20} />} name="Nimbalyst" href="https://github.com/Nimbalyst/nimbalyst" platforms="macOS, Windows, Linux"
-              points={['Parallel sessions on a kanban board, one-click worktree per session', 'Every agent edit arrives as a diff you approve or reject', 'Visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app']}
-              when="you want to review each change visually and work on docs, mockups and tasks next to the agents." />
-            <ToolCard icon={<IconTerminal2 size={20} />} name="cmux" href="https://github.com/manaflow-ai/cmux" platforms="macOS only"
-              points={['Ghostty-based terminal with vertical tabs', 'Notifications when an agent needs input; sidebar with branch, PR status and ports', 'Browser pane inside the terminal']}
-              when="you are on macOS and want a terminal-first workflow without a separate app layer." />
+            {facts.parallelTools.map((t) => (
+              <ToolCard key={t.name} icon={toolIcons[t.icon]} name={t.name} href={t.url} platforms={t.platforms} points={t.points} when={t.when} />
+            ))}
           </SimpleGrid>
           <Text fw={700} mt={40} mb="xs">Unattended or isolated runs</Text>
           <Card withBorder padding="lg" className="lift linked">
             <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" color="orange" size={38}><IconServer size={20} /></ThemeIcon><Anchor href="https://github.com/OpenHands/OpenHands" fw={700} className="stretched" underline="hover">OpenHands</Anchor><Badge variant="outline" color="gray">self-hosted, web UI</Badge></Group>
-            <Text size="sm" c="dimmed" mt="sm">A different role from the three above: an agent server that runs work without you at the terminal.</Text>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} mt="md" spacing="md">
-              <List size="sm" spacing={4}>
-                <List.Item>Each conversation can run in its own Docker container (<Code>OH_CONVERSATION_RUNTIME=docker</Code>), one of the isolation options BenchKeeper does not provide</List.Item>
-                <List.Item>Runs its own agent or hosts Claude Code, Codex and Gemini CLI; works with any LLM</List.Item>
-              </List>
-              <List size="sm" spacing={4}>
-                <List.Item>Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks</List.Item>
-                <List.Item>Without a sandbox, the local agent has full access to your filesystem</List.Item>
-                <List.Item>Unverified: whether agents inside its containers load the BenchKeeper rules and skills, which live on the host</List.Item>
-              </List>
-            </SimpleGrid>
+            <Text size="sm" c="dimmed" mt="sm">{facts.openhands.summary}</Text>
+            <List size="sm" mt="md" spacing={6}>
+              {facts.openhands.points.map((t) => <List.Item key={t}>{md(t)}</List.Item>)}
+            </List>
           </Card>
         </Section>
 
@@ -412,8 +412,8 @@ export default function Page({ base }: { base: string }) {
             <Table withTableBorder striped highlightOnHover verticalSpacing="sm" horizontalSpacing="md">
               <Table.Thead><Table.Tr><Table.Th>Tool</Table.Th><Table.Th>Needed for</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
-                {prereqs.map(([n, u, f]) => (
-                  <Table.Tr key={n}><Table.Td><Anchor href={u}>{n}</Anchor></Table.Td><Table.Td>{f}</Table.Td></Table.Tr>
+                {facts.prerequisites.map((r) => (
+                  <Table.Tr key={r.name}><Table.Td><Anchor href={r.url}>{r.name}</Anchor></Table.Td><Table.Td>{md(r.for)}</Table.Td></Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
@@ -421,6 +421,29 @@ export default function Page({ base }: { base: string }) {
           <Group mt="lg">
             <Button component="a" href={`${REPO}#setup-steps`} leftSection={<IconBox size={18} />}>Setup steps</Button>
           </Group>
+        </Section>
+
+        <Section id="start" title="Quick start" intro="After the prerequisites. Each step that changes your machine or repository shows its plan first.">
+          <Stack gap="lg" maw={760}>
+            {quickstart.map(([title, cmd, note], k) => (
+              <Group key={title} gap="md" wrap="nowrap" align="flex-start">
+                <ThemeIcon variant="light" radius="xl" size={30}><Text size="sm" fw={700}>{k + 1}</Text></ThemeIcon>
+                <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
+                  <Text fw={700}>{title}</Text>
+                  {cmd && (
+                    <Group gap={6} wrap="nowrap">
+                      <Code block className="cmd">{cmd}</Code>
+                      <ActionIcon variant="default" size={36} data-copy={cmd} aria-label={`Copy command: ${cmd}`}>
+                        <IconCopy size={16} className="i-copy" /><IconCheck size={16} className="i-done" />
+                      </ActionIcon>
+                    </Group>
+                  )}
+                  <Text size="sm" c="dimmed">{note}</Text>
+                </Stack>
+              </Group>
+            ))}
+            <span className="sr" aria-live="polite" data-copy-status></span>
+          </Stack>
         </Section>
 
         <Section id="files" title="Files it touches">
@@ -440,7 +463,10 @@ export default function Page({ base }: { base: string }) {
       <Box component="footer" className="band" py="xl">
         <Container size="lg">
           <Group justify="space-between">
-            <Text size="sm" c="dimmed">BenchKeeper, MIT License</Text>
+            <Text size="sm" c="dimmed">
+              BenchKeeper, MIT License
+              {updated && commit && <>, updated {updated} (<Anchor href={`${REPO}/commit/${commit}`} size="sm">{commit.slice(0, 7)}</Anchor>)</>}
+            </Text>
             <Anchor href={REPO} size="sm">github.com/ESchuderer/BenchKeeper</Anchor>
           </Group>
         </Container>

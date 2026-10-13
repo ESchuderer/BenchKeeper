@@ -12,8 +12,10 @@ import sdlc from '../assets/sdlc.svg?raw';
 
 const theme = createTheme({
   primaryColor: 'teal',
-  fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-  headings: { fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif', fontWeight: '800' },
+  primaryShade: { light: 9, dark: 9 },
+  components: { Anchor: { defaultProps: { underline: 'always' } } },
+  fontFamily: '"Inter Variable", ui-sans-serif, system-ui, sans-serif',
+  headings: { fontFamily: '"Inter Variable", ui-sans-serif, system-ui, sans-serif', fontWeight: '800' },
   defaultRadius: 'md',
 });
 
@@ -35,12 +37,12 @@ function Section({ id, title, intro, children }: { id: string; title: string; in
   );
 }
 
-function FeatureCard({ icon, title, scope, gives, children }: { icon: ReactNode; title: ReactNode; scope: string; gives?: string; children: ReactNode }) {
+function FeatureCard({ icon, title, href, scope, gives, children }: { icon: ReactNode; title: ReactNode; href?: string; scope: string; gives?: string; children: ReactNode }) {
   return (
-    <Card withBorder padding="lg" className="lift">
+    <Card withBorder padding="lg" className={href ? 'lift linked' : 'lift'}>
       <Group gap="sm" wrap="nowrap">
         <ThemeIcon variant="light" size={38} radius="md">{icon}</ThemeIcon>
-        <Text fw={700}>{title}</Text>
+        {href ? <Anchor href={href} fw={700} className="stretched" underline="hover">{title}</Anchor> : <Text fw={700}>{title}</Text>}
       </Group>
       <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt="md">{scope}</Text>
       <Text size="sm" mt={6}>{children}</Text>
@@ -53,8 +55,8 @@ function FeatureCard({ icon, title, scope, gives, children }: { icon: ReactNode;
 
 function ToolCard({ icon, name, href, platforms, points, when }: { icon: ReactNode; name: string; href: string; platforms: string; points: ReactNode[]; when: string }) {
   return (
-    <Card withBorder padding="lg" className="lift">
-      <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}>{icon}</ThemeIcon><Anchor href={href} fw={700}>{name}</Anchor></Group>
+    <Card withBorder padding="lg" className="lift linked">
+      <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}>{icon}</ThemeIcon><Anchor href={href} fw={700} className="stretched" underline="hover">{name}</Anchor></Group>
       <Badge variant="outline" color="gray" mt="sm" w="fit-content">{platforms}</Badge>
       <List size="sm" mt="md" spacing={6}>{points.map((t, k) => <List.Item key={k}>{t}</List.Item>)}</List>
       <Text size="sm" mt="auto" pt="md"><Text span fw={700}>Choose it when</Text> {when}</Text>
@@ -92,11 +94,15 @@ const steps: [string, ReactNode][] = [
   ['Maintain', <>About every 10 merged changes: <Code>ponytail-audit</Code>, <Code>ponytail-debt</Code>, dependency audit, docs drift, repository hygiene.</>],
 ];
 
+const decides = new Set([1, 7, 8]);
+const phaseColor = (k: number) => (k <= 3 ? 'teal' : k <= 6 ? 'cyan' : k <= 8 ? 'indigo' : 'gray');
+
 function StepList({ from }: { from: number }) {
   return (
     <Timeline active={10} bulletSize={30} lineWidth={2}>
       {steps.slice(from, from + 5).map(([t, d], i) => (
-        <Timeline.Item key={t} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>} title={<Text fw={700}>{t}</Text>}>
+        <Timeline.Item key={t} color={phaseColor(from + i)} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
+          title={<Group gap="xs"><Text fw={700}>{t}</Text>{decides.has(from + i) && <Badge size="xs" variant="outline" className="decide">your decision</Badge>}</Group>}>
           <Text size="sm" c="dimmed">{d}</Text>
         </Timeline.Item>
       ))}
@@ -125,16 +131,17 @@ const ponytail: [string, number][] = [['Lines of code', 53], ['Output tokens', 4
 export default function Page({ base }: { base: string }) {
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
+      <a className="skip" href="#main">Skip to content</a>
       <Box component="header" className="header">
         <Container size="lg" h={60}>
           <Group h="100%" justify="space-between" wrap="nowrap">
-            <Anchor href="#top" underline="never" c="var(--mantine-color-text)">
+            <Anchor href="#main" underline="never" c="var(--mantine-color-text)">
               <Group gap={10} wrap="nowrap">
                 <img src={`${base}/logo.svg`} alt="" width={28} height={28} className="logo" />
                 <Text fw={800} size="lg">BenchKeeper</Text>
               </Group>
             </Anchor>
-            <Group gap="lg" visibleFrom="md">
+            <Group component="nav" aria-label="Sections" gap="lg" visibleFrom="md">
               {[['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Quality'], ['cost', 'Cost'], ['not', 'What it is not'], ['tools', 'Tools'], ['prereq', 'Setup']].map(([id, l]) => (
                 <Anchor key={id} href={`#${id}`} c="dimmed" size="sm" underline="never">{l}</Anchor>
               ))}
@@ -151,14 +158,14 @@ export default function Page({ base }: { base: string }) {
         </Container>
       </Box>
 
-      <main id="top">
+      <main id="main" tabIndex={-1}>
         <Box className="hero" py={{ base: 64, md: 112 }}>
           <Container size="lg">
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48} style={{ alignItems: 'center' }}>
               <Stack gap="lg">
                 <Badge variant="light" size="lg" w="fit-content">Claude Code and Codex</Badge>
                 <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02} style={{ letterSpacing: '-0.03em' }}>
-                  <Text inherit component="span" variant="gradient" gradient={{ from: 'teal.5', to: 'cyan.6', deg: 90 }}>BenchKeeper</Text>
+                  <span className="grad">BenchKeeper</span>
                 </Title>
                 <Text size="xl" maw={560}>{DESCRIPTION}</Text>
                 <Group mt="sm">
@@ -167,7 +174,7 @@ export default function Page({ base }: { base: string }) {
                 </Group>
               </Stack>
               <Box ta="center">
-                <img src={`${base}/logo.svg`} alt="BenchKeeper logo: a brain inside a gear, circled by a loop of arrows" className="logo" style={{ width: 'min(300px, 64vw)' }} />
+                <img src={`${base}/logo.svg`} alt="BenchKeeper logo: a brain inside a gear, circled by a loop of arrows" className="logo" width={300} height={300} style={{ width: 'min(300px, 64vw)', height: 'auto' }} />
               </Box>
             </SimpleGrid>
           </Container>
@@ -198,7 +205,7 @@ export default function Page({ base }: { base: string }) {
         <Section id="where" title="Where things run" intro="The agent and its configuration stay on the host. Project commands run in the repository's standard devcontainer, which mounts only the project.">
           <Box className="split">
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
-              <Group gap="xs" mb="md"><Badge variant="light">Host</Badge><Text fw={700}>one per machine</Text></Group>
+              <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
               <Stack gap={8}>
                 {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'RTK, Context7 MCP, OpenSpec and Spec Kit CLIs', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
                   <Paper key={t} bg="var(--mantine-color-default-hover)" px="sm" py={8}><Text size="sm">{t}</Text></Paper>
@@ -211,7 +218,7 @@ export default function Page({ base }: { base: string }) {
               <Code>devcontainer exec</Code>
             </Stack>
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-orange-6)', borderWidth: 2 }}>
-              <Group gap="xs" mb="md"><Badge variant="light" color="orange">Devcontainer</Badge><Text fw={700}>one per repository</Text></Group>
+              <Group gap="xs" mb="md"><Badge variant="outline" className="decide">Devcontainer</Badge><Text fw={700}>one per repository</Text></Group>
               <Stack gap={8}>
                 {['Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'codegraph index and MCP server', 'Playwright browser, language servers', 'Non-root user, project mount only, no host home, no engine socket, no credential forwarding'].map((t) => (
                   <Paper key={t} bg="var(--mantine-color-default-hover)" px="sm" py={8}><Text size="sm">{t}</Text></Paper>
@@ -233,11 +240,11 @@ export default function Page({ base }: { base: string }) {
 
         <Section id="parts" title="What each part gives you" intro="Each component is a separate upstream project. BenchKeeper pins it to an exact version, configures it for the selected agents, and ties it into the rules and the SDLC loop.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-            <FeatureCard icon={<IconListCheck size={20} />} title={<Anchor href="https://github.com/addyosmani/agent-skills">agent-skills</Anchor>} scope="Global, both agents"
+            <FeatureCard icon={<IconListCheck size={20} />} title="agent-skills" href="https://github.com/addyosmani/agent-skills" scope="Global, both agents"
               gives="The agent follows the same engineering steps every time: spec before code, tests first, review before merge.">
               Skills for spec, planning, TDD, debugging, code review, security, performance and shipping; the agent loads the one that fits each phase.
             </FeatureCard>
-            <FeatureCard icon={<IconFeather size={20} />} title={<Anchor href="https://github.com/DietrichGebert/ponytail">Ponytail</Anchor>} scope="Global, both agents"
+            <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, both agents"
               gives="Less code to review and maintain. Its benchmark: 53% fewer lines, 26% lower cost.">
               Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
             </FeatureCard>
@@ -245,23 +252,23 @@ export default function Page({ base }: { base: string }) {
               gives="Requirements live in the repository and are reviewed in the same pull request as the code; the next session reads them instead of guessing.">
               OpenSpec: one change folder per change (proposal, spec deltas, tasks), merged into living specs on archive. Spec Kit: one folder per feature (spec, plan, tasks) plus a constitution.
             </FeatureCard>
-            <FeatureCard icon={<IconTopologyStar3 size={20} />} title={<Anchor href="https://github.com/colbymchenry/codegraph">codegraph</Anchor>} scope="Per repository, in the container"
+            <FeatureCard icon={<IconTopologyStar3 size={20} />} title="codegraph" href="https://github.com/colbymchenry/codegraph" scope="Per repository, in the container"
               gives="Callers and change impact in one query instead of many file searches. Its benchmark: 88% fewer tool calls, 62% fewer tokens.">
               Indexes the repository into a local graph of symbols, calls and imports, updated as files change, and answers queries over MCP.
             </FeatureCard>
-            <FeatureCard icon={<IconArrowsMinimize size={20} />} title={<Anchor href="https://github.com/rtk-ai/rtk">RTK</Anchor>} scope="Global, both agents"
+            <FeatureCard icon={<IconArrowsMinimize size={20} />} title="RTK" href="https://github.com/rtk-ai/rtk" scope="Global, both agents"
               gives="Less context spent on noise. Its figure: 60 to 90% fewer tokens on common dev commands.">
               Hooks shell commands and condenses their output (test runners, builds, linters, git) before the agent reads it.
             </FeatureCard>
-            <FeatureCard icon={<IconBook size={20} />} title={<Anchor href="https://github.com/upstash/context7">Context7 MCP</Anchor>} scope="Global, both agents"
+            <FeatureCard icon={<IconBook size={20} />} title="Context7 MCP" href="https://github.com/upstash/context7" scope="Global, both agents"
               gives="Code follows the documented API of the version you use, not what the model remembers.">
               Returns current, version-specific library and framework documentation on request.
             </FeatureCard>
-            <FeatureCard icon={<IconBrowser size={20} />} title={<Anchor href="https://github.com/microsoft/playwright-mcp">Playwright MCP</Anchor>} scope="Per repository, browser in the container"
+            <FeatureCard icon={<IconBrowser size={20} />} title="Playwright MCP" href="https://github.com/microsoft/playwright-mcp" scope="Per repository, browser in the container"
               gives="UI changes are checked in a real browser before the agent reports them done.">
               Browser control over MCP: open pages, click, fill forms, read console and network, take screenshots.
             </FeatureCard>
-            <FeatureCard icon={<IconContainer size={20} />} title={<Anchor href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli">Dev Containers</Anchor>} scope="CLI on host, config per repository"
+            <FeatureCard icon={<IconContainer size={20} />} title="Dev Containers" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="CLI on host, config per repository"
               gives="The same toolchain on every machine and client; installs, builds and tests run as a non-root user and do not touch the host.">
               A standard <Code>devcontainer.json</Code> per repository, shared by the CLI, VS Code and Orca terminals; project commands run through <Code>devcontainer exec</Code>.
             </FeatureCard>
@@ -371,8 +378,8 @@ export default function Page({ base }: { base: string }) {
               when="you are on macOS and want a terminal-first workflow without a separate app layer." />
           </SimpleGrid>
           <Text fw={700} mt={40} mb="xs">Unattended or isolated runs</Text>
-          <Card withBorder padding="lg">
-            <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" color="orange" size={38}><IconServer size={20} /></ThemeIcon><Anchor href="https://github.com/OpenHands/OpenHands" fw={700}>OpenHands</Anchor><Badge variant="outline" color="gray">self-hosted, web UI</Badge></Group>
+          <Card withBorder padding="lg" className="lift linked">
+            <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" color="orange" size={38}><IconServer size={20} /></ThemeIcon><Anchor href="https://github.com/OpenHands/OpenHands" fw={700} className="stretched" underline="hover">OpenHands</Anchor><Badge variant="outline" color="gray">self-hosted, web UI</Badge></Group>
             <Text size="sm" c="dimmed" mt="sm">A different role from the three above: an agent server that runs work without you at the terminal.</Text>
             <SimpleGrid cols={{ base: 1, sm: 2 }} mt="md" spacing="md">
               <List size="sm" spacing={4}>

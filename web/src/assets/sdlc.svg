@@ -1,51 +1,65 @@
-<svg class="ring" viewBox="-130 0 900 640" role="img" aria-labelledby="ring-t ring-d">
-        <title id="ring-t">BenchKeeper SDLC loop</title>
-        <desc id="ring-d">Ten steps in a clockwise loop: Understand, Track, Branch, Specify, Plan, Build, Verify, Review, Ship, Maintain.</desc>
-        <circle class="core" cx="320" cy="320" r="150"/>
-        <text class="core-t" x="320" y="306" text-anchor="middle">issue to merged PR</text>
-        <text class="core-s" x="320" y="332" text-anchor="middle">agent-skills drives the phases</text>
-        <text class="core-s" x="320" y="352" text-anchor="middle">Ponytail keeps code small</text>
-        <circle class="track" cx="320" cy="320" r="220"/>
-        <g class="arrow">
-          <path d="M-6-5L6 0-6 5z" transform="translate(388 110.8) rotate(18)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(498 190.7) rotate(54)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(540 320) rotate(90)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(498 449.3) rotate(126)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(388 529.2) rotate(162)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(252 529.2) rotate(198)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(142 449.3) rotate(234)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(100 320) rotate(270)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(142 190.7) rotate(306)"/>
-          <path d="M-6-5L6 0-6 5z" transform="translate(252 110.8) rotate(342)"/>
-        </g>
-        <g class="node"><circle cx="320" cy="100" r="28"/><text class="n" x="320" y="106" text-anchor="middle">1</text></g>
-        <g class="node"><circle cx="449.3" cy="142" r="28"/><text class="n" x="449.3" y="148" text-anchor="middle">2</text></g>
-        <g class="node"><circle cx="529.2" cy="252" r="28"/><text class="n" x="529.2" y="258" text-anchor="middle">3</text></g>
-        <g class="node"><circle cx="529.2" cy="388" r="28"/><text class="n" x="529.2" y="394" text-anchor="middle">4</text></g>
-        <g class="node"><circle cx="449.3" cy="498" r="28"/><text class="n" x="449.3" y="504" text-anchor="middle">5</text></g>
-        <g class="node"><circle cx="320" cy="540" r="28"/><text class="n" x="320" y="546" text-anchor="middle">6</text></g>
-        <g class="node"><circle cx="190.7" cy="498" r="28"/><text class="n" x="190.7" y="504" text-anchor="middle">7</text></g>
-        <g class="node"><circle cx="110.8" cy="388" r="28"/><text class="n" x="110.8" y="394" text-anchor="middle">8</text></g>
-        <g class="node"><circle cx="110.8" cy="252" r="28"/><text class="n" x="110.8" y="258" text-anchor="middle">9</text></g>
-        <g class="node"><circle cx="190.7" cy="142" r="28"/><text class="n" x="190.7" y="148" text-anchor="middle">10</text></g>
-        <text class="lbl" x="320" y="38" text-anchor="middle">Understand</text>
-        <text class="sub" x="320" y="56" text-anchor="middle">AGENTS.md, issue, code</text>
-        <text class="lbl" x="490" y="96">Track</text>
-        <text class="sub" x="490" y="114">GitHub issue</text>
-        <text class="lbl" x="572" y="240">Branch</text>
-        <text class="sub" x="572" y="258">type/issue-slug</text>
-        <text class="lbl" x="572" y="392">Specify</text>
-        <text class="sub" x="572" y="410">OpenSpec / Spec Kit</text>
-        <text class="lbl" x="490" y="540">Plan</text>
-        <text class="sub" x="490" y="558">tasks.md</text>
-        <text class="lbl" x="320" y="596" text-anchor="middle">Build</text>
-        <text class="sub" x="320" y="614" text-anchor="middle">small slices, tests first</text>
-        <text class="lbl" x="150" y="540" text-anchor="end">Verify</text>
-        <text class="sub" x="150" y="558" text-anchor="end">build, lint, tests, browser</text>
-        <text class="lbl" x="68" y="392" text-anchor="end">Review</text>
-        <text class="sub" x="68" y="410" text-anchor="end">code review before push</text>
-        <text class="lbl" x="68" y="240" text-anchor="end">Ship</text>
-        <text class="sub" x="68" y="258" text-anchor="end">draft PR, checks, ready</text>
-        <text class="lbl" x="150" y="96" text-anchor="end">Maintain</text>
-        <text class="sub" x="150" y="114" text-anchor="end">audit, debt, drift</text>
-      </svg>
+<svg class="ring" viewBox="-140 -10 920 670" role="img" aria-labelledby="ring-t ring-d">
+<title id="ring-t">BenchKeeper SDLC loop</title>
+<desc id="ring-d">Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. Build: Plan, Build, Verify. Ship: Review, Ship. Maintain. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>
+<circle class="track" cx="320" cy="320" r="220"/>
+<path class="phase define" d="M270.5 105.6A220 220 0 0 1 508.6 433.3"/>
+<text class="ph-l define" x="449.4" y="230.0" text-anchor="middle">DEFINE</text>
+<path class="phase build" d="M486.0 464.3A220 220 0 0 1 154.0 464.3"/>
+<text class="ph-l build" x="320.0" y="484.0" text-anchor="middle">BUILD</text>
+<path class="phase ship" d="M131.4 433.3A220 220 0 0 1 131.4 206.7"/>
+<text class="ph-l ship" x="160.0" y="324.0" text-anchor="middle">SHIP</text>
+<path class="phase maintain" d="M154.0 175.7A220 220 0 0 1 234.0 117.5"/>
+<text class="ph-l maintain" x="226.0" y="194.6" text-anchor="middle">MAINTAIN</text>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(388.0 110.8) rotate(18)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(498.0 190.7) rotate(54)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(540.0 320.0) rotate(90)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(498.0 449.3) rotate(126)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(388.0 529.2) rotate(162)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(252.0 529.2) rotate(198)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(142.0 449.3) rotate(234)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(100.0 320.0) rotate(270)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(142.0 190.7) rotate(306)"/>
+<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(252.0 110.8) rotate(342)"/>
+<circle class="core" cx="320" cy="320" r="118"/>
+<text class="core-t" x="320" y="290" text-anchor="middle">issue to merged PR</text>
+<text class="core-s" x="320" y="314" text-anchor="middle">agent-skills drives each phase</text>
+<circle class="you-dot" cx="258" cy="348" r="9"/>
+<text class="core-s" x="274" y="352">your decision</text>
+<text class="core-s" x="320" y="382" text-anchor="middle">everything else: the agent</text>
+<g class="node"><circle cx="320.0" cy="100.0" r="27"/><text class="n" x="320.0" y="106.0" text-anchor="middle">1</text></g>
+<text class="lbl" x="320.0" y="30.0" text-anchor="middle">Understand</text>
+<text class="sub" x="320.0" y="48.0" text-anchor="middle">AGENTS.md, issue, code</text>
+<circle class="you-ring" cx="449.3" cy="142.0" r="35"/>
+<g class="node"><circle cx="449.3" cy="142.0" r="27"/><text class="n" x="449.3" y="148.0" text-anchor="middle">2</text></g>
+<text class="lbl" x="493.8" y="83.9" text-anchor="start">Track</text>
+<text class="sub" x="493.8" y="101.9" text-anchor="start">GitHub issue</text>
+<text class="you-t" x="493.8" y="118.9" text-anchor="start">approve issue</text>
+<g class="node"><circle cx="529.2" cy="252.0" r="27"/><text class="n" x="529.2" y="258.0" text-anchor="middle">3</text></g>
+<text class="lbl" x="596.2" y="232.9" text-anchor="start">Branch</text>
+<text class="sub" x="596.2" y="250.9" text-anchor="start">type/issue-slug</text>
+<g class="node"><circle cx="529.2" cy="388.0" r="27"/><text class="n" x="529.2" y="394.0" text-anchor="middle">4</text></g>
+<text class="lbl" x="596.2" y="407.1" text-anchor="start">Specify</text>
+<text class="sub" x="596.2" y="425.1" text-anchor="start">OpenSpec / Spec Kit</text>
+<g class="node"><circle cx="449.3" cy="498.0" r="27"/><text class="n" x="449.3" y="504.0" text-anchor="middle">5</text></g>
+<text class="lbl" x="493.8" y="562.1" text-anchor="start">Plan</text>
+<text class="sub" x="493.8" y="580.1" text-anchor="start">tasks.md</text>
+<g class="node"><circle cx="320.0" cy="540.0" r="27"/><text class="n" x="320.0" y="546.0" text-anchor="middle">6</text></g>
+<text class="lbl" x="320.0" y="616.0" text-anchor="middle">Build</text>
+<text class="sub" x="320.0" y="634.0" text-anchor="middle">small slices, tests first</text>
+<g class="node"><circle cx="190.7" cy="498.0" r="27"/><text class="n" x="190.7" y="504.0" text-anchor="middle">7</text></g>
+<text class="lbl" x="146.2" y="562.1" text-anchor="end">Verify</text>
+<text class="sub" x="146.2" y="580.1" text-anchor="end">build, lint, tests, browser</text>
+<circle class="you-ring" cx="110.8" cy="388.0" r="35"/>
+<g class="node"><circle cx="110.8" cy="388.0" r="27"/><text class="n" x="110.8" y="394.0" text-anchor="middle">8</text></g>
+<text class="lbl" x="43.8" y="407.1" text-anchor="end">Review</text>
+<text class="sub" x="43.8" y="425.1" text-anchor="end">code review before push</text>
+<text class="you-t" x="43.8" y="442.1" text-anchor="end">findings stop push</text>
+<circle class="you-ring" cx="110.8" cy="252.0" r="35"/>
+<g class="node"><circle cx="110.8" cy="252.0" r="27"/><text class="n" x="110.8" y="258.0" text-anchor="middle">9</text></g>
+<text class="lbl" x="43.8" y="232.9" text-anchor="end">Ship</text>
+<text class="sub" x="43.8" y="250.9" text-anchor="end">draft PR, checks, ready</text>
+<text class="you-t" x="43.8" y="267.9" text-anchor="end">you merge</text>
+<g class="node"><circle cx="190.7" cy="142.0" r="27"/><text class="n" x="190.7" y="148.0" text-anchor="middle">10</text></g>
+<text class="lbl" x="146.2" y="83.9" text-anchor="end">Maintain</text>
+<text class="sub" x="146.2" y="101.9" text-anchor="end">audit, debt, drift</text>
+</svg>

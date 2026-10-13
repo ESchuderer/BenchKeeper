@@ -3,9 +3,9 @@ import {
   Paper, Progress, SimpleGrid, Stack, Table, Text, ThemeIcon, Timeline, Title, createTheme,
 } from '@mantine/core';
 import {
-  IconArrowDown, IconArrowRight, IconBook, IconBrandGithub, IconBrowser, IconCircleCheck,
+  IconArrowDown, IconArrowRight, IconBrandGithub, IconBrowser, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
-  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun, IconTopologyStar3, IconArrowsMinimize,
+  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
@@ -176,10 +176,10 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               How agents work in every repository: ask instead of assuming, sources for claims, issue to pull request flow, SDLC phases, safety, devcontainer use.
             </FeatureCard>
             <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/global-setup</Code>} scope="Once per machine">
-              Checks 11 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals and version bumps. Applies only what you approve.
+              Checks 9 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals and version bumps. Applies only what you approve.
             </FeatureCard>
             <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/project-setup</Code>} scope="Once per repository">
-              Devcontainer, <Code>AGENTS.md</Code>, stack skills, language servers, spec tool, codegraph, dead config. Shows one plan first and applies only what you approve.
+              Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config. Shows one plan first and applies only what you approve.
             </FeatureCard>
           </SimpleGrid>
         </Section>
@@ -210,7 +210,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
               <Stack gap={10} className="host-list">
-                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'RTK, Context7 MCP, OpenSpec and Spec Kit CLIs', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
+                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'OpenSpec and Spec Kit CLIs', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -223,7 +223,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-orange-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline" className="decide">Devcontainer</Badge><Text fw={700}>one per repository</Text></Group>
               <Stack gap={10} className="ctr-list">
-                {['Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'codegraph index and MCP server', 'Playwright browser, language servers', 'Non-root user, project mount only, no host home, no engine socket, no credential forwarding'].map((t) => (
+                {['Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser', 'Non-root user, project mount only, no host home, no engine socket, no credential forwarding'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -248,24 +248,12 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               Skills for spec, planning, TDD, debugging, code review, security, performance and shipping; the agent loads the one that fits each phase.
             </FeatureCard>
             <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, both agents"
-              gives="Less code to review and maintain. Its benchmark: 53% fewer lines, 26% lower cost.">
+              gives="Less code to review and maintain. Its benchmark: 53% fewer lines, 26% lower cost. JetBrains measured 15% fewer lines, 10% lower cost.">
               Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
             </FeatureCard>
             <FeatureCard icon={<IconFileDescription size={20} />} title={<><Anchor href="https://github.com/Fission-AI/OpenSpec" underline="hover">OpenSpec</Anchor> or <Anchor href="https://github.com/github/spec-kit" underline="hover">Spec Kit</Anchor></>} scope="CLI global, chosen per repository"
               gives="Requirements live in the repository and are reviewed in the same pull request as the code; the next session reads them instead of guessing.">
               OpenSpec: one change folder per change (proposal, spec deltas, tasks), merged into living specs on archive. Spec Kit: one folder per feature (spec, plan, tasks) plus a constitution.
-            </FeatureCard>
-            <FeatureCard icon={<IconTopologyStar3 size={20} />} title="codegraph" href="https://github.com/colbymchenry/codegraph" scope="Per repository, in the container"
-              gives="Callers and change impact in one query instead of many file searches. Its benchmark: 88% fewer tool calls, 62% fewer tokens.">
-              Indexes the repository into a local graph of symbols, calls and imports, updated as files change, and answers queries over MCP.
-            </FeatureCard>
-            <FeatureCard icon={<IconArrowsMinimize size={20} />} title="RTK" href="https://github.com/rtk-ai/rtk" scope="Global, both agents"
-              gives="Less context spent on noise. Its figure: 60 to 90% fewer tokens on common dev commands.">
-              Hooks shell commands and condenses their output (test runners, builds, linters, git) before the agent reads it.
-            </FeatureCard>
-            <FeatureCard icon={<IconBook size={20} />} title="Context7 MCP" href="https://github.com/upstash/context7" scope="Global, both agents"
-              gives="Code follows the documented API of the version you use, not what the model remembers.">
-              Returns current, version-specific library and framework documentation on request.
             </FeatureCard>
             <FeatureCard icon={<IconBrowser size={20} />} title="Playwright MCP" href="https://github.com/microsoft/playwright-mcp" scope="Per repository, browser in the container"
               gives="UI changes are checked in a real browser before the agent reports them done.">
@@ -275,9 +263,9 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               gives="The same toolchain on every machine and client; installs, builds and tests run as a non-root user and do not touch the host.">
               A standard <Code>devcontainer.json</Code> per repository, shared by the CLI, VS Code and Orca terminals; project commands run through <Code>devcontainer exec</Code>.
             </FeatureCard>
-            <FeatureCard icon={<IconSearch size={20} />} title="Stack skills and LSP" scope="Per repository"
-              gives="Framework-specific knowledge where agent-skills is generic, and diagnostics after each edit.">
-              <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor> picks at most two vetted skills per technology; language server plugins connect to servers inside the container.
+            <FeatureCard icon={<IconSearch size={20} />} title="Stack skills" scope="Per repository"
+              gives="Framework-specific knowledge where agent-skills is generic.">
+              <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor> picks at most two vetted skills per technology.
             </FeatureCard>
           </SimpleGrid>
         </Section>
@@ -299,10 +287,10 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="How it reduces cost" intro="Fewer tokens per task come from three components. The figures are each project's published benchmark, not measurements of your repositories.">
+        <Section id="cost" title="How it reduces cost" intro="Ponytail is the component with an independent cost measurement. OpenSpec, Spec Kit and agent-skills publish no cost figures and have no independent measurement. Vendor figures are not measurements of your repositories.">
           <SimpleGrid cols={{ base: 1, md: 3 }}>
             <Card withBorder padding="lg">
-              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail</Text></Group>
+              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>
               <Text size="sm" c="dimmed" mt="sm">Reduction against no skill. 39 tasks, 5 runs each, Claude Code on Opus 5.5.</Text>
               <Stack gap="sm" mt="md">
                 {ponytail.map(([k, v]) => (
@@ -319,33 +307,31 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Text size="xs" c="dimmed" mt="md">Source: <Anchor href="https://github.com/DietrichGebert/ponytail/blob/main/benchmarks/README.md">Ponytail benchmarks</Anchor>, 2026-10-07.</Text>
             </Card>
             <Card withBorder padding="lg">
-              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconTopologyStar3 size={18} /></ThemeIcon><Text fw={700}>codegraph</Text></Group>
-              <Text size="sm" c="dimmed" mt="sm">Average across 7 repositories, median of 4 runs.</Text>
+              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, independent</Text></Group>
+              <Text size="sm" c="dimmed" mt="sm">JetBrains, 80 paired SkillsBench tasks, Claude Code on Sonnet 5, medium effort, ponytail v4.8.4.</Text>
               <SimpleGrid cols={2} mt="md" spacing="xs">
-                <Stat value="88%" label="fewer tool calls" />
-                <Stat value="62%" label="fewer tokens" />
-                <Stat value="44%" label="cheaper" />
-                <Stat value="53%" label="faster" />
+                <Stat value="-10.3%" label="cost (p=0.004)" />
+                <Stat value="-15%" label="lines of code (median, p=0.088)" />
+                <Stat value="-11%" label="time" />
+                <Stat value="65 of 80" label="tasks with identical score" />
               </SimpleGrid>
-              <Text size="xs" c="dimmed" mt="md">Token reduction ranges from 41% (Django) to 84% (Excalidraw). Responses leave about 80% more retrieval context resident at session end. Source: <Anchor href="https://github.com/colbymchenry/codegraph">codegraph README</Anchor>.</Text>
+              <Text size="xs" c="dimmed" mt="md">Code fell 31% on large builds and about 0% where the baseline wrote little. Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/">JetBrains AI blog</Anchor>.</Text>
             </Card>
             <Card withBorder padding="lg">
-              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconArrowsMinimize size={18} /></ThemeIcon><Text fw={700}>RTK</Text></Group>
-              <Text size="sm" c="dimmed" mt="sm">Reduction of command output the agent reads.</Text>
-              <SimpleGrid cols={2} mt="md" spacing="xs">
-                <Stat value="60-90%" label="fewer tokens on common dev commands" />
-                <Stat value="~90%" label="test runners (pytest, cargo, Go)" />
-                <Stat value="~80%" label="cargo build, ruff check" />
-                <Stat value="~85%" label="golangci-lint" />
-              </SimpleGrid>
-              <Text size="xs" c="dimmed" mt="md">Output reduction, not total bill. Source: <Anchor href="https://github.com/rtk-ai/rtk">RTK README</Anchor>.</Text>
+              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconCircleX size={18} /></ThemeIcon><Text fw={700}>Removed after testing</Text></Group>
+              <List size="sm" mt="sm" spacing="sm">
+                <List.Item><b>RTK</b>: advertised 60 to 90% fewer tokens. JetBrains measured +7.6% cost at low effort (p=0.004) and 0% at high effort; <Anchor href="https://quesma.com/blog/does-rtk-make-ai-coding-cheaper/">Quesma</Anchor> measured -5% (Claude Code, mostly one task) and +5% (DeepSeek). Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/">JetBrains AI blog</Anchor>.</List.Item>
+                <List.Item><b>codegraph</b>: advertised 62% fewer tokens. No independent measurement found; agents call add-on code tools rarely.</List.Item>
+                <List.Item><b>Context7 MCP</b>: <Anchor href="https://marginlab.ai/blog/do-mcps-improve-coding-agents-part-1/">Marginlab</Anchor> measured 64 of 89 Terminal-Bench tasks passed with it, 63 without; Codex called it in 6.</List.Item>
+                <List.Item><b>LSP plugins</b>: a preliminary study measured 6 to 118% more tokens for code localization; agents mostly used grep (<Anchor href="https://arxiv.org/abs/2608.13568">arXiv 2608.13568</Anchor>).</List.Item>
+              </List>
             </Card>
           </SimpleGrid>
           <Card withBorder padding="lg" mt="md">
             <Text fw={700}>Cost the setup avoids</Text>
             <List size="sm" mt="xs" spacing={4}>
-              <List.Item>Optional parts are skipped where they do not apply: no spec tool for config and docs repositories, no codegraph below about 50 source files.</List.Item>
-              <List.Item>Telemetry is off for Codex, RTK, OpenSpec and codegraph; Claude Code error reporting and feedback surveys are off.</List.Item>
+              <List.Item>Optional parts are skipped where they do not apply: no spec tool for config and docs repositories.</List.Item>
+              <List.Item>Telemetry is off for Codex and OpenSpec; Claude Code error reporting and feedback surveys are off.</List.Item>
               <List.Item>A new machine is rebuilt from one repository with <Code>/global-setup</Code>; a fresh clone restores its skills with <Code>/project-setup</Code>.</List.Item>
             </List>
           </Card>
@@ -427,7 +413,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Table.Tbody>
                 <Table.Tr><Table.Td>Machine</Table.Td><Table.Td><Code>~/.claude/rules/00-global.md</Code> (symlink), <Code>~/.codex/AGENTS.md</Code> (copy), <Code>~/.claude/skills/</Code>, <Code>~/.agents/skills/</Code>, agent plugins and settings</Table.Td></Table.Tr>
                 <Table.Tr><Table.Td>Repository, committed</Table.Td><Table.Td><Code>.devcontainer/</Code>, <Code>AGENTS.md</Code>, <Code>CLAUDE.md</Code>, <Code>.agents/skills/</Code>, <Code>.claude/skills/</Code>, <Code>skills-lock.json</Code>, <Code>openspec/</Code> or <Code>.specify/</Code> and <Code>specs/</Code>, <Code>.mcp.json</Code>, <Code>.codex/config.toml</Code></Table.Td></Table.Tr>
-                <Table.Tr><Table.Td>Repository, not committed</Table.Td><Table.Td><Code>.codegraph/</Code></Table.Td></Table.Tr>
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>

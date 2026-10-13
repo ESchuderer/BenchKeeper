@@ -1,6 +1,6 @@
 ---
 name: global-setup
-description: "Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, Ponytail (full), addy agent-skills, OpenSpec, Spec Kit, Context7 MCP, Playwright MCP, LSP, telemetry. Use on a new machine, after editing the global rules, to update the pinned tool versions, or to verify or clean the global setup."
+description: "Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, Ponytail (full), addy agent-skills, OpenSpec, Spec Kit, Playwright MCP, telemetry. Use on a new machine, after editing the global rules, to update the pinned tool versions, or to verify or clean the global setup."
 ---
 
 # Global setup
@@ -33,9 +33,9 @@ In commands below, replace `<agent-flags>` with the selected agents' flags and `
 
 Needs `npm` with prefix `~/.local`, `jq`, `curl` for applicable steps. Missing: stop and tell the user. `gh` missing or `gh auth status` failing: warn that the issue and pull request flow in `rules/global.md` falls back to local branches, and continue.
 
-Agents run on the host; project development commands run in standard devcontainers. Apply this skill to the host agent setup and check part 10 before project setup. Keep BenchKeeper, agent authentication, global rules, and skills on the host. `project-setup` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials. Rootless engines, VMs, and microVMs are not required.
+Agents run on the host; project development commands run in standard devcontainers. Apply this skill to the host agent setup and check part 9 before project setup. Keep BenchKeeper, agent authentication, global rules, and skills on the host. `project-setup` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials. Rootless engines, VMs, and microVMs are not required.
 
-Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`). Add available bumps to the plan (package, pinned, latest). For each accepted bump, edit the pin everywhere it appears in `$B` (`grep -rn '<pkg>@' $B --include='*.md'`), then install it through its part. Keep `typescript` on 5.x (part 7). The pins change only here, at install time, where the new version is tested.
+Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`). Add available bumps to the plan (package, pinned, latest). For each accepted bump, edit the pin everywhere it appears in `$B` (`grep -rn '<pkg>@' $B --include='*.md'`), then install it through its part. The pins change only here, at install time, where the new version is tested.
 
 ## Parts
 
@@ -83,13 +83,8 @@ claude plugin marketplace add https://github.com/addyosmani/agent-skills.git && 
 codex plugin marketplace add addyosmani/agent-skills && codex plugin add agent-skills@agent-skills
 ```
 
-### 5. Context7 and Playwright MCP
-Check: selected agents use the Context7 HTTP endpoint. Project Playwright runs inside its devcontainer; a host `npx` registration or host browser cache does not verify that connection. `project-setup` installs `@playwright/mcp@0.0.83` and its matching Chromium inside the container, configures the project connection, and tests browser access to the project application. Report existing host Playwright registrations for migration; keep them disabled for container projects until the replacement is verified.
-Install Context7 on the host:
-```sh
-claude mcp add --scope user --transport http context7 https://mcp.context7.com/mcp
-codex mcp add context7 --url https://mcp.context7.com/mcp
-```
+### 5. Playwright MCP
+Check: project Playwright runs inside its devcontainer; a host `npx` registration or host browser cache does not verify that connection. `project-setup` installs `@playwright/mcp@0.0.83` and its matching Chromium inside the container, configures the project connection, and tests browser access to the project application. Report existing host Playwright registrations for migration; keep them disabled for container projects until the replacement is verified.
 
 ### 6. Skills
 Check: each selected agent's skill directory links `project-setup` and `global-setup` into `$B/skills/`, and has a readable `find-skills/SKILL.md`.
@@ -100,17 +95,7 @@ mkdir -p <skill-dir>
 for s in project-setup global-setup; do ln -sfn $B/skills/$s <skill-dir>/$s; done
 ```
 
-### 7. LSP (Claude)
-Skip this part unless Claude Code is selected.
-Check: `pyright-lsp@claude-plugins-official` and `typescript-lsp@claude-plugins-official` are installed on the host, with default host launches disabled. Check effective project overrides too; enable a project only after `project-setup` verifies the container connection and file paths. Host binaries on PATH do not establish container execution. Container defaults are `typescript@5.9.3`, `typescript-language-server@6.0.2`, and `pyright@1.1.414`; keep TypeScript on 5.x because 7.x lacks `tsserver.js`. Existing host binaries are not removed by this migration. [Plugin scopes](https://code.claude.com/docs/en/plugins/install)
-Install the host plugins:
-```sh
-claude plugin install pyright-lsp@claude-plugins-official && claude plugin install typescript-lsp@claude-plugins-official
-claude plugin disable pyright-lsp@claude-plugins-official --scope user
-claude plugin disable typescript-lsp@claude-plugins-official --scope user
-```
-
-### 8. Settings and telemetry
+### 7. Settings and telemetry
 Check: `~/.claude/settings.json` has `advisorModel` `opus`, `remoteControlAtStartup` true, `attribution` `{"commit":"Assisted-by: generative AI","pr":"Created with the assistance of generative AI.","sessionUrl":false}` (neutral AI disclosure, no model name, no claude.ai session link), `env.DISABLE_ERROR_REPORTING` `1`, `env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` `1`; `~/.codex/config.toml` has `[analytics]` `enabled = false` and `[feedback]` `enabled = false` (Codex has no attribution setting). [Claude attribution settings](https://code.claude.com/docs/en/settings-reference#attribution), [Codex config](https://developers.openai.com/codex/config-reference)
 Install:
 Claude Code only:
@@ -126,12 +111,12 @@ grep -q '^\[analytics\]' ~/.codex/config.toml || printf '\n[analytics]\nenabled 
 grep -q '^\[feedback\]' ~/.codex/config.toml || printf '\n[feedback]\nenabled = false\n' >> ~/.codex/config.toml
 ```
 
-### 9. Advisor and Remote Control not disabled
+### 8. Advisor and Remote Control not disabled
 Skip this part unless Claude Code is selected.
 Check: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_GROWTHBOOK` are set nowhere: settings `env`, current environment, `~/.config/fish/`, `~/.bashrc`, `~/.zshrc`, `~/.profile`, `/etc/environment`. Each disables feature flags and with them the advisor; some also Remote Control.
 Fix: remove the line after asking (`/etc/environment`: give the user the command).
 
-### 10. Devcontainer tooling (host)
+### 9. Devcontainer tooling (host)
 Check: `docker info` can reach a Docker Engine; `devcontainer --version` is `0.89.0`. A `docker` command alone does not prove the engine is available. Report a Podman compatibility command as a different runtime; do not replace it or change its mode automatically. If VS Code is used, `code --list-extensions --show-versions` includes `ms-vscode-remote.remote-containers`.
 
 Install the [Dev Containers CLI](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli):
@@ -140,7 +125,7 @@ npm i -g @devcontainers/cli@0.89.0
 ```
 If Docker is missing or inaccessible, report the failure and give the platform's [Docker installation](https://docs.docker.com/engine/install/) or daemon-start instructions; never run sudo. If the VS Code extension is missing, resolve and pin its exact version before installing it. `project-setup` owns each repository's configuration and launch checks. Do not report the development environment as ready until a container starts and its project checks run inside it.
 
-### 11. Orca skills (optional, ask)
+### 10. Orca skills (optional, ask)
 Check: `orca-cli/SKILL.md` and `orchestration/SKILL.md` are readable through each selected agent's skill directory. Keep existing installations. Missing optional skills are not a setup failure.
 
 If either skill is missing for a selected agent, ask whether to install the optional Orca skills (`orca-cli` and `orchestration`), naming only the selected agents. Install only after an explicit yes. A no or no answer means skip; do not remove existing Orca skills or hooks.
@@ -156,18 +141,20 @@ Check the skill files again after installation. The Orca application and CLI are
 
 List in the plan, as destructive, items belonging to selected agents that are not a part above. Do not classify an unselected agent or its tools as extras. Preserve shared files and tools still used by any unselected agent.
 
-- Plugins and marketplaces other than `ponytail`, `addy-agent-skills` (Codex: `agent-skills`), `claude-plugins-official` with its LSP plugins: `claude plugin uninstall`, `claude plugin marketplace remove`, `codex plugin remove`, `codex plugin marketplace remove`.
-- User MCP servers other than `context7`, `playwright`: `claude mcp remove --scope user`, `codex mcp remove`.
-- Global skills other than parts 6 and 11: `npx -y skills@1.7.2 remove -g <name> <agent-flags>`, or delete only the selected agent's symlink.
+- Plugins and marketplaces other than `ponytail`, `addy-agent-skills` (Codex: `agent-skills`), `claude-plugins-official`: `claude plugin uninstall`, `claude plugin marketplace remove`, `codex plugin remove`, `codex plugin marketplace remove`.
+- User MCP servers other than `playwright`: `claude mcp remove --scope user`, `codex mcp remove`.
+- Global skills other than parts 6 and 10: `npx -y skills@1.7.2 remove -g <name> <agent-flags>`, or delete only the selected agent's symlink.
 - Hooks in `~/.claude/settings.json` and `~/.codex/hooks.json`.
 - RTK, no longer part of this setup: `rtk init -g --uninstall` (Claude Code), `rtk init -g --codex --uninstall` (Codex), then the `rtk` binary, `~/.claude/RTK.md`, the `@RTK.md` line in `~/.claude/CLAUDE.md`, `~/.codex/RTK.md`.
 - codegraph, no longer part of this setup: `npm rm -g @colbymchenry/codegraph`.
+- Context7 MCP, no longer part of this setup: `claude mcp remove --scope user context7`, `codex mcp remove context7`.
+- LSP plugins, no longer part of this setup: `claude plugin uninstall pyright-lsp@claude-plugins-official`, `claude plugin uninstall typescript-lsp@claude-plugins-official`, and other `*-lsp@claude-plugins-official` plugins.
 - Leftovers: a `statusLine` pointing to a missing file, rules files or `~/.codex/AGENTS.md` blocks from other toolkits, `*.bak` of the settings files, cache folders in `~/.claude/plugins/cache/` and `~/.codex/plugins/cache/` of plugins no longer installed, npm globals not used by a part above (except `@openai/codex`). Keep `@devcontainers/cli` on the host.
 
-Never extras: `anthropic-plugin-directory` (Claude), `openai-curated-remote` (Codex), `~/.claude/skills/synced/`, `~/.claude/skills/.trash/`, npm global `@openai/codex`, LSP plugins added by `project-setup`.
+Never extras: `anthropic-plugin-directory` (Claude), `openai-curated-remote` (Codex), `~/.claude/skills/synced/`, `~/.claude/skills/.trash/`, npm global `@openai/codex`.
 
 Kept unless the user says otherwise: Orca (`~/.orca`, its hooks, skills `orca-cli`, `orchestration`). Report them as kept.
 
 ## Report
 
-List selected agents and skipped agents. Table of parts 1 to 10 (ok, fixed, failing, or skipped), optional part 11 (kept, installed, skipped, or failed), extras removed or kept. Report the container runtime and CLI separately from project container readiness. Then: restart only selected agents on the host; if Codex is selected, run `/hooks` and trust new plugin hooks; in new sessions check Ponytail reports `full`; if Claude Code is selected, check agent-skills commands (`/spec`, `/plan`), the advisor, and Remote Control.
+List selected agents and skipped agents. Table of parts 1 to 9 (ok, fixed, failing, or skipped), optional part 10 (kept, installed, skipped, or failed), extras removed or kept. Report the container runtime and CLI separately from project container readiness. Then: restart only selected agents on the host; if Codex is selected, run `/hooks` and trust new plugin hooks; in new sessions check Ponytail reports `full`; if Claude Code is selected, check agent-skills commands (`/spec`, `/plan`), the advisor, and Remote Control.

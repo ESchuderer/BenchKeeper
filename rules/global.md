@@ -14,7 +14,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Code, commands, error messages, identifiers, numbers, and units stay exact.
 
 ## Sources
-- Back factual claims about external things (APIs, libraries, versions, standards, laws, prices) with an inline official source URL. Library and framework docs: Context7 MCP first.
+- Back factual claims about external things (APIs, libraries, versions, standards, laws, prices) with an inline official source URL.
 - Back claims about this codebase with file paths and line numbers.
 - Never invent a source. If a claim is unverified, label it "unverified".
 

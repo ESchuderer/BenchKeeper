@@ -1,6 +1,6 @@
 ---
 name: project-setup
-description: "Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, language servers, OpenSpec or Spec Kit. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, OpenSpec or Spec Kit. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 ---
 
 # Project setup
@@ -8,10 +8,10 @@ description: "Set up or update a repository's development container and agent to
 Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, `openspec/`, or `.specify/`, every step compares the current state with what it would create and proposes only the differences.
 
 Process: plan first, then apply.
-1. Read only: run agent selection and steps 1 to 7 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing; do not build or start a container.
+1. Read only: run agent selection and steps 1 to 6 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing; do not build or start a container.
 2. Plan: one list of files created, changed, or removed, skills added or removed, packages added to the image, container build or rebuild, integrations enabled or disabled, and skipped steps with the reason. Mark destructive items: overwriting or removing files, config entries, or skills, and removing or rebuilding a container. Ask: apply all, a subset, or cancel.
 3. Apply only approved items, including container launch and verification. Right before each destructive item, show the diff or list and ask again.
-4. Verify and report (step 8).
+4. Verify and report (step 7).
 
 Never commit; never run sudo or AUR installs (give the user the command).
 
@@ -56,7 +56,7 @@ After changing the image, Dockerfile, or container creation settings, rebuild in
 
 ## 3. AGENTS.md and CLAUDE.md
 
-- `AGENTS.md`: what the project is (two lines), host agent launch and permitted host operations, container command prefixes, the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), layout, conventions found in the code. Update: fix failing or changed commands; keep the user's text.
+- `AGENTS.md`: host agent launch and permitted host operations, container command prefixes, the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), conventions found in the code that differ from the stack defaults. No project summary or layout. Update: remove a project summary or layout section after asking; fix failing or changed commands; keep the user's text.
 - `CLAUDE.md`, only when Claude Code is selected: exactly `@AGENTS.md`. Move any other content into `AGENTS.md` first. Otherwise leave an existing file unchanged and do not create one.
 
 ## 4. Stack skills
@@ -71,18 +71,7 @@ The global agent-skills plugin covers the workflow (spec, planning, TDD, debuggi
 
 Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of agent-skills skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
 
-## 5. Language servers
-
-Skip this Claude plugin integration unless Claude Code is selected.
-
-For each confirmed language, find its LSP plugin in `~/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json`. The plugin's `lspServers.*.command` field names the server binary it needs.
-
-- Install the plugin on the host with `claude plugin install <name>@claude-plugins-official` when missing. Merge `false` for its full plugin ID into project `enabledPlugins` until container routing is verified, including for already-installed plugins. Check local or managed overrides before claiming it is disabled.
-- Install the server and required language runtime inside the container with exact versions; use `global-setup` part 7 for the Python and TypeScript defaults.
-- Use a supported client configuration to connect the host plugin to the container server. Verify diagnostics on a project file and matching host/container file paths or supported URI translation. Do not edit installed plugin files or treat an executable wrapper alone as proof. If the client cannot route the server correctly, disable its use for this project and report the limitation instead of installing a host fallback.
-- No plugin for a language (shell, YAML, HCL, ...): skip it and list it in the report.
-
-## 6. Spec tool (ask)
+## 5. Spec tool (ask)
 
 Ask which spec tool this repository uses: OpenSpec, Spec Kit, or none. Present both without a recommendation, with these differences: OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive; Spec Kit keeps one folder per feature under `specs/` plus `.specify/memory/constitution.md`, with more up-front planning artifacts and no archive step. Recommend none for config, infrastructure, and docs repositories. A repository with `openspec/` or `.specify/` keeps its tool unless the user asks to switch. In both cases agent-skills drives the process and the tool owns the spec files (`rules/global.md`).
 
@@ -94,10 +83,10 @@ Spec Kit ([integrations](https://github.com/github/spec-kit/blob/v1.1.3/docs/ref
 - Setup: `specify init --here --force --non-interactive --integration <key>`, with `<key>` `claude` or `codex` for the first selected agent; for both, then `specify integration install codex`. Then `specify extension disable git` so branches follow the global issue and branch flow instead of `001-feature` names.
 - Update: `specify integration upgrade <key>` for each selected agent, then `specify extension update`; report managed files with local edits instead of passing `--force`. Leave unselected integrations in place. `specify integration status` lists the installed ones.
 
-## 7. Dead config
+## 6. Dead config
 
-Check hooks and MCP servers only for selected agents: `.claude/settings*.json` and `.mcp.json` for Claude Code, `.codex/` for Codex. Check in their execution environment: host agent hooks on the host, container tools through `devcontainer exec`. A missing host binary does not make a container launcher obsolete. Propose removing entries whose required commands or project integration are no longer present, and codegraph leftovers (`codegraph serve` launchers, `.codegraph/`, removed with `devcontainer exec --workspace-folder . codegraph uninit -f`); an unselected agent's configuration is not obsolete merely because it was skipped.
+Check hooks and MCP servers only for selected agents: `.claude/settings*.json` and `.mcp.json` for Claude Code, `.codex/` for Codex. Check in their execution environment: host agent hooks on the host, container tools through `devcontainer exec`. A missing host binary does not make a container launcher obsolete. Propose removing entries whose required commands or project integration are no longer present, codegraph leftovers (`codegraph serve` launchers, `.codegraph/`, removed with `devcontainer exec --workspace-folder . codegraph uninit -f`), and `*-lsp@claude-plugins-official` entries in `enabledPlugins`; an unselected agent's configuration is not obsolete merely because it was skipped.
 
-## 8. Report
+## 7. Report
 
-List selected and skipped agents. Give a table of each changed file, the skills added or removed (with their source), any binaries still missing, and steps skipped with the reason. Include the container launch result and the project checks actually run inside it; report MCP/browser and LSP connections separately as verified, unavailable, skipped, or untested. Then give launch commands only for selected host agents and the container command prefix for project work.
+List selected and skipped agents. Give a table of each changed file, the skills added or removed (with their source), any binaries still missing, and steps skipped with the reason. Include the container launch result and the project checks actually run inside it; report MCP/browser connections separately as verified, unavailable, skipped, or untested. Then give launch commands only for selected host agents and the container command prefix for project work.

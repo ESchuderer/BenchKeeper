@@ -3,7 +3,7 @@ import {
   Paper, Progress, SimpleGrid, Stack, Table, Text, ThemeIcon, Timeline, Title, createTheme,
 } from '@mantine/core';
 import {
-  IconArrowDown, IconArrowRight, IconBook, IconBrandGithub, IconBrowser, IconCircleCheck,
+  IconArrowDown, IconArrowRight, IconBrandGithub, IconBrowser, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
   IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun,
 } from '@tabler/icons-react';
@@ -176,10 +176,10 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               How agents work in every repository: ask instead of assuming, sources for claims, issue to pull request flow, SDLC phases, safety, devcontainer use.
             </FeatureCard>
             <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/global-setup</Code>} scope="Once per machine">
-              Checks 10 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals and version bumps. Applies only what you approve.
+              Checks 9 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals and version bumps. Applies only what you approve.
             </FeatureCard>
             <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/project-setup</Code>} scope="Once per repository">
-              Devcontainer, <Code>AGENTS.md</Code>, stack skills, language servers, spec tool, dead config. Shows one plan first and applies only what you approve.
+              Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config. Shows one plan first and applies only what you approve.
             </FeatureCard>
           </SimpleGrid>
         </Section>
@@ -210,7 +210,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
               <Stack gap={10} className="host-list">
-                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'Context7 MCP, OpenSpec and Spec Kit CLIs', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
+                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'OpenSpec and Spec Kit CLIs', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -223,7 +223,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-orange-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline" className="decide">Devcontainer</Badge><Text fw={700}>one per repository</Text></Group>
               <Stack gap={10} className="ctr-list">
-                {['Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser, language servers', 'Non-root user, project mount only, no host home, no engine socket, no credential forwarding'].map((t) => (
+                {['Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser', 'Non-root user, project mount only, no host home, no engine socket, no credential forwarding'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -255,10 +255,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               gives="Requirements live in the repository and are reviewed in the same pull request as the code; the next session reads them instead of guessing.">
               OpenSpec: one change folder per change (proposal, spec deltas, tasks), merged into living specs on archive. Spec Kit: one folder per feature (spec, plan, tasks) plus a constitution.
             </FeatureCard>
-            <FeatureCard icon={<IconBook size={20} />} title="Context7 MCP" href="https://github.com/upstash/context7" scope="Global, both agents"
-              gives="Code can follow the documented API of the version you use. Measured: Codex called it in 6 of 89 Terminal-Bench tasks, pass rate 64 vs 63 without (Marginlab).">
-              Returns current, version-specific library and framework documentation on request.
-            </FeatureCard>
             <FeatureCard icon={<IconBrowser size={20} />} title="Playwright MCP" href="https://github.com/microsoft/playwright-mcp" scope="Per repository, browser in the container"
               gives="UI changes are checked in a real browser before the agent reports them done.">
               Browser control over MCP: open pages, click, fill forms, read console and network, take screenshots.
@@ -267,9 +263,9 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               gives="The same toolchain on every machine and client; installs, builds and tests run as a non-root user and do not touch the host.">
               A standard <Code>devcontainer.json</Code> per repository, shared by the CLI, VS Code and Orca terminals; project commands run through <Code>devcontainer exec</Code>.
             </FeatureCard>
-            <FeatureCard icon={<IconSearch size={20} />} title="Stack skills and LSP" scope="Per repository"
-              gives="Framework-specific knowledge where agent-skills is generic, and diagnostics after each edit. A preliminary study measured 6 to 118% more tokens with LSP for code localization.">
-              <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor> picks at most two vetted skills per technology; language server plugins connect to servers inside the container.
+            <FeatureCard icon={<IconSearch size={20} />} title="Stack skills" scope="Per repository"
+              gives="Framework-specific knowledge where agent-skills is generic.">
+              <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor> picks at most two vetted skills per technology.
             </FeatureCard>
           </SimpleGrid>
         </Section>
@@ -325,7 +321,9 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconCircleX size={18} /></ThemeIcon><Text fw={700}>Removed after testing</Text></Group>
               <List size="sm" mt="sm" spacing="sm">
                 <List.Item><b>RTK</b>: advertised 60 to 90% fewer tokens. JetBrains measured +7.6% cost at low effort (p=0.004) and 0% at high effort; <Anchor href="https://quesma.com/blog/does-rtk-make-ai-coding-cheaper/">Quesma</Anchor> measured -5% (Claude Code, mostly one task) and +5% (DeepSeek). Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/">JetBrains AI blog</Anchor>.</List.Item>
-                <List.Item><b>codegraph</b>: advertised 62% fewer tokens. No independent measurement found; agents call add-on code tools rarely (<Anchor href="https://arxiv.org/abs/2608.13568">arXiv 2608.13568</Anchor>).</List.Item>
+                <List.Item><b>codegraph</b>: advertised 62% fewer tokens. No independent measurement found; agents call add-on code tools rarely.</List.Item>
+                <List.Item><b>Context7 MCP</b>: <Anchor href="https://marginlab.ai/blog/do-mcps-improve-coding-agents-part-1/">Marginlab</Anchor> measured 64 of 89 Terminal-Bench tasks passed with it, 63 without; Codex called it in 6.</List.Item>
+                <List.Item><b>LSP plugins</b>: a preliminary study measured 6 to 118% more tokens for code localization; agents mostly used grep (<Anchor href="https://arxiv.org/abs/2608.13568">arXiv 2608.13568</Anchor>).</List.Item>
               </List>
             </Card>
           </SimpleGrid>

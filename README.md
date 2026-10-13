@@ -98,16 +98,17 @@ The agent remains a host process with access governed by its client permissions.
 
 Not installed by BenchKeeper. Each one works with the agents and rules set up here.
 
-**Parallel agents: pick one.** Orca and cmux both manage several agent sessions side by side; running both duplicates that layer.
+**Parallel agents: pick one.** Orca, Nimbalyst and cmux all manage several agent sessions side by side; running more than one duplicates that layer, each tracking its own sessions and worktrees for the same repositories.
 
 | Tool | Platforms | Gives you | Choose it when |
 |---|---|---|---|
 | [Orca](https://github.com/stablyai/orca) | macOS, Windows, Linux | one git worktree per agent, the same prompt across several agents to compare results, terminal splits, SSH remote worktrees, mobile companion app | you want worktree-per-task workflows, Linux or Windows, or remote and mobile access |
+| [Nimbalyst](https://github.com/Nimbalyst/nimbalyst) | macOS, Windows, Linux | parallel sessions on a kanban board, one-click worktree per session, every agent edit as a diff you approve or reject, visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app | you want to review each change visually and work on docs, mockups and tasks next to the agents |
 | [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs, notifications when an agent needs input, sidebar with branch, PR status and ports, browser pane | you are on macOS and want a terminal-first workflow without a separate app layer |
 
 Orca only: `/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills for selected agents. Declining skips them without failing setup; existing Orca skills and hooks are kept. See [setup part 12](skills/global-setup/SKILL.md#12-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
 
-**Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A different role from Orca and cmux: a self-hosted agent server with a web UI.
+**Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A different role from the three above: a self-hosted agent server with a web UI.
 
 - Each conversation can run in its own Docker container (`OH_CONVERSATION_RUNTIME=docker`), one of the isolation options BenchKeeper does not provide.
 - Runs its own agent or hosts Claude Code, Codex and Gemini CLI; works with any LLM.

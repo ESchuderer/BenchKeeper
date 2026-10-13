@@ -32,7 +32,8 @@ section[id] { scroll-margin-top: 64px; }
 .ring .node text.n { fill: var(--mantine-color-teal-6); font-weight: 700; font-size: 18px; }
 .ring .lbl { fill: var(--mantine-color-text); font-size: 16px; font-weight: 600; }
 .ring .sub { fill: var(--mantine-color-dimmed); font-size: 12.5px; }
-.ring .core { fill: color-mix(in srgb, var(--mantine-color-teal-5) 14%, transparent); }
+.ring .core { fill: color-mix(in srgb, var(--mantine-color-teal-5) 12%, transparent); }
+[data-mantine-color-scheme="dark"] .ring .core { fill: color-mix(in srgb, var(--mantine-color-teal-5) 8%, transparent); }
 .ring .core-t { fill: var(--mantine-color-text); font-size: 18px; font-weight: 700; }
 .ring .core-s { fill: var(--mantine-color-dimmed); font-size: 13px; }
 @keyframes spin { to { stroke-dashoffset: -280; } }
@@ -48,3 +49,5 @@ section[id] { scroll-margin-top: 64px; }
 
 .split { display: grid; gap: var(--mantine-spacing-lg); }
 @media (min-width: 62em) { .split { grid-template-columns: 1fr auto 1fr; } }
+
+.mantine-Title-root { color: var(--mantine-color-bright); }

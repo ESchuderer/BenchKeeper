@@ -5,7 +5,7 @@ import {
 import {
   IconArrowDown, IconArrowRight, IconBook, IconBox, IconBrandGithub, IconBrowser, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
-  IconPackage, IconRoute, IconServer, IconStack2, IconTerminal2, IconSearch, IconShieldHalf, IconSun, IconTopologyStar3, IconArrowsMinimize,
+  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconShieldHalf, IconSun, IconTopologyStar3, IconArrowsMinimize,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import sdlc from '../assets/sdlc.svg?raw';
@@ -35,7 +35,7 @@ function Section({ id, title, intro, children }: { id: string; title: string; in
   );
 }
 
-function FeatureCard({ icon, title, scope, children }: { icon: ReactNode; title: ReactNode; scope: string; children: ReactNode }) {
+function FeatureCard({ icon, title, scope, gives, children }: { icon: ReactNode; title: ReactNode; scope: string; gives?: string; children: ReactNode }) {
   return (
     <Card withBorder padding="lg" className="lift">
       <Group gap="sm" wrap="nowrap">
@@ -44,6 +44,20 @@ function FeatureCard({ icon, title, scope, children }: { icon: ReactNode; title:
       </Group>
       <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt="md">{scope}</Text>
       <Text size="sm" mt={6}>{children}</Text>
+      {gives && (
+        <Text size="sm" mt="auto" pt="md"><Text span fw={700} c="teal">What you get </Text>{gives}</Text>
+      )}
+    </Card>
+  );
+}
+
+function ToolCard({ icon, name, href, platforms, points, when }: { icon: ReactNode; name: string; href: string; platforms: string; points: ReactNode[]; when: string }) {
+  return (
+    <Card withBorder padding="lg" className="lift">
+      <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}>{icon}</ThemeIcon><Anchor href={href} fw={700}>{name}</Anchor></Group>
+      <Badge variant="outline" color="gray" mt="sm" w="fit-content">{platforms}</Badge>
+      <List size="sm" mt="md" spacing={6}>{points.map((t, k) => <List.Item key={k}>{t}</List.Item>)}</List>
+      <Text size="sm" mt="auto" pt="md"><Text span fw={700}>Choose it when</Text> {when}</Text>
     </Card>
   );
 }
@@ -103,6 +117,8 @@ const prereqs: [string, string, string][] = [
   ['VS Code', 'https://code.visualstudio.com/download', 'optional, attach to the devcontainer'],
   ['Orca', 'https://onorca.dev', 'optional, parallel agents'],
 ];
+
+const listTop = { root: { paddingInlineStart: 0 }, itemWrapper: { alignItems: 'flex-start' }, itemIcon: { marginTop: 1 } };
 
 const ponytail: [string, number][] = [['Lines of code', 53], ['Output tokens', 45], ['Time', 41], ['Cost', 26]];
 
@@ -203,7 +219,7 @@ export default function Page({ base }: { base: string }) {
               </Stack>
             </Paper>
           </Box>
-          <Alert mt="xl" variant="light" color="gray" icon={<IconShieldHalf size={20} />} title="Not full isolation">
+          <Alert mt="xl" variant="default" icon={<IconShieldHalf size={20} />} title="Not full isolation">
             <Text size="sm">The agent runs on the host with its client permissions; the devcontainer only scopes project commands. Options for stronger isolation, not part of BenchKeeper:</Text>
             <List size="sm" mt="xs" spacing={4}>
               <List.Item><b>Shared VM</b>: agents and all projects in one VM; protects the host, not projects from each other.</List.Item>
@@ -215,29 +231,56 @@ export default function Page({ base }: { base: string }) {
           </Alert>
         </Section>
 
-        <Section id="parts" title="What each part gives you" intro="Each component is a separate upstream project. BenchKeeper pins it, configures it, and connects it to the rules.">
+        <Section id="parts" title="What each part gives you" intro="Each component is a separate upstream project. BenchKeeper pins it to an exact version, configures it for the selected agents, and ties it into the rules and the SDLC loop.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-            <FeatureCard icon={<IconListCheck size={20} />} title={<Anchor href="https://github.com/addyosmani/agent-skills">agent-skills</Anchor>} scope="Global, both agents">Workflow skills for the lifecycle phases Define, Plan, Build, Verify, Review and Ship.</FeatureCard>
-            <FeatureCard icon={<IconFeather size={20} />} title={<Anchor href="https://github.com/DietrichGebert/ponytail">Ponytail</Anchor>} scope="Global, both agents">The smallest change that solves the whole task: reuse before new code, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits.</FeatureCard>
-            <FeatureCard icon={<IconFileDescription size={20} />} title={<><Anchor href="https://github.com/Fission-AI/OpenSpec">OpenSpec</Anchor> or <Anchor href="https://github.com/github/spec-kit">Spec Kit</Anchor></>} scope="CLI global, chosen per repository">Spec files committed with the code: change folders merged into living specs, or one folder per feature plus a constitution.</FeatureCard>
-            <FeatureCard icon={<IconTopologyStar3 size={20} />} title={<Anchor href="https://github.com/colbymchenry/codegraph">codegraph</Anchor>} scope="Per repository, in the container">A local graph of symbols, callers and impact, queried over MCP instead of file-by-file search.</FeatureCard>
-            <FeatureCard icon={<IconArrowsMinimize size={20} />} title={<Anchor href="https://github.com/rtk-ai/rtk">RTK</Anchor>} scope="Global, both agents">Compresses shell command output (tests, builds, linters, git) before the agent reads it.</FeatureCard>
-            <FeatureCard icon={<IconBook size={20} />} title={<Anchor href="https://github.com/upstash/context7">Context7 MCP</Anchor>} scope="Global, both agents">Current library and framework documentation on request, so API usage comes from docs instead of training data.</FeatureCard>
-            <FeatureCard icon={<IconBrowser size={20} />} title={<Anchor href="https://github.com/microsoft/playwright-mcp">Playwright MCP</Anchor>} scope="Per repository, browser in the container">The agent opens the running application and checks UI changes in a real browser.</FeatureCard>
-            <FeatureCard icon={<IconContainer size={20} />} title={<Anchor href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli">Dev Containers</Anchor>} scope="CLI on host, config per repository">One container configuration shared by the CLI, VS Code and Orca terminals.</FeatureCard>
-            <FeatureCard icon={<IconSearch size={20} />} title="Stack skills and LSP" scope="Per repository"><Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor> picks at most two vetted skills per technology; language servers give diagnostics after the container connection is verified.</FeatureCard>
+            <FeatureCard icon={<IconListCheck size={20} />} title={<Anchor href="https://github.com/addyosmani/agent-skills">agent-skills</Anchor>} scope="Global, both agents"
+              gives="The agent follows the same engineering steps every time: spec before code, tests first, review before merge.">
+              Skills for spec, planning, TDD, debugging, code review, security, performance and shipping; the agent loads the one that fits each phase.
+            </FeatureCard>
+            <FeatureCard icon={<IconFeather size={20} />} title={<Anchor href="https://github.com/DietrichGebert/ponytail">Ponytail</Anchor>} scope="Global, both agents"
+              gives="Less code to review and maintain. Its benchmark: 53% fewer lines, 26% lower cost.">
+              Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
+            </FeatureCard>
+            <FeatureCard icon={<IconFileDescription size={20} />} title={<><Anchor href="https://github.com/Fission-AI/OpenSpec">OpenSpec</Anchor> or <Anchor href="https://github.com/github/spec-kit">Spec Kit</Anchor></>} scope="CLI global, chosen per repository"
+              gives="Requirements live in the repository and are reviewed in the same pull request as the code; the next session reads them instead of guessing.">
+              OpenSpec: one change folder per change (proposal, spec deltas, tasks), merged into living specs on archive. Spec Kit: one folder per feature (spec, plan, tasks) plus a constitution.
+            </FeatureCard>
+            <FeatureCard icon={<IconTopologyStar3 size={20} />} title={<Anchor href="https://github.com/colbymchenry/codegraph">codegraph</Anchor>} scope="Per repository, in the container"
+              gives="Callers and change impact in one query instead of many file searches. Its benchmark: 88% fewer tool calls, 62% fewer tokens.">
+              Indexes the repository into a local graph of symbols, calls and imports, updated as files change, and answers queries over MCP.
+            </FeatureCard>
+            <FeatureCard icon={<IconArrowsMinimize size={20} />} title={<Anchor href="https://github.com/rtk-ai/rtk">RTK</Anchor>} scope="Global, both agents"
+              gives="Less context spent on noise. Its figure: 60 to 90% fewer tokens on common dev commands.">
+              Hooks shell commands and condenses their output (test runners, builds, linters, git) before the agent reads it.
+            </FeatureCard>
+            <FeatureCard icon={<IconBook size={20} />} title={<Anchor href="https://github.com/upstash/context7">Context7 MCP</Anchor>} scope="Global, both agents"
+              gives="Code follows the documented API of the version you use, not what the model remembers.">
+              Returns current, version-specific library and framework documentation on request.
+            </FeatureCard>
+            <FeatureCard icon={<IconBrowser size={20} />} title={<Anchor href="https://github.com/microsoft/playwright-mcp">Playwright MCP</Anchor>} scope="Per repository, browser in the container"
+              gives="UI changes are checked in a real browser before the agent reports them done.">
+              Browser control over MCP: open pages, click, fill forms, read console and network, take screenshots.
+            </FeatureCard>
+            <FeatureCard icon={<IconContainer size={20} />} title={<Anchor href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli">Dev Containers</Anchor>} scope="CLI on host, config per repository"
+              gives="The same toolchain on every machine and client; installs, builds and tests run as a non-root user and do not touch the host.">
+              A standard <Code>devcontainer.json</Code> per repository, shared by the CLI, VS Code and Orca terminals; project commands run through <Code>devcontainer exec</Code>.
+            </FeatureCard>
+            <FeatureCard icon={<IconSearch size={20} />} title="Stack skills and LSP" scope="Per repository"
+              gives="Framework-specific knowledge where agent-skills is generic, and diagnostics after each edit.">
+              <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor> picks at most two vetted skills per technology; language server plugins connect to servers inside the container.
+            </FeatureCard>
           </SimpleGrid>
         </Section>
 
         <Section id="quality" title="How it raises quality" intro={<>Each item is a rule the agents load in every session. Source: <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }}>
-            <Card withBorder padding="lg"><List spacing="md" center={false}>
+            <Card withBorder padding="lg"><List spacing="md" styles={listTop}>
               <Check ok title="Ask, do not assume.">Ambiguous requests stop for precise questions instead of a guess.</Check>
               <Check ok title="Spec before code.">Non-trivial changes get a written spec and a task list.</Check>
               <Check ok title="Tests first">where the repository has a test suite; non-trivial logic leaves a test.</Check>
               <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions, disabled lint rules or --no-verify unless you ask.</Check>
             </List></Card>
-            <Card withBorder padding="lg"><List spacing="md">
+            <Card withBorder padding="lg"><List spacing="md" styles={listTop}>
               <Check ok title="Review before push.">A correctness review runs on the commits; findings wait for your decision.</Check>
               <Check ok title="Sources and confidence.">External claims carry an official URL; uncertain topics state a confidence level.</Check>
               <Check ok title="Reproducible tools.">Exact versions for every install and container image.</Check>
@@ -300,12 +343,12 @@ export default function Page({ base }: { base: string }) {
 
         <Section id="not" title="What it is not">
           <SimpleGrid cols={{ base: 1, md: 2 }}>
-            <Card withBorder padding="lg"><List spacing="md">
+            <Card withBorder padding="lg"><List spacing="md" styles={listTop}>
               <Check ok={false} title="Not an agent.">It configures Claude Code and Codex; it does not replace them and does not install their CLIs.</Check>
               <Check ok={false} title="Not a sandbox for the agent.">The devcontainer scopes project commands and mounts; the agent stays a host process under its client permissions.</Check>
               <Check ok={false} title="Not a hosted service.">BenchKeeper is files in a Git repository; it runs no server and has no account.</Check>
             </List></Card>
-            <Card withBorder padding="lg"><List spacing="md">
+            <Card withBorder padding="lg"><List spacing="md" styles={listTop}>
               <Check ok={false} title="Not a build system or framework.">Your project keeps its own toolchain.</Check>
               <Check ok={false} title="Not auto-updating.">Versions change only when /global-setup proposes a bump and you accept it.</Check>
               <Check ok={false} title="Not autonomous on your machine or repository.">Setup applies only the plan you approve and confirms destructive items again; merges and pushes to the default branch need your instruction.</Check>
@@ -315,32 +358,22 @@ export default function Page({ base }: { base: string }) {
 
         <Section id="tools" title="Recommended tools" intro="Optional, not installed by BenchKeeper. Each one works with the agents and rules set up here.">
           <Text fw={700} mb="xs">Parallel agents: pick one</Text>
-          <Text size="sm" c="dimmed" mb="md" maw={720}>Orca and cmux both manage several agent sessions side by side. Running both duplicates that layer.</Text>
-          <Box className="split">
-            <Card withBorder padding="lg" className="lift">
-              <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}><IconStack2 size={20} /></ThemeIcon><Anchor href="https://github.com/stablyai/orca" fw={700}>Orca</Anchor><Badge variant="light" color="gray">macOS, Windows, Linux</Badge></Group>
-              <List size="sm" mt="md" spacing={4}>
-                <List.Item>One git worktree per agent; the same prompt across several agents to compare results</List.Item>
-                <List.Item>Terminal splits, SSH remote worktrees, mobile companion app</List.Item>
-                <List.Item><Code>/global-setup</Code> offers its <Code>orca-cli</Code> and <Code>orchestration</Code> skills, only after asking</List.Item>
-              </List>
-              <Text size="sm" mt="md"><Text span fw={700}>Choose it when</Text> you want worktree-per-task workflows, Linux or Windows, or remote and mobile access.</Text>
-            </Card>
-            <Stack align="center" justify="center"><Badge size="lg" variant="outline" color="gray">or</Badge></Stack>
-            <Card withBorder padding="lg" className="lift">
-              <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}><IconTerminal2 size={20} /></ThemeIcon><Anchor href="https://github.com/manaflow-ai/cmux" fw={700}>cmux</Anchor><Badge variant="light" color="gray">macOS only</Badge></Group>
-              <List size="sm" mt="md" spacing={4}>
-                <List.Item>Ghostty-based terminal with vertical tabs</List.Item>
-                <List.Item>Notifications when an agent needs input; sidebar with branch, PR status and ports</List.Item>
-                <List.Item>Browser pane inside the terminal</List.Item>
-              </List>
-              <Text size="sm" mt="md"><Text span fw={700}>Choose it when</Text> you are on macOS and want a terminal-first workflow without a separate app layer.</Text>
-            </Card>
-          </Box>
+          <Text size="sm" c="dimmed" mb="md" maw={760}>Orca, Nimbalyst and cmux all manage several agent sessions side by side. Running more than one duplicates that layer: each would track its own sessions and worktrees for the same repositories.</Text>
+          <SimpleGrid cols={{ base: 1, md: 3 }}>
+            <ToolCard icon={<IconStack2 size={20} />} name="Orca" href="https://github.com/stablyai/orca" platforms="macOS, Windows, Linux"
+              points={['One git worktree per agent; the same prompt across several agents to compare results', 'Terminal splits, SSH remote worktrees, mobile companion app', <><Code>/global-setup</Code> offers its <Code>orca-cli</Code> and <Code>orchestration</Code> skills, only after asking</>]}
+              when="you want terminal-centered parallel agents with worktrees, remote machines or mobile access." />
+            <ToolCard icon={<IconLayoutKanban size={20} />} name="Nimbalyst" href="https://github.com/Nimbalyst/nimbalyst" platforms="macOS, Windows, Linux"
+              points={['Parallel sessions on a kanban board, one-click worktree per session', 'Every agent edit arrives as a diff you approve or reject', 'Visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app']}
+              when="you want to review each change visually and work on docs, mockups and tasks next to the agents." />
+            <ToolCard icon={<IconTerminal2 size={20} />} name="cmux" href="https://github.com/manaflow-ai/cmux" platforms="macOS only"
+              points={['Ghostty-based terminal with vertical tabs', 'Notifications when an agent needs input; sidebar with branch, PR status and ports', 'Browser pane inside the terminal']}
+              when="you are on macOS and want a terminal-first workflow without a separate app layer." />
+          </SimpleGrid>
           <Text fw={700} mt={40} mb="xs">Unattended or isolated runs</Text>
           <Card withBorder padding="lg">
-            <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" color="orange" size={38}><IconServer size={20} /></ThemeIcon><Anchor href="https://github.com/OpenHands/OpenHands" fw={700}>OpenHands</Anchor><Badge variant="light" color="gray">self-hosted, web UI</Badge></Group>
-            <Text size="sm" c="dimmed" mt="sm">A different role from Orca and cmux: an agent server that runs work without you at the terminal.</Text>
+            <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" color="orange" size={38}><IconServer size={20} /></ThemeIcon><Anchor href="https://github.com/OpenHands/OpenHands" fw={700}>OpenHands</Anchor><Badge variant="outline" color="gray">self-hosted, web UI</Badge></Group>
+            <Text size="sm" c="dimmed" mt="sm">A different role from the three above: an agent server that runs work without you at the terminal.</Text>
             <SimpleGrid cols={{ base: 1, sm: 2 }} mt="md" spacing="md">
               <List size="sm" spacing={4}>
                 <List.Item>Each conversation can run in its own Docker container (<Code>OH_CONVERSATION_RUNTIME=docker</Code>), one of the isolation options BenchKeeper does not provide</List.Item>

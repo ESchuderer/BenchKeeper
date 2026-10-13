@@ -16,6 +16,7 @@ in `web/` (Astro, Mantine) built and deployed by CI.
 - `skills/<name>/SKILL.md`: this repo's skills; `.claude/skills/global-setup` and `.agents/skills/global-setup` link here
 - `.agents/skills/skill-creator`: vendored from `anthropics/skills` (`skills-lock.json`), update with `npx -y skills@1.7.2 update -p`, do not edit
 - `assets/logo.svg`: logo
+- `EVALUATIONS.md`: components evaluated and why each is kept, removed or not added; update it when a component is added or removed
 - `web/`: site; `src/components/Page.tsx` content, `src/data/facts.json` facts shared with the README, `tests/` axe test
 - `web/scripts/`: `readme.mjs` writes the README blocks marked `generated` from `facts.json`; `og.svg` is the source of `public/og.png` (`rsvg-convert -w 1200 -h 630`)
 - `web/src/lib/sdlc.ts`: builds the SDLC loop SVG from `facts.json` at build time

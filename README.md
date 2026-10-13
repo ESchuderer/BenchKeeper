@@ -39,7 +39,7 @@ Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGEN
 
 Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.md#ponytail-and-agent-skills) integrate them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
 
-Components evaluated, removed or not added, with the research behind each decision: [EVALUATIONS.md](EVALUATIONS.md).
+Every component evaluated, what is in and what is not, with the research behind each decision: [EVALUATIONS.md](EVALUATIONS.md).
 
 ## Telemetry
 

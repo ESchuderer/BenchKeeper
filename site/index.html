@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BenchKeeper</title>
 <meta name="description" content="Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.">
+<script>
+try { var t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 <link rel="icon" href="logo.svg" type="image/svg+xml">
 <style>
 :root {
@@ -94,6 +97,8 @@ p { margin: 0; }
 .nav ul a:hover { color: var(--ink); }
 .nav .gh { margin-left: auto; font-size: .92rem; font-weight: 600; text-decoration: none; }
 @media (min-width: 900px) { .nav ul { display: flex; } .nav .gh { margin-left: 0; } }
+.theme { display: grid; place-items: center; width: 36px; height: 36px; margin-left: -8px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.theme svg { width: 18px; height: 18px; }
 
 /* hero */
 .hero { padding: 72px 0 56px; }
@@ -148,17 +153,18 @@ section { padding: 64px 0; border-top: 1px solid var(--line); scroll-margin-top:
 
 /* host / container */
 .split { display: grid; gap: 16px; align-items: stretch; }
-@media (min-width: 860px) { .split { grid-template-columns: 1fr 120px 1fr; } }
+@media (min-width: 860px) { .split { grid-template-columns: 1fr 160px 1fr; } }
 .zone { border-radius: 16px; padding: 22px; border: 2px solid var(--accent); background: var(--surface); }
 .zone.ctr { border-color: var(--warm); }
 .zone h3 { margin-bottom: 12px; }
 .zone ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .zone li { padding: 9px 12px; border-radius: 9px; background: var(--surface-2); font-size: .93rem; color: var(--ink-2); }
 .zone li b { color: var(--ink); }
-.bridge { display: grid; place-items: center; text-align: center; color: var(--muted); font-size: .82rem; }
+.bridge { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; color: var(--muted); font-size: .82rem; }
 .bridge svg { width: 100%; max-width: 120px; height: 60px; }
 .bridge .line { stroke: var(--muted); stroke-width: 2; fill: none; }
-.bridge .head { fill: var(--muted); }
+.bridge .tip { fill: var(--muted); }
+.bridge code { white-space: nowrap; }
 @media (max-width: 859px) { .bridge { gap: 4px; } .bridge svg { width: 60px; height: 30px; margin: 15px 0; transform: rotate(90deg); } }
 
 /* numbers */
@@ -177,7 +183,8 @@ section { padding: 64px 0; border-top: 1px solid var(--line); scroll-margin-top:
 .note { font-size: .85rem; color: var(--muted); margin-top: 14px; }
 
 /* checklist */
-.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; align-content: start; }
+.checks.card { padding: 22px; }
 .checks li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; color: var(--ink-2); }
 .checks svg { width: 22px; height: 22px; margin-top: 2px; color: var(--accent); }
 .checks.no svg { color: var(--warm); }
@@ -190,7 +197,7 @@ section { padding: 64px 0; border-top: 1px solid var(--line); scroll-margin-top:
 .tbl tr:last-child td { border-bottom: 0; }
 .scroll { overflow-x: auto; }
 
-.hint { margin-top: 20px; padding: 18px 20px; border: 1px dashed var(--line); border-radius: 12px; font-size: .92rem; color: var(--ink-2); }
+.hint { margin-top: 20px; padding: 18px 20px; border: 1px dashed var(--muted); background: var(--surface); border-radius: 12px; font-size: .92rem; color: var(--ink-2); }
 .hint h3 { font-size: .95rem; margin-bottom: 6px; }
 .hint ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 .hint b { color: var(--ink); }
@@ -227,8 +234,13 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
       <li><a href="#quality">Quality</a></li>
       <li><a href="#cost">Cost</a></li>
       <li><a href="#not">What it is not</a></li>
+      <li><a href="#prereq">Setup</a></li>
     </ul>
     <a class="gh" href="https://github.com/ESchuderer/BenchKeeper">GitHub</a>
+    <button class="theme" type="button" aria-label="Switch to dark theme">
+      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
   </div>
 </header>
 
@@ -368,7 +380,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
         </ul>
       </div>
       <div class="bridge" aria-hidden="true">
-        <svg viewBox="0 0 120 60"><path class="line" d="M6 30h96"/><path class="head" d="M100 22l14 8-14 8z"/></svg>
+        <svg viewBox="0 0 120 60"><path class="line" d="M6 30h96"/><path class="tip" d="M100 22l14 8-14 8z"/></svg>
         <span><code>devcontainer exec</code></span>
       </div>
       <div class="zone ctr">
@@ -513,7 +525,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
         <h3><span class="icon"><svg><use href="#i-compress"/></svg></span>RTK</h3>
         <p>Reduction of command output the agent reads.</p>
         <div class="stats">
-          <div class="stat"><div class="big">60 to 90%</div><div class="small">fewer tokens on common dev commands</div></div>
+          <div class="stat"><div class="big">60-90%</div><div class="small">fewer tokens on common dev commands</div></div>
           <div class="stat"><div class="big">~90%</div><div class="small">test runners (pytest, cargo, Go)</div></div>
           <div class="stat"><div class="big">~80%</div><div class="small">cargo build, ruff check</div></div>
           <div class="stat"><div class="big">~85%</div><div class="small">golangci-lint</div></div>
@@ -605,5 +617,25 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
   </div>
 </footer>
 
+<script>
+(function () {
+  var root = document.documentElement, btn = document.querySelector(".theme"), mq = matchMedia("(prefers-color-scheme: dark)");
+  function current() { return root.dataset.theme || (mq.matches ? "dark" : "light"); }
+  function render() {
+    var dark = current() === "dark";
+    btn.querySelector(".moon").style.display = dark ? "none" : "";
+    btn.querySelector(".sun").style.display = dark ? "" : "none";
+    btn.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+  }
+  btn.addEventListener("click", function () {
+    var next = current() === "dark" ? "light" : "dark";
+    root.dataset.theme = next;
+    try { localStorage.setItem("theme", next); } catch (e) {}
+    render();
+  });
+  mq.addEventListener("change", render);
+  render();
+})();
+</script>
 </body>
 </html>

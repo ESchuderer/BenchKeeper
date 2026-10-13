@@ -86,9 +86,9 @@ function Stat({ value, label }: { value: string; label: string }) {
 
 const phaseColor = Object.fromEntries(facts.sdlc.phases.map((p) => [p.key, p.color]));
 
-function StepList({ from }: { from: number }) {
+function StepList({ from, className }: { from: number; className?: string }) {
   return (
-    <Timeline active={10} bulletSize={30} lineWidth={2}>
+    <Timeline active={10} bulletSize={30} lineWidth={2} className={className}>
       {facts.sdlc.steps.slice(from, from + 5).map((st, i) => (
         <Timeline.Item key={st.name} id={`step-${from + i + 1}`} color={phaseColor[st.phase]} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
           title={<Group gap="xs"><Text fw={700}>{st.name}</Text>{st.human && <Badge size="xs" variant="outline" className="decide">human in the loop</Badge>}</Group>}>
@@ -189,8 +189,8 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
           </div>
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} mt={40}>
-            <StepList from={0} />
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} verticalSpacing="xl" mt={40}>
+            <StepList from={0} className="steps-first" />
             <StepList from={5} />
           </SimpleGrid>
           <Text fw={700} mt={48} mb="xs">Checks built into the loop</Text>

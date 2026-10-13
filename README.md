@@ -2,6 +2,8 @@
 
 # BenchKeeper
 
+BenchKeeper keeps the agent's workbench in order: the rules, skills and tools Claude Code and Codex work with, installed at pinned versions and checked on every `/global-setup` run. The bench is shared by every project; each repository gets its own container and spec setup on top.
+
 Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 
 Claude Code and Codex are independently optional. Setup detects installed agents and asks which you use. Only selected agents receive configuration, plugins, hooks, and skills. Agent CLIs are not installed by setup; unused or absent agents are skipped.

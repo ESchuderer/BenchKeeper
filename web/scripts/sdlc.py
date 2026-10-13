@@ -59,13 +59,12 @@ o.append('<g class="hit-10 req"><rect x="225" y="-80" width="190" height="48" rx
 o.append('<path class="flow" d="M320 -32V64" marker-end="url(#ah)"/>')
 o.append('<path class="flow back" d="M174 114C120 30 160 -56 222 -56" marker-end="url(#ah)"/>')
 o.append('<text class="flow-t" x="118" y="20" text-anchor="end">findings</text>')
-o.append('<path class="flow" d="M520 -56H426" marker-end="url(#ah)"/>')
-o.append('<text class="flow-t in" x="530" y="-60">you, issues,</text><text class="flow-t in" x="530" y="-42">tickets, reports</text>')
+o.append('<path class="flow" d="M512 -56H426" marker-end="url(#ah)"/>')
+o.append('<g class="hit-10"><circle class="hit" cx="541" cy="-56" r="28"/><circle class="you-ring" cx="541" cy="-56" r="24"/>'
+         '<g class="person"><circle cx="541" cy="-63" r="6"/><path d="M529 -43a12 11 0 0 1 24 0"/></g></g>')
 
-o.append(f'<circle class="core" cx="{C}" cy="{C}" r="108"/>')
-o.append(f'<text class="core-t" x="{C}" y="{C - 6}" text-anchor="middle">requirement to go live</text>')
-o.append(f'<circle class="you-dot" cx="{C - 46}" cy="{C + 24}" r="8"/>')
-o.append(f'<text class="core-s" x="{C - 31}" y="{C + 29}">human action</text>')
+o.append('<circle class="you-dot" cx="-112" cy="628" r="10"/>')
+o.append('<text class="core-s" x="-94" y="633">human action</text>')
 
 tips = []
 for k, (lbl, sub, detail) in enumerate(steps):

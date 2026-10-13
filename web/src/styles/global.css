@@ -46,10 +46,8 @@ section[id] { scroll-margin-top: 64px; }
 [data-mantine-color-scheme="dark"] .ring .you-t { fill: var(--mantine-color-orange-4); }
 .ring .lbl { fill: var(--mantine-color-text); font-size: 16px; font-weight: 700; }
 .ring .sub { fill: var(--mantine-color-dimmed); font-size: 12.5px; }
-.ring .core { fill: color-mix(in srgb, var(--mantine-color-teal-5) 8%, transparent); stroke: var(--mantine-color-default-border); }
-.ring .core-t { fill: var(--mantine-color-bright); font-size: 19px; font-weight: 800; }
 .ring .core-s { fill: var(--mantine-color-dimmed); font-size: 13px; }
-@media (max-width: 639px) { .ring .lbl, .ring .sub, .ring .you-t { display: none; } .ring .core-t { font-size: 24px; } .ring .core-s { font-size: 17px; } }
+@media (max-width: 639px) { .ring .lbl, .ring .sub, .ring .you-t { display: none; } .ring .core-s { font-size: 17px; } }
 
 .lift { transition: transform 150ms ease, box-shadow 150ms ease; }
 .lift:hover { transform: translateY(-2px); box-shadow: var(--mantine-shadow-md); }
@@ -117,3 +115,4 @@ main:focus { outline: none; }
 .ring .tip text { fill: var(--mantine-color-text); font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .ring .tip { transition: none; } }
 .ring .flow-t.in { font-style: normal; fill: var(--mantine-color-text); font-weight: 600; }
+.ring .person circle, .ring .person path { fill: none; stroke: var(--mantine-color-text); stroke-width: 2; stroke-linecap: round; }

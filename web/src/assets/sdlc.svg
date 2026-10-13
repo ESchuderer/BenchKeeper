@@ -26,12 +26,10 @@
 <path class="flow" d="M320 -32V64" marker-end="url(#ah)"/>
 <path class="flow back" d="M174 114C120 30 160 -56 222 -56" marker-end="url(#ah)"/>
 <text class="flow-t" x="118" y="20" text-anchor="end">findings</text>
-<path class="flow" d="M520 -56H426" marker-end="url(#ah)"/>
-<text class="flow-t in" x="530" y="-60">you, issues,</text><text class="flow-t in" x="530" y="-42">tickets, reports</text>
-<circle class="core" cx="320" cy="320" r="108"/>
-<text class="core-t" x="320" y="314" text-anchor="middle">requirement to go live</text>
-<circle class="you-dot" cx="274" cy="344" r="8"/>
-<text class="core-s" x="289" y="349">human action</text>
+<path class="flow" d="M512 -56H426" marker-end="url(#ah)"/>
+<g class="hit-10"><circle class="hit" cx="541" cy="-56" r="28"/><circle class="you-ring" cx="541" cy="-56" r="24"/><g class="person"><circle cx="541" cy="-63" r="6"/><path d="M529 -43a12 11 0 0 1 24 0"/></g></g>
+<circle class="you-dot" cx="-112" cy="628" r="10"/>
+<text class="core-s" x="-94" y="633">human action</text>
 <g class="hit-0"><circle class="hit" cx="320.0" cy="100.0" r="40"/>
 <g class="node"><circle cx="320.0" cy="100.0" r="27"/><text class="n" x="320.0" y="106.0" text-anchor="middle">1</text></g>
 <text class="lbl" x="334.0" y="26.0" text-anchor="start">Understand</text>

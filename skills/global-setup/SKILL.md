@@ -1,6 +1,6 @@
 ---
 name: global-setup
-description: "Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, Ponytail (full), addy agent-skills, OpenSpec, Spec Kit, Playwright MCP, telemetry. Use on a new machine, after editing the global rules, to update the pinned tool versions, or to verify or clean the global setup."
+description: "Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, Ponytail (full), addy agent-skills, OpenSpec, Playwright MCP, telemetry. Use on a new machine, after editing the global rules, to update the pinned tool versions, or to verify or clean the global setup."
 ---
 
 # Global setup
@@ -53,15 +53,13 @@ diff ~/.codex/AGENTS.md ~/.codex/AGENTS.md.new
 mv ~/.codex/AGENTS.md.new ~/.codex/AGENTS.md
 ```
 
-### 2. OpenSpec and Spec Kit
-Check: `openspec --version`, `specify version`; `openspec config list` shows delivery skills and telemetry false.
+### 2. OpenSpec
+Check: `openspec --version`; `openspec config list` shows delivery skills and telemetry false.
 Install:
 ```sh
 npm i -g @fission-ai/openspec@1.14.1
 openspec config set delivery skills && openspec config set telemetry.enabled false
-uv tool install specify-cli==1.1.3
 ```
-Spec Kit needs `uv` on the host; if `command -v uv` fails, give the user the install command from the [uv docs](https://docs.astral.sh/uv/getting-started/installation/) and skip the Spec Kit install. [Spec Kit install](https://github.com/github/spec-kit/blob/v1.1.3/docs/installation.md)
 
 ### 3. Ponytail, level full
 Check: `ponytail@ponytail` enabled in each selected agent's plugin list; `~/.config/ponytail/config.json` has `"defaultMode": "full"`; `PONYTAIL_DEFAULT_MODE` is unset or `full` (it overrides the file, [upstream configuration](https://github.com/DietrichGebert/ponytail/blob/main/INSTALL.md#settings)). Keep Ponytail and agent-skills; their integration lives in `$B/rules/global.md`, not in installed plugin files.
@@ -148,6 +146,7 @@ List in the plan, as destructive, items belonging to selected agents that are no
 - RTK, no longer part of this setup: `rtk init -g --uninstall` (Claude Code), `rtk init -g --codex --uninstall` (Codex), then the `rtk` binary, `~/.claude/RTK.md`, the `@RTK.md` line in `~/.claude/CLAUDE.md`, `~/.codex/RTK.md`.
 - codegraph, no longer part of this setup: `npm rm -g @colbymchenry/codegraph`.
 - Context7 MCP, no longer part of this setup: `claude mcp remove --scope user context7`, `codex mcp remove context7`.
+- Spec Kit and uv, no longer part of this setup: `uv tool uninstall specify-cli`, `uv cache clean`, then `rm ~/.local/bin/uv ~/.local/bin/uvx` and `rm -r ~/.local/share/uv` when uv came from the standalone installer and nothing else uses it.
 - LSP plugins, no longer part of this setup: `claude plugin uninstall pyright-lsp@claude-plugins-official`, `claude plugin uninstall typescript-lsp@claude-plugins-official`, and other `*-lsp@claude-plugins-official` plugins.
 - Leftovers: a `statusLine` pointing to a missing file, rules files or `~/.codex/AGENTS.md` blocks from other toolkits, `*.bak` of the settings files, cache folders in `~/.claude/plugins/cache/` and `~/.codex/plugins/cache/` of plugins no longer installed, npm globals not used by a part above (except `@openai/codex`). Keep `@devcontainers/cli` on the host.
 

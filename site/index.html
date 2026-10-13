@@ -190,6 +190,11 @@ section { padding: 64px 0; border-top: 1px solid var(--line); scroll-margin-top:
 .tbl tr:last-child td { border-bottom: 0; }
 .scroll { overflow-x: auto; }
 
+.hint { margin-top: 20px; padding: 18px 20px; border: 1px dashed var(--line); border-radius: 12px; font-size: .92rem; color: var(--ink-2); }
+.hint h3 { font-size: .95rem; margin-bottom: 6px; }
+.hint ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.hint b { color: var(--ink); }
+
 footer { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
 </style>
@@ -377,6 +382,17 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
         </ul>
       </div>
     </div>
+    <aside class="hint">
+      <h3>Not full isolation</h3>
+      <p>The agent runs on the host with its client permissions; the devcontainer only scopes project commands. Options for stronger isolation, not part of BenchKeeper:</p>
+      <ul>
+        <li><b>Shared VM</b>: agents and all projects in one VM; protects the host, not projects from each other.</li>
+        <li><b>VM per project</b>: projects isolated from each other.</li>
+        <li><b>VM per branch or worktree</b>: parallel agent runs isolated from each other; one VM per run.</li>
+        <li><b>MicroVMs</b> (<a href="https://firecracker-microvm.github.io/">Firecracker</a>, <a href="https://katacontainers.io/">Kata Containers</a>): lightweight VMs per project or task.</li>
+        <li><b>Rootless engine</b> (<a href="https://docs.docker.com/engine/security/rootless/">rootless Docker</a>, <a href="https://podman.io/">Podman</a>): container root is not host root; the agent still runs on the host.</li>
+      </ul>
+    </aside>
   </div>
 </section>
 

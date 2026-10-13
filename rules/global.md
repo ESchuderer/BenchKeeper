@@ -50,17 +50,23 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Verify with the project's own test or build command, not by repeatedly re-reading finished work.
 - When a prompt starts a task unrelated to the conversation so far, add one line suggesting `/clear`, then do the task.
 
-## Push and pull requests
+## Branches, issues and pull requests
+- Default flow in a GitHub repository: issue, branch, commits, pull request (`git-workflow-and-versioning`). Pushing feature branches and opening pull requests need no extra confirmation. Creating or editing a GitHub issue needs confirmation: present the plan (title, goal, acceptance criteria, tasks) first and create it only after the user approves. Merging, pushing to the default branch and skipping the flow need the user's instruction.
+- Before the first file edit, check the current branch. On the default branch (`gh repo view --json defaultBranchRef`), create `<type>/<issue>-<slug>` (for example `fix/42-null-config`). On another branch or worktree, keep it.
+- Work or commit on the default branch only when the user said so in this task; otherwise ask first.
+- OpenSpec (repository has `openspec/`) follows the same flow: after the issue exists, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>`, issue linked in `proposal.md`); commit it with the code; run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
+- No GitHub remote or `gh auth status` fails: local branch only, skip issue and pull request, say so in one line.
 - Before running `git push` or opening a pull request that contains code changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change.
 
 ## SDLC
 Skills from agent-skills (addyosmani) drive each phase; OpenSpec owns the spec files when the repository has `openspec/`.
+- Track: each change starts from a GitHub issue (`gh issue view <n>`); if none exists, present the plan and create one after approval (above). Then branch (above).
 - Understand: `AGENTS.md` and the code the change touches, before any edit.
 - Specify: `spec-driven-development` for a non-trivial change. With `openspec/`: write the result as an OpenSpec change (`openspec-propose`), not a separate spec file. Without it: plan mode.
 - Plan: `planning-and-task-breakdown`; with OpenSpec the tasks live in the change's `tasks.md`.
 - Build: `incremental-implementation`, tests first where the repository has a test suite (`test-driven-development`); with OpenSpec through `openspec-apply-change`.
 - Verify: build, types, lint, tests before reporting done; UI changes in a browser (Playwright MCP). Report failures as they are.
-- Review and ship: code review before push (above); `openspec-archive-change` when the change is done.
+- Review and ship: code review before push (above); push the branch and open a pull request with `Closes #<issue>` in the body (`gh pr create`); wait for checks (`gh pr checks --watch`, `ci-cd-and-automation`) and report failures as they are; `openspec-archive-change` on the branch (above). Merge only on the user's instruction.
 - Maintain: after each milestone, about every 10 merged changes, or on request, run a repo-wide pass:
   - `ponytail-audit`: dead code, unused options, config and dependencies, duplicate helpers, risky code without tests;
   - `ponytail-debt`: each `shortcut:` comment is still valid, upgraded, or becomes an issue;

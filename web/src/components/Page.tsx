@@ -5,7 +5,7 @@ import {
 import {
   IconArrowDown, IconArrowRight, IconBook, IconBox, IconBrandGithub, IconBrowser, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
-  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconInbox, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun, IconTopologyStar3, IconArrowsMinimize,
+  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun, IconTopologyStar3, IconArrowsMinimize,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import sdlc from '../assets/sdlc.svg?raw';
@@ -201,15 +201,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         </Section>
 
         <Section id="sdlc" title="One loop for every change" intro="The global rules route each change through the same ten steps. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec or Spec Kit holds the spec files when the repository uses one.">
-          <Stack gap={6} align="center" className="sources">
-            <Group gap={8} justify="center">
-              <Group gap={6} wrap="nowrap"><ThemeIcon variant="light" size={26} radius="xl"><IconInbox size={15} /></ThemeIcon><Text fw={700} size="sm">Requests from</Text></Group>
-              {['you', 'GitHub issues', 'Jira, Linear or other trackers', 'bug reports', 'reviews', 'Maintain findings'].map((t) => (
-                <Badge key={t} variant="default" radius="xl" tt="none" fw={500} size="md">{t}</Badge>
-              ))}
-            </Group>
-            <Text size="xs" c="dimmed" ta="center">Linked or pasted into the chat; only GitHub issues are automated.</Text>
-          </Stack>
           <div dangerouslySetInnerHTML={{ __html: sdlc }} />
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} mt={40}>
             <StepList from={0} />

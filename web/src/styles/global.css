@@ -38,7 +38,6 @@ section[id] { scroll-margin-top: 64px; }
 [data-mantine-color-scheme="dark"] .ring text.ship { fill: var(--mantine-color-indigo-3); }
 [data-mantine-color-scheme="dark"] .ring text.maintain { fill: var(--mantine-color-gray-4); }
 .ring path.phase { fill: none; }
-.ring .arrow { fill: var(--mantine-color-body); stroke: var(--mantine-color-dimmed); stroke-width: 1.5; }
 .ring .node circle { fill: var(--mantine-color-body); stroke: var(--mantine-color-default-border); stroke-width: 2; }
 .ring .node text.n { fill: var(--mantine-color-text); font-weight: 800; font-size: 17px; }
 .ring .you-ring { fill: none; stroke: var(--mantine-color-orange-6); stroke-width: 3; stroke-dasharray: 5 4; }
@@ -89,9 +88,7 @@ main:focus { outline: none; }
 
 .ring .flow { fill: none; stroke: var(--mantine-color-dimmed); stroke-width: 2; }
 .ring .flow.back { stroke-dasharray: 5 5; }
-.ring .flow-head { fill: var(--mantine-color-dimmed); }
 .ring .flow-t { fill: var(--mantine-color-dimmed); font-size: 12.5px; font-style: italic; }
-.sources { position: relative; z-index: 1; }
 @media (max-width: 639px) { .ring .flow-t { display: none; } }
 
 /* isolation note: neutral box, yellow accent only */
@@ -109,3 +106,13 @@ main:focus { outline: none; }
 [data-copy] .i-done, [data-copy].copied .i-copy { display: none; }
 [data-copy].copied .i-done { display: block; color: var(--mantine-color-teal-7); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ring .chev { fill: none; stroke: var(--mantine-color-dimmed); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ring .ah { fill: var(--mantine-color-dimmed); }
+.ring .req rect { fill: var(--mantine-color-body); stroke: var(--mantine-color-teal-6); stroke-width: 2; }
+.ring .req-t { fill: var(--mantine-color-bright); font-size: 17px; font-weight: 800; }
+.ring .hit { fill: transparent; }
+.ring [class^="hit-"] { cursor: help; }
+.ring .tip { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.ring .tip rect { fill: var(--mantine-color-body); stroke: var(--mantine-color-default-border); filter: drop-shadow(0 4px 12px rgb(0 0 0 / .18)); }
+.ring .tip text { fill: var(--mantine-color-text); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .ring .tip { transition: none; } }

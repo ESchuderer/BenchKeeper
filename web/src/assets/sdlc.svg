@@ -1,6 +1,8 @@
-<svg class="ring" viewBox="-140 -40 920 700" role="img" aria-labelledby="ring-t ring-d">
+<svg class="ring" viewBox="-140 -90 920 750" role="img" aria-labelledby="ring-t ring-d">
 <title id="ring-t">BenchKeeper SDLC loop</title>
-<desc id="ring-d">Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. Build: Plan, Build, Verify. Ship: Review, Ship. Maintain. A request enters at Understand; Maintain findings become new requests. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>
+<desc id="ring-d">Requirements enter at step 1. Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. Build: Plan, Build, Verify. Ship: Review, Ship. Maintain, whose findings become new requirements. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5 0 10z"/></marker></defs>
+<style>.ring:has(.hit-0:hover) .tip-0{opacity:1}.ring:has(.hit-1:hover) .tip-1{opacity:1}.ring:has(.hit-2:hover) .tip-2{opacity:1}.ring:has(.hit-3:hover) .tip-3{opacity:1}.ring:has(.hit-4:hover) .tip-4{opacity:1}.ring:has(.hit-5:hover) .tip-5{opacity:1}.ring:has(.hit-6:hover) .tip-6{opacity:1}.ring:has(.hit-7:hover) .tip-7{opacity:1}.ring:has(.hit-8:hover) .tip-8{opacity:1}.ring:has(.hit-9:hover) .tip-9{opacity:1}.ring:has(.hit-10:hover) .tip-10{opacity:1}</style>
 <circle class="track" cx="320" cy="320" r="220"/>
 <path class="phase define" d="M270.5 105.6A220 220 0 0 1 508.6 433.3"/>
 <text class="ph-l define" x="449.4" y="230.0" text-anchor="middle">DEFINE</text>
@@ -10,58 +12,140 @@
 <text class="ph-l ship" x="160.0" y="324.0" text-anchor="middle">SHIP</text>
 <path class="phase maintain" d="M154.0 175.7A220 220 0 0 1 234.0 117.5"/>
 <text class="ph-l maintain" x="226.0" y="194.6" text-anchor="middle">MAINTAIN</text>
-<path class="flow" d="M320 -36V2"/><path class="flow-head" d="M313 0L320 13 327 0z"/>
-<text class="flow-t" x="330" y="-14">request</text>
-<path class="flow back" d="M168 112C140 40 210 -24 306 -28"/><path class="flow-head back" d="M300 -34L314 -28 301 -21z"/>
-<text class="flow-t" x="148" y="40" text-anchor="end">findings</text>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(388.0 110.8) rotate(18)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(498.0 190.7) rotate(54)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(540.0 320.0) rotate(90)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(498.0 449.3) rotate(126)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(388.0 529.2) rotate(162)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(252.0 529.2) rotate(198)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(142.0 449.3) rotate(234)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(100.0 320.0) rotate(270)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(142.0 190.7) rotate(306)"/>
-<path class="arrow" d="M-5-4.5L5 0-5 4.5z" transform="translate(252.0 110.8) rotate(342)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(388.0 110.8) rotate(18)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(498.0 190.7) rotate(54)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(540.0 320.0) rotate(90)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(498.0 449.3) rotate(126)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(388.0 529.2) rotate(162)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(252.0 529.2) rotate(198)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(142.0 449.3) rotate(234)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(100.0 320.0) rotate(270)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(142.0 190.7) rotate(306)"/>
+<path class="chev" d="M-3-5L3 0-3 5" transform="translate(252.0 110.8) rotate(342)"/>
+<g class="hit-10 req"><rect x="225" y="-80" width="190" height="48" rx="24"/><text class="req-t" x="320" y="-50" text-anchor="middle">Requirements</text></g>
+<path class="flow" d="M320 -32V64" marker-end="url(#ah)"/>
+<path class="flow back" d="M174 114C120 30 160 -56 222 -56" marker-end="url(#ah)"/>
+<text class="flow-t" x="118" y="20" text-anchor="end">findings</text>
 <circle class="core" cx="320" cy="320" r="108"/>
 <text class="core-t" x="320" y="314" text-anchor="middle">request to merge</text>
 <circle class="you-dot" cx="280" cy="344" r="8"/>
 <text class="core-s" x="295" y="349">you decide</text>
+<g class="hit-0"><circle class="hit" cx="320.0" cy="100.0" r="40"/>
 <g class="node"><circle cx="320.0" cy="100.0" r="27"/><text class="n" x="320.0" y="106.0" text-anchor="middle">1</text></g>
-<text class="lbl" x="320.0" y="30.0" text-anchor="middle">Understand</text>
-<text class="sub" x="320.0" y="48.0" text-anchor="middle">request, AGENTS.md, code</text>
+<text class="lbl" x="334.0" y="26.0" text-anchor="start">Understand</text>
+<text class="sub" x="334.0" y="44.0" text-anchor="start">request, AGENTS.md, code</text>
+</g>
+<g class="hit-1"><circle class="hit" cx="449.3" cy="142.0" r="40"/>
 <circle class="you-ring" cx="449.3" cy="142.0" r="35"/>
 <g class="node"><circle cx="449.3" cy="142.0" r="27"/><text class="n" x="449.3" y="148.0" text-anchor="middle">2</text></g>
 <text class="lbl" x="493.8" y="83.9" text-anchor="start">Track</text>
 <text class="sub" x="493.8" y="101.9" text-anchor="start">GitHub issue</text>
 <text class="you-t" x="493.8" y="118.9" text-anchor="start">approve issue</text>
+</g>
+<g class="hit-2"><circle class="hit" cx="529.2" cy="252.0" r="40"/>
 <g class="node"><circle cx="529.2" cy="252.0" r="27"/><text class="n" x="529.2" y="258.0" text-anchor="middle">3</text></g>
 <text class="lbl" x="596.2" y="232.9" text-anchor="start">Branch</text>
 <text class="sub" x="596.2" y="250.9" text-anchor="start">type/issue-slug</text>
+</g>
+<g class="hit-3"><circle class="hit" cx="529.2" cy="388.0" r="40"/>
 <g class="node"><circle cx="529.2" cy="388.0" r="27"/><text class="n" x="529.2" y="394.0" text-anchor="middle">4</text></g>
 <text class="lbl" x="596.2" y="407.1" text-anchor="start">Specify</text>
 <text class="sub" x="596.2" y="425.1" text-anchor="start">OpenSpec / Spec Kit</text>
+</g>
+<g class="hit-4"><circle class="hit" cx="449.3" cy="498.0" r="40"/>
 <g class="node"><circle cx="449.3" cy="498.0" r="27"/><text class="n" x="449.3" y="504.0" text-anchor="middle">5</text></g>
 <text class="lbl" x="493.8" y="562.1" text-anchor="start">Plan</text>
 <text class="sub" x="493.8" y="580.1" text-anchor="start">tasks.md</text>
+</g>
+<g class="hit-5"><circle class="hit" cx="320.0" cy="540.0" r="40"/>
 <g class="node"><circle cx="320.0" cy="540.0" r="27"/><text class="n" x="320.0" y="546.0" text-anchor="middle">6</text></g>
 <text class="lbl" x="320.0" y="616.0" text-anchor="middle">Build</text>
 <text class="sub" x="320.0" y="634.0" text-anchor="middle">small slices, tests first</text>
+</g>
+<g class="hit-6"><circle class="hit" cx="190.7" cy="498.0" r="40"/>
 <g class="node"><circle cx="190.7" cy="498.0" r="27"/><text class="n" x="190.7" y="504.0" text-anchor="middle">7</text></g>
 <text class="lbl" x="146.2" y="562.1" text-anchor="end">Verify</text>
 <text class="sub" x="146.2" y="580.1" text-anchor="end">build, lint, tests, browser</text>
+</g>
+<g class="hit-7"><circle class="hit" cx="110.8" cy="388.0" r="40"/>
 <circle class="you-ring" cx="110.8" cy="388.0" r="35"/>
 <g class="node"><circle cx="110.8" cy="388.0" r="27"/><text class="n" x="110.8" y="394.0" text-anchor="middle">8</text></g>
 <text class="lbl" x="43.8" y="407.1" text-anchor="end">Review</text>
 <text class="sub" x="43.8" y="425.1" text-anchor="end">code review before push</text>
 <text class="you-t" x="43.8" y="442.1" text-anchor="end">findings stop push</text>
+</g>
+<g class="hit-8"><circle class="hit" cx="110.8" cy="252.0" r="40"/>
 <circle class="you-ring" cx="110.8" cy="252.0" r="35"/>
 <g class="node"><circle cx="110.8" cy="252.0" r="27"/><text class="n" x="110.8" y="258.0" text-anchor="middle">9</text></g>
 <text class="lbl" x="43.8" y="232.9" text-anchor="end">Ship</text>
 <text class="sub" x="43.8" y="250.9" text-anchor="end">draft PR, checks, ready</text>
 <text class="you-t" x="43.8" y="267.9" text-anchor="end">you merge</text>
+</g>
+<g class="hit-9"><circle class="hit" cx="190.7" cy="142.0" r="40"/>
 <g class="node"><circle cx="190.7" cy="142.0" r="27"/><text class="n" x="190.7" y="148.0" text-anchor="middle">10</text></g>
 <text class="lbl" x="146.2" y="83.9" text-anchor="end">Maintain</text>
 <text class="sub" x="146.2" y="101.9" text-anchor="end">findings: new requests</text>
+</g>
+<g class="tip tip-0" aria-hidden="true"><rect x="202.0" y="284.0" width="236" height="72" rx="8"/>
+<text x="214.0" y="306.0">1. Understand: Reads the</text>
+<text x="214.0" y="324.0">request, AGENTS.md and the</text>
+<text x="214.0" y="342.0">code it touches. No edits yet.</text>
+</g>
+<g class="tip tip-1" aria-hidden="true"><rect x="202.0" y="275.0" width="236" height="90" rx="8"/>
+<text x="214.0" y="297.0">2. Track: Turns the request</text>
+<text x="214.0" y="315.0">into a GitHub issue with goal,</text>
+<text x="214.0" y="333.0">acceptance criteria and tasks.</text>
+<text x="214.0" y="351.0">You approve it.</text>
+</g>
+<g class="tip tip-2" aria-hidden="true"><rect x="202.0" y="284.0" width="236" height="72" rx="8"/>
+<text x="214.0" y="306.0">3. Branch: Creates</text>
+<text x="214.0" y="324.0">&lt;type&gt;/&lt;issue&gt;-&lt;slug&gt; from the</text>
+<text x="214.0" y="342.0">default branch.</text>
+</g>
+<g class="tip tip-3" aria-hidden="true"><rect x="202.0" y="275.0" width="236" height="90" rx="8"/>
+<text x="214.0" y="297.0">4. Specify: Writes the spec as</text>
+<text x="214.0" y="315.0">an OpenSpec change or a Spec</text>
+<text x="214.0" y="333.0">Kit feature spec, or uses plan</text>
+<text x="214.0" y="351.0">mode.</text>
+</g>
+<g class="tip tip-4" aria-hidden="true"><rect x="202.0" y="284.0" width="236" height="72" rx="8"/>
+<text x="214.0" y="306.0">5. Plan: Breaks the spec into</text>
+<text x="214.0" y="324.0">small tasks with acceptance</text>
+<text x="214.0" y="342.0">criteria.</text>
+</g>
+<g class="tip tip-5" aria-hidden="true"><rect x="202.0" y="284.0" width="236" height="72" rx="8"/>
+<text x="214.0" y="306.0">6. Build: Implements task by</text>
+<text x="214.0" y="324.0">task, tests first, the</text>
+<text x="214.0" y="342.0">smallest complete change.</text>
+</g>
+<g class="tip tip-6" aria-hidden="true"><rect x="202.0" y="275.0" width="236" height="90" rx="8"/>
+<text x="214.0" y="297.0">7. Verify: Runs build, types,</text>
+<text x="214.0" y="315.0">lint and tests in the</text>
+<text x="214.0" y="333.0">devcontainer; checks UI</text>
+<text x="214.0" y="351.0">changes in a browser.</text>
+</g>
+<g class="tip tip-7" aria-hidden="true"><rect x="202.0" y="284.0" width="236" height="72" rx="8"/>
+<text x="214.0" y="306.0">8. Review: Reviews the commits</text>
+<text x="214.0" y="324.0">for correctness before push.</text>
+<text x="214.0" y="342.0">Findings wait for you.</text>
+</g>
+<g class="tip tip-8" aria-hidden="true"><rect x="202.0" y="284.0" width="236" height="72" rx="8"/>
+<text x="214.0" y="306.0">9. Ship: Opens a draft pull</text>
+<text x="214.0" y="324.0">request, waits for checks,</text>
+<text x="214.0" y="342.0">marks it ready. You merge.</text>
+</g>
+<g class="tip tip-9" aria-hidden="true"><rect x="202.0" y="275.0" width="236" height="90" rx="8"/>
+<text x="214.0" y="297.0">10. Maintain: About every 10</text>
+<text x="214.0" y="315.0">merges: audit, debt,</text>
+<text x="214.0" y="333.0">dependencies, docs drift.</text>
+<text x="214.0" y="351.0">Findings become new requests.</text>
+</g>
+<g class="tip tip-10" aria-hidden="true"><rect x="202.0" y="257.0" width="236" height="126" rx="8"/>
+<text x="214.0" y="279.0">Requirements: From you, GitHub</text>
+<text x="214.0" y="297.0">issues, Jira, Linear or other</text>
+<text x="214.0" y="315.0">trackers, bug reports, reviews</text>
+<text x="214.0" y="333.0">or Maintain findings. Linked</text>
+<text x="214.0" y="351.0">or pasted; only GitHub issues</text>
+<text x="214.0" y="369.0">are automated.</text>
+</g>
 </svg>

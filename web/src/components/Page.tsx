@@ -232,7 +232,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Stack align="center" justify="center" gap={6}>
               <ThemeIcon variant="light" size={44} radius="xl" visibleFrom="md"><IconArrowRight size={22} /></ThemeIcon>
               <ThemeIcon variant="light" size={44} radius="xl" hiddenFrom="md"><IconArrowDown size={22} /></ThemeIcon>
-              <Code>devcontainer exec</Code>
+              <Text ff="monospace" size="sm" c="dimmed">devcontainer exec</Text>
             </Stack>
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-orange-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline" className="decide">Devcontainer</Badge><Text fw={700}>one per repository</Text></Group>

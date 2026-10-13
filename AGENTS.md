@@ -22,7 +22,7 @@ in `web/` (Astro, Mantine) built and deployed by CI.
 
 ## Conventions
 - `rules/global.md` applies here: no em dash, no emojis, facts only.
-- Every install command pins an exact version (`pkg@x.y.z`, RTK tag); `/global-setup` bumps them at install time.
+- Every install command pins an exact version (`pkg@x.y.z`); `/global-setup` bumps them at install time.
 - SKILL.md front matter: `description` in double quotes (it contains colons).
 - After editing `rules/global.md`, rerun `/global-setup`.
 - Description, SDLC steps, prerequisites and recommended tools: edit `web/src/data/facts.json`, then run `node web/scripts/readme.mjs`; never edit the generated README blocks by hand.

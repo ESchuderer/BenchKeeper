@@ -20,7 +20,7 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 |---|---|---|
 | [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink); copy in `~/.codex/AGENTS.md` |
 | [skills/global-setup](skills/global-setup/SKILL.md) | install, check, and clean the global setup (all commands) | `~/.claude/skills/`, `~/.agents/skills/`, and in this repo |
-| [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, LSP, OpenSpec or Spec Kit, codegraph | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, LSP, OpenSpec or Spec Kit | `~/.claude/skills/`, `~/.agents/skills/` |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 
 ## Components
@@ -32,14 +32,12 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 | [agent-skills](https://github.com/addyosmani/agent-skills) | global, Claude + Codex | workflow: spec, plan, TDD, review, ship |
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | CLI global, wired per repo | spec files (owns the artifacts; agent-skills drives the process, [#166](https://github.com/addyosmani/agent-skills/issues/166)) |
 | [Spec Kit](https://github.com/github/spec-kit) | CLI global, wired per repo | alternative to OpenSpec, chosen per repo in `project-setup`; owns the spec files, agent-skills drives the process |
-| [codegraph](https://github.com/colbymchenry/codegraph) | CLI global, wired per repo | code index + MCP |
-| [RTK](https://github.com/rtk-ai/rtk) | global, Claude + Codex | condensed command output |
 | [Context7 MCP](https://github.com/upstash/context7) | global, Claude + Codex | library docs |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `project-setup` |
 | LSP `pyright-lsp`, `typescript-lsp` | host plugins, container servers | diagnostics after `project-setup` verifies the connection and file paths |
 
-Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/` or `.specify/` and `specs/`, `.mcp.json`, `.codex/config.toml`. Not committed: `.codegraph/`.
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/` or `.specify/` and `specs/`, `.mcp.json`, `.codex/config.toml`.
 
 Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.md#ponytail-and-agent-skills) integrate them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
 
@@ -50,7 +48,7 @@ Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.m
 | Claude Code | `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1` |
 | Claude Code, not set | `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`: they disable feature flags, so the advisor and Remote Control stop working ([docs](https://code.claude.com/docs/en/env-vars)) |
 | Codex | `[analytics] enabled = false` |
-| RTK, OpenSpec, codegraph | off |
+| OpenSpec | off |
 | skills CLI | `DO_NOT_TRACK=1` per command only |
 
 ## Prerequisites
@@ -117,7 +115,7 @@ Not installed by BenchKeeper. Each one works with the agents and rules set up he
 | [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs; notifications when an agent needs input; sidebar with branch, PR status and ports; browser pane inside the terminal | you are on macOS and want a terminal-first workflow without a separate app layer |
 <!-- /generated:tools -->
 
-Orca only: `/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills for selected agents. Declining skips them without failing setup; existing Orca skills and hooks are kept. See [setup part 12](skills/global-setup/SKILL.md#12-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
+Orca only: `/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills for selected agents. Declining skips them without failing setup; existing Orca skills and hooks are kept. See [setup part 11](skills/global-setup/SKILL.md#11-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
 
 <!-- generated:openhands -->
 **Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A different role from the three above: a self-hosted agent server with a web UI that runs work without you at the terminal.

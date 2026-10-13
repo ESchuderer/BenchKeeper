@@ -44,7 +44,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Never print, log, or commit secrets. Read them from files or env, refer to them by name.
 
 ## Context economy
-- Read only what the task needs. Prefer targeted search over reading whole files; in a repository with `.codegraph/`, use the codegraph MCP for symbols, callers, and impact before grepping.
+- Read only what the task needs. Prefer targeted search over reading whole files.
 - Do not re-read unchanged files already in context.
 - Send noisy commands (full test suites, builds, long logs) to a subagent when available; return only failures and key lines.
 - Verify with the project's own test or build command, not by repeatedly re-reading finished work.

@@ -40,7 +40,7 @@ def tip(i, cx, cy, text):
 o = ['<svg class="ring" viewBox="-140 -90 920 750" role="img" aria-labelledby="ring-t ring-d">',
      '<title id="ring-t">BenchKeeper SDLC loop</title>',
      '<desc id="ring-d">Requirements enter at step 1. Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. '
-     'Build: Plan, Build, Verify. Ship: Review, Ship. Maintain, whose findings become new requirements. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>',
+     'Build: Plan, Build, Verify. Ship: Review, Ship. Maintain, whose findings become new requirements. People add requirements directly; Maintain findings add more. Human actions: Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>',
      '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5 0 10z"/></marker></defs>',
      '<style>' + "".join(f".ring:has(.hit-{i}:hover) .tip-{i}{{opacity:1}}" for i in range(11)) + '</style>',
      f'<circle class="track" cx="{C}" cy="{C}" r="{R}"/>']
@@ -59,11 +59,13 @@ o.append('<g class="hit-10 req"><rect x="225" y="-80" width="190" height="48" rx
 o.append('<path class="flow" d="M320 -32V64" marker-end="url(#ah)"/>')
 o.append('<path class="flow back" d="M174 114C120 30 160 -56 222 -56" marker-end="url(#ah)"/>')
 o.append('<text class="flow-t" x="118" y="20" text-anchor="end">findings</text>')
+o.append('<path class="flow" d="M520 -56H426" marker-end="url(#ah)"/>')
+o.append('<text class="flow-t in" x="530" y="-60">you, issues,</text><text class="flow-t in" x="530" y="-42">tickets, reports</text>')
 
 o.append(f'<circle class="core" cx="{C}" cy="{C}" r="108"/>')
-o.append(f'<text class="core-t" x="{C}" y="{C - 6}" text-anchor="middle">request to merge</text>')
-o.append(f'<circle class="you-dot" cx="{C - 40}" cy="{C + 24}" r="8"/>')
-o.append(f'<text class="core-s" x="{C - 25}" y="{C + 29}">you decide</text>')
+o.append(f'<text class="core-t" x="{C}" y="{C - 6}" text-anchor="middle">requirement to go live</text>')
+o.append(f'<circle class="you-dot" cx="{C - 46}" cy="{C + 24}" r="8"/>')
+o.append(f'<text class="core-s" x="{C - 31}" y="{C + 29}">human action</text>')
 
 tips = []
 for k, (lbl, sub, detail) in enumerate(steps):

@@ -107,7 +107,7 @@ function StepList({ from }: { from: number }) {
     <Timeline active={10} bulletSize={30} lineWidth={2}>
       {steps.slice(from, from + 5).map(([t, d], i) => (
         <Timeline.Item key={t} color={phaseColor(from + i)} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
-          title={<Group gap="xs"><Text fw={700}>{t}</Text>{decides.has(from + i) && <Badge size="xs" variant="outline" className="decide">your decision</Badge>}</Group>}>
+          title={<Group gap="xs"><Text fw={700}>{t}</Text>{decides.has(from + i) && <Badge size="xs" variant="outline" className="decide">human action</Badge>}</Group>}>
           <Text size="sm" c="dimmed">{d}</Text>
         </Timeline.Item>
       ))}

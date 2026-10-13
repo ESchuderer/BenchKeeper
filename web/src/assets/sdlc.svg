@@ -1,6 +1,6 @@
 <svg class="ring" viewBox="-140 -90 920 750" role="img" aria-labelledby="ring-t ring-d">
 <title id="ring-t">BenchKeeper SDLC loop</title>
-<desc id="ring-d">Requirements enter at step 1. Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. Build: Plan, Build, Verify. Ship: Review, Ship. Maintain, whose findings become new requirements. You decide at Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>
+<desc id="ring-d">Requirements enter at step 1. Ten steps in a clockwise loop, grouped into four phases. Define: Understand, Track, Branch, Specify. Build: Plan, Build, Verify. Ship: Review, Ship. Maintain, whose findings become new requirements. People add requirements directly; Maintain findings add more. Human actions: Track (approve the issue), Review (findings stop the push) and Ship (you merge).</desc>
 <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5 0 10z"/></marker></defs>
 <style>.ring:has(.hit-0:hover) .tip-0{opacity:1}.ring:has(.hit-1:hover) .tip-1{opacity:1}.ring:has(.hit-2:hover) .tip-2{opacity:1}.ring:has(.hit-3:hover) .tip-3{opacity:1}.ring:has(.hit-4:hover) .tip-4{opacity:1}.ring:has(.hit-5:hover) .tip-5{opacity:1}.ring:has(.hit-6:hover) .tip-6{opacity:1}.ring:has(.hit-7:hover) .tip-7{opacity:1}.ring:has(.hit-8:hover) .tip-8{opacity:1}.ring:has(.hit-9:hover) .tip-9{opacity:1}.ring:has(.hit-10:hover) .tip-10{opacity:1}</style>
 <circle class="track" cx="320" cy="320" r="220"/>
@@ -26,10 +26,12 @@
 <path class="flow" d="M320 -32V64" marker-end="url(#ah)"/>
 <path class="flow back" d="M174 114C120 30 160 -56 222 -56" marker-end="url(#ah)"/>
 <text class="flow-t" x="118" y="20" text-anchor="end">findings</text>
+<path class="flow" d="M520 -56H426" marker-end="url(#ah)"/>
+<text class="flow-t in" x="530" y="-60">you, issues,</text><text class="flow-t in" x="530" y="-42">tickets, reports</text>
 <circle class="core" cx="320" cy="320" r="108"/>
-<text class="core-t" x="320" y="314" text-anchor="middle">request to merge</text>
-<circle class="you-dot" cx="280" cy="344" r="8"/>
-<text class="core-s" x="295" y="349">you decide</text>
+<text class="core-t" x="320" y="314" text-anchor="middle">requirement to go live</text>
+<circle class="you-dot" cx="274" cy="344" r="8"/>
+<text class="core-s" x="289" y="349">human action</text>
 <g class="hit-0"><circle class="hit" cx="320.0" cy="100.0" r="40"/>
 <g class="node"><circle cx="320.0" cy="100.0" r="27"/><text class="n" x="320.0" y="106.0" text-anchor="middle">1</text></g>
 <text class="lbl" x="334.0" y="26.0" text-anchor="start">Understand</text>

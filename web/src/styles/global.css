@@ -120,7 +120,7 @@ td code { white-space: normal; overflow-wrap: anywhere; }
 .ring [data-tip] { cursor: pointer; }
 .ring a.step:focus-visible .node circle { stroke: var(--mantine-color-teal-6); stroke-width: 3; }
 .ring a:focus { outline: none; }
-.ring a.req:focus-visible rect, .ring a.human:focus-visible .you-ring { stroke-width: 4; }
+.ring a:focus-visible { outline: 3px solid var(--mantine-color-teal-6); outline-offset: 4px; }
 .mantine-Timeline-item { scroll-margin-top: 80px; }
 .mantine-Timeline-item:target { animation: flash 1.6s ease-out; border-radius: 8px; }
 @keyframes flash { from { background: color-mix(in srgb, var(--mantine-color-teal-5) 22%, transparent); } to { background: transparent; } }

@@ -5,6 +5,13 @@ const C = 320;
 const R = 220;
 const { steps, phases, requirements } = facts.sdlc;
 
+// The ring layout places exactly 10 steps at 36 degrees each, with each phase a contiguous run of steps.
+if (steps.length !== 10) throw new Error(`facts.sdlc.steps must have 10 entries, found ${steps.length}`);
+for (const p of phases) {
+  const idx = steps.map((s, k) => (s.phase === p.key ? k : -1)).filter((k) => k >= 0);
+  if (!idx.length || idx[idx.length - 1] - idx[0] !== idx.length - 1) throw new Error(`phase ${p.key} must own a contiguous, non-empty run of steps`);
+}
+
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const f = (n: number) => n.toFixed(1);
 
@@ -26,7 +33,7 @@ const humans = steps.map((s) => (s.human ? `${s.name} (${s.human})` : '')).filte
 const o: string[] = [
   '<svg class="ring" viewBox="-140 -90 920 750" role="group" aria-labelledby="ring-t ring-d">',
   '<title id="ring-t">BenchKeeper SDLC loop</title>',
-  `<desc id="ring-d">${esc(`Requirements from people and from Maintain findings enter at step 1. Ten steps in a clockwise loop: ${steps.map((s) => s.name).join(', ')}. Human in the loop: ${humans}.`)}</desc>`,
+  `<desc id="ring-d">${esc(`Requirements from people and from Maintain findings enter at step 1. Ten steps in a clockwise loop, in four phases: ${phases.map((p) => `${p.name}: ${steps.filter((s) => s.phase === p.key).map((s) => s.name).join(', ')}`).join('. ')}. Human in the loop: ${humans}.`)}</desc>`,
   '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5 0 10z"/></marker></defs>',
   `<circle class="track" cx="${C}" cy="${C}" r="${R}"/>`,
 ];

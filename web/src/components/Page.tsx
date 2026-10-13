@@ -92,7 +92,7 @@ function StepList({ from }: { from: number }) {
       {facts.sdlc.steps.slice(from, from + 5).map((st, i) => (
         <Timeline.Item key={st.name} id={`step-${from + i + 1}`} color={phaseColor[st.phase]} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
           title={<Group gap="xs"><Text fw={700}>{st.name}</Text>{st.human && <Badge size="xs" variant="outline" className="decide">human in the loop</Badge>}</Group>}>
-          <Text size="sm" c="dimmed">{md(st.text)}</Text>
+          <Text size="sm" c="dimmed">{md(from + i === 0 ? `${st.text} ${facts.sdlc.requirements}` : st.text)}</Text>
         </Timeline.Item>
       ))}
     </Timeline>

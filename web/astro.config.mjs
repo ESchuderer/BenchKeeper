@@ -6,20 +6,16 @@ import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 const postBuild = {
   name: 'post-build',
   hooks: {
-    'astro:build:done': async ({ dir, pages }) => {
+    'astro:build:done': async ({ dir }) => {
+      const files = (await readdir(dir, { recursive: true })).map(String);
+      const htmlFiles = files.filter((f) => f.endsWith('.html'));
+      const htmls = await Promise.all(htmlFiles.map((f) => readFile(new URL(f, dir), 'utf8')));
       // Astro emits the React client renderer even without islands; drop it when no page references it.
-      const assets = new URL('_astro/', dir);
-      const htmls = [];
-      for (const { pathname } of pages) htmls.push(await readFile(new URL(`${pathname}index.html`, dir), 'utf8'));
-      for (const name of await readdir(assets)) {
-        if (name.endsWith('.js') && !htmls.some((h) => h.includes(name))) await rm(new URL(name, assets));
+      for (const f of files.filter((n) => /^_astro\/client\.[^/]+\.js$/.test(n))) {
+        if (!htmls.some((h) => h.includes(f.slice('_astro/'.length)))) await rm(new URL(f, dir));
       }
-      for (const { pathname } of pages) {
-        const file = new URL(`${pathname}index.html`, dir);
-        const html = await readFile(file, 'utf8');
-        await writeFile(file, html.replace(/<a ([^>]*href="https?:\/\/[^"]*"[^>]*)>/g,
-          (tag, attrs) => (attrs.includes('target=') ? tag : `<a ${attrs} target="_blank" rel="noopener noreferrer">`)));
-      }
+      await Promise.all(htmlFiles.map((f, k) => writeFile(new URL(f, dir), htmls[k].replace(/<a ([^>]*href="https?:\/\/[^"]*"[^>]*)>/g,
+        (tag, attrs) => (attrs.includes('target=') ? tag : `<a ${attrs} target="_blank" rel="noopener noreferrer">`)))));
     },
   },
 };

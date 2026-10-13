@@ -103,7 +103,7 @@
     ]
   },
   "sdlc": {
-    "requirements": "From you, GitHub issues, Jira, Linear or other trackers, bug reports, reviews or Maintain findings. Linked or pasted; only GitHub issues are automated.",
+    "requirements": "Requests come from you, GitHub issues, Jira, Linear or other trackers, bug reports, reviews and Maintain findings, linked or pasted; only GitHub issues are automated.",
     "phases": [
       {
         "name": "Define",
@@ -132,7 +132,7 @@
         "phase": "define",
         "sub": "request, AGENTS.md, code",
         "tip": "Reads the request, AGENTS.md and the code it touches. No edits yet.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches before any edit. Requests come from you, GitHub issues, Jira, Linear or other trackers, bug reports, reviews and Maintain findings, linked or pasted; only GitHub issues are automated."
+        "text": "Read the request, `AGENTS.md` and the code the change touches before any edit."
       },
       {
         "name": "Track",

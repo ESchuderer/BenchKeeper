@@ -9,18 +9,19 @@ const nl = readme.includes('\r\n') ? '\r\n' : '\n';
 
 // `|` would end a table cell.
 const cell = (s) => s.replace(/\|/g, '\\|');
+const link = (name, url) => `[${cell(name)}](${url.replace(/\|/g, '%7C')})`;
 
 const blocks = {
   description: [facts.description],
   prerequisites: [
     '| Tool | Needed for |',
     '|---|---|',
-    ...facts.prerequisites.map((p) => `| [${p.name}](${p.url}) | ${cell(p.for)} |`),
+    ...facts.prerequisites.map((p) => `| ${link(p.name, p.url)} | ${cell(p.for)} |`),
   ],
   tools: [
     '| Tool | Platforms | Gives you | Choose it when |',
     '|---|---|---|---|',
-    ...facts.parallelTools.map((t) => `| [${t.name}](${t.url}) | ${cell(t.platforms)} | ${cell(t.points.join('; '))} | ${cell(t.when)} |`),
+    ...facts.parallelTools.map((t) => `| ${link(t.name, t.url)} | ${cell(t.platforms)} | ${cell(t.points.join('; '))} | ${cell(t.when)} |`),
   ],
   openhands: [
     `**Unattended or isolated runs: [${facts.openhands.name}](${facts.openhands.url}).** ${facts.openhands.summary}`,

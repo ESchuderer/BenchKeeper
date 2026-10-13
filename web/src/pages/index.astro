@@ -79,13 +79,16 @@ try {
         root.setAttribute('data-mantine-color-scheme', next);
         try { localStorage.setItem(key, next); } catch (e) {}
       });
-      var status = document.querySelector('[data-copy-status]');
+      var status = document.querySelector('[data-copy-status]'), copyTimer;
       document.querySelectorAll('[data-copy]').forEach(function (b) {
         b.addEventListener('click', function () {
-          function done(msg) { status.textContent = msg; setTimeout(function () { b.classList.remove('copied'); status.textContent = ''; }, 1500); }
+          function done(msg) {
+            clearTimeout(copyTimer); status.textContent = msg;
+            copyTimer = setTimeout(function () { document.querySelectorAll('[data-copy].copied').forEach(function (c) { c.classList.remove('copied'); }); status.textContent = ''; }, 1500);
+          }
           // Clipboard needs a secure context (https or localhost).
           if (!navigator.clipboard) return done('Copy is not available here; select the command instead');
-          navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () { b.classList.add('copied'); done('Copied'); },
+          navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () { document.querySelectorAll('[data-copy].copied').forEach(function (c) { c.classList.remove('copied'); }); b.classList.add('copied'); done('Copied'); },
             function () { done('Copy failed; select the command instead'); });
         });
       });

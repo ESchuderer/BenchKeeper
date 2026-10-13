@@ -28,4 +28,36 @@ Components considered for BenchKeeper, the independent evidence found, and the d
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec), [Spec Kit](https://github.com/github/spec-kit) | None with a no-spec baseline. [arXiv 2604.05278](https://arxiv.org/abs/2604.05278) tests Spec Kit plus the authors' own hooks: +0.15 on a 1 to 5 judge score (p<0.05). | Kept, unmeasured. |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | No paired cost or quality study. Token comparisons against the Playwright CLI conflict by version ([DEV](https://dev.to/aswani25/playwright-cli-vs-playwright-mcp-which-should-you-use-with-claude-code-1olh)). | Kept: used for UI verification, not cost. |
 
+## User reports
+
+Issue threads, forum posts and blogs, checked 2026-10-13. Mostly one repository and 1 to 4 runs per arm. Reddit could not be searched (access refused).
+
+**RTK**: bill measurements are flat or higher; savings figures come from `rtk gain`, which counts command output, not the bill.
+- [rtk#582](https://github.com/rtk-ai/rtk/issues/582): one debugging task, cost +18% and output tokens +50% with the hook. A maintainer's re-run in the thread: output tokens -7.5% (within noise), cost +6.62% in 10-minute sessions.
+- [rtk#2012](https://github.com/rtk-ai/rtk/issues/2012) (LogDx-CI, 35 CI failure logs, 3 model families): diagnosis score about 0.25 to 0.47 with RTK variants vs about 0.63 to 0.67 with grep and tail or an LLM summary.
+- [rtk#3175](https://github.com/rtk-ai/rtk/issues/3175): usage limits reached faster with the hook on (no metrics, one user reports the opposite).
+- Problems: failures stripped from test output ([#2727](https://github.com/rtk-ai/rtk/issues/2727)), truncated git and grep output ([#1313](https://github.com/rtk-ai/rtk/issues/1313)), `rtk grep` not grep-compatible ([#1436](https://github.com/rtk-ai/rtk/issues/1436)), elided lines not recoverable ([#4098](https://github.com/rtk-ai/rtk/issues/4098)), `rtk gain` counts output the agent piped to `tail` ([#1973](https://github.com/rtk-ai/rtk/issues/1973)).
+
+**codegraph**: mixed; savings depend on how much file discovery the task needs.
+- [codegraph#975](https://github.com/colbymchenry/codegraph/issues/975): private repo, DeepSeek, 3 questions, more cost with codegraph in 2 of 3. A contributor's re-run in the thread (express, Sonnet, 2 questions x 2 runs): cost -22% (mean).
+- [codegraph#1500](https://github.com/colbymchenry/codegraph/issues/1500): Go monorepo, Cursor, one question: about 20K more context tokens with codegraph, same answer. The owner reports the README control arm had called the codegraph CLI in 26 of 28 runs, then re-measured after fixing it.
+- Problems: daemon out of memory ([#1553](https://github.com/colbymchenry/codegraph/issues/1553)), missed Python callers ([#899](https://github.com/colbymchenry/codegraph/issues/899)).
+
+**graphify**: no report measures a lower bill.
+- [graphify#4341](https://github.com/Graphify-Labs/graphify/issues/4341) (177 SWE-bench Lite issues): right file first in 25% of queries vs 32% for BM25; in the top 5 in 38% vs 64%.
+- [graphify#985](https://github.com/Graphify-Labs/graphify/issues/985): 1,484-file corpus, Claude Code alone gave similar answers with the same or fewer tokens; each query about 2K tokens.
+- [graphify#580](https://github.com/Graphify-Labs/graphify/issues/580): more tokens with graphify because the agent reads the graph report first.
+
+**Context7**: positive anecdotes without measurements ([HN](https://news.ycombinator.com/item?id=46490087): "can't be sure it is due to Context 7").
+- Security: "ContextCrush", instructions planted in Context7 Custom Rules reached agents unfiltered; demo read and exfiltrated `.env` files; Upstash deployed a fix on 2026-02-23 ([Infosecurity Magazine](https://infosecurity-magazine.com/news/contextcrush-ai-development-tools)).
+
+**LSP plugins**: references and diagnostics help in some setups; agents rarely call LSP unless told to.
+- [Scott Spence](https://scottspence.com/posts/revisiting-lsp-in-claude-code): 32 LSP calls in about 650 sessions, none `findReferences`. With a CLAUDE.md rule, refactors 3/3 vs 0/3. Grep 2 to 3 turns and $0.04 to $0.08 per reference question, LSP only 7 to 12 turns and $0.07 to $0.12. First `findReferences` call wrong in 18 of 19 fresh sessions until `useSyntaxServer` was set to `"never"`. Conclusion: keep LSP for diagnostics, use grep for references.
+- [CircleCI](https://circleci.com/blog/claude-code-lsp/) (publishes an LSP plugin; vuejs/core, 3 symbols, CLAUDE.md rule to prefer LSP): cost -3% (Opus 4.8) and -14% (Sonnet 4.6); Sonnet with grep missed references (9/11, 249/260), LSP found all.
+- Problems: "No LSP server available" ([claude-code#14803](https://github.com/anthropics/claude-code/issues/14803)), hint-level diagnostics injected into the conversation ([claude-code#26634](https://github.com/anthropics/claude-code/issues/26634)).
+
+**Pi**: strong user enthusiasm, measured comparisons are vendor-run.
+- [Composio](https://composio.dev/content/pi-agent-vs-claude-code) (vendor, supplied the MCP router used; DeepSeek V4 Flash, 30 tasks): Pi 20/30 at $0.56, Claude Code 16/30 at $3.12; reasoning settings differed.
+- [HN thread](https://news.ycombinator.com/item?id=46844822): users switching from Claude Code and Codex; Claude subscriptions do not cover Pi, so Claude models bill at API rates; no sandbox by default ([comment](https://news.ycombinator.com/item?id=46845370)).
+
 Related: [JetBrains Part 1, caveman skill](https://blog.jetbrains.com/ai/2026/07/speak-to-ai-agents-like-cavemen-tosave-tokens/) (advertised -65%, measured -8.5%); never part of BenchKeeper.

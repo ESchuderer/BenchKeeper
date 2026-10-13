@@ -52,26 +52,29 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 
 ## Branches, issues and pull requests
 - Default flow in a GitHub repository: issue, branch, commits, pull request (`git-workflow-and-versioning`). Pushing feature branches and opening pull requests need no extra confirmation. Creating or editing a GitHub issue needs confirmation: present the plan (title, goal, acceptance criteria, tasks) first and create it only after the user approves. Merging, pushing to the default branch and skipping the flow need the user's instruction.
-- Before the first file edit, check the current branch. On the default branch (`gh repo view --json defaultBranchRef`), create `<type>/<issue>-<slug>` (for example `fix/42-null-config`). On another branch or worktree, keep it.
+- Before the first file edit, check the current branch. On the default branch (`gh repo view --json defaultBranchRef`), create `<type>/<issue>-<slug>` (for example `fix/42-null-config`), or `<type>/<slug>` when the change has no issue. On another branch or worktree, keep it.
+- Commits: atomic, message `<type>: <summary>` (Conventional Commits, as in `git-workflow-and-versioning`).
+- Pull requests: open as draft (`gh pr create --draft`), body contains `Closes #<issue>` when an issue exists; mark ready (`gh pr ready`) after checks pass. Review comments and failing checks: new commits on the same branch, no force push or rebase unless the user asks.
 - Work or commit on the default branch only when the user said so in this task; otherwise ask first.
-- OpenSpec (repository has `openspec/`) follows the same flow: after the issue exists, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>`, issue linked in `proposal.md`); commit it with the code; run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
+- OpenSpec (repository has `openspec/`) follows the same flow: after the issue step, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>` or `<slug>`, issue linked in `proposal.md`); commit it with the code; run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
 - No GitHub remote or `gh auth status` fails: local branch only, skip issue and pull request, say so in one line.
 - Before running `git push` or opening a pull request that contains code changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change.
 
 ## SDLC
 Skills from agent-skills (addyosmani) drive each phase; OpenSpec owns the spec files when the repository has `openspec/`.
-- Track: each change starts from a GitHub issue (`gh issue view <n>`); if none exists, present the plan and create one after approval (above). Then branch (above).
-- Understand: `AGENTS.md` and the code the change touches, before any edit.
+- Understand: `AGENTS.md`, the issue if one is given (`gh issue view <n>`), and the code the change touches, before any edit.
+- Track: without an issue, present the plan and create one after approval (above); if the user declines, continue without one. Then branch (above).
+- Conditional skills: `using-agent-skills` picks them within each phase (for example `interview-me`, `debugging-and-error-recovery`, `security-and-hardening`); the phases, OpenSpec, and the issue and pull request flow here take precedence.
 - Specify: `spec-driven-development` for a non-trivial change. With `openspec/`: write the result as an OpenSpec change (`openspec-propose`), not a separate spec file. Without it: plan mode.
 - Plan: `planning-and-task-breakdown`; with OpenSpec the tasks live in the change's `tasks.md`.
 - Build: `incremental-implementation`, tests first where the repository has a test suite (`test-driven-development`); with OpenSpec through `openspec-apply-change`.
 - Verify: build, types, lint, tests before reporting done; UI changes in a browser (Playwright MCP). Report failures as they are.
-- Review and ship: code review before push (above); push the branch and open a pull request with `Closes #<issue>` in the body (`gh pr create`); wait for checks (`gh pr checks --watch`, `ci-cd-and-automation`) and report failures as they are; `openspec-archive-change` on the branch (above). Merge only on the user's instruction.
+- Review and ship: code review before push (above); push the branch and open a draft pull request (above); wait for checks (`gh pr checks --watch`, `ci-cd-and-automation`), report failures as they are, mark ready when they pass; `openspec-archive-change` on the branch (above). Merge only on the user's instruction.
 - Maintain: after each milestone, about every 10 merged changes, or on request, run a repo-wide pass:
   - `ponytail-audit`: dead code, unused options, config and dependencies, duplicate helpers, risky code without tests;
   - `ponytail-debt`: each `shortcut:` comment is still valid, upgraded, or becomes an issue;
   - dependencies: the package manager's audit and unused dependencies (`security-and-hardening`);
   - docs drift: ADRs, `AGENTS.md` and docs against the code (`documentation-and-adrs`);
   - repository hygiene: unarchived OpenSpec changes, merged branches and worktrees, stopped containers.
-  Findings become issues. Delete code, tests or docs only after confirmation; remove a test only together with the code it covers (`deprecation-and-migration`).
+  Present the findings as one list; create issues only for those the user approves. Delete code, tests or docs only after confirmation; remove a test only together with the code it covers (`deprecation-and-migration`).
 - A skill starts a phase directly: `/<skill>` (Claude Code), `$<skill>` or `@<skill>` (Codex).

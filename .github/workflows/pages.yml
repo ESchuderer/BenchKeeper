@@ -33,9 +33,11 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm test
+      # Pages serves dist/ under /BenchKeeper/; a root dir with that path lets lychee resolve internal links.
+      - run: mkdir -p "$RUNNER_TEMP/site" && ln -s "$PWD/dist" "$RUNNER_TEMP/site/BenchKeeper"
       - uses: lycheeverse/lychee-action@v2.9.0
         with:
-          args: --no-progress --scheme https --scheme http 'web/dist/**/*.html'
+          args: --no-progress --root-dir ${{ runner.temp }}/site 'web/dist/**/*.html'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

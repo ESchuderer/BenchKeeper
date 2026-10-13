@@ -1,11 +1,11 @@
 ---
 name: project-setup
-description: "Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, language servers, OpenSpec, codegraph. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, language servers, OpenSpec or Spec Kit, codegraph. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 ---
 
 # Project setup
 
-Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, `openspec/`, or `.codegraph/`, every step compares the current state with what it would create and proposes only the differences.
+Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, `openspec/`, `.specify/`, or `.codegraph/`, every step compares the current state with what it would create and proposes only the differences.
 
 Rules for every step: show the planned change and ask before writing; never commit; never run sudo or AUR installs (give the user the command).
 
@@ -76,12 +76,17 @@ For each confirmed language, find its LSP plugin in `~/.claude/plugins/marketpla
 - Use a supported client configuration to connect the host plugin to the container server. Verify diagnostics on a project file and matching host/container file paths or supported URI translation. Do not edit installed plugin files or treat an executable wrapper alone as proof. If the client cannot route the server correctly, disable its use for this project and report the limitation instead of installing a host fallback.
 - No plugin for a language (shell, YAML, HCL, ...): skip it and list it in the report.
 
-## 6. OpenSpec (ask)
+## 6. Spec tool (ask)
 
-Recommend it for application code where changes span several files or features. Recommend skipping it for config, infrastructure, and docs repositories.
+Ask which spec tool this repository uses: OpenSpec, Spec Kit, or none. Present both without a recommendation, with these differences: OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive; Spec Kit keeps one folder per feature under `specs/` plus `.specify/memory/constitution.md`, with more up-front planning artifacts and no archive step. Recommend none for config, infrastructure, and docs repositories. A repository with `openspec/` or `.specify/` keeps its tool unless the user asks to switch. In both cases agent-skills drives the process and the tool owns the spec files (`rules/global.md`).
 
+OpenSpec:
 - Setup: `openspec init --tools <tools> --no-animation`, replacing `<tools>` with `claude`, `codex`, or `claude,codex` for the selected agents.
 - Update: run `openspec update` only when all configured agent integrations are selected; otherwise report the update as skipped to preserve unselected integrations. Then list open changes with `openspec list` and point out finished ones that are not archived.
+
+Spec Kit ([integrations](https://github.com/github/spec-kit/blob/v1.1.3/docs/reference/integrations.md), [git extension](https://github.com/github/spec-kit/blob/v1.1.3/extensions/git/README.md)):
+- Setup: `specify init --here --force --non-interactive --integration <key>`, with `<key>` `claude` or `codex` for the first selected agent; for both, then `specify integration install codex`. Then `specify extension disable git` so branches follow the global issue and branch flow instead of `001-feature` names.
+- Update: `specify integration upgrade <key>` for each selected agent, then `specify extension update`; report managed files with local edits instead of passing `--force`. Leave unselected integrations in place. `specify integration status` lists the installed ones.
 
 ## 7. codegraph (ask)
 

@@ -1,6 +1,6 @@
 ---
 name: global-setup
-description: "Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, Ponytail (full), addy agent-skills, RTK, OpenSpec, codegraph, Context7 MCP, Playwright MCP, LSP, telemetry. Use on a new machine, after editing the global rules, to update the pinned tool versions, or to verify or clean the global setup."
+description: "Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, Ponytail (full), addy agent-skills, RTK, OpenSpec, Spec Kit, codegraph, Context7 MCP, Playwright MCP, LSP, telemetry. Use on a new machine, after editing the global rules, to update the pinned tool versions, or to verify or clean the global setup."
 ---
 
 # Global setup
@@ -62,13 +62,15 @@ rtk init -g --auto-patch --no-trust-filters
 rtk init -g --codex
 ```
 
-### 3. OpenSpec and codegraph
-Check: `openspec --version`, `codegraph --version`; `openspec config list` shows delivery skills and telemetry false; `codegraph telemetry` disabled.
+### 3. OpenSpec, Spec Kit and codegraph
+Check: `openspec --version`, `specify version`, `codegraph --version`; `openspec config list` shows delivery skills and telemetry false; `codegraph telemetry` disabled.
 Install:
 ```sh
 npm i -g @fission-ai/openspec@1.14.1 @colbymchenry/codegraph@1.6.2
 openspec config set delivery skills && openspec config set telemetry.enabled false && codegraph telemetry off
+uv tool install specify-cli==1.1.3
 ```
+Spec Kit needs `uv` on the host; if `command -v uv` fails, give the user the install command from the [uv docs](https://docs.astral.sh/uv/getting-started/installation/) and skip the Spec Kit install. [Spec Kit install](https://github.com/github/spec-kit/blob/v1.1.3/docs/installation.md)
 
 ### 4. Ponytail, level full
 Check: `ponytail@ponytail` enabled in each selected agent's plugin list; `~/.config/ponytail/config.json` has `"defaultMode": "full"`; `PONYTAIL_DEFAULT_MODE` is unset or `full` (it overrides the file, [upstream configuration](https://github.com/DietrichGebert/ponytail/blob/main/INSTALL.md#settings)). Keep Ponytail and agent-skills; their integration lives in `$B/rules/global.md`, not in installed plugin files.

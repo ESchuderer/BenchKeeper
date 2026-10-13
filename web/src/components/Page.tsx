@@ -318,13 +318,8 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Text size="xs" c="dimmed" mt="md">Code fell 31% on large builds and about 0% where the baseline wrote little. Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/">JetBrains AI blog</Anchor>.</Text>
             </Card>
             <Card withBorder padding="lg">
-              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconCircleX size={18} /></ThemeIcon><Text fw={700}>Removed after testing</Text></Group>
-              <List size="sm" mt="sm" spacing="sm">
-                <List.Item><b>RTK</b>: advertised 60 to 90% fewer tokens. JetBrains measured +7.6% cost at low effort (p=0.004) and 0% at high effort; <Anchor href="https://quesma.com/blog/does-rtk-make-ai-coding-cheaper/">Quesma</Anchor> measured -5% (Claude Code, mostly one task) and +5% (DeepSeek). Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/">JetBrains AI blog</Anchor>.</List.Item>
-                <List.Item><b>codegraph</b>: advertised 62% fewer tokens. No independent measurement found; agents call add-on code tools rarely.</List.Item>
-                <List.Item><b>Context7 MCP</b>: <Anchor href="https://marginlab.ai/blog/do-mcps-improve-coding-agents-part-1/">Marginlab</Anchor> measured 64 of 89 Terminal-Bench tasks passed with it, 63 without; Codex called it in 6.</List.Item>
-                <List.Item><b>LSP plugins</b>: a preliminary study measured 6 to 118% more tokens for code localization; agents mostly used grep (<Anchor href="https://arxiv.org/abs/2608.13568">arXiv 2608.13568</Anchor>).</List.Item>
-              </List>
+              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFileText size={18} /></ThemeIcon><Text fw={700}>Evaluations</Text></Group>
+              <Text size="sm" mt="sm">Components considered, the independent measurements and user reports behind each, and why each is kept, removed or not added: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</Text>
             </Card>
           </SimpleGrid>
           <Card withBorder padding="lg" mt="md">

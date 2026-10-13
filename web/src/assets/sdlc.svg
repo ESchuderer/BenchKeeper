@@ -1,0 +1,51 @@
+<svg class="ring" viewBox="-130 0 900 640" role="img" aria-labelledby="ring-t ring-d">
+        <title id="ring-t">BenchKeeper SDLC loop</title>
+        <desc id="ring-d">Ten steps in a clockwise loop: Understand, Track, Branch, Specify, Plan, Build, Verify, Review, Ship, Maintain.</desc>
+        <circle class="core" cx="320" cy="320" r="150"/>
+        <text class="core-t" x="320" y="306" text-anchor="middle">issue to merged PR</text>
+        <text class="core-s" x="320" y="332" text-anchor="middle">agent-skills drives the phases</text>
+        <text class="core-s" x="320" y="352" text-anchor="middle">Ponytail keeps code small</text>
+        <circle class="track" cx="320" cy="320" r="220"/>
+        <g class="arrow">
+          <path d="M-6-5L6 0-6 5z" transform="translate(388 110.8) rotate(18)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(498 190.7) rotate(54)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(540 320) rotate(90)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(498 449.3) rotate(126)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(388 529.2) rotate(162)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(252 529.2) rotate(198)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(142 449.3) rotate(234)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(100 320) rotate(270)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(142 190.7) rotate(306)"/>
+          <path d="M-6-5L6 0-6 5z" transform="translate(252 110.8) rotate(342)"/>
+        </g>
+        <g class="node"><circle cx="320" cy="100" r="28"/><text class="n" x="320" y="106" text-anchor="middle">1</text></g>
+        <g class="node"><circle cx="449.3" cy="142" r="28"/><text class="n" x="449.3" y="148" text-anchor="middle">2</text></g>
+        <g class="node"><circle cx="529.2" cy="252" r="28"/><text class="n" x="529.2" y="258" text-anchor="middle">3</text></g>
+        <g class="node"><circle cx="529.2" cy="388" r="28"/><text class="n" x="529.2" y="394" text-anchor="middle">4</text></g>
+        <g class="node"><circle cx="449.3" cy="498" r="28"/><text class="n" x="449.3" y="504" text-anchor="middle">5</text></g>
+        <g class="node"><circle cx="320" cy="540" r="28"/><text class="n" x="320" y="546" text-anchor="middle">6</text></g>
+        <g class="node"><circle cx="190.7" cy="498" r="28"/><text class="n" x="190.7" y="504" text-anchor="middle">7</text></g>
+        <g class="node"><circle cx="110.8" cy="388" r="28"/><text class="n" x="110.8" y="394" text-anchor="middle">8</text></g>
+        <g class="node"><circle cx="110.8" cy="252" r="28"/><text class="n" x="110.8" y="258" text-anchor="middle">9</text></g>
+        <g class="node"><circle cx="190.7" cy="142" r="28"/><text class="n" x="190.7" y="148" text-anchor="middle">10</text></g>
+        <text class="lbl" x="320" y="38" text-anchor="middle">Understand</text>
+        <text class="sub" x="320" y="56" text-anchor="middle">AGENTS.md, issue, code</text>
+        <text class="lbl" x="490" y="96">Track</text>
+        <text class="sub" x="490" y="114">GitHub issue</text>
+        <text class="lbl" x="572" y="240">Branch</text>
+        <text class="sub" x="572" y="258">type/issue-slug</text>
+        <text class="lbl" x="572" y="392">Specify</text>
+        <text class="sub" x="572" y="410">OpenSpec / Spec Kit</text>
+        <text class="lbl" x="490" y="540">Plan</text>
+        <text class="sub" x="490" y="558">tasks.md</text>
+        <text class="lbl" x="320" y="596" text-anchor="middle">Build</text>
+        <text class="sub" x="320" y="614" text-anchor="middle">small slices, tests first</text>
+        <text class="lbl" x="150" y="540" text-anchor="end">Verify</text>
+        <text class="sub" x="150" y="558" text-anchor="end">build, lint, tests, browser</text>
+        <text class="lbl" x="68" y="392" text-anchor="end">Review</text>
+        <text class="sub" x="68" y="410" text-anchor="end">code review before push</text>
+        <text class="lbl" x="68" y="240" text-anchor="end">Ship</text>
+        <text class="sub" x="68" y="258" text-anchor="end">draft PR, checks, ready</text>
+        <text class="lbl" x="150" y="96" text-anchor="end">Maintain</text>
+        <text class="sub" x="150" y="114" text-anchor="end">audit, debt, drift</text>
+      </svg>

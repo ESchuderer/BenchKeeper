@@ -2,7 +2,7 @@
 
 # BenchKeeper
 
-BenchKeeper keeps the agent's workbench in order: the rules, skills and tools Claude Code and Codex work with, installed at pinned versions and checked on every `/global-setup` run. The bench is shared by every project; each repository gets its own container and spec setup on top.
+BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.
 
 Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 

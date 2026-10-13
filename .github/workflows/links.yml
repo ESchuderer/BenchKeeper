@@ -15,7 +15,6 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: lycheeverse/lychee-action@v2.9.0
         with:
-          # mcp.context7.com/mcp is an MCP endpoint, not a page (GET returns 405)
-          args: --no-progress --exclude '^https://mcp\.context7\.com/' './**/*.md'
+          args: --no-progress './**/*.md'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

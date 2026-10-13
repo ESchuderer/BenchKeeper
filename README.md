@@ -20,7 +20,7 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 |---|---|---|
 | [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink); copy in `~/.codex/AGENTS.md` |
 | [skills/global-setup](skills/global-setup/SKILL.md) | install, check, and clean the global setup (all commands) | `~/.claude/skills/`, `~/.agents/skills/`, and in this repo |
-| [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, OpenSpec or Spec Kit | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, OpenSpec | `~/.claude/skills/`, `~/.agents/skills/` |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 
 ## Components
@@ -31,11 +31,10 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 | [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity within agent-skills phases |
 | [agent-skills](https://github.com/addyosmani/agent-skills) | global, Claude + Codex | workflow: spec, plan, TDD, review, ship |
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | CLI global, wired per repo | spec files (owns the artifacts; agent-skills drives the process, [#166](https://github.com/addyosmani/agent-skills/issues/166)) |
-| [Spec Kit](https://github.com/github/spec-kit) | CLI global, wired per repo | alternative to OpenSpec, chosen per repo in `project-setup`; owns the spec files, agent-skills drives the process |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `project-setup` |
 
-Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/` or `.specify/` and `specs/`, `.mcp.json`, `.codex/config.toml`.
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`.
 
 Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.md#ponytail-and-agent-skills) integrate them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
 
@@ -63,7 +62,6 @@ Not installed by BenchKeeper; see each official page. Tables marked as generated
 | [Git](https://git-scm.com/downloads) | clone, branches, commits |
 | [GitHub CLI](https://cli.github.com/) | issues and pull requests (optional, local branches without it) |
 | [Node.js and npm](https://nodejs.org/en/download) | global CLIs, prefix `~/.local` |
-| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Spec Kit |
 | [jq](https://jqlang.org/download/) | setup scripts |
 | [curl](https://curl.se/download.html) | setup scripts |
 | [Docker Engine](https://docs.docker.com/engine/install/) | devcontainers |

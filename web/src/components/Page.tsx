@@ -184,7 +184,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop for every change" intro="The global rules route each change through the same ten steps. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec or Spec Kit holds the spec files when the repository uses one.">
+        <Section id="sdlc" title="One loop for every change" intro="The global rules route each change through the same ten steps. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -210,7 +210,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
               <Stack gap={10} className="host-list">
-                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'OpenSpec and Spec Kit CLIs', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
+                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'OpenSpec CLI', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -251,9 +251,9 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               gives="Less code to review and maintain. Its benchmark: 53% fewer lines, 26% lower cost. JetBrains measured 15% fewer lines, 10% lower cost.">
               Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
             </FeatureCard>
-            <FeatureCard icon={<IconFileDescription size={20} />} title={<><Anchor href="https://github.com/Fission-AI/OpenSpec" underline="hover">OpenSpec</Anchor> or <Anchor href="https://github.com/github/spec-kit" underline="hover">Spec Kit</Anchor></>} scope="CLI global, chosen per repository"
+            <FeatureCard icon={<IconFileDescription size={20} />} title="OpenSpec" href="https://github.com/Fission-AI/OpenSpec" scope="CLI global, wired per repository"
               gives="Requirements live in the repository and are reviewed in the same pull request as the code; the next session reads them instead of guessing.">
-              OpenSpec: one change folder per change (proposal, spec deltas, tasks), merged into living specs on archive. Spec Kit: one folder per feature (spec, plan, tasks) plus a constitution.
+              One change folder per change (proposal, spec deltas, tasks), merged into living specs on archive.
             </FeatureCard>
             <FeatureCard icon={<IconBrowser size={20} />} title="Playwright MCP" href="https://github.com/microsoft/playwright-mcp" scope="Per repository, browser in the container"
               gives="UI changes are checked in a real browser before the agent reports them done.">
@@ -287,7 +287,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="How it reduces cost" intro={<>Ponytail is the component with an independent cost measurement. OpenSpec, Spec Kit and agent-skills publish no cost figures and have no independent measurement. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="How it reduces cost" intro={<>Ponytail is the component with an independent cost measurement. OpenSpec and agent-skills publish no cost figures and have no independent measurement. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>
@@ -403,7 +403,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Table.Thead><Table.Tr><Table.Th>Scope</Table.Th><Table.Th>Files</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
                 <Table.Tr><Table.Td>Machine</Table.Td><Table.Td><Code>~/.claude/rules/00-global.md</Code> (symlink), <Code>~/.codex/AGENTS.md</Code> (copy), <Code>~/.claude/skills/</Code>, <Code>~/.agents/skills/</Code>, agent plugins and settings</Table.Td></Table.Tr>
-                <Table.Tr><Table.Td>Repository, committed</Table.Td><Table.Td><Code>.devcontainer/</Code>, <Code>AGENTS.md</Code>, <Code>CLAUDE.md</Code>, <Code>.agents/skills/</Code>, <Code>.claude/skills/</Code>, <Code>skills-lock.json</Code>, <Code>openspec/</Code> or <Code>.specify/</Code> and <Code>specs/</Code>, <Code>.mcp.json</Code>, <Code>.codex/config.toml</Code></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td>Repository, committed</Table.Td><Table.Td><Code>.devcontainer/</Code>, <Code>AGENTS.md</Code>, <Code>CLAUDE.md</Code>, <Code>.agents/skills/</Code>, <Code>.claude/skills/</Code>, <Code>skills-lock.json</Code>, <Code>openspec/</Code>, <Code>.mcp.json</Code>, <Code>.codex/config.toml</Code></Table.Td></Table.Tr>
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>

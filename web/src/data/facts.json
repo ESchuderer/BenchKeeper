@@ -27,11 +27,6 @@
       "for": "global CLIs, prefix `~/.local`"
     },
     {
-      "name": "uv",
-      "url": "https://docs.astral.sh/uv/getting-started/installation/",
-      "for": "Spec Kit"
-    },
-    {
       "name": "jq",
       "url": "https://jqlang.org/download/",
       "for": "setup scripts"
@@ -152,9 +147,9 @@
       {
         "name": "Specify",
         "phase": "define",
-        "sub": "OpenSpec / Spec Kit",
-        "tip": "Writes the spec as an OpenSpec change or a Spec Kit feature spec, or uses plan mode.",
-        "text": "`spec-driven-development`, written as an OpenSpec change or a Spec Kit feature spec when the repository has one."
+        "sub": "OpenSpec",
+        "tip": "Writes the spec as an OpenSpec change, or uses plan mode.",
+        "text": "`spec-driven-development`, written as an OpenSpec change when the repository has one."
       },
       {
         "name": "Plan",

@@ -2,6 +2,8 @@
 
 # BenchKeeper
 
+BenchKeeper keeps the agent's workbench in order: the rules, skills and tools Claude Code and Codex work with, installed at pinned versions and checked on every `/global-setup` run. The bench is shared by every project; each repository gets its own container and spec setup on top.
+
 Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 
 Claude Code and Codex are independently optional. Setup detects installed agents and asks which you use. Only selected agents receive configuration, plugins, hooks, and skills. Agent CLIs are not installed by setup; unused or absent agents are skipped.
@@ -44,9 +46,26 @@ Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.m
 | RTK, OpenSpec, codegraph | off |
 | skills CLI | `DO_NOT_TRACK=1` per command only |
 
+## Prerequisites
+
+Not installed by BenchKeeper; see each official page.
+
+| Tool | Needed for |
+|---|---|
+| [Claude Code](https://code.claude.com/docs/en/setup) | agent (one or both) |
+| [Codex CLI](https://developers.openai.com/codex/cli) | agent (one or both) |
+| [Git](https://git-scm.com/downloads) | clone, branches, commits |
+| [GitHub CLI](https://cli.github.com/) | issues and pull requests (optional, local branches without it) |
+| [Node.js and npm](https://nodejs.org/en/download) | global CLIs, prefix `~/.local` |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Spec Kit |
+| [jq](https://jqlang.org/download/), [curl](https://curl.se/download.html) | setup scripts |
+| [Docker Engine](https://docs.docker.com/engine/install/) | devcontainers |
+| [VS Code](https://code.visualstudio.com/download) | optional, attach to the devcontainer |
+| [Orca](https://onorca.dev) | optional, parallel agents |
+
 ## Setup steps
 
-1. Needs: at least one installed agent you use (`claude` or `codex`), plus `npm` (prefix `~/.local`, no sudo), `uv` (Spec Kit), `jq`, `curl` for applicable steps.
+1. Install the [prerequisites](#prerequisites): at least one agent you use, plus the tools for the steps you apply. npm uses prefix `~/.local`, no sudo.
 2. Clone to `/mnt/data/Projects/benchkeeper`, open it in Claude Code or Codex.
 3. Run `/global-setup` (Codex: `$global-setup`). Confirm which installed agents you use. It checks applicable parts without changing anything, shows one plan (installs, changes, removals, version bumps) with destructive items marked, and applies only what you approve; destructive items are confirmed again right before they run. Cleanup stays within that scope. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
 4. Restart selected agents; if Codex is selected, run `/hooks` and trust the plugin hooks.

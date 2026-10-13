@@ -17,4 +17,4 @@
 - `.agents/skills/skill-creator` is vendored from `anthropics/skills` (`skills-lock.json`): do not edit; update with `DO_NOT_TRACK=1 npx -y skills@1.7.2 add anthropics/skills -s skill-creator -a claude-code -a codex --copy -y`.
 - Update `EVALUATIONS.md` when a component is added, removed, or changed.
 - `web/scripts/og.svg` is the source of `web/public/og.png`: `rsvg-convert -w 1200 -h 630`.
-- Specs use Spec Kit (`.specify/`, feature specs under `specs/`). Generated Spec Kit files in `.specify/`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*` are vendored: do not edit.
+- Specs use OpenSpec (`openspec/`: current specs in `specs/`, changes in `changes/`). Generated OpenSpec skills in `.claude/skills/openspec-*`, `.agents/skills/openspec-*` are vendored: do not edit.

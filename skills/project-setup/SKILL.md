@@ -1,11 +1,11 @@
 ---
 name: project-setup
-description: "Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, OpenSpec or Spec Kit. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, OpenSpec. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 ---
 
 # Project setup
 
-Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, `openspec/`, or `.specify/`, every step compares the current state with what it would create and proposes only the differences.
+Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, or `openspec/`, every step compares the current state with what it would create and proposes only the differences.
 
 Process: plan first, then apply.
 1. Read only: run agent selection and steps 1 to 6 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing; do not build or start a container.
@@ -73,15 +73,11 @@ Update or restore missing skills by reinstalling each selected skill from its re
 
 ## 5. Spec tool (ask)
 
-Ask which spec tool this repository uses: OpenSpec, Spec Kit, or none. Present both without a recommendation, with these differences: OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive; Spec Kit keeps one folder per feature under `specs/` plus `.specify/memory/constitution.md`, with more up-front planning artifacts and no archive step. Recommend none for config, infrastructure, and docs repositories. A repository with `openspec/` or `.specify/` keeps its tool unless the user asks to switch. In both cases agent-skills drives the process and the tool owns the spec files (`rules/global.md`).
+Ask whether this repository uses OpenSpec or none. Recommend none for config, infrastructure, and docs repositories. OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive; agent-skills drives the process and OpenSpec owns the spec files (`rules/global.md`). A repository with Spec Kit (`.specify/`) moves to OpenSpec: propose removing `.specify/`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*` and ignore or lint entries for `.specify`, then set up OpenSpec.
 
 OpenSpec:
 - Setup: `openspec init --tools <tools> --no-animation`, replacing `<tools>` with `claude`, `codex`, or `claude,codex` for the selected agents.
 - Update: run `openspec update` only when all configured agent integrations are selected; otherwise report the update as skipped to preserve unselected integrations. Then list open changes with `openspec list` and point out finished ones that are not archived.
-
-Spec Kit ([integrations](https://github.com/github/spec-kit/blob/v1.1.3/docs/reference/integrations.md), [git extension](https://github.com/github/spec-kit/blob/v1.1.3/extensions/git/README.md)):
-- Setup: `specify init --here --force --non-interactive --integration <key>`, with `<key>` `claude` or `codex` for the first selected agent; for both, then `specify integration install codex`. If `specify extension list` shows the `git` extension, run `specify extension disable git` so branches follow the global issue and branch flow instead of `001-feature` names (1.1.3 does not install it).
-- Update: `specify integration upgrade <key>` for each selected agent, then `specify extension update`; report managed files with local edits instead of passing `--force`. Leave unselected integrations in place. `specify integration status` lists the installed ones.
 
 ## 6. Dead config
 

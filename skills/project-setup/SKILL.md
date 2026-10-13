@@ -7,7 +7,13 @@ description: "Set up or update a repository's development container and agent to
 
 Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, `openspec/`, `.specify/`, or `.codegraph/`, every step compares the current state with what it would create and proposes only the differences.
 
-Rules for every step: show the planned change and ask before writing; never commit; never run sudo or AUR installs (give the user the command).
+Process: plan first, then apply.
+1. Read only: run agent selection and steps 1 to 8 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing; do not build or start a container.
+2. Plan: one list of files created, changed, or removed, skills added or removed, packages added to the image, container build or rebuild, integrations enabled or disabled, and skipped steps with the reason. Mark destructive items: overwriting or removing files, config entries, or skills, and removing or rebuilding a container. Ask: apply all, a subset, or cancel.
+3. Apply only approved items, including container launch and verification. Right before each destructive item, show the diff or list and ask again.
+4. Verify and report (step 9).
+
+Never commit; never run sudo or AUR installs (give the user the command).
 
 ## Agent selection
 

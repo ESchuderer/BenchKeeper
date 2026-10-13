@@ -7,7 +7,14 @@ description: "Check, install, and clean the machine-wide agent setup for Claude 
 
 Brings the machine to the state below: required parts present, optional parts installed only when requested. `$B` is this skill's repository (`$B/skills/global-setup/`; normally `/mnt/data/Projects/benchkeeper`).
 
-Process: select agents first, run applicable **Check** steps, show one table (part, ok, failing, or skipped, what is wrong), ask, then run the applicable **Install** commands of each failing part and check again. Never run sudo. Merge into the selected agents' settings; never overwrite them (Orca keeps hooks there).
+Process: plan first, then apply.
+1. Select agents (below).
+2. Read only: compare pinned versions, run applicable **Check** steps, list extras. Write, install, and remove nothing.
+3. Plan: one table (part, status, what is wrong, planned action with its commands or files, destructive yes or no), plus version bumps, extras to remove, and skipped parts with the reason. Destructive: overwriting or removing files, settings entries, plugins, skills, hooks, or MCP servers, and running a downloaded script. Ask: apply all, a subset, or cancel.
+4. Apply only approved items. Right before each destructive item, show what it changes (diff, list, or script) and ask again.
+5. Check again and report.
+
+Never run sudo. Merge into the selected agents' settings; never overwrite them (Orca keeps hooks there).
 
 ## Agent selection
 
@@ -28,7 +35,7 @@ Needs `npm` with prefix `~/.local`, `jq`, `curl` for applicable steps. Missing: 
 
 Agents run on the host; project development commands run in standard devcontainers. Apply this skill to the host agent setup and check part 11 before project setup. Keep BenchKeeper, agent authentication, global rules, and skills on the host. `project-setup` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials. Rootless engines, VMs, and microVMs are not required.
 
-Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`; RTK: `curl -fsSL https://api.github.com/repos/rtk-ai/rtk/releases/latest | jq -r .tag_name`). Show a table (package, pinned, latest) and ask. For each accepted bump, edit the pin everywhere it appears in `$B` (`grep -rn '<pkg>@' $B --include='*.md'`), then install it through its part. Keep `typescript` on 5.x (part 8). The pins change only here, at install time, where the new version is tested.
+Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`; RTK: `curl -fsSL https://api.github.com/repos/rtk-ai/rtk/releases/latest | jq -r .tag_name`). Add available bumps to the plan (package, pinned, latest). For each accepted bump, edit the pin everywhere it appears in `$B` (`grep -rn '<pkg>@' $B --include='*.md'`), then install it through its part. Keep `typescript` on 5.x (part 8). The pins change only here, at install time, where the new version is tested.
 
 ## Parts
 
@@ -163,7 +170,7 @@ Check the skill files again after installation. The Orca application and CLI are
 
 ## Extras (clean)
 
-List and propose removing items belonging to selected agents that are not a part above. Do not classify an unselected agent or its tools as extras. Preserve shared files and tools still used by any unselected agent.
+List in the plan, as destructive, items belonging to selected agents that are not a part above. Do not classify an unselected agent or its tools as extras. Preserve shared files and tools still used by any unselected agent.
 
 - Plugins and marketplaces other than `ponytail`, `addy-agent-skills` (Codex: `agent-skills`), `claude-plugins-official` with its LSP plugins: `claude plugin uninstall`, `claude plugin marketplace remove`, `codex plugin remove`, `codex plugin marketplace remove`.
 - User MCP servers other than `context7`, `playwright`: `claude mcp remove --scope user`, `codex mcp remove`.

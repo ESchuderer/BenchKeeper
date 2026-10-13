@@ -80,7 +80,7 @@ OpenSpec:
 - Update: run `openspec update` only when all configured agent integrations are selected; otherwise report the update as skipped to preserve unselected integrations. Then list open changes with `openspec list` and point out finished ones that are not archived.
 
 Spec Kit ([integrations](https://github.com/github/spec-kit/blob/v1.1.3/docs/reference/integrations.md), [git extension](https://github.com/github/spec-kit/blob/v1.1.3/extensions/git/README.md)):
-- Setup: `specify init --here --force --non-interactive --integration <key>`, with `<key>` `claude` or `codex` for the first selected agent; for both, then `specify integration install codex`. Then `specify extension disable git` so branches follow the global issue and branch flow instead of `001-feature` names.
+- Setup: `specify init --here --force --non-interactive --integration <key>`, with `<key>` `claude` or `codex` for the first selected agent; for both, then `specify integration install codex`. If `specify extension list` shows the `git` extension, run `specify extension disable git` so branches follow the global issue and branch flow instead of `001-feature` names (1.1.3 does not install it).
 - Update: `specify integration upgrade <key>` for each selected agent, then `specify extension update`; report managed files with local edits instead of passing `--force`. Leave unselected integrations in place. `specify integration status` lists the installed ones.
 
 ## 6. Dead config

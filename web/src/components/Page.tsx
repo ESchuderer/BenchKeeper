@@ -287,7 +287,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="How it reduces cost" intro={<>Ponytail is the component with an independent cost measurement. OpenSpec and agent-skills publish no cost figures and have no independent measurement. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="Cost and quality" intro={<>Ponytail has an independent cost measurement. Components measured to cost more are left out. The checks before done and the spec in the repository aim at fewer rounds of fixes; that is not measured. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>
@@ -318,14 +318,34 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Text size="xs" c="dimmed" mt="md">Code fell 31% on large builds and about 0% where the baseline wrote little. Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/">JetBrains AI blog</Anchor>.</Text>
             </Card>
           </SimpleGrid>
-          <Card withBorder padding="lg" mt="md">
-            <Text fw={700}>Cost the setup avoids</Text>
-            <List size="sm" mt="xs" spacing={4}>
-              <List.Item>Optional parts are skipped where they do not apply: no spec tool for config and docs repositories.</List.Item>
-              <List.Item>Telemetry is off for Codex and OpenSpec; Claude Code error reporting and feedback surveys are off.</List.Item>
-              <List.Item>A new machine is rebuilt from one repository with <Code>/global-setup</Code>; a fresh clone restores its skills with <Code>/project-setup</Code>.</List.Item>
-            </List>
-          </Card>
+          <SimpleGrid cols={{ base: 1, md: 3 }} mt="md">
+            <Card withBorder padding="lg">
+              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconCircleX size={18} /></ThemeIcon><Text fw={700}>Left out: measured to cost more</Text></Group>
+              <List size="sm" mt="sm" spacing={6}>
+                <List.Item>Summaries and layout in <Code>AGENTS.md</Code>: over 20% more cost, task success unchanged (<Anchor href="https://arxiv.org/abs/2602.11988">arXiv 2602.11988</Anchor>).</List.Item>
+                <List.Item>RTK: +7.6% median cost at low effort (<Anchor href="https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/">JetBrains</Anchor>).</List.Item>
+                <List.Item>LSP plugins: 6 to 118% more tokens for symbol lookup, preliminary (<Anchor href="https://arxiv.org/abs/2608.13568">arXiv 2608.13568</Anchor>).</List.Item>
+                <List.Item>Context7: 64 of 89 tasks passed, 63 without (<Anchor href="https://marginlab.ai/blog/do-mcps-improve-coding-agents-part-1/">Marginlab</Anchor>).</List.Item>
+              </List>
+            </Card>
+            <Card withBorder padding="lg">
+              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconListCheck size={18} /></ThemeIcon><Text fw={700}>Fewer rounds, unmeasured</Text></Group>
+              <List size="sm" mt="sm" spacing={6}>
+                <List.Item>Build, types, lint and tests run before the agent reports done; UI changes are checked in a browser.</List.Item>
+                <List.Item>Commits are reviewed for correctness bugs before push.</List.Item>
+                <List.Item>Spec and tasks live in the repository; the next session reads them instead of asking again.</List.Item>
+                <List.Item>Curated skills raised pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>; not measured for agent-skills.</List.Item>
+              </List>
+            </Card>
+            <Card withBorder padding="lg">
+              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconContainer size={18} /></ThemeIcon><Text fw={700}>Reproducible</Text></Group>
+              <List size="sm" mt="sm" spacing={6}>
+                <List.Item>Every install command pins an exact version.</List.Item>
+                <List.Item>Project commands run in the same devcontainer from Claude Code, Codex, VS Code and Orca.</List.Item>
+                <List.Item>One repository rebuilds a machine with <Code>/global-setup</Code>; a fresh clone restores its skills with <Code>/project-setup</Code>.</List.Item>
+              </List>
+            </Card>
+          </SimpleGrid>
         </Section>
 
         <Section id="not" title="What it is not">

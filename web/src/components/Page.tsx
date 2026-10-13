@@ -5,7 +5,7 @@ import {
 import {
   IconArrowDown, IconArrowRight, IconBook, IconBox, IconBrandGithub, IconBrowser, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
-  IconPackage, IconRoute, IconSearch, IconShieldHalf, IconSun, IconTopologyStar3, IconArrowsMinimize,
+  IconPackage, IconRoute, IconServer, IconStack2, IconTerminal2, IconSearch, IconShieldHalf, IconSun, IconTopologyStar3, IconArrowsMinimize,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import sdlc from '../assets/sdlc.svg?raw';
@@ -119,7 +119,7 @@ export default function Page({ base }: { base: string }) {
               </Group>
             </Anchor>
             <Group gap="lg" visibleFrom="md">
-              {[['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Quality'], ['cost', 'Cost'], ['not', 'What it is not'], ['prereq', 'Setup']].map(([id, l]) => (
+              {[['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Quality'], ['cost', 'Cost'], ['not', 'What it is not'], ['tools', 'Tools'], ['prereq', 'Setup']].map(([id, l]) => (
                 <Anchor key={id} href={`#${id}`} c="dimmed" size="sm" underline="never">{l}</Anchor>
               ))}
             </Group>
@@ -311,6 +311,48 @@ export default function Page({ base }: { base: string }) {
               <Check ok={false} title="Not autonomous on your machine or repository.">Setup applies only the plan you approve and confirms destructive items again; merges and pushes to the default branch need your instruction.</Check>
             </List></Card>
           </SimpleGrid>
+        </Section>
+
+        <Section id="tools" title="Recommended tools" intro="Optional, not installed by BenchKeeper. Each one works with the agents and rules set up here.">
+          <Text fw={700} mb="xs">Parallel agents: pick one</Text>
+          <Text size="sm" c="dimmed" mb="md" maw={720}>Orca and cmux both manage several agent sessions side by side. Running both duplicates that layer.</Text>
+          <Box className="split">
+            <Card withBorder padding="lg" className="lift">
+              <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}><IconStack2 size={20} /></ThemeIcon><Anchor href="https://github.com/stablyai/orca" fw={700}>Orca</Anchor><Badge variant="light" color="gray">macOS, Windows, Linux</Badge></Group>
+              <List size="sm" mt="md" spacing={4}>
+                <List.Item>One git worktree per agent; the same prompt across several agents to compare results</List.Item>
+                <List.Item>Terminal splits, SSH remote worktrees, mobile companion app</List.Item>
+                <List.Item><Code>/global-setup</Code> offers its <Code>orca-cli</Code> and <Code>orchestration</Code> skills, only after asking</List.Item>
+              </List>
+              <Text size="sm" mt="md"><Text span fw={700}>Choose it when</Text> you want worktree-per-task workflows, Linux or Windows, or remote and mobile access.</Text>
+            </Card>
+            <Stack align="center" justify="center"><Badge size="lg" variant="outline" color="gray">or</Badge></Stack>
+            <Card withBorder padding="lg" className="lift">
+              <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}><IconTerminal2 size={20} /></ThemeIcon><Anchor href="https://github.com/manaflow-ai/cmux" fw={700}>cmux</Anchor><Badge variant="light" color="gray">macOS only</Badge></Group>
+              <List size="sm" mt="md" spacing={4}>
+                <List.Item>Ghostty-based terminal with vertical tabs</List.Item>
+                <List.Item>Notifications when an agent needs input; sidebar with branch, PR status and ports</List.Item>
+                <List.Item>Browser pane inside the terminal</List.Item>
+              </List>
+              <Text size="sm" mt="md"><Text span fw={700}>Choose it when</Text> you are on macOS and want a terminal-first workflow without a separate app layer.</Text>
+            </Card>
+          </Box>
+          <Text fw={700} mt={40} mb="xs">Unattended or isolated runs</Text>
+          <Card withBorder padding="lg">
+            <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" color="orange" size={38}><IconServer size={20} /></ThemeIcon><Anchor href="https://github.com/OpenHands/OpenHands" fw={700}>OpenHands</Anchor><Badge variant="light" color="gray">self-hosted, web UI</Badge></Group>
+            <Text size="sm" c="dimmed" mt="sm">A different role from Orca and cmux: an agent server that runs work without you at the terminal.</Text>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} mt="md" spacing="md">
+              <List size="sm" spacing={4}>
+                <List.Item>Each conversation can run in its own Docker container (<Code>OH_CONVERSATION_RUNTIME=docker</Code>), one of the isolation options BenchKeeper does not provide</List.Item>
+                <List.Item>Runs its own agent or hosts Claude Code, Codex and Gemini CLI; works with any LLM</List.Item>
+              </List>
+              <List size="sm" spacing={4}>
+                <List.Item>Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks</List.Item>
+                <List.Item>Without a sandbox, the local agent has full access to your filesystem</List.Item>
+                <List.Item>Unverified: whether agents inside its containers load the BenchKeeper rules and skills, which live on the host</List.Item>
+              </List>
+            </SimpleGrid>
+          </Card>
         </Section>
 
         <Section id="prereq" title="Before you start" intro="BenchKeeper does not install these. Use each official page.">

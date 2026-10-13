@@ -94,8 +94,23 @@ The agent remains a host process with access governed by its client permissions.
 - CLIs and MCPs: `/global-setup` compares the pinned versions with the latest releases and proposes bumps before installing.
 - Repo skills: use `project-setup` to update selected skills and agent placements.
 
-## Optional: Orca
+## Recommended tools (optional)
 
-[Orca](https://github.com/stablyai/orca) ([onorca.dev](https://onOrca.dev)): desktop app to run and orchestrate parallel agents (Claude Code, Codex) with your own subscriptions; desktop, mobile, remote. The application is installed separately, not by `/global-setup`.
+Not installed by BenchKeeper. Each one works with the agents and rules set up here.
 
-`/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills globally for selected agents only. Declining skips installation without failing setup. Existing Orca skills and hooks are kept. See [setup part 12](skills/global-setup/SKILL.md#12-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
+**Parallel agents: pick one.** Orca and cmux both manage several agent sessions side by side; running both duplicates that layer.
+
+| Tool | Platforms | Gives you | Choose it when |
+|---|---|---|---|
+| [Orca](https://github.com/stablyai/orca) | macOS, Windows, Linux | one git worktree per agent, the same prompt across several agents to compare results, terminal splits, SSH remote worktrees, mobile companion app | you want worktree-per-task workflows, Linux or Windows, or remote and mobile access |
+| [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs, notifications when an agent needs input, sidebar with branch, PR status and ports, browser pane | you are on macOS and want a terminal-first workflow without a separate app layer |
+
+Orca only: `/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills for selected agents. Declining skips them without failing setup; existing Orca skills and hooks are kept. See [setup part 12](skills/global-setup/SKILL.md#12-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
+
+**Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A different role from Orca and cmux: a self-hosted agent server with a web UI.
+
+- Each conversation can run in its own Docker container (`OH_CONVERSATION_RUNTIME=docker`), one of the isolation options BenchKeeper does not provide.
+- Runs its own agent or hosts Claude Code, Codex and Gemini CLI; works with any LLM.
+- Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks.
+- Without a sandbox, the local agent has full access to your filesystem.
+- Unverified: whether agents inside OpenHands containers load the BenchKeeper rules and skills; they are installed on the host, not in those containers.

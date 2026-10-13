@@ -287,8 +287,8 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="How it reduces cost" intro="Ponytail is the component with an independent cost measurement. OpenSpec, Spec Kit and agent-skills publish no cost figures and have no independent measurement. Vendor figures are not measurements of your repositories.">
-          <SimpleGrid cols={{ base: 1, md: 3 }}>
+        <Section id="cost" title="How it reduces cost" intro={<>Ponytail is the component with an independent cost measurement. OpenSpec, Spec Kit and agent-skills publish no cost figures and have no independent measurement. Vendor figures are not measurements of your repositories. Components evaluated and removed: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+          <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>
               <Text size="sm" c="dimmed" mt="sm">Reduction against no skill. 39 tasks, 5 runs each, Claude Code on Opus 5.5.</Text>
@@ -316,10 +316,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <Stat value="65 of 80" label="tasks with identical score" />
               </SimpleGrid>
               <Text size="xs" c="dimmed" mt="md">Code fell 31% on large builds and about 0% where the baseline wrote little. Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/">JetBrains AI blog</Anchor>.</Text>
-            </Card>
-            <Card withBorder padding="lg">
-              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFileText size={18} /></ThemeIcon><Text fw={700}>Evaluations</Text></Group>
-              <Text size="sm" mt="sm">Components considered, the independent measurements and user reports behind each, and why each is kept, removed or not added: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</Text>
             </Card>
           </SimpleGrid>
           <Card withBorder padding="lg" mt="md">

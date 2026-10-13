@@ -169,7 +169,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           <Container size="lg">
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48} style={{ alignItems: 'center' }}>
               <Stack gap="lg">
-                <Badge variant="light" size="lg" w="fit-content">Claude Code and Codex</Badge>
+                <Badge variant="light" size="lg" w="fit-content">Opinionated setup for Claude Code and Codex</Badge>
                 <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02} style={{ letterSpacing: '-0.03em' }}>
                   <span className="grad">BenchKeeper</span>
                 </Title>
@@ -186,7 +186,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="what" title="What it is" intro="A Git repository with one rules file and two skills. The skills install, check and clean the tools each agent uses. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select.">
+        <Section id="what" title="What it is" intro="A Git repository with one rules file and two skills. The skills install, check and clean the tools each agent uses. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select. It is opinionated: one SDLC for every change, one tool per job, exact versions everywhere. To change a choice, edit rules/global.md or the skills and rerun /global-setup.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} scope="Global, both agents">
               How agents work in every repository: ask instead of assuming, sources for claims, issue to pull request flow, SDLC phases, safety, devcontainer use.

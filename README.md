@@ -6,6 +6,8 @@ BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Code
 
 Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.
 
+Opinionated: one SDLC for every change, one tool per job, exact versions everywhere. To change a choice, edit [rules/global.md](rules/global.md) or the skills and rerun `/global-setup`.
+
 Site: [eschuderer.github.io/BenchKeeper](https://eschuderer.github.io/BenchKeeper/)
 
 Claude Code and Codex are independently optional. Setup detects installed agents and asks which you use. Only selected agents receive configuration, plugins, hooks, and skills. Agent CLIs are not installed by setup; unused or absent agents are skipped.

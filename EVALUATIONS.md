@@ -74,4 +74,24 @@ Strong user enthusiasm, measured comparisons are vendor-run.
   - [pi#3401](https://github.com/earendil-works/pi/issues/3401): Pi shows a startup warning that subscription use draws from extra usage.
   - [pi#6888](https://github.com/earendil-works/pi/issues/6888) (2026-07-20) and [pi#9838](https://github.com/earendil-works/pi/issues/9838) (2026-09-21): requests with Pi's default system prompt are classified as third-party; a replaced prompt bills against the plan, a workaround outside the terms. OpenAI's terms for ChatGPT sign-in in Pi: unverified.
 
+## Other studies
+
+Findings that apply to several components.
+
+- **Optional tools often go uncalled.** [JetBrains, IDE-native search](https://blog.jetbrains.com/ai/2026/05/what-happens-when-you-give-agents-ide-native-seach-tools/) (225 Java tasks, 3 runs, 2,700 trajectories; corrected after the first run had not called the tools): GPT-5.4-mini and GPT-5.5 made no IDE search calls in 675 trajectories each; GPT-5.6 used them and median cost rose about 6 to 7%; not recommended as a default. [Vercel](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals) (Next.js 16 APIs, agent and task count not stated, vendor of both arms): docs skill never invoked in 56% of cases, pass rate 53% (same as no docs), 79% with an explicit instruction to use it. Also Marginlab (Context7, 6 of 89 tasks) and arXiv 2608.13568 (LSP), above.
+- **Passive context beats on-demand lookup for missing knowledge.** Vercel: an 8 KB docs index in `AGENTS.md` passed 100%, against 53% without docs. [LangChain](https://www.langchain.com/blog/how-to-turn-claude-code-into-a-domain-specific-coding-agent) (Sonnet 4, 3 tasks x 3 runs, LLM judge, vendor of the docs MCP): CLAUDE.md beat a docs MCP; both together scored highest. This does not contradict arXiv 2602.11988: Vercel and LangChain add knowledge the model lacks; the AGENTS.md study measured overviews of code the agent can read.
+- **Focused skills beat large bundles.** [SkillsBench](https://arxiv.org/abs/2602.12670) (87 tasks, 18 model and harness configurations): curated skills raised pass rate from 33.9% to 50.5%; skills with at most 3 modules beat exhaustive ones; self-generated skills scored below no skills (Claude Code with Opus 4.7 -8.1 points, Codex with GPT-5.5 -11.3) while curated skills added 18.2 to 24.8 points on the same setups. Each task ships its own skills with domain procedure (steps, conventions, checks); it is a benchmark, not a skill collection to install.
+- **The harness matters, not only the model.** [Kotlin Benchmark](https://blog.jetbrains.com/kotlin/2026/07/introducing-the-kotlin-benchmark-evaluate-ai-coding-agents-on-real-world-kotlin-tasks/) (105 tasks): Claude Code with Opus 4.7 xhigh 85.7%, Junie with Opus 4.7 max 81.9%, Codex with GPT-5.5 xhigh 81.9%; effort settings differ. [JetBrains, recommended agent](https://blog.jetbrains.com/ai/2026/06/codex-is-now-the-recommended-agent-in-jetbrains-ai/) (353 tasks plus an online A/B test): Codex with GPT-5.4-mini 39.9%, Junie with Gemini 3 Flash 39.1%; Codex won the online test.
+
+## Sources to follow
+
+| Source | What it publishes |
+|---|---|
+| [JetBrains AI blog](https://blog.jetbrains.com/ai/) | Paired A/B tests of add-ons on SkillsBench (caveman, RTK, Ponytail, IDE search), with p-values |
+| [SkillsBench](https://arxiv.org/abs/2602.12670) | Benchmark and paper on whether skills help; the task set JetBrains uses |
+| [Marginlab](https://marginlab.ai/blog) | MCP on and off tests ("Do MCPs Improve Coding Agents?", Part 1: Context7); [Claude Code tracker](https://marginlab.ai/trackers/claude-code), daily SWE-Bench-Pro runs of the stock CLI (unverified) |
+| [Quesma](https://quesma.com/blog/) | Cost benchmarks of agent add-ons on Terminal-Bench (RTK) |
+| [Terminal-Bench](https://www.tbench.ai/leaderboard) | Leaderboard with model and agent listed separately, for harness comparisons |
+| [Kotlin Benchmark](https://kotlinlang.org/benchmark) | Agent leaderboard on 105 Kotlin tasks |
+
 Related: [JetBrains Part 1, caveman skill](https://blog.jetbrains.com/ai/2026/07/speak-to-ai-agents-like-cavemen-tosave-tokens/) (advertised -65%, measured -8.5%); never part of BenchKeeper.

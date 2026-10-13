@@ -12,7 +12,7 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 |---|---|---|
 | [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink); copy in `~/.codex/AGENTS.md` |
 | [skills/global-setup](skills/global-setup/SKILL.md) | install, check, and clean the global setup (all commands) | `~/.claude/skills/`, `~/.agents/skills/`, and in this repo |
-| [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, LSP, OpenSpec, codegraph | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, LSP, OpenSpec or Spec Kit, codegraph | `~/.claude/skills/`, `~/.agents/skills/` |
 
 ## Components
 
@@ -22,6 +22,7 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 | [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity within agent-skills phases |
 | [agent-skills](https://github.com/addyosmani/agent-skills) | global, Claude + Codex | workflow: spec, plan, TDD, review, ship |
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | CLI global, wired per repo | spec files (owns the artifacts; agent-skills drives the process, [#166](https://github.com/addyosmani/agent-skills/issues/166)) |
+| [Spec Kit](https://github.com/github/spec-kit) | CLI global, wired per repo | alternative to OpenSpec, chosen per repo in `project-setup`; owns the spec files, agent-skills drives the process |
 | [codegraph](https://github.com/colbymchenry/codegraph) | CLI global, wired per repo | code index + MCP |
 | [RTK](https://github.com/rtk-ai/rtk) | global, Claude + Codex | condensed command output |
 | [Context7 MCP](https://github.com/upstash/context7) | global, Claude + Codex | library docs |
@@ -29,7 +30,7 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `project-setup` |
 | LSP `pyright-lsp`, `typescript-lsp` | host plugins, container servers | diagnostics after `project-setup` verifies the connection and file paths |
 
-Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`. Not committed: `.codegraph/`.
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/` or `.specify/` and `specs/`, `.mcp.json`, `.codex/config.toml`. Not committed: `.codegraph/`.
 
 Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.md#ponytail-and-agent-skills) integrate them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
 
@@ -45,7 +46,7 @@ Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.m
 
 ## Setup steps
 
-1. Needs: at least one installed agent you use (`claude` or `codex`), plus `npm` (prefix `~/.local`, no sudo), `jq`, `curl` for applicable steps.
+1. Needs: at least one installed agent you use (`claude` or `codex`), plus `npm` (prefix `~/.local`, no sudo), `uv` (Spec Kit), `jq`, `curl` for applicable steps.
 2. Clone to `/mnt/data/Projects/benchkeeper`, open it in Claude Code or Codex.
 3. Run `/global-setup` (Codex: `$global-setup`). Confirm which installed agents you use. It checks applicable parts, installs what is missing after confirmation, and proposes cleanup only within that scope. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
 4. Restart selected agents; if Codex is selected, run `/hooks` and trust the plugin hooks.

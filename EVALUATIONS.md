@@ -16,7 +16,7 @@ Components considered for BenchKeeper, the independent evidence found, and the d
 
 | Component | Evidence | Decision |
 |---|---|---|
-| [Pi](https://pi.dev) | No benchmark against Claude Code or Codex found. Reads `AGENTS.md`, Agent Skills (`~/.agents/skills/`) and MCP ([configuration](https://pi.dev/docs/latest/configuration), [skills](https://pi.dev/docs/latest/skills)); Ponytail and agent-skills ship as Claude Code and Codex plugins. | Not added. |
+| [Pi](https://pi.dev) | No independent benchmark against Claude Code or Codex found. Claude subscription use outside Claude Code is not permitted by Anthropic's terms (see User reports). Reads `AGENTS.md`, Agent Skills (`~/.agents/skills/`) and MCP ([configuration](https://pi.dev/docs/latest/configuration), [skills](https://pi.dev/docs/latest/skills)); Ponytail and agent-skills ship as Claude Code and Codex plugins. | Not added. |
 | [graphify](https://github.com/Graphify-Labs/graphify) | Own figure only (71.5x fewer tokens per query on a 52-file corpus of mostly papers and images). No independent evaluation found. | Not added. |
 
 ## Kept
@@ -58,6 +58,7 @@ Issue threads, forum posts and blogs, checked 2026-10-13. Mostly one repository 
 
 **Pi**: strong user enthusiasm, measured comparisons are vendor-run.
 - [Composio](https://composio.dev/content/pi-agent-vs-claude-code) (vendor, supplied the MCP router used; DeepSeek V4 Flash, 30 tasks): Pi 20/30 at $0.56, Claude Code 16/30 at $3.12; reasoning settings differed.
-- [HN thread](https://news.ycombinator.com/item?id=46844822): users switching from Claude Code and Codex; Claude subscriptions do not cover Pi, so Claude models bill at API rates; no sandbox by default ([comment](https://news.ycombinator.com/item?id=46845370)).
+- [HN thread](https://news.ycombinator.com/item?id=46844822): users switching from Claude Code and Codex; no sandbox by default ([comment](https://news.ycombinator.com/item?id=46845370)).
+- Subscriptions: Pi offers `/login` with a Claude Pro/Max subscription, Sign in with ChatGPT, and GitHub Copilot ([pi-ai README](https://github.com/earendil-works/pi/blob/main/packages/ai/README.md)). Anthropic's terms limit Free, Pro and Max OAuth to Claude Code and Anthropic's own apps, do not permit third-party developers to route requests through those credentials, and reserve enforcement without notice ([Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)); reports describe tools blocked since January 2026 ([GIGAZINE](https://gigazine.net/gsc_news/en/20260220-anthropic-third-party-block)). Claude models in Pi: API key billing. OpenAI's terms for ChatGPT sign-in in Pi: unverified.
 
 Related: [JetBrains Part 1, caveman skill](https://blog.jetbrains.com/ai/2026/07/speak-to-ai-agents-like-cavemen-tosave-tokens/) (advertised -65%, measured -8.5%); never part of BenchKeeper.

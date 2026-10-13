@@ -277,12 +277,12 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
       <article class="card">
         <h3><span class="icon"><svg><use href="#i-box"/></svg></span><code>/global-setup</code></h3>
         <p class="scope">Once per machine</p>
-        <p>Checks 11 parts plus one optional part, installs what is missing after confirmation, proposes cleanup. Every install command pins an exact version; the skill proposes version bumps before installing.</p>
+        <p>Checks 11 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals and version bumps. Applies only what you approve. Every install command pins an exact version.</p>
       </article>
       <article class="card">
         <h3><span class="icon"><svg><use href="#i-flow"/></svg></span><code>/project-setup</code></h3>
         <p class="scope">Once per repository</p>
-        <p>Devcontainer, <code>AGENTS.md</code>, stack skills, language servers, spec tool (OpenSpec, Spec Kit or none), codegraph, dead config. On an existing setup it proposes only the differences.</p>
+        <p>Devcontainer, <code>AGENTS.md</code>, stack skills, language servers, spec tool (OpenSpec, Spec Kit or none), codegraph, dead config. Shows one plan first and applies only what you approve; on an existing setup the plan holds only the differences.</p>
       </article>
     </div>
   </div>
@@ -558,7 +558,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
       <ul class="checks no card">
         <li><svg><use href="#i-x"/></svg><span><b>Not a build system or framework.</b> Docs and config only; your project keeps its own toolchain.</span></li>
         <li><svg><use href="#i-x"/></svg><span><b>Not auto-updating.</b> Versions change only when <code>/global-setup</code> proposes a bump and you accept it.</span></li>
-        <li><svg><use href="#i-x"/></svg><span><b>Not autonomous on your repository.</b> Issues are created after approval; merges, pushes to the default branch and destructive actions need your instruction.</span></li>
+        <li><svg><use href="#i-x"/></svg><span><b>Not autonomous on your machine or repository.</b> Setup applies only the plan you approve and confirms destructive items again; issues are created after approval; merges and pushes to the default branch need your instruction.</span></li>
       </ul>
     </div>
   </div>

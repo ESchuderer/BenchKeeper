@@ -125,3 +125,5 @@ td code { white-space: normal; overflow-wrap: anywhere; }
 .mantine-Timeline-item:target { animation: flash 1.6s ease-out; border-radius: 8px; }
 @keyframes flash { from { background: color-mix(in srgb, var(--mantine-color-teal-5) 22%, transparent); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .mantine-Timeline-item:target { animation: none; outline: 2px solid var(--mantine-color-teal-6); } }
+/* stacked on phones: continue the line from step 5 into step 6 */
+@media (max-width: 47.99em) { .steps-first .mantine-Timeline-item:last-of-type { --timeline-line-display: block; } }

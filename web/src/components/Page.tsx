@@ -3,7 +3,7 @@ import {
   Paper, Progress, SimpleGrid, Stack, Table, Text, ThemeIcon, Timeline, Title, createTheme,
 } from '@mantine/core';
 import {
-  IconArrowDown, IconArrowRight, IconBook, IconBox, IconBrandGithub, IconBrowser, IconCircleCheck,
+  IconArrowDown, IconArrowRight, IconBook, IconBrandGithub, IconBrowser, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
   IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun, IconTopologyStar3, IconArrowsMinimize,
 } from '@tabler/icons-react';
@@ -63,7 +63,7 @@ function ToolCard({ icon, name, href, platforms, points, when }: { icon: ReactNo
     <Card withBorder padding="lg" className="lift linked">
       <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" size={38}>{icon}</ThemeIcon><Anchor href={href} fw={700} className="stretched" underline="hover">{name}</Anchor></Group>
       <Badge variant="outline" color="gray" mt="sm" w="fit-content">{platforms}</Badge>
-      <List size="sm" mt="md" spacing={6}>{points.map((t, k) => <List.Item key={k}>{md(t)}</List.Item>)}</List>
+      <List size="sm" mt="md" spacing={6}>{points.map((t, k) => <List.Item key={k}>{md(t[0].toUpperCase() + t.slice(1))}</List.Item>)}</List>
       <Text size="sm" mt="auto" pt="md"><Text span fw={700}>Choose it when</Text> {when}.</Text>
     </Card>
   );
@@ -106,8 +106,8 @@ function StepList({ from }: { from: number }) {
   return (
     <Timeline active={10} bulletSize={30} lineWidth={2}>
       {steps.slice(from, from + 5).map(([t, d], i) => (
-        <Timeline.Item key={t} color={phaseColor(from + i)} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
-          title={<Group gap="xs"><Text fw={700}>{t}</Text>{decides.has(from + i) && <Badge size="xs" variant="outline" className="decide">human action</Badge>}</Group>}>
+        <Timeline.Item key={t} id={`step-${from + i + 1}`} color={phaseColor(from + i)} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
+          title={<Group gap="xs"><Text fw={700}>{t}</Text>{decides.has(from + i) && <Badge size="xs" variant="outline" className="decide">human in the loop</Badge>}</Group>}>
           <Text size="sm" c="dimmed">{d}</Text>
         </Timeline.Item>
       ))}
@@ -116,11 +116,11 @@ function StepList({ from }: { from: number }) {
 }
 
 
-const checks: [ReactNode, string, string, ReactNode][] = [
-  [<IconTestPipe size={18} />, 'Tests', 'steps 6, 7', <>Tests first where a suite exists; Verify runs build, types, lint and tests; checks are never weakened.</>],
-  [<IconShieldLock size={18} />, 'Security', 'any step, step 10', <><Code>security-and-hardening</Code> for input, auth, data and dependencies; secrets are never printed or committed; Maintain audits dependencies.</>],
-  [<IconGauge size={18} />, 'Performance', 'any step, step 10', <><Code>performance-optimization</Code> when performance requirements exist; <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
-  [<IconAccessible size={18} />, 'UI and accessibility', 'step 7', <>UI changes are checked in a real browser through Playwright MCP; <Code>frontend-ui-engineering</Code> covers WCAG when building interfaces.</>],
+const checks: [ReactNode, string, ReactNode][] = [
+  [<IconTestPipe size={18} />, 'Tests', <>Tests first where a suite exists; Verify runs build, types, lint and tests; checks are never weakened.</>],
+  [<IconShieldLock size={18} />, 'Security', <><Code>security-and-hardening</Code> for input, auth, data and dependencies; secrets are never printed or committed; Maintain audits dependencies.</>],
+  [<IconGauge size={18} />, 'Performance', <><Code>performance-optimization</Code> when performance requirements exist; <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
+  [<IconAccessible size={18} />, 'UI and accessibility', <>UI changes are checked in a real browser through Playwright MCP; <Code>frontend-ui-engineering</Code> covers WCAG when building interfaces.</>],
 ];
 
 const quickstart: [string, string, string][] = [
@@ -169,7 +169,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           <Container size="lg">
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48} style={{ alignItems: 'center' }}>
               <Stack gap="lg">
-                <Badge variant="light" size="lg" w="fit-content">Opinionated setup for Claude Code and Codex</Badge>
+                <Badge variant="light" size="lg" w="fit-content" h="auto" py={4} styles={{ label: { whiteSpace: 'normal' } }}>Opinionated setup for Claude Code and Codex</Badge>
                 <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02} style={{ letterSpacing: '-0.03em' }}>
                   <span className="grad">BenchKeeper</span>
                 </Title>
@@ -186,7 +186,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="what" title="What it is" intro="A Git repository with one rules file and two skills. The skills install, check and clean the tools each agent uses. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select. It is opinionated: one SDLC for every change, one tool per job, exact versions everywhere. To change a choice, edit rules/global.md or the skills and rerun /global-setup.">
+        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and two skills. The skills install, check and clean the tools each agent uses. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select.<br /><br />It is opinionated: one SDLC for every change, one tool per job, exact versions everywhere. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/global-setup</Code>.</>}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} scope="Global, both agents">
               How agents work in every repository: ask instead of assuming, sources for claims, issue to pull request flow, SDLC phases, safety, devcontainer use.
@@ -201,7 +201,10 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         </Section>
 
         <Section id="sdlc" title="One loop for every change" intro="The global rules route each change through the same ten steps. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec or Spec Kit holds the spec files when the repository uses one.">
-          <div dangerouslySetInnerHTML={{ __html: sdlc }} />
+          <div className="ring-wrap">
+            <div dangerouslySetInnerHTML={{ __html: sdlc }} />
+            <div className="ring-tip" role="tooltip" hidden></div>
+          </div>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} mt={40}>
             <StepList from={0} />
             <StepList from={5} />
@@ -209,10 +212,9 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           <Text fw={700} mt={48} mb="xs">Checks built into the loop</Text>
           <Text size="sm" c="dimmed" mb="md" maw={760}><Code>using-agent-skills</Code> adds the matching agent-skills skill in any phase where a change needs it.</Text>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
-            {checks.map(([icon, title, when, text]) => (
+            {checks.map(([icon, title, text]) => (
               <Stack key={title as string} gap={6}>
                 <Group gap="xs" wrap="nowrap"><ThemeIcon variant="light" size={30} radius="md">{icon}</ThemeIcon><Text fw={700}>{title}</Text></Group>
-                <Text size="xs" c="dimmed" tt="uppercase" fw={700}>{when}</Text>
                 <Text size="sm">{text}</Text>
               </Stack>
             ))}
@@ -265,7 +267,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               gives="Less code to review and maintain. Its benchmark: 53% fewer lines, 26% lower cost.">
               Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
             </FeatureCard>
-            <FeatureCard icon={<IconFileDescription size={20} />} title={<><Anchor href="https://github.com/Fission-AI/OpenSpec">OpenSpec</Anchor> or <Anchor href="https://github.com/github/spec-kit">Spec Kit</Anchor></>} scope="CLI global, chosen per repository"
+            <FeatureCard icon={<IconFileDescription size={20} />} title={<><Anchor href="https://github.com/Fission-AI/OpenSpec" underline="hover">OpenSpec</Anchor> or <Anchor href="https://github.com/github/spec-kit" underline="hover">Spec Kit</Anchor></>} scope="CLI global, chosen per repository"
               gives="Requirements live in the repository and are reviewed in the same pull request as the code; the next session reads them instead of guessing.">
               OpenSpec: one change folder per change (proposal, spec deltas, tasks), merged into living specs on archive. Spec Kit: one folder per feature (spec, plan, tasks) plus a constitution.
             </FeatureCard>
@@ -409,9 +411,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>
-          <Group mt="lg">
-            <Button component="a" href={`${REPO}#setup-steps`} leftSection={<IconBox size={18} />}>Setup steps</Button>
-          </Group>
         </Section>
 
         <Section id="start" title="Quick start" intro="After the prerequisites. Each step that changes your machine or repository shows its plan first.">

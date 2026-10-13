@@ -109,10 +109,18 @@ main:focus { outline: none; }
 .ring .req rect { fill: var(--mantine-color-body); stroke: var(--mantine-color-teal-6); stroke-width: 2; }
 .ring .req-t { fill: var(--mantine-color-bright); font-size: 17px; font-weight: 800; }
 .ring .hit { fill: transparent; }
-.ring [class^="hit-"] { cursor: help; }
-.ring .tip { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
-.ring .tip rect { fill: var(--mantine-color-body); stroke: var(--mantine-color-default-border); filter: drop-shadow(0 4px 12px rgb(0 0 0 / .18)); }
-.ring .tip text { fill: var(--mantine-color-text); font-size: 13px; }
-@media (prefers-reduced-motion: reduce) { .ring .tip { transition: none; } }
 .ring .flow-t.in { font-style: normal; fill: var(--mantine-color-text); font-weight: 600; }
 .ring .person circle, .ring .person path { fill: none; stroke: var(--mantine-color-text); stroke-width: 2; stroke-linecap: round; }
+/* inline code stays on one line, except in tables where long paths must wrap */
+code:not([data-block]) { white-space: nowrap; }
+td code { white-space: normal; overflow-wrap: anywhere; }
+.ring-wrap { position: relative; }
+.ring-tip { position: absolute; z-index: 5; max-width: 280px; padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45; pointer-events: none;
+  background: var(--mantine-color-body); color: var(--mantine-color-text); border: 1px solid var(--mantine-color-default-border); box-shadow: var(--mantine-shadow-md); }
+.ring [data-tip], .ring a.step { cursor: pointer; }
+.ring a.step:focus-visible .node circle { stroke: var(--mantine-color-teal-6); stroke-width: 3; }
+.ring a.step:focus { outline: none; }
+.mantine-Timeline-item { scroll-margin-top: 80px; }
+.mantine-Timeline-item:target { animation: flash 1.6s ease-out; border-radius: 8px; }
+@keyframes flash { from { background: color-mix(in srgb, var(--mantine-color-teal-5) 22%, transparent); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .mantine-Timeline-item:target { animation: none; outline: 2px solid var(--mantine-color-teal-6); } }

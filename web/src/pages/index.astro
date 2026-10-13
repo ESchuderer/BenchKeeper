@@ -87,6 +87,23 @@ try {
           });
         });
       });
+      // SDLC loop: tooltip follows the cursor on hover devices; a tap or click on a step jumps to its description.
+      var wrap = document.querySelector('.ring-wrap'), tip = wrap.querySelector('.ring-tip');
+      function place(x, y) {
+        var r = wrap.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+        var left = Math.min(x - r.left + 16, r.width - w - 4), top = y - r.top + 16;
+        if (top + h > r.height) top = y - r.top - h - 12;
+        tip.style.left = Math.max(4, left) + 'px'; tip.style.top = Math.max(4, top) + 'px';
+      }
+      wrap.querySelectorAll('[data-tip]').forEach(function (el) {
+        function show(x, y) { tip.textContent = el.getAttribute('data-tip'); tip.hidden = false; place(x, y); }
+        if (matchMedia('(hover: hover)').matches) {
+          el.addEventListener('mousemove', function (e) { show(e.clientX, e.clientY); });
+          el.addEventListener('mouseleave', function () { tip.hidden = true; });
+        }
+        el.addEventListener('focus', function () { var b = el.getBoundingClientRect(); show(b.right, b.top); });
+        el.addEventListener('blur', function () { tip.hidden = true; });
+      });
       mq.addEventListener('change', function () {
         var v = stored();
         if (v !== 'light' && v !== 'dark') root.setAttribute('data-mantine-color-scheme', mq.matches ? 'dark' : 'light');

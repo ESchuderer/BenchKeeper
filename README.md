@@ -67,7 +67,7 @@ Not installed by BenchKeeper; see each official page.
 
 1. Install the [prerequisites](#prerequisites): at least one agent you use, plus the tools for the steps you apply. npm uses prefix `~/.local`, no sudo.
 2. Clone to `/mnt/data/Projects/benchkeeper`, open it in Claude Code or Codex.
-3. Run `/global-setup` (Codex: `$global-setup`). Confirm which installed agents you use. It checks applicable parts, installs what is missing after confirmation, and proposes cleanup only within that scope. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
+3. Run `/global-setup` (Codex: `$global-setup`). Confirm which installed agents you use. It checks applicable parts without changing anything, shows one plan (installs, changes, removals, version bumps) with destructive items marked, and applies only what you approve; destructive items are confirmed again right before they run. Cleanup stays within that scope. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
 4. Restart selected agents; if Codex is selected, run `/hooks` and trust the plugin hooks.
 5. Java LSP, when Claude Code is selected: `project-setup` installs the JDK and server inside the project container and verifies the host plugin connection.
 
@@ -75,7 +75,7 @@ Rerun `/global-setup` after editing `rules/global.md` (Codex gets a copy, not a 
 
 ## Per repo
 
-Run `/project-setup` (Codex: `$project-setup`). Confirm the agents used for this project. New repo: sets up. Existing setup: updates and cleans selected integrations. Commit the result. Fresh clone: use `project-setup` to restore skills for selected agents from their recorded sources.
+Run `/project-setup` (Codex: `$project-setup`). Confirm the agents used for this project. New repo: sets up. Existing setup: updates and cleans selected integrations. Both show one plan first and apply only what you approve; destructive items are confirmed again. Commit the result. Fresh clone: use `project-setup` to restore skills for selected agents from their recorded sources.
 
 Agents run on the host and use standard devcontainers for project commands. `global-setup` configures host agent tooling, checks host Docker, and installs the pinned Dev Containers CLI; `project-setup` creates or updates the repository's container and project toolchain. Agent authentication, BenchKeeper, global rules, and skills stay on the host. Rootless engines, VMs, and microVMs are not required.
 

@@ -184,7 +184,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="The global rules size each request to a tier first. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and keep the plan to a few lines; full changes run all ten steps; research with several items fans out to parallel subagents without edits. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="A full agentic SDLC (issue, spec, plan, tests first, review) fits features and risky changes, not every change. The global rules size each request by tier and change type first, so small changes spend fewer tokens and less time; that saving is not measured yet. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and keep the plan to a few lines; full changes run all ten steps; research with several items fans out to parallel subagents without edits. Each change type adds its own check before done, such as terraform plan for infrastructure or a reproducer test for a bug. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>

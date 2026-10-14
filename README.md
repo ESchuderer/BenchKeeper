@@ -3,7 +3,7 @@
 # BenchKeeper
 
 <!-- generated:description -->
-BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.
+BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the rules size each request first and small changes skip the steps they do not need.
 <!-- /generated:description -->
 
 Global agent setup for Claude Code and Codex: rules, two skills, rebuild steps.

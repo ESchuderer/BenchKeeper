@@ -170,7 +170,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and two skills. The skills install, check and clean the tools each agent uses. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select.<br /><br />It is opinionated: one SDLC for every change, one tool per job, exact versions everywhere. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/global-setup</Code>.</>}>
+        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and two skills. The skills install, check and clean the tools each agent uses. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select.<br /><br />It is opinionated: one SDLC sized to each change, one tool per job, exact versions everywhere. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/global-setup</Code>.</>}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} scope="Global, both agents">
               How agents work in every repository: ask instead of assuming, sources for claims, issue to pull request flow, SDLC phases, safety, devcontainer use.
@@ -184,7 +184,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop for every change" intro="The global rules route each change through the same ten steps. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="A full agentic SDLC (issue, spec, plan, tests first, review) fits features and risky changes, not every change. The global rules size each request by tier and change type first, so small changes spend fewer tokens and less time; that saving is not measured yet. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and keep the plan to a few lines; full changes run all ten steps; research with several items fans out to parallel subagents without edits. Each change type adds its own check before done, such as terraform plan for infrastructure or a reproducer test for a bug. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -194,7 +194,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <StepList from={5} />
           </SimpleGrid>
           <Text fw={700} mt={48} mb="xs">Checks built into the loop</Text>
-          <Text size="sm" c="dimmed" mb="md" maw={760}><Code>using-agent-skills</Code> adds the matching agent-skills skill in any phase where a change needs it.</Text>
+          <Text size="sm" c="dimmed" mb="md" maw={760}>The matching agent-skills skill loads by its description in any phase where a change needs it.</Text>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
             {checks.map(([icon, title, text]) => (
               <Stack key={title as string} gap={6}>
@@ -244,7 +244,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         <Section id="parts" title="What each part gives you" intro="Each component is a separate upstream project. BenchKeeper pins it to an exact version, configures it for the selected agents, and ties it into the rules and the SDLC loop.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconListCheck size={20} />} title="agent-skills" href="https://github.com/addyosmani/agent-skills" scope="Global, both agents"
-              gives="The agent follows the same engineering steps every time: spec before code, tests first, review before merge.">
+              gives="The agent follows engineering steps sized to the change: spec before code for full changes, tests first, review before merge.">
               Skills for spec, planning, TDD, debugging, code review, security, performance and shipping; the agent loads the one that fits each phase.
             </FeatureCard>
             <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, both agents"
@@ -287,7 +287,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="Cost and quality" intro={<>Ponytail has an independent cost measurement. Components measured to cost more are left out. The checks before done and the spec in the repository aim at fewer rounds of fixes; that is not measured. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="Cost and quality" intro={<>Ponytail has several independent measurements: fewer lines of code in all of them, cost -10.3% in JetBrains' test and between +0.7% and +53% in other setups (different injection methods and models); BenchKeeper's own paired test is planned. The checks before done and the spec in the repository aim at fewer rounds of fixes; that is not measured. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>
@@ -318,16 +318,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Text size="xs" c="dimmed" mt="md">Code fell 31% on large builds and about 0% where the baseline wrote little. Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/">JetBrains AI blog</Anchor>.</Text>
             </Card>
           </SimpleGrid>
-          <SimpleGrid cols={{ base: 1, md: 3 }} mt="md">
-            <Card withBorder padding="lg">
-              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconCircleX size={18} /></ThemeIcon><Text fw={700}>Left out: measured to cost more</Text></Group>
-              <List size="sm" mt="sm" spacing={6}>
-                <List.Item>Summaries and layout in <Code>AGENTS.md</Code>: over 20% more cost, task success unchanged (<Anchor href="https://arxiv.org/abs/2602.11988">arXiv 2602.11988</Anchor>).</List.Item>
-                <List.Item>RTK: +7.6% median cost at low effort (<Anchor href="https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/">JetBrains</Anchor>).</List.Item>
-                <List.Item>LSP plugins: 6 to 118% more tokens for symbol lookup, preliminary (<Anchor href="https://arxiv.org/abs/2608.13568">arXiv 2608.13568</Anchor>).</List.Item>
-                <List.Item>Context7: 64 of 89 tasks passed, 63 without (<Anchor href="https://marginlab.ai/blog/do-mcps-improve-coding-agents-part-1/">Marginlab</Anchor>).</List.Item>
-              </List>
-            </Card>
+          <SimpleGrid cols={{ base: 1, md: 2 }} mt="md">
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconListCheck size={18} /></ThemeIcon><Text fw={700}>Fewer rounds, unmeasured</Text></Group>
               <List size="sm" mt="sm" spacing={6}>

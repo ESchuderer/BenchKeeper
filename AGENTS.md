@@ -1,7 +1,7 @@
 # BenchKeeper
 
 ## Checks
-- Links: CI (`.github/workflows/links.yml`, lychee)
+- Links: CI (`.github/workflows/links.yml`): lychee for all hosts except github.com, which `.github/scripts/github-links.mjs` checks through the GitHub API (test: `node --test .github/scripts/github-links.test.mjs`)
 - Site: CI (`.github/workflows/pages.yml`): README sync, build, axe in light and dark, lychee on the built HTML; deploys to GitHub Pages from `main`
 - Site locally (no devcontainer in this repo; throwaway containers mounting only the repo):
   - build: `podman run --rm --userns=keep-id -e HOME=/tmp -e ASTRO_TELEMETRY_DISABLED=1 -v "$PWD":/repo:Z -w /repo/web docker.io/library/node:22.23.3-bookworm-slim sh -c 'npm ci && npm run build'`

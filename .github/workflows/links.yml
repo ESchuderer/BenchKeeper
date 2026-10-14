@@ -13,8 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+      # github.com pages are rate-limited for runners; those links are checked through the API below.
       - uses: lycheeverse/lychee-action@v2.9.0
         with:
-          args: --no-progress --host-concurrency 2 --host-request-interval 3s --max-retries 5 --retry-wait-time 5 './**/*.md'
+          args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://(gist\.)?github\.com/' './**/*.md'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22.23.3
+      - run: node --test .github/scripts/github-links.test.mjs
+      - run: node .github/scripts/github-links.mjs $(git ls-files '*.md')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

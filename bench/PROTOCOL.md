@@ -1,6 +1,6 @@
 # Benchmark protocol
 
-Version 1.0, 2026-10-14 (1.0: 16 arms (each skill framework alone, with OpenSpec, with the BenchKeeper layer, with both; Ponytail with OpenSpec or Spec Kit); the React brief asks every arm for its configured process; all earlier results removed by owner decision; Haiku first for all arms, Sonnet after the owner confirms. Earlier versions: see the git history of this file.)
+Version 1.1, 2026-10-14 (1.1: OpenCode arms Q to U, see `bench/SCENARIOS.md`; Haiku and Sonnet once each for all arms, Opus by owner decision after the costs are known. 1.0: 16 arms (each skill framework alone, with OpenSpec, with the BenchKeeper layer, with both; Ponytail with OpenSpec or Spec Kit); the React brief asks every arm for its configured process; all earlier results removed by owner decision; Haiku first for all arms, Sonnet after the owner confirms. Earlier versions: see the git history of this file.)
 
 ## Pre-screen: React winery brief on Claude Haiku 5.5, then Sonnet 5.5
 
@@ -27,6 +27,8 @@ Purpose: show whether every arm installs, passes the delivery audit and builds a
 | O | none | yes | no | OpenSpec |
 | P | none | yes | no | Spec Kit v1.2.0 (`specify-cli`, uv 0.13.1) |
 
+OpenCode arms (owner decision 2026-10-14; details, isolation and the comparison matrix in `bench/SCENARIOS.md`): Q `opencode-openspec-targeted-skills`, R `opencode-superpowers`, S `opencode-openspec-superpowers` (oso 1.1.1), T `opencode-addy`, U `opencode-addy-openspec`, on OpenCode 1.19.0 with an Anthropic API key (OpenCode cannot use the subscription), same model, effort, brief, timeout, follow-up rule, scorer and review as the Claude Code arms.
+
 Owner decision 2026-10-14: each skill framework runs alone, with OpenSpec, with the BenchKeeper layer, and with both; C is BenchKeeper as it is today (agent-skills with OpenSpec); O and P are basic checks of a spec tool with Ponytail alone.
 
 BenchKeeper layer: rules (agent-skills: `rules/global.md`; Superpowers and ECC: `bench/arms/superpowers.rules.md` and `ecc.rules.md`, the same rules with the SDLC and the lines naming agent-skills mapped to the framework's own skills and agents, from `bench/arms/superpowers.md` and `ecc.md`), the candidate rules `bench/arms/candidate.rules.md`, Ponytail v5.2.0 `full`, find-skills (vercel-labs/skills v1.7.2), BenchKeeper skills `project-setup` and `global-setup`, Playwright MCP 0.0.83 with Chromium inside the container, and a project set up by `/project-setup` (`bench/arms/project-setup/`: `AGENTS.md`, `CLAUDE.md` with `@AGENTS.md`, devcontainer config, the `playwright-best-practices` skill at commit `283d5cb`, the MCP server approved for the project; with OpenSpec, `openspec init --tools claude` and the convention line in `AGENTS.md`).
@@ -45,12 +47,12 @@ Built by `bench/image/Containerfile` and `bench/image/install-arm.sh` (one arm t
 
 ### Run
 
-- Model `claude-haiku-5-5` for all 16 arms first; `claude-sonnet-5-5` after the owner has seen the Haiku results; effort `high`; one round each; one trial at a time per model; `--dangerously-skip-permissions` inside the container, stream-json with hook events, debug log. Opus 5.5 remains deferred.
+- Models `claude-haiku-5-5` and `claude-sonnet-5-5`, one round each for all Claude Code arms (both runs in parallel), then the OpenCode arms on both models; Opus 5.5 only if the owner decides after seeing the costs; effort `high`; one trial at a time per run; Claude Code with `--dangerously-skip-permissions`, stream-json with hook events and a debug log; OpenCode with `--auto` and `--format json`.
 - One round of all 16 arms in an order shuffled with the seed (`bench/run-brief.sh`, order logged in `manifest.txt`); one trial at a time; timeout 90 minutes per trial, shared by all turns (each turn gets the remaining time). A resumed run never repeats a finished agent run and refuses to continue when an arm image changed.
 - Sandbox: the agent container mounts only its empty workspace and a log directory; `bench/`, the hidden tests and other repositories are never mounted. Network is on (package installs).
-- Credentials: the owner's Max subscription through `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), read from the environment or `~/.config/benchkeeper/oauth-token`, never written to results. After each trial the runner searches the trial directory for the token and stops if it finds it.
+- Credentials: Claude Code arms use the owner's Max subscription through `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`, environment or `~/.config/benchkeeper/oauth-token`); OpenCode arms use an Anthropic API key (`ANTHROPIC_API_KEY` or `~/.config/benchkeeper/anthropic-api-key`); each container gets only its runtime's credential; never written to results. After each trial the runner searches the trial directory for the token and stops if it finds it.
 - Follow-up rule: when the agent ends a turn and the workspace has no `package.json` with a `start` script, the runner continues the same session with the fixed message "Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval.", at most twice, within the trial's 90 minutes. The number of follow-ups is recorded per trial; finishing without one is reported separately.
-- Commands: `bench/run-brief.sh winery-react claude-haiku-5-5 high 1 41`, then `bench/run-brief.sh winery-react claude-sonnet-5-5 high 1 41`.
+- Commands: `bench/run-brief.sh winery-react claude-haiku-5-5 high 1 41` and `bench/run-brief.sh winery-react claude-sonnet-5-5 high 1 41` (arms A to P); the OpenCode arms with the same commands and arms `"Q R S T U"`.
 
 ### Checks before a run
 

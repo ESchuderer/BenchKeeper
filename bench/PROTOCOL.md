@@ -1,6 +1,6 @@
 # Benchmark protocol
 
-Version 0.4, 2026-10-14 (0.4: 8 arms, each framework alone (F, G, H) and with the BenchKeeper layer (C, D, E), project setup for all three. 0.2: rules loading checked by a probe instead of the debug log, which does not show it; parser takes tokens from cumulative model usage. 0.3: arm C starts from a project set up by `/project-setup`, BenchKeeper's real-world case). Covers the winery pre-screen only; the held-out task track is still the draft in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) and gets its own version here before its first run. Changes after a run starts need a new version; reports link the version they used.
+Version 0.5, 2026-10-14 (0.5: follow-up rule; rules with the non-interactive phase fix (`fix/headless-phases`). 0.4: 8 arms, each framework alone (F, G, H) and with the BenchKeeper layer (C, D, E), project setup for all three. 0.2: rules loading checked by a probe instead of the debug log, which does not show it; parser takes tokens from cumulative model usage. 0.3: arm C starts from a project set up by `/project-setup`, BenchKeeper's real-world case). Covers the winery pre-screen only; the held-out task track is still the draft in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) and gets its own version here before its first run. Changes after a run starts need a new version; reports link the version they used.
 
 ## Pre-screen: winery brief on Claude Opus 5.5
 
@@ -39,11 +39,16 @@ Base rules: `rules/global.md` without "Ponytail and agent-skills", "Branches, is
 - k=3 rounds (24 trials); each round runs all 8 arms in an order shuffled with seed 19 (`bench/run-brief.sh`, order logged in `manifest.txt`); one trial at a time; timeout 90 minutes per trial (podman `--timeout 5400`). A resumed run never repeats a finished agent run and refuses to continue when an arm image changed.
 - Sandbox: the agent container mounts only its empty workspace and a log directory; `bench/`, the hidden tests and other repositories are never mounted. Network is on (package installs).
 - Credentials: the owner's Max subscription through `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), read from the environment or `~/.config/benchkeeper/oauth-token`, never written to results. After each trial the runner searches the trial directory for the token and stops if it finds it.
+- Follow-up rule: when the agent ends a turn and the workspace has no `package.json` with a `start` script, the runner continues the same session with the fixed message "Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval.", at most twice, within the trial's 90 minutes. The number of follow-ups is recorded per trial; finishing without one is reported separately.
 - Command: `bench/run-brief.sh winery claude-opus-5-5 high 3 19`.
 
 ### Stage 0 before the paid trials
 
 One trial per arm on `claude-haiku-5-5` (subscription), same scripts: delivery audit passes for all arms, a probe per image (list the headings of the loaded `~/.claude/rules/` files, no tools) shows the expected rules for each arm, the scorer runs on agent output. Its results are wiring checks only.
+
+### Autonomous variant (practice)
+
+`bench/briefs/winery-autonomous/`: the same brief plus "Work autonomously until the app is complete and running; do not stop to ask for approval."; same hidden tests. Practice only.
 
 ### Prompted variant (practice)
 

@@ -325,7 +325,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <List.Item>Summaries and layout in <Code>AGENTS.md</Code>: over 20% more cost, task success unchanged (<Anchor href="https://arxiv.org/abs/2602.11988">arXiv 2602.11988</Anchor>).</List.Item>
                 <List.Item>RTK: +7.6% median cost at low effort (<Anchor href="https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/">JetBrains</Anchor>).</List.Item>
                 <List.Item>LSP plugins: 6 to 118% more tokens for symbol lookup, preliminary (<Anchor href="https://arxiv.org/abs/2608.13568">arXiv 2608.13568</Anchor>).</List.Item>
-                <List.Item>Superpowers: +40% tokens and +20% time on Codex, resolve rate not significantly different (<Anchor href="https://norbert-laszlo.medium.com/can-a-plugin-improve-codex-benchmarking-the-superpowers-plugin-05d020066565">AgentStackBench</Anchor>).</List.Item>
+                <List.Item>Superpowers: +40% tokens and +20% time on Codex, resolve rate not significantly different (<Anchor href="https://nobbettt.github.io/AgentStackBench/#/comparisons/codex-superpowers-mounted">AgentStackBench</Anchor>).</List.Item>
                 <List.Item>ECC: about 1.6 s of hooks per Bash call (<Anchor href="https://github.com/affaan-m/ECC/issues/2834">ECC #2834</Anchor>).</List.Item>
                 <List.Item>Context7: 64 of 89 tasks passed, 63 without (<Anchor href="https://marginlab.ai/blog/do-mcps-improve-coding-agents-part-1/">Marginlab</Anchor>).</List.Item>
               </List>

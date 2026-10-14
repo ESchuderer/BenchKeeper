@@ -11,10 +11,12 @@ tmp=$(mktemp -d "$results/.publish-XXXXXX") && trap 'rm -rf "$tmp"' EXIT
 cp "$run/manifest.txt" "$tmp/"
 for t in "$run"/round-*/*/; do
   [ -f "$t/trial.json" ] || continue
-  if podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a \
-    sh -c '[ ! -d /w/.git ] || git -c safe.directory="*" -C /w cat-file --batch-all-objects --batch' | grep -aqF -- "$token"; then
-    echo "token in the git objects of $t" >&2; exit 1
-  fi
+  objs=$tmp/objects.bin
+  podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a sh -c \
+    'find /w -name .git -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
+    || { echo "git object scan failed for $t" >&2; exit 1; }
+  if grep -aqF -- "$token" "$objs"; then echo "token in the git objects of $t" >&2; exit 1; fi
+  rm -f "$objs"
   d=$tmp/$(basename "$(dirname "$t")")/$(basename "$t") && mkdir -p "$d"
   cp "$t/trial.json" "$d/" && gzip -9 -c "$t/transcript.jsonl" > "$d/transcript.jsonl.gz"
   [ ! -f "$t/score/app.tar.gz" ] || cp "$t/score/app.tar.gz" "$d/"

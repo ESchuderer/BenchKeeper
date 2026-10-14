@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { audit, outcome, workflow } from './trial.mjs';
 
-// Fixtures: init and SessionStart events recorded from the eight arm images (hook output reduced to its markers).
+// Fixtures: init and SessionStart events recorded from the arm images (hook output reduced to its markers).
 const fixture = (arm) => readFileSync(new URL(`fixtures/init-${arm}.jsonl`, import.meta.url), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-const ARMS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+import { ARMS as ARM_TABLE } from './trial.mjs';
+const ARMS = Object.keys(ARM_TABLE);
 
 test('each arm passes its own delivery audit and fails every other arm\'s', () => {
   for (const real of ARMS) {
@@ -61,9 +62,8 @@ test('audit checks every agent process', () => {
   const init = events.find((e) => e.subtype === 'init');
   assert.equal(audit(events, 'B').ok, true);
   assert.equal(audit([...events, { ...init, plugins: [] }], 'B').ok, false);
-  // Two processes (one follow-up) need two SessionStart outputs; a resume init without one is fine.
-  assert.equal(audit([...events, init], 'B', 2).ok, false);
-  assert.equal(audit([...events, ...events], 'B', 2).ok, true);
+  // A follow-up resumes the session: its init needs no new SessionStart output.
+  assert.equal(audit([...events, init], 'B').ok, true);
 });
 
 test('outcome flags usage-limit stops as infrastructure errors and trailing questions', () => {

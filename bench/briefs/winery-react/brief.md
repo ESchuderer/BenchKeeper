@@ -29,3 +29,6 @@ Running it:
 - Node.js 22. `npm install`, then `npm run build` (if the app needs a build), then `npm start` serves the whole app on the port in the environment variable `PORT` (default 3000).
 - The app starts with no bookings. Bookings may be kept in memory or in a local file; no external services.
 - The interface is in English.
+
+Process:
+- Work through your full development process as it is configured for you: use your installed skills, agents, plugins and spec tool in each phase where they apply (understand, specify, plan, write tests first, build, verify, review), and follow your global and project rules.

@@ -4,7 +4,7 @@
 # Token: CLAUDE_CODE_OAUTH_TOKEN, or the file ~/.config/benchkeeper/oauth-token (from `claude setup-token`); never printed.
 # Resumable: trials with a trial.json are skipped; delete a trial directory to rerun it.
 set -eu
-brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H"}
+brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H I J K L M N O P"}
 bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
 NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 TIMEOUT=${TIMEOUT:-5400}
@@ -42,16 +42,15 @@ for r in $(seq "$k"); do
     if [ ! -f "$t/agent.exit" ]; then
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
-    # BenchKeeper arms start from the project state /project-setup leaves, committed as the first commit.
-    case $arm in C|D|E) podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
-      sh -c 'cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && git commit -qm "chore: project setup"' \
-      || { echo "project setup for arm $arm failed" >&2; exit 1; } ;;
-    esac
+    # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first.
+    podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
+      sh -c '[ ! -d ~/project-template ] || { cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && git commit -qm "chore: project setup"; }' \
+      || { echo "project setup for arm $arm failed" >&2; exit 1; }
     start=$(date +%s) && echo "$start" > "$t/start"
     # The container lives for the whole trial, so follow-up turns continue the same session; removed on any exit.
     c=bk-$$-r$r-$arm
     trap 'podman rm -f "$c" > /dev/null 2>&1' EXIT
-    trap 'exit 130' INT TERM
+    trap 'exit 130' INT TERM HUP
     podman run -d --rm --name "$c" --timeout "$((TIMEOUT + 300))" --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
       -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sleep infinity > /dev/null
     turn() { # <prompt> [--continue]; runs one agent turn within the trial's remaining time
@@ -70,14 +69,19 @@ for r in $(seq "$k"); do
       n=$((n + 1))
       turn "$FOLLOWUP" --continue; rc=$?
     done
-    podman rm -f "$c" > /dev/null; trap - EXIT INT TERM
+    podman rm -f "$c" > /dev/null; trap - EXIT INT TERM HUP
     # Written last: a trial interrupted before this point is rerun from scratch on resume.
     echo "$n" > "$t/followups" && date +%s > "$t/end" && echo "$rc" > "$t/agent.exit"
     fi
-    # Every git object of the agent's repository, read in a container (the host never runs git on agent-written config).
-    { grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" || podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a \
-        sh -c '[ ! -d /w/.git ] || git -c safe.directory="*" -C /w cat-file --batch-all-objects --batch' | grep -aqF -- "$CLAUDE_CODE_OAUTH_TOKEN"; } \
-      && { echo "token found in $t: remove it before publishing" >&2; exit 1; }
+    # Every git object of every repository in the workspace, read in a container (the host never runs git on
+    # agent-written config); fails closed when the dump fails.
+    objs=$(mktemp)
+    podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a sh -c \
+      'find /w -name .git -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
+      || { echo "git object scan failed for $t" >&2; rm -f "$objs"; exit 1; }
+    { grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" || grep -aqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$objs"; } \
+      && { echo "token found in $t: remove it before publishing" >&2; rm -f "$objs"; exit 1; }
+    rm -f "$objs"
     rm -rf "$t/score"
     "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/score" > "$t/log/score.log" 2>&1
     set -e

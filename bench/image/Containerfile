@@ -1,5 +1,5 @@
 # Agent image for one benchmark arm. Build context: the repository root.
-# podman build -f bench/image/Containerfile --build-arg ARM=<A to H> -t benchkeeper-arm-<arm> .
+# podman build -f bench/image/Containerfile --build-arg ARM=<A to P> -t benchkeeper-arm-<arm> .
 FROM docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates jq && rm -rf /var/lib/apt/lists/*
 RUN npm i -g @anthropic-ai/claude-code@2.1.299
@@ -8,8 +8,11 @@ COPY rules/global.md bench/arms/superpowers.rules.md bench/arms/ecc.rules.md ben
 COPY skills /opt/bench/skills
 COPY bench/arms/project-setup /opt/bench/project-setup
 ARG ARM
-# Arms C, D, E: system libraries for the project's Playwright MCP browser (version of @playwright/mcp@0.0.83).
-RUN if [ "$ARM" = C ] || [ "$ARM" = D ] || [ "$ARM" = E ]; then npx -y playwright-core@1.64.0-alpha-1790635538000 install-deps chromium && rm -rf /var/lib/apt/lists/* /root/.npm; fi
+# BenchKeeper arms: system libraries for the project's Playwright MCP browser (version of @playwright/mcp@0.0.83).
+RUN case "$ARM" in C|D|E|L|M|N) npx -y playwright-core@1.64.0-alpha-1790635538000 install-deps chromium && rm -rf /var/lib/apt/lists/* /root/.npm ;; esac
+# Spec Kit arm: Python 3.11 and uv 0.13.1 for specify-cli.
+RUN if [ "$ARM" = P ]; then apt-get update && apt-get install -y --no-install-recommends python3 curl && rm -rf /var/lib/apt/lists/* \
+    && curl -sSfL https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin --strip-components=1; fi
 USER node
 WORKDIR /home/node
 RUN /opt/bench/install-arm.sh "$ARM"

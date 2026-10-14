@@ -8,11 +8,16 @@ NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869
 PW=mcr.microsoft.com/playwright:v1.64.0-noble@sha256:bc72a8df40831ded821e3cbc79c318c21b44d6e51dff9fd89ace7a8249c5b462
 pass=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
 pod=bk-score-$$
+# Remove the scoring pod and temp copies on any exit, including INT, TERM and HUP.
+trap 'podman pod rm -f "$pod" > /dev/null 2>&1; rm -rf "${app:-}" "${hid:-}"' EXIT
+trap 'exit 130' INT TERM HUP
 # The built app as delivered (source and git history, without node_modules), for download and manual comparison.
 mkdir -p "$out/screenshots" && tar --exclude=node_modules -czf "$out/app.tar.gz" -C "$ws" .
 app=$(mktemp -d) && cp -a "$ws/." "$app/" && rm -rf "$app/node_modules"
 # Hidden tests next to the scorer dependencies, so ESM imports resolve.
 hid=$(mktemp -d) && cp -r "$brief/hidden/." "$hid/" && mkdir "$hid/node_modules"
+# Which version of the hidden tests scored this trial.
+(cd "$brief/hidden/" && find . -type f | sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
 # step <name> <seconds> <command...>: log and exit code per step; podman --timeout stops the container itself.
 step() { name=$1; T=$2; shift 2; "$@" > "$out/$name.log" 2>&1; echo $? > "$out/$name.exit"; }
 node_run() { podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -v "$app":/app:Z -w /app "$NODE" "$@"; }

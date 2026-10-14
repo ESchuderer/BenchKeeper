@@ -5,33 +5,41 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
-// BenchKeeper layer of arms C, D, E: Ponytail, find-skills, BenchKeeper skills, the project's OpenSpec and Playwright skills.
-const BK = ['ponytail:ponytail', 'find-skills', 'project-setup', 'openspec-propose', 'playwright-best-practices'];
-export const EXPECT = {
-  A: { plugins: [], skills: [], hooks: [] },
-  B: { plugins: ['ponytail'], skills: ['ponytail:ponytail'], hooks: ['PONYTAIL MODE ACTIVE'] },
-  C: { plugins: ['agent-skills', 'ponytail'], skills: [...BK, 'agent-skills:test-driven-development'], mcp: ['playwright'], hooks: ['PONYTAIL MODE ACTIVE'] },
-  D: { plugins: ['ponytail', 'superpowers'], skills: [...BK, 'superpowers:brainstorming'], mcp: ['playwright'], hooks: ['PONYTAIL MODE ACTIVE', 'superpowers'] },
-  E: { plugins: ['ponytail'], skills: [...BK, 'tdd-workflow'], agents: ['planner', 'code-reviewer'], mcp: ['playwright'], hooks: ['PONYTAIL MODE ACTIVE'] },
-  F: { plugins: ['agent-skills'], skills: ['agent-skills:test-driven-development'], hooks: [] },
-  G: { plugins: ['superpowers'], skills: ['superpowers:brainstorming'], hooks: ['superpowers'] },
-  H: { plugins: [], skills: ['tdd-workflow'], agents: ['planner', 'code-reviewer'], hooks: [] },
+// Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer, spec tool.
+export const ARMS = {
+  A: [null, 0, 0, null], B: [null, 1, 0, null],
+  F: ['as', 0, 0, null], G: ['sp', 0, 0, null], H: ['ecc', 0, 0, null],
+  I: ['as', 0, 0, 'openspec'], J: ['sp', 0, 0, 'openspec'], K: ['ecc', 0, 0, 'openspec'],
+  L: ['as', 1, 1, null], M: ['sp', 1, 1, null], N: ['ecc', 1, 1, null],
+  C: ['as', 1, 1, 'openspec'], D: ['sp', 1, 1, 'openspec'], E: ['ecc', 1, 1, 'openspec'],
+  O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'],
 };
+
+// What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
+function expect(fw, pt, bk, spec) {
+  const e = { plugins: [], skills: [], agents: [], mcp: [], hooks: [] };
+  if (fw === 'as') e.plugins.push('agent-skills'), e.skills.push('agent-skills:test-driven-development');
+  if (fw === 'sp') e.plugins.push('superpowers'), e.skills.push('superpowers:brainstorming'), e.hooks.push('superpowers');
+  if (fw === 'ecc') e.skills.push('tdd-workflow'), e.agents.push('planner', 'code-reviewer');
+  if (pt) e.plugins.push('ponytail'), e.skills.push('ponytail:ponytail'), e.hooks.push('PONYTAIL MODE ACTIVE');
+  if (bk) e.skills.push('find-skills', 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
+  if (spec === 'openspec') e.skills.push('openspec-propose');
+  if (spec === 'speckit') e.skills.push('speckit-specify');
+  return e;
+}
+export const EXPECT = Object.fromEntries(Object.entries(ARMS).map(([arm, a]) => [arm, expect(...a)]));
 const MARKERS = [...new Set(Object.values(EXPECT).flatMap((e) => [...e.skills, ...(e.agents || [])]))];
 
-// Every init event (first turn, follow-ups, resumes after a background agent) must match the arm, and each agent
-// process (1 + follow-ups) must show the arm's SessionStart output; resumes have an init but no SessionStart.
-export function audit(events, arm, processes = 1) {
+// Every init event (first turn, follow-ups, resumes after a background agent) must match the arm.
+export function audit(events, arm) {
   const inits = events.filter((e) => e.type === 'system' && e.subtype === 'init');
   if (!inits.length) return { ok: false, problems: ['no init event'] };
   const results = inits.map((init) => auditInit(init, events, arm));
   const problems = [...new Set(results.flatMap((r) => r.problems))];
-  const starts = events.filter((e) => e.subtype === 'hook_response' && e.hook_event === 'SessionStart').map((e) => e.output || '');
-  for (const h of EXPECT[arm].hooks) {
-    const n = starts.filter((o) => o.includes(h)).length;
-    if (n < processes) problems.push(`hook output "${h}" in ${n} of ${processes} processes`);
-  }
+  // Once per session: a follow-up turn resumes the session, and some hooks (Superpowers) do not fire on resume,
+  // while the first turn's hook output stays in the continued conversation.
+  const starts = events.filter((e) => e.subtype === 'hook_response' && e.hook_name === 'SessionStart:startup').map((e) => e.output || '');
+  for (const h of EXPECT[arm].hooks) if (!starts.some((o) => o.includes(h))) problems.push(`no SessionStart:startup output "${h}"`);
   return { ...results[0], ok: problems.length === 0, problems };
 }
 
@@ -45,7 +53,6 @@ function auditInit(init, events, arm) {
   const expected = [...want.skills, ...(want.agents || [])];
   for (const m of expected) if (!listed.has(m)) problems.push(`missing ${m}`);
   for (const m of MARKERS) if (!expected.includes(m) && listed.has(m)) problems.push(`unexpected ${m}`);
-  for (const h of want.hooks) if (!hookOut.includes(h)) problems.push(`no hook output "${h}"`);
   const mcp = (init.mcp_servers || []).map((s) => `${s.name}:${s.status}`).sort();
   if (mcp.join() !== (want.mcp || []).map((n) => `${n}:connected`).join()) problems.push(`mcp ${mcp.join(',') || 'none'}`);
   if (!want.hooks.length && hookOut.trim()) problems.push('unexpected SessionStart output');
@@ -144,6 +151,7 @@ export function score(dir) {
     axe: axe && AXE_PAGES.every((k) => axe[k]) ? Object.fromEntries(AXE_PAGES.map((k) => [k, axe[k].length])) : null,
     lighthouse: lh?.categories ? Object.fromEntries(Object.entries(lh.categories).map(([k, v]) => [k, v.score])) : null,
     audit: vulns ? { high: vulns.high + vulns.critical, total: vulns.total } : null,
+    hidden_tests: (() => { try { return readFileSync(join(dir, 'hidden.sha256'), 'utf8').trim(); } catch { return null; } })(),
   };
 }
 const AXE_PAGES = ['start', 'confirmation', 'form', 'staff'];
@@ -154,6 +162,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const events = readFileSync(join(dir, 'transcript.jsonl'), 'utf8').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   const wall = (f) => { try { return Number(readFileSync(join(dir, f), 'utf8')); } catch { return null; } };
   const followups = wall('followups');
-  const trial = { arm, followups, wall_seconds: wall('end') - wall('start') || null, audit: audit(events, arm, 1 + (followups || 0)), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
+  const trial = { arm, followups, wall_seconds: wall('end') - wall('start') || null, audit: audit(events, arm), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
   writeFileSync(join(dir, 'trial.json'), JSON.stringify(trial, null, 2) + '\n');
 }

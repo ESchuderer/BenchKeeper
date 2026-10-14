@@ -46,10 +46,17 @@ async function book(page, title, guests, email) {
     if (!values.includes(String(guests))) return false;
     await g.selectOption(String(guests));
   } else await g.fill(String(guests));
-  await page.getByRole('button', { name: 'Book', exact: true }).filter({ visible: true }).click();
-  // Single-page apps submit asynchronously: wait for the request before any check or navigation.
-  await page.waitForLoadState('networkidle');
+  await submit(page, page.getByRole('button', { name: 'Book', exact: true }).filter({ visible: true }));
   return true;
+}
+
+// Clicks and waits for the request it triggers: a form post (new document) or a single-page app's fetch.
+// No request within 5 s (for example client-side validation) is fine; a check or navigation follows either way.
+async function submit(page, button) {
+  const sent = page.waitForResponse((r) => r.request().method() !== 'GET', { timeout: 5000 }).catch(() => null);
+  await button.click();
+  await sent;
+  await page.waitForLoadState('load');
 }
 
 const confirmed = (page) => page.getByRole('heading', { name: 'Booking confirmed' });
@@ -57,10 +64,11 @@ const confirmed = (page) => page.getByRole('heading', { name: 'Booking confirmed
 // Signs in when the staff page asks for it; F5 alone tests that it must.
 async function signIn(page) {
   await page.goto('/staff');
+  // Wait until the page shows either the sign-in form or the signed-in list (it may load the session first).
+  await expect(field(page, 'Password').or(page.getByRole('button', { name: 'Cancel' })).first()).toBeVisible();
   if (!(await field(page, 'Password').count())) return;
   await field(page, 'Password').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForLoadState('networkidle');
+  await submit(page, page.getByRole('button', { name: 'Sign in' }));
 }
 
 test('F1 start page lists tastings with seats left', async ({ page }) => {
@@ -105,12 +113,13 @@ test('F5 staff page needs the password', async ({ page }) => {
   await page.goto('/staff');
   await expect(page.locator('body')).not.toContainText('f5@example.org');
   await field(page, 'Password').fill('wrong-password');
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForLoadState('networkidle');
+  await submit(page, page.getByRole('button', { name: 'Sign in' }));
   await expect(page.locator('body')).not.toContainText('f5@example.org');
+  // A wrong password must leave the sign-in form or an error message on screen, not the bookings.
+  await expect(field(page, 'Password').or(page.getByText(/wrong|incorrect|invalid|failed/i)).first()).toBeVisible();
   await page.goto('/staff');
   await field(page, 'Password').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await submit(page, page.getByRole('button', { name: 'Sign in' }));
   await expect(page.locator('body')).toContainText('f5@example.org');
   await expect(page.locator('body')).toContainText('Erika Probe');
   await scan(page, 'staff');

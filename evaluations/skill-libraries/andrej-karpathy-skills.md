@@ -9,6 +9,7 @@
 ## Independent evidence
 
 - [skill-receipts audit](https://github.com/sjh9714/skill-receipts/blob/main/docs/audits/karpathy.md) (commit 2c60614, Claude Code, claude-opus-4-8, 12 small tasks with hidden tests, 5 runs per arm): accuracy 60/60 in every arm, median source lines -4.8% (within noise), median cost +11.5%, no p-values.
+- [Soarr01/skillbench](https://github.com/Soarr01/skillbench) (system-prompt injection, Opus 4.8, 10 tasks x 5 runs): cost +6.6%, oracle checks unchanged.
 
 ## User reports
 

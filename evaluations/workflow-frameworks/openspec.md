@@ -5,6 +5,7 @@
 ## Independent evidence
 
 - None with a no-spec baseline.
+- [harness-abc-bench](https://github.com/tonydzi/harness-abc-bench) pre-registered a Claude Code comparison (3 tasks x 3 arms, blind panel): baseline, Superpowers v6.2.0, OpenSpec v1.8.0; Spec Kit is a reserve arm. No results published as of 2026-10-14.
 
 ## Decision
 

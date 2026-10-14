@@ -13,6 +13,25 @@ Checked 2026-10-14.
 | [Terminal-Bench](https://www.tbench.ai/leaderboard) | Leaderboard with model and agent listed separately, for harness comparisons |
 | [Kotlin Benchmark](https://kotlinlang.org/benchmark) | Agent leaderboard on 105 Kotlin tasks |
 
+## Tools for configuration A/B tests
+
+| Tool | What it compares | Agents | Statistics | URL |
+|---|---|---|---|---|
+| Harbor | Skills and MCP arms; no plugin install | claude_code, codex | Mean only; `-k` attempts | [harbor](https://github.com/harbor-framework/harbor) |
+| SkillsBench | 87 tasks with and without skills (with-skill mode) | Several harnesses | Paired | [skillsbench](https://github.com/benchflow-ai/skillsbench) |
+| ContextBench | 1,136 tasks, context retrieval metrics; AgentStackBench builds on it | Not checked | Not checked | [arXiv 2602.05892](https://arxiv.org/abs/2602.05892) |
+| AgentStackBench | Skills, MCP, plugins; one published comparison, the other dashboard cards are placeholder data | Claude Code, Codex (subscription auth) | Dashboard computes McNemar and permutation tests; no multiple-comparison correction | [AgentStackBench](https://github.com/Nobbettt/AgentStackBench) |
+| skill-receipts | Off, placebo and on arms; hidden tests | Claude Code | At least 5 runs per arm | [skill-receipts](https://github.com/sjh9714/skill-receipts) |
+| Driftproof | Single SKILL.md per call | Single-turn model calls | Judge model; range overlap | [driftproofhq.com](https://driftproofhq.com) |
+| harness-abc-bench | Pre-registered framework arms; no results | Claude Code | Blind panel | [harness-abc-bench](https://github.com/tonydzi/harness-abc-bench) |
+| claude plugin eval | With minus without delta; loads no CLAUDE.md (Anthropic) | Claude Code only | 3 runs per arm by default; no significance test | [docs](https://code.claude.com/docs/en/plugin-evals) |
+| Inspect AI with inspect_swe | Skills, MCP, system prompt | claude_code, codex_cli, opencode | Not checked | [inspect_swe](https://meridianlabs-ai.github.io/inspect_swe/claude_code.html) |
+| Vercel agent-eval | Agent eval runner | Not checked | Not checked | [agent-eval](https://github.com/vercel-labs/agent-eval) |
+| LangChain skills-benchmarks | Skills benchmarks | Not checked | Not checked | [skills-benchmarks](https://github.com/langchain-ai/skills-benchmarks) |
+| promptfoo | Coding agent evaluation guide | Not checked | Not checked | [promptfoo](https://promptfoo.dev/docs/guides/evaluate-coding-agents/) |
+
+SWE-bench, Aider polyglot, tau-bench and BFCL rank models; Harbor has adapters to run their tasks with agent arms.
+
 ## Not sources of evidence
 
 ### The Agentic Leaderboard

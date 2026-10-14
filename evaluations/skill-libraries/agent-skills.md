@@ -6,6 +6,8 @@
 
 - No task-level study.
 - [Driftproof #005](https://driftproofhq.com/reports/005/) (single SKILL.md per call, 3 skills x 7 cases, 1 generation, LLM judge, no p-values): judge score -0.048 to +0.157 depending on skill and model, -5.4k to +16.3k input tokens per call; one gain re-measured at -0.002.
+- [Driftproof 009](https://driftproofhq.com/reports/009/) (commit be4e44a; Opus 5 / Opus 5.5 / Sonnet 5.5, 1 case x 3 runs): Driftproof lift +0.134 / +0.562 / +0.291; native `claude plugin eval` on the same cases 3/3 vs 3/3, 3/3 vs 2/3, 3/3 vs 1/3; in the docs case the skill never fired. [Driftproof 014](https://driftproofhq.com/reports/014/) (Haiku 5.5): lift clear in 1 of 3 runs.
+- Contradiction: code-review +0.134 in Driftproof, no difference in the native eval on the same case.
 - Router probe (sonnet-5, 79 prompts, 1 probe each): 77/79 routed with and without `using-agent-skills`, router +3.5k tokens per session ([#433](https://github.com/addyosmani/agent-skills/issues/433)).
 - 0.6.13: about 2.8k tokens of descriptions, no hooks ([#574](https://github.com/addyosmani/agent-skills/pull/574) removed the SessionStart injection).
 - [SkillsBench](https://arxiv.org/abs/2602.12670): curated skills +16.6 points pass rate on average; focused skills (up to three modules) beat exhaustive bundles. See [studies](../studies.md).

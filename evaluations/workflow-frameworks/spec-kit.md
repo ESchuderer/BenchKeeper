@@ -9,7 +9,7 @@
 ## Independent evidence
 
 - [arXiv 2604.05278](https://arxiv.org/abs/2604.05278) tests Spec Kit plus the authors' own hooks: +0.15 on a 1 to 5 judge score (p<0.05), no agent-skills baseline.
-- No comparison with OpenSpec found.
+- No comparison with OpenSpec found. [harness-abc-bench](https://github.com/tonydzi/harness-abc-bench) pre-registered a Claude Code comparison (3 tasks x 3 arms, blind panel): baseline, Superpowers v6.2.0, OpenSpec v1.8.0; Spec Kit is a reserve arm. No results published as of 2026-10-14.
 
 ## Decision
 

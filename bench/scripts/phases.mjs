@@ -17,6 +17,12 @@ const TEST_FILE = /(^|\/)(tests?|__tests__|e2e)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
 const VERIFY_CMD = /\b(npm (run )?(test|lint|typecheck|check|e2e)|npx (vitest|jest|playwright|tsc|eslint)|vitest|jest|tsc|eslint)\b/;
 const BUILD_CMD = /\bnpm (i|install|ci|run build)\b/;
 
+// File a shell command writes with `cat > f`, `echo ... >> f`, `printf ... > f` or `tee f` (first line only), else null.
+export function shellWriteTarget(command) {
+  const c = String(command || '').split('\n')[0];
+  return /(?:^|[;&|]\s*)(?:cat|tee|printf|echo)\b[^|;&]*?(?:>{1,2}|\btee\s+(?:-a\s+)?)\s*['"]?([^\s'"<>;&|]+)/.exec(c)?.[1] || null;
+}
+
 export function phaseOfSkill(name) {
   const n = String(name).toLowerCase();
   if (/review|audit|secur/.test(n)) return 'review';
@@ -34,7 +40,13 @@ export function phaseOfCall(tools) {
   for (const t of tools) {
     const path = String(t.input?.file_path || t.input?.filePath || '');
     if (['Write', 'Edit', 'MultiEdit'].includes(t.name)) set(SPEC_FILE.test(path) ? 'spec' : TEST_FILE.test(path) ? 'test' : 'build');
-    else if (t.name === 'Bash') { const c = String(t.input?.command || ''); set(VERIFY_CMD.test(c) ? 'verify' : BUILD_CMD.test(c) ? 'build' : null); }
+    else if (t.name === 'Bash') {
+      // Only the first line counts (a heredoc body is file content, not a command); `cat > f`, `tee f` write a file.
+      const c = String(t.input?.command || '').split('\n')[0];
+      const w = shellWriteTarget(c);
+      if (w) set(SPEC_FILE.test(w) ? 'spec' : TEST_FILE.test(w) ? 'test' : 'build');
+      else set(VERIFY_CMD.test(c) ? 'verify' : BUILD_CMD.test(c) ? 'build' : null);
+    }
     else if (t.name === 'Skill') set(phaseOfSkill(t.input?.skill || t.input?.name));
     else if (t.name === 'Agent' || t.name === 'Task') set(/review|audit|secur/i.test(t.input?.subagent_type || '') ? 'review' : null);
     else if (/^mcp__playwright/.test(t.name)) set('verify');

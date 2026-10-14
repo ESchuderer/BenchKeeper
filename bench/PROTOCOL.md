@@ -94,5 +94,5 @@ Each built app is reviewed blind by Claude Opus 5.5 (effort `high`) with the fix
 - Effects change by model; Haiku results say little about Sonnet.
 - The process paragraph in the brief asks every arm for its process; results describe prompted behavior, not what an unprompted request gets.
 - Exact labels in the brief favor arms that follow the copy literally; all arms get the same brief.
-- `tests_first` compares the first test file write with the first source file write; test code inside source files and files created through shell commands (heredocs, scaffolders) are not detected.
+- `tests_first` compares the first test file write with the first source file write (edit tools and shell writes such as `cat > f`); test code inside source files and files created by scaffolders are not detected.
 - The agent's own browser tests fail in the scorer's node image; their exit code is informational.

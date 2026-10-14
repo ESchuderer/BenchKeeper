@@ -158,3 +158,12 @@ test('maintenance facts from a workspace', async () => {
   const m = maintenance(ws);
   assert.deepEqual([m.readme, m.readme_setup, m.test_script, m.ci, m.node_version, m.lockfile, m.changelog], [true, true, true, true, true, false, false]);
 });
+
+test('phases: shell writes count by their target file, heredoc bodies are ignored', async () => {
+  const { phaseOfCall } = await import('./phases.mjs');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: "cat > src/server.test.js <<'EOF'\nimport { test } from 'vitest'\nEOF" } }]), 'test');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'mkdir -p openspec/changes/x && cat > openspec/changes/x/proposal.md <<EOF\nnpm test\nEOF' } }]), 'spec');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: "cat > src/app.js <<'EOF'\nrun tests\nEOF" } }]), 'build');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'npm test 2>&1 | tail -20' } }]), 'verify');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'ls test/' } }]), null);
+});

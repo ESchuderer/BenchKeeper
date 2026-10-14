@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
-import { claudePhases, opencodePhases } from './phases.mjs';
+import { claudePhases, opencodePhases, shellWriteTarget } from './phases.mjs';
 
 // Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer, spec tool.
 export const ARMS = {
@@ -73,7 +73,9 @@ const claudeUses = (events) => events.filter((e) => e.type === 'assistant').flat
 
 // uses: [{ name, input: { file_path, skill, subagent_type, command }, sub }]; OpenCode trials pass theirs (opencode.mjs).
 export function workflow(events, uses = claudeUses(events)) {
-  const writes = uses.filter((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name)).map((u) => String(u.input.file_path || ''));
+  // Files written by edit tools or by shell commands (`cat > f <<EOF`, which OpenCode agents use often).
+  const writes = uses.flatMap((u) => (['Write', 'Edit', 'MultiEdit'].includes(u.name) ? [String(u.input.file_path || '')]
+    : u.name === 'Bash' && shellWriteTarget(u.input.command) ? [shellWriteTarget(u.input.command)] : []));
   const firstTest = writes.findIndex((p) => TEST.test(p));
   const firstSource = writes.findIndex((p) => SOURCE.test(p) && !TEST.test(p) && !CONFIG.test(p));
   const skills = uses.filter((u) => u.name === 'Skill').map((u) => u.input.skill || u.input.command || '?');

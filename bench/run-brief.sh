@@ -44,11 +44,14 @@ for r in $(seq "$k"); do
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
     # BenchKeeper arms start from the project state /project-setup leaves, committed as the first commit.
     case $arm in C|D|E) podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
-      sh -c 'cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && git commit -qm "chore: project setup"' ;;
+      sh -c 'cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && git commit -qm "chore: project setup"' \
+      || { echo "project setup for arm $arm failed" >&2; exit 1; } ;;
     esac
     start=$(date +%s) && echo "$start" > "$t/start"
-    # The container lives for the whole trial, so follow-up turns continue the same session.
-    c=bk-trial-$$
+    # The container lives for the whole trial, so follow-up turns continue the same session; removed on any exit.
+    c=bk-$brief-r$r-$arm
+    podman rm -f "$c" > /dev/null 2>&1
+    trap 'podman rm -f "$c" > /dev/null 2>&1' EXIT INT TERM
     podman run -d --rm --name "$c" --timeout "$((TIMEOUT + 300))" --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
       -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sleep infinity > /dev/null
     turn() { # <prompt> [--continue]; runs one agent turn within the trial's remaining time
@@ -58,20 +61,19 @@ for r in $(seq "$k"); do
         --output-format stream-json --verbose --include-hook-events --dangerously-skip-permissions \
         --debug-file /bench-log/debug.log >> "$t/transcript.jsonl" 2>> "$t/log/stderr.log"
     }
-    turn "$(cat "$bench/briefs/$brief/brief.md")"
-    echo $? > "$t/agent.exit"
+    turn "$(cat "$bench/briefs/$brief/brief.md")"; rc=$?
     # Follow-up rule: while the agent stops without a runnable app (no start script), the same fixed message, at most twice.
     n=0
-    while [ "$n" -lt 2 ] && ! jq -e '.scripts.start' "$t/workspace/package.json" > /dev/null 2>&1; do
+    while [ "$n" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && ! jq -e '.scripts.start' "$t/workspace/package.json" > /dev/null 2>&1; do
       n=$((n + 1))
-      turn "$FOLLOWUP" --continue
-      echo $? > "$t/agent.exit"
+      turn "$FOLLOWUP" --continue; rc=$?
     done
-    echo "$n" > "$t/followups"
-    podman rm -f "$c" > /dev/null
-    date +%s > "$t/end"
+    podman rm -f "$c" > /dev/null; trap - EXIT INT TERM
+    # Written last: a trial interrupted before this point is rerun from scratch on resume.
+    echo "$n" > "$t/followups" && date +%s > "$t/end" && echo "$rc" > "$t/agent.exit"
     fi
-    grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" && { echo "token found in $t: remove it before publishing" >&2; exit 1; }
+    { grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" || git -C "$t/workspace" log -p --all 2>/dev/null | grep -qF -- "$CLAUDE_CODE_OAUTH_TOKEN"; } \
+      && { echo "token found in $t: remove it before publishing" >&2; exit 1; }
     rm -rf "$t/score"
     "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/score" > "$t/log/score.log" 2>&1
     set -e

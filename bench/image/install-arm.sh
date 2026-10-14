@@ -37,7 +37,7 @@ case $arm in
   D) cp /opt/bench/base.rules.md "$HOME/.claude/rules/00-global.md"; superpowers ;;
   E) cp /opt/bench/base.rules.md "$HOME/.claude/rules/00-global.md"; ecc ;;
 esac
-cp /opt/bench/headless.rules.md "$HOME/.claude/rules/01-headless.md"
+cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md"
 
 npm i -g --prefix "$HOME/.local" @fission-ai/openspec@1.14.1 @playwright/mcp@0.0.83
 node "$HOME/.local/lib/node_modules/@playwright/mcp/node_modules/playwright-core/cli.js" install chromium

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copies a run's results into bench/results/<name>/: manifest, and per trial trial.json, the transcript,
-# the built app (app.tar.gz, without node_modules) and the scorer's screenshots.
+# the built app (app.tar.gz, without node_modules), the scorer's screenshots and the app review (review.json).
 # Refuses when the token is unavailable or appears in any file, including the apps' git history.
 # Usage: bench/publish.sh <run-dir> <name>
 set -eu
@@ -16,6 +16,7 @@ for t in "$run"/round-*/*/; do
   cp "$t/trial.json" "$d/" && gzip -9 -c "$t/transcript.jsonl" > "$d/transcript.jsonl.gz"
   [ ! -f "$t/score/app.tar.gz" ] || cp "$t/score/app.tar.gz" "$d/"
   [ ! -d "$t/score/screenshots" ] || cp -r "$t/score/screenshots" "$d/"
+  [ ! -f "$t/review.json" ] || cp "$t/review.json" "$d/"
 done
 for f in $(find "$tmp" -type f); do
   case $f in *.gz) zcat "$f" | grep -qF -- "$token" ;; *) grep -qF -- "$token" "$f" ;; esac && { echo "token found in ${f#$tmp/}" >&2; exit 1; }

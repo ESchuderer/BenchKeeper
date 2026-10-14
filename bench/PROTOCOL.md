@@ -66,6 +66,10 @@ Per trial, in a copy of the workspace, in pinned containers:
 - captured for manual comparison: the built app as delivered (`app.tar.gz`: source and git history, without `node_modules`) and full-page screenshots of the start, form, confirmation and staff pages;
 - workflow trace: Skill and Agent calls, plan or spec files written, tests written and whether before the first source file, whether a review step ran, the last tool call.
 
+### App review (`bench/review/`)
+
+Each built app is reviewed blind by Claude Opus 5.5 (effort `high`) with the fixed prompt `bench/review/app-review.md` and schema `bench/review/schema.json`: headless in the stock arm-A image, read-only, tools limited to Read, Glob and Grep; inputs are the brief, the app source without agent tooling and process files (`.git`, `.claude`, `AGENTS.md`, `openspec/`, `docs/superpowers`) and the four screenshots; no hidden-test scores. Eight criteria rated 1 to 5 with evidence (requirements, correctness, security, code quality, tests, UX and design, accessibility, simplicity), an overall rating from 1 to 10, strengths, issues and a verdict (`review.json` per trial). A model judge is a signal with known biases (for example toward longer or more polished output), reported next to the automated scores, never instead of them.
+
 ### Validity
 
 - Delivery audit (`trial.mjs`): the init event of every agent process (first turn and follow-ups) lists exactly the arm's plugins, marker skills or agents and connected MCP servers (C, D, E: `playwright`; others: none), none of another arm's markers, and the expected SessionStart hook output; arm A shows none. A failed audit invalidates the trial.

@@ -49,17 +49,19 @@ for r in $(seq "$k"); do
     esac
     start=$(date +%s) && echo "$start" > "$t/start"
     # The container lives for the whole trial, so follow-up turns continue the same session; removed on any exit.
-    c=bk-$brief-r$r-$arm
-    podman rm -f "$c" > /dev/null 2>&1
-    trap 'podman rm -f "$c" > /dev/null 2>&1' EXIT INT TERM
+    c=bk-$$-r$r-$arm
+    trap 'podman rm -f "$c" > /dev/null 2>&1' EXIT
+    trap 'exit 130' INT TERM
     podman run -d --rm --name "$c" --timeout "$((TIMEOUT + 300))" --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
       -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sleep infinity > /dev/null
     turn() { # <prompt> [--continue]; runs one agent turn within the trial's remaining time
       rem=$((TIMEOUT - ($(date +%s) - start)))
       [ "$rem" -gt 0 ] || return 124
+      # In the background so INT or TERM interrupts the wait at once (the trap exits; the EXIT trap removes the container).
       podman exec "$c" timeout -k 30 "$rem" claude -p "$1" ${2:-} --model "$model" --effort "$effort" \
         --output-format stream-json --verbose --include-hook-events --dangerously-skip-permissions \
-        --debug-file /bench-log/debug.log >> "$t/transcript.jsonl" 2>> "$t/log/stderr.log"
+        --debug-file /bench-log/debug.log >> "$t/transcript.jsonl" 2>> "$t/log/stderr.log" &
+      wait $!
     }
     turn "$(cat "$bench/briefs/$brief/brief.md")"; rc=$?
     # Follow-up rule: while the agent stops without a runnable app (no start script), the same fixed message, at most twice.
@@ -72,7 +74,9 @@ for r in $(seq "$k"); do
     # Written last: a trial interrupted before this point is rerun from scratch on resume.
     echo "$n" > "$t/followups" && date +%s > "$t/end" && echo "$rc" > "$t/agent.exit"
     fi
-    { grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" || git -C "$t/workspace" log -p --all 2>/dev/null | grep -qF -- "$CLAUDE_CODE_OAUTH_TOKEN"; } \
+    # Every git object of the agent's repository, read in a container (the host never runs git on agent-written config).
+    { grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" || podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a \
+        sh -c '[ ! -d /w/.git ] || git -c safe.directory="*" -C /w cat-file --batch-all-objects --batch' | grep -aqF -- "$CLAUDE_CODE_OAUTH_TOKEN"; } \
       && { echo "token found in $t: remove it before publishing" >&2; exit 1; }
     rm -rf "$t/score"
     "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/score" > "$t/log/score.log" 2>&1

@@ -7,7 +7,7 @@ Benchmark-only rules for the BenchKeeper arms (C, D, E), installed as `~/.claude
 - Non-interactive runs give no approval required elsewhere (issue creation, destructive actions, merge, push to the default branch, pushing past review findings): skip that action, say so in one line, continue with the rest.
 
 ## User-facing pages
-- A user-facing page ships with a coherent visual design: layout, spacing, typography, color, and clear empty, error and success states. Keep it small (one stylesheet, no CSS framework unless the project has one). The least-code rule applies to logic, not to this.
+- A user-facing page ships with a coherent visual design: layout, spacing, typography, color, and clear empty, error and success states. Use the project's existing styling approach (framework, design system, tokens or plain CSS); in a project without one, pick the smallest approach that fits. The least-code rule applies to logic, not to this.
 - Validation errors appear next to the field they concern, are tied to it (`aria-invalid`, `aria-describedby`) and are announced; never rely on browser validation alone to show them.
 
 ## Sign-in

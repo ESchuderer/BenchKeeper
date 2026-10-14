@@ -20,12 +20,18 @@ export const EXPECT = {
 };
 const MARKERS = [...new Set(Object.values(EXPECT).flatMap((e) => [...e.skills, ...(e.agents || [])]))];
 
-// Every agent process of a trial (first turn, follow-ups) starts with an init event; all must match the arm.
-export function audit(events, arm) {
+// Every init event (first turn, follow-ups, resumes after a background agent) must match the arm, and each agent
+// process (1 + follow-ups) must show the arm's SessionStart output; resumes have an init but no SessionStart.
+export function audit(events, arm, processes = 1) {
   const inits = events.filter((e) => e.type === 'system' && e.subtype === 'init');
   if (!inits.length) return { ok: false, problems: ['no init event'] };
   const results = inits.map((init) => auditInit(init, events, arm));
   const problems = [...new Set(results.flatMap((r) => r.problems))];
+  const starts = events.filter((e) => e.subtype === 'hook_response' && e.hook_event === 'SessionStart').map((e) => e.output || '');
+  for (const h of EXPECT[arm].hooks) {
+    const n = starts.filter((o) => o.includes(h)).length;
+    if (n < processes) problems.push(`hook output "${h}" in ${n} of ${processes} processes`);
+  }
   return { ...results[0], ok: problems.length === 0, problems };
 }
 
@@ -74,7 +80,7 @@ export function workflow(events) {
 
 export function outcome(events) {
   // Cost and per-model usage in a result event are cumulative for its session, also across follow-up turns
-  // (`--continue` keeps the session), so the last result per session_id counts. num_turns counts per result event.
+  // (`--continue` keeps the session), so the last result per session_id counts.
   const results = events.filter((e) => e.type === 'result');
   const r = results.at(-1);
   if (!r) return { finished: false };
@@ -90,7 +96,8 @@ export function outcome(events) {
     ends_with_question: /\?\s*$/.test(text.trim()),
     duration_ms: r.duration_ms,
     result_events: results.length,
-    num_turns: results.reduce((n, e) => n + (e.num_turns || 0), 0),
+    // Main-thread assistant messages, counted once by message id (num_turns overlaps across result events).
+    turns: new Set(events.filter((e) => e.type === 'assistant' && !e.parent_tool_use_id).map((e) => e.message?.id)).size,
     sessions: last.length,
     cost_usd_api_equivalent: last.reduce((n, e) => n + (e.total_cost_usd || 0), 0),
     usage: models.length ? {
@@ -147,6 +154,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const events = readFileSync(join(dir, 'transcript.jsonl'), 'utf8').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   const wall = (f) => { try { return Number(readFileSync(join(dir, f), 'utf8')); } catch { return null; } };
   const followups = wall('followups');
-  const trial = { arm, followups, wall_seconds: wall('end') - wall('start') || null, audit: audit(events, arm), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
+  const trial = { arm, followups, wall_seconds: wall('end') - wall('start') || null, audit: audit(events, arm, 1 + (followups || 0)), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
   writeFileSync(join(dir, 'trial.json'), JSON.stringify(trial, null, 2) + '\n');
 }

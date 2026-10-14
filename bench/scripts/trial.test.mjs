@@ -36,10 +36,12 @@ test('workflow trace: skills, agents, plan files, tests first, review', () => {
   assert.equal(workflow([use('Write', { file_path: '/work/server.mjs' }), use('Write', { file_path: '/work/server.test.mjs' })]).tests_first, false);
 });
 
-test('outcome sums turns over result events and takes tokens from the cumulative model usage', () => {
+test('outcome counts main-thread messages once and takes tokens from the cumulative model usage', () => {
   const mu = { 'claude-haiku-5-5': { inputTokens: 30, outputTokens: 500, cacheReadInputTokens: 7, cacheCreationInputTokens: 9, thinkingTokens: 100 } };
-  const o = outcome([{ type: 'result', num_turns: 9, usage: { output_tokens: 300 } }, { type: 'result', num_turns: 7, total_cost_usd: 0.05, usage: { output_tokens: 50 }, modelUsage: mu }]);
-  assert.equal(o.num_turns, 16);
+  const msg = (id, parent = null) => ({ type: 'assistant', parent_tool_use_id: parent, message: { id, content: [] } });
+  const o = outcome([msg('m1'), msg('m1'), msg('m2'), msg('s1', 'toolu_1'), { type: 'result', num_turns: 9, usage: { output_tokens: 300 } },
+    { type: 'result', num_turns: 7, total_cost_usd: 0.05, usage: { output_tokens: 50 }, modelUsage: mu }]);
+  assert.equal(o.turns, 2);
   assert.equal(o.result_events, 2);
   assert.deepEqual(o.usage, { input: 30, cache_creation: 9, cache_read: 7, output: 500, thinking: 100 });
 });
@@ -52,7 +54,6 @@ test('outcome takes cumulative cost and usage from the last result per session',
   assert.equal(o.sessions, 2);
   assert.ok(Math.abs(o.cost_usd_api_equivalent - 0.06) < 1e-9);
   assert.equal(o.usage.output, 32);
-  assert.equal(o.num_turns, 9);
 });
 
 test('audit checks every agent process', () => {
@@ -60,6 +61,9 @@ test('audit checks every agent process', () => {
   const init = events.find((e) => e.subtype === 'init');
   assert.equal(audit(events, 'B').ok, true);
   assert.equal(audit([...events, { ...init, plugins: [] }], 'B').ok, false);
+  // Two processes (one follow-up) need two SessionStart outputs; a resume init without one is fine.
+  assert.equal(audit([...events, init], 'B', 2).ok, false);
+  assert.equal(audit([...events, ...events], 'B', 2).ok, true);
 });
 
 test('outcome flags usage-limit stops as infrastructure errors and trailing questions', () => {

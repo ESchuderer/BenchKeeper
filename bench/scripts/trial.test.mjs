@@ -146,3 +146,15 @@ test('phases: classified by activity, cost split by token weight, subagents attr
   assert.equal(p.phases.review.calls, 2);
   assert.deepEqual(Object.keys(p.subagents), ['code-reviewer']);
 });
+
+test('maintenance facts from a workspace', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs');
+  const { maintenance } = await import('./trial.mjs');
+  const ws = mkdtempSync('/tmp/ws-');
+  writeFileSync(`${ws}/package.json`, JSON.stringify({ scripts: { test: 'vitest run', start: 'node server.js' }, engines: { node: '22' } }));
+  writeFileSync(`${ws}/README.md`, 'Run `npm install`, then `npm start`.');
+  mkdirSync(`${ws}/.github/workflows`, { recursive: true });
+  writeFileSync(`${ws}/.github/workflows/ci.yml`, 'on: push');
+  const m = maintenance(ws);
+  assert.deepEqual([m.readme, m.readme_setup, m.test_script, m.ci, m.node_version, m.lockfile, m.changelog], [true, true, true, true, true, false, false]);
+});

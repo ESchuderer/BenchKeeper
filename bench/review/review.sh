@@ -11,11 +11,17 @@ export CLAUDE_CODE_OAUTH_TOKEN
 w=$(mktemp -d) && trap 'rm -rf "$w"' EXIT
 mkdir -p "$w/app" "$w/screenshots"
 img=$(podman image inspect benchkeeper-arm-a --format '{{.Id}}')
-# Blind by allowlist, inside a container (no host tar on an agent-made archive): copy regular files only, without
-# dotfiles and dot directories (except .gitignore), Markdown other than README.md, OpenSpec and skills lock files.
+# Filter inside a container (no host tar on an agent-made archive), regular files only. Kept: code, tests, build and CI
+# config (.github/, .gitignore, version files), README, docs, ADRs and specs (`openspec/specs`, `specs/`): they are what a
+# later maintainer reads. Removed: dependencies, agent tooling and process files (.claude, .opencode, .specify, .mcp.json,
+# .devcontainer from the project setup, AGENTS.md, CLAUDE.md, skills locks, `openspec/changes`, `.scratch`,
+# `docs/superpowers`, `docs/agents`, `.git`).
 podman run --rm --userns=keep-id -v "$t/score/app.tar.gz":/in.tar.gz:ro,Z -v "$w/app":/app:Z "$img" sh -c '
   mkdir /tmp/x && tar -xzf /in.tar.gz -C /tmp/x && cd /tmp/x &&
-  find . -type f \( -name .gitignore -o \( ! -path "*/.*" ! -path "*/openspec/*" ! -name skills-lock.json \( ! -name "*.md" -o -name README.md \) \) \) \
+  find . -type f ! -path "*/node_modules/*" ! -path "./.git/*" ! -path "./.claude/*" ! -path "./.opencode/*" ! -path "./.specify/*" \
+    ! -path "./.devcontainer/*" ! -path "./.scratch/*" ! -path "./openspec/changes/*" ! -path "./docs/superpowers/*" ! -path "./docs/agents/*" \
+    ! -name .mcp.json ! -name AGENTS.md ! -name CLAUDE.md ! -name skills-lock.json ! -name skills.lock.json \
+    ! -path "./openspec/config.yaml" ! -path "./openspec/schemas/*" ! -name "oso-change-registry.json" \
     -exec cp --parents {} /app/ \;'
 cp "$brief/brief.md" "$w/"
 cp "$t/score/screenshots/"*.jpg "$w/screenshots/" 2>/dev/null || true

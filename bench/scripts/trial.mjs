@@ -141,6 +141,26 @@ export function lines(dir) {
   return out;
 }
 
+// Maintenance facts from the delivered workspace: what a later maintainer finds without asking anyone.
+export function maintenance(ws) {
+  const has = (p) => existsSync(join(ws, p));
+  const read = (p) => { try { return readFileSync(join(ws, p), 'utf8'); } catch { return ''; } };
+  const pkg = (() => { try { return JSON.parse(read('package.json')); } catch { return {}; } })();
+  const readme = read('README.md');
+  const ci = has('.github/workflows') && readdirSync(join(ws, '.github/workflows')).some((f) => /\.ya?ml$/.test(f));
+  return {
+    readme: readme.length > 0,
+    readme_setup: /npm (i|install|ci)\b/.test(readme) && /npm (start|run)/.test(readme),
+    lockfile: has('package-lock.json') || has('pnpm-lock.yaml') || has('yarn.lock'),
+    test_script: Boolean(pkg.scripts?.test) && !/no test specified/.test(pkg.scripts.test),
+    lint_or_typecheck: Boolean(pkg.scripts?.lint || pkg.scripts?.typecheck || pkg.scripts?.['type-check']),
+    ci,
+    node_version: Boolean(pkg.engines?.node) || has('.nvmrc') || has('.node-version'),
+    changelog: has('CHANGELOG.md'),
+    docs: has('docs') || has('openspec/specs') || has('specs'),
+  };
+}
+
 export function score(dir) {
   const read = (f) => { try { return JSON.parse(readFileSync(join(dir, f), 'utf8')); } catch { return null; } };
   const exit = (f) => { try { return Number(readFileSync(join(dir, `${f}.exit`), 'utf8')); } catch { return null; } };
@@ -176,7 +196,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     audit: oc ? ocAudit(join(dir, 'log'), arm) : audit(events, arm),
     outcome: oc ? ocOutcome(events, all) : outcome(events),
     workflow: oc ? workflow(events, ocUses(events, all)) : workflow(events),
-    score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')),
+    score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')), maintenance: maintenance(join(dir, 'workspace')),
   };
   // Per-phase and per-subagent measurements, only for trials the runner marked (PHASES=1).
   if (existsSync(join(dir, 'log', 'phases'))) trial.phases = oc ? opencodePhases(all) : claudePhases(events, trial.outcome.cost_usd_api_equivalent || 0);

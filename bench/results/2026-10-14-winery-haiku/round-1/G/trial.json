@@ -20,7 +20,7 @@
     "duration_ms": 189741,
     "result_events": 1,
     "num_turns": 35,
-    "agent_processes": 1,
+    "sessions": 1,
     "cost_usd_api_equivalent": 0.04592835000000001,
     "usage": {
       "input": 64,

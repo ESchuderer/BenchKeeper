@@ -1,6 +1,6 @@
 # Superpowers
 
-[Repository](https://github.com/obra/superpowers), Category: workflow frameworks, Checked 2026-10-14, Decision: Not in
+[Repository](https://github.com/obra/superpowers), Category: workflow frameworks, Checked 2026-10-14, Decision: Not in yet (arm D in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19))
 
 ## Advertised
 
@@ -37,6 +37,6 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Decision
 
-Not in: one measurement (AgentStackBench, Codex, 500 tasks) and four signals on Claude Code agree in direction: cost higher in every with/without test across agents and versions (Codex with 5.0.5: tokens +40%; Claude Code with v6.4.2: cost 1.33x; systematic-debugging on Opus 4.8: cost +40.5% and +80%), except one blogger's 6-task single run (-9%). Quality gains appear in the TDD cases of one plugin-eval suite and in judge scores; pass rate on SWE-bench-family tasks is not significantly different (p about 0.235). Its spec, plan and implement loop overlaps agent-skills. Dropped from the paired test in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19).
+Not in yet: one measurement (AgentStackBench, Codex, 500 tasks) and four signals on Claude Code agree in direction: cost higher in every with/without test across agents and versions (Codex with 5.0.5: tokens +40%; Claude Code with v6.4.2: cost 1.33x; systematic-debugging on Opus 4.8: cost +40.5% and +80%), except one blogger's 6-task single run (-9%). Quality gains appear in the TDD cases of one plugin-eval suite and in judge scores; pass rate on SWE-bench-family tasks is not significantly different (p about 0.235). Its spec, plan and implement loop overlaps agent-skills. Kept as arm D (v7.0.0 + Ponytail) in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) to compare the agent-skills, Superpowers and ECC stacks directly.
 
 [All evaluations](../../EVALUATIONS.md)

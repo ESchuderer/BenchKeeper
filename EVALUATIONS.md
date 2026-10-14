@@ -43,7 +43,7 @@ Components considered for BenchKeeper, the evidence found for each, and whether 
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in | cost higher in every test but one 6-task blog run (1.33x on v6.4.2); pass rate n.s. (p about 0.235) |
+| [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (arm D in #19) | cost higher in every test but one 6-task blog run (1.33x on v6.4.2); pass rate n.s. (p about 0.235) |
 | [OpenSpec](evaluations/workflow-frameworks/openspec.md) | In, unmeasured | no study with a no-spec baseline; owns spec files per change |
 | [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no agent-skills baseline; overlaps agent-skills |
 | [GSD](evaluations/workflow-frameworks/gsd.md) | Not in | one task: about 1.2M tokens vs 200K vanilla, outputs indistinguishable |
@@ -53,7 +53,7 @@ Components considered for BenchKeeper, the evidence found for each, and whether 
 
 | Component | Decision | Summary |
 |---|---|---|
-| [ECC](evaluations/harness-bundles/ecc.md) | Not in yet (retest candidate, see #19) | no outcome measurement; hook overhead and listing size reported |
+| [ECC](evaluations/harness-bundles/ecc.md) | Not in yet (arm E in #19, minimal profile) | no outcome measurement; hook overhead and listing size reported |
 | [ruflo](evaluations/harness-bundles/ruflo.md) | Not in | no evidence; no method published for advertised figures |
 
 ### Agent harnesses

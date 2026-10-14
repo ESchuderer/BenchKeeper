@@ -134,8 +134,8 @@
         "phase": "define",
         "sub": "GitHub issue",
         "human": "approve issue",
-        "tip": "Turns the request into a GitHub issue with goal, acceptance criteria and tasks. You approve it.",
-        "text": "No GitHub issue yet: the agent turns the request into title, goal, acceptance criteria and tasks, and creates the issue after your approval."
+        "tip": "Standard and full tiers: turns the request into a GitHub issue with goal, acceptance criteria and tasks. You approve it.",
+        "text": "Standard and full tiers, no GitHub issue yet: the agent turns the request into title, goal, acceptance criteria and tasks, and creates the issue after your approval."
       },
       {
         "name": "Branch",
@@ -148,15 +148,15 @@
         "name": "Specify",
         "phase": "define",
         "sub": "OpenSpec",
-        "tip": "Writes the spec as an OpenSpec change, or uses plan mode.",
-        "text": "`spec-driven-development`, written as an OpenSpec change when the repository has one."
+        "tip": "Full tier: writes the spec as an OpenSpec change, or uses plan mode.",
+        "text": "Full tier: `spec-driven-development`, written as an OpenSpec change when the repository has one."
       },
       {
         "name": "Plan",
         "phase": "build",
         "sub": "tasks.md",
-        "tip": "Breaks the spec into small tasks with acceptance criteria.",
-        "text": "`planning-and-task-breakdown` into small tasks with acceptance criteria."
+        "tip": "Full tier: breaks the spec into small tasks with acceptance criteria.",
+        "text": "Full tier: `planning-and-task-breakdown` into small tasks with acceptance criteria."
       },
       {
         "name": "Build",

@@ -90,7 +90,7 @@ Observations from the reviews:
 
 - Name the OpenSpec step in the non-interactive rule: after `openspec-propose`, continue with `openspec-apply-change`.
 - Check why the BenchKeeper base rules suppress Superpowers' and ECC's own flow (D, E) and whether that is wanted.
-- Ponytail's "least new code" may cut styling: check whether "accessibility" and product polish need an explicit place in Ponytail's "never cut" list or in the rules.
+- Ponytail's "least new code" may cut styling: check whether visual polish for user-facing pages needs a place in the rules (Ponytail's "never cut" list already names accessibility, not styling).
 
 ## Data
 

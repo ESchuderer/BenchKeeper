@@ -1,0 +1,79 @@
+{
+  "arm": "E",
+  "followups": 0,
+  "wall_seconds": 178,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 166172,
+    "result_events": 1,
+    "num_turns": 17,
+    "agent_processes": 1,
+    "cost_usd_api_equivalent": 0.044666929999999994,
+    "usage": {
+      "input": 34,
+      "cache_creation": 72445,
+      "cache_read": 1188753,
+      "output": 36574,
+      "thinking": 23934
+    }
+  },
+  "workflow": {
+    "tool_calls": 16,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash grep -rnP '\\x{2014}|[\\x{1F300}-\\x{1FAFF}\\x{2600}-\\x{27BF}]' server.js src test p"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    }
+  },
+  "lines": {
+    "source": 304,
+    "test": 139,
+    "files": 5
+  }
+}

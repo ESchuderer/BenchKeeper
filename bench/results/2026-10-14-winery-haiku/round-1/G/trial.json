@@ -1,0 +1,82 @@
+{
+  "arm": "G",
+  "followups": 0,
+  "wall_seconds": 203,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "superpowers"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 189741,
+    "result_events": 1,
+    "num_turns": 35,
+    "agent_processes": 1,
+    "cost_usd_api_equivalent": 0.04592835000000001,
+    "usage": {
+      "input": 64,
+      "cache_creation": 49198,
+      "cache_read": 1625785,
+      "output": 39649,
+      "thinking": 16289
+    }
+  },
+  "workflow": {
+    "tool_calls": 32,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "superpowers:brainstorming",
+      "superpowers:test-driven-development"
+    ],
+    "agents": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": true,
+    "review": false,
+    "last_tool": "Bash npm test 2>&1 | grep -E \"^# (tests|suites|pass|fail|cancelled|skipped|todo)\"; ec"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 1,
+      "best-practices": 1
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    }
+  },
+  "lines": {
+    "source": 404,
+    "test": 373,
+    "files": 6
+  }
+}

@@ -40,7 +40,7 @@ jobs:
           args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://github\.com/' --root-dir ${{ runner.temp }}/site 'web/dist/**/*.html'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: node .github/scripts/github-links.mjs web/dist/index.html
+      - run: find web/dist -name '*.html' -print0 | xargs -0 node .github/scripts/github-links.mjs
         working-directory: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

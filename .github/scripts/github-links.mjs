@@ -1,6 +1,6 @@
 // Checks github.com links through the GitHub API, which lychee hits as HTML pages and GitHub rate-limits.
 // Links to this repository's main branch are checked against the checkout, so files added in a pull request pass.
-// Usage: GITHUB_TOKEN=... node .github/scripts/github-links.mjs <files...>
+// Usage: GITHUB_TOKEN=... node .github/scripts/github-links.mjs <files...> (without a token, discussion links fail and the API allows 60 requests per hour)
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -9,10 +9,15 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 // First path segments that are GitHub pages, not owners.
 const RESERVED = new Set(['orgs', 'marketplace', 'sponsors', 'topics', 'features', 'apps', 'settings', 'enterprise', 'collections', 'login']);
 
-// Returns { local: path } for this repository's main branch, { api: path } or { graphql: {...} } otherwise, { unsupported: true } for other GitHub pages.
+// Returns { local: path } for this repository's main branch, { api: path } or { graphql: {...} } otherwise, { unsupported: true } for link kinds without a mapping.
 export function target(url) {
   const u = new URL(url);
-  const parts = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+  let parts;
+  try {
+    parts = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+  } catch {
+    return { unsupported: true };
+  }
   const [owner, rawRepo, kind, ...rest] = parts;
   if (RESERVED.has(owner)) return { unsupported: true };
   const repo = rawRepo?.replace(/\.git$/, '');
@@ -30,7 +35,8 @@ export function target(url) {
   }
   if (kind === 'releases' && rest[0] === 'tag') return { api: `${base}/releases/tags/${encodeURIComponent(rest.slice(1).join('/'))}` };
   if (kind === 'commit') return { api: `${base}/commits/${rest[0]}` };
-  return { api: base };
+  // Unmapped kinds (wiki, actions, compare, release assets) fail loudly instead of passing on the repository alone.
+  return kind ? { unsupported: true } : { api: base };
 }
 
 // Markdown emphasis or table pipes next to a URL are not part of it.
@@ -52,11 +58,20 @@ async function check(t, token) {
     try {
       const res = await request(t, token);
       if (res.ok) {
-        if (!t.graphql) return null;
-        return (await res.json()).data?.repository?.discussion ? null : 'discussion not found';
+        if (!t.graphql) {
+          await res.body?.cancel();
+          return null;
+        }
+        const body = await res.json();
+        if (body.data?.repository?.discussion) return null;
+        // GraphQL reports rate limits as HTTP 200 with an errors array.
+        if (body.errors?.some((e) => e.type === 'RATE_LIMITED')) { last = 'GraphQL rate limited'; continue; }
+        return 'discussion not found';
       }
       last = `HTTP ${res.status}`;
       if (![403, 429].includes(res.status) && res.status < 500) return last;
+      const wait = Number(res.headers.get('retry-after'));
+      if (wait > 0 && wait <= 120) await new Promise((r) => setTimeout(r, wait * 1000));
     } catch (e) {
       last = e.message;
     }

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs one arm's components for the node user, as /global-setup installs them, from pinned tags.
 # A: stock. B: Ponytail. F, G, H: one framework alone (agent-skills, Superpowers, ECC minimal).
-# C, D, E: the same frameworks with BenchKeeper: rules (C full, D and E the base rules), Ponytail, find-skills,
+# C, D, E: the same frameworks with BenchKeeper: rules (C rules/global.md; D and E its variant with the framework's own flow), Ponytail, find-skills,
 # BenchKeeper skills, OpenSpec CLI, Playwright MCP with Chromium, and ~/project-template, the workspace state
 # /project-setup leaves (copied in by the runner).
 set -eu
@@ -34,8 +34,8 @@ clone vercel-labs/skills v1.7.2 && cp -r "$src/skills/skills/find-skills" "$HOME
 cp -r /opt/bench/skills/project-setup /opt/bench/skills/global-setup "$HOME/.claude/skills/"
 case $arm in
   C) cp /opt/bench/global.md "$HOME/.claude/rules/00-global.md"; agent_skills ;;
-  D) cp /opt/bench/base.rules.md "$HOME/.claude/rules/00-global.md"; superpowers ;;
-  E) cp /opt/bench/base.rules.md "$HOME/.claude/rules/00-global.md"; ecc ;;
+  D) cp /opt/bench/superpowers.rules.md "$HOME/.claude/rules/00-global.md"; superpowers ;;
+  E) cp /opt/bench/ecc.rules.md "$HOME/.claude/rules/00-global.md"; ecc ;;
 esac
 cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md"
 

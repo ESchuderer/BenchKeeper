@@ -12,6 +12,58 @@
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
 set -eu
 arm=$1
+
+# OpenCode arms (runtime OpenCode 1.19.0 instead of Claude Code; Anthropic API key at run time, not the subscription):
+#   Q OpenSpec + targeted skills (addy TDD, security, review, debugging; Vercel React)   R Superpowers (OpenCode plugin)
+#   S OpenSpec + Superpowers through oso 1.1.1 (its own Superpowers v6.1.1)               T agent-skills (all, AGENTS.md template)
+#   U agent-skills without its define/plan lifecycle skills + OpenSpec
+# Isolation: OPENCODE_DISABLE_CLAUDE_CODE and OPENCODE_DISABLE_EXTERNAL_SKILLS (no ~/.claude or .agents loading), no
+# autoupdate, no model catalog fetch at run time (fetched once here). The runner sets the same variables for every turn.
+opencode_arm() {
+  export OPENCODE_DISABLE_CLAUDE_CODE=1 OPENCODE_DISABLE_EXTERNAL_SKILLS=1 OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1
+  src=$HOME/.bench-src; t=$HOME/project-template
+  mkdir -p "$src" "$t" "$HOME/.config/opencode"
+  git config --global user.name agent && git config --global user.email agent@localhost && git config --global init.defaultBranch main
+  npm i -g --prefix "$HOME/.local" opencode-ai@1.19.0
+  printf '{"$schema":"https://opencode.ai/config.json","autoupdate":false,"share":"disabled","plugin":[]}\n' > "$HOME/.config/opencode/opencode.json"
+  # Model catalog, fetched once (the bundled snapshot of 1.19.0 lacks the 5.5 models).
+  (cd /tmp && ANTHROPIC_API_KEY=dummy command opencode models anthropic | grep -q 'anthropic/claude-haiku-5-5')
+  addy() { # <target skills dir> [skills to leave out...]: agent-skills 0.6.13 skills and the references they link to
+    [ -d "$src/agent-skills" ] || git -c advice.detachedHead=false clone -q --depth 1 --branch 0.6.13 https://github.com/addyosmani/agent-skills "$src/agent-skills"
+    d=$1; shift; mkdir -p "$d"; cp -r "$src/agent-skills/skills/." "$d/"; cp -r "$src/agent-skills/references" "$d/../references"
+    for x in "$@"; do rm -r "${d:?}/$x"; done
+  }
+  openspec_project() { # OpenSpec 1.14.1 with verify in the profile, initialised for OpenCode
+    npm i -g --prefix "$HOME/.local" @fission-ai/openspec@1.14.1
+    command openspec config set telemetry.enabled false >/dev/null
+    command openspec config set profile custom >/dev/null
+    command openspec config set workflows '["propose","explore","apply","verify","archive"]' >/dev/null
+    (cd "$t" && OPENSPEC_TELEMETRY=0 command openspec init --tools opencode --no-animation >/dev/null)
+  }
+  case $1 in
+    Q) openspec_project
+       addy "$t/.opencode/skills"
+       (cd "$t/.opencode/skills" && for x in *; do case $x in test-driven-development|security-and-hardening|code-review-and-quality|debugging-and-error-recovery|openspec-*) ;; *) rm -r "$x" ;; esac; done)
+       git init -q "$src/vercel" && git -C "$src/vercel" fetch -q --depth 1 https://github.com/vercel-labs/agent-skills 063bee94c3f4df8453406c830b0a7df0f2860278 && git -C "$src/vercel" -c advice.detachedHead=false checkout -q FETCH_HEAD
+       cp -r "$src/vercel/skills/react-best-practices" "$t/.opencode/skills/vercel-react-best-practices" ;;
+    R) git -c advice.detachedHead=false clone -q --depth 1 --branch v7.0.0 https://github.com/obra/superpowers "$src/superpowers"
+       test "$(git -C "$src/superpowers" rev-parse HEAD)" = bb92a77741419a4ab5f06e711a283343f1ada0c3
+       printf '{"$schema":"https://opencode.ai/config.json","autoupdate":false,"share":"disabled","plugin":["%s"]}\n' "$src/superpowers" > "$HOME/.config/opencode/opencode.json" ;;
+    S) npm i -g --prefix "$HOME/.local" @fission-ai/openspec@1.14.1
+       printf '{"$schema":"https://opencode.ai/config.json","autoupdate":false,"share":"disabled","plugin":["superpowers@git+https://github.com/obra/superpowers.git#v6.1.1"]}\n' > "$HOME/.config/opencode/opencode.json"
+       (cd /tmp && command opencode debug skill > /dev/null)   # OpenCode installs the plugin into its cache now, not at run time
+       npm i -g --prefix "$HOME/.local" @moyaspace/openspec-superpowers-opencode@1.1.1
+       (cd "$t" && oso init . --lang en > /dev/null) ;;
+    T) addy "$t/.opencode/skills"
+       # The project AGENTS.md template from docs/opencode-setup.md at 0.6.13.
+       sed -n '/^```markdown$/,/^```$/p' "$src/agent-skills/docs/opencode-setup.md" | sed '1d;$d' > "$t/AGENTS.md"
+       grep -q '^# Agent Skills (OpenCode)' "$t/AGENTS.md" ;;
+    U) openspec_project
+       addy "$t/.opencode/skills" spec-driven-development planning-and-task-breakdown incremental-implementation using-agent-skills idea-refine interview-me
+       cp /opt/bench/opencode-addy-openspec.AGENTS.md "$t/AGENTS.md" ;;
+  esac
+}
+
 case $arm in
   A) fw=none bk=no pt=no spec=none ;;          B) fw=none bk=no pt=yes spec=none ;;
   F) fw=as bk=no pt=no spec=none ;;            G) fw=sp bk=no pt=no spec=none ;;            H) fw=ecc bk=no pt=no spec=none ;;
@@ -19,6 +71,7 @@ case $arm in
   L) fw=as bk=yes pt=yes spec=none ;;          M) fw=sp bk=yes pt=yes spec=none ;;          N) fw=ecc bk=yes pt=yes spec=none ;;
   C) fw=as bk=yes pt=yes spec=openspec ;;      D) fw=sp bk=yes pt=yes spec=openspec ;;      E) fw=ecc bk=yes pt=yes spec=openspec ;;
   O) fw=none bk=no pt=yes spec=openspec ;;     P) fw=none bk=no pt=yes spec=speckit ;;
+  Q|R|S|T|U) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac
 src=$HOME/.bench-src

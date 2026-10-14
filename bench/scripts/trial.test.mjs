@@ -98,3 +98,28 @@ test('audit and summary tolerate missing fields', async () => {
   const t = { arm: 'A', audit: { ok: true }, outcome: {}, workflow: {}, score: { lighthouse: null, axe: null }, lines: {} };
   assert.match(table([t]), /\| A \| 1 \| 0 \| n\/a \| n\/a \| n\/a \|/);
 });
+
+test('each OpenCode arm passes its own audit and fails every other OpenCode arm\'s', async () => {
+  const { OPENCODE_ARMS, ocAudit } = await import('./opencode.mjs');
+  for (const real of OPENCODE_ARMS) {
+    for (const claimed of OPENCODE_ARMS) {
+      const r = ocAudit(new URL(`fixtures/opencode-${real}`, import.meta.url).pathname, claimed);
+      assert.equal(r.ok, real === claimed, `${real} audited as ${claimed}: ${r.problems.join('; ')}`);
+    }
+  }
+});
+
+test('OpenCode outcome sums every session and maps tool uses', async () => {
+  const { ocOutcome, ocUses } = await import('./opencode.mjs');
+  const msg = (role, cost, out, parts = []) => ({ info: { role, cost, tokens: { input: 1, output: out, reasoning: 0, cache: { read: 10, write: 2 } } }, parts });
+  const all = [
+    { info: { id: 's1' }, messages: [msg('user', 0, 0), msg('assistant', 0.02, 5, [{ type: 'tool', tool: 'skill', state: { input: { name: 'brainstorming' } } }])] },
+    { info: { id: 's2', parentID: 's1' }, messages: [msg('assistant', 0.01, 3, [{ type: 'tool', tool: 'write', state: { input: { filePath: '/work/a.test.js' } } }])] },
+  ];
+  const o = ocOutcome([{ type: 'step_finish', part: {} }, { type: 'text', part: { text: 'Done.' } }], all);
+  assert.ok(Math.abs(o.cost_usd_api_equivalent - 0.03) < 1e-9);
+  assert.deepEqual(o.usage, { input: 2, cache_creation: 4, cache_read: 20, output: 8, thinking: 0 });
+  assert.equal(o.turns, 1);
+  const uses = ocUses([], all);
+  assert.deepEqual(uses.map((u) => [u.name, u.input.skill || u.input.file_path, u.sub]), [['Skill', 'brainstorming', false], ['Write', '/work/a.test.js', true]]);
+});

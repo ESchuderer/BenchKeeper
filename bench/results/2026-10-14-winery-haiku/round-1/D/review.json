@@ -1,0 +1,40 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "cost_usd_api_equivalent": 0.210487,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 4,
+      "code_quality": 5,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5
+    },
+    "evidence": {
+      "requirements": "Every requirement in the brief is met. The three tastings have the exact data (server.js:4-8). The start page shows title, date/time, 'EUR n per guest' and '<n> seats left', with a 'Book <title>' button for each (server.js:67-74, start.jpg). The form has 'Name', 'Email' and 'Guests' labels with min 1 and max 8, plus a 'Book' button (server.js:80-83). Invalid input gets an error inside the form, directly above the fields (server.js:79, form.jpg). The confirmation has the heading 'Booking confirmed' and shows the tasting, guests, total price and reference (server.js:86-93, confirmation.jpg shows EUR 64 for 2 x 32). /staff has a 'Password' field and a 'Sign in' button, and the password comes from STAFF_PASSWORD (server.js:95-100, 203). Signed in, staff see bookings grouped by tasting with name, email, guests, reference and a 'Cancel' button (server.js:102-114, staff.jpg). Cancelling removes the booking, so its seats are freed (server.js:183-184). PORT defaults to 3000, bookings start empty in memory, and the UI is in English. Unmet requirements: none.",
+      "correctness": "Seats left are computed from the current bookings (server.js:23-26). Validation rejects more guests than seats left, with a separate fully-booked message (server.js:40). Guests must match /^\\d+$/ and be 1 to 8, so '1.5', '', '0' and '9' are rejected (server.js:38). Name and email are trimmed and length-capped (server.js:36-37, 149-151). Validation and the push run synchronously after the body is read (server.js:153-156), so on Node's single thread two concurrent requests cannot both pass the seat check. POST-redirect-GET (303) stops a refresh from booking twice. Booking references are random and checked for collisions (server.js:28-33). Unknown tastings and unknown references return 404. Minor: a fully booked tasting still shows an active 'Book' button with '0 seats left' (server.js:71-72), and cancelling a reference that doesn't exist silently redirects.",
+      "security": "All user data goes through esc(), which encodes & < > \" ' and so is also safe in attributes (server.js:20, 80-82, 105). Passwords are compared with timingSafeEqual on SHA-256 digests, and an empty or unset password disables sign-in (server.js:121). Session tokens are 128-bit random values in a cookie set HttpOnly, SameSite=Strict, Path=/ (server.js:175-177). The cookie is strictly format-checked (server.js:123). Cancel is POST-only and requires a session (server.js:181-182). Request bodies are capped at 10 KB with a 413 response (server.js:48). No secrets are in the code. Gaps: there is no sign-out and sessions never expire (the Set at server.js:118 grows forever), the cookie has no Secure flag, and login attempts are not rate-limited.",
+      "code_quality": "The whole app is one 208-line server.js, which suits the task. It splits cleanly into small pure helpers (seatsLeft, validate, newRef, readForm), template functions (layout, listPage, formPage, confirmPage, loginPage, staffPage) and one route function. Names are clear. Errors are handled centrally, with a status-aware catch (server.js:191-197). createServer({ staffPassword }) is injectable, which makes it testable. There is no needless abstraction. The if-chain router is readable at this size.",
+      "tests": "test/app.test.js has 5 meaningful HTTP-level tests run with node:test. They cover seat reduction, the exact-fill boundary and overbooking rejection (lines 21-43), six invalid inputs with seats left unchanged (45-65), confirmation content and total price (67-81), staff login with right and wrong passwords, the grouped list, unauthenticated cancel being refused, and cancel freeing seats (83-111), and sign-in being disabled with no password (113-121). Not tested: HTML escaping or XSS, unknown tasting or reference returning 404, the oversized-body 413, and the exact form labels and 'Book <title>' text.",
+      "ux_design": "start.jpg is tidy and readable, with a consistent wine-red accent and clear booking buttons. form.jpg shows the error in red above the fields, keeps the entered values, and repeats the date and price for context. confirmation.jpg is bare: an unstyled <dl> with browser-default indentation, no link back to the tastings, and no reassurance message or next steps. staff.jpg is clear and well grouped, but there is no sign-out and Cancel has no confirmation step, so one misclick deletes a booking. The look is plain, with no imagery or descriptions of the tastings. A fully booked tasting still shows an active Book button. The 5-column table has no responsive handling for narrow screens.",
+      "accessibility": "The page sets lang=\"en\" (server.js:54). Labels wrap their inputs, giving implicit association (server.js:80-82, 98). Errors use role=\"alert\" (server.js:79, 97). Headings and tables are semantic, and the confirmation uses a <dl>. Default focus outlines are not removed. Contrast is good: white on #6b1d3a and #a4161a on #fbf8f5 both pass AA. Gaps: the error is not tied to its field (no aria-invalid or aria-describedby), focus is not moved to the error after the reload, the staff 'Cancel' buttons all have the same name with no booking context, and table headers have no scope or caption.",
+      "simplicity": "There are zero runtime dependencies: package.json lists none and only node:http and node:crypto are used. One 208-line file plus a 121-line test file is a good fit for the problem, and npm test runs on the built-in node --test."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Meets every requirement in the brief exactly, with correct seat-limit logic that is safe under concurrent requests (synchronous validate-and-push, PRG redirect)",
+      "Solid security basics: everything is escaped, timing-safe password comparison, random HttpOnly/SameSite=Strict session cookie, body-size limit, sign-in disabled when no password is set",
+      "Dependency-free, compact, readable single-file server with meaningful end-to-end tests of the main flows and boundaries"
+    ],
+    "issues": [
+      "Staff sessions never expire, there is no sign-out, the cookie has no Secure flag, and login attempts are not rate-limited (server.js:118, 177)",
+      "Confirmation page is visually bare (unstyled <dl>, no link back or next steps; confirmation.jpg), fully booked tastings still show an active Book button, and staff Cancel deletes with no confirmation",
+      "Accessibility gaps: errors are not linked to fields (no aria-invalid/aria-describedby), identical 'Cancel' button names with no context, and table headers have no scope"
+    ],
+    "verdict": "This is a correct, secure-by-default and pleasingly small implementation that meets every point of the brief, backed by meaningful tests. Before going live it needs session expiry and a sign-out for staff, plus some polish on the confirmation page and on fully booked tastings."
+  }
+}

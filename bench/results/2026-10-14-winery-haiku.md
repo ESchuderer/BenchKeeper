@@ -57,11 +57,41 @@ Every trial passed the delivery audit; every agent's own tests passed (exit 0); 
 - ECC alone (H) wrote the most code (891 source lines) and used the most cache-read tokens after C.
 - Ponytail only (B) was the smallest and cheapest app (156 lines, USD 0.024).
 
+## App review (blind, Claude Opus 5.5, `bench/review/`)
+
+One review per app with the fixed prompt; scores 1 to 5, overall 1 to 10. One review sample each: a signal, not a measurement.
+
+| Arm | Overall | Requirements | Correctness | Security | Code quality | Tests | UX and design | Accessibility | Simplicity | Unmet or partly met |
+|---|---|---|---|---|---|---|---|---|---|---|
+| A | 9 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | none |
+| B | 7 | 5 | 4 | 4 | 4 | 4 | 2 | 4 | 5 | none |
+| F | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | none |
+| G | 8 | 4 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | invalid email: browser validation hides the app's error message |
+| H | 8 | 4 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | same as G; "1 seat left" instead of "<n> seats left" |
+| C | 7 | 5 | 4 | 4 | 5 | 5 | 2 | 3 | 5 | none |
+| D | 8 | 5 | 5 | 4 | 5 | 4 | 3 | 4 | 5 | none |
+| E | 7 | 5 | 4 | 4 | 5 | 4 | 3 | 3 | 5 | none |
+
+Main issue per app (from `review.json`):
+- A: no login rate limit, cookie without Secure flag.
+- B: browser-default design, barely visible form error.
+- C: no styling at all, not presentable to guests; no session expiry or sign-out.
+- D: staff sessions never expire, no sign-out.
+- E: browser-default design; sold-out tastings still offer a Book link.
+- F: no login rate limit or Secure cookie (documented in its README, not implemented).
+- G and H: the brief's error message next to the form never shows, because browser validation blocks the submit (the hidden test F4 still passes: no booking is made).
+
+Observations from the reviews:
+- Every arm with Ponytail (B, C, D, E) got a lower UX and design score (2 or 3) than every arm without it (A, F, G, H: 4): the Ponytail arms shipped little or no styling. One trial each, so this is a pattern to check in the next runs, not a result.
+- The highest overall ratings went to A and F (9); the BenchKeeper arms C and E and Ponytail-only B got 7.
+- The hidden tests do not catch the missing visible error message (G, H) or the missing styling (B, C); the review does.
+
 ## Improvement candidates for BenchKeeper (from this run)
 
 - Name the OpenSpec step in the non-interactive rule: after `openspec-propose`, continue with `openspec-apply-change`.
 - Check why the BenchKeeper base rules suppress Superpowers' and ECC's own flow (D, E) and whether that is wanted.
+- Ponytail's "least new code" may cut styling: check whether "accessibility" and product polish need an explicit place in Ponytail's "never cut" list or in the rules.
 
 ## Data
 
-`2026-10-14-winery-haiku/`: `manifest.txt`, and per arm in `round-1/<arm>/`: `trial.json`, `transcript.jsonl.gz`, the built app (`app.tar.gz`, source and git history without `node_modules`) and screenshots of the start, form, confirmation and staff pages.
+`2026-10-14-winery-haiku/`: `manifest.txt`, and per arm in `round-1/<arm>/`: `trial.json`, `transcript.jsonl.gz`, the built app (`app.tar.gz`, source and git history without `node_modules`) screenshots of the start, form, confirmation and staff pages, and the app review (`review.json`).

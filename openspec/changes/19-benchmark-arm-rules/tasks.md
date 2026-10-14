@@ -2,8 +2,7 @@
 
 ## 1. Arm rules
 
-- [x] 1.1 Mapping files for Superpowers and ECC
-- [x] 1.2 Generator with --check and test
-- [x] 1.3 Generated variants
-- [x] 1.4 CI check and AGENTS.md note
-- [ ] 1.5 Owner signs off both mappings
+- [x] 1.1 Generator for the base rules with --check and test
+- [x] 1.2 Generated `bench/arms/base.rules.md`
+- [x] 1.3 CI check and AGENTS.md note
+- [x] 1.4 Owner approves the base-rules design (2026-10-14)

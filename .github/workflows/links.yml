@@ -24,7 +24,7 @@ jobs:
           node-version: 22.23.3
       - run: node --test .github/scripts/github-links.test.mjs
       - run: node --test bench/scripts/arm-rules.test.mjs
-      - run: for arm in superpowers ecc; do node bench/scripts/arm-rules.mjs "$arm" --check; done
+      - run: node bench/scripts/arm-rules.mjs --check
       - run: git ls-files -z '*.md' | xargs -0 node .github/scripts/github-links.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

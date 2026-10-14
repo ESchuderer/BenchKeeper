@@ -4,13 +4,12 @@ Issue: [#19](https://github.com/ESchuderer/BenchKeeper/issues/19)
 
 ## Why
 
-Arms D and E of the paired benchmark run BenchKeeper with agent-skills replaced by Superpowers or ECC. The global rules name agent-skills skills; in D and E those names do not exist, which would penalize those arms for a reason unrelated to the frameworks.
+Arms D and E of the paired benchmark run Superpowers or ECC with their own workflow. The global rules set BenchKeeper's workflow (task tiers, SDLC phases with agent-skills, branch and pull request flow), and Superpowers gives user instructions precedence over its skills ([using-superpowers](https://github.com/obra/superpowers/blob/v7.0.0/skills/using-superpowers/SKILL.md)), so the full rules would override the framework's flow.
 
 ## What Changes
 
-- Mapping files per arm (`bench/arms/superpowers.json`, `bench/arms/ecc.json`): each agent-skills name used in the rules maps to the closest skill or agent of the framework, or to a neutral phrase when none exists.
-- Generator `bench/scripts/arm-rules.mjs` writes `bench/arms/<arm>.rules.md` from `rules/global.md`; `--check` fails when a variant is out of date.
-- Test that every referenced agent-skills name is mapped and none is left in the output; CI runs the test and the check.
+- Generator `bench/scripts/arm-rules.mjs` writes `bench/arms/base.rules.md`: `rules/global.md` without the sections "Ponytail and agent-skills", "Branches, issues and pull requests", "Task tiers" and "SDLC". Arms D and E use it; arm C uses the full rules.
+- `--check` fails when the file is out of date; the test checks that no agent-skills name or workflow section is left and that the other sections are unchanged. CI runs both.
 
 ## Capabilities
 

@@ -1,27 +1,26 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { variant } from './arm-rules.mjs';
+import { base } from './arm-rules.mjs';
 
 const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
 const rules = read('rules/global.md');
 const names = JSON.parse(read('bench/arms/agent-skills-names.json'));
-const referenced = names.filter((n) => rules.includes(`\`${n}\``));
 
-for (const arm of ['superpowers', 'ecc']) {
-  const map = JSON.parse(read(`bench/arms/${arm}.json`));
-  test(`${arm}: every agent-skills name in the rules is mapped`, () => {
-    assert.deepEqual(referenced.filter((n) => !map.skills[n]), []);
-  });
-  test(`${arm}: no unmapped agent-skills name or mention is left`, () => {
-    const out = variant(rules, map);
-    const kept = Object.entries(map.skills).filter(([k, v]) => v.skill === k).map(([k]) => k);
-    assert.deepEqual(names.filter((n) => !kept.includes(n) && out.includes(`\`${n}\``)), []);
-    assert.ok(!out.includes('agent-skills'));
-  });
-}
+test('base rules name no agent-skills skill and set no workflow', () => {
+  const out = base(rules);
+  assert.deepEqual(names.filter((n) => out.includes(`\`${n}\``)), []);
+  assert.ok(!/agent-skills|Task tiers|OpenSpec/.test(out));
+});
 
-test('renders skills, agents and missing equivalents', () => {
-  const map = { text: {}, skills: { a: { skill: 'x' }, b: { agent: 'y' }, c: { none: 'z' } } };
-  assert.equal(variant('`a` `b` `c` `d` a', map), '`x` the `y` agent any installed z skill `d` a');
+test('base rules keep every other section unchanged', () => {
+  const out = base(rules);
+  for (const h of ['Ask, do not assume', 'Scope', 'Safety', 'Context economy']) {
+    const section = rules.split(/^(?=## )/m).find((s) => s.startsWith(`## ${h}\n`));
+    assert.ok(out.includes(section.trimEnd()), h);
+  }
+});
+
+test('fails when a dropped section is renamed', () => {
+  assert.throws(() => base('## Scope\n- x\n'), /sections not found/);
 });

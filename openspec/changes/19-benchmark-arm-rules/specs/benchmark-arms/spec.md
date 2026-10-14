@@ -1,28 +1,28 @@
 ## Purpose
 
-Derive the global rules for each benchmark arm mechanically, so arms differ only in the skill framework.
+Derive the rules for each benchmark arm mechanically, so arms C, D and E share the same base rules and differ in the workflow that drives them.
 
 ## ADDED Requirements
 
-### Requirement: Arm rule variants
+### Requirement: Base rules for framework arms
 
-For arms that replace agent-skills, the rules SHALL be generated from `rules/global.md` by a committed mapping: each agent-skills skill name referenced in the rules maps to a framework skill, a framework agent, or a neutral phrase, and every mention of agent-skills is renamed. No other text SHALL change.
+Arms that run another framework's workflow (D: Superpowers, E: ECC) SHALL get `bench/arms/base.rules.md`, generated from `rules/global.md` by removing the sections "Ponytail and agent-skills", "Branches, issues and pull requests", "Task tiers" and "SDLC". No other text SHALL change.
 
-#### Scenario: Mapped skill
+#### Scenario: Workflow sections removed
 
-- **WHEN** the rules name `test-driven-development` and the ECC mapping maps it to `tdd-workflow`
-- **THEN** the ECC variant names `tdd-workflow` in that place
+- **WHEN** the base rules are generated
+- **THEN** they name no agent-skills skill and contain no task tier or SDLC text
 
-#### Scenario: No equivalent
+#### Scenario: Other sections kept
 
-- **WHEN** a framework has no equivalent for `security-and-hardening`
-- **THEN** the variant reads "any installed security hardening skill"
+- **WHEN** the base rules are generated
+- **THEN** the section "Ask, do not assume", including its non-interactive clause, is identical to `rules/global.md`
 
-### Requirement: Variants stay current
+### Requirement: Base rules stay current
 
-CI SHALL fail when a committed variant differs from what the generator produces from the current rules, and when a referenced agent-skills name has no mapping.
+CI SHALL fail when the committed base rules differ from what the generator produces from the current rules, and when a section to remove is missing from the rules.
 
 #### Scenario: Rules edited
 
-- **WHEN** `rules/global.md` changes and the variants are not regenerated
+- **WHEN** `rules/global.md` changes and the base rules are not regenerated
 - **THEN** the CI check fails

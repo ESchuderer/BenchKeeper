@@ -7,7 +7,7 @@ Assign each request to a task tier so the agent runs only the SDLC steps and res
 
 ### Requirement: Tier selection
 
-The agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. An explicit tier from the user SHALL win; for security, data, production or irreversible impact the agent SHALL name the full tier and ask, and the user's answer SHALL decide. A project default tier SHALL apply when no other tier clearly matches.
+The agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. A risky change is one to authentication, permissions, secrets or input validation, to production data, deploy or production configuration, or an irreversible action. An explicit tier from the user SHALL win; for a risky change the agent SHALL name the full tier and ask, the user's answer SHALL decide, and the pre-push review SHALL run in every tier. A project default tier SHALL apply when no other tier clearly matches.
 
 #### Scenario: Small UI change
 
@@ -22,7 +22,7 @@ The agent SHALL assign each request that leads to an edit or a subagent to one t
 #### Scenario: Lower tier with production impact
 
 - **WHEN** the user writes "quick" for a production hotfix
-- **THEN** the agent names the full tier and asks, and follows the user's answer
+- **THEN** the agent names the full tier and asks, follows the user's answer, and still reviews the commits before push
 
 #### Scenario: Plain question
 
@@ -83,7 +83,7 @@ The research tier SHALL answer without repository edits; scratch files outside t
 
 ### Requirement: Change types
 
-The rules SHALL map common change types to a default tier and a check run before reporting done, in addition to the generic verify step. The agent SHALL never run infrastructure `apply`, migrations against shared databases or production commands as a check.
+The rules SHALL map common change types to a default tier and a check run before reporting done, in addition to the generic verify step. The agent SHALL never run commands that change shared or production systems as a check, such as `terraform apply`, `kubectl apply`, `helm upgrade`, or migrations against shared or production databases.
 
 #### Scenario: Terraform change
 
@@ -92,13 +92,13 @@ The rules SHALL map common change types to a default tier and a check run before
 
 #### Scenario: Behavior-preserving refactor
 
-- **WHEN** the agent renames a function across many files without changing behavior
+- **WHEN** the agent renames a function across many files of one module without changing behavior
 - **THEN** it runs the standard tier and the test suite passes before and after with tests unchanged
 
 #### Scenario: Bug with unknown cause
 
 - **WHEN** the cause of a reported bug is unknown
-- **THEN** the agent investigates in the research tier and picks the tier for the fix once the cause is known
+- **THEN** the agent runs the standard tier, investigates with a reproducer test on the branch, and moves up if the cause needs more
 
 #### Scenario: Security advisory on a patch version
 
@@ -112,7 +112,7 @@ The rules SHALL map common change types to a default tier and a check run before
 
 ### Requirement: Request handling
 
-Several requests in one prompt SHALL each get a tier, and the highest tier SHALL apply on a shared branch. Follow-ups on an open pull request SHALL keep its tier. Work beyond one session SHALL be split into issues first, each with its own tier.
+Several requests in one prompt SHALL each get a tier, and the highest tier SHALL apply on a shared branch. Follow-ups on an open pull request SHALL keep its tier unless the work grows. Work beyond one session SHALL be split into issues first, each with its own tier.
 
 #### Scenario: Typo and feature together
 
@@ -123,6 +123,11 @@ Several requests in one prompt SHALL each get a tier, and the highest tier SHALL
 
 - **WHEN** a reviewer comments on a standard-tier pull request
 - **THEN** the agent adds commits under the standard tier without a new issue or spec
+
+#### Scenario: Review comment adds risk
+
+- **WHEN** a reviewer comment on a standard-tier pull request asks for an authentication change
+- **THEN** the agent names the full tier and asks before the next edit
 
 #### Scenario: Multi-session feature
 

@@ -71,9 +71,11 @@ The global agent-skills plugin covers the workflow (spec, planning, TDD, debuggi
 
 Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of agent-skills skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
 
-## 5. Spec tool (ask)
+## 5. Spec tool and default tier (ask)
 
 Ask whether this repository uses OpenSpec or none. Recommend none for config, infrastructure, and docs repositories. OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive; agent-skills drives the process and OpenSpec owns the spec files (`rules/global.md`). A repository with Spec Kit (`.specify/`) moves to OpenSpec: propose removing `.specify/`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*` and ignore or lint entries for `.specify`, then set up OpenSpec.
+
+Ask for the default task tier (`rules/global.md`, Task tiers): none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories, `research` for notes, papers or evaluation repositories. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions; none writes nothing and removes an existing line after asking.
 
 OpenSpec:
 - Setup: `openspec init --tools <tools> --no-animation`, replacing `<tools>` with `claude`, `codex`, or `claude,codex` for the selected agents.

@@ -51,22 +51,29 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - When a prompt starts a task unrelated to the conversation so far, add one line suggesting `/clear`, then do the task.
 
 ## Branches, issues and pull requests
-- Default flow in a GitHub repository: issue, branch, commits, pull request (`git-workflow-and-versioning`). Pushing feature branches and opening pull requests need no extra confirmation. Creating or editing a GitHub issue needs confirmation: present the plan (title, goal, acceptance criteria, tasks) first and create it only after the user approves. Merging, pushing to the default branch and skipping the flow need the user's instruction.
+- Default flow in a GitHub repository: issue, branch, commits, pull request (`git-workflow-and-versioning`); the quick tier skips the issue (Task tiers). Pushing feature branches and opening pull requests need no extra confirmation. Creating or editing a GitHub issue needs confirmation: present the plan (title, goal, acceptance criteria, tasks) first and create it only after the user approves. Merging, pushing to the default branch and skipping the flow need the user's instruction.
 - Before the first file edit, check the current branch. On the default branch (`gh repo view --json defaultBranchRef`), create `<type>/<issue>-<slug>` (for example `fix/42-null-config`), or `<type>/<slug>` when the change has no issue. On another branch or worktree, keep it.
 - Commits: atomic, message `<type>: <summary>` (Conventional Commits, as in `git-workflow-and-versioning`).
 - Pull requests: open as draft (`gh pr create --draft`), body contains `Closes #<issue>` when an issue exists; mark ready (`gh pr ready`) after checks pass. Review comments and failing checks: new commits on the same branch, no force push or rebase unless the user asks.
 - Work or commit on the default branch only when the user said so in this task; otherwise ask first.
-- OpenSpec (repository has `openspec/`) follows the same flow: after the issue step, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>` or `<slug>`, issue linked in `proposal.md`); commit it with the code; run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
+- OpenSpec (repository has `openspec/`, full tier) follows the same flow: after the issue step, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>` or `<slug>`, issue linked in `proposal.md`); commit it with the code; run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
 - No GitHub remote or `gh auth status` fails: local branch only, skip issue and pull request, say so in one line.
 - Before running `git push` or opening a pull request that contains code changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change.
+
+## Task tiers
+Before the first edit or search, pick one tier and state it in one line (`Tier: quick`). The user's explicit tier wins, then a `Default tier:` line in `AGENTS.md` when the request fits it. Move up a tier and say so when the work grows: more than one behavior, an uncertain approach, or security, data or production impact.
+- Quick (typo, label, config value, docs line, one obvious UI tweak): branch, edit, verify, commit, draft pull request. No issue, spec, plan or pre-push review.
+- Standard (one behavior, approach clear): issue, branch, failing test first where a test suite exists, build, verify, review before push, draft pull request. No spec or OpenSpec change; the plan is a few lines in the reply.
+- Full (several behaviors, new capability, uncertain approach, security, data or production impact): every SDLC step below.
+- Research (question, comparison or evaluation without a code change): no branch or edits unless asked. Several items: one subagent per item in parallel (Claude Code: `model: "sonnet"`), each prompt with the same evidence bar: independent versus vendor-run results; version, harness, model and effort, task count, runs per arm, deltas and p-values; advertised claims next to measured ones; unverified items labeled. Merge the results into one answer with sources.
 
 ## SDLC
 Skills from agent-skills (addyosmani) drive each phase; OpenSpec owns the spec files when the repository has `openspec/`.
 - Understand: `AGENTS.md`, the issue if one is given (`gh issue view <n>`), and the code the change touches, before any edit.
-- Track: without an issue, present the plan and create one after approval (above); if the user declines, continue without one. Then branch (above).
-- Conditional skills: `using-agent-skills` picks them within each phase (for example `interview-me`, `debugging-and-error-recovery`, `security-and-hardening`); the phases, OpenSpec, and the issue and pull request flow here take precedence.
-- Specify: `spec-driven-development` for a non-trivial change. With `openspec/`: write the result as an OpenSpec change (`openspec-propose`), not a separate spec file. Without it: plan mode.
-- Plan: `planning-and-task-breakdown`; with OpenSpec the tasks live in the change's `tasks.md`.
+- Track (standard, full): without an issue, present the plan and create one after approval (above); if the user declines, continue without one. Then branch (above).
+- Conditional skills: load one when the task matches its description, in any phase (for example `interview-me`, `debugging-and-error-recovery`, `security-and-hardening`); the phases, OpenSpec, and the issue and pull request flow here take precedence.
+- Specify (full): `spec-driven-development`. With `openspec/`: write the result as an OpenSpec change (`openspec-propose`), not a separate spec file. Without it: plan mode.
+- Plan (full): `planning-and-task-breakdown`; with OpenSpec the tasks live in the change's `tasks.md`.
 - Build: `incremental-implementation`, tests first where the repository has a test suite (`test-driven-development`); with OpenSpec through `openspec-apply-change`.
 - Verify: build, types, lint, tests before reporting done; UI changes in a browser (Playwright MCP). Report failures as they are.
 - Review and ship: code review before push (above); push the branch and open a draft pull request (above); wait for checks (`gh pr checks --watch`, `ci-cd-and-automation`), report failures as they are, mark ready when they pass; `openspec-archive-change` on the branch (above). Merge only on the user's instruction.

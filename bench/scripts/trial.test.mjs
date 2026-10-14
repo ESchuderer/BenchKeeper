@@ -44,6 +44,16 @@ test('outcome sums turns over result events and takes tokens from the cumulative
   assert.deepEqual(o.usage, { input: 30, cache_creation: 9, cache_read: 7, output: 500, thinking: 100 });
 });
 
+test('outcome sums cost and usage over agent processes of follow-up turns', () => {
+  const res = (cost, out) => ({ type: 'result', num_turns: 3, total_cost_usd: cost, modelUsage: { m: { outputTokens: out } } });
+  const init = { type: 'system', subtype: 'init' };
+  const o = outcome([init, res(0.01, 10), res(0.02, 20), init, res(0.05, 7)]);
+  assert.equal(o.agent_processes, 2);
+  assert.ok(Math.abs(o.cost_usd_api_equivalent - 0.07) < 1e-9);
+  assert.equal(o.usage.output, 27);
+  assert.equal(o.num_turns, 9);
+});
+
 test('outcome flags usage-limit stops as infrastructure errors and trailing questions', () => {
   assert.equal(outcome([{ type: 'result', is_error: true, result: 'Claude usage limit reached' }]).infra_error, true);
   assert.equal(outcome([{ type: 'result', is_error: false, result: 'Which database do you want?' }]).ends_with_question, true);

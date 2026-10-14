@@ -66,12 +66,20 @@ export function workflow(events) {
 }
 
 export function outcome(events) {
-  // A run can emit several result events (the main thread resumes when a background agent finishes);
-  // the last one carries cumulative cost and per-model usage, num_turns counts per segment.
+  // Each agent process (the first turn, each follow-up turn) starts with an init event. Within a process the last
+  // result event carries cumulative cost and per-model usage (a process can emit several when the main thread resumes
+  // after a background agent); processes are summed. num_turns counts per result event.
   const results = events.filter((e) => e.type === 'result');
   const r = results.at(-1);
   if (!r) return { finished: false };
-  const models = Object.values(r.modelUsage || {});
+  const last = [];
+  let cur = null;
+  for (const e of events) {
+    if (e.type === 'system' && e.subtype === 'init') { if (cur) last.push(cur); cur = null; }
+    if (e.type === 'result') cur = e;
+  }
+  if (cur) last.push(cur);
+  const models = last.flatMap((e) => Object.values(e.modelUsage || {}));
   const sum = (k) => models.reduce((n, m) => n + (m[k] || 0), 0);
   const text = String(r.result || '');
   return {
@@ -83,7 +91,8 @@ export function outcome(events) {
     duration_ms: r.duration_ms,
     result_events: results.length,
     num_turns: results.reduce((n, e) => n + (e.num_turns || 0), 0),
-    cost_usd_api_equivalent: r.total_cost_usd,
+    agent_processes: last.length,
+    cost_usd_api_equivalent: last.reduce((n, e) => n + (e.total_cost_usd || 0), 0),
     usage: models.length ? {
       input: sum('inputTokens'), cache_creation: sum('cacheCreationInputTokens'),
       cache_read: sum('cacheReadInputTokens'), output: sum('outputTokens'), thinking: sum('thinkingTokens'),
@@ -137,6 +146,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const [dir, arm] = process.argv.slice(2);
   const events = readFileSync(join(dir, 'transcript.jsonl'), 'utf8').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   const wall = (f) => { try { return Number(readFileSync(join(dir, f), 'utf8')); } catch { return null; } };
-  const trial = { arm, wall_seconds: wall('end') - wall('start') || null, audit: audit(events, arm), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
+  const followups = wall('followups');
+  const trial = { arm, followups, wall_seconds: wall('end') - wall('start') || null, audit: audit(events, arm), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
   writeFileSync(join(dir, 'trial.json'), JSON.stringify(trial, null, 2) + '\n');
 }

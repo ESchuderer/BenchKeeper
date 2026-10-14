@@ -8,6 +8,7 @@ brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H"}
 bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
 NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 TIMEOUT=${TIMEOUT:-5400}
+FOLLOWUP="Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval."
 : "${CLAUDE_CODE_OAUTH_TOKEN:=$(cat "$HOME/.config/benchkeeper/oauth-token" 2>/dev/null)}"
 [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "no token: set CLAUDE_CODE_OAUTH_TOKEN or write ~/.config/benchkeeper/oauth-token" >&2; exit 1; }
 export CLAUDE_CODE_OAUTH_TOKEN
@@ -45,13 +46,29 @@ for r in $(seq "$k"); do
     case $arm in C|D|E) podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
       sh -c 'cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && git commit -qm "chore: project setup"' ;;
     esac
-    date +%s > "$t/start"
-    podman run --rm --name "bk-trial-$$" --timeout "$TIMEOUT" --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
-      -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
-      claude -p "$(cat "$bench/briefs/$brief/brief.md")" --model "$model" --effort "$effort" \
-      --output-format stream-json --verbose --include-hook-events --dangerously-skip-permissions \
-      --debug-file /bench-log/debug.log > "$t/transcript.jsonl" 2> "$t/log/stderr.log"
+    start=$(date +%s) && echo "$start" > "$t/start"
+    # The container lives for the whole trial, so follow-up turns continue the same session.
+    c=bk-trial-$$
+    podman run -d --rm --name "$c" --timeout "$((TIMEOUT + 300))" --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
+      -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sleep infinity > /dev/null
+    turn() { # <prompt> [--continue]; runs one agent turn within the trial's remaining time
+      rem=$((TIMEOUT - ($(date +%s) - start)))
+      [ "$rem" -gt 0 ] || return 124
+      podman exec "$c" timeout -k 30 "$rem" claude -p "$1" ${2:-} --model "$model" --effort "$effort" \
+        --output-format stream-json --verbose --include-hook-events --dangerously-skip-permissions \
+        --debug-file /bench-log/debug.log >> "$t/transcript.jsonl" 2>> "$t/log/stderr.log"
+    }
+    turn "$(cat "$bench/briefs/$brief/brief.md")"
     echo $? > "$t/agent.exit"
+    # Follow-up rule: while the agent stops without a runnable app (no start script), the same fixed message, at most twice.
+    n=0
+    while [ "$n" -lt 2 ] && ! jq -e '.scripts.start' "$t/workspace/package.json" > /dev/null 2>&1; do
+      n=$((n + 1))
+      turn "$FOLLOWUP" --continue
+      echo $? > "$t/agent.exit"
+    done
+    echo "$n" > "$t/followups"
+    podman rm -f "$c" > /dev/null
     date +%s > "$t/end"
     fi
     grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" && { echo "token found in $t: remove it before publishing" >&2; exit 1; }

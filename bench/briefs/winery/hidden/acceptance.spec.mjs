@@ -47,6 +47,8 @@ async function book(page, title, guests, email) {
     await g.selectOption(String(guests));
   } else await g.fill(String(guests));
   await page.getByRole('button', { name: 'Book', exact: true }).filter({ visible: true }).click();
+  // Single-page apps submit asynchronously: wait for the request before any check or navigation.
+  await page.waitForLoadState('networkidle');
   return true;
 }
 
@@ -58,6 +60,7 @@ async function signIn(page) {
   if (!(await field(page, 'Password').count())) return;
   await field(page, 'Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForLoadState('networkidle');
 }
 
 test('F1 start page lists tastings with seats left', async ({ page }) => {
@@ -103,6 +106,7 @@ test('F5 staff page needs the password', async ({ page }) => {
   await expect(page.locator('body')).not.toContainText('f5@example.org');
   await field(page, 'Password').fill('wrong-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForLoadState('networkidle');
   await expect(page.locator('body')).not.toContainText('f5@example.org');
   await page.goto('/staff');
   await field(page, 'Password').fill(PASSWORD);

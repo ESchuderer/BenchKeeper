@@ -4,6 +4,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
 
 // Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer, spec tool.
 export const ARMS = {
@@ -63,9 +64,12 @@ const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
 const SOURCE = /\.([cm]?[jt]sx?|html|css)$/;
 const CONFIG = /(^|\/)[^/]*\.config\.[cm]?[jt]s$/;
 
-export function workflow(events) {
-  const uses = events.filter((e) => e.type === 'assistant').flatMap((e) => (e.message?.content || [])
-    .filter((c) => c.type === 'tool_use').map((c) => ({ name: c.name, input: c.input || {}, sub: Boolean(e.parent_tool_use_id) })));
+// Tool uses of a Claude Code stream-json transcript, main thread and subagents.
+const claudeUses = (events) => events.filter((e) => e.type === 'assistant').flatMap((e) => (e.message?.content || [])
+  .filter((c) => c.type === 'tool_use').map((c) => ({ name: c.name, input: c.input || {}, sub: Boolean(e.parent_tool_use_id) })));
+
+// uses: [{ name, input: { file_path, skill, subagent_type, command }, sub }]; OpenCode trials pass theirs (opencode.mjs).
+export function workflow(events, uses = claudeUses(events)) {
   const writes = uses.filter((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name)).map((u) => String(u.input.file_path || ''));
   const firstTest = writes.findIndex((p) => TEST.test(p));
   const firstSource = writes.findIndex((p) => SOURCE.test(p) && !TEST.test(p) && !CONFIG.test(p));
@@ -162,6 +166,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const events = readFileSync(join(dir, 'transcript.jsonl'), 'utf8').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   const wall = (f) => { try { return Number(readFileSync(join(dir, f), 'utf8')); } catch { return null; } };
   const followups = wall('followups');
-  const trial = { arm, followups, wall_seconds: wall('end') - wall('start') || null, audit: audit(events, arm), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
+  const oc = OPENCODE_ARMS.includes(arm);
+  const all = oc ? sessions(join(dir, 'log')) : [];
+  const trial = {
+    arm, runtime: oc ? 'opencode' : 'claude-code', followups, wall_seconds: wall('end') - wall('start') || null,
+    audit: oc ? ocAudit(join(dir, 'log'), arm) : audit(events, arm),
+    outcome: oc ? ocOutcome(events, all) : outcome(events),
+    workflow: oc ? workflow(events, ocUses(events, all)) : workflow(events),
+    score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')),
+  };
   writeFileSync(join(dir, 'trial.json'), JSON.stringify(trial, null, 2) + '\n');
 }

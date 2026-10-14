@@ -1,7 +1,9 @@
 #!/bin/sh
 # Runs one brief through the arms, k rounds, arm order shuffled per round; scores and summarizes each trial.
 # Usage: bench/run-brief.sh <brief> <model> <effort> <k> <seed> [arms]   e.g. bench/run-brief.sh winery claude-opus-5-5 high 3 19
-# Token: CLAUDE_CODE_OAUTH_TOKEN, or the file ~/.config/benchkeeper/oauth-token (from `claude setup-token`); never printed.
+# Credentials, never printed: Claude Code arms use the subscription token (CLAUDE_CODE_OAUTH_TOKEN or the file
+# ~/.config/benchkeeper/oauth-token, from `claude setup-token`); OpenCode arms (Q to U) use an Anthropic API key
+# (ANTHROPIC_API_KEY or ~/.config/benchkeeper/anthropic-api-key). Each container gets only its own runtime's credential.
 # Resumable: trials with a trial.json are skipped; delete a trial directory to rerun it.
 set -eu
 brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H I J K L M N O P"}
@@ -9,13 +11,24 @@ bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
 NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 TIMEOUT=${TIMEOUT:-5400}
 FOLLOWUP="Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval."
-: "${CLAUDE_CODE_OAUTH_TOKEN:=$(cat "$HOME/.config/benchkeeper/oauth-token" 2>/dev/null)}"
-[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "no token: set CLAUDE_CODE_OAUTH_TOKEN or write ~/.config/benchkeeper/oauth-token" >&2; exit 1; }
-export CLAUDE_CODE_OAUTH_TOKEN
+runtime() { case $1 in Q|R|S|T|U) echo opencode ;; *) echo claude ;; esac; }
+needs() { for a in $arms; do [ "$(runtime "$a")" = "$1" ] && return 0; done; return 1; }
+if needs claude; then
+  : "${CLAUDE_CODE_OAUTH_TOKEN:=$(cat "$HOME/.config/benchkeeper/oauth-token" 2>/dev/null)}"
+  [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "no token: set CLAUDE_CODE_OAUTH_TOKEN or write ~/.config/benchkeeper/oauth-token" >&2; exit 1; }
+fi
+if needs opencode; then
+  : "${ANTHROPIC_API_KEY:=$(cat "$HOME/.config/benchkeeper/anthropic-api-key" 2>/dev/null)}"
+  [ -n "$ANTHROPIC_API_KEY" ] || { echo "no API key: set ANTHROPIC_API_KEY or write ~/.config/benchkeeper/anthropic-api-key" >&2; exit 1; }
+fi
+export CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY
+# OpenCode isolation, every turn: no Claude Code or .agents files, no autoupdate, the model catalog fetched at build.
+OC_ENV="-e OPENCODE_DISABLE_CLAUDE_CODE=1 -e OPENCODE_DISABLE_EXTERNAL_SKILLS=1 -e OPENCODE_DISABLE_AUTOUPDATE=1 -e OPENCODE_DISABLE_LSP_DOWNLOAD=1 -e OPENCODE_DISABLE_MODELS_FETCH=1"
 runs=$bench/runs/$brief-$model-$effort-seed$seed
 mkdir -p "$runs"
 
-for arm in $arms; do
+# SKIP_BUILD=1 uses the existing images (for parallel runners after one build).
+[ "${SKIP_BUILD:-}" = 1 ] || for arm in $arms; do
   podman build -q -f "$bench/image/Containerfile" --build-arg ARM="$arm" -t "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" "$repo" > /dev/null
 done
 {
@@ -36,6 +49,7 @@ for r in $(seq "$k"); do
   echo "round $r order $order" >> "$runs/manifest.txt"
   for arm in $order; do
     t=$runs/round-$r/$arm
+    rt=$(runtime "$arm")
     [ -f "$t/trial.json" ] && continue
     set +e
     # A finished agent run is never repeated: on resume only scoring and parsing run again.
@@ -51,15 +65,24 @@ for r in $(seq "$k"); do
     c=bk-$$-r$r-$arm
     trap 'podman rm -f "$c" > /dev/null 2>&1' EXIT
     trap 'exit 130' INT TERM HUP
-    podman run -d --rm --name "$c" --timeout "$((TIMEOUT + 300))" --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
+    if [ "$rt" = opencode ]; then cred="-e ANTHROPIC_API_KEY $OC_ENV"; else cred="-e CLAUDE_CODE_OAUTH_TOKEN"; fi
+    # shellcheck disable=SC2086 # $cred holds several flags
+    podman run -d --rm --name "$c" --timeout "$((TIMEOUT + 300))" --userns=keep-id -e HOME=/home/node $cred \
       -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sleep infinity > /dev/null
+    # OpenCode has no init event: record the skills and configuration it resolves, for the delivery audit.
+    [ "$rt" != opencode ] || podman exec "$c" sh -c 'opencode debug skill > /bench-log/opencode-skills.json && opencode debug config > /bench-log/opencode-config.json'
     turn() { # <prompt> [--continue]; runs one agent turn within the trial's remaining time
       rem=$((TIMEOUT - ($(date +%s) - start)))
       [ "$rem" -gt 0 ] || return 124
       # In the background so INT or TERM interrupts the wait at once (the trap exits; the EXIT trap removes the container).
-      podman exec "$c" timeout -k 30 "$rem" claude -p "$1" ${2:-} --model "$model" --effort "$effort" \
-        --output-format stream-json --verbose --include-hook-events --dangerously-skip-permissions \
-        --debug-file /bench-log/debug.log >> "$t/transcript.jsonl" 2>> "$t/log/stderr.log" &
+      if [ "$rt" = opencode ]; then
+        podman exec "$c" timeout -k 30 "$rem" opencode run ${2:-} --model "anthropic/$model" --variant "$effort" --format json --auto \
+          "$1" >> "$t/transcript.jsonl" 2>> "$t/log/stderr.log" &
+      else
+        podman exec "$c" timeout -k 30 "$rem" claude -p "$1" ${2:-} --model "$model" --effort "$effort" \
+          --output-format stream-json --verbose --include-hook-events --dangerously-skip-permissions \
+          --debug-file /bench-log/debug.log >> "$t/transcript.jsonl" 2>> "$t/log/stderr.log" &
+      fi
       wait $!
     }
     turn "$(cat "$bench/briefs/$brief/brief.md")"; rc=$?
@@ -69,6 +92,9 @@ for r in $(seq "$k"); do
       n=$((n + 1))
       turn "$FOLLOWUP" --continue; rc=$?
     done
+    # OpenCode streams only the main session: export every session (subagents too) for tokens and cost.
+    [ "$rt" != opencode ] || podman exec "$c" sh -c 'opencode session list --format json > /tmp/sessions.json && for s in $(jq -r ".[].id" /tmp/sessions.json); do opencode export "$s" > "/bench-log/session-$s.json"; done' \
+      2>> "$t/log/stderr.log"
     podman rm -f "$c" > /dev/null; trap - EXIT INT TERM HUP
     # Written last: a trial interrupted before this point is rerun from scratch on resume.
     echo "$n" > "$t/followups" && date +%s > "$t/end" && echo "$rc" > "$t/agent.exit"
@@ -79,7 +105,8 @@ for r in $(seq "$k"); do
     podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a sh -c \
       'find /w -name .git -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
       || { echo "git object scan failed for $t" >&2; rm -f "$objs"; exit 1; }
-    { grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" || grep -aqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$objs"; } \
+    secret=$CLAUDE_CODE_OAUTH_TOKEN; [ "$rt" != opencode ] || secret=$ANTHROPIC_API_KEY
+    { grep -rqF -- "$secret" "$t" || grep -aqF -- "$secret" "$objs"; } \
       && { echo "token found in $t: remove it before publishing" >&2; rm -f "$objs"; exit 1; }
     rm -f "$objs"
     rm -rf "$t/score"

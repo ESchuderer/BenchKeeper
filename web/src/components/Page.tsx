@@ -184,7 +184,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="The global rules size each request to a tier first. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and plan; full changes run all ten steps; research questions fan out to parallel subagents without edits. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="The global rules size each request to a tier first. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and keep the plan to a few lines; full changes run all ten steps; research with several items fans out to parallel subagents without edits. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -287,7 +287,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="Cost and quality" intro={<>Ponytail has an independent cost measurement. Components measured to cost more are left out. The checks before done and the spec in the repository aim at fewer rounds of fixes; that is not measured. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="Cost and quality" intro={<>Ponytail has an independent cost measurement. The checks before done and the spec in the repository aim at fewer rounds of fixes; that is not measured. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>
@@ -318,18 +318,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Text size="xs" c="dimmed" mt="md">Code fell 31% on large builds and about 0% where the baseline wrote little. Source: <Anchor href="https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/">JetBrains AI blog</Anchor>.</Text>
             </Card>
           </SimpleGrid>
-          <SimpleGrid cols={{ base: 1, md: 3 }} mt="md">
-            <Card withBorder padding="lg">
-              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconCircleX size={18} /></ThemeIcon><Text fw={700}>Left out: measured to cost more</Text></Group>
-              <List size="sm" mt="sm" spacing={6}>
-                <List.Item>Summaries and layout in <Code>AGENTS.md</Code>: over 20% more cost, task success unchanged (<Anchor href="https://arxiv.org/abs/2602.11988">arXiv 2602.11988</Anchor>).</List.Item>
-                <List.Item>RTK: +7.6% median cost at low effort (<Anchor href="https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/">JetBrains</Anchor>).</List.Item>
-                <List.Item>LSP plugins: 6 to 118% more tokens for symbol lookup, preliminary (<Anchor href="https://arxiv.org/abs/2608.13568">arXiv 2608.13568</Anchor>).</List.Item>
-                <List.Item>Superpowers before v6: +40% tokens and +20% time on Codex, resolve rate not significantly different (<Anchor href="https://nobbettt.github.io/AgentStackBench/#/comparisons/codex-superpowers-mounted">AgentStackBench</Anchor>).</List.Item>
-                <List.Item>ECC: about 1.6 s of hooks per Bash call (<Anchor href="https://github.com/affaan-m/ECC/issues/2834">ECC #2834</Anchor>).</List.Item>
-                <List.Item>Context7: 64 of 89 tasks passed, 63 without (<Anchor href="https://marginlab.ai/blog/do-mcps-improve-coding-agents-part-1/">Marginlab</Anchor>).</List.Item>
-              </List>
-            </Card>
+          <SimpleGrid cols={{ base: 1, md: 2 }} mt="md">
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconListCheck size={18} /></ThemeIcon><Text fw={700}>Fewer rounds, unmeasured</Text></Group>
               <List size="sm" mt="sm" spacing={6}>

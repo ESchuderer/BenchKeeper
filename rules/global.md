@@ -58,31 +58,31 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Work or commit on the default branch only when the user said so in this task; otherwise ask first.
 - OpenSpec (repository has `openspec/`, full tier) follows the same flow: after the issue step, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>` or `<slug>`, issue linked in `proposal.md`); commit it with the code; run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
 - No GitHub remote or `gh auth status` fails: local branch only, skip issue and pull request, run the review below before reporting done (standard, full), say so in one line.
-- Before running `git push` or opening a pull request that contains code changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change or the tier is quick.
+- Before running `git push` or opening a pull request that contains code changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change or the tier is quick, unless the change is risky (Task tiers).
 
 ## Task tiers
-A full agentic SDLC fits features and risky changes, not every change. State the tier in one line (`Tier: quick`) before the first edit or subagent; a question answered without either needs no tier line. The user's explicit tier wins; for security, data, production or irreversible impact, name the full tier and ask, and the answer decides. A `Default tier:` line in `AGENTS.md` applies when the request does not clearly match another tier. Several requests in one prompt: tier each; on a shared branch the highest tier applies. Follow-ups on an open pull request keep its tier. When the work grows (more than one behavior, several files, code not yet read, an uncertain approach, or security, data, production or irreversible impact), move to the tier it now fits, say so, and run that tier's skipped steps (issue, spec, plan) before the next edit. Work beyond one session: split it into issues first, each with its own tier. The tiers take precedence over a skill's own triggers, such as a skill asking for a spec or a review on every change.
+A full agentic SDLC fits features and risky changes, not every change. State the tier in one line (`Tier: quick`) before the first edit or subagent; a question answered without either needs no tier line. Risky means a change to authentication, permissions, secrets or input validation, to production data, deploy or production configuration, or an irreversible action. The user's explicit tier wins; for a risky change, name the full tier and ask, and the answer decides, but a risky change always gets the pre-push review. A `Default tier:` line in `AGENTS.md` applies when the request does not clearly match another tier. Several requests in one prompt: tier each; on a shared branch the highest tier applies. Follow-ups on an open pull request keep its tier unless the work grows. When the work grows (more than one behavior, several files not counting generated ones such as lockfiles, code not yet read, an uncertain approach, or a risky change), move to the tier it now fits, say so, and run that tier's skipped steps (issue, spec, plan) before the next edit. Work beyond one session: split it into issues first, each with its own tier. The tiers take precedence over a skill's own triggers, such as a skill asking for a spec or a review on every change.
 - Quick (the diff fits in one sentence): branch, edit, verify, commit, draft pull request. No issue, spec, plan, test first or pre-push review.
 - Standard (one behavior, or a refactor that keeps behavior; approach clear): issue, branch, failing test first where a test suite exists (refactor: the suite passes before and after with tests unchanged), build, verify, review before push, draft pull request. No spec or OpenSpec change; the plan is a few lines in the reply.
-- Full (several behaviors, new capability, uncertain approach, or security, data, production or irreversible impact): every SDLC step below.
+- Full (several behaviors, new capability, uncertain approach, or a risky change): every SDLC step below.
 - Research (question, comparison, evaluation or spike without a repository change): no branch or edits; scratch files outside the repository are allowed; edits asked for afterwards get their own tier. One fact: answer directly. Two or more independent items: one subagent per item in parallel (Claude Code: `model: "sonnet"`, `effort: "high"`; Codex: `explorer` subagents). Each prompt states the objective, output format and sources to use; where claims rest on benchmarks, it adds the evidence bar: independent versus vendor-run results; version, harness, model and effort, task count, runs per arm, deltas and p-values; advertised claims next to measured ones; unverified items labeled. Merge the results into one answer with sources.
 
-Change types: default tier and the check before reporting done, in addition to Verify below. Run the checks the repository has; never run `apply`, `migrate` against shared databases or production commands.
+Change types: default tier and the check before reporting done, in addition to Verify below. Run the checks the repository has. Never run commands that change shared or production systems as a check: no `terraform apply`, `kubectl apply`, `helm upgrade`, or migrations against shared or production databases.
 
 | Change | Tier | Check before done |
 |---|---|---|
 | Docs, typo | quick | docs build, link check |
-| Config value | quick; standard for production or security config | tests, schema or lint |
-| Log line | quick | no secrets or personal data logged |
+| Config value | quick; full (risky) for production, deploy or security config | tests, schema or lint |
+| Log line | quick; standard when it logs request or user data | no secrets or personal data logged |
 | Tests only | quick | new tests pass; no production code in the diff |
-| Dependency patch or minor | quick | full test suite |
+| Dependency patch or minor | quick | full test suite, package audit |
 | UI tweak | quick | browser check; screenshot baselines updated only for intended changes |
-| UI feature | standard | end-to-end and accessibility tests |
+| UI behavior in an existing flow | standard; full for a new page or flow | end-to-end and accessibility tests |
 | Bug, known cause | standard | failing reproducer test first |
-| Bug, unknown cause | research, then the fix's tier | investigate (`debugging-and-error-recovery`); reproducer before the fix |
-| Refactor | standard; full across modules | suite passes before and after, tests unchanged |
-| Dependency major or security advisory (route by advisory, not version) | standard | changelog read, full suite, package audit |
-| CI workflow | standard; full for deploy steps | `actionlint` |
+| Bug, unknown cause | standard; move up once the cause shows more | investigate first (`debugging-and-error-recovery`) with a reproducer test on the branch |
+| Refactor | standard within one module; full across modules | suite passes before and after, tests unchanged |
+| Dependency major or security advisory (route by advisory, not version; not risky unless it changes auth or secrets handling) | standard | changelog read, full suite, package audit |
+| CI workflow | standard; full (risky) for deploy steps | `actionlint` |
 | Metrics, alerts | standard | no secrets or personal data |
 | Feature | full | tests, types, lint, build |
 | Infrastructure as code | full | Terraform/OpenTofu `fmt -check`, `validate`, `plan`; Ansible `ansible-lint`, `--check --diff`; Kubernetes `kubeconform`, `kubectl diff`; Helm `helm lint`, `helm template` |

@@ -177,8 +177,8 @@
         "phase": "ship",
         "sub": "code review before push",
         "human": "findings stop push",
-        "tip": "Standard and full tiers: reviews the commits for correctness before push. Findings wait for you.",
-        "text": "Standard and full tiers: correctness review of the commits before `git push`; findings stop the push until you decide."
+        "tip": "Standard and full tiers, and risky quick changes: reviews the commits for correctness before push. Findings wait for you.",
+        "text": "Standard and full tiers, and risky quick changes: correctness review of the commits before `git push`; findings stop the push until you decide."
       },
       {
         "name": "Ship",

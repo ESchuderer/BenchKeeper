@@ -1,0 +1,12 @@
+# Agent image for one benchmark arm. Build context: the repository root.
+# podman build -f bench/image/Containerfile --build-arg ARM=<A|B|C|D|E> -t benchkeeper-arm-<arm> .
+FROM docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates jq && rm -rf /var/lib/apt/lists/*
+RUN npm i -g @anthropic-ai/claude-code@2.1.299
+ENV DISABLE_AUTOUPDATER=1
+COPY rules/global.md bench/arms/base.rules.md bench/image/install-arm.sh /opt/bench/
+COPY skills /opt/bench/skills
+USER node
+WORKDIR /home/node
+ARG ARM
+RUN /opt/bench/install-arm.sh "$ARM"

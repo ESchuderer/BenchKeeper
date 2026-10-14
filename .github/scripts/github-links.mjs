@@ -33,7 +33,9 @@ const URL_RE = /https:\/\/(?:gist\.)?github\.com\/[^\s)"'<>`\]]+/g;
 
 async function check(t, token) {
   if (t.local) return existsSync(t.local) ? null : 'missing in checkout';
-  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'benchkeeper-links', ...(token && { Authorization: `Bearer ${token}` }) };
+  // The Actions token gets 403 on the gists API; gists are checked unauthenticated.
+  const auth = token && !t.api?.startsWith('/gists/');
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'benchkeeper-links', ...(auth && { Authorization: `Bearer ${token}` }) };
   const res = t.graphql
     ? await fetch('https://api.github.com/graphql', { method: 'POST', headers, body: JSON.stringify(t.graphql) })
     : await fetch(`https://api.github.com${t.api}`, { headers });

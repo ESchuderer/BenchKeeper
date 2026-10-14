@@ -38,6 +38,10 @@ Base rules: `rules/global.md` without "Ponytail and agent-skills", "Branches, is
 
 One trial per arm on `claude-haiku-5-5` (subscription), same scripts: delivery audit passes for all arms, a probe per image (list the headings of the loaded `~/.claude/rules/` files, no tools) shows the expected rules for each arm, the scorer runs on agent output. Its results are wiring checks only.
 
+### Prompted variant (practice)
+
+`bench/briefs/winery-workflow/`: the same brief plus one closing paragraph asking every arm to use its configured development process, skills, agents and plugins in each phase; same hidden tests. Shows what each stack does when asked for its workflow, next to the unprompted brief. Practice only, Haiku 5.5 first.
+
 ### Scoring (`bench/scorer/score.sh`, `bench/scripts/trial.mjs`)
 
 Per trial, in a copy of the workspace, in pinned containers:

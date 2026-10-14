@@ -44,6 +44,25 @@ for arm in $arms; do
   echo "image $arm $id" >> "$runs/manifest.txt"
 done
 
+# Subscription gate (Claude Code arms): before each trial, read the 5-hour window's utilization from the rate-limit
+# headers of a one-word request; at USAGE_MAX (default 0.80) or above, wait until the window resets.
+USAGE_MAX=${USAGE_MAX:-0.80}
+usage() { # prints "<5h utilization> <5h reset epoch> <7d utilization>"
+  podman run --rm -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN -e ANTHROPIC_LOG=debug benchkeeper-arm-a \
+    claude -p "Reply OK" --model claude-haiku-5-5 --max-turns 1 2>&1 \
+    | awk -F'"' '/ratelimit-unified-5h-utilization/ {u=$4} /ratelimit-unified-5h-reset/ {r=$4} /ratelimit-unified-7d-utilization/ {w=$4} END {print u+0, r+0, w+0}'
+}
+gate() {
+  [ "$(runtime "$1")" = claude ] || return 0
+  while :; do
+    set -- $(usage)
+    echo "$(date -Is) usage 5h $1 weekly $3" >> "$runs/manifest.txt"
+    awk -v u="$1" -v m="$USAGE_MAX" 'BEGIN { exit !(u >= m) }' || return 0
+    echo "$(date -Is) waiting for the 5h reset at $(date -d "@$2" -Is)" | tee -a "$runs/manifest.txt"
+    sleep $(( $2 - $(date +%s) + 60 > 60 ? $2 - $(date +%s) + 60 : 300 ))
+  done
+}
+
 for r in $(seq "$k"); do
   order=$(printf '%s\n' $arms | awk -v s="$((seed * 100 + r))" 'BEGIN{srand(s)}{print rand()"\t"$0}' | sort | cut -f2 | tr '\n' ' ')
   echo "round $r order $order" >> "$runs/manifest.txt"
@@ -54,6 +73,7 @@ for r in $(seq "$k"); do
     set +e
     # A finished agent run is never repeated: on resume only scoring and parsing run again.
     if [ ! -f "$t/agent.exit" ]; then
+    gate "$arm"
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
     # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first.
@@ -86,9 +106,17 @@ for r in $(seq "$k"); do
       wait $!
     }
     turn "$(cat "$bench/briefs/$brief/brief.md")"; rc=$?
-    # Follow-up rule: while the agent stops without a runnable app (no start script), the same fixed message, at most twice.
+    # Follow-up rule: while the agent stops without a running app, the same fixed message, at most twice. Running means:
+    # a start script, and `npm install`, `npm run build --if-present` and `npm start` serve the start page within 20 s.
+    runs_app() {
+      podman exec "$c" sh -c 'cd /work && jq -e .scripts.start package.json > /dev/null 2>&1 \
+        && npm install --no-audit --no-fund > /dev/null 2>&1 && npm run build --if-present > /dev/null 2>&1 || exit 1
+        PORT=3999 STAFF_PASSWORD=bench-check setsid npm start > /dev/null 2>&1 & p=$!
+        ok=1; for i in $(seq 20); do node -e "fetch(\"http://localhost:3999/\").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" && { ok=0; break; }; sleep 1; done
+        kill -TERM -- -$p 2> /dev/null; sleep 1; kill -KILL -- -$p 2> /dev/null; exit $ok'
+    }
     n=0
-    while [ "$n" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && ! jq -e '.scripts.start' "$t/workspace/package.json" > /dev/null 2>&1; do
+    while [ "$n" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && ! runs_app; do
       n=$((n + 1))
       turn "$FOLLOWUP" --continue; rc=$?
     done

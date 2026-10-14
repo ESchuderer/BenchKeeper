@@ -10,6 +10,7 @@
 ## Conventions
 - `rules/global.md` applies here: no em dash, no emojis, facts only.
 - Default tier: research
+- Pre-push review: `rules/` and `skills/` count as code, not docs.
 - Every install command pins an exact version (`pkg@x.y.z`); `/global-setup` bumps them at install time.
 - SKILL.md front matter: `description` in double quotes (it contains colons).
 - After editing `rules/global.md`, rerun `/global-setup`.

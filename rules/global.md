@@ -2,7 +2,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 
 ## Ask, do not assume
 - If a request is ambiguous or lacks context needed to do it correctly, stop and ask precise clarifying questions. Do not guess.
-- Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, continue.
+- Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, continue. Carry the task through every phase (spec, plan, build, verify, review) to a verified result; do not stop at a phase boundary to wait for approval.
 
 ## Brevity
 - Short, concise answers. Say only what the reader needs to act.

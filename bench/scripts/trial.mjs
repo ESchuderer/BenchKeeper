@@ -59,8 +59,13 @@ export function workflow(events) {
 }
 
 export function outcome(events) {
-  const r = events.findLast((e) => e.type === 'result');
+  // A run can emit several result events (the main thread resumes when a background agent finishes);
+  // the last one carries cumulative cost and per-model usage, num_turns counts per segment.
+  const results = events.filter((e) => e.type === 'result');
+  const r = results.at(-1);
   if (!r) return { finished: false };
+  const models = Object.values(r.modelUsage || {});
+  const sum = (k) => models.reduce((n, m) => n + (m[k] || 0), 0);
   const text = String(r.result || '');
   return {
     finished: true,
@@ -69,12 +74,13 @@ export function outcome(events) {
     infra_error: /usage limit|rate limit|overloaded|\b429\b|\b529\b|\b401\b|authenticat|oauth|log ?in/i.test(text) && r.is_error,
     ends_with_question: /\?\s*$/.test(text.trim()),
     duration_ms: r.duration_ms,
-    num_turns: r.num_turns,
+    result_events: results.length,
+    num_turns: results.reduce((n, e) => n + (e.num_turns || 0), 0),
     cost_usd_api_equivalent: r.total_cost_usd,
-    usage: r.usage && {
-      input: r.usage.input_tokens, cache_creation: r.usage.cache_creation_input_tokens,
-      cache_read: r.usage.cache_read_input_tokens, output: r.usage.output_tokens,
-    },
+    usage: models.length ? {
+      input: sum('inputTokens'), cache_creation: sum('cacheCreationInputTokens'),
+      cache_read: sum('cacheReadInputTokens'), output: sum('outputTokens'), thinking: sum('thinkingTokens'),
+    } : null,
   };
 }
 

@@ -1,0 +1,77 @@
+{
+  "arm": "E",
+  "wall_seconds": 154,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 151600,
+    "result_events": 1,
+    "num_turns": 12,
+    "cost_usd_api_equivalent": 0.039927279999999996,
+    "usage": {
+      "input": 24,
+      "cache_creation": 69411,
+      "cache_read": 805568,
+      "output": 35974,
+      "thinking": 24337
+    }
+  },
+  "workflow": {
+    "tool_calls": 11,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash node -e 'fetch(\"http://localhost:3100/\").then(()=>console.log(\"port 3100 still u"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    }
+  },
+  "lines": {
+    "source": 299,
+    "test": 161,
+    "files": 5
+  }
+}

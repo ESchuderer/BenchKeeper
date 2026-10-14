@@ -1,0 +1,78 @@
+{
+  "arm": "D",
+  "wall_seconds": 128,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail",
+      "superpowers"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 126083,
+    "result_events": 1,
+    "num_turns": 18,
+    "cost_usd_api_equivalent": 0.028701689999999995,
+    "usage": {
+      "input": 30,
+      "cache_creation": 41969,
+      "cache_read": 607839,
+      "output": 28453,
+      "thinking": 16512
+    }
+  },
+  "workflow": {
+    "tool_calls": 17,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash npm install 2>&1 | tail -3 && npm test 2>&1 | grep -E \"^# (pass|fail)\" && ls -R "
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 0.96,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    }
+  },
+  "lines": {
+    "source": 220,
+    "test": 94,
+    "files": 4
+  }
+}

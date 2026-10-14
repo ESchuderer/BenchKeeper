@@ -36,7 +36,7 @@ Base rules: `rules/global.md` without "Ponytail and agent-skills", "Branches, is
 
 ### Stage 0 before the paid trials
 
-One trial per arm on `claude-haiku-5-5` (subscription), same scripts: delivery audit passes for all arms, rules file loading is visible in the debug log for C, D and E, the scorer runs on agent output. Its results are wiring checks only.
+One trial per arm on `claude-haiku-5-5` (subscription), same scripts: delivery audit passes for all arms, a probe per image (list the headings of the loaded `~/.claude/rules/` files, no tools) shows the expected rules for each arm, the scorer runs on agent output. Its results are wiring checks only.
 
 ### Scoring (`bench/scorer/score.sh`, `bench/scripts/trial.mjs`)
 

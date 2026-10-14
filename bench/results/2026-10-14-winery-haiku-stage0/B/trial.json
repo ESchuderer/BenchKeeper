@@ -1,0 +1,77 @@
+{
+  "arm": "B",
+  "wall_seconds": 132,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 129614,
+    "result_events": 1,
+    "num_turns": 11,
+    "cost_usd_api_equivalent": 0.02582948,
+    "usage": {
+      "input": 20,
+      "cache_creation": 36665,
+      "cache_read": 376348,
+      "output": 29462,
+      "thinking": 18463
+    }
+  },
+  "workflow": {
+    "tool_calls": 10,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash timeout 3 npm start; echo \"exit $?\"; cat package.json | head -3 >/dev/null; npm "
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    }
+  },
+  "lines": {
+    "source": 183,
+    "test": 83,
+    "files": 2
+  }
+}

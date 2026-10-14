@@ -36,6 +36,14 @@ test('workflow trace: skills, agents, plan files, tests first, review', () => {
   assert.equal(workflow([use('Write', { file_path: '/work/server.mjs' }), use('Write', { file_path: '/work/server.test.mjs' })]).tests_first, false);
 });
 
+test('outcome sums turns over result events and takes tokens from the cumulative model usage', () => {
+  const mu = { 'claude-haiku-5-5': { inputTokens: 30, outputTokens: 500, cacheReadInputTokens: 7, cacheCreationInputTokens: 9, thinkingTokens: 100 } };
+  const o = outcome([{ type: 'result', num_turns: 9, usage: { output_tokens: 300 } }, { type: 'result', num_turns: 7, total_cost_usd: 0.05, usage: { output_tokens: 50 }, modelUsage: mu }]);
+  assert.equal(o.num_turns, 16);
+  assert.equal(o.result_events, 2);
+  assert.deepEqual(o.usage, { input: 30, cache_creation: 9, cache_read: 7, output: 500, thinking: 100 });
+});
+
 test('outcome flags usage-limit stops as infrastructure errors and trailing questions', () => {
   assert.equal(outcome([{ type: 'result', is_error: true, result: 'Claude usage limit reached' }]).infra_error, true);
   assert.equal(outcome([{ type: 'result', is_error: false, result: 'Which database do you want?' }]).ends_with_question, true);

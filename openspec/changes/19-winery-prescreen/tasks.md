@@ -10,6 +10,6 @@
 
 ## 2. Runs
 
-- [ ] 2.1 Stage 0 on Haiku 5.5, one trial per arm; rules loading visible in the debug log
+- [x] 2.1 Stage 0 on Haiku 5.5, one trial per arm; rules loading checked by a probe (`bench/results/2026-10-14-winery-haiku-stage0.md`)
 - [ ] 2.2 Opus 5.5 pre-screen, 3 rounds x 5 arms
 - [ ] 2.3 Report in `bench/results/`

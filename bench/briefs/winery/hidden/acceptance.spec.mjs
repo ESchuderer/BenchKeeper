@@ -8,8 +8,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const PASSWORD = process.env.STAFF_PASSWORD;
 const TITLES = ['Riesling Evening', 'Red Wine Cellar Tour', 'Winter Tasting'];
 const AXE_OUT = process.env.AXE_OUT || 'axe.json';
+const SHOT_DIR = process.env.SHOT_DIR;
 
+// Axe scan plus, when SHOT_DIR is set, a full-page screenshot for manual comparison.
 async function scan(page, key) {
+  if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/${key}.jpg`, fullPage: true, type: 'jpeg', quality: 70 });
   const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
   let all = {};
   try { all = JSON.parse(readFileSync(AXE_OUT, 'utf8')); } catch {}

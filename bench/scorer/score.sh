@@ -8,7 +8,9 @@ NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869
 PW=mcr.microsoft.com/playwright:v1.64.0-noble@sha256:bc72a8df40831ded821e3cbc79c318c21b44d6e51dff9fd89ace7a8249c5b462
 pass=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
 pod=bk-score-$$
-mkdir -p "$out" && app=$(mktemp -d) && cp -a "$ws/." "$app/" && rm -rf "$app/node_modules"
+# The built app as delivered (source and git history, without node_modules), for download and manual comparison.
+mkdir -p "$out/screenshots" && tar --exclude=node_modules -czf "$out/app.tar.gz" -C "$ws" .
+app=$(mktemp -d) && cp -a "$ws/." "$app/" && rm -rf "$app/node_modules"
 # Hidden tests next to the scorer dependencies, so ESM imports resolve.
 hid=$(mktemp -d) && cp -r "$brief/hidden/." "$hid/" && mkdir "$hid/node_modules"
 # step <name> <seconds> <command...>: log and exit code per step; podman --timeout stops the container itself.
@@ -24,7 +26,7 @@ podman run -d --pod "$pod" --name "$pod-app" -e HOME=/tmp -e PORT=3000 -e STAFF_
   -v "$app":/app:Z -w /app "$NODE" npm start > /dev/null
 tests() {
   podman run --rm --timeout "$T" --pod "$pod" -e HOME=/tmp -e PORT=3000 -e STAFF_PASSWORD="$pass" \
-    -e PW_OUT=/out/acceptance.json -e AXE_OUT=/out/axe.json \
+    -e PW_OUT=/out/acceptance.json -e AXE_OUT=/out/axe.json -e SHOT_DIR=/out/screenshots \
     -v "$hid":/w:Z -v "$here/node_modules":/w/node_modules:ro,Z -v "$out":/out:Z -w /w "$PW" sh -c '
     for i in $(seq 60); do node -e "fetch(\"http://localhost:3000/\").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" && break; sleep 2; done
     node -e "fetch(\"http://localhost:3000/\").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || { echo app did not start; exit 3; }

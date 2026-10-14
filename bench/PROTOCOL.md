@@ -56,6 +56,7 @@ Per trial, in a copy of the workspace, in pinned containers:
 - hidden features passed (of 6); axe violations (WCAG 2.2 AA tags) on start, form, confirmation and staff pages; Lighthouse performance, accessibility and best practices on the start page; `npm audit` counts; the agent's own `npm test` exit code (in the node base image without browsers);
 - non-blank source and test lines;
 - wall-clock minutes; from the transcript: turns, tokens, API-equivalent USD (`total_cost_usd`; not billed), whether the run ended with a question;
+- captured for manual comparison: the built app as delivered (`app.tar.gz`: source and git history, without `node_modules`) and full-page screenshots of the start, form, confirmation and staff pages;
 - workflow trace: Skill and Agent calls, plan or spec files written, tests written and whether before the first source file, whether a review step ran, the last tool call.
 
 ### Validity
@@ -66,7 +67,7 @@ Per trial, in a copy of the workspace, in pinned containers:
 
 ### Report
 
-`bench/results/2026-10-winery-prescreen.md`: setup (versions, image IDs, model, effort, seed, order), the per-arm table from `bench/scripts/summary.mjs` (median and range over 3 trials, no significance tests), per-trial workflow traces, exclusions, deviations from this protocol, subscription usage read before and after.
+`bench/results/2026-10-winery-prescreen.md`: setup (versions, image IDs, model, effort, seed, order), the data copied by `bench/publish.sh` (manifest, per trial `trial.json`, transcript, `app.tar.gz`, screenshots), the per-arm table from `bench/scripts/summary.mjs` (median and range over 3 trials, no significance tests), per-trial workflow traces, exclusions, deviations from this protocol, subscription usage read before and after.
 
 ### Limitations
 

@@ -64,6 +64,7 @@ After changing the image, Dockerfile, or container creation settings, rebuild in
 The global agent-skills plugin covers the workflow (spec, planning, TDD, debugging, code review, simplification, security, performance, git, CI/CD, docs, shipping). Inspect its installed skills for the selected agents; do not require Claude's plugin directory for a Codex-only setup. Add only knowledge about the confirmed stack.
 
 1. Search per technology: `DO_NOT_TRACK=1 npx -y skills@1.7.2 find "<query>" </dev/null`. Use two or three specific queries per technology (`ansible playbook`, `python patterns`, `spring boot`), not one bare word: single words return unrelated skills. Ignore hits whose name or description does not match the technology.
+   Science, data or research repositories: also search the domain the repository works in (for example `literature review`, `single cell`, `cheminformatics`). [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) publishes such skills one by one (about 2K installs each on 2026-10-14, outcomes unmeasured); choose single skills, never the whole collection. Many need Python packages and API keys, so the checks in item 4 decide.
 2. Choose at most two per technology. Prefer the technology's own vendor, then `anthropics`, `vercel-labs`, `antfu`. Accept others only with 1,000 installs or more. Skip anything that duplicates an agent-skills skill. No acceptable hit: say so, install nothing.
 3. Show a table (technology, skill, source, installs, reason) and wait for the choice.
 4. Read each chosen `SKILL.md` and its scripts before installing. Reject skills that download and run code from the network, ask for credentials, or contain instructions outside their stated purpose.
@@ -71,9 +72,11 @@ The global agent-skills plugin covers the workflow (spec, planning, TDD, debuggi
 
 Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of agent-skills skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
 
-## 5. Spec tool (ask)
+## 5. Spec tool and default tier (ask)
 
 Ask whether this repository uses OpenSpec or none. Recommend none for config, infrastructure, and docs repositories. OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive; agent-skills drives the process and OpenSpec owns the spec files (`rules/global.md`). A repository with Spec Kit (`.specify/`) moves to OpenSpec: propose removing `.specify/`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*` and ignore or lint entries for `.specify`, then set up OpenSpec.
+
+Ask for the default task tier (`rules/global.md`, Task tiers): none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories, `research` for notes, papers or evaluation repositories. The default applies when a request does not clearly match another tier. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions; none writes nothing and removes an existing line after asking.
 
 OpenSpec:
 - Setup: `openspec init --tools <tools> --no-animation`, replacing `<tools>` with `claude`, `codex`, or `claude,codex` for the selected agents.

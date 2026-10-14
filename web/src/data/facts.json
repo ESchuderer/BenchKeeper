@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository.",
+  "description": "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the rules size each request first and small changes skip the steps they do not need.",
   "prerequisites": [
     {
       "name": "Claude Code",
@@ -134,29 +134,29 @@
         "phase": "define",
         "sub": "GitHub issue",
         "human": "approve issue",
-        "tip": "Turns the request into a GitHub issue with goal, acceptance criteria and tasks. You approve it.",
-        "text": "No GitHub issue yet: the agent turns the request into title, goal, acceptance criteria and tasks, and creates the issue after your approval."
+        "tip": "Standard and full tiers: turns the request into a GitHub issue with goal, acceptance criteria and tasks. You approve it.",
+        "text": "Standard and full tiers, no GitHub issue yet: the agent turns the request into title, goal, acceptance criteria and tasks, and creates the issue after your approval."
       },
       {
         "name": "Branch",
         "phase": "define",
         "sub": "type/issue-slug",
         "tip": "Creates <type>/<issue>-<slug> from the default branch.",
-        "text": "`<type>/<issue>-<slug>`, never work on the default branch without being told to."
+        "text": "`<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue; never work on the default branch without being told to."
       },
       {
         "name": "Specify",
         "phase": "define",
         "sub": "OpenSpec",
-        "tip": "Writes the spec as an OpenSpec change, or uses plan mode.",
-        "text": "`spec-driven-development`, written as an OpenSpec change when the repository has one."
+        "tip": "Full tier: writes the spec as an OpenSpec change, or uses plan mode.",
+        "text": "Full tier: `spec-driven-development`, written as an OpenSpec change when the repository has one."
       },
       {
         "name": "Plan",
         "phase": "build",
         "sub": "tasks.md",
-        "tip": "Breaks the spec into small tasks with acceptance criteria.",
-        "text": "`planning-and-task-breakdown` into small tasks with acceptance criteria."
+        "tip": "Full tier: breaks the spec into small tasks with acceptance criteria.",
+        "text": "Full tier: `planning-and-task-breakdown` into small tasks with acceptance criteria."
       },
       {
         "name": "Build",
@@ -177,8 +177,8 @@
         "phase": "ship",
         "sub": "code review before push",
         "human": "findings stop push",
-        "tip": "Reviews the commits for correctness before push. Findings wait for you.",
-        "text": "Correctness review of the commits before `git push`; findings stop the push until you decide."
+        "tip": "Standard and full tiers, and risky quick changes: reviews the commits for correctness before push. Findings wait for you.",
+        "text": "Standard and full tiers, and risky quick changes: correctness review of the commits before `git push`; findings stop the push until you decide."
       },
       {
         "name": "Ship",
@@ -186,7 +186,7 @@
         "sub": "draft PR, checks, ready",
         "human": "you merge",
         "tip": "Opens a draft pull request, waits for checks, marks it ready. You merge.",
-        "text": "Draft pull request with `Closes #n`, wait for checks, mark ready. Merge only on your instruction."
+        "text": "Draft pull request, with `Closes #n` when an issue exists; wait for checks, mark ready. Merge only on your instruction."
       },
       {
         "name": "Maintain",

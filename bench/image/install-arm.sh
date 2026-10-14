@@ -6,7 +6,7 @@
 #   I agent-skills + OpenSpec  J Superpowers + OpenSpec   K ECC + OpenSpec
 #   L agent-skills + BK        M Superpowers + BK         N ECC + BK
 #   C agent-skills + BK + OpenSpec   D Superpowers + BK + OpenSpec   E ECC + BK + OpenSpec
-#   O Ponytail + OpenSpec      P Ponytail + Spec Kit
+#   O Ponytail + OpenSpec      P Ponytail + Spec Kit      AB OpenSpec alone      AC Spec Kit alone
 # BenchKeeper layer (BK): rules (agent-skills: rules/global.md; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -89,6 +89,7 @@ case $arm in
   L) fw=as bk=yes pt=yes spec=none ;;          M) fw=sp bk=yes pt=yes spec=none ;;          N) fw=ecc bk=yes pt=yes spec=none ;;
   C) fw=as bk=yes pt=yes spec=openspec ;;      D) fw=sp bk=yes pt=yes spec=openspec ;;      E) fw=ecc bk=yes pt=yes spec=openspec ;;
   O) fw=none bk=no pt=yes spec=openspec ;;     P) fw=none bk=no pt=yes spec=speckit ;;
+  AB) fw=none bk=no pt=no spec=openspec ;;     AC) fw=none bk=no pt=no spec=speckit ;;
   V) fw=mp bk=no pt=no spec=none ;;            W) fw=mp bk=no pt=no spec=openspec ;;
   X) fw=mp bk=yes pt=yes spec=none ;;          Y) fw=mp bk=yes pt=yes spec=openspec ;;
   Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;

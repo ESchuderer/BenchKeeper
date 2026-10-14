@@ -5,6 +5,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
+import { claudePhases, opencodePhases } from './phases.mjs';
 
 // Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer, spec tool.
 export const ARMS = {
@@ -13,7 +14,7 @@ export const ARMS = {
   I: ['as', 0, 0, 'openspec'], J: ['sp', 0, 0, 'openspec'], K: ['ecc', 0, 0, 'openspec'],
   L: ['as', 1, 1, null], M: ['sp', 1, 1, null], N: ['ecc', 1, 1, null],
   C: ['as', 1, 1, 'openspec'], D: ['sp', 1, 1, 'openspec'], E: ['ecc', 1, 1, 'openspec'],
-  O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'],
+  O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'], AB: [null, 0, 0, 'openspec'], AC: [null, 0, 0, 'speckit'],
   V: ['mp', 0, 0, null], W: ['mp', 0, 0, 'openspec'], X: ['mp', 1, 1, null], Y: ['mp', 1, 1, 'openspec'],
 };
 
@@ -177,5 +178,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     workflow: oc ? workflow(events, ocUses(events, all)) : workflow(events),
     score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')),
   };
+  // Per-phase and per-subagent measurements, only for trials the runner marked (PHASES=1).
+  if (existsSync(join(dir, 'log', 'phases'))) trial.phases = oc ? opencodePhases(all) : claudePhases(events, trial.outcome.cost_usd_api_equivalent || 0);
   writeFileSync(join(dir, 'trial.json'), JSON.stringify(trial, null, 2) + '\n');
 }

@@ -124,3 +124,25 @@ test('OpenCode outcome sums every session and maps tool uses', async () => {
   const uses = ocUses([], all);
   assert.deepEqual(uses.map((u) => [u.name, u.input.skill || u.input.file_path, u.sub]), [['Skill', 'brainstorming', false], ['Write', '/work/a.test.js', true]]);
 });
+
+test('phases: classified by activity, cost split by token weight, subagents attributed to their call', async () => {
+  const { claudePhases, phaseOfSkill } = await import('./phases.mjs');
+  assert.equal(phaseOfSkill('superpowers:brainstorming'), 'spec');
+  assert.equal(phaseOfSkill('openspec-apply-change'), 'build');
+  assert.equal(phaseOfSkill('agent-skills:code-reviewer'), 'review');
+  const call = (id, t, tools, parent = null) => ({ type: 'assistant', timestamp: t, parent_tool_use_id: parent,
+    message: { id, usage: { input_tokens: 100 }, content: tools.map(([name, input, tid]) => ({ type: 'tool_use', id: tid, name, input })) } });
+  const p = claudePhases([
+    call('m1', '2026-01-01T00:00:00Z', [['Read', { file_path: '/w/a' }]]),
+    call('m2', '2026-01-01T00:01:00Z', [['Write', { file_path: '/w/openspec/changes/x/proposal.md' }]]),
+    call('m3', '2026-01-01T00:02:00Z', [['Write', { file_path: '/w/src/a.test.js' }]]),
+    call('m4', '2026-01-01T00:03:00Z', [['Write', { file_path: '/w/src/a.js' }]]),
+    call('m5', '2026-01-01T00:04:00Z', [['Agent', { subagent_type: 'code-reviewer' }, 'toolu_9']]),
+    call('s1', '2026-01-01T00:04:10Z', [['Read', { file_path: '/w/src/a.js' }]], 'toolu_9'),
+    call('m6', '2026-01-01T00:05:00Z', [['Bash', { command: 'npm test' }]]),
+  ], 1);
+  assert.deepEqual(Object.keys(p.phases).sort(), ['build', 'explore', 'review', 'spec', 'test', 'verify']);
+  assert.equal(p.phases.spec.minutes, 1);
+  assert.equal(p.phases.review.calls, 2);
+  assert.deepEqual(Object.keys(p.subagents), ['code-reviewer']);
+});

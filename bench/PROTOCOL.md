@@ -1,6 +1,6 @@
 # Benchmark protocol
 
-Version 1.2, 2026-10-15 (1.2: the follow-up rule checks that the app runs (`npm install`, `npm run build --if-present`, `npm start` serves the start page within 20 s), not only that a start script exists; a usage gate waits for the 5-hour window to reset at 80% or more before a Claude Code trial; Matt Pocock arms V to Y, Z, AA. 1.1: OpenCode arms Q to U, see `bench/SCENARIOS.md`; Haiku and Sonnet once each for all arms, Opus by owner decision after the costs are known. 1.0: 16 arms (each skill framework alone, with OpenSpec, with the BenchKeeper layer, with both; Ponytail with OpenSpec or Spec Kit); the React brief asks every arm for its configured process; all earlier results removed by owner decision; Haiku first for all arms, Sonnet after the owner confirms. Earlier versions: see the git history of this file.)
+Version 1.3, 2026-10-15 (1.3: per-phase and per-subagent measurements for runs started with `PHASES=1` (Sonnet onward; the Haiku run has none); baselines AB (OpenSpec alone) and AC (Spec Kit alone); usage gate at 70% (owner decision, three runners in parallel), read from `bench/usage-max`. 1.2: the follow-up rule checks that the app runs (`npm install`, `npm run build --if-present`, `npm start` serves the start page within 20 s), not only that a start script exists; a usage gate waits for the 5-hour window to reset at 80% or more before a Claude Code trial; Matt Pocock arms V to Y, Z, AA. 1.1: OpenCode arms Q to U, see `bench/SCENARIOS.md`; Haiku and Sonnet once each for all arms, Opus by owner decision after the costs are known. 1.0: 16 arms (each skill framework alone, with OpenSpec, with the BenchKeeper layer, with both; Ponytail with OpenSpec or Spec Kit); the React brief asks every arm for its configured process; all earlier results removed by owner decision; Haiku first for all arms, Sonnet after the owner confirms. Earlier versions: see the git history of this file.)
 
 ## Pre-screen: React winery brief on Claude Haiku 5.5, then Sonnet 5.5
 
@@ -67,6 +67,10 @@ Per trial, in a copy of the workspace, in pinned containers:
 - wall-clock minutes; from the transcript (last result per session, since follow-up turns continue the session and its totals are cumulative): turns, tokens, API-equivalent USD (`total_cost_usd`; not billed), whether the run ended with a question;
 - captured for manual comparison: the built app as delivered (`app.tar.gz`: source and git history, without `node_modules`) and full-page screenshots of the start, form, confirmation and staff pages;
 - workflow trace: Skill and Agent calls, plan or spec files written, tests written and whether before the first source file, whether a review step ran, the last tool call.
+
+### Per-phase measurements (`bench/scripts/phases.mjs`, runs with `PHASES=1`)
+
+Each model call is assigned a phase from what it does, independent of skill names: spec (writes to spec, plan, design, proposal, tasks or ADR files; skills like brainstorm, grill, propose, plan), test (writes to test files; TDD skills), build (other writes; install and build commands; apply and implement skills), verify (test, lint and type-check commands, Playwright MCP; verification skills), review (review and security agents and skills); calls that only read keep the previous phase. Per phase and per subagent type: calls, minutes and cost. Claude Code: cost is the trial total split by each call's token weight (input 1, cache write 1.25, cache read 0.1, output 5, output estimated from content length), time from the event timestamps; OpenCode: cost and time per message as reported. Observational and approximate: it shows where time and cost go, not what causes quality.
 
 ### App review (`bench/review/`)
 

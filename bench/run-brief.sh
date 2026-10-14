@@ -45,8 +45,9 @@ for arm in $arms; do
 done
 
 # Subscription gate (Claude Code arms): before each trial, read the 5-hour window's utilization from the rate-limit
-# headers of a one-word request; at USAGE_MAX (default 0.80) or above, wait until the window resets.
-USAGE_MAX=${USAGE_MAX:-0.80}
+# headers of a one-word request; at the threshold or above, wait until the window resets. Threshold: USAGE_MAX, else
+# the file bench/usage-max (read before every trial, so running runners follow a change), else 0.70.
+threshold() { [ -n "${USAGE_MAX:-}" ] && echo "$USAGE_MAX" || cat "$bench/usage-max" 2>/dev/null || echo 0.70; }
 usage() { # prints "<5h utilization> <5h reset epoch> <7d utilization>"
   podman run --rm -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN -e ANTHROPIC_LOG=debug benchkeeper-arm-a \
     claude -p "Reply OK" --model claude-haiku-5-5 --max-turns 1 2>&1 \
@@ -57,7 +58,7 @@ gate() {
   while :; do
     set -- $(usage)
     echo "$(date -Is) usage 5h $1 weekly $3" >> "$runs/manifest.txt"
-    awk -v u="$1" -v m="$USAGE_MAX" 'BEGIN { exit !(u >= m) }' || return 0
+    awk -v u="$1" -v m="$(threshold)" 'BEGIN { exit !(u >= m) }' || return 0
     echo "$(date -Is) waiting for the 5h reset at $(date -d "@$2" -Is)" | tee -a "$runs/manifest.txt"
     sleep $(( $2 - $(date +%s) + 60 > 60 ? $2 - $(date +%s) + 60 : 300 ))
   done
@@ -75,6 +76,8 @@ for r in $(seq "$k"); do
     if [ ! -f "$t/agent.exit" ]; then
     gate "$arm"
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
+    # PHASES=1: per-phase and per-subagent measurements for this trial (bench/scripts/phases.mjs).
+    [ "${PHASES:-}" != 1 ] || touch "$t/log/phases"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
     # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first.
     podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \

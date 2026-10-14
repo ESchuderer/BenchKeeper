@@ -23,15 +23,15 @@ Base rules: `rules/global.md` without "Ponytail and agent-skills", "Branches, is
 ### Task
 
 - Prompt: `bench/briefs/winery/brief.md`, passed unchanged to every arm as the only user message; the workspace starts empty.
-- Hidden tests: `bench/briefs/winery/hidden/`, one Playwright test per required feature (F1 to F6), roles and visible text from the brief only.
-- Test validation (`bench/briefs/winery/validate.sh`): the reference app `bench/briefs/winery/reference/` passes all six; four mutants (capacity check removed, staff page open, cancel ignored, email unchecked) each fail exactly their feature. Result 2026-10-14: all as expected.
+- Hidden tests: `bench/briefs/winery/hidden/`, one Playwright test per required feature (F1 to F6), roles and visible text from the brief only. Each feature makes its own bookings and compares seat counts with what it read, so one failing feature does not fail or skip another; a feature passes only when its test ran and passed.
+- Test validation (`bench/briefs/winery/validate.sh`): the reference app `bench/briefs/winery/reference/` and a correct variant with other markup (table, guests dropdown, cancelled bookings kept, bound to `localhost`) pass all six; four mutants (capacity check removed, staff page open, cancel ignored, email unchecked) each fail exactly their feature while the other five pass. Result 2026-10-14: all as expected.
 
 ### Run
 
 - Model `claude-opus-5-5`, effort `high` (to be confirmed by the owner before the run), `--dangerously-skip-permissions` inside the container, stream-json with hook events, debug log.
-- k=3 rounds; each round runs all 5 arms in an order shuffled with seed 19 (`bench/run-brief.sh`, order logged in `manifest.txt`); one trial at a time; timeout 90 minutes per trial.
+- k=3 rounds; each round runs all 5 arms in an order shuffled with seed 19 (`bench/run-brief.sh`, order logged in `manifest.txt`); one trial at a time; timeout 90 minutes per trial (podman `--timeout 5400`). A resumed run never repeats a finished agent run and refuses to continue when an arm image changed.
 - Sandbox: the agent container mounts only its empty workspace and a log directory; `bench/`, the hidden tests and other repositories are never mounted. Network is on (package installs).
-- Credentials: the owner's Max subscription through `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), read from the environment or `~/.config/benchkeeper/oauth-token`, never written to results. Before publishing, every log is searched for the token.
+- Credentials: the owner's Max subscription through `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), read from the environment or `~/.config/benchkeeper/oauth-token`, never written to results. After each trial the runner searches the trial directory for the token and stops if it finds it.
 - Command: `bench/run-brief.sh winery claude-opus-5-5 high 3 19`.
 
 ### Stage 0 before the paid trials
@@ -42,15 +42,15 @@ One trial per arm on `claude-haiku-5-5` (subscription), same scripts: delivery a
 
 Per trial, in a copy of the workspace, in pinned containers:
 - `npm install`, `npm run build --if-present`, `npm start` with `PORT` and a random `STAFF_PASSWORD`;
-- hidden features passed (of 6); axe violations (WCAG 2.2 AA tags) on start, form, confirmation and staff pages; Lighthouse performance, accessibility and best practices on the start page; `npm audit` counts; the agent's own `npm test` exit code;
+- hidden features passed (of 6); axe violations (WCAG 2.2 AA tags) on start, form, confirmation and staff pages; Lighthouse performance, accessibility and best practices on the start page; `npm audit` counts; the agent's own `npm test` exit code (in the node base image without browsers);
 - non-blank source and test lines;
-- from the transcript: turns, minutes, tokens, API-equivalent USD (`total_cost_usd`; not billed), whether the run ended with a question;
+- wall-clock minutes; from the transcript: turns, tokens, API-equivalent USD (`total_cost_usd`; not billed), whether the run ended with a question;
 - workflow trace: Skill and Agent calls, plan or spec files written, tests written and whether before the first source file, whether a review step ran, the last tool call.
 
 ### Validity
 
 - Delivery audit (`trial.mjs`): the init event lists exactly the arm's plugins and marker skills or agents, none of another arm's markers, and the expected SessionStart hook output; arm A shows none. A failed audit invalidates the trial.
-- A trial stopped by a usage limit or API overload is an infrastructure error: rerun once (delete its directory and rerun the command), then listed as excluded.
+- A trial stopped by a usage limit, API overload or an authentication failure is an infrastructure error: rerun once (delete its directory and rerun the command), then listed as excluded.
 - Every trial is reported, including stalls, trials without code and invalid ones.
 
 ### Report
@@ -63,4 +63,5 @@ Per trial, in a copy of the workspace, in pinned containers:
 - Whole-stack arms: workflow traces show what co-occurs with better scores, not what causes it.
 - Effects change by model; Opus results say nothing about Sonnet.
 - Exact labels in the brief favor arms that follow the copy literally; all arms get the same brief.
-- `tests_first` compares the first test file write with the first source file write; test code inside source files is not detected.
+- `tests_first` compares the first test file write with the first source file write; test code inside source files and files created through shell commands (heredocs, scaffolders) are not detected.
+- The agent's own browser tests fail in the scorer's node image; their exit code is informational.

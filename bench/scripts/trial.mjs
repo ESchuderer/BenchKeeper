@@ -1,7 +1,7 @@
 // Turns one brief trial (stream-json transcript, workspace, scorer output) into trial.json:
 // delivery audit, workflow trace, usage, scores and line counts.
 // Usage: node bench/scripts/trial.mjs <trial-dir> <arm>   (reads transcript.jsonl, workspace/, score/; writes trial.json)
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -19,8 +19,8 @@ export function audit(events, arm) {
   const init = events.find((e) => e.type === 'system' && e.subtype === 'init');
   if (!init) return { ok: false, problems: ['no init event'] };
   const want = EXPECT[arm];
-  const plugins = init.plugins.filter((p) => p.path !== 'builtin').map((p) => p.name).sort();
-  const listed = new Set([...init.skills, ...init.agents]);
+  const plugins = (init.plugins || []).filter((p) => p.path !== 'builtin').map((p) => p.name).sort();
+  const listed = new Set([...(init.skills || []), ...(init.agents || [])]);
   const hookOut = events.filter((e) => e.subtype === 'hook_response' && e.hook_event === 'SessionStart').map((e) => e.output).join('\n');
   const problems = [];
   if (plugins.join() !== [...want.plugins].sort().join()) problems.push(`plugins ${plugins.join(',') || 'none'}`);
@@ -66,7 +66,7 @@ export function outcome(events) {
     finished: true,
     subtype: r.subtype,
     is_error: r.is_error,
-    infra_error: /usage limit|rate limit|overloaded|\b429\b|\b529\b/i.test(text) && r.is_error,
+    infra_error: /usage limit|rate limit|overloaded|\b429\b|\b529\b|\b401\b|authenticat|oauth|log ?in/i.test(text) && r.is_error,
     ends_with_question: /\?\s*$/.test(text.trim()),
     duration_ms: r.duration_ms,
     num_turns: r.num_turns,
@@ -82,11 +82,12 @@ const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverag
 export function lines(dir) {
   const out = { source: 0, test: 0, files: 0 };
   const walk = (d, rel) => {
-    for (const n of readdirSync(d)) {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const n = e.name;
       if (SKIP.has(n) || n === 'package-lock.json') continue;
       const p = join(d, n), r = rel ? `${rel}/${n}` : n;
-      if (statSync(p).isDirectory()) walk(p, r);
-      else if (SOURCE.test(n)) {
+      if (e.isDirectory()) walk(p, r);
+      else if (e.isFile() && SOURCE.test(n)) {
         const count = readFileSync(p, 'utf8').split('\n').filter((l) => l.trim()).length;
         out.files++;
         out[TEST.test(r) ? 'test' : 'source'] += count;
@@ -101,23 +102,28 @@ export function score(dir) {
   const read = (f) => { try { return JSON.parse(readFileSync(join(dir, f), 'utf8')); } catch { return null; } };
   const exit = (f) => { try { return Number(readFileSync(join(dir, `${f}.exit`), 'utf8')); } catch { return null; } };
   const pw = read('acceptance.json');
-  const specs = pw ? collect(pw) : [];
+  // A feature passes only when its test ran and passed; Playwright's `ok` is also true for skipped tests.
+  const specs = (pw ? collect(pw) : []).map((s) => ({ title: s.title, ok: s.tests.every((t) => t.results.at(-1)?.status === 'passed') }));
   const lh = read('lighthouse.json');
+  const axe = read('axe.json');
   const vulns = read('audit.log')?.metadata?.vulnerabilities;
   return {
     install: exit('install'), build: exit('build'), acceptance_run: exit('acceptance'), agent_tests: exit('agent-tests'),
     features: Object.fromEntries(specs.map((s) => [s.title.split(' ')[0], s.ok])),
     features_passed: specs.filter((s) => s.ok).length,
-    axe: read('axe.json') && Object.fromEntries(Object.entries(read('axe.json')).map(([k, v]) => [k, v.length])),
-    lighthouse: lh && Object.fromEntries(Object.entries(lh.categories).map(([k, v]) => [k, v.score])),
+    // Violations per page; null unless all four pages were scanned, so a broken app does not score fewer violations.
+    axe: axe && AXE_PAGES.every((k) => axe[k]) ? Object.fromEntries(AXE_PAGES.map((k) => [k, axe[k].length])) : null,
+    lighthouse: lh?.categories ? Object.fromEntries(Object.entries(lh.categories).map(([k, v]) => [k, v.score])) : null,
     audit: vulns ? { high: vulns.high + vulns.critical, total: vulns.total } : null,
   };
 }
+const AXE_PAGES = ['start', 'confirmation', 'form', 'staff'];
 const collect = (o) => [...(o.specs || []), ...(o.suites || []).flatMap(collect)];
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [dir, arm] = process.argv.slice(2);
   const events = readFileSync(join(dir, 'transcript.jsonl'), 'utf8').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
-  const trial = { arm, audit: audit(events, arm), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
+  const wall = (f) => { try { return Number(readFileSync(join(dir, f), 'utf8')); } catch { return null; } };
+  const trial = { arm, wall_seconds: wall('end') - wall('start') || null, audit: audit(events, arm), outcome: outcome(events), workflow: workflow(events), score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')) };
   writeFileSync(join(dir, 'trial.json'), JSON.stringify(trial, null, 2) + '\n');
 }

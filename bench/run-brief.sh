@@ -7,8 +7,9 @@ set -eu
 brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E"}
 bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
 NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
-TIMEOUT=${TIMEOUT:-90m}
-: "${CLAUDE_CODE_OAUTH_TOKEN:=$(cat "$HOME/.config/benchkeeper/oauth-token")}"
+TIMEOUT=${TIMEOUT:-5400}
+: "${CLAUDE_CODE_OAUTH_TOKEN:=$(cat "$HOME/.config/benchkeeper/oauth-token" 2>/dev/null)}"
+[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "no token: set CLAUDE_CODE_OAUTH_TOKEN or write ~/.config/benchkeeper/oauth-token" >&2; exit 1; }
 export CLAUDE_CODE_OAUTH_TOKEN
 runs=$bench/runs/$brief-$model-$effort-seed$seed
 mkdir -p "$runs"
@@ -17,11 +18,17 @@ for arm in $arms; do
   podman build -q -f "$bench/image/Containerfile" --build-arg ARM="$arm" -t "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" "$repo" > /dev/null
 done
 {
-  echo "brief=$brief model=$model effort=$effort k=$k seed=$seed timeout=$TIMEOUT"
+  echo "brief=$brief model=$model effort=$effort k=$k seed=$seed timeout=${TIMEOUT}s"
   echo "benchkeeper=$(git -C "$repo" rev-parse HEAD) dirty=$(git -C "$repo" status --porcelain | wc -l)"
   echo "host=$(uname -srm) cpu=$(nproc) mem=$(free -g | awk '/Mem/{print $2}')G $(podman --version)"
-  for arm in $arms; do echo "image $arm $(podman image inspect "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" --format '{{.Id}}')"; done
 } >> "$runs/manifest.txt"
+# A resumed run must use the same images as its first trials.
+for arm in $arms; do
+  id=$(podman image inspect "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" --format '{{.Id}}')
+  first=$(awk -v a="$arm" '$1 == "image" && $2 == a {print $3; exit}' "$runs/manifest.txt")
+  [ -z "$first" ] || [ "$first" = "$id" ] || { echo "image for arm $arm changed since the first trials of this run" >&2; exit 1; }
+  echo "image $arm $id" >> "$runs/manifest.txt"
+done
 
 for r in $(seq "$k"); do
   order=$(printf '%s\n' $arms | awk -v s="$((seed * 100 + r))" 'BEGIN{srand(s)}{print rand()"\t"$0}' | sort | cut -f2 | tr '\n' ' ')
@@ -29,15 +36,22 @@ for r in $(seq "$k"); do
   for arm in $order; do
     t=$runs/round-$r/$arm
     [ -f "$t/trial.json" ] && continue
+    set +e
+    # A finished agent run is never repeated: on resume only scoring and parsing run again.
+    if [ ! -f "$t/agent.exit" ]; then
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
-    set +e
-    timeout "$TIMEOUT" podman run --rm --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
+    date +%s > "$t/start"
+    podman run --rm --name "bk-trial-$$" --timeout "$TIMEOUT" --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
       -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
       claude -p "$(cat "$bench/briefs/$brief/brief.md")" --model "$model" --effort "$effort" \
       --output-format stream-json --verbose --include-hook-events --dangerously-skip-permissions \
       --debug-file /bench-log/debug.log > "$t/transcript.jsonl" 2> "$t/log/stderr.log"
     echo $? > "$t/agent.exit"
+    date +%s > "$t/end"
+    fi
+    grep -rqF -- "$CLAUDE_CODE_OAUTH_TOKEN" "$t" && { echo "token found in $t: remove it before publishing" >&2; exit 1; }
+    rm -rf "$t/score"
     "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/score" > "$t/log/score.log" 2>&1
     set -e
     podman run --rm --userns=keep-id -e HOME=/tmp -v "$repo":/repo:ro,Z -v "$t":/t:Z -w /repo "$NODE" node bench/scripts/trial.mjs /t "$arm"

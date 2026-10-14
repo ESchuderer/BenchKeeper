@@ -47,3 +47,24 @@ test('summary table counts invalid trials and takes medians over valid ones', as
   const t = (ok, f) => ({ arm: 'B', audit: { ok }, outcome: { duration_ms: 60000, cost_usd_api_equivalent: 1 }, workflow: {}, score: { features_passed: f }, lines: {} });
   assert.match(table([t(true, 6), t(true, 4), t(false, 0)]), /\| B \| 3 \| 1 \| 5 \(4 to 6\) \|/);
 });
+
+test('score counts a skipped feature as failed and needs all four axe pages', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { score } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/score-');
+  const spec = (title, status) => ({ title, ok: true, tests: [{ results: [{ status }] }] });
+  writeFileSync(`${dir}/acceptance.json`, JSON.stringify({ suites: [{ specs: [spec('F1 a', 'passed'), spec('F2 b', 'failed'), spec('F3 c', 'skipped')] }] }));
+  writeFileSync(`${dir}/axe.json`, JSON.stringify({ start: [], form: [] }));
+  const s = score(dir);
+  assert.equal(s.features_passed, 1);
+  assert.deepEqual(s.features, { F1: true, F2: false, F3: false });
+  assert.equal(s.axe, null);
+  assert.equal(s.lighthouse, null);
+});
+
+test('audit and summary tolerate missing fields', async () => {
+  const { table } = await import('./summary.mjs');
+  assert.equal(audit([{ type: 'system', subtype: 'init' }], 'A').ok, true);
+  const t = { arm: 'A', audit: { ok: true }, outcome: {}, workflow: {}, score: { lighthouse: null, axe: null }, lines: {} };
+  assert.match(table([t]), /\| A \| 1 \| 0 \| n\/a \| n\/a \| n\/a \|/);
+});

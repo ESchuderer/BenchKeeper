@@ -10,3 +10,7 @@ USER node
 WORKDIR /home/node
 ARG ARM
 RUN /opt/bench/install-arm.sh "$ARM"
+# Other arms' rules and skills must not be readable by this arm's agent.
+USER root
+RUN rm -rf /opt/bench
+USER node

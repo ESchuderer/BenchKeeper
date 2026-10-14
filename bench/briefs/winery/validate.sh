@@ -3,7 +3,8 @@
 # Usage: bench/briefs/winery/validate.sh <scratch-dir>
 set -eu
 here=$(dirname "$(realpath "$0")"); tmp=$(realpath -m "$1"); mkdir -p "$tmp"
-result() { jq -r '[.. | objects | select(has("specs")) | .specs[] | select(.ok | not) | .title | split(" ")[0]] | join(",")' "$1/acceptance.json"; }
+# A feature passes only when its test ran and passed; skipped counts as failed.
+result() { jq -r '[.. | objects | select(has("specs")) | .specs[] | select([.tests[].results[-1].status] | all(. == "passed") | not) | .title | split(" ")[0]] | join(",")' "$1/acceptance.json"; }
 run() { # <name> <expected failing features> <sed script or empty>
   rm -rf "$tmp/$1" "$tmp/$1-out"; cp -r "$here/reference" "$tmp/$1"
   [ -z "$3" ] || sed -i "$3" "$tmp/$1/server.mjs"
@@ -16,3 +17,10 @@ run capacity F3 's/ : guests > left(t) ? `Only ${left(t)} seats left.` : '"''"'/
 run staff-open F5 's/const staff = sid && sessions.has(sid);/const staff = true;/'
 run cancel-noop F6 's/if (i >= 0) bookings.splice(i, 1);//'
 run email-unchecked F4 's#!/^\[^\\s@\]+@\[^\\s@\]+\\.\[^\\s@\]+$/.test(v.email || '"''"')#false#'
+# A correct app with other markup: a table, a guests dropdown, cancelled bookings kept as "Cancelled", bound to localhost.
+run variant "" 's#<ul>${tastings.map((x) => `<li><h2>${x.title}</h2><p>${x.when}, EUR ${x.price} per guest, ${left(x)} seats left</p><a href="/book/${x.id}">Book ${x.title}</a></li>`).join('"''"')}</ul>#<table><tbody>${tastings.map((x) => `<tr><td>${x.title}</td><td>${x.when}</td><td>EUR ${x.price}</td><td>${left(x)} seats left</td><td><a href="/book/${x.id}">Book ${x.title}</a></td></tr>`).join('"''"')}</tbody></table>#
+s#<input id="g" name="guests" value="${esc(v.guests || '"''"')}">#<select id="g" name="guests">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<option>${n}</option>`).join('"''"')}</select>#
+s#bookings.filter((b) => b.tasting === t.id).reduce#bookings.filter((b) => b.tasting === t.id \&\& !b.cancelled).reduce#
+s#if (i >= 0) bookings.splice(i, 1);#if (i >= 0) bookings[i].cancelled = true;#
+s#${b.guests} guests, ${b.ref} <form#${b.guests} guests, ${b.ref}${b.cancelled ? '"' Cancelled'"' : '"''"'} <form#
+s#.listen(Number(process.env.PORT) || 3000);#.listen(Number(process.env.PORT) || 3000, '"'localhost'"');#'

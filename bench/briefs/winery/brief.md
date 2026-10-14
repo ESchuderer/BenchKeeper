@@ -21,5 +21,5 @@ Staff:
 Running it:
 - This folder is already inside the project's development container: run installs, builds and tests directly here.
 - Node.js 22. `npm install` then `npm start` starts the app on the port in the environment variable `PORT` (default 3000).
-- Bookings may be kept in memory or in a local file; no external services.
+- The app starts with no bookings. Bookings may be kept in memory or in a local file; no external services.
 - The interface is in English.

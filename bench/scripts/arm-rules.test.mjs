@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { base } from './arm-rules.mjs';
+import { base, DROPPED } from './arm-rules.mjs';
 
 const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
 const rules = read('rules/global.md');
@@ -10,7 +10,8 @@ const names = JSON.parse(read('bench/arms/agent-skills-names.json'));
 test('base rules name no agent-skills skill and set no workflow', () => {
   const out = base(rules);
   assert.deepEqual(names.filter((n) => out.includes(`\`${n}\``)), []);
-  assert.ok(!/agent-skills|Task tiers|OpenSpec/.test(out));
+  assert.ok(!out.includes('agent-skills'));
+  for (const h of DROPPED) assert.ok(!out.includes(`## ${h}`), h);
 });
 
 test('base rules keep every other section unchanged', () => {

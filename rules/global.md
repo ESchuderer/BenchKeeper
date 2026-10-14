@@ -61,11 +61,35 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Before running `git push` or opening a pull request that contains code changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change or the tier is quick.
 
 ## Task tiers
-State the tier in one line (`Tier: quick`) before the first edit or subagent; a question answered without either needs no tier line. The user's explicit tier wins, except that security, data or production impact needs the full tier: name it and ask. A `Default tier:` line in `AGENTS.md` applies when the request does not clearly match another tier. When the work grows (more than one behavior, several files, code not yet read, an uncertain approach, or security, data or production impact), move to the tier it now fits, say so, and run that tier's skipped steps (issue, spec, plan) before the next edit. The tiers take precedence over a skill's own triggers, such as a skill asking for a spec or a review on every change.
-- Quick (the diff fits in one sentence: typo, label, config value, docs line, one obvious UI tweak): branch, edit, verify, commit, draft pull request. No issue, spec, plan, test first or pre-push review.
-- Standard (one behavior, approach clear): issue, branch, failing test first where a test suite exists, build, verify, review before push, draft pull request. No spec or OpenSpec change; the plan is a few lines in the reply.
-- Full (several behaviors, new capability, uncertain approach, or security, data or production impact): every SDLC step below.
-- Research (question, comparison or evaluation without a code change): no branch or edits; edits asked for afterwards get their own tier. One fact: answer directly. Two or more independent items: one subagent per item in parallel (Claude Code: `model: "sonnet"`, `effort: "high"`; Codex: `explorer` subagents). Each prompt states the objective, output format and sources to use; where claims rest on benchmarks, it adds the evidence bar: independent versus vendor-run results; version, harness, model and effort, task count, runs per arm, deltas and p-values; advertised claims next to measured ones; unverified items labeled. Merge the results into one answer with sources.
+A full agentic SDLC fits features and risky changes, not every change. State the tier in one line (`Tier: quick`) before the first edit or subagent; a question answered without either needs no tier line. The user's explicit tier wins; for security, data, production or irreversible impact, name the full tier and ask, and the answer decides. A `Default tier:` line in `AGENTS.md` applies when the request does not clearly match another tier. Several requests in one prompt: tier each; on a shared branch the highest tier applies. Follow-ups on an open pull request keep its tier. When the work grows (more than one behavior, several files, code not yet read, an uncertain approach, or security, data, production or irreversible impact), move to the tier it now fits, say so, and run that tier's skipped steps (issue, spec, plan) before the next edit. Work beyond one session: split it into issues first, each with its own tier. The tiers take precedence over a skill's own triggers, such as a skill asking for a spec or a review on every change.
+- Quick (the diff fits in one sentence): branch, edit, verify, commit, draft pull request. No issue, spec, plan, test first or pre-push review.
+- Standard (one behavior, or a refactor that keeps behavior; approach clear): issue, branch, failing test first where a test suite exists (refactor: the suite passes before and after with tests unchanged), build, verify, review before push, draft pull request. No spec or OpenSpec change; the plan is a few lines in the reply.
+- Full (several behaviors, new capability, uncertain approach, or security, data, production or irreversible impact): every SDLC step below.
+- Research (question, comparison, evaluation or spike without a repository change): no branch or edits; scratch files outside the repository are allowed; edits asked for afterwards get their own tier. One fact: answer directly. Two or more independent items: one subagent per item in parallel (Claude Code: `model: "sonnet"`, `effort: "high"`; Codex: `explorer` subagents). Each prompt states the objective, output format and sources to use; where claims rest on benchmarks, it adds the evidence bar: independent versus vendor-run results; version, harness, model and effort, task count, runs per arm, deltas and p-values; advertised claims next to measured ones; unverified items labeled. Merge the results into one answer with sources.
+
+Change types: default tier and the check before reporting done, in addition to Verify below. Run the checks the repository has; never run `apply`, `migrate` against shared databases or production commands.
+
+| Change | Tier | Check before done |
+|---|---|---|
+| Docs, typo | quick | docs build, link check |
+| Config value | quick; standard for production or security config | tests, schema or lint |
+| Log line | quick | no secrets or personal data logged |
+| Tests only | quick | new tests pass; no production code in the diff |
+| Dependency patch or minor | quick | full test suite |
+| UI tweak | quick | browser check; screenshot baselines updated only for intended changes |
+| UI feature | standard | end-to-end and accessibility tests |
+| Bug, known cause | standard | failing reproducer test first |
+| Bug, unknown cause | research, then the fix's tier | investigate (`debugging-and-error-recovery`); reproducer before the fix |
+| Refactor | standard; full across modules | suite passes before and after, tests unchanged |
+| Dependency major or security advisory (route by advisory, not version) | standard | changelog read, full suite, package audit |
+| CI workflow | standard; full for deploy steps | `actionlint` |
+| Metrics, alerts | standard | no secrets or personal data |
+| Feature | full | tests, types, lint, build |
+| Infrastructure as code | full | Terraform/OpenTofu `fmt -check`, `validate`, `plan`; Ansible `ansible-lint`, `--check --diff`; Kubernetes `kubeconform`, `kubectl diff`; Helm `helm lint`, `helm template` |
+| Schema migration | full | expand and contract; migrate a throwaway database |
+| Production data fix | full | dry run on a copy; the user runs it |
+| Auth, permissions, secrets, input validation | full | `security-and-hardening`, tests for denied paths |
+| Performance | full | benchmark before and after on the same machine |
 
 ## SDLC
 Skills from agent-skills (addyosmani) drive each phase; OpenSpec owns the spec files when the repository has `openspec/`.

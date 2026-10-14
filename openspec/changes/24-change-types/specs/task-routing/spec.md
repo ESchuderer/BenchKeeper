@@ -1,0 +1,99 @@
+## ADDED Requirements
+
+### Requirement: Change types
+
+The rules SHALL map common change types to a default tier and a check run before reporting done, in addition to the generic verify step. The agent SHALL never run infrastructure `apply`, migrations against shared databases or production commands as a check.
+
+#### Scenario: Terraform change
+
+- **WHEN** the agent changes a Terraform module
+- **THEN** it runs the full tier and `terraform fmt -check`, `validate` and `plan`, and does not run `apply`
+
+#### Scenario: Behavior-preserving refactor
+
+- **WHEN** the agent renames a function across many files without changing behavior
+- **THEN** it runs the standard tier and the test suite passes before and after with tests unchanged
+
+#### Scenario: Bug with unknown cause
+
+- **WHEN** the cause of a reported bug is unknown
+- **THEN** the agent investigates in the research tier and picks the tier for the fix once the cause is known
+
+#### Scenario: Security advisory on a patch version
+
+- **WHEN** a dependency update fixes a security advisory
+- **THEN** the agent runs the standard tier with a package audit, whatever the version step
+
+#### Scenario: Production data fix
+
+- **WHEN** the change fixes data in production
+- **THEN** the agent runs the full tier, dry-runs on a copy, and leaves the production run to the user
+
+### Requirement: Request handling
+
+Several requests in one prompt SHALL each get a tier, and the highest tier SHALL apply on a shared branch. Follow-ups on an open pull request SHALL keep its tier. Work beyond one session SHALL be split into issues first, each with its own tier.
+
+#### Scenario: Typo and feature together
+
+- **WHEN** one prompt asks for a typo fix and a new feature on the same branch
+- **THEN** the branch follows the full tier
+
+#### Scenario: Review comment on an open pull request
+
+- **WHEN** a reviewer comments on a standard-tier pull request
+- **THEN** the agent adds commits under the standard tier without a new issue or spec
+
+#### Scenario: Multi-session feature
+
+- **WHEN** a request needs several sessions
+- **THEN** the agent proposes separate issues before the first edit
+
+## MODIFIED Requirements
+
+### Requirement: Tier selection
+
+The agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. An explicit tier from the user SHALL win; for security, data, production or irreversible impact the agent SHALL name the full tier and ask, and the user's answer SHALL decide. A project default tier SHALL apply when no other tier clearly matches.
+
+#### Scenario: Small UI change
+
+- **WHEN** the user asks to change a button label
+- **THEN** the agent states the quick tier and skips the issue, spec and plan steps
+
+#### Scenario: User override
+
+- **WHEN** the user writes "full" for a request the agent would rate quick
+- **THEN** the agent runs the full tier
+
+#### Scenario: Lower tier with production impact
+
+- **WHEN** the user writes "quick" for a production hotfix
+- **THEN** the agent names the full tier and asks, and follows the user's answer
+
+#### Scenario: Plain question
+
+- **WHEN** the user asks what a function does and no edit or subagent is needed
+- **THEN** the agent answers without a tier line
+
+#### Scenario: Project default
+
+- **WHEN** `AGENTS.md` sets the research tier as default and the request is ambiguous between research and a docs edit
+- **THEN** the agent uses the research tier
+
+### Requirement: Research flow
+
+The research tier SHALL answer without repository edits; scratch files outside the repository SHALL be allowed for spikes; edits asked for afterwards SHALL get their own tier. One fact SHALL be answered directly. Two or more independent items SHALL get one parallel subagent each, with the objective, output format and sources in each prompt, and the evidence bar where claims rest on benchmarks.
+
+#### Scenario: Several tools compared
+
+- **WHEN** the user asks whether three tools improve cost
+- **THEN** the agent runs three parallel subagents with the evidence bar and merges their results into one answer
+
+#### Scenario: Results recorded afterwards
+
+- **WHEN** the user asks to record the research results in a file
+- **THEN** the agent states a tier for that edit and follows it
+
+#### Scenario: Spike
+
+- **WHEN** answering a question needs a throwaway prototype
+- **THEN** the agent writes it outside the repository and makes no repository edit

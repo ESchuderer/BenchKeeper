@@ -68,6 +68,7 @@ test('audit checks every agent process', () => {
 
 test('outcome flags usage-limit stops as infrastructure errors and trailing questions', () => {
   assert.equal(outcome([{ type: 'result', is_error: true, result: 'Claude usage limit reached' }]).infra_error, true);
+  assert.equal(outcome([{ type: 'result', is_error: true, result: "You've hit your session limit · resets 10pm (UTC)" }]).infra_error, true);
   assert.equal(outcome([{ type: 'result', is_error: false, result: 'Which database do you want?' }]).ends_with_question, true);
   assert.equal(outcome([]).finished, false);
 });

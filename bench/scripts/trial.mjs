@@ -99,7 +99,7 @@ export function outcome(events) {
     finished: true,
     subtype: r.subtype,
     is_error: r.is_error,
-    infra_error: /usage limit|rate limit|overloaded|\b429\b|\b529\b|\b401\b|authenticat|oauth|log ?in/i.test(text) && r.is_error,
+    infra_error: /usage limit|session limit|weekly limit|hit your .*limit|rate limit|overloaded|\b429\b|\b529\b|\b401\b|authenticat|oauth|log ?in/i.test(text) && r.is_error,
     ends_with_question: /\?\s*$/.test(text.trim()),
     duration_ms: r.duration_ms,
     result_events: results.length,

@@ -1,0 +1,86 @@
+{
+  "arm": "D",
+  "wall_seconds": 349,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail",
+      "superpowers"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 46005,
+    "result_events": 2,
+    "num_turns": 47,
+    "cost_usd_api_equivalent": 0.07409465,
+    "usage": {
+      "input": 58,
+      "cache_creation": 125230,
+      "cache_read": 1477145,
+      "output": 75489,
+      "thinking": 43923
+    }
+  },
+  "workflow": {
+    "tool_calls": 48,
+    "subagent_tool_calls": 6,
+    "skills": [
+      "superpowers:brainstorming",
+      "superpowers:writing-plans",
+      "superpowers:requesting-code-review"
+    ],
+    "agents": [
+      "general-purpose"
+    ],
+    "plan_or_spec_files": [
+      "/work/docs/superpowers/plans/2026-10-14-tasting-booking-app.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash grep -rlP \"\\x{2014}|\\x{2013}\" --exclude-dir=node_modules . ; echo \"scan exit $?\""
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 0.96,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    }
+  },
+  "lines": {
+    "source": 331,
+    "test": 222,
+    "files": 7
+  }
+}

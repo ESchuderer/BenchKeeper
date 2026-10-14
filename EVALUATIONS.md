@@ -1,148 +1,82 @@
 # Evaluations
 
-Components considered for BenchKeeper, the independent evidence found, and whether each is in BenchKeeper. Checked 2026-10-14. "Independent" means not run by the tool's own project.
+Components considered for BenchKeeper, the evidence found for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`. Checked 2026-10-14. "Independent" means not run by the tool's own project.
 
-## In
+## Process
 
-| Component | Independent evidence | Decision |
+- Sources searched first: [JetBrains AI blog](https://blog.jetbrains.com/ai/), [Marginlab](https://marginlab.ai/blog), [Quesma](https://quesma.com/blog/), [SkillsBench](https://arxiv.org/abs/2602.12670), arXiv.
+- Then GitHub issues, Hacker News, forum posts and blogs (user reports checked 2026-10-13; mostly one repository and 1 to 4 runs per arm). Reddit cannot be fetched (access refused); thread text supplied by the owner is labeled as such.
+- Evidence bar: independent and vendor-run results are kept apart. Each result records version, harness, model and effort, task count, runs per arm, deltas and p-values where given. Advertised figures stand next to measured ones; claims not checked are labeled unverified.
+- Decision values: In; In, unmeasured; Not in yet (retest candidate, see [#19](https://github.com/ESchuderer/BenchKeeper/issues/19)); Not in; Not global, per project.
+- A file is updated when its component is added, removed or changed, or when new evidence appears; the overview below is updated with it.
+
+## Overview
+
+### Behavior modes
+
+| Component | Decision | Summary |
 |---|---|---|
-| [Ponytail](https://github.com/DietrichGebert/ponytail) | [JetBrains](https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/) (v4.8.4, Claude Code, Sonnet 5 medium, 80 paired SkillsBench tasks): cost -10.3% (p=0.004), code about -15% (p=0.088), time -11%; 65 of 80 tasks identical score. Advertised: -54% code, -20% cost. Needs the SessionStart hook; the skill did not self-activate. Installed v5.2.0 is not re-measured. | In. |
-| [agent-skills](https://github.com/addyosmani/agent-skills) | No task-level study. [Driftproof #005](https://driftproofhq.com/reports/005/) (single SKILL.md per call, 3 skills x 7 cases, 1 generation, LLM judge, no p-values): judge score -0.048 to +0.157 depending on skill and model, +3.3k to +16k input tokens per call; one gain re-measured at -0.002. Router probe (sonnet-5, 79 prompts, 1 probe each): 77/79 routed with and without `using-agent-skills`, router +3.5k tokens per session ([#433](https://github.com/addyosmani/agent-skills/issues/433)). 0.6.13: about 2.8k tokens of descriptions, no hooks ([#574](https://github.com/addyosmani/agent-skills/pull/574) removed the SessionStart injection). [SkillsBench](https://arxiv.org/abs/2602.12670): curated skills +16.6 points pass rate on average; focused skills (up to three modules) beat exhaustive bundles. | In, unmeasured. The global rules load skills by description, not through `using-agent-skills`. |
-| [OpenSpec](https://github.com/Fission-AI/OpenSpec) | None with a no-spec baseline. | In, unmeasured: fits an incremental workflow. agent-skills alone keeps one `SPEC.md`, `tasks/plan.md` and `tasks/todo.md` per repository, edited in place ([spec-driven-development](https://github.com/addyosmani/agent-skills/blob/main/skills/spec-driven-development/SKILL.md)). OpenSpec adds: one folder per change (proposal, spec deltas, design, tasks) reviewed in the same pull request as the code; parallel changes on separate branches do not edit the same file; archiving merges the deltas into current specs per capability in `openspec/specs/` and keeps the change as history; `openspec validate --strict` checks the format. agent-skills still drives the process; OpenSpec only owns the spec files. |
-| [Playwright MCP](https://github.com/microsoft/playwright-mcp) | No paired cost or quality study. Token comparisons against the Playwright CLI conflict by version ([DEV](https://dev.to/aswani25/playwright-cli-vs-playwright-mcp-which-should-you-use-with-claude-code-1olh)). | In: used for UI verification, not cost. |
+| [Ponytail](evaluations/behavior-modes/ponytail.md) | In | cost -10.3% (p=0.004), JetBrains, v4.8.4; needs the SessionStart hook |
+| [caveman](evaluations/behavior-modes/caveman.md) | Not in, never part of BenchKeeper | advertised -65%, measured -8.5% output tokens, score p=0.82, JetBrains |
 
-## Not in
+### Skill libraries
 
-| Component | Advertised | Independent evidence | Decision |
-|---|---|---|---|
-| [RTK](https://github.com/rtk-ai/rtk) | 60 to 90% fewer tokens | [JetBrains](https://blog.jetbrains.com/ai/2026/07/rtk-claude-code-token-savings/) (rtk 0.43.0, Claude Code, Sonnet 5, 86 SkillsBench tasks): median cost +7.6% at low effort (p=0.004), +0.1% at high effort (p=0.99), quality unchanged. [Quesma](https://quesma.com/blog/does-rtk-make-ai-coding-cheaper/) (rtk 0.45.0, Terminal-Bench 2.1, 5 runs per task): total bill -5% on Claude Code with Fable 5.0, almost all from one task, +5% on OpenCode with DeepSeek; pass rate 84% vs 83% and 71% vs 69%. Releases 0.46 to 0.51 add filters and hook fixes, no new measurement. | Not in: no measured saving, small cost increase in some settings. [User reports](#rtk) |
-| [codegraph](https://github.com/colbymchenry/codegraph) | 62% fewer tokens, 44% cheaper (README: 7 repositories, one question each, median of 4 runs, no quality measure) | None found. Research systems with a built-in code graph report gains ([LocAgent](https://arxiv.org/abs/2503.09089): +12% issue resolution at Pass@10; [RepoGraph](https://arxiv.org/abs/2410.14684)), but they change the agent itself; neither tests an add-on MCP tool. Add-on code tools are rarely called ([arXiv 2608.13568](https://arxiv.org/abs/2608.13568)). | Not in: no independent evidence. [User reports](#codegraph) |
-| [Context7 MCP](https://github.com/upstash/context7) | current library docs, fewer outdated APIs | [Marginlab](https://marginlab.ai/blog/do-mcps-improve-coding-agents-part-1/) (Codex, GPT-5.4 xhigh, Terminal-Bench 2.0, 89 tasks, one run per arm): 64/89 passed with Context7, 63/89 without; called in 6 tasks, none of which changed outcome. | Not in: no measured benefit. [User reports](#context7) |
-| LSP plugins (`pyright-lsp`, `typescript-lsp`) | semantic navigation, diagnostics | [arXiv 2608.13568](https://arxiv.org/abs/2608.13568) (preliminary, single author; Opus 4.8, Sonnet 4.6, Haiku 4.5): 6 to 118% more tokens for symbol localization; models chose grep for localization in most runs; location-only LSP missed call sites in about 3 of 4 multi-file renames. Diagnostics after edits not measured. | Not in: more tokens, no measured gain. [User reports](#lsp-plugins) |
-| Project summary and layout in generated `AGENTS.md` | orientation for agents | [arXiv 2602.11988](https://arxiv.org/abs/2602.11988) (SWE-bench and 138 repository tasks, several agents and models): context files did not raise task success and raised cost by over 20%; repository overviews did not help; files help for non-standard practices. | `project-setup` writes commands, host and container rules, and non-default conventions only. |
-| [Pi](https://pi.dev) | minimal, extensible agent harness | No independent benchmark against Claude Code or Codex found. Claude subscription use outside Claude Code is not permitted by Anthropic's terms ([user reports](#pi)). Reads `AGENTS.md`, Agent Skills (`~/.agents/skills/`) and MCP ([configuration](https://pi.dev/docs/latest/configuration), [skills](https://pi.dev/docs/latest/skills)); Ponytail and agent-skills ship as Claude Code and Codex plugins. | Not in: no independent benchmark; Claude subscription use is outside Anthropic's terms. [User reports](#pi) |
-| [Spec Kit](https://github.com/github/spec-kit) | spec, plan and tasks per feature, constitution | [arXiv 2604.05278](https://arxiv.org/abs/2604.05278) tests Spec Kit plus the authors' own hooks: +0.15 on a 1 to 5 judge score (p<0.05), no agent-skills baseline. No comparison with OpenSpec found. | Not in: overlaps too much with agent-skills: `speckit-specify`, `speckit-clarify`, `speckit-plan`, `speckit-tasks` and `speckit-implement` duplicate `spec-driven-development`, `planning-and-task-breakdown` and `incremental-implementation`, adding 10 skills per agent; `constitution.md` duplicates `AGENTS.md`; needs uv on the host. Built for up-front planning per feature (one folder per feature, no merge into a current spec); BenchKeeper prefers an incremental workflow, where OpenSpec's per-change deltas fit. |
-| [graphify](https://github.com/Graphify-Labs/graphify) | 71.5x fewer tokens per query (52-file corpus of mostly papers and images) | No independent evaluation found. | Not in: no independent evidence; user reports show lower retrieval accuracy than BM25. [User reports](#graphify) |
+| Component | Decision | Summary |
+|---|---|---|
+| [agent-skills](evaluations/skill-libraries/agent-skills.md) | In, unmeasured | no task-level study; about 2.8k tokens of descriptions, no hooks (0.6.13) |
+| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | Not in | no controlled evidence; overlaps agent-skills |
+| [andrej-karpathy-skills](evaluations/skill-libraries/andrej-karpathy-skills.md) | Not in | accuracy 60/60 every arm, median cost +11.5%, skill-receipts |
+| [Anthropic document skills](evaluations/skill-libraries/anthropic-document-skills.md) | Not global, per project | DocOps: Claude Code Sonnet 4.6 0.519 with skills vs 0.552 without |
+| [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation; `project-setup` vets single skills |
 
-| [ECC](https://github.com/affaan-m/ECC) (formerly everything-claude-code) | "agent harness performance optimization system"; no outcome numbers | None for the bundle. One third party, two packs ported to another platform, 9 paired tasks, 1 run: `tdd-workflow` quality +0.20 (scale not given), +21 s and +74k tokens per task; `security-reviewer` 0.00 ([discussion #2504](https://github.com/affaan-m/ECC/discussions/2504#discussioncomment-17852942)). v2.2.3 static count: 293 skills, 94 commands, 68 agents, about 124 KB of descriptions; 3 node processes per tool call, synchronous typecheck on Stop. | Not in yet: no outcome measurement in either direction; measured overhead from hooks and listing size. The full plugin crowds other plugins out of the skill listing; a selective install (`manifests/install-profiles.json`: `minimal` has 52 workflow-quality skills, about 70 agents and 97 commands, no hooks, so `strategic-compact` loses its hook) or single skills avoid that and are candidates for [#19](https://github.com/ESchuderer/BenchKeeper/issues/19). [User reports](#ecc) |
-| [Superpowers](https://github.com/obra/superpowers) | v6: "roughly twice as fast", "almost 50% fewer tokens" against Superpowers v5, not against no plugin ([release](https://github.com/obra/superpowers/releases/tag/v6.0.0)) | [AgentStackBench](https://nobbettt.github.io/AgentStackBench/#/comparisons/codex-superpowers-mounted) (run 2026-05-20, before v6; Superpowers 5.0.5 in the repo, run version unverified; Codex, gpt-5.4 high, 500 SWE-bench family tasks, 1 run per arm, extra prompt to use Superpowers): resolved 45.6% vs 47.8% (author: not significant, no p-value), tokens 1.56M vs 2.18M per task (+40%), time 6m13s vs 7m26s (+20%). [skill-receipts](https://github.com/sjh9714/skill-receipts/blob/main/docs/audits/superpowers-debugging.md) (systematic-debugging only, Opus 4.8, 4 tasks x 5 runs): accuracy 20/20 both, cost +80%. One blogger, 6 tasks, 1 run: cost -9% ([mejba.me](https://www.mejba.me/blog/superpowers-plugin-claude-code-review)). | Not in yet: the only large test predates v6 and v7, which claim large token and time cuts against v5 (author-measured). Retest v7 as an arm in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19). Its spec, plan and implement loop overlaps agent-skills, so it would replace agent-skills rather than join it. [User reports](#superpowers) |
-| [mattpocock/skills](https://github.com/mattpocock/skills) | shared language means fewer thinking tokens; red-green gives "far better code" (no numbers) | None controlled. Issues report higher token use for `/implement` and `/tdd` ([#894](https://github.com/mattpocock/skills/issues/894)); a team with unpublished data reports 37.6% of `tdd` runs passing their own tests with behavior still broken ([#1074](https://github.com/mattpocock/skills/issues/1074), unverified). v1.3.1: 27 shipped skills, no hooks. | Not in: overlaps agent-skills (tdd, code-review, to-spec, to-tickets, diagnosing-bugs, grill-me); no evidence either way. |
-| [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) | "reducing costly mistakes on non-trivial work" | [skill-receipts audit](https://github.com/sjh9714/skill-receipts/blob/main/docs/audits/karpathy.md) (commit 2c60614, Claude Code, claude-opus-4-8, 12 small tasks with hidden tests, 5 runs per arm): accuracy 60/60 in every arm, median source lines -4.8% (within noise), median cost +11.5%, no p-values. | Not in: one skill of 4 rules that overlap Ponytail and `rules/global.md`; measured cost slightly higher. |
-| [GSD](https://github.com/open-gsd/gsd-core) (get-shit-done) | fresh context per executor against context rot | One web-app task, 1 run per arm, author-judged: about 1.2M tokens and 105 min against about 200K and 20 min for vanilla Claude Code, Superpowers about 250K and 60 min; outputs judged indistinguishable ([Chase AI](https://www.chaseai.io/blog/gsd-vs-superpowers-vs-claude-code)). | Not in: no evidence of a gain, highest token use in the only comparison. |
-| [ruflo](https://github.com/ruvnet/ruflo) (claude-flow) | "84.8% SWE-Bench solve rate", "32.3% token reduction" | None found; no method published, README and CHANGELOG word the claim differently. | Not in: no evidence. |
-| [Serena MCP](https://github.com/oraios/serena) | "faster, more efficiently and more reliably" | Run by the author of a competing tool (Claude Code, Opus 4.7, runs not stated): quality 83.4% vs 84.2% without, tokens 14,800 vs 12,716, time 191 vs 185 s ([dev.to](https://dev.to/luuuc/how-do-you-benchmark-an-mcp-server-you-built-2e8j)). | Not in: no measured gain. |
-| [Anthropic document skills](https://github.com/anthropics/skills) (docx, xlsx, pptx, pdf) | none quantitative | [DocOps, arXiv 2607.19865](https://arxiv.org/abs/2607.19865) (210 tasks): Claude Code with Sonnet 4.6 0.519 with skills vs 0.552 without, tokens 664.9K vs 590.0K per task; Codex with GPT-5.5 0.671 vs 0.648. | Not part of the coding setup; install per need. |
-| [headroom](https://github.com/headroomlabs-ai/headroom) | -20% tokens, same answers | Run by a competitor (Claude Code, Sonnet 4.6, SWE-bench Verified 100 tasks): input tokens +6%, cost +44% ([Dasein](https://raw.githack.com/daseinlabs/code-compression-bench/master/results/2026-07-04/dashboard.html)). | Not in: no measured saving. |
-| [claude-mem](https://github.com/thedotmack/claude-mem) | about 10x token savings | None found; one user reports +63.9% API spend ([#3848](https://github.com/thedotmack/claude-mem/issues/3848)). | Not in: no evidence. |
-| [planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 96.7% eval pass, resume in 5.0 vs 13.3 turns | Vendor only; measures compliance, not outcomes ([evals](https://github.com/OthmanAdi/planning-with-files/blob/master/docs/evals.md)). | Not in: overlaps OpenSpec `tasks.md`. |
-| [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) | 177 science skills, 100+ databases | Vendor paper without a task-level evaluation ([arXiv 2609.00065](https://arxiv.org/abs/2609.00065)). Domain science (biology, chemistry, medicine); many skills install Python packages and need API keys. | Not global: `project-setup` step 4 vets single skills for science repositories. |
+### Workflow frameworks
 
-Also checked, no evidence found (independent or vendor): BMAD Method, gstack, oh-my-claudecode, SuperClaude, compound-engineering, wshobson/agents (one judge-only test without baseline, [#632](https://github.com/wshobson/agents/issues/632)), Taskmaster AI, Anthropic feature-dev and code-review plugins, last30days-skill, Agent-Reach (credential and supply chain issues: [#412](https://github.com/Panniantong/Agent-Reach/issues/412), [#547](https://github.com/Panniantong/Agent-Reach/issues/547)).
+| Component | Decision | Summary |
+|---|---|---|
+| [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (retest candidate, see #19) | pre-v6: resolved 45.6% vs 47.8%, tokens +40%, AgentStackBench |
+| [OpenSpec](evaluations/workflow-frameworks/openspec.md) | In, unmeasured | no study with a no-spec baseline; owns spec files per change |
+| [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no agent-skills baseline; overlaps agent-skills |
+| [GSD](evaluations/workflow-frameworks/gsd.md) | Not in | one task: about 1.2M tokens vs 200K vanilla, outputs indistinguishable |
+| [planning-with-files](evaluations/workflow-frameworks/planning-with-files.md) | Not in | vendor only; every arm passed 77/77; overlaps OpenSpec `tasks.md` |
 
-## User reports
+### Harness bundles
 
-Issue threads, forum posts and blogs, checked 2026-10-13. Mostly one repository and 1 to 4 runs per arm. Reddit could not be searched (access refused).
+| Component | Decision | Summary |
+|---|---|---|
+| [ECC](evaluations/harness-bundles/ecc.md) | Not in yet (retest candidate, see #19) | no outcome measurement; hook overhead and listing size reported |
+| [ruflo](evaluations/harness-bundles/ruflo.md) | Not in | no evidence; no method published for advertised figures |
 
-### ECC
+### Agent harnesses
 
-Overhead reports, no outcome measurements.
-- [#2834](https://github.com/affaan-m/ECC/issues/2834) (v1.9.0, mean of 3 runs): synchronous hooks about 1,610 ms per Bash call, 856 ms from `npx block-no-verify`.
-- [#2694](https://github.com/affaan-m/ECC/issues/2694): 773 skills, about 42,500 tokens of descriptions, about 4x the skill listing budget; other plugins' listings are truncated.
-- [#735](https://github.com/affaan-m/ECC/issues/735): per-edit format and typecheck hooks (15 to 30 s each) add 5 to 10 min to a 10-file refactor.
-- [#3461](https://github.com/affaan-m/ECC/issues/3461): session-end `claude -p` summary killed after 30 s, 45 kills and 2 completions; the child keeps running and is billed (Windows). [#398](https://github.com/affaan-m/ECC/issues/398): observer hooks start Haiku loops.
-- [#2278](https://github.com/affaan-m/ECC/issues/2278): orphaned python process at about 98% CPU for 4 days.
+| Component | Decision | Summary |
+|---|---|---|
+| [Pi](evaluations/agent-harnesses/pi.md) | Not in | no independent benchmark; Claude subscription use outside Anthropic's terms |
 
-### Superpowers
+### Context tools
 
-Split opinions; slowness and usage-limit reports.
-- [HN, Superpowers 6](https://news.ycombinator.com/item?id=48739459): "token guzzler" and highest cost per PR of about 60 teams (anecdote) against praise for brainstorming and TDD.
-- [#2017](https://github.com/obra/superpowers/issues/2017): "a modest feature takes an hour". [#1152](https://github.com/obra/superpowers/issues/1152): a 20-step plan used a Codex Plus 5 h budget. [#1194](https://github.com/obra/superpowers/issues/1194): 68M tokens for about 3k lines, 22M in planning.
-- The maintainer's eval lab measures workflow compliance, not task outcomes ([superpowers-evals](https://github.com/prime-radiant-inc/superpowers-evals)).
+| Component | Decision | Summary |
+|---|---|---|
+| [RTK](evaluations/context-tools/rtk.md) | Not in | median cost +7.6% at low effort (p=0.004), JetBrains, rtk 0.43.0 |
+| [codegraph](evaluations/context-tools/codegraph.md) | Not in | no independent evidence; user reports mixed |
+| [graphify](evaluations/context-tools/graphify.md) | Not in | no independent evidence; user report: right file first 25% vs 32% BM25 |
+| [Context7 MCP](evaluations/context-tools/context7.md) | Not in | 64/89 vs 63/89 passed, called in 6 tasks, Marginlab |
+| [LSP plugins](evaluations/context-tools/lsp-plugins.md) | Not in | 6 to 118% more tokens for symbol localization, arXiv 2608.13568 |
+| [Serena MCP](evaluations/context-tools/serena.md) | Not in | quality 83.4% vs 84.2% without, competitor-run |
+| [headroom](evaluations/context-tools/headroom.md) | Not in | input tokens +6%, cost +44%, competitor-run, SWE-bench Verified 100 |
+| [claude-mem](evaluations/context-tools/claude-mem.md) | Not in | none found; one user reports +63.9% API spend |
 
-### Skill collections (r/claudeskills)
+### Verification
 
-Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text supplied by the owner; URL not recorded). Opinions, no measurements.
-- Superpowers: one user uninstalled it because "a simple ask is taking enormous amount of time".
-- ECC: "very very large and hard to digest".
-- agent-skills vs mattpocock/skills: one user moved to agent-skills for team work ("more rigorous and covers more bases"), keeps Matt's for brainstorming, and cites agent-skills' evals; those evals measure skill triggering, not task outcomes ([evals](https://github.com/addyosmani/agent-skills/blob/main/evals/README.md)). Another runs agent-skills fully plus the Karpathy guidelines, and only those Matt and Anthropic skills that agent-skills lacks (grill-me, handoff, prototype, teach, writing-for-agents), after removing Superpowers.
-- The Skill Leaderboard curator: Claude Code loads a skill's full instructions only when used; start with a handful, check for overlapping skills, add one when you can name a gap.
+| Component | Decision | Summary |
+|---|---|---|
+| [Playwright MCP](evaluations/verification/playwright-mcp.md) | In | no paired cost or quality study; used for UI verification |
 
-### RTK
+### Practices
 
-Bill measurements are flat or higher; savings figures come from `rtk gain`, which counts command output, not the bill.
-- [rtk#582](https://github.com/rtk-ai/rtk/issues/582): one debugging task, cost +18% and output tokens +50% with the hook. A maintainer's re-run in the thread: output tokens -7.5% (within noise), cost +6.62% in 10-minute sessions.
-- [rtk#2012](https://github.com/rtk-ai/rtk/issues/2012) (LogDx-CI, 35 CI failure logs, 3 model families): diagnosis score about 0.25 to 0.47 with RTK variants vs about 0.63 to 0.67 with grep and tail or an LLM summary.
-- [rtk#3175](https://github.com/rtk-ai/rtk/issues/3175): usage limits reached faster with the hook on (no metrics, one user reports the opposite).
-- Problems: failures stripped from test output ([#2727](https://github.com/rtk-ai/rtk/issues/2727)), truncated git and grep output ([#1313](https://github.com/rtk-ai/rtk/issues/1313)), `rtk grep` not grep-compatible ([#1436](https://github.com/rtk-ai/rtk/issues/1436)), elided lines not recoverable ([#4098](https://github.com/rtk-ai/rtk/issues/4098)), `rtk gain` counts output the agent piped to `tail` ([#1973](https://github.com/rtk-ai/rtk/issues/1973)).
+| Component | Decision | Summary |
+|---|---|---|
+| [Project summary and layout in AGENTS.md](evaluations/practices/agents-md-overviews.md) | Not in | context files raised cost over 20%, no success gain, arXiv 2602.11988 |
 
-### codegraph
+Also checked, no evidence found (independent or vendor), no file: BMAD Method, gstack, oh-my-claudecode, SuperClaude, compound-engineering, wshobson/agents (one judge-only test without baseline, [#632](https://github.com/wshobson/agents/issues/632)), Taskmaster AI, Anthropic feature-dev and code-review plugins, last30days-skill, Agent-Reach (credential and supply chain issues: [#412](https://github.com/Panniantong/Agent-Reach/issues/412), [#547](https://github.com/Panniantong/Agent-Reach/issues/547)).
 
-Mixed; savings depend on how much file discovery the task needs.
-- [codegraph#975](https://github.com/colbymchenry/codegraph/issues/975): private repo, DeepSeek, 3 questions, more cost with codegraph in 2 of 3. A contributor's re-run in the thread (express, Sonnet, 2 questions x 2 runs): cost -22% (mean).
-- [codegraph#1500](https://github.com/colbymchenry/codegraph/issues/1500): Go monorepo, Cursor, one question: about 20K more context tokens with codegraph, same answer. The owner reports the README control arm had called the codegraph CLI in 26 of 28 runs, then re-measured after fixing it.
-- Problems: daemon out of memory ([#1553](https://github.com/colbymchenry/codegraph/issues/1553)), missed Python callers ([#899](https://github.com/colbymchenry/codegraph/issues/899)).
-
-### graphify
-
-No report measures a lower bill.
-- [graphify#4341](https://github.com/Graphify-Labs/graphify/issues/4341) (177 SWE-bench Lite issues): right file first in 25% of queries vs 32% for BM25; in the top 5 in 38% vs 64%.
-- [graphify#985](https://github.com/Graphify-Labs/graphify/issues/985): 1,484-file corpus, Claude Code alone gave similar answers with the same or fewer tokens; each query about 2K tokens.
-- [graphify#580](https://github.com/Graphify-Labs/graphify/issues/580): more tokens with graphify because the agent reads the graph report first.
-
-### Context7
-
-Positive anecdotes without measurements ([HN](https://news.ycombinator.com/item?id=46490087): "can't be sure it is due to Context 7").
-- Security: "ContextCrush", instructions planted in Context7 Custom Rules reached agents unfiltered; demo read and exfiltrated `.env` files; Upstash deployed a fix on 2026-02-23 ([Infosecurity Magazine](https://infosecurity-magazine.com/news/contextcrush-ai-development-tools)).
-
-### LSP plugins
-
-References and diagnostics help in some setups; agents rarely call LSP unless told to.
-- [Scott Spence](https://scottspence.com/posts/revisiting-lsp-in-claude-code): 32 LSP calls in about 650 sessions, none `findReferences`. With a CLAUDE.md rule, refactors 3/3 vs 0/3. Grep 2 to 3 turns and $0.04 to $0.08 per reference question, LSP only 7 to 12 turns and $0.07 to $0.12. First `findReferences` call wrong in 18 of 19 fresh sessions until `useSyntaxServer` was set to `"never"`. Conclusion: keep LSP for diagnostics, use grep for references.
-- [CircleCI](https://circleci.com/blog/claude-code-lsp/) (publishes an LSP plugin; vuejs/core, 3 symbols, CLAUDE.md rule to prefer LSP): cost -3% (Opus 4.8) and -14% (Sonnet 4.6); Sonnet with grep missed references (9/11, 249/260), LSP found all.
-- Problems: "No LSP server available" ([claude-code#14803](https://github.com/anthropics/claude-code/issues/14803)), hint-level diagnostics injected into the conversation ([claude-code#26634](https://github.com/anthropics/claude-code/issues/26634)).
-
-### Pi
-
-Strong user enthusiasm, measured comparisons are vendor-run.
-- [Composio](https://composio.dev/content/pi-agent-vs-claude-code) (vendor, supplied the MCP router used; DeepSeek V4 Flash, 30 tasks): Pi 20/30 at $0.56, Claude Code 16/30 at $3.12; reasoning settings differed.
-- [HN thread](https://news.ycombinator.com/item?id=46844822): users switching from Claude Code and Codex; no sandbox by default ([comment](https://news.ycombinator.com/item?id=46845370)).
-- Subscriptions: Pi offers `/login` with a Claude Pro/Max subscription, Sign in with ChatGPT, and GitHub Copilot ([pi-ai README](https://github.com/earendil-works/pi/blob/main/packages/ai/README.md)). Anthropic's terms limit Free, Pro and Max OAuth to Claude Code and Anthropic's own apps, do not permit third-party developers to route requests through those credentials, and reserve enforcement without notice ([Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use)); reports describe tools blocked since January 2026 ([GIGAZINE](https://gigazine.net/gsc_news/en/20260220-anthropic-third-party-block)). Pi is a separate harness that sends its own requests to Anthropic's API; the terms permit a subscription only in the unmodified Claude Code binary. [pi-claude-code-auth](https://github.com/cgaravitoq/pi-claude-code-auth) warns of account suspensions with the same mechanism in OpenCode. Within the terms, Claude models in Pi need an API key.
-- Pi users report the subscription failing or billing as extra usage:
-  - [pi#1311](https://github.com/earendil-works/pi/issues/1311) (2026-02-06): `This credential is only authorized for use with Claude Code`.
-  - [pi#2943](https://github.com/earendil-works/pi/issues/2943) (2026-04-08, Max plan): `You're out of extra usage`; other users confirm in the thread.
-  - [pi#3012](https://github.com/earendil-works/pi/issues/3012) (2026-04-10): `Third-party apps now draw from your extra usage, not your plan limits`.
-  - [pi#3401](https://github.com/earendil-works/pi/issues/3401): Pi shows a startup warning that subscription use draws from extra usage.
-  - [pi#6888](https://github.com/earendil-works/pi/issues/6888) (2026-07-20) and [pi#9838](https://github.com/earendil-works/pi/issues/9838) (2026-09-21): requests with Pi's default system prompt are classified as third-party; a replaced prompt bills against the plan, a workaround outside the terms. OpenAI's terms for ChatGPT sign-in in Pi: unverified.
-
-## Other studies
-
-Findings that apply to several components.
-
-- **Optional tools often go uncalled.** [JetBrains, IDE-native search](https://blog.jetbrains.com/ai/2026/05/what-happens-when-you-give-agents-ide-native-seach-tools/) (225 Java tasks, 3 runs, 2,700 trajectories; corrected after the first run had not called the tools): GPT-5.4-mini and GPT-5.5 made no IDE search calls in 675 trajectories each; GPT-5.6 used them and median cost rose about 6 to 7%; not recommended as a default. [Vercel](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals) (Next.js 16 APIs, agent and task count not stated, vendor of both arms): docs skill never invoked in 56% of cases, pass rate 53% (same as no docs), 79% with an explicit instruction to use it. Also Marginlab (Context7, 6 of 89 tasks) and arXiv 2608.13568 (LSP), above.
-- **Passive context beats on-demand lookup for missing knowledge.** Vercel: an 8 KB docs index in `AGENTS.md` passed 100%, against 53% without docs. [LangChain](https://www.langchain.com/blog/how-to-turn-claude-code-into-a-domain-specific-coding-agent) (Sonnet 4, 3 tasks x 3 runs, LLM judge, vendor of the docs MCP): CLAUDE.md beat a docs MCP; both together scored highest. This does not contradict arXiv 2602.11988: Vercel and LangChain add knowledge the model lacks; the AGENTS.md study measured overviews of code the agent can read.
-- **Single coding skills rarely move pass rate.** [SWE-Skills-Bench, arXiv 2603.15401](https://arxiv.org/abs/2603.15401) (49 skills): average +1.2%; a `tdd-workflow` skill (source unverified) on Claude Code with Haiku 4.5, 14 tasks: pass rate 21.4% to 28.6%, tokens +78.6%; runs per arm not stated.
-- **Focused skills beat large bundles.** [SkillsBench](https://arxiv.org/abs/2602.12670) (87 tasks, 18 model and harness configurations): curated skills raised pass rate from 33.9% to 50.5%; skills with at most 3 modules beat exhaustive ones; self-generated skills scored below no skills (Claude Code with Opus 4.7 -8.1 points, Codex with GPT-5.5 -11.3) while curated skills added 18.2 to 24.8 points on the same setups. Each task ships its own skills with domain procedure (steps, conventions, checks); it is a benchmark, not a skill collection to install.
-- **The harness matters, not only the model.** [Kotlin Benchmark](https://blog.jetbrains.com/kotlin/2026/07/introducing-the-kotlin-benchmark-evaluate-ai-coding-agents-on-real-world-kotlin-tasks/) (105 tasks): Claude Code with Opus 4.7 xhigh 85.7%, Junie with Opus 4.7 max 81.9%, Codex with GPT-5.5 xhigh 81.9%; effort settings differ. [JetBrains, recommended agent](https://blog.jetbrains.com/ai/2026/06/codex-is-now-the-recommended-agent-in-jetbrains-ai/) (353 tasks plus an online A/B test): Codex with GPT-5.4-mini 39.9%, Junie with Gemini 3 Flash 39.1%; Codex won the online test.
-- **Process instructions alone do not raise quality.** [TDAD, arXiv 2603.17973](https://arxiv.org/abs/2603.17973) (SWE-bench Verified, 100 and 25 instances): TDD instructions alone raised regressions from 6.08% to 9.94%; targeted test context lowered them to 1.82%. [arXiv 2609.20804](https://arxiv.org/abs/2609.20804) (4 open models, SWE-Bench Verified and Terminal-Bench 2.1, 1 run): a task-list planning scaffold added 11.6 points to the weakest model, 0 to -2.6 to stronger ones, mostly at lower cost.
-- **Multi-agent pays for broad research, not sequential coding.** [arXiv 2512.08296](https://arxiv.org/abs/2512.08296) (180 configurations): sequential tasks -39 to -70%, parallelizable tasks +80.9%. [Anthropic](https://www.anthropic.com/engineering/multi-agent-research-system) (vendor, internal eval): Opus 4 lead with Sonnet 4 subagents +90.2% over a single agent, about 15x chat tokens.
-- **Model choice moves cost more than add-ons.** [skill-receipts pilot](https://github.com/sjh9714/skill-receipts/blob/main/docs/model-sensitivity-pilot.md) (no plugin): Opus 5 vs Opus 4.8 +49% cost, +78% wall time (small pilot).
-- **Developer time.** [METR 2025](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) (16 developers, 246 tasks): +19% time with AI allowed. [METR 2026 update](https://metr.org/blog/2026-02-24-uplift-update/) (57 developers, 800+ tasks): -18% and -4%, all intervals include 0.
-
-## Sources to follow
-
-| Source | What it publishes |
-|---|---|
-| [JetBrains AI blog](https://blog.jetbrains.com/ai/) | Paired A/B tests of add-ons on SkillsBench (caveman, RTK, Ponytail, IDE search), with p-values |
-| [SkillsBench](https://arxiv.org/abs/2602.12670) | Benchmark and paper on whether skills help; the task set JetBrains uses |
-| [Marginlab](https://marginlab.ai/blog) | MCP on and off tests ("Do MCPs Improve Coding Agents?", Part 1: Context7); [Claude Code tracker](https://marginlab.ai/trackers/claude-code), daily SWE-Bench-Pro runs of the stock CLI (unverified) |
-| [Quesma](https://quesma.com/blog/) | Cost benchmarks of agent add-ons on Terminal-Bench (RTK) |
-| [Terminal-Bench](https://www.tbench.ai/leaderboard) | Leaderboard with model and agent listed separately, for harness comparisons |
-| [Kotlin Benchmark](https://kotlinlang.org/benchmark) | Agent leaderboard on 105 Kotlin tasks |
-
-[The Agentic Leaderboard](https://www.theagenticleaderboard.com/methodology) ranks agents by proxies (README, CI, stars), "not direct runtime measurements"; every Top 100 entry shows 500 ms latency; obra/superpowers is absent. Not a source of evidence.
-
-[The Skill Leaderboard](https://www.skillleaderboard.com/methodology) ranks skill repositories by GitHub stars, momentum and a traction score; no outcome measurement. ECC is not listed: the curator places it between a skill collection and a broader harness framework and is open to reconsidering (curator's comment in the r/claudeskills thread "Top Agent Skills Repositories"; URL not recorded, Reddit cannot be fetched here).
-
-[jeffscottward's harness analysis](https://gist.github.com/jeffscottward/de77a769d9e25a8ccdc92b65291b1c34) (2026-02-22, generated by Claude Opus 4.6 agents reading the code of Superpowers, ECC, Agent Orchestrator and Maestro): feature comparison with file citations, no runs or outcome measurements; ECC had 44 skills then. Consensus across the four: plan before execute, git worktree isolation, TDD first, handoff documents; quality gates are advisory in Superpowers and ECC.
-
-Related: [JetBrains Part 1, caveman skill](https://blog.jetbrains.com/ai/2026/07/speak-to-ai-agents-like-cavemen-tosave-tokens/) (advertised -65%, measured -8.5%); never part of BenchKeeper.
+Cross-tool findings: [evaluations/studies.md](evaluations/studies.md). Sources to follow and leaderboards: [evaluations/sources.md](evaluations/sources.md).

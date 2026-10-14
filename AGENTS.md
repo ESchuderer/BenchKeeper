@@ -17,6 +17,6 @@
 - Description, SDLC steps, prerequisites and recommended tools: edit `web/src/data/facts.json`, then run `node web/scripts/readme.mjs`; never edit the generated README blocks by hand.
 - `rules/global.md` is symlinked to `~/.claude/rules` and copied to `~/.codex/AGENTS.md`.
 - `.agents/skills/skill-creator` is vendored from `anthropics/skills` (`skills-lock.json`): do not edit; update with `DO_NOT_TRACK=1 npx -y skills@1.7.2 add anthropics/skills -s skill-creator -a claude-code -a codex --copy -y`.
-- Update `EVALUATIONS.md` when a component is added, removed, or changed.
+- Evaluations live in `evaluations/<category>/<tool>.md`, indexed in `EVALUATIONS.md`; update both when a component is added, removed, changed, or new evidence appears.
 - `web/scripts/og.svg` is the source of `web/public/og.png`: `rsvg-convert -w 1200 -h 630`.
 - Specs use OpenSpec (`openspec/`: current specs in `specs/`, changes in `changes/`). Generated OpenSpec skills in `.claude/skills/openspec-*`, `.agents/skills/openspec-*` are vendored: do not edit.

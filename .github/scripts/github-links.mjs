@@ -1,23 +1,28 @@
 // Checks github.com and gist.github.com links through the GitHub API, which lychee hits as HTML pages and GitHub rate-limits.
-// Links to this repository's own files are checked against the checkout, so files added in a pull request pass.
+// Links to this repository's main branch are checked against the checkout, so files added in a pull request pass.
 // Usage: GITHUB_TOKEN=... node .github/scripts/github-links.mjs <files...>
 import { existsSync, readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SELF = (process.env.GITHUB_REPOSITORY || 'ESchuderer/BenchKeeper').toLowerCase();
+const ROOT = fileURLToPath(new URL('../../', import.meta.url));
+// First path segments that are GitHub pages, not owners.
+const RESERVED = new Set(['orgs', 'marketplace', 'sponsors', 'topics', 'features', 'apps', 'settings', 'enterprise', 'collections', 'login']);
 
-// Returns { local: path } for this repository's files, { api: path } or { graphql: {...} } otherwise.
+// Returns { local: path } for this repository's main branch, { api: path } or { graphql: {...} } otherwise, { unsupported: true } for other GitHub pages.
 export function target(url) {
   const u = new URL(url);
   const parts = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
-  if (u.hostname === 'gist.github.com') return { api: `/gists/${parts.at(-1)}` };
+  if (u.hostname === 'gist.github.com') return { api: `/gists/${parts.length > 1 ? parts[1] : parts[0]}` };
   const [owner, rawRepo, kind, ...rest] = parts;
+  if (RESERVED.has(owner)) return { unsupported: true };
   const repo = rawRepo?.replace(/\.git$/, '');
   if (!repo) return { api: `/users/${owner}` };
   const base = `/repos/${owner}/${repo}`;
   if (kind === 'blob' || kind === 'tree') {
+    // shortcut: refs containing "/" are split at the first segment; resolve them through the refs API when such a link appears.
     const [ref, ...path] = rest;
-    if (`${owner}/${repo}`.toLowerCase() === SELF) return { local: path.join('/') || '.' };
+    if (`${owner}/${repo}`.toLowerCase() === SELF && ref === 'main') return { local: path.join('/') || '.' };
     return { api: `${base}/contents/${path.map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}` };
   }
   if ((kind === 'issues' || kind === 'pull') && rest[0]) return { api: `${base}/issues/${rest[0]}` };
@@ -29,35 +34,49 @@ export function target(url) {
   return { api: base };
 }
 
-const URL_RE = /https:\/\/(?:gist\.)?github\.com\/[^\s)"'<>`\]]+/g;
+// Markdown emphasis or table pipes next to a URL are not part of it.
+export const extract = (text) => [...text.matchAll(/https:\/\/(?:gist\.)?github\.com\/[^\s)"'<>`\]|*]+/g)].map((m) => m[0].replace(/[.,;:_]+$/, '').split('#')[0]);
 
-async function check(t, token) {
-  if (t.local) return existsSync(t.local) ? null : 'missing in checkout';
+function request(t, token) {
   // The Actions token gets 403 on the gists API; gists are checked unauthenticated.
   const auth = token && !t.api?.startsWith('/gists/');
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'benchkeeper-links', ...(auth && { Authorization: `Bearer ${token}` }) };
-  const res = t.graphql
-    ? await fetch('https://api.github.com/graphql', { method: 'POST', headers, body: JSON.stringify(t.graphql) })
-    : await fetch(`https://api.github.com${t.api}`, { headers });
-  if (!res.ok) return `HTTP ${res.status}`;
-  if (t.graphql) {
-    const body = await res.json();
-    return body.data?.repository?.discussion ? null : 'discussion not found';
+  return t.graphql
+    ? fetch('https://api.github.com/graphql', { method: 'POST', headers, body: JSON.stringify(t.graphql) })
+    : fetch(`https://api.github.com${t.api}`, { headers });
+}
+
+async function check(t, token) {
+  if (t.unsupported) return 'unsupported GitHub page, add a mapping in github-links.mjs';
+  if (t.local) return existsSync(ROOT + t.local) ? null : 'missing in checkout';
+  let last;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+    try {
+      const res = await request(t, token);
+      if (res.ok) {
+        if (!t.graphql) return null;
+        return (await res.json()).data?.repository?.discussion ? null : 'discussion not found';
+      }
+      last = `HTTP ${res.status}`;
+      if (![403, 429].includes(res.status) && res.status < 500) return last;
+    } catch (e) {
+      last = e.message;
+    }
   }
-  return null;
+  return last;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const token = process.env.GITHUB_TOKEN;
-  const urls = new Set();
-  for (const file of process.argv.slice(2)) {
-    for (const m of readFileSync(file, 'utf8').matchAll(URL_RE)) urls.add(m[0].replace(/[.,;:]+$/, '').split('#')[0]);
+  const urls = [...new Set(process.argv.slice(2).flatMap((f) => extract(readFileSync(f, 'utf8'))))].sort();
+  const errors = [];
+  for (let i = 0; i < urls.length; i += 4) {
+    const batch = urls.slice(i, i + 4);
+    const results = await Promise.all(batch.map((u) => check(target(u), token)));
+    results.forEach((err, j) => err && errors.push(`FAIL ${batch[j]}: ${err}`));
   }
-  let failed = 0;
-  for (const url of [...urls].sort()) {
-    const err = await check(target(url), token);
-    if (err) { failed++; console.log(`FAIL ${url}: ${err}`); }
-  }
-  console.log(`${urls.size} GitHub links, ${failed} failed`);
-  process.exit(failed ? 1 : 0);
+  errors.forEach((e) => console.log(e));
+  console.log(`${urls.length} GitHub links, ${errors.length} failed`);
+  process.exit(errors.length ? 1 : 0);
 }

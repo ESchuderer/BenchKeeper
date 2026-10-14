@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      # github.com pages are rate-limited for runners; those links are checked through the API below.
+      # github.com pages are rate-limited for runners; those links are checked through the API below. Gists stay with lychee (the Actions token cannot read the gists API).
       - uses: lycheeverse/lychee-action@v2.9.0
         with:
-          args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://(gist\.)?github\.com/' './**/*.md'
+          args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://github\.com/' './**/*.md'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v7.0.0

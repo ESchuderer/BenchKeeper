@@ -1,4 +1,4 @@
-// Checks github.com and gist.github.com links through the GitHub API, which lychee hits as HTML pages and GitHub rate-limits.
+// Checks github.com links through the GitHub API, which lychee hits as HTML pages and GitHub rate-limits.
 // Links to this repository's main branch are checked against the checkout, so files added in a pull request pass.
 // Usage: GITHUB_TOKEN=... node .github/scripts/github-links.mjs <files...>
 import { existsSync, readFileSync } from 'node:fs';
@@ -13,7 +13,6 @@ const RESERVED = new Set(['orgs', 'marketplace', 'sponsors', 'topics', 'features
 export function target(url) {
   const u = new URL(url);
   const parts = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
-  if (u.hostname === 'gist.github.com') return { api: `/gists/${parts.length > 1 ? parts[1] : parts[0]}` };
   const [owner, rawRepo, kind, ...rest] = parts;
   if (RESERVED.has(owner)) return { unsupported: true };
   const repo = rawRepo?.replace(/\.git$/, '');
@@ -35,12 +34,10 @@ export function target(url) {
 }
 
 // Markdown emphasis or table pipes next to a URL are not part of it.
-export const extract = (text) => [...text.matchAll(/https:\/\/(?:gist\.)?github\.com\/[^\s)"'<>`\]|*]+/g)].map((m) => m[0].replace(/[.,;:_]+$/, '').split('#')[0]);
+export const extract = (text) => [...text.matchAll(/https:\/\/github\.com\/[^\s)"'<>`\]|*]+/g)].map((m) => m[0].replace(/[.,;:_]+$/, '').split('#')[0]);
 
 function request(t, token) {
-  // The Actions token gets 403 on the gists API; gists are checked unauthenticated.
-  const auth = token && !t.api?.startsWith('/gists/');
-  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'benchkeeper-links', ...(auth && { Authorization: `Bearer ${token}` }) };
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'benchkeeper-links', ...(token && { Authorization: `Bearer ${token}` }) };
   return t.graphql
     ? fetch('https://api.github.com/graphql', { method: 'POST', headers, body: JSON.stringify(t.graphql) })
     : fetch(`https://api.github.com${t.api}`, { headers });

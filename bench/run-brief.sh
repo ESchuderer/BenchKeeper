@@ -6,12 +6,12 @@
 # (ANTHROPIC_API_KEY or ~/.config/benchkeeper/anthropic-api-key). Each container gets only its own runtime's credential.
 # Resumable: trials with a trial.json are skipped; delete a trial directory to rerun it.
 set -eu
-brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H I J K L M N O P"}
+brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H I J K L M N O P V W X Y"}
 bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
 NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 TIMEOUT=${TIMEOUT:-5400}
 FOLLOWUP="Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval."
-runtime() { case $1 in Q|R|S|T|U) echo opencode ;; *) echo claude ;; esac; }
+runtime() { case $1 in Q|R|S|T|U|Z|AA) echo opencode ;; *) echo claude ;; esac; }
 needs() { for a in $arms; do [ "$(runtime "$a")" = "$1" ] && return 0; done; return 1; }
 if needs claude; then
   : "${CLAUDE_CODE_OAUTH_TOKEN:=$(cat "$HOME/.config/benchkeeper/oauth-token" 2>/dev/null)}"

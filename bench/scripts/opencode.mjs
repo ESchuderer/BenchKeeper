@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const OPENCODE_ARMS = ['Q', 'R', 'S', 'T', 'U'];
+export const OPENCODE_ARMS = ['Q', 'R', 'S', 'T', 'U', 'Z', 'AA'];
 
 // Skills each arm must resolve (need) and must not (deny), chosen so every pair of arms differs; plus its plugin.
 const EXPECT = {
@@ -18,6 +18,9 @@ const EXPECT = {
   T: { need: ['spec-driven-development', 'planning-and-task-breakdown', 'api-and-interface-design', 'test-driven-development'], deny: ['openspec-propose', 'brainstorming', 'vercel-react-best-practices'], plugin: null },
   // agent-skills without its lifecycle skills, with OpenSpec.
   U: { need: ['openspec-propose', 'openspec-verify-change', 'api-and-interface-design', 'test-driven-development'], deny: ['spec-driven-development', 'planning-and-task-breakdown', 'brainstorming', 'vercel-react-best-practices'], plugin: null },
+  // Matt Pocock's skills v1.3.1, without and with OpenSpec.
+  Z: { need: ['tdd', 'code-review', 'grilling', 'to-spec', 'to-tickets'], deny: ['openspec-propose', 'brainstorming', 'spec-driven-development'], plugin: null },
+  AA: { need: ['tdd', 'code-review', 'to-spec', 'openspec-propose', 'openspec-verify-change'], deny: ['brainstorming', 'spec-driven-development', 'vercel-react-best-practices'], plugin: null },
 };
 
 const json = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return null; } };

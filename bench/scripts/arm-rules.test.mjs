@@ -11,7 +11,7 @@ const listed = (arm) => {
   const init = read(`bench/scripts/fixtures/init-${arm}.jsonl`).trim().split('\n').map((l) => JSON.parse(l)).find((e) => e.subtype === 'init');
   return new Set([...init.skills, ...init.agents].map((n) => n.replace(/^[a-z-]+:/, '')));
 };
-const ARM = { superpowers: 'D', ecc: 'E' };
+const ARM = { superpowers: 'D', ecc: 'E', mattpocock: 'Y' };
 const NOT_SKILLS = new Set(['full']);
 
 for (const fw of FRAMEWORKS) {

@@ -13,10 +13,23 @@
 set -eu
 arm=$1
 
+# Matt Pocock's one-time /setup-matt-pocock-skills, as its recommended answers give it (local markdown issue tracker,
+# default triage labels, single-context domain docs), from the seed templates at v1.3.1: docs/agents/ plus the
+# "## Agent skills" block in CLAUDE.md, or in <file> when given (it creates the file when neither exists).
+mp_setup() {
+  s=$src/mattpocock-skills/skills/engineering/setup-matt-pocock-skills
+  mkdir -p "$t/docs/agents"
+  cp "$s/issue-tracker-local.md" "$t/docs/agents/issue-tracker.md"
+  cp "$s/triage-labels.md" "$s/domain.md" "$t/docs/agents/"
+  f=${1:-CLAUDE.md}; [ -e "$t/CLAUDE.md" ] && f=CLAUDE.md
+  cat /opt/bench/mattpocock-agent-skills.md >> "$t/$f"
+}
+
 # OpenCode arms (runtime OpenCode 1.19.0 instead of Claude Code; Anthropic API key at run time, not the subscription):
 #   Q OpenSpec + targeted skills (addy TDD, security, review, debugging; Vercel React)   R Superpowers (OpenCode plugin)
 #   S OpenSpec + Superpowers through oso 1.1.1 (its own Superpowers v6.1.1)               T agent-skills (all, AGENTS.md template)
 #   U agent-skills without its define/plan lifecycle skills + OpenSpec
+#   Z Matt Pocock's skills (v1.3.1, the 27 plugin skills)  AA Matt Pocock's skills + OpenSpec
 # Isolation: OPENCODE_DISABLE_CLAUDE_CODE and OPENCODE_DISABLE_EXTERNAL_SKILLS (no ~/.claude or .agents loading), no
 # autoupdate, no model catalog fetch at run time (fetched once here). The runner sets the same variables for every turn.
 opencode_arm() {
@@ -40,6 +53,7 @@ opencode_arm() {
     command openspec config set workflows '["propose","explore","apply","verify","archive"]' >/dev/null
     (cd "$t" && OPENSPEC_TELEMETRY=0 command openspec init --tools opencode --no-animation >/dev/null)
   }
+  clone() { git -c advice.detachedHead=false clone -q --depth 1 --branch "$2" "https://github.com/$1.git" "$src/$(echo "$1" | tr / -)"; }
   case $1 in
     Q) openspec_project
        addy "$t/.opencode/skills"
@@ -61,6 +75,10 @@ opencode_arm() {
     U) openspec_project
        addy "$t/.opencode/skills" spec-driven-development planning-and-task-breakdown incremental-implementation using-agent-skills idea-refine interview-me
        cp /opt/bench/opencode-addy-openspec.AGENTS.md "$t/AGENTS.md" ;;
+    Z|AA) [ "$1" = Z ] || openspec_project
+       clone mattpocock/skills v1.3.1 && mkdir -p "$t/.opencode/skills"
+       for d in $(grep -o '"./skills/[^"]*"' "$src/mattpocock-skills/.claude-plugin/plugin.json" | tr -d '"'); do cp -r "$src/mattpocock-skills/$d" "$t/.opencode/skills/"; done
+       mp_setup AGENTS.md ;;
   esac
 }
 
@@ -71,12 +89,14 @@ case $arm in
   L) fw=as bk=yes pt=yes spec=none ;;          M) fw=sp bk=yes pt=yes spec=none ;;          N) fw=ecc bk=yes pt=yes spec=none ;;
   C) fw=as bk=yes pt=yes spec=openspec ;;      D) fw=sp bk=yes pt=yes spec=openspec ;;      E) fw=ecc bk=yes pt=yes spec=openspec ;;
   O) fw=none bk=no pt=yes spec=openspec ;;     P) fw=none bk=no pt=yes spec=speckit ;;
-  Q|R|S|T|U) opencode_arm "$arm"; exit 0 ;;
+  V) fw=mp bk=no pt=no spec=none ;;            W) fw=mp bk=no pt=no spec=openspec ;;
+  X) fw=mp bk=yes pt=yes spec=none ;;          Y) fw=mp bk=yes pt=yes spec=openspec ;;
+  Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac
 src=$HOME/.bench-src
-clone() { git -c advice.detachedHead=false clone -q --depth 1 --branch "$2" "https://github.com/$1.git" "$src/${1#*/}"; }
-plugin() { clone "$1" "$2"; claude plugin marketplace add "$src/${1#*/}"; claude plugin install "$3"; }
+clone() { git -c advice.detachedHead=false clone -q --depth 1 --branch "$2" "https://github.com/$1.git" "$src/$(echo "$1" | tr / -)"; }
+plugin() { clone "$1" "$2"; claude plugin marketplace add "$src/$(echo "$1" | tr / -)"; claude plugin install "$3"; }
 mkdir -p "$src" "$HOME/.claude/rules" "$HOME/.claude/skills"
 # Every arm: a no-op status line, as on the owner's machine; without one Ponytail asks the agent to set one up.
 printf '{"statusLine":{"type":"command","command":"true"}}\n' > "$HOME/.claude/settings.json"
@@ -86,6 +106,7 @@ case $fw in
   as) plugin addyosmani/agent-skills 0.6.13 agent-skills@addy-agent-skills ;;
   sp) plugin obra/superpowers v7.0.0 superpowers@superpowers-dev ;;
   ecc) DO_NOT_TRACK=1 npx -y ecc-universal@2.2.3 install --profile minimal --target claude ;;
+  mp) plugin mattpocock/skills v1.3.1 mattpocock-skills@mattpocock ;;
 esac
 if [ "$pt" = yes ]; then
   plugin DietrichGebert/ponytail v5.2.0 ponytail@ponytail
@@ -94,10 +115,10 @@ fi
 
 t=$HOME/project-template
 if [ "$bk" = yes ]; then
-  case $fw in as) rules=global.md ;; sp) rules=superpowers.rules.md ;; ecc) rules=ecc.rules.md ;; esac
+  case $fw in as) rules=global.md ;; sp) rules=superpowers.rules.md ;; ecc) rules=ecc.rules.md ;; mp) rules=mattpocock.rules.md ;; esac
   cp "/opt/bench/$rules" "$HOME/.claude/rules/00-global.md"
   cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md"
-  clone vercel-labs/skills v1.7.2 && cp -r "$src/skills/skills/find-skills" "$HOME/.claude/skills/"
+  clone vercel-labs/skills v1.7.2 && cp -r "$src/vercel-labs-skills/skills/find-skills" "$HOME/.claude/skills/"
   cp -r /opt/bench/skills/project-setup /opt/bench/skills/global-setup "$HOME/.claude/skills/"
   npm i -g --prefix "$HOME/.local" @playwright/mcp@0.0.83
   node "$HOME/.local/lib/node_modules/@playwright/mcp/node_modules/playwright-core/cli.js" install chromium
@@ -115,3 +136,4 @@ case $spec in
     uv tool install -q specify-cli --from git+https://github.com/github/spec-kit.git@v1.2.0
     mkdir -p "$t" && (cd "$t" && specify init --here --integration claude --script sh --force --non-interactive --ignore-agent-tools >/dev/null) ;;
 esac
+if [ "$fw" = mp ]; then mkdir -p "$t" && mp_setup; fi

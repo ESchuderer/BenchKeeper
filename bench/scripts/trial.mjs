@@ -14,6 +14,7 @@ export const ARMS = {
   L: ['as', 1, 1, null], M: ['sp', 1, 1, null], N: ['ecc', 1, 1, null],
   C: ['as', 1, 1, 'openspec'], D: ['sp', 1, 1, 'openspec'], E: ['ecc', 1, 1, 'openspec'],
   O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'],
+  V: ['mp', 0, 0, null], W: ['mp', 0, 0, 'openspec'], X: ['mp', 1, 1, null], Y: ['mp', 1, 1, 'openspec'],
 };
 
 // What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
@@ -22,6 +23,7 @@ function expect(fw, pt, bk, spec) {
   if (fw === 'as') e.plugins.push('agent-skills'), e.skills.push('agent-skills:test-driven-development');
   if (fw === 'sp') e.plugins.push('superpowers'), e.skills.push('superpowers:brainstorming'), e.hooks.push('superpowers');
   if (fw === 'ecc') e.skills.push('tdd-workflow'), e.agents.push('planner', 'code-reviewer');
+  if (fw === 'mp') e.plugins.push('mattpocock-skills'), e.skills.push('mattpocock-skills:tdd');
   if (pt) e.plugins.push('ponytail'), e.skills.push('ponytail:ponytail'), e.hooks.push('PONYTAIL MODE ACTIVE');
   if (bk) e.skills.push('find-skills', 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
   if (spec === 'openspec') e.skills.push('openspec-propose');

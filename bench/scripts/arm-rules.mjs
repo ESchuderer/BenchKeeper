@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const FRAMEWORKS = ['superpowers', 'ecc'];
+export const FRAMEWORKS = ['superpowers', 'ecc', 'mattpocock'];
 
 export function parse(spec) {
   const sections = {};

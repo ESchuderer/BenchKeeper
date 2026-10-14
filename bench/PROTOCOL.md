@@ -1,10 +1,10 @@
 # Benchmark protocol
 
-Version 0.2, 2026-10-14 (0.2: rules loading checked by a probe instead of the debug log, which does not show it; parser takes tokens from cumulative model usage). Covers the winery pre-screen only; the held-out task track is still the draft in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) and gets its own version here before its first run. Changes after a run starts need a new version; reports link the version they used.
+Version 0.4, 2026-10-14 (0.4: 8 arms, each framework alone (F, G, H) and with the BenchKeeper layer (C, D, E), project setup for all three. 0.2: rules loading checked by a probe instead of the debug log, which does not show it; parser takes tokens from cumulative model usage. 0.3: arm C starts from a project set up by `/project-setup`, BenchKeeper's real-world case). Covers the winery pre-screen only; the held-out task track is still the draft in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) and gets its own version here before its first run. Changes after a run starts need a new version; reports link the version they used.
 
 ## Pre-screen: winery brief on Claude Opus 5.5
 
-Purpose: show, before the Sonnet run, whether every arm installs, passes the delivery audit and builds a working app headless, and what each stack's workflow does unprompted. Practice only: no drop rule (all 5 arms stay in later runs), no conclusions for other models, not one of the reported briefs.
+Purpose: show, before the Sonnet run, whether every arm installs, passes the delivery audit and builds a working app headless, and what each stack's workflow does unprompted. Practice only: no drop rule (all arms stay in later runs), no conclusions for other models, not one of the reported briefs.
 
 ### Arms
 
@@ -14,9 +14,16 @@ Built by `bench/image/Containerfile` and `bench/image/install-arm.sh` from pinne
 |---|---|---|
 | A | none | stock Claude Code |
 | B | none | Ponytail v5.2.0 plugin, `full` |
-| C | `rules/global.md` | Ponytail v5.2.0, agent-skills 0.6.13 plugin, find-skills (vercel-labs/skills v1.7.2), BenchKeeper skills `project-setup`, `global-setup` |
-| D | `bench/arms/base.rules.md` | Ponytail v5.2.0, Superpowers v7.0.0 plugin, find-skills, BenchKeeper skills |
-| E | `bench/arms/base.rules.md` | Ponytail v5.2.0, ECC v2.2.3 `minimal` profile (`npx ecc-universal@2.2.3 install --profile minimal --target claude`), find-skills, BenchKeeper skills |
+| F | none | agent-skills 0.6.13 plugin |
+| G | none | Superpowers v7.0.0 plugin |
+| H | none (ECC's own rules in `~/.claude/rules/ecc/`) | ECC v2.2.3 `minimal` profile (`npx ecc-universal@2.2.3 install --profile minimal --target claude`) |
+| C | `rules/global.md` | agent-skills 0.6.13 + BenchKeeper layer |
+| D | `bench/arms/base.rules.md` | Superpowers v7.0.0 + BenchKeeper layer |
+| E | `bench/arms/base.rules.md` | ECC v2.2.3 `minimal` + BenchKeeper layer |
+
+BenchKeeper layer: Ponytail v5.2.0 `full`, find-skills (vercel-labs/skills v1.7.2), BenchKeeper skills `project-setup` and `global-setup`, OpenSpec CLI 1.14.1, Playwright MCP 0.0.83 with Chromium, and the project workspace below.
+
+The workspace of arms C, D and E starts as `/project-setup` leaves a new Node.js 22 web app, committed as the first commit (`bench/arms/project-setup/`): `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md`), devcontainer config, OpenSpec (`openspec init --tools claude`), the `playwright-best-practices` skill (currents-dev), and Playwright MCP 0.0.83 with Chromium inside the container, approved for the project. Arms A, B, F, G and H have no project setup step and start from an empty workspace.
 
 Base rules: `rules/global.md` without "Ponytail and agent-skills", "Branches, issues and pull requests", "Task tiers" and "SDLC" (`bench/scripts/arm-rules.mjs`), so D and E run their framework's own workflow. Settings from `/global-setup` part 7 (advisor, attribution, telemetry) are not applied in any arm.
 
@@ -28,8 +35,8 @@ Base rules: `rules/global.md` without "Ponytail and agent-skills", "Branches, is
 
 ### Run
 
-- Model `claude-opus-5-5`, effort `high` (to be confirmed by the owner before the run), `--dangerously-skip-permissions` inside the container, stream-json with hook events, debug log.
-- k=3 rounds; each round runs all 5 arms in an order shuffled with seed 19 (`bench/run-brief.sh`, order logged in `manifest.txt`); one trial at a time; timeout 90 minutes per trial (podman `--timeout 5400`). A resumed run never repeats a finished agent run and refuses to continue when an arm image changed.
+- Model `claude-opus-5-5`, effort `high` (to be confirmed by the owner before the run), all 8 arms, `--dangerously-skip-permissions` inside the container, stream-json with hook events, debug log.
+- k=3 rounds (24 trials); each round runs all 8 arms in an order shuffled with seed 19 (`bench/run-brief.sh`, order logged in `manifest.txt`); one trial at a time; timeout 90 minutes per trial (podman `--timeout 5400`). A resumed run never repeats a finished agent run and refuses to continue when an arm image changed.
 - Sandbox: the agent container mounts only its empty workspace and a log directory; `bench/`, the hidden tests and other repositories are never mounted. Network is on (package installs).
 - Credentials: the owner's Max subscription through `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), read from the environment or `~/.config/benchkeeper/oauth-token`, never written to results. After each trial the runner searches the trial directory for the token and stops if it finds it.
 - Command: `bench/run-brief.sh winery claude-opus-5-5 high 3 19`.
@@ -53,7 +60,7 @@ Per trial, in a copy of the workspace, in pinned containers:
 
 ### Validity
 
-- Delivery audit (`trial.mjs`): the init event lists exactly the arm's plugins and marker skills or agents, none of another arm's markers, and the expected SessionStart hook output; arm A shows none. A failed audit invalidates the trial.
+- Delivery audit (`trial.mjs`): the init event lists exactly the arm's plugins, marker skills or agents and connected MCP servers (C, D, E: `playwright`; others: none), none of another arm's markers, and the expected SessionStart hook output; arm A shows none. A failed audit invalidates the trial.
 - A trial stopped by a usage limit, API overload or an authentication failure is an infrastructure error: rerun once (delete its directory and rerun the command), then listed as excluded.
 - Every trial is reported, including stalls, trials without code and invalid ones.
 

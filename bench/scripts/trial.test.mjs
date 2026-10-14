@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { audit, outcome, workflow } from './trial.mjs';
 
-// Fixtures: init and SessionStart events recorded from the five arm images (hook output reduced to its markers).
+// Fixtures: init and SessionStart events recorded from the eight arm images (hook output reduced to its markers).
 const fixture = (arm) => readFileSync(new URL(`fixtures/init-${arm}.jsonl`, import.meta.url), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-const ARMS = ['A', 'B', 'C', 'D', 'E'];
+const ARMS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 test('each arm passes its own delivery audit and fails every other arm\'s', () => {
   for (const real of ARMS) {

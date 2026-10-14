@@ -6,12 +6,17 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 // What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
+// BenchKeeper layer of arms C, D, E: Ponytail, find-skills, BenchKeeper skills, the project's OpenSpec and Playwright skills.
+const BK = ['ponytail:ponytail', 'find-skills', 'project-setup', 'openspec-propose', 'playwright-best-practices'];
 export const EXPECT = {
   A: { plugins: [], skills: [], hooks: [] },
   B: { plugins: ['ponytail'], skills: ['ponytail:ponytail'], hooks: ['PONYTAIL MODE ACTIVE'] },
-  C: { plugins: ['agent-skills', 'ponytail'], skills: ['ponytail:ponytail', 'find-skills', 'project-setup', 'agent-skills:test-driven-development'], hooks: ['PONYTAIL MODE ACTIVE'] },
-  D: { plugins: ['ponytail', 'superpowers'], skills: ['ponytail:ponytail', 'find-skills', 'project-setup', 'superpowers:brainstorming'], hooks: ['PONYTAIL MODE ACTIVE', 'superpowers'] },
-  E: { plugins: ['ponytail'], skills: ['ponytail:ponytail', 'find-skills', 'project-setup', 'tdd-workflow'], agents: ['planner', 'code-reviewer'], hooks: ['PONYTAIL MODE ACTIVE'] },
+  C: { plugins: ['agent-skills', 'ponytail'], skills: [...BK, 'agent-skills:test-driven-development'], mcp: ['playwright'], hooks: ['PONYTAIL MODE ACTIVE'] },
+  D: { plugins: ['ponytail', 'superpowers'], skills: [...BK, 'superpowers:brainstorming'], mcp: ['playwright'], hooks: ['PONYTAIL MODE ACTIVE', 'superpowers'] },
+  E: { plugins: ['ponytail'], skills: [...BK, 'tdd-workflow'], agents: ['planner', 'code-reviewer'], mcp: ['playwright'], hooks: ['PONYTAIL MODE ACTIVE'] },
+  F: { plugins: ['agent-skills'], skills: ['agent-skills:test-driven-development'], hooks: [] },
+  G: { plugins: ['superpowers'], skills: ['superpowers:brainstorming'], hooks: ['superpowers'] },
+  H: { plugins: [], skills: ['tdd-workflow'], agents: ['planner', 'code-reviewer'], hooks: [] },
 };
 const MARKERS = [...new Set(Object.values(EXPECT).flatMap((e) => [...e.skills, ...(e.agents || [])]))];
 
@@ -28,6 +33,8 @@ export function audit(events, arm) {
   for (const m of expected) if (!listed.has(m)) problems.push(`missing ${m}`);
   for (const m of MARKERS) if (!expected.includes(m) && listed.has(m)) problems.push(`unexpected ${m}`);
   for (const h of want.hooks) if (!hookOut.includes(h)) problems.push(`no hook output "${h}"`);
+  const mcp = (init.mcp_servers || []).map((s) => `${s.name}:${s.status}`).sort();
+  if (mcp.join() !== (want.mcp || []).map((n) => `${n}:connected`).join()) problems.push(`mcp ${mcp.join(',') || 'none'}`);
   if (!want.hooks.length && hookOut.trim()) problems.push('unexpected SessionStart output');
   return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins };
 }

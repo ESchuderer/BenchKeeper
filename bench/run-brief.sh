@@ -4,7 +4,7 @@
 # Token: CLAUDE_CODE_OAUTH_TOKEN, or the file ~/.config/benchkeeper/oauth-token (from `claude setup-token`); never printed.
 # Resumable: trials with a trial.json are skipped; delete a trial directory to rerun it.
 set -eu
-brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E"}
+brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H"}
 bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
 NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 TIMEOUT=${TIMEOUT:-5400}
@@ -41,6 +41,10 @@ for r in $(seq "$k"); do
     if [ ! -f "$t/agent.exit" ]; then
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
+    # BenchKeeper arms start from the project state /project-setup leaves, committed as the first commit.
+    case $arm in C|D|E) podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
+      sh -c 'cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && git commit -qm "chore: project setup"' ;;
+    esac
     date +%s > "$t/start"
     podman run --rm --name "bk-trial-$$" --timeout "$TIMEOUT" --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN \
       -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \

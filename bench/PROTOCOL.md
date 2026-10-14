@@ -1,6 +1,6 @@
 # Benchmark protocol
 
-Version 0.1, 2026-10-14. Covers the winery pre-screen only; the held-out task track is still the draft in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) and gets its own version here before its first run. Changes after a run starts need a new version; reports link the version they used.
+Version 0.2, 2026-10-14 (0.2: rules loading checked by a probe instead of the debug log, which does not show it; parser takes tokens from cumulative model usage). Covers the winery pre-screen only; the held-out task track is still the draft in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) and gets its own version here before its first run. Changes after a run starts need a new version; reports link the version they used.
 
 ## Pre-screen: winery brief on Claude Opus 5.5
 

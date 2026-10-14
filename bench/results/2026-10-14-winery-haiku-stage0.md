@@ -1,6 +1,6 @@
 # Stage 0: winery brief on Claude Haiku 5.5
 
-Run 2026-10-14, protocol `bench/PROTOCOL.md` v0.1 (stage 0). Wiring check on practice data: one trial per arm, no effect conclusions.
+Run 2026-10-14, protocol `bench/PROTOCOL.md` v0.1 (stage 0); the rules check and token parsing below are the changes in v0.2. Wiring check on practice data: one trial per arm, no effect conclusions.
 
 ## Setup
 

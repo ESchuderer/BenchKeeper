@@ -58,7 +58,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Work or commit on the default branch only when the user said so in this task; otherwise ask first.
 - OpenSpec (repository has `openspec/`, full tier) follows the same flow: after the issue step, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>` or `<slug>`, issue linked in `proposal.md`); commit it with the code; run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
 - No GitHub remote or `gh auth status` fails: local branch only, skip issue and pull request, say so in one line.
-- Before running `git push` or opening a pull request that contains code changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change.
+- Before running `git push` or opening a pull request that contains code changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change or the tier is quick.
 
 ## Task tiers
 Before the first edit or search, pick one tier and state it in one line (`Tier: quick`). The user's explicit tier wins, then a `Default tier:` line in `AGENTS.md` when the request fits it. Move up a tier and say so when the work grows: more than one behavior, an uncertain approach, or security, data or production impact.

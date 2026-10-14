@@ -29,6 +29,6 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Decision
 
-Not in yet: no outcome measurement in either direction; measured overhead from hooks and listing size. The full plugin crowds other plugins out of the skill listing; a selective install (`manifests/install-profiles.json`: the `minimal` profile has no hooks, so `strategic-compact` loses its hook) or single skills avoid that. The `minimal` profile plus Ponytail is arm E in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19), next to the agent-skills (C) and Superpowers (D) stacks.
+Not in yet: no outcome measurement in either direction; measured overhead from hooks and listing size. The full plugin crowds other plugins out of the skill listing; a selective install (`manifests/install-profiles.json`: the `minimal` profile has no hooks, so `strategic-compact` loses its hook) or single skills avoid that. Arm E in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) is BenchKeeper with agent-skills replaced by the ECC `minimal` profile, next to the agent-skills (C) and Superpowers (D) stacks.
 
 [All evaluations](../../EVALUATIONS.md)

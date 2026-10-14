@@ -7,7 +7,7 @@ Assign each request to a task tier so the agent runs only the SDLC steps and res
 
 ### Requirement: Tier selection
 
-The agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. A risky change is one to authentication, permissions, secrets or input validation, to production data, deploy or production configuration, or an irreversible action. An explicit tier from the user SHALL win; for a risky change the agent SHALL name the full tier and ask, the user's answer SHALL decide, and the pre-push review SHALL run in every tier. A project default tier SHALL apply when no other tier clearly matches.
+The agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. An explicit tier from the user SHALL win; for a risky change the agent SHALL name the full tier and ask, and the user's answer SHALL decide. A project default tier SHALL apply when no other tier clearly matches.
 
 #### Scenario: Small UI change
 
@@ -133,3 +133,12 @@ Several requests in one prompt SHALL each get a tier, and the highest tier SHALL
 
 - **WHEN** a request needs several sessions
 - **THEN** the agent proposes separate issues before the first edit
+
+### Requirement: Risky changes
+
+A risky change SHALL be one to authentication, permissions, secrets or input validation, to production data, deploy or production configuration, or an irreversible action. A risky change SHALL get the pre-push review in every tier.
+
+#### Scenario: Risky change on the quick tier
+
+- **WHEN** the user keeps a production config change on the quick tier
+- **THEN** the agent still reviews the commits before push

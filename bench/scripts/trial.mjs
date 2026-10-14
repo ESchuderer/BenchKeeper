@@ -20,9 +20,16 @@ export const EXPECT = {
 };
 const MARKERS = [...new Set(Object.values(EXPECT).flatMap((e) => [...e.skills, ...(e.agents || [])]))];
 
+// Every agent process of a trial (first turn, follow-ups) starts with an init event; all must match the arm.
 export function audit(events, arm) {
-  const init = events.find((e) => e.type === 'system' && e.subtype === 'init');
-  if (!init) return { ok: false, problems: ['no init event'] };
+  const inits = events.filter((e) => e.type === 'system' && e.subtype === 'init');
+  if (!inits.length) return { ok: false, problems: ['no init event'] };
+  const results = inits.map((init) => auditInit(init, events, arm));
+  const problems = [...new Set(results.flatMap((r) => r.problems))];
+  return { ...results[0], ok: problems.length === 0, problems };
+}
+
+function auditInit(init, events, arm) {
   const want = EXPECT[arm];
   const plugins = (init.plugins || []).filter((p) => p.path !== 'builtin').map((p) => p.name).sort();
   const listed = new Set([...(init.skills || []), ...(init.agents || [])]);
@@ -66,19 +73,12 @@ export function workflow(events) {
 }
 
 export function outcome(events) {
-  // Each agent process (the first turn, each follow-up turn) starts with an init event. Within a process the last
-  // result event carries cumulative cost and per-model usage (a process can emit several when the main thread resumes
-  // after a background agent); processes are summed. num_turns counts per result event.
+  // Cost and per-model usage in a result event are cumulative for its session, also across follow-up turns
+  // (`--continue` keeps the session), so the last result per session_id counts. num_turns counts per result event.
   const results = events.filter((e) => e.type === 'result');
   const r = results.at(-1);
   if (!r) return { finished: false };
-  const last = [];
-  let cur = null;
-  for (const e of events) {
-    if (e.type === 'system' && e.subtype === 'init') { if (cur) last.push(cur); cur = null; }
-    if (e.type === 'result') cur = e;
-  }
-  if (cur) last.push(cur);
+  const last = [...new Map(results.map((e) => [e.session_id, e])).values()];
   const models = last.flatMap((e) => Object.values(e.modelUsage || {}));
   const sum = (k) => models.reduce((n, m) => n + (m[k] || 0), 0);
   const text = String(r.result || '');
@@ -91,7 +91,7 @@ export function outcome(events) {
     duration_ms: r.duration_ms,
     result_events: results.length,
     num_turns: results.reduce((n, e) => n + (e.num_turns || 0), 0),
-    agent_processes: last.length,
+    sessions: last.length,
     cost_usd_api_equivalent: last.reduce((n, e) => n + (e.total_cost_usd || 0), 0),
     usage: models.length ? {
       input: sum('inputTokens'), cache_creation: sum('cacheCreationInputTokens'),

@@ -1,6 +1,6 @@
 # Benchmark protocol
 
-Version 0.5, 2026-10-14 (0.5: follow-up rule; rules with the non-interactive phase fix (`fix/headless-phases`). 0.4: 8 arms, each framework alone (F, G, H) and with the BenchKeeper layer (C, D, E), project setup for all three. 0.2: rules loading checked by a probe instead of the debug log, which does not show it; parser takes tokens from cumulative model usage. 0.3: arm C starts from a project set up by `/project-setup`, BenchKeeper's real-world case). Covers the winery pre-screen only; the held-out task track is still the draft in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) and gets its own version here before its first run. Changes after a run starts need a new version; reports link the version they used.
+Version 0.6, 2026-10-14 (0.6: rules from #26 (continue through the phases a tier requires, the OpenSpec propose-then-apply step, no approvals granted by non-interactive runs); cost and tokens from the last result per session; every agent process audited; the Playwright skill pinned to a commit. 0.5: follow-up rule; rules with the non-interactive phase fix (`fix/headless-phases`). 0.4: 8 arms, each framework alone (F, G, H) and with the BenchKeeper layer (C, D, E), project setup for all three. 0.2: rules loading checked by a probe instead of the debug log, which does not show it; parser takes tokens from cumulative model usage. 0.3: arm C starts from a project set up by `/project-setup`, BenchKeeper's real-world case). Covers the winery pre-screen only; the held-out task track is still the draft in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) and gets its own version here before its first run. Changes after a run starts need a new version; reports link the version they used.
 
 ## Pre-screen: winery brief on Claude Opus 5.5
 
@@ -23,7 +23,9 @@ Built by `bench/image/Containerfile` and `bench/image/install-arm.sh` from pinne
 
 BenchKeeper layer: Ponytail v5.2.0 `full`, find-skills (vercel-labs/skills v1.7.2), BenchKeeper skills `project-setup` and `global-setup`, OpenSpec CLI 1.14.1, Playwright MCP 0.0.83 with Chromium, and the project workspace below.
 
-The workspace of arms C, D and E starts as `/project-setup` leaves a new Node.js 22 web app, committed as the first commit (`bench/arms/project-setup/`): `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md`), devcontainer config, OpenSpec (`openspec init --tools claude`), the `playwright-best-practices` skill (currents-dev), and Playwright MCP 0.0.83 with Chromium inside the container, approved for the project. Arms A, B, F, G and H have no project setup step and start from an empty workspace.
+The workspace of arms C, D and E starts as `/project-setup` leaves a new Node.js 22 web app, committed as the first commit (`bench/arms/project-setup/`): `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md`), devcontainer config, OpenSpec (`openspec init --tools claude`), the `playwright-best-practices` skill (currents-dev, commit `283d5cb`), and Playwright MCP 0.0.83 with Chromium inside the container, approved for the project. Arms A, B, F, G and H have no project setup step and start from an empty workspace.
+
+The base rules keep the section "Ask, do not assume", whose non-interactive lines name the OpenSpec step; arms D and E have OpenSpec in their project as part of the BenchKeeper layer.
 
 Base rules: `rules/global.md` without "Ponytail and agent-skills", "Branches, issues and pull requests", "Task tiers" and "SDLC" (`bench/scripts/arm-rules.mjs`), so D and E run their framework's own workflow. Settings from `/global-setup` part 7 (advisor, attribution, telemetry) are not applied in any arm.
 
@@ -36,7 +38,7 @@ Base rules: `rules/global.md` without "Ponytail and agent-skills", "Branches, is
 ### Run
 
 - Model `claude-opus-5-5`, effort `high` (to be confirmed by the owner before the run), all 8 arms, `--dangerously-skip-permissions` inside the container, stream-json with hook events, debug log.
-- k=3 rounds (24 trials); each round runs all 8 arms in an order shuffled with seed 19 (`bench/run-brief.sh`, order logged in `manifest.txt`); one trial at a time; timeout 90 minutes per trial (podman `--timeout 5400`). A resumed run never repeats a finished agent run and refuses to continue when an arm image changed.
+- k=3 rounds (24 trials); each round runs all 8 arms in an order shuffled with seed 19 (`bench/run-brief.sh`, order logged in `manifest.txt`); one trial at a time; timeout 90 minutes per trial, shared by all turns (each turn gets the remaining time). A resumed run never repeats a finished agent run and refuses to continue when an arm image changed.
 - Sandbox: the agent container mounts only its empty workspace and a log directory; `bench/`, the hidden tests and other repositories are never mounted. Network is on (package installs).
 - Credentials: the owner's Max subscription through `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), read from the environment or `~/.config/benchkeeper/oauth-token`, never written to results. After each trial the runner searches the trial directory for the token and stops if it finds it.
 - Follow-up rule: when the agent ends a turn and the workspace has no `package.json` with a `start` script, the runner continues the same session with the fixed message "Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval.", at most twice, within the trial's 90 minutes. The number of follow-ups is recorded per trial; finishing without one is reported separately.
@@ -60,13 +62,13 @@ Per trial, in a copy of the workspace, in pinned containers:
 - `npm install`, `npm run build --if-present`, `npm start` with `PORT` and a random `STAFF_PASSWORD`;
 - hidden features passed (of 6); axe violations (WCAG 2.2 AA tags) on start, form, confirmation and staff pages; Lighthouse performance, accessibility and best practices on the start page; `npm audit` counts; the agent's own `npm test` exit code (in the node base image without browsers);
 - non-blank source and test lines;
-- wall-clock minutes; from the transcript: turns, tokens, API-equivalent USD (`total_cost_usd`; not billed), whether the run ended with a question;
+- wall-clock minutes; from the transcript (last result per session, since follow-up turns continue the session and its totals are cumulative): turns, tokens, API-equivalent USD (`total_cost_usd`; not billed), whether the run ended with a question;
 - captured for manual comparison: the built app as delivered (`app.tar.gz`: source and git history, without `node_modules`) and full-page screenshots of the start, form, confirmation and staff pages;
 - workflow trace: Skill and Agent calls, plan or spec files written, tests written and whether before the first source file, whether a review step ran, the last tool call.
 
 ### Validity
 
-- Delivery audit (`trial.mjs`): the init event lists exactly the arm's plugins, marker skills or agents and connected MCP servers (C, D, E: `playwright`; others: none), none of another arm's markers, and the expected SessionStart hook output; arm A shows none. A failed audit invalidates the trial.
+- Delivery audit (`trial.mjs`): the init event of every agent process (first turn and follow-ups) lists exactly the arm's plugins, marker skills or agents and connected MCP servers (C, D, E: `playwright`; others: none), none of another arm's markers, and the expected SessionStart hook output; arm A shows none. A failed audit invalidates the trial.
 - A trial stopped by a usage limit, API overload or an authentication failure is an infrastructure error: rerun once (delete its directory and rerun the command), then listed as excluded.
 - Every trial is reported, including stalls, trials without code and invalid ones.
 

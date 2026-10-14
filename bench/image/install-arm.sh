@@ -43,4 +43,4 @@ node "$HOME/.local/lib/node_modules/@playwright/mcp/node_modules/playwright-core
 openspec config set delivery skills >/dev/null && openspec config set telemetry.enabled false >/dev/null
 t=$HOME/project-template && cp -r /opt/bench/project-setup "$t" && rm "$t/README.md"
 (cd "$t" && openspec init --tools claude --no-animation >/dev/null)
-(cd "$t" && DO_NOT_TRACK=1 npx -y skills@1.7.2 add currents-dev/playwright-best-practices-skill -s playwright-best-practices -a claude-code --copy -y)
+(cd "$t" && DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/currents-dev/playwright-best-practices-skill/tree/283d5cbc5d11aac1abda058b16ad22c317d54dc0 -s playwright-best-practices -a claude-code --copy -y)

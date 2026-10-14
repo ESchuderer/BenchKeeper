@@ -44,14 +44,22 @@ test('outcome sums turns over result events and takes tokens from the cumulative
   assert.deepEqual(o.usage, { input: 30, cache_creation: 9, cache_read: 7, output: 500, thinking: 100 });
 });
 
-test('outcome sums cost and usage over agent processes of follow-up turns', () => {
-  const res = (cost, out) => ({ type: 'result', num_turns: 3, total_cost_usd: cost, modelUsage: { m: { outputTokens: out } } });
+test('outcome takes cumulative cost and usage from the last result per session', () => {
+  const res = (s, cost, out) => ({ type: 'result', session_id: s, num_turns: 3, total_cost_usd: cost, modelUsage: { m: { outputTokens: out } } });
   const init = { type: 'system', subtype: 'init' };
-  const o = outcome([init, res(0.01, 10), res(0.02, 20), init, res(0.05, 7)]);
-  assert.equal(o.agent_processes, 2);
-  assert.ok(Math.abs(o.cost_usd_api_equivalent - 0.07) < 1e-9);
-  assert.equal(o.usage.output, 27);
+  // A follow-up turn continues session s1, so its result already includes the first turn.
+  const o = outcome([init, res('s1', 0.02, 20), init, res('s1', 0.05, 27), init, res('s2', 0.01, 5)]);
+  assert.equal(o.sessions, 2);
+  assert.ok(Math.abs(o.cost_usd_api_equivalent - 0.06) < 1e-9);
+  assert.equal(o.usage.output, 32);
   assert.equal(o.num_turns, 9);
+});
+
+test('audit checks every agent process', () => {
+  const events = fixture('B');
+  const init = events.find((e) => e.subtype === 'init');
+  assert.equal(audit(events, 'B').ok, true);
+  assert.equal(audit([...events, { ...init, plugins: [] }], 'B').ok, false);
 });
 
 test('outcome flags usage-limit stops as infrastructure errors and trailing questions', () => {

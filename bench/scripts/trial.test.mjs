@@ -169,3 +169,18 @@ test('phases: shell writes count by their target file, heredoc bodies are ignore
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'npm test 2>&1 | tail -20' } }]), 'verify');
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'ls test/' } }]), null);
 });
+
+test('phases: an OpenCode subagent session takes the phase of the task call that started it', async () => {
+  const { opencodePhases } = await import('./phases.mjs');
+  const msg = (cost, parts = []) => ({ info: { role: 'assistant', cost, time: { created: 0, completed: 60000 } }, parts });
+  const tool = (t, input, metadata) => ({ type: 'tool', tool: t, state: { input, metadata } });
+  const child = { info: { id: 'c', parentID: 'm', title: 'reviewer' }, messages: [msg(2)] };
+  const main = { info: { id: 'm' }, messages: [
+    msg(1, [tool('write', { filePath: 'docs/plan.md' }), tool('task', { subagent_type: 'general' }, { sessionId: 'c' })]),
+    msg(1, [tool('bash', { command: 'npm test' })]),
+  ] };
+  const p = opencodePhases([child, main]); // a subagent export listed first
+  assert.equal(p.phases.spec.usd, 3);
+  assert.equal(p.phases.verify.usd, 1);
+  assert.equal(p.subagents.reviewer.usd, 2);
+});

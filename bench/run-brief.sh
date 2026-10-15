@@ -129,9 +129,18 @@ for r in $(seq "$k"); do
       n=$((n + 1))
       turn "$FOLLOWUP" --continue; rc=$?
     done
-    # OpenCode streams only the main session: export every session (subagents too) for tokens and cost.
-    [ "$rt" != opencode ] || podman exec "$c" sh -c 'opencode session list --format json > /tmp/sessions.json && for s in $(jq -r ".[].id" /tmp/sessions.json); do opencode export "$s" > "/bench-log/session-$s.json"; done' \
-      2>> "$t/log/stderr.log"
+    # OpenCode streams only the main session: export every session for tokens and cost. `session list` shows only
+    # root sessions, so subagent sessions are found through the task calls that started them.
+    [ "$rt" != opencode ] || podman exec "$c" sh -c 'opencode session list --format json | jq -r ".[].id" > /tmp/todo
+      while [ -s /tmp/todo ]; do
+        : > /tmp/next
+        for s in $(cat /tmp/todo); do
+          [ ! -f "/bench-log/session-$s.json" ] || continue
+          opencode export "$s" > "/bench-log/session-$s.json"
+          jq -r ".messages[].parts[] | select(.type == \"tool\" and .tool == \"task\") | .state.metadata.sessionId // empty" "/bench-log/session-$s.json" >> /tmp/next
+        done
+        mv /tmp/next /tmp/todo
+      done' 2>> "$t/log/stderr.log"
     podman rm -f "$c" > /dev/null; trap - EXIT INT TERM HUP
     # Written last: a trial interrupted before this point is rerun from scratch on resume.
     echo "$n" > "$t/followups" && date +%s > "$t/end" && echo "$rc" > "$t/agent.exit"

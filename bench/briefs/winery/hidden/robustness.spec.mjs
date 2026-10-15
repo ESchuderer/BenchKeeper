@@ -2,12 +2,17 @@
 // Each follows from a sentence of the brief. They run after acceptance.spec.mjs against the same app instance, in file
 // order (R2 to R6, R1, R7, R8).
 import { test, expect } from '@playwright/test';
-import { book, bookButton, confirmed, fill, seatsLeft, signIn, submit, TITLES } from './helpers.mjs';
+import { book, bookButton, card, confirmed, fill, seatsLeft, signIn, submit, TITLES } from './helpers.mjs';
 
 // The tasting with the most seats left, so a mutant that used up seats in an earlier test does not fail a later one.
+// A card without a readable count (for example "Sold out") counts as no seats.
 async function roomiest(page) {
+  await page.goto('/');
   const left = [];
-  for (const t of TITLES) left.push([await seatsLeft(page, t), t]);
+  for (const t of TITLES) {
+    const text = await card(page, t).innerText({ timeout: 5000 }).catch(() => '');
+    left.push([Number(/(\d+)\s+seats? left/i.exec(text)?.[1] ?? -1), t]);
+  }
   return left.sort((a, b) => b[0] - a[0])[0][1];
 }
 

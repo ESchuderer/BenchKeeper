@@ -19,13 +19,13 @@ export async function scan(page, key) {
 }
 
 // Deepest element holding this tasting's title and a seat count but no other tasting's title.
-export const card = (page, title) => page.locator('body *').filter({ hasText: title }).filter({ hasText: /seats left/i })
+export const card = (page, title) => page.locator('body *').filter({ hasText: title }).filter({ hasText: /seats? left/i })
   .filter({ hasNotText: new RegExp(TITLES.filter((t) => t !== title).join('|')) }).last();
 
 export async function seatsLeft(page, title) {
   await page.goto('/');
   // innerText keeps the separators between table cells, so "EUR 25" and "12 seats left" do not merge.
-  const m = /(\d+)\s+seats left/i.exec(await card(page, title).innerText());
+  const m = /(\d+)\s+seats? left/i.exec(await card(page, title).innerText());
   expect(m, `seat count for ${title}`).not.toBeNull();
   return Number(m[1]);
 }

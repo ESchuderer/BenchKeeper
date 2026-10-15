@@ -28,9 +28,11 @@ run email-empty R6 's/.test(email)) errors.email/.test(email) \&\& email) errors
 # The bookings API without a session check, and a staff page that asks for the password before it loads them (F5 passes).
 run staff-leak R7 "s#(req, res) => (staff(req) ? res.json(bookings)#(req, res) => (true ? res.json(bookings)#; s#  useEffect(() => { load(); }, \[\]);##" "server.mjs src/main.jsx"
 run name-markup R8 's#<li key={b.ref}>{b.name},#<li key={b.ref}><span dangerouslySetInnerHTML={{ __html: b.name }} />,#' src/main.jsx
-# A correct app with other behavior: a guests dropdown, and a staff page that shows "Loading" while it checks the session.
+# A correct app with other behavior: a guests dropdown, "1 seat left" in the singular, and a staff page that shows
+# "Loading" while it checks the session.
 run variant "" 's#{field(.guests., .Guests.)}#<p><label htmlFor="guests">Guests</label> <select id="guests" name="guests">{[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n}>{n}</option>)}</select>{errors.guests \&\& <span role="alert"> {errors.guests}</span>}</p>#
 s#  const \[error, setError\] = useState(.*);#&\n  const [ready, setReady] = useState(false);#
 s#  const load = () => api(./api/staff/bookings.).then((r) => (r.ok ? r.json().then(setList) : setList(null)));#  const load = () => api("/api/staff/bookings").then((r) => (r.ok ? r.json().then(setList) : setList(null))).finally(() => setReady(true));#
 s#  if (!list) {#  if (!ready) return <main><p>Loading</p></main>;\n  if (!list) {#
-s#  useEffect(() => { load(); }, \[\]);#  useEffect(() => { setTimeout(load, 800); }, []);#' src/main.jsx
+s#  useEffect(() => { load(); }, \[\]);#  useEffect(() => { setTimeout(load, 800); }, []);#
+s#{t.left} seats left#{t.left} {t.left === 1 ? "seat" : "seats"} left#' src/main.jsx

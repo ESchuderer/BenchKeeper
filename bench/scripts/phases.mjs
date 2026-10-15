@@ -44,9 +44,10 @@ export function phaseOfCall(tools) {
     else if (t.name === 'Bash') {
       // Only the first line counts (a heredoc body is file content, not a command); `cat > f`, `tee f` write a file.
       const c = String(t.input?.command || '').split('\n')[0];
-      // A check command stays verify when its output is also written (`npm test | tee test.log`).
+      // A check command stays verify when its output is also written (`npm test | tee test.log`); the written file's
+      // name does not count as a command (`cat > jest.config.js` is a write).
       const w = shellWriteTarget(c);
-      if (VERIFY_CMD.test(c)) set('verify');
+      if (VERIFY_CMD.test(c.replace(/(>{1,2}|\btee\s+(-a\s+)?)\s*['"]?[^\s'"<>;&|]+/g, ''))) set('verify');
       else if (w) set(SPEC_FILE.test(w) ? 'spec' : TEST_FILE.test(w) ? 'test' : 'build');
       else set(BUILD_CMD.test(c) ? 'build' : null);
     }

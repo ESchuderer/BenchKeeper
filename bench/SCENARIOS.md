@@ -53,6 +53,13 @@ Excluded: MerrillLi/openspec-superpowers (owner decision 2026-10-14). Its README
 - agent-skills on OpenCode has no session bootstrap and no slash commands; skill use depends on the model following `AGENTS.md`.
 - oso's workflow uses `/opsx-*` commands, which a headless run cannot type; the agent follows them only through `AGENTS.md`.
 
+## Briefs
+
+- `winery-react`: server app with React (bookings, staff sign-in); hidden tests F1 to F6.
+- `cartridges`: static app (25 C.I.P. cartridges, 2D drawings, print view, works from `file://`); hidden tests C1 to C6; settings in `bench/briefs/cartridges/brief.json`. Protocol: the cartridges section of `bench/PROTOCOL.md`.
+
+Both briefs run through the same arms, images, timeout and app review criteria.
+
 ## Failure classes
 
 A trial is reported in exactly one class:

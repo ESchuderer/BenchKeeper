@@ -13,7 +13,7 @@ for t in "$run"/round-*/*/; do
   [ -f "$t/trial.json" ] || continue
   objs=$tmp/objects.bin
   podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a sh -c \
-    'find /w -name .git -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
+    'find /w -name .git -type d -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
     || { echo "git object scan failed for $t" >&2; exit 1; }
   if grep -aqF -- "$token" "$objs"; then echo "token in the git objects of $t" >&2; exit 1; fi
   rm -f "$objs"

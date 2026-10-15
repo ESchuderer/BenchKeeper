@@ -134,7 +134,7 @@ for r in $(seq "$k"); do
     # agent-written config); fails closed when the dump fails.
     objs=$(mktemp)
     podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a sh -c \
-      'find /w -name .git -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
+      'find /w -name .git -type d -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
       || { echo "git object scan failed for $t" >&2; rm -f "$objs"; exit 1; }
     secret=${CLAUDE_CODE_OAUTH_TOKEN:-}; [ "$rt" != opencode ] || secret=$ANTHROPIC_API_KEY
     { grep -rqF -- "$secret" "$t" || grep -aqF -- "$secret" "$objs"; } \

@@ -89,7 +89,9 @@ export function workflow(events, uses = claudeUses(events)) {
     plan_or_spec_files: writes.filter((p) => /\.md$/i.test(p) && /(plan|spec|design|brainstorm|requirement)/i.test(p)),
     tests_written: firstTest >= 0,
     tests_first: firstTest >= 0 && (firstSource < 0 || firstTest < firstSource),
-    review: [...skills, ...agents].some((n) => /review/i.test(n)),
+    // A review skill or agent type, or a general subagent whose task description names a review.
+    review: [...skills, ...agents].some((n) => /review/i.test(n))
+      || uses.some((u) => (u.name === 'Agent' || u.name === 'Task') && /review/i.test(u.input.description || '')),
     last_tool: last ? `${last.name} ${String(last.input.command || last.input.file_path || last.input.skill || '').slice(0, 80)}` : null,
   };
 }

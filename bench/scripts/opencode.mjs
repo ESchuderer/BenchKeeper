@@ -48,7 +48,7 @@ export function sessions(log) {
 const NAMES = { write: 'Write', edit: 'Edit', multiedit: 'MultiEdit', skill: 'Skill', task: 'Agent', bash: 'Bash' };
 const use = (tool, input = {}, sub = false) => ({
   name: NAMES[tool] || tool,
-  input: { file_path: input.filePath, skill: input.name, subagent_type: input.subagent_type, command: input.command },
+  input: { file_path: input.filePath, skill: input.name, subagent_type: input.subagent_type, description: input.description, command: input.command },
   sub,
 });
 

@@ -35,6 +35,8 @@ test('workflow trace: skills, agents, plan files, tests first, review', () => {
   assert.equal(w.review, true);
   assert.equal(w.subagent_tool_calls, 1);
   assert.equal(workflow([use('Write', { file_path: '/work/server.mjs' }), use('Write', { file_path: '/work/server.test.mjs' })]).tests_first, false);
+  assert.equal(workflow([use('Agent', { subagent_type: 'general-purpose', description: 'Independent review of the app' })]).review, true);
+  assert.equal(workflow([use('Agent', { subagent_type: 'general-purpose', description: 'Explore the codebase' })]).review, false);
 });
 
 test('outcome counts main-thread messages once and takes tokens from the cumulative model usage', () => {
@@ -123,6 +125,8 @@ test('OpenCode outcome sums every session and maps tool uses', async () => {
   assert.equal(o.turns, 1);
   const uses = ocUses([], all);
   assert.deepEqual(uses.map((u) => [u.name, u.input.skill || u.input.file_path, u.sub]), [['Skill', 'brainstorming', false], ['Write', '/work/a.test.js', true]]);
+  const task = [{ info: { id: 's1' }, messages: [msg('assistant', 0, 0, [{ type: 'tool', tool: 'task', state: { input: { subagent_type: 'general', description: 'Code review' } } }])] }];
+  assert.equal(workflow([], ocUses([], task)).review, true);
 });
 
 test('phases: classified by activity, cost split by token weight, subagents attributed to their call', async () => {

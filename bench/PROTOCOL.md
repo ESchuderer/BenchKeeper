@@ -116,7 +116,7 @@ Purpose: a second brief that tests presentation, a print view and computed techn
 - axe pages: `list` and the six detail views below.
 - Screenshots: `list.jpg`; `detail-<key>.jpg` for 308_win, 300_win_mag, 9_3_x_74_r, 9_mm_luger, 22_long_rifle, 44_rem_mag; `print-308_win.jpg` (print media, A4 width).
 - App review: prompt `bench/briefs/cartridges/review.md`, the same nine criteria, overall rating and `schema.json`, worded for this brief (drawing rules under requirements and correctness; HTML injection and external requests under security). Extra input: OpenBallistics reference drawings (`bench/briefs/cartridges/review-refs/`, rendered with `rsvg-convert -w 1600` from `fixtures/rendering/samples/<key>.drawing.landscape.svg` at commit `e83db43`) for 308_win, 300_win_mag, 9_mm_luger and 22_long_rifle; where they differ from the brief's rules, the brief wins.
-- Commands: `bench/run-brief.sh cartridges claude-haiku-5-5 high 1 41 "<arms>"`, then the same with `claude-sonnet-5-5`, three runners per model with the arm partition of the winery-react Sonnet run; then `bench/review/review.sh bench/briefs/cartridges <trial-dir>` per trial.
+- Commands: `bench/run-brief.sh cartridges claude-haiku-5-5 high 1 41 "<arms>"`, then the same with `claude-sonnet-5-5`, three runners per model with the arm partition of the winery-react Sonnet run; then `bench/review/review.sh bench/briefs/cartridges <trial-dir>` per trial, billed to the subscription (`REVIEW_AUTH` unset), never the API key.
 
 ### Limitations
 

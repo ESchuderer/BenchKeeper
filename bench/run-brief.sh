@@ -10,7 +10,12 @@ brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H I J K L M N 
 bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
 NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 TIMEOUT=${TIMEOUT:-5400}
-FOLLOWUP="Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval."
+PW=mcr.microsoft.com/playwright:v1.64.0-noble@sha256:bc72a8df40831ded821e3cbc79c318c21b44d6e51dff9fd89ace7a8249c5b462
+# Per-brief settings (bench/briefs/<brief>/brief.json, optional): follow-up message and how the app is served.
+conf=$bench/briefs/$brief/brief.json
+FOLLOWUP=$(jq -r '.followup // empty' "$conf" 2>/dev/null || true)
+: "${FOLLOWUP:=Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval.}"
+serve=$(jq -r '.serve // "npm"' "$conf" 2>/dev/null || echo npm)
 runtime() { case $1 in Q|R|S|T|U|Z|AA) echo opencode ;; *) echo claude ;; esac; }
 needs() { for a in $arms; do [ "$(runtime "$a")" = "$1" ] && return 0; done; return 1; }
 if needs claude; then
@@ -116,8 +121,16 @@ for r in $(seq "$k"); do
     }
     turn "$(cat "$bench/briefs/$brief/brief.md")"; rc=$?
     # Follow-up rule: while the agent stops without a running app, the same fixed message, at most twice. Running means:
-    # a start script, and `npm install`, `npm run build --if-present` and `npm start` serve the start page within 20 s.
+    # a start script, and `npm install`, `npm run build --if-present` and `npm start` serve the start page within 20 s;
+    # for a static brief, index.html loads from file:// without page errors (Chromium in the Playwright image, on a copy).
     runs_app() {
+      if [ "$serve" = static ]; then
+        cpy=$(mktemp -d) && cp -a "$t/workspace/." "$cpy/" && rm -rf "$cpy/node_modules"
+        podman run --rm --timeout 120 --userns=keep-id -e HOME=/tmp -v "$cpy":/w:ro,Z \
+          -v "$bench/scorer/node_modules":/s/node_modules:ro,Z -v "$bench/scorer/opens.mjs":/s/opens.mjs:ro,Z -w /s "$PW" \
+          node opens.mjs /w > /dev/null 2>&1; ok=$?
+        rm -rf "$cpy"; return $ok
+      fi
       podman exec "$c" sh -c 'cd /work && jq -e .scripts.start package.json > /dev/null 2>&1 \
         && npm install --no-audit --no-fund > /dev/null 2>&1 && npm run build --if-present > /dev/null 2>&1 || exit 1
         PORT=3999 STAFF_PASSWORD=bench-check setsid npm start > /dev/null 2>&1 & p=$!

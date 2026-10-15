@@ -174,12 +174,14 @@ export function score(dir) {
   const lh = read('lighthouse.json');
   const axe = read('axe.json');
   const vulns = read('audit.log')?.metadata?.vulnerabilities;
+  // The brief's pages when the scorer copied its settings (brief.json), the winery pages otherwise.
+  const pages = read('brief.json')?.axe_pages ?? AXE_PAGES;
   return {
     install: exit('install'), build: exit('build'), acceptance_run: exit('acceptance'), agent_tests: exit('agent-tests'),
     features: Object.fromEntries(specs.map((s) => [s.title.split(' ')[0], s.ok])),
     features_passed: specs.filter((s) => s.ok).length,
-    // Violations per page; null unless all four pages were scanned, so a broken app does not score fewer violations.
-    axe: axe && AXE_PAGES.every((k) => axe[k]) ? Object.fromEntries(AXE_PAGES.map((k) => [k, axe[k].length])) : null,
+    // Violations per page; null unless all pages were scanned, so a broken app does not score fewer violations.
+    axe: axe && pages.every((k) => axe[k]) ? Object.fromEntries(pages.map((k) => [k, axe[k].length])) : null,
     lighthouse: lh?.categories ? Object.fromEntries(Object.entries(lh.categories).map(([k, v]) => [k, v.score])) : null,
     audit: vulns ? { high: vulns.high + vulns.critical, total: vulns.total } : null,
     hidden_tests: (() => { try { return readFileSync(join(dir, 'hidden.sha256'), 'utf8').trim(); } catch { return null; } })(),

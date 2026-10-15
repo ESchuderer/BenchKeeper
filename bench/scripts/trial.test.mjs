@@ -95,6 +95,17 @@ test('score counts a skipped feature as failed and needs all four axe pages', as
   assert.equal(s.lighthouse, null);
 });
 
+test('score takes the axe pages from the brief settings when the scorer copied them', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { score } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/score-');
+  writeFileSync(`${dir}/brief.json`, JSON.stringify({ axe_pages: ['list', 'detail-a'] }));
+  writeFileSync(`${dir}/axe.json`, JSON.stringify({ list: [{ id: 'x' }], 'detail-a': [] }));
+  assert.deepEqual(score(dir).axe, { list: 1, 'detail-a': 0 });
+  writeFileSync(`${dir}/axe.json`, JSON.stringify({ list: [] }));
+  assert.equal(score(dir).axe, null);
+});
+
 test('audit and summary tolerate missing fields', async () => {
   const { table } = await import('./summary.mjs');
   assert.equal(audit([{ type: 'system', subtype: 'init' }], 'A').ok, true);

@@ -170,6 +170,9 @@ test('phases: shell writes count by their target file, heredoc bodies are ignore
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: "cat > src/app.js <<'EOF'\nrun tests\nEOF" } }]), 'build');
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'npm test 2>&1 | tail -20' } }]), 'verify');
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'ls test/' } }]), null);
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'echo hi | tee src/out.js' } }]), 'build');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'tee -a docs/plan.md <<EOF\nstep\nEOF' } }]), 'spec');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'npm test 2>&1 | tee test.log' } }]), 'verify');
 });
 
 test('phases: an OpenCode subagent session takes the phase of the task call that started it', async () => {

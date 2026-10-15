@@ -11,6 +11,11 @@ bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
 NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 TIMEOUT=${TIMEOUT:-5400}
 FOLLOWUP="Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval."
+# Final-message phrases that wait for the user (follow-up rule, protocol v1.8); `bench/scripts/waits.test.sh` checks them.
+WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when'
+# Reads a final message on stdin; true when its last non-empty line ends with "?" or its last 5 lines match WAITS.
+waiting() { awk 'NF { l[++n] = $0 } END { for (i = (n > 5 ? n - 4 : 1); i <= n; i++) print l[i]; if (n && l[n] ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' \
+  | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
 runtime() { case $1 in Q|R|S|T|U|Z|AA) echo opencode ;; *) echo claude ;; esac; }
 needs() { for a in $arms; do [ "$(runtime "$a")" = "$1" ] && return 0; done; return 1; }
 if needs claude; then
@@ -115,17 +120,23 @@ for r in $(seq "$k"); do
       wait $!
     }
     turn "$(cat "$bench/briefs/$brief/brief.md")"; rc=$?
-    # Follow-up rule: while the agent stops without a running app, the same fixed message, at most twice. Running means:
-    # a start script, and `npm install`, `npm run build --if-present` and `npm start` serve the start page within 20 s.
+    # Follow-up rule: while the agent stops without a running app, or with a final message that waits for confirmation,
+    # the same fixed message, at most twice. Running means: a start script, and `npm install`, `npm run build --if-present`
+    # and `npm start` serve the start page within 20 s, checked on a copy so the workspace keeps only what the agent wrote.
     runs_app() {
-      podman exec "$c" sh -c 'cd /work && jq -e .scripts.start package.json > /dev/null 2>&1 \
+      podman exec "$c" sh -c 'rm -rf /tmp/check && cp -a /work /tmp/check && cd /tmp/check && jq -e .scripts.start package.json > /dev/null 2>&1 \
         && npm install --no-audit --no-fund > /dev/null 2>&1 && npm run build --if-present > /dev/null 2>&1 || exit 1
         PORT=3999 STAFF_PASSWORD=bench-check setsid npm start > /dev/null 2>&1 & p=$!
         ok=1; for i in $(seq 20); do node -e "fetch(\"http://localhost:3999/\").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" && { ok=0; break; }; sleep 1; done
         kill -TERM -- -$p 2> /dev/null; sleep 1; kill -KILL -- -$p 2> /dev/null; exit $ok'
     }
+    # The agent's final message waits for the user: its last line is a question, or its last lines ask for confirmation.
+    waits() {
+      jq -rs '[.[] | if .type == "result" then .result elif .type == "text" then .part.text else empty end] | last // ""' \
+        "$t/transcript.jsonl" 2> /dev/null | waiting
+    }
     n=0
-    while [ "$n" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && ! runs_app; do
+    while [ "$n" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && { ! runs_app || waits; }; do
       n=$((n + 1))
       turn "$FOLLOWUP" --continue; rc=$?
     done

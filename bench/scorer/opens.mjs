@@ -1,4 +1,5 @@
-// Follow-up check for static briefs: <dir>/index.html loads from file:// without page errors. Usage: node opens.mjs <dir>
+// Follow-up check for static briefs: <dir>/index.html loads from file:// without page errors and shows at least one
+// link (a blocked module script or fetch leaves a blank page without a page error). Usage: node opens.mjs <dir>
 import { existsSync } from 'node:fs';
 import { chromium } from '@playwright/test';
 
@@ -11,5 +12,6 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e));
 const loaded = await page.goto(`file://${process.argv[2]}/index.html`).then(() => true, () => false);
 await page.waitForTimeout(1000);
+const links = loaded ? await page.getByRole('link').filter({ visible: true }).count() : 0;
 await browser.close();
-process.exit(loaded && !errors.length ? 0 : 1);
+process.exit(loaded && links && !errors.length ? 0 : 1);

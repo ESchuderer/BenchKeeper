@@ -9,7 +9,7 @@ PW=mcr.microsoft.com/playwright:v1.64.0-noble@sha256:bc72a8df40831ded821e3cbc79c
 pass=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
 pod=bk-score-$$
 # Remove the scoring pod and temp copies on any exit, including INT, TERM and HUP.
-trap 'podman pod rm -f "$pod" > /dev/null 2>&1; rm -rf "${app:-}" "${hid:-}"' EXIT
+trap 'podman pod rm -f "$pod" > /dev/null 2>&1; rm -rf "${app:-}" "${hid:-}" "${site:-}"' EXIT
 trap 'exit 130' INT TERM HUP
 # The built app as delivered (source and git history, without node_modules), for download and manual comparison.
 mkdir -p "$out/screenshots" && tar --exclude=node_modules -czf "$out/app.tar.gz" -C "$ws" .
@@ -27,7 +27,9 @@ serve=$(jq -r '.serve // "npm"' "$brief/brief.json" 2>/dev/null || echo npm)
 [ ! -f "$brief/brief.json" ] || cp "$brief/brief.json" "$out/brief.json"
 
 if [ "$serve" = static ]; then
-  # Installs only for the agent's own tests and the audit; the app itself must not need them.
+  # The app as delivered, served and opened without node_modules: the install below is only for the agent's own tests
+  # and the audit.
+  site=$(mktemp -d) && cp -a "$app/." "$site/"
   if [ -f "$app/package.json" ]; then
     step install 600 node_run npm install --no-audit --no-fund
     step audit 120 node_run npm audit --json --loglevel=silent
@@ -42,8 +44,8 @@ podman pod create --userns=keep-id --name "$pod" >/dev/null
 if [ "$serve" = static ]; then
   # Shared label (z): the app container and the test container mount the same copy at once, both read-only.
   podman run -d --pod "$pod" --name "$pod-app" -e HOME=/tmp -e PORT=3000 \
-    -v "$app":/app:ro,z -v "$here/static.mjs":/static.mjs:ro,Z "$NODE" node /static.mjs /app > /dev/null
-  appmount="-v $app:/app:ro,z -e APP_DIR=/app"
+    -v "$site":/app:ro,z -v "$here/static.mjs":/static.mjs:ro,Z "$NODE" node /static.mjs /app > /dev/null
+  appmount="-v $site:/app:ro,z -e APP_DIR=/app"
 else
   podman run -d --pod "$pod" --name "$pod-app" -e HOME=/tmp -e PORT=3000 -e STAFF_PASSWORD="$pass" \
     -v "$app":/app:Z -w /app "$NODE" npm start > /dev/null
@@ -69,4 +71,4 @@ podman pod rm -f "$pod" > /dev/null
 if jq -er '.scripts.test // empty' "$app/package.json" 2>/dev/null | grep -qv 'no test specified'; then
   step agent-tests 600 node_run npm test
 fi
-rm -rf "$app" "$hid"
+rm -rf "$app" "$hid" "${site:-}"

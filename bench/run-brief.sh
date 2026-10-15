@@ -125,9 +125,10 @@ for r in $(seq "$k"); do
     # for a static brief, index.html loads from file:// without page errors (Chromium in the Playwright image, on a copy).
     runs_app() {
       if [ "$serve" = static ]; then
-        cpy=$(mktemp -d) && cp -a "$t/workspace/." "$cpy/" && rm -rf "$cpy/node_modules"
+        cpy=$(mktemp -d) && tar -C "$t/workspace" --exclude=./node_modules --exclude=./.git -cf - . | tar -C "$cpy" -xf -
+        # Shared label (z) on the scorer files: parallel runners mount them at the same time.
         podman run --rm --timeout 120 --userns=keep-id -e HOME=/tmp -v "$cpy":/w:ro,Z \
-          -v "$bench/scorer/node_modules":/s/node_modules:ro,Z -v "$bench/scorer/opens.mjs":/s/opens.mjs:ro,Z -w /s "$PW" \
+          -v "$bench/scorer/node_modules":/s/node_modules:ro,z -v "$bench/scorer/opens.mjs":/s/opens.mjs:ro,z -w /s "$PW" \
           node opens.mjs /w > /dev/null 2>&1; ok=$?
         rm -rf "$cpy"; return $ok
       fi

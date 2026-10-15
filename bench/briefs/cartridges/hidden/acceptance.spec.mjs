@@ -29,6 +29,8 @@ async function scan(page, key) {
   writeFileSync(AXE_OUT, JSON.stringify(all, null, 2));
 }
 
+// The search field by role, so a search landmark also named "Search" does not match.
+const search = (page) => page.getByRole('searchbox', { name: 'Search', exact: true }).or(page.getByRole('textbox', { name: 'Search', exact: true })).first();
 const link = (page, name) => page.getByRole('link', { name, exact: true }).filter({ visible: true });
 const heading = (page, name) => page.getByRole('heading', { name, exact: true }).filter({ visible: true }).first();
 
@@ -77,10 +79,12 @@ test('C1 start page lists all cartridges', async ({ page }) => {
   await scan(page, 'list');
 });
 
-test('C2 search by alternative name and filter by family', async ({ page }) => {
+test('C2 search by alternative name and filter by family', async ({ page, browser }, info) => {
   await page.goto('/');
-  await page.getByLabel('Search', { exact: true }).fill('7,62 x 51');
+  await search(page).fill('7,62 x 51');
   await expect.poll(() => listed(page)).toEqual(['308 Win.']);
+  // A fresh context, so a search the app remembers (for example in localStorage) does not carry over.
+  page = await (await browser.newContext({ baseURL: info.project.use.baseURL })).newPage();
   await page.goto('/');
   const family = page.getByLabel('Family', { exact: true });
   const belted = await family.locator('option').evaluateAll((os) => os.find((o) => o.textContent.trim().toLowerCase() === 'belted')?.value);
@@ -126,7 +130,7 @@ test('C5 print view', async ({ page }) => {
   await page.setViewportSize({ width: 794, height: 1123 });
   await page.emulateMedia({ media: 'print' });
   await expect(page.getByRole('button', { name: 'Print', exact: true }).filter({ visible: true })).toHaveCount(0);
-  await expect(page.getByLabel('Search', { exact: true }).filter({ visible: true })).toHaveCount(0);
+  await expect(page.getByRole('searchbox', { name: 'Search' }).or(page.getByRole('textbox', { name: 'Search' })).filter({ visible: true })).toHaveCount(0);
   await drawing(page, '308 Win.');
   if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/print-308_win.jpg`, fullPage: true, type: 'jpeg', quality: 70 });
   for (const name of ['308 Win.', '9,3 x 74 R']) {

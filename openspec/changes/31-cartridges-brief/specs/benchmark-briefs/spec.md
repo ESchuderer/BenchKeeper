@@ -18,7 +18,7 @@ A brief MAY carry `brief.json`. With `"serve": "static"` the scorer SHALL serve 
 
 The cartridges hidden tests SHALL pass on the reference app and on a variant with other markup, and each mutant SHALL fail exactly its feature.
 
-#### Scenario: Data loaded with fetch
+#### Scenario: Scripts loaded as ES modules
 
 - **WHEN** the reference loads its data as ES modules
 - **THEN** only feature C6 fails

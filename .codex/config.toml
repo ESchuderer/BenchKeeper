@@ -1,2 +1,4 @@
+# Playwright MCP runs in the dev container; this overrides the global host entry for this repository.
 [mcp_servers.playwright]
-enabled = false
+command = "devcontainer"
+args = ["exec", "--docker-path", "podman", "--workspace-folder", ".", "playwright-mcp", "--browser", "chromium", "--headless"]

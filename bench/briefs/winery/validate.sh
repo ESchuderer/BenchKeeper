@@ -1,5 +1,6 @@
 #!/bin/sh
-# Validates the hidden tests: the reference passes all features, and each mutant fails exactly its feature.
+# Validates the hidden tests: the reference passes all tests, and each mutant fails exactly its feature or robustness test
+# (a feature mutant also fails the robustness test that probes the same rule).
 # Usage: bench/briefs/winery/validate.sh <scratch-dir>
 set -eu
 here=$(dirname "$(realpath "$0")"); tmp=$(realpath -m "$1"); mkdir -p "$tmp"
@@ -13,10 +14,19 @@ run() { # <name> <expected failing features> <sed script or empty>
   got=$(result "$tmp/$1-out"); [ "$got" = "$2" ] && echo "$1: ok (failing: ${got:-none})" || { echo "$1: expected '$2', got '$got'"; exit 1; }
 }
 run reference "" ""
-run capacity F3 's/ : guests > left(t) ? `Only ${left(t)} seats left.` : '"''"'/ : '"''"'/'
-run staff-open F5 's/const staff = sid && sessions.has(sid);/const staff = true;/'
+run capacity F3,R1 's/ : guests > left(t) ? `Only ${left(t)} seats left.` : '"''"'/ : '"''"'/'
+run staff-open F5,R7 's/const staff = sid && sessions.has(sid);/const staff = true;/'
 run cancel-noop F6 's/if (i >= 0) bookings.splice(i, 1);//'
-run email-unchecked F4 's#!/^\[^\\s@\]+@\[^\\s@\]+\\.\[^\\s@\]+$/.test(v.email || '"''"')#false#'
+run email-unchecked F4,R6 's#!/^\[^\\s@\]+@\[^\\s@\]+\\.\[^\\s@\]+$/.test(v.email || '"''"')#false#'
+run race R1 's/    if (error) return send(form(t, error, v), 422);/&\n    await new Promise((r) => setTimeout(r, 300));/'
+run guests-zero R2 's/guests < 1 ||/guests < 0 ||/'
+run guests-nine R3 's/guests > 8 ?/guests > 9 ?/'
+run guests-fraction R4 's/!Number.isInteger(guests)/!Number.isFinite(guests)/'
+run name-empty R5 "s/!v.name?.trim() ? 'Enter your name.'/false ? 'Enter your name.'/"
+run email-empty R6 "s/test(v.email || '')/test(v.email || 'a@b.c')/"
+# Bookings in an HTML comment of the sign-in page: not on screen (F5 passes), but in the response.
+run staff-leak R7 "s#page('Staff', '<h1>Staff sign-in</h1>#page('Staff', \`<!-- \${bookings.map((b) => b.email).join(' ')} -->\` + '<h1>Staff sign-in</h1>#"
+run name-markup R8 's/\${esc(b.name)}, \${esc(b.email)}/${b.name}, ${esc(b.email)}/'
 # A correct app with other markup: a table, a guests dropdown, cancelled bookings kept as "Cancelled", bound to localhost.
 run variant "" 's#<ul>${tastings.map((x) => `<li><h2>${x.title}</h2><p>${x.when}, EUR ${x.price} per guest, ${left(x)} seats left</p><a href="/book/${x.id}">Book ${x.title}</a></li>`).join('"''"')}</ul>#<table><tbody>${tastings.map((x) => `<tr><td>${x.title}</td><td>${x.when}</td><td>EUR ${x.price}</td><td>${left(x)} seats left</td><td><a href="/book/${x.id}">Book ${x.title}</a></td></tr>`).join('"''"')}</tbody></table>#
 s#<input id="g" name="guests" value="${esc(v.guests || '"''"')}">#<select id="g" name="guests">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<option>${n}</option>`).join('"''"')}</select>#

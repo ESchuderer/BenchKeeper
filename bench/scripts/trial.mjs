@@ -174,8 +174,11 @@ export function score(dir) {
   const vulns = read('audit.log')?.metadata?.vulnerabilities;
   return {
     install: exit('install'), build: exit('build'), acceptance_run: exit('acceptance'), agent_tests: exit('agent-tests'),
-    features: Object.fromEntries(specs.map((s) => [s.title.split(' ')[0], s.ok])),
-    features_passed: specs.filter((s) => s.ok).length,
+    features: Object.fromEntries(specs.filter((s) => s.title.startsWith('F')).map((s) => [s.title.split(' ')[0], s.ok])),
+    features_passed: specs.filter((s) => s.title.startsWith('F') && s.ok).length,
+    // Robustness tests (protocol v1.7) are scored apart from the features; null for trials scored before them.
+    robustness: specs.some((s) => s.title.startsWith('R')) ? Object.fromEntries(specs.filter((s) => s.title.startsWith('R')).map((s) => [s.title.split(' ')[0], s.ok])) : null,
+    robustness_passed: specs.some((s) => s.title.startsWith('R')) ? specs.filter((s) => s.title.startsWith('R') && s.ok).length : null,
     // Violations per page; null unless all four pages were scanned, so a broken app does not score fewer violations.
     axe: axe && AXE_PAGES.every((k) => axe[k]) ? Object.fromEntries(AXE_PAGES.map((k) => [k, axe[k].length])) : null,
     lighthouse: lh?.categories ? Object.fromEntries(Object.entries(lh.categories).map(([k, v]) => [k, v.score])) : null,

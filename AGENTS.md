@@ -1,7 +1,9 @@
 # BenchKeeper
 
+The agent runs on the host (file edits, Git, `gh`); `node`, `npm` and `npx` run only in throwaway containers, except the `skills` CLI install below (agent tooling, host). Node prefix: `podman run --rm --userns=keep-id -e HOME=/tmp -v "$PWD":/repo:Z -w /repo docker.io/library/node:22.23.3-bookworm-slim`.
+
 ## Checks
-- Links: CI (`.github/workflows/links.yml`): lychee for all hosts except github.com, which `.github/scripts/github-links.mjs` checks through the GitHub API (test: `node --test .github/scripts/github-links.test.mjs`)
+- Links: CI (`.github/workflows/links.yml`): lychee for all hosts except github.com, which `.github/scripts/github-links.mjs` checks through the GitHub API (test: `podman run --rm --userns=keep-id -e HOME=/tmp -v "$PWD":/repo:Z -w /repo docker.io/library/node:22.23.3-bookworm-slim node --test .github/scripts/github-links.test.mjs`)
 - Site: CI (`.github/workflows/pages.yml`): README sync, build, axe in light and dark, lychee on the built HTML; deploys to GitHub Pages from `main`
 - Site locally (no devcontainer in this repo; throwaway containers mounting only the repo):
   - build: `podman run --rm --userns=keep-id -e HOME=/tmp -e ASTRO_TELEMETRY_DISABLED=1 -v "$PWD":/repo:Z -w /repo/web docker.io/library/node:22.23.3-bookworm-slim sh -c 'npm ci && npm run build'`
@@ -14,7 +16,7 @@
 - Every install command pins an exact version (`pkg@x.y.z`); `/global-setup` bumps them at install time.
 - SKILL.md front matter: `description` in double quotes (it contains colons).
 - After editing `rules/global.md`, rerun `/global-setup`.
-- Description, SDLC steps, prerequisites and recommended tools: edit `web/src/data/facts.json`, then run `node web/scripts/readme.mjs`; never edit the generated README blocks by hand.
+- Description, SDLC steps, prerequisites and recommended tools: edit `web/src/data/facts.json`, then run `podman run --rm --userns=keep-id -e HOME=/tmp -v "$PWD":/repo:Z -w /repo docker.io/library/node:22.23.3-bookworm-slim node web/scripts/readme.mjs`; never edit the generated README blocks by hand.
 - `rules/global.md` is symlinked to `~/.claude/rules` and copied to `~/.codex/AGENTS.md`.
 - `.agents/skills/skill-creator` is vendored from `anthropics/skills` (`skills-lock.json`): do not edit; update with `DO_NOT_TRACK=1 npx -y skills@1.7.2 add anthropics/skills -s skill-creator -a claude-code -a codex --copy -y`.
 - Evaluations live in `evaluations/<category>/<tool>.md`, indexed in `EVALUATIONS.md`; update both when a component is added, removed, changed, or new evidence appears.

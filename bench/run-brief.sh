@@ -46,20 +46,26 @@ done
 
 # Subscription gate (Claude Code arms): before each trial, read the 5-hour window's utilization from the rate-limit
 # headers of a one-word request; at the threshold or above, wait until the window resets. Threshold: USAGE_MAX, else
-# the file bench/usage-max (read before every trial, so running runners follow a change), else 0.70.
+# the file bench/usage-max (read before every trial, so running runners follow a change), else 0.70. The 7-day window
+# waits for its reset at WEEKLY_MAX (default 0.98), so a trial does not start right before the weekly limit stops it.
 threshold() { [ -n "${USAGE_MAX:-}" ] && echo "$USAGE_MAX" || cat "$bench/usage-max" 2>/dev/null || echo 0.70; }
-usage() { # prints "<5h utilization> <5h reset epoch> <7d utilization>"
+usage() { # prints "<5h utilization> <5h reset epoch> <7d utilization> <7d reset epoch>"
   podman run --rm -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN -e ANTHROPIC_LOG=debug benchkeeper-arm-a \
     claude -p "Reply OK" --model claude-haiku-5-5 --max-turns 1 2>&1 \
-    | awk -F'"' '/ratelimit-unified-5h-utilization/ {u=$4} /ratelimit-unified-5h-reset/ {r=$4} /ratelimit-unified-7d-utilization/ {w=$4} END {print u+0, r+0, w+0}'
+    | awk -F'"' '/ratelimit-unified-5h-utilization/ {u=$4} /ratelimit-unified-5h-reset/ {r=$4} /ratelimit-unified-7d-utilization/ {w=$4} /ratelimit-unified-7d-reset/ {wr=$4} END {print u+0, r+0, w+0, wr+0}'
 }
 gate() {
   [ "$(runtime "$1")" = claude ] || return 0
   while :; do
     set -- $(usage)
     echo "$(date -Is) usage 5h $1 weekly $3" >> "$runs/manifest.txt"
-    awk -v u="$1" -v m="$(threshold)" 'BEGIN { exit !(u >= m) }' || return 0
-    echo "$(date -Is) waiting for the 5h reset at $(date -d "@$2" -Is)" | tee -a "$runs/manifest.txt"
+    if awk -v w="$3" -v m="${WEEKLY_MAX:-0.98}" 'BEGIN { exit !(w >= m) }'; then
+      set -- "$1" "$4"
+      echo "$(date -Is) waiting for the weekly reset at $(date -d "@$2" -Is)" | tee -a "$runs/manifest.txt"
+    else
+      awk -v u="$1" -v m="$(threshold)" 'BEGIN { exit !(u >= m) }' || return 0
+      echo "$(date -Is) waiting for the 5h reset at $(date -d "@$2" -Is)" | tee -a "$runs/manifest.txt"
+    fi
     sleep $(( $2 - $(date +%s) + 60 > 60 ? $2 - $(date +%s) + 60 : 300 ))
   done
 }

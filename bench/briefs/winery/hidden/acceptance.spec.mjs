@@ -133,6 +133,7 @@ test('F6 cancelling frees the seats', async ({ page }) => {
   expect(await seatsLeft(page, 'Riesling Evening')).toBe(before - 3);
   await signIn(page);
   const cancel = page.getByRole('button', { name: 'Cancel' });
-  await page.locator('body *').filter({ hasText: 'f6@example.org' }).filter({ has: cancel }).last().locator(cancel).first().click();
+  // Wait for the cancel request itself: a single-page app sends it in the background, and leaving the page aborts it.
+  await submit(page, page.locator('body *').filter({ hasText: 'f6@example.org' }).filter({ has: cancel }).last().locator(cancel).first());
   await expect.poll(() => seatsLeft(page, 'Riesling Evening')).toBe(before);
 });

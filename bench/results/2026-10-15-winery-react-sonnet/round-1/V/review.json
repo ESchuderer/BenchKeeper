@@ -1,0 +1,51 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.40864160000000005,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 4,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 5,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "All brief items met: start page lists title, date/time, 'EUR 25 per guest', '12 seats left' (TastingsPage.jsx:29-45, start.jpg); 'Book <title>' links (TastingsPage.jsx:55-60); Name/Email/Guests 1-8 + 'Book' (BookingPage.jsx:47-68); seat limit enforced server-side with 409 error on guests field (app.js:28-31); field-level errors (form.jpg); confirmation with heading, tasting, guests, total, reference (ConfirmationPage.jsx:38-51, confirmation.jpg); /staff Password + Sign in, STAFF_PASSWORD env (index.js:8, StaffPage.jsx:30-40); grouped bookings with name/email/guests/reference and Cancel freeing seats (store.js:54-63, staff.jpg); React, Express, react-hook-form, zod, Tailwind; PORT default 3000; in-memory store.",
+      "correctness": "Synchronous check-and-write prevents over-booking (store.js:12-52), tested with 6 parallel requests (api.test.js:86-93). Shared zod schema rejects 0/9/1.5/''/'abc' guests and whitespace names (bookingSchema.js:9-31). Cancellation deletes and frees seats (store.js:54-56). Unknown tasting 404, malformed JSON 400 (app.js:23,54). Reference collision loop (store.js:41). Only nit: the confirmation page can still show a booking from sessionStorage after staff cancelled it.",
+      "security": "timingSafeEqual over SHA-256 digests (staffAuth.js:11-15), HMAC-signed expiring token with random per-process secret, HttpOnly + SameSite=strict cookie (staffAuth.js:6), login throttle of 5 per minute (staffAuth.js:35-49), 10kb JSON limit, x-powered-by off, React escaping, no secrets in code, server refuses to start without STAFF_PASSWORD. Gaps: no Secure flag on the cookie, sign-out only clears the cookie so the token stays valid up to 8h, no security headers, the throttle map grows without bound.",
+      "code_quality": "Small, well-named modules: app/store/staffAuth/schema split; injectable store and clock; clear error handling in api.js and the error middleware. Nits: conflicting 'bg-white' and 'bg-error-bg' classes on the input (ui.jsx:33-34), explicit ARIA role overrides on the native table elements (StaffPage.jsx:50-100), unused @testing-library/react dev dependency.",
+      "tests": "Store unit tests (store.test.js), API tests covering validation table, seat limit, full tasting, concurrency, auth, forged cookie, throttling, cancel freeing seats (api.test.js, staff-api.test.js), plus Playwright journeys for every brief flow, phone viewport overflow, long names, Back after booking, corrupted sessionStorage (journeys.spec.js). No React component tests, and nothing guards against the staff session staying valid after sign-out.",
+      "ux_design": "start.jpg: clear hero, date tiles, price prominent, strong CTA buttons. form.jpg: focused card form with seats-left hint and inline error. confirmation.jpg: green success accent, clean summary list, reference emphasized. Weaknesses: ISO-style dates only, no total preview before booking, Cancel has no confirmation, the invalid input itself does not look red in form.jpg.",
+      "accessibility": "Labels tied with htmlFor/useId, aria-invalid and aria-describedby to error text (ui.jsx:18-49), shouldFocusError moves focus to first invalid field, skip link (Layout.jsx:20), confirmation heading focused (ConfirmationPage.jsx:25), :focus-visible gold outline, lang=en, contrast of muted text acceptable. Gaps: staff sign-in error neither announced live nor focused; error state relies on red text, since the input's red background is overridden.",
+      "simplicity": "Dependencies fit the problem (Express, React Router, RHF+zod, Tailwind, fontsource). Roughly 600 lines of app code. Hand-rolled HMAC session and throttle instead of an established library, and an unused testing-library dev dependency.",
+      "maintainability": "README has setup, run, test commands and a layout section; package-lock.json present; strong regression tests. Missing: any CI pipeline, exact Node pin (.nvmrc; engines is only '>=22'), changelog or versioning approach, ADRs/specs (README references a .scratch/tasting-bookings/ folder that is not in the repo), staff manual.",
+      "visual_design": "Coherent winery palette (wine #4a1425, gold, cream), Fraunces serif headings with Inter body, consistent cards, borders and radius across all four screenshots; looks finished. The form error state is visually weak: the input stays white and the gold focus ring hides the red border (form.jpg).",
+      "layout": "Clear hierarchy: hero heading then three-column cards (start.jpg); centered narrow form and confirmation cards (form.jpg, confirmation.jpg); staff groups stacked with aligned table columns and the actions on the right (staff.jpg). No overlap or clipping; phone overflow covered by tests.",
+      "usability": "Booking takes one click from the start page to a three-field form, then one click to confirm; the seats-left hint and the server seat error appear on the Guests field; fully booked state replaces the CTA. Back after booking doesn't resubmit. Staff: one-click sign-in, per-row Cancel, sign out. Risks: Cancel deletes for good with no confirm or undo; no price total before submitting.",
+      "reception": "Looks like a small winery's own polished site with a warm, trustworthy tone ('Spend an evening with us among the vines'). Guests get a clear reference; staff get a tidy overview. ISO dates feel slightly technical for guests."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Every brief requirement met with sound server-side logic: atomic seat checks tested under concurrency, shared zod validation, cancellations that free seats",
+      "Thorough three-layer test suite (store, API with supertest, Playwright journeys including phone viewport and edge cases)",
+      "Polished, coherent winery look with clear success, low-availability and fully-booked states, plus solid basic accessibility (linked labels and errors, focus management, skip link)"
+    ],
+    "issues": [
+      "Maintainability gaps: no CI pipeline, Node only pinned as '>=22', no changelog, ADRs or staff guide, and the README points to a .scratch spec folder that is not in the repo",
+      "Staff Cancel permanently deletes a booking in one click with no confirmation or undo; sign-out does not invalidate the stateless token and the cookie has no Secure flag",
+      "Field error state is visually weak: 'bg-white' overrides 'bg-error-bg' (ui.jsx:33-34) and the focus ring hides the red border; staff sign-in errors are not announced to screen readers"
+    ],
+    "verdict": "A well-built, well-tested and attractive booking app that meets every requirement in the brief, with correct seat handling and careful staff authentication. Before handing it to the winery, add a confirmation step to Cancel, fix the field error styling and add CI with pinned runtime versions."
+  }
+}

@@ -66,13 +66,13 @@
     ],
     "tests_written": true,
     "tests_first": true,
-    "review": false,
+    "review": true,
     "last_tool": "Bash npm test 2>&1 | grep -E \"Test Files|Tests \" ; npm run build > /tmp/kb-verify/bui"
   },
   "score": {
     "install": 0,
     "build": 0,
-    "acceptance_run": 0,
+    "acceptance_run": 1,
     "agent_tests": 0,
     "features": {
       "F1": true,
@@ -83,6 +83,21 @@
       "F6": true
     },
     "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R9": true,
+      "R11": false,
+      "R12": false
+    },
+    "robustness_passed": 10,
     "axe": {
       "start": 0,
       "confirmation": 0,
@@ -98,7 +113,7 @@
       "high": 0,
       "total": 0
     },
-    "hidden_tests": "0c89d28500b65ba5"
+    "hidden_tests": "30f485b9450f40ed"
   },
   "lines": {
     "source": 1295,

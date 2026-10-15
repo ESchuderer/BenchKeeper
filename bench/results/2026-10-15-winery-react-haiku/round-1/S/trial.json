@@ -43,7 +43,7 @@
     "plan_or_spec_files": [],
     "tests_written": true,
     "tests_first": true,
-    "review": false,
+    "review": true,
     "last_tool": "Bash cd /work/.worktrees/kieselbrunnen-tastings && npm test 2>&1 | grep -E \"Test File"
   },
   "score": {
@@ -53,13 +53,15 @@
     "agent_tests": null,
     "features": {},
     "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
     "axe": null,
     "lighthouse": null,
     "audit": {
       "high": 0,
       "total": 0
     },
-    "hidden_tests": "0c89d28500b65ba5"
+    "hidden_tests": "30f485b9450f40ed"
   },
   "lines": {
     "source": 1538,

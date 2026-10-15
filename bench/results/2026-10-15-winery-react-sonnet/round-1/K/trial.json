@@ -1,0 +1,150 @@
+{
+  "arm": "K",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 726,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": []
+  },
+  "outcome": {
+    "finished": false
+  },
+  "workflow": {
+    "tool_calls": 86,
+    "subagent_tool_calls": 15,
+    "skills": [
+      "openspec-propose",
+      "openspec-apply-change"
+    ],
+    "agents": [
+      "security-reviewer",
+      "react-reviewer",
+      "code-reviewer"
+    ],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/add-tasting-bookings/proposal.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/tasting-catalog/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/guest-booking/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/design.md",
+      "/work/openspec/changes/add-tasting-bookings/tasks.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash for p in /proc/[0-9]*; do c=$(tr '\\0' ' ' < $p/cmdline 2>/dev/null); case \"$c\" i"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R9": true,
+      "R11": true,
+      "R12": true
+    },
+    "robustness_passed": 12,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.81,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "30f485b9450f40ed"
+  },
+  "lines": {
+    "source": 1193,
+    "test": 875,
+    "files": 41
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "phases": {
+    "phases": {
+      "verify": {
+        "calls": 15,
+        "minutes": 2.1,
+        "usd": 0
+      },
+      "spec": {
+        "calls": 10,
+        "minutes": 2,
+        "usd": 0
+      },
+      "build": {
+        "calls": 33,
+        "minutes": 6.5,
+        "usd": 0
+      },
+      "test": {
+        "calls": 2,
+        "minutes": 0.9,
+        "usd": 0
+      },
+      "review": {
+        "calls": 10,
+        "minutes": 0.2,
+        "usd": 0
+      }
+    },
+    "subagents": {
+      "security-reviewer": {
+        "calls": 2,
+        "minutes": 0.1,
+        "usd": 0
+      },
+      "react-reviewer": {
+        "calls": 3,
+        "minutes": 0.1,
+        "usd": 0
+      },
+      "code-reviewer": {
+        "calls": 4,
+        "minutes": 0.3,
+        "usd": 0
+      }
+    },
+    "method": "estimate"
+  }
+}

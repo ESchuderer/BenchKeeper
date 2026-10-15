@@ -1,0 +1,350 @@
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=66e12c02bbc2d605fc39ed20657ec535810b81c1 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image Q 48a4cf5e4a65952ab7b536144b4c4e6fca238bac2d4e54848bc083d8b8657af4
+image R b274df05d53bc757c1b0766bcad63e71c1457074de0c141490c6fa3a65a02dcb
+image S 0c35ca5493ae6c6ffaf01bd4b7beb24c5065a07a4263e4530eed5a7a7e14cc2b
+image T 597586afbfa89fe0c68dc0f09ba4ace3482197aecc3cc2bbf7ee42f375533495
+image U a03008a13d82b339368a2d095efd1a76172129927da5cc942fe36f7409a03db5
+image Z 34a6b63005df68e702050644fb6807ea9ac4b5933a3704b681793b90b8acc201
+image AA d8c065fd1a32c9c3843b3d8ce40f1da080148af4b14f9f35650ad965e62b8504
+round 1 order Q U R T AA Z S 
+2026-10-15T00:50:58+02:00 round 1 arm Q start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=4b30caa99eeda03fcbd3b39741c4f623e7a5587d dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image Q 48a4cf5e4a65952ab7b536144b4c4e6fca238bac2d4e54848bc083d8b8657af4
+image R b274df05d53bc757c1b0766bcad63e71c1457074de0c141490c6fa3a65a02dcb
+image S 0c35ca5493ae6c6ffaf01bd4b7beb24c5065a07a4263e4530eed5a7a7e14cc2b
+image T 597586afbfa89fe0c68dc0f09ba4ace3482197aecc3cc2bbf7ee42f375533495
+image U a03008a13d82b339368a2d095efd1a76172129927da5cc942fe36f7409a03db5
+image Z 34a6b63005df68e702050644fb6807ea9ac4b5933a3704b681793b90b8acc201
+image AA d8c065fd1a32c9c3843b3d8ce40f1da080148af4b14f9f35650ad965e62b8504
+round 1 order Q U R T AA Z S 
+2026-10-15T01:12:26+02:00 round 1 arm Q start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=cb4c6e8453cb1ed0e7b4fc0eb7ef50459d97d3d4 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image Q 48a4cf5e4a65952ab7b536144b4c4e6fca238bac2d4e54848bc083d8b8657af4
+image R b274df05d53bc757c1b0766bcad63e71c1457074de0c141490c6fa3a65a02dcb
+image S 0c35ca5493ae6c6ffaf01bd4b7beb24c5065a07a4263e4530eed5a7a7e14cc2b
+image T 597586afbfa89fe0c68dc0f09ba4ace3482197aecc3cc2bbf7ee42f375533495
+image U a03008a13d82b339368a2d095efd1a76172129927da5cc942fe36f7409a03db5
+image Z 34a6b63005df68e702050644fb6807ea9ac4b5933a3704b681793b90b8acc201
+image AA d8c065fd1a32c9c3843b3d8ce40f1da080148af4b14f9f35650ad965e62b8504
+round 1 order Q U R T AA Z S 
+2026-10-15T01:54:16+02:00 round 1 arm Q done: {"audit":true,"features":6,"cost":3.016191299999999}
+2026-10-15T01:54:16+02:00 round 1 arm U start
+2026-10-15T02:16:17+02:00 round 1 arm U done: {"audit":true,"features":6,"cost":2.4947010999999994}
+2026-10-15T02:16:17+02:00 round 1 arm R start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=ee64cfcf8329d4a24378d26ad9cd051bb059decc dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image Q 48a4cf5e4a65952ab7b536144b4c4e6fca238bac2d4e54848bc083d8b8657af4
+image R b274df05d53bc757c1b0766bcad63e71c1457074de0c141490c6fa3a65a02dcb
+image S 0c35ca5493ae6c6ffaf01bd4b7beb24c5065a07a4263e4530eed5a7a7e14cc2b
+image T 597586afbfa89fe0c68dc0f09ba4ace3482197aecc3cc2bbf7ee42f375533495
+image U a03008a13d82b339368a2d095efd1a76172129927da5cc942fe36f7409a03db5
+image Z 34a6b63005df68e702050644fb6807ea9ac4b5933a3704b681793b90b8acc201
+image AA d8c065fd1a32c9c3843b3d8ce40f1da080148af4b14f9f35650ad965e62b8504
+round 1 order Q U R T AA Z S 
+2026-10-15T02:56:07+02:00 round 1 arm R start
+2026-10-15T03:14:18+02:00 round 1 arm R done: {"audit":true,"features":6,"cost":1.5205349000000004}
+2026-10-15T03:14:18+02:00 round 1 arm T start
+2026-10-15T03:42:10+02:00 round 1 arm T done: {"audit":true,"features":5,"cost":3.3173166000000003}
+2026-10-15T03:42:10+02:00 round 1 arm AA start
+2026-10-15T04:07:14+02:00 round 1 arm AA done: {"audit":true,"features":6,"cost":2.099962099999999}
+2026-10-15T04:07:14+02:00 round 1 arm Z start
+2026-10-15T04:30:10+02:00 round 1 arm Z done: {"audit":true,"features":6,"cost":2.8257664000000005}
+2026-10-15T04:30:10+02:00 round 1 arm S start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=9a12b79353a838b698015ab21d0046a505b0a9ff dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image S 0c35ca5493ae6c6ffaf01bd4b7beb24c5065a07a4263e4530eed5a7a7e14cc2b
+round 1 order S 
+2026-10-15T04:57:15+02:00 round 1 arm S start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=9cf41fb1b2a9412d5245e7e859bf6e7ff5aa04cc dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image S 0c35ca5493ae6c6ffaf01bd4b7beb24c5065a07a4263e4530eed5a7a7e14cc2b
+round 1 order S 
+2026-10-15T05:18:17+02:00 round 1 arm S done: {"audit":true,"features":6,"cost":2.1142757000000003}
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=e720391c2263b71c0df1fde61620e5fae631435a dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image E f33978609eda2e5b7db7fbe967a81bc9f7e0ca923f37175275824e633b1889d8
+image K a135b2ae875a2b65ff8aee7eab9deef8f8d344d75fba267f7bfdf660aed22918
+image N 1e0f5a1edad8605f063212c92d4686b7d17e785b9c793c27254bfe31fa624d1c
+image X e5590f371595f31ebb710df2abb30588b8d86b21917e4f1388d74f91b00f755d
+image Y 981f33507428f59a1e6d4f978f64e38ff17e7c8523fd47d04bf76bb378a7b1e6
+image A 8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505
+image AB 40d4f49c8c1e49a3b523f41284b70515e2ad8665d0396d8f6dc6005f0492fbb6
+round 1 order E Y K X AB A N 
+2026-10-15T07:47:18+02:00 usage 5h 0 weekly 0.96
+2026-10-15T07:47:18+02:00 round 1 arm E start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=e720391c2263b71c0df1fde61620e5fae631435a dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image C 05f5325a96a266d0e238fe83b05b82b59abcc6ae9ec450b9fb8623eb5650025c
+image I 434ad392c72992b2326909bbc3d78c645d0d6fde30b4132be27cfdd6faa09c28
+image L f32404a3d88d22dbf00dc1d1206711ff13b0be4694a8b6329fe2501c8dd33334
+image O f550c4b13a8c19911e973be102765df847180ea18f0e59437302412cbcc6919f
+image B ef10188cf0897de1049b02f7e181f6b4b9c407776c762465f4ceff708c7582f3
+image F aae39ccc3b2c6d47eee2844e982d11c7b0afc88c79e1849279644886a7f04968
+image V a31357ef781e901d5d79f79e79f5e5e0104388adbc476b592d46d24dba67e83c
+image AC 12347b8b41d3ec8545b26affff46d9ce82e64af820f88d1787572395e8bf185b
+round 1 order C B I O V F L AC 
+2026-10-15T07:47:38+02:00 usage 5h 0 weekly 0.96
+2026-10-15T07:47:38+02:00 round 1 arm C start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=e720391c2263b71c0df1fde61620e5fae631435a dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image D a70b3ccb03c3b0ef910ee1a3d39335010bc97571fba147d6fe7319c350cd46b8
+image J ebf25d1b9c5e1458805040eee77ba995c4124ced5882f6cb9a1d2d5b3552d036
+image M b494449cfad382f5582a5a62301019ffb1511b0a92c32d9d76bf744f44e8d670
+image W 1b99c0ee1f3f78df6092e7ec8bc5500c691b1bdde306b95f741c8b12d21b8a3b
+image G cd28b6c109d07c0bcb8430a97625a62d8c06610b00a37b8d6a400724f0bb101c
+image H acfcc8b2645ef0bf5f44d81f9fcaccbac145c47d0251876a43773393e750e969
+image P b57920ee1ca9985744403181be2c7be418cb47d63fa628438f8c902946125e69
+round 1 order D G J W P H M 
+2026-10-15T07:47:58+02:00 usage 5h 0.01 weekly 0.96
+2026-10-15T07:47:58+02:00 round 1 arm D start
+2026-10-15T07:58:07+02:00 round 1 arm E done: {"audit":true,"features":0,"cost":2.6992608000000002}
+2026-10-15T07:58:10+02:00 usage 5h 0.09 weekly 0.96
+2026-10-15T07:58:10+02:00 round 1 arm Y start
+2026-10-15T08:05:29+02:00 round 1 arm Y done: {"audit":true,"features":6,"cost":1.0967622}
+2026-10-15T08:05:33+02:00 usage 5h 0.11 weekly 0.97
+2026-10-15T08:05:33+02:00 round 1 arm K start
+2026-10-15T08:14:46+02:00 round 1 arm D done: {"audit":true,"features":6,"cost":1.7321803000000002}
+2026-10-15T08:14:49+02:00 usage 5h 0.14 weekly 0.97
+2026-10-15T08:14:49+02:00 round 1 arm G start
+2026-10-15T08:17:47+02:00 round 1 arm C done: {"audit":true,"features":6,"cost":1.6256702999999995}
+2026-10-15T08:17:50+02:00 usage 5h 0.16 weekly 0.97
+2026-10-15T08:17:50+02:00 round 1 arm B start
+2026-10-15T08:18:09+02:00 round 1 arm K done: {"audit":true,"features":6,"cost":null}
+2026-10-15T08:18:11+02:00 usage 5h 0.16 weekly 0.97
+2026-10-15T08:18:11+02:00 round 1 arm X start
+2026-10-15T08:21:17+02:00 round 1 arm B done: {"audit":true,"features":6,"cost":0.3894376}
+2026-10-15T08:21:20+02:00 usage 5h 0.18 weekly 0.97
+2026-10-15T08:21:20+02:00 round 1 arm I start
+2026-10-15T08:24:44+02:00 round 1 arm X done: {"audit":true,"features":6,"cost":1.3183710000000002}
+2026-10-15T08:24:47+02:00 usage 5h 0.21 weekly 0.97
+2026-10-15T08:24:47+02:00 round 1 arm AB start
+2026-10-15T08:26:41+02:00 round 1 arm G done: {"audit":true,"features":6,"cost":1.8977215000000005}
+2026-10-15T08:26:44+02:00 usage 5h 0.22 weekly 0.97
+2026-10-15T08:26:44+02:00 round 1 arm J start
+2026-10-15T08:38:17+02:00 round 1 arm I done: {"audit":true,"features":6,"cost":2.772057400000002}
+2026-10-15T08:38:20+02:00 usage 5h 0.31 weekly 0.98
+2026-10-15T08:38:20+02:00 waiting for the weekly reset at 2026-10-17T17:00:00+02:00
+2026-10-15T08:51:57+02:00 round 1 arm AB done: {"audit":true,"features":6,"cost":3.1896697000000014}
+2026-10-15T08:52:00+02:00 usage 5h 0.34 weekly 0.98
+2026-10-15T08:52:00+02:00 waiting for the weekly reset at 2026-10-17T17:00:00+02:00
+2026-10-15T08:56:53+02:00 round 1 arm J done: {"audit":true,"features":6,"cost":3.0250516999999992}
+2026-10-15T08:56:56+02:00 usage 5h 0.34 weekly 0.98
+2026-10-15T08:56:56+02:00 waiting for the weekly reset at 2026-10-17T17:00:00+02:00
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=b41860a78fc087e236b839270a5c99a08b687065 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image A 8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505
+round 1 order A 
+2026-10-15T14:09:32+02:00 usage 5h 0 weekly 0.98
+2026-10-15T14:09:32+02:00 round 1 arm A start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=b41860a78fc087e236b839270a5c99a08b687065 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image F aae39ccc3b2c6d47eee2844e982d11c7b0afc88c79e1849279644886a7f04968
+round 1 order F 
+2026-10-15T14:09:53+02:00 usage 5h 0 weekly 0.98
+2026-10-15T14:09:53+02:00 round 1 arm F start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=b41860a78fc087e236b839270a5c99a08b687065 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image H acfcc8b2645ef0bf5f44d81f9fcaccbac145c47d0251876a43773393e750e969
+round 1 order H 
+2026-10-15T14:10:12+02:00 usage 5h 0 weekly 0.98
+2026-10-15T14:10:12+02:00 round 1 arm H start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=b41860a78fc087e236b839270a5c99a08b687065 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image L f32404a3d88d22dbf00dc1d1206711ff13b0be4694a8b6329fe2501c8dd33334
+round 1 order L 
+2026-10-15T14:10:32+02:00 usage 5h 0.01 weekly 0.98
+2026-10-15T14:10:32+02:00 round 1 arm L start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=b41860a78fc087e236b839270a5c99a08b687065 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image M b494449cfad382f5582a5a62301019ffb1511b0a92c32d9d76bf744f44e8d670
+round 1 order M 
+2026-10-15T14:10:52+02:00 usage 5h 0.01 weekly 0.99
+2026-10-15T14:10:52+02:00 round 1 arm M start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=b41860a78fc087e236b839270a5c99a08b687065 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image N 1e0f5a1edad8605f063212c92d4686b7d17e785b9c793c27254bfe31fa624d1c
+round 1 order N 
+2026-10-15T14:11:13+02:00 usage 5h 0.02 weekly 0.99
+2026-10-15T14:11:13+02:00 round 1 arm N start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=b41860a78fc087e236b839270a5c99a08b687065 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image O f550c4b13a8c19911e973be102765df847180ea18f0e59437302412cbcc6919f
+round 1 order O 
+2026-10-15T14:11:35+02:00 usage 5h 0.02 weekly 0.99
+2026-10-15T14:11:35+02:00 round 1 arm O start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=b41860a78fc087e236b839270a5c99a08b687065 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image P b57920ee1ca9985744403181be2c7be418cb47d63fa628438f8c902946125e69
+round 1 order P 
+2026-10-15T14:11:52+02:00 usage 5h 0.03 weekly 0.99
+2026-10-15T14:11:52+02:00 round 1 arm P start
+2026-10-15T14:20:34+02:00 round 1 arm O done: {"audit":true,"features":6,"cost":1.1064033000000002}
+2026-10-15T14:20:34+02:00 round 1 arm H done: {"audit":false,"features":6,"cost":2.3057665000000003}
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image V a31357ef781e901d5d79f79e79f5e5e0104388adbc476b592d46d24dba67e83c
+round 1 order V 
+2026-10-15T14:20:37+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:20:37+02:00 round 1 arm V start
+2026-10-15T14:20:47+02:00 round 1 arm M done: {"audit":true,"features":6,"cost":2.0869625999999997}
+2026-10-15T14:20:48+02:00 round 1 arm P done: {"audit":true,"features":6,"cost":1.1391247}
+2026-10-15T14:21:59+02:00 round 1 arm F done: {"audit":true,"features":3,"cost":1.2666176000000002}
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image W 1b99c0ee1f3f78df6092e7ec8bc5500c691b1bdde306b95f741c8b12d21b8a3b
+round 1 order W 
+2026-10-15T14:22:02+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:22:02+02:00 round 1 arm W start
+2026-10-15T14:22:57+02:00 round 1 arm V done: {"audit":true,"features":0,"cost":0}
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image AC 12347b8b41d3ec8545b26affff46d9ce82e64af820f88d1787572395e8bf185b
+round 1 order AC 
+2026-10-15T14:23:00+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:23:00+02:00 round 1 arm AC start
+2026-10-15T14:24:23+02:00 round 1 arm W done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:25:21+02:00 round 1 arm AC done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:25:39+02:00 round 1 arm L done: {"audit":true,"features":6,"cost":1.1445452999999999}
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image F aae39ccc3b2c6d47eee2844e982d11c7b0afc88c79e1849279644886a7f04968
+round 1 order F 
+2026-10-15T14:25:54+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:25:54+02:00 round 1 arm F start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image H acfcc8b2645ef0bf5f44d81f9fcaccbac145c47d0251876a43773393e750e969
+round 1 order H 
+2026-10-15T14:26:15+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:26:15+02:00 round 1 arm H start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image M b494449cfad382f5582a5a62301019ffb1511b0a92c32d9d76bf744f44e8d670
+round 1 order M 
+2026-10-15T14:26:35+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:26:35+02:00 round 1 arm M start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image P b57920ee1ca9985744403181be2c7be418cb47d63fa628438f8c902946125e69
+round 1 order P 
+2026-10-15T14:26:54+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:26:54+02:00 round 1 arm P start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image V a31357ef781e901d5d79f79e79f5e5e0104388adbc476b592d46d24dba67e83c
+round 1 order V 
+2026-10-15T14:27:15+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:27:15+02:00 round 1 arm V start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image W 1b99c0ee1f3f78df6092e7ec8bc5500c691b1bdde306b95f741c8b12d21b8a3b
+round 1 order W 
+2026-10-15T14:27:35+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:27:35+02:00 round 1 arm W start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=1
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image AC 12347b8b41d3ec8545b26affff46d9ce82e64af820f88d1787572395e8bf185b
+round 1 order AC 
+2026-10-15T14:27:54+02:00 usage 5h 0.27 weekly 1
+2026-10-15T14:27:54+02:00 round 1 arm AC start
+2026-10-15T14:28:15+02:00 round 1 arm F done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:28:35+02:00 round 1 arm H done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:28:56+02:00 round 1 arm M done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:29:15+02:00 round 1 arm P done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:29:35+02:00 round 1 arm V done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:29:55+02:00 round 1 arm W done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:30:16+02:00 round 1 arm AC done: {"audit":true,"features":0,"cost":0}
+2026-10-15T14:30:31+02:00 round 1 arm A done: {"audit":true,"features":6,"cost":1.7271122}
+2026-10-15T14:37:43+02:00 round 1 arm N done: {"audit":true,"features":6,"cost":1.6837132999999997}
+2026-10-15T21:03:06+02:00 account switch: remaining Claude Code arms run on the owner's Team seat token (no weekly limit); earlier trials on the Max subscription; infra-failed trials AC F H M P V W removed for rerun (owner decision)
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image A 8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505
+image F aae39ccc3b2c6d47eee2844e982d11c7b0afc88c79e1849279644886a7f04968
+image H acfcc8b2645ef0bf5f44d81f9fcaccbac145c47d0251876a43773393e750e969
+image L f32404a3d88d22dbf00dc1d1206711ff13b0be4694a8b6329fe2501c8dd33334
+round 1 order A F L H 
+2026-10-15T21:03:15+02:00 usage 5h 0 weekly 0
+2026-10-15T21:03:15+02:00 round 1 arm A start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image M b494449cfad382f5582a5a62301019ffb1511b0a92c32d9d76bf744f44e8d670
+image N 1e0f5a1edad8605f063212c92d4686b7d17e785b9c793c27254bfe31fa624d1c
+image P b57920ee1ca9985744403181be2c7be418cb47d63fa628438f8c902946125e69
+round 1 order M N P 
+2026-10-15T21:03:35+02:00 usage 5h 0 weekly 0
+2026-10-15T21:03:35+02:00 round 1 arm M start
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=3a3a129d942acd5919c087dd85cfe829a3a121d9 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image V a31357ef781e901d5d79f79e79f5e5e0104388adbc476b592d46d24dba67e83c
+image W 1b99c0ee1f3f78df6092e7ec8bc5500c691b1bdde306b95f741c8b12d21b8a3b
+image AC 12347b8b41d3ec8545b26affff46d9ce82e64af820f88d1787572395e8bf185b
+round 1 order V W AC 
+2026-10-15T21:03:55+02:00 usage 5h 0 weekly 0
+2026-10-15T21:03:55+02:00 round 1 arm V start
+2026-10-15T21:10:25+02:00 round 1 arm A done: {"audit":true,"features":6,"cost":0.9181185000000001}
+2026-10-15T21:10:28+02:00 usage 5h 0.04 weekly 0
+2026-10-15T21:10:28+02:00 round 1 arm F start
+2026-10-15T21:11:54+02:00 round 1 arm M done: {"audit":true,"features":6,"cost":1.6811563999999999}
+2026-10-15T21:11:57+02:00 usage 5h 0.05 weekly 0
+2026-10-15T21:11:57+02:00 round 1 arm N start
+2026-10-15T21:17:35+02:00 round 1 arm V done: {"audit":true,"features":6,"cost":1.8638077999999998}
+2026-10-15T21:17:38+02:00 usage 5h 0.09 weekly 0
+2026-10-15T21:17:38+02:00 round 1 arm W start
+2026-10-15T21:21:02+02:00 round 1 arm N done: {"audit":true,"features":6,"cost":2.1921882}
+2026-10-15T21:21:05+02:00 usage 5h 0.11 weekly 0
+2026-10-15T21:21:05+02:00 round 1 arm P start
+2026-10-15T21:23:57+02:00 round 1 arm W done: {"audit":true,"features":0,"cost":0.43848580000000004}
+2026-10-15T21:24:00+02:00 usage 5h 0.11 weekly 0
+2026-10-15T21:24:00+02:00 round 1 arm AC start
+2026-10-15T21:27:05+02:00 round 1 arm P done: {"audit":true,"features":6,"cost":0.888747}
+2026-10-15T21:37:30+02:00 round 1 arm F done: {"audit":true,"features":6,"cost":3.4966983}
+2026-10-15T21:37:33+02:00 usage 5h 0.17 weekly 0
+2026-10-15T21:37:33+02:00 round 1 arm L start
+2026-10-15T21:39:59+02:00 round 1 arm AC done: {"audit":true,"features":6,"cost":2.7295268}
+2026-10-15T21:43:20+02:00 round 1 arm L done: {"audit":true,"features":6,"cost":0.9823572000000002}
+2026-10-15T21:43:23+02:00 usage 5h 0.19 weekly 0
+2026-10-15T21:43:23+02:00 round 1 arm H start
+2026-10-15T22:07:24+02:00 round 1 arm H done: {"audit":true,"features":6,"cost":5.5815074}
+2026-10-15T23:13:35+02:00 W rerun under protocol v1.8 (follow-up on confirmation stops, owner decision); the v1.7 trial (0/6, stopped for confirmation) kept in limited/W-v1.7
+brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41 timeout=5400s
+benchkeeper=bf19bf99d4163bac38ab83e58cead7a2a01ec68d dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+image W 1b99c0ee1f3f78df6092e7ec8bc5500c691b1bdde306b95f741c8b12d21b8a3b
+round 1 order W 
+2026-10-15T23:13:38+02:00 usage 5h 0.26 weekly 0
+2026-10-15T23:13:38+02:00 round 1 arm W start
+2026-10-15T23:28:36+02:00 round 1 arm W done: {"audit":true,"features":6,"cost":2.5992783999999998}

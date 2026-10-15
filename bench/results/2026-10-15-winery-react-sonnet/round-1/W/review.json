@@ -1,0 +1,51 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.4920758,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 5,
+      "code_quality": 5,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 4,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Every brief requirement is met. Start page shows title, date and time, \"EUR n per guest\" and \"<n> seats left\" (CatalogPage.tsx:13-22, format.ts:7-10, start.jpg). Links are named \"Book <title>\" (CatalogPage.tsx:24-27). The form has Name/Email/Guests (1–8) and a \"Book\" button (BookingPage.tsx:186-238). The seat limit is enforced on the server (booking-service.ts:69-75). Errors appear next to their field (form.jpg). Confirmation shows \"Booking confirmed\", tasting, guests, total and reference (BookingPage.tsx:70-105, confirmation.jpg). /staff has a Password field and Sign in button, with the password from STAFF_PASSWORD (StaffPage.tsx:36-57, index.ts:6). Bookings are grouped by tasting with name/email/guests/reference and a Cancel button that frees seats (staff.jpg, booking-service.ts:89). Fully booked has its own state (SeatsLeft.tsx:15-18). Built with React, Express, react-router, react-hook-form, zod and Tailwind. Bookings start empty and live in memory. npm start serves on PORT, default 3000.",
+      "correctness": "Validation, capacity check and insert run in one synchronous step, so two parallel requests cannot both pass the check. This is tested with two concurrent 5-guest bookings (app.test.ts:65-72). Boundary cases are handled: exactly the seats left, 0 and 9 guests, fractions, strings like '0x3'/'1e0', non-object bodies, malformed JSON giving a 400 (booking-service.test.ts:63-127, app.test.ts:74-80). Cancelling frees seats and a second cancel returns 404. Double submits are blocked by an inFlight ref (BookingPage.tsx:156-157). Small gaps: the confirmation exists only in component state, so a reload loses it, and handleSignOut has no catch when offline (StaffPage.tsx:167-171).",
+      "security": "The password is compared with timingSafeEqual on SHA-256 digests, which avoids length leaks, and an empty or unset password refuses all sign-ins (app.ts:22-27). Failed logins are rate-limited with trust-proxy awareness (app.ts:70-78). The session is a signed cookie-session with a random key, httpOnly, sameSite strict and a 12-hour maxAge (app.ts:39-47). A forged cookie is rejected in tests (app.test.ts:173-177). helmet is used, the JSON body limit is 10kb, the error handler hides internals, and public endpoints do not leak guest data (tested at app.test.ts:82-91). React escapes all output. No secrets are in the code. The only open point is that the booking endpoint has no rate limit.",
+      "code_quality": "The code is small and clearly layered: shared/ holds the zod schema, types and formatting, used by both client and server; server/ has the app plus a pure booking service; src/ has pages and components. Naming is clear, results are a discriminated union (BookResult), and errors are typed classes in api.ts. Minor blemishes: the cast `as unknown as Resolver<BookingInput>` (BookingPage.tsx:12) and a very long JSX line (StaffPage.tsx:188).",
+      "tests": "Tests cover the brief point by point. Service unit tests cover capacity, validation edge cases, references and cancel. Supertest API tests cover concurrency, auth, session cookie flags, throttling, SPA fallback and data leakage. RTL component tests cover the start page, form errors via accessible descriptions, server capacity errors, double submit, network errors, staff sign-in, grouping and cancel. Playwright e2e runs on desktop and Pixel 5 against the built app and checks for horizontal scroll (e2e/tastings.spec.ts). test-results/.last-run.json says passed.",
+      "ux_design": "The look is warm and fits a winery: a wine-red header with a gold rule, cream background and serif headings (start.jpg). Cards are clear and errors are inline with an icon and a red field state (form.jpg). The success panel is green with the reference highlighted (confirmation.jpg). The staff list is tidy with seats-booked counts (staff.jpg). Weak points: Cancel deletes at once with no confirmation (StaffPage.tsx:116-123). The booking page has no visible back link apart from the logo. A fully booked tasting still offers a Book link that leads to a form that can only fail.",
+      "accessibility": "Labels use htmlFor, and inputs carry aria-invalid and aria-describedby pointing at the error or hint (BookingPage.tsx:14-46). react-hook-form focuses the first invalid field by default. Banners use role=alert and the spinner uses role=status. There are semantic article/section/dl/time elements, a staff section labelled by its heading, a global :focus-visible gold outline, lang=en, and 48px touch targets (index.css:41-50). Gaps: server-returned errors set with setError do not move focus and are not announced live. The Cancel buttons have faint borders (alert-700/40). Cancel buttons do not say which booking they cancel.",
+      "simplicity": "Dependencies fit the job: Express 5, cookie-session, helmet, express-rate-limit, React, react-router, react-hook-form with zod, Tailwind. There is no database or state library. Each page is a single file, and the server is about 130 lines plus a 97-line service.",
+      "maintainability": "The README covers run and setup, environment variables (PORT, STAFF_PASSWORD, TRUST_PROXY), the in-memory caveat, pages, dev/test/e2e commands and the code layout. OpenSpec specs describe behaviour, and regression tests exist at three levels. package-lock.json is present and engines requires node>=22. Missing: a CI pipeline, ADRs, and a changelog or release approach (only version 1.0.0). The README points to openspec/changes/book-wine-tastings/ for design notes, but that folder is not in the repo. There is no .nvmrc, dependencies use caret ranges, and there is no staff-facing guide.",
+      "visual_design": "The palette is consistent across all four screenshots: wine, gold, parchment and leaf green. Serif headings pair with a sans body, radii and shadows match from page to page, and badges are colour-coded by availability. It looks finished, though fairly template-like, with no imagery. The date wraps awkwardly ('· 15:00' drops to its own line) on the Red Wine card (start.jpg).",
+      "layout": "Hierarchy is clear: the page heading and intro come first, then a three-column card grid with CTAs aligned at the bottom (start.jpg). The form page puts a summary beside the form (form.jpg). The confirmation is a centred card (confirmation.jpg). Staff groups are full-width cards (staff.jpg). Nothing overlaps or clips. On wide screens the form page leaves a lot of empty space below the summary card. The e2e tests check that the 360px-class phone layout has no horizontal scroll.",
+      "usability": "A guest books in three steps: start, form, confirmation. The Guests field defaults to 2 and has a 1–8 hint. Errors are specific ('Only 2 seats are available.'), the guest's input is kept after an error, and the button shows 'Booking…' while submitting. For staff, the session survives a reload and Sign out is available. Friction: no Cancel confirmation for staff, no explicit back link on the booking page, and a reload of the confirmation loses the reference.",
+      "reception": "Guests would trust it: it looks like a small winery's own site, with a personal thank-you and a readable reference code without ambiguous characters. Staff get a clean overview. The in-memory store, which loses bookings on restart, and the lack of a confirmation email would worry the owner for real use, but both are allowed by the brief."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Server-side booking logic holds up: validation, capacity check and insert run in one synchronous step, so concurrent requests cannot overbook. Boundary input is handled, and both are covered by tests.",
+      "Staff authentication is solid: timing-safe hashed password comparison, a signed httpOnly sameSite-strict session, login throttling, helmet, and no guest data on public endpoints.",
+      "Thorough tests at three levels (unit, API, component) plus Playwright e2e on desktop and phone, all tracing directly to the brief, together with a coherent, polished winery look."
+    ],
+    "issues": [
+      "Staff Cancel removes a booking immediately with no confirmation step (StaffPage.tsx:116-123). One misclick deletes a guest's booking for good.",
+      "No CI pipeline or ADRs, and the README points to design notes in openspec/changes/book-wine-tastings/ that are not in the repo. Dependencies use caret ranges, and there is no .nvmrc.",
+      "Small UX and accessibility gaps: server-side errors are not focused or announced, the booking page has no back link, a fully booked tasting still offers a Book link to a form that can only fail, and a reload of the confirmation loses the reference."
+    ],
+    "verdict": "This is a well-built, secure and thoroughly tested booking app that meets every point of the brief and looks like a small winery's own site. It could ship after small fixes: a confirmation step on Cancel, a CI workflow and accurate docs."
+  }
+}

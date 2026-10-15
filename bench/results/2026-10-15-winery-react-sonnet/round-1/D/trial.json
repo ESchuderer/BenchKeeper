@@ -1,0 +1,154 @@
+{
+  "arm": "D",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1580,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail",
+      "superpowers"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 3438,
+    "result_events": 3,
+    "turns": 57,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 1.7321803000000002,
+    "usage": {
+      "input": 134,
+      "cache_creation": 171093,
+      "cache_read": 5089993,
+      "output": 62168,
+      "thinking": 17656
+    }
+  },
+  "workflow": {
+    "tool_calls": 83,
+    "subagent_tool_calls": 9,
+    "skills": [
+      "superpowers:brainstorming",
+      "openspec-propose",
+      "superpowers:requesting-code-review",
+      "openspec-archive-change"
+    ],
+    "agents": [
+      "general-purpose"
+    ],
+    "plan_or_spec_files": [
+      "design.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "ScheduleWakeup "
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R9": true,
+      "R11": true,
+      "R12": true
+    },
+    "robustness_passed": 12,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.9,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "30f485b9450f40ed"
+  },
+  "lines": {
+    "source": 655,
+    "test": 345,
+    "files": 22
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "phases": {
+    "phases": {
+      "spec": {
+        "calls": 15,
+        "minutes": 20.2,
+        "usd": 0.426
+      },
+      "verify": {
+        "calls": 19,
+        "minutes": 0.9,
+        "usd": 0.401
+      },
+      "build": {
+        "calls": 27,
+        "minutes": 4.1,
+        "usd": 0.799
+      },
+      "test": {
+        "calls": 3,
+        "minutes": 0.8,
+        "usd": 0.082
+      },
+      "review": {
+        "calls": 1,
+        "minutes": 0,
+        "usd": 0.024
+      }
+    },
+    "subagents": {
+      "general-purpose": {
+        "calls": 8,
+        "minutes": 1.2,
+        "usd": 0.223
+      }
+    },
+    "method": "estimate"
+  }
+}

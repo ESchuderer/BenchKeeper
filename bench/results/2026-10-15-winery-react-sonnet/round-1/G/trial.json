@@ -1,0 +1,154 @@
+{
+  "arm": "G",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 684,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "superpowers"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 669625,
+    "result_events": 1,
+    "turns": 54,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 1.8977215000000005,
+    "usage": {
+      "input": 126,
+      "cache_creation": 176918,
+      "cache_read": 4444040,
+      "output": 82974,
+      "thinking": 16884
+    }
+  },
+  "workflow": {
+    "tool_calls": 75,
+    "subagent_tool_calls": 11,
+    "skills": [
+      "superpowers:brainstorming",
+      "superpowers:writing-plans",
+      "superpowers:test-driven-development",
+      "superpowers:requesting-code-review"
+    ],
+    "agents": [
+      "general-purpose"
+    ],
+    "plan_or_spec_files": [
+      "/work/docs/superpowers/specs/2026-10-15-tasting-booking-design.md",
+      "/work/docs/superpowers/plans/2026-10-15-tasting-booking.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash export FONTCONFIG_FILE=/tmp/fc/fonts.conf LD_LIBRARY_PATH=/tmp/chromelibs/usr/li"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R9": true,
+      "R11": true,
+      "R12": true
+    },
+    "robustness_passed": 12,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.89,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "30f485b9450f40ed"
+  },
+  "lines": {
+    "source": 1209,
+    "test": 711,
+    "files": 36
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "phases": {
+    "phases": {
+      "spec": {
+        "calls": 3,
+        "minutes": 1,
+        "usd": 0.102
+      },
+      "build": {
+        "calls": 22,
+        "minutes": 4.3,
+        "usd": 0.615
+      },
+      "test": {
+        "calls": 11,
+        "minutes": 1.5,
+        "usd": 0.332
+      },
+      "verify": {
+        "calls": 9,
+        "minutes": 1.4,
+        "usd": 0.241
+      },
+      "review": {
+        "calls": 17,
+        "minutes": 3,
+        "usd": 0.608
+      }
+    },
+    "subagents": {
+      "general-purpose": {
+        "calls": 8,
+        "minutes": 1,
+        "usd": 0.226
+      }
+    },
+    "method": "estimate"
+  }
+}

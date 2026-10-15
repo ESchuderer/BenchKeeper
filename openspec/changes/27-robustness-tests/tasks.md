@@ -13,5 +13,5 @@
 
 ## 3. Rescore
 
-- [ ] 3.1 Rescore the saved trials of the current runs, republish, update the report
+- [x] 3.1 Rescore the saved trials of the current runs, republish, update the report
 - [x] 3.2 `bench/PROTOCOL.md` version bump

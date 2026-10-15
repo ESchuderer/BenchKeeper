@@ -5,9 +5,17 @@
 set -eu
 here=$(dirname "$(realpath "$0")"); brief=$(realpath "$1"); t=$(realpath "$2")
 model=${3:-claude-opus-5-5}; effort=${4:-high}
-: "${CLAUDE_CODE_OAUTH_TOKEN:=$(cat "$HOME/.config/benchkeeper/oauth-token" 2>/dev/null)}"
-[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "no token" >&2; exit 1; }
-export CLAUDE_CODE_OAUTH_TOKEN
+# REVIEW_AUTH=api bills the review to the API key (ANTHROPIC_API_KEY or ~/.config/benchkeeper/anthropic-api-key);
+# otherwise the subscription token.
+if [ "${REVIEW_AUTH:-}" = api ]; then
+  : "${ANTHROPIC_API_KEY:=$(cat "$HOME/.config/benchkeeper/anthropic-api-key" 2>/dev/null)}"
+  [ -n "$ANTHROPIC_API_KEY" ] || { echo "no API key" >&2; exit 1; }
+  export ANTHROPIC_API_KEY; cred=ANTHROPIC_API_KEY
+else
+  : "${CLAUDE_CODE_OAUTH_TOKEN:=$(cat "$HOME/.config/benchkeeper/oauth-token" 2>/dev/null)}"
+  [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "no token" >&2; exit 1; }
+  export CLAUDE_CODE_OAUTH_TOKEN; cred=CLAUDE_CODE_OAUTH_TOKEN
+fi
 w=$(mktemp -d) && trap 'rm -rf "$w"' EXIT
 mkdir -p "$w/app" "$w/screenshots"
 img=$(podman image inspect benchkeeper-arm-a --format '{{.Id}}')
@@ -25,7 +33,7 @@ podman run --rm --userns=keep-id -v "$t/score/app.tar.gz":/in.tar.gz:ro,Z -v "$w
     -exec cp --parents {} /app/ \;'
 cp "$brief/brief.md" "$w/"
 cp "$t/score/screenshots/"*.jpg "$w/screenshots/" 2>/dev/null || true
-podman run --rm --userns=keep-id -e HOME=/home/node -e CLAUDE_CODE_OAUTH_TOKEN -v "$w":/review:ro,Z -w /review "$img" \
+podman run --rm --userns=keep-id -e HOME=/home/node -e "$cred" -v "$w":/review:ro,Z -w /review "$img" \
   claude -p "$(cat "$here/app-review.md")" --model "$model" --effort "$effort" --output-format json \
   --json-schema "$(cat "$here/schema.json")" --allowed-tools Read Glob Grep --disallowed-tools Bash Edit Write WebFetch WebSearch \
   > "$w/out.json"

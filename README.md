@@ -52,7 +52,7 @@ Every component evaluated, what is in and what is not, with the research behind 
 
 ## Prerequisites
 
-Not installed by BenchKeeper; see each official page. Tables marked as generated come from [web/src/data/facts.json](web/src/data/facts.json) (`node web/scripts/readme.mjs`).
+Not installed by BenchKeeper; see each official page. Tables marked as generated come from [web/src/data/facts.json](web/src/data/facts.json) (`devcontainer exec --docker-path podman --workspace-folder . node web/scripts/readme.mjs`).
 
 <!-- generated:prerequisites -->
 | Tool | Needed for |

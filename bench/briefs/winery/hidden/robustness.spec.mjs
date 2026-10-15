@@ -1,6 +1,6 @@
 // Hidden robustness tests for the winery briefs, scored separately from the feature tests (titles R1 to R12).
 // Each follows from a sentence of the brief. They run after acceptance.spec.mjs against the same app instance, in file
-// order (R2 to R6, R10, R1, R7, R8, R9, R11, R12).
+// order (R2 to R6, R10, R1, R7, R8, R11, R12, R9).
 import { test, expect } from '@playwright/test';
 import { book, bookButton, card, confirmed, fill, seatsLeft, signIn, submit, TITLES } from './helpers.mjs';
 
@@ -11,7 +11,7 @@ async function roomiest(page) {
   const left = [];
   for (const t of TITLES) {
     const text = await card(page, t).innerText({ timeout: 5000 }).catch(() => '');
-    left.push([Number(/(\d+)\s+seats? left/i.exec(text)?.[1] ?? -1), t]);
+    left.push([Number((/(-?\d+(?:[.,]\d+)?)\s+seats? left/i.exec(text)?.[1] ?? '-1').replace(',', '.')), t]);
   }
   return left.sort((a, b) => b[0] - a[0])[0][1];
 }
@@ -102,42 +102,6 @@ test('R8 names with HTML characters are shown as text', async ({ page }) => {
   await expect(page.locator('i', { hasText: 'R8' })).toHaveCount(0);
 });
 
-// Sets every field whose key names the guests (and the email, so each request is a new booking) in a captured request
-// body, JSON at any depth or form-encoded.
-function withGuests(body, guests, email) {
-  const set = (o) => {
-    for (const k of Object.keys(o)) {
-      if (o[k] && typeof o[k] === 'object') set(o[k]);
-      else if (/guest/i.test(k)) o[k] = typeof o[k] === 'string' ? String(guests) : guests;
-      else if (/mail/i.test(k)) o[k] = email;
-    }
-    return o;
-  };
-  try { return JSON.stringify(set(JSON.parse(body))); } catch {}
-  const p = new URLSearchParams(body);
-  for (const k of [...p.keys()]) if (/guest/i.test(k)) p.set(k, String(guests)); else if (/mail/i.test(k)) p.set(k, email);
-  return p.toString();
-}
-
-// "A booking can never take more seats than are left. Invalid input is rejected": also when the booking request is sent
-// without the form (no client-side checks). The app's own booking request is replayed with invalid guests.
-test('R9 the server rejects invalid guests sent without the form', async ({ page, request }) => {
-  const title = await roomiest(page);
-  expect(await fill(page, title, 1, 'r9@example.org')).toBe(true);
-  const origin = new URL(page.url()).origin;
-  const decoded = (r) => { try { return decodeURIComponent((r.postData() || '').replace(/\+/g, ' ')); } catch { return r.postData() || ''; } };
-  const sent = page.waitForRequest((r) => r.method() !== 'GET' && r.url().startsWith(origin) && decoded(r).includes('r9@example.org'));
-  await submit(page, bookButton(page));
-  const r = await sent;
-  await expect(confirmed(page)).toBeVisible();
-  const before = await seatsLeft(page, title);
-  const type = r.headers()['content-type'];
-  for (const g of [99, -3, 2.5]) {
-    await request.fetch(r.url(), { method: r.method(), headers: type ? { 'content-type': type } : {}, data: withGuests(r.postData() || '', g, `r9-${String(g).replace(/\W/g, '')}@example.org`), maxRedirects: 0 });
-  }
-  expect(await seatsLeft(page, title)).toBe(before);
-});
-
 // Staff see the names guests typed: names with accents and other scripts are kept exactly.
 test('R11 names with accents and other scripts are kept', async ({ page }) => {
   const name = 'Zoë Ångström-Łukasiewicz 山田';
@@ -147,20 +111,22 @@ test('R11 names with accents and other scripts are kept', async ({ page }) => {
   await expect(page.locator('body')).toContainText(name);
 });
 
-// "Signed in, staff ... can cancel a booking": the app's own cancel request, sent again without a session, cancels nothing.
+// "Signed in, staff ... can cancel a booking": the app's own cancel request, sent again without a session, frees no seats.
 test('R12 cancelling needs sign-in', async ({ page, request }) => {
   page.on('dialog', (d) => d.accept());
-  expect(await book(page, await roomiest(page), 1, 'r12@example.org')).toBe(true);
+  const title = await roomiest(page);
+  expect(await book(page, title, 1, 'r12@example.org')).toBe(true);
   await expect(confirmed(page)).toBeVisible();
+  const booked = await seatsLeft(page, title);
   await signIn(page);
   await expect(page.locator('body')).toContainText('r12@example.org');
   const origin = new URL(page.url()).origin;
-  // Stop the request the Cancel button sends (a form post, a fetch, or a page load) and keep it.
+  // Stop the request the Cancel button sends (a form post, a fetch, or a page load; not a background GET) and keep it.
   let captured = null;
   await page.route('**/*', (route) => {
     const q = route.request();
-    if (!captured && q.url().startsWith(origin) && ['document', 'fetch', 'xhr'].includes(q.resourceType())) {
-      captured = { url: q.url(), method: q.method(), type: q.headers()['content-type'], body: q.postData() };
+    if (!captured && q.url().startsWith(origin) && (q.resourceType() === 'document' || (q.method() !== 'GET' && ['fetch', 'xhr'].includes(q.resourceType())))) {
+      captured = { url: q.url(), method: q.method(), type: q.headers()['content-type'], body: q.postDataBuffer() };
       return route.abort();
     }
     return route.continue();
@@ -169,7 +135,49 @@ test('R12 cancelling needs sign-in', async ({ page, request }) => {
   await page.locator('body *').filter({ hasText: 'r12@example.org' }).filter({ has: cancel }).last().locator(cancel).first().click();
   await expect.poll(() => Boolean(captured)).toBe(true);
   await page.unroute('**/*');
-  await request.fetch(captured.url, { method: captured.method, headers: captured.type ? { 'content-type': captured.type } : {}, data: captured.body ?? undefined, maxRedirects: 0 });
-  await signIn(page);
-  await expect(page.locator('body')).toContainText('r12@example.org');
+  await request.fetch(captured.url, { method: captured.method, headers: { origin, ...(captured.type ? { 'content-type': captured.type } : {}) }, data: captured.body ?? undefined, maxRedirects: 0 });
+  // Seats, not the list: an app may keep cancelled bookings listed as "Cancelled".
+  expect(await seatsLeft(page, title)).toBe(booked);
+});
+
+// The guest-count field of a captured booking request body (JSON, form-encoded or multipart), set to `guests`; the email
+// replaced so each request is a new booking. Returns null when no guest-count field is found.
+const GUESTS_KEY = '(?:guests?|guest_?count|number_?of_?guests|party_?size|people|seats)';
+function withGuests(body, guests, from, to) {
+  let n = 0;
+  const count = (m) => { n += 1; return m; };
+  let out = body
+    .replace(new RegExp(`("${GUESTS_KEY}"\\s*:\\s*)("?)[^",}\\]]*("?)`, 'gi'), (m, k, q1, q2) => count(`${k}${q1}${guests}${q2}`))
+    .replace(new RegExp(`((?:^|&)${GUESTS_KEY}=)[^&]*`, 'gi'), (m, k) => count(`${k}${encodeURIComponent(String(guests))}`))
+    .replace(new RegExp(`(name="${GUESTS_KEY}"\\r\\n\\r\\n)[^\\r]*`, 'gi'), (m, k) => count(`${k}${guests}`));
+  for (const [a, b] of [[from, to], [encodeURIComponent(from), encodeURIComponent(to)]]) out = out.split(a).join(b);
+  return n ? out : null;
+}
+
+// "A booking can never take more seats than are left. Invalid input is rejected": also when the booking request is sent
+// without the form (no client-side checks). The app's own booking request is replayed: once valid (control), then with
+// guests -3 and 2.5 (0 guests would not change the seats either way). An app that refuses even the valid replay (a CSRF
+// or origin check) cannot be sent invalid guests this way and passes.
+test('R9 the server rejects invalid guests sent without the form', async ({ page, request }) => {
+  const title = await roomiest(page);
+  expect(await fill(page, title, 1, 'r9@example.org')).toBe(true);
+  const origin = new URL(page.url()).origin;
+  const raw = (r) => r.postDataBuffer()?.toString('utf8') || '';
+  const sent = page.waitForRequest((r) => r.method() !== 'GET' && r.url().startsWith(origin) && /r9(@|%40)example\.org/.test(raw(r)));
+  await submit(page, bookButton(page));
+  const r = await sent;
+  await expect(confirmed(page)).toBeVisible();
+  const type = r.headers()['content-type'];
+  const replay = async (g, email) => {
+    const data = withGuests(raw(r), g, 'r9@example.org', email);
+    expect(data, 'a guest-count field in the booking request').not.toBeNull();
+    await request.fetch(r.url(), { method: r.method(), headers: { origin, ...(type ? { 'content-type': type } : {}) }, data, maxRedirects: 0 });
+  };
+  const before = await seatsLeft(page, title);
+  await replay(1, 'r9-control@example.org');
+  const after = await seatsLeft(page, title);
+  if (after === before) return; // the valid replay was refused too
+  expect(after, 'the valid replay books one seat').toBe(before - 1);
+  for (const g of [-3, 2.5]) await replay(g, `r9-${String(g).replace(/\W/g, '')}@example.org`);
+  expect(await seatsLeft(page, title)).toBe(after);
 });

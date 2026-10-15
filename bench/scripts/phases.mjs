@@ -105,15 +105,22 @@ const OC_NAMES = { write: 'Write', edit: 'Edit', multiedit: 'MultiEdit', skill: 
 export function opencodePhases(all) {
   const main = all.find((s) => !s.info?.parentID);
   const phases = {}, subagents = {};
+  const spawned = new Map(); // subagent session id -> phase of the task call that started it
   let current = 'explore';
-  for (const s of all) {
+  // Parents before children, so each subagent session takes the phase of the call that spawned it.
+  const order = [main, ...all.filter((s) => s !== main)].filter(Boolean)
+    .sort((a, b) => Boolean(a.info?.parentID) - Boolean(b.info?.parentID) || (a.info?.time?.created || 0) - (b.info?.time?.created || 0));
+  for (const s of order) {
     const sub = Boolean(s.info?.parentID);
+    const phase = spawned.get(s.info?.id) || current;
     for (const m of s.messages || []) {
       if (m.info?.role !== 'assistant') continue;
-      const tools = (m.parts || []).filter((p) => p.type === 'tool').map((p) => ({ name: OC_NAMES[p.tool] || p.tool, input: p.state?.input || {} }));
+      const parts = (m.parts || []).filter((p) => p.type === 'tool');
+      const tools = parts.map((p) => ({ name: OC_NAMES[p.tool] || p.tool, input: p.state?.input || {} }));
       const seconds = Math.max(0, ((m.info.time?.completed || 0) - (m.info.time?.created || 0)) / 1000);
-      if (sub) { add(phases, current, m.info.cost || 0, 0); add(subagents, s.info?.title || 'subagent', m.info.cost || 0, seconds); continue; }
-      current = phaseOfCall(tools) || current;
+      if (!sub) current = phaseOfCall(tools) || current;
+      for (const p of parts) if (p.tool === 'task' && p.state?.metadata?.sessionId) spawned.set(p.state.metadata.sessionId, sub ? phase : current);
+      if (sub) { add(phases, phase, m.info.cost || 0, 0); add(subagents, s.info?.title || 'subagent', m.info.cost || 0, seconds); continue; }
       add(phases, current, m.info.cost || 0, seconds);
     }
   }

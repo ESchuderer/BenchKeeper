@@ -43,7 +43,7 @@ Excluded: MerrillLi/openspec-superpowers (owner decision 2026-10-14). Its README
 - Every turn runs with `OPENCODE_DISABLE_CLAUDE_CODE=1` (no `CLAUDE.md`, `~/.claude` or `.claude/skills`), `OPENCODE_DISABLE_EXTERNAL_SKILLS=1` (no `.agents/skills`), `OPENCODE_DISABLE_AUTOUPDATE=1`, `OPENCODE_DISABLE_LSP_DOWNLOAD=1` and `OPENCODE_DISABLE_MODELS_FETCH=1` (model catalog fetched once at image build).
 - Run: `opencode run --model anthropic/<model> --variant <effort> --format json --auto`; follow-ups with `--continue`. The model and effort are the same as the Claude Code arms of the run.
 - Audit: `opencode debug skill` and `opencode debug config` before the first turn (required and forbidden skills and the plugin per arm, `bench/scripts/opencode.mjs`).
-- Cost and tokens: every session of the trial is exported (`opencode export`), subagent sessions included; OpenCode computes cost from its catalog prices (API prices).
+- Cost and tokens: every session of the trial is exported (`opencode export`), subagent sessions found through the task calls that started them (runs before 2026-10-15 08:00 exported only the main session); OpenCode computes cost from its catalog prices (API prices).
 
 ### Differences from the Claude Code arms (known limitations)
 

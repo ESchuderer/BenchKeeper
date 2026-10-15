@@ -63,7 +63,9 @@ Trials: USD 33.24 API-equivalent.
 | Z | Matt Pocock (Haiku) | 6/6 | 0 | 45 | 1.84 | 8 | 4 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 2 | yes | no |
 | Z | Matt Pocock (Sonnet) | 6/6 | 0 | 22 | 2.83 | 8 | 5 | 5 | 4 | 5 | 5 | 5 | 4 | 5 | 2 | no | no |
 
-Trials: USD 26.94 billed; reviews of all 36 apps: USD 18.87 billed.
+Trials: USD 26.94 over the main sessions; reviews of all 36 apps: USD 18.87 billed.
+
+Caveat: the OpenCode USD, tokens, tool uses and phases cover only the main session of each trial. The runner exported root sessions only (`opencode session list` does not list subagent sessions; fixed after this run), and 11 of 14 trials started 1 or 2 subagents through the task tool (all except Q and T on Haiku and U on Sonnet), whose cost is missing. The billed amount for these trials is higher than shown.
 
 ## Observations (one trial each)
 

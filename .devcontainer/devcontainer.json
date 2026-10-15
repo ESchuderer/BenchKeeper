@@ -3,20 +3,11 @@
   "initializeCommand": [
     "sh",
     "-c",
-    "printf 'WORKSPACE=%s\\nGIT_COMMON=%s\\n' \"$PWD\" \"$(cd \"$(git rev-parse --git-common-dir)\" && pwd)\" > .devcontainer/.env"
+    "set -e; common=$(cd \"$(git rev-parse --git-common-dir)\" && pwd); printf 'WORKSPACE=%s\\nGIT_COMMON=%s\\n' \"$PWD\" \"$common\" > .devcontainer/.env"
   ],
   "dockerComposeFile": "compose.yaml",
   "service": "app",
   "workspaceFolder": "${localWorkspaceFolder}",
   "remoteUser": "node",
-  "updateRemoteUserUID": false,
-  "forwardPorts": [4321],
-  "customizations": {
-    "vscode": {
-      "settings": {
-        "dev.containers.copyGitConfig": false,
-        "dev.containers.gitCredentialHelperConfigLocation": "none"
-      }
-    }
-  }
+  "updateRemoteUserUID": false
 }

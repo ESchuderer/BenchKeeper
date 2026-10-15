@@ -3,14 +3,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # rootless podman: map the host uid to the container user node (uid 1000) so the bind mount is writable
-    userns_mode: keep-id
+    # rootless podman: map the host user to the container user node (uid 1000) so the bind mount is writable
+    userns_mode: keep-id:uid=1000,gid=1000
     # an init process reaps the exited children of test runs
     init: true
-    # WORKSPACE and GIT_COMMON come from .env, written by initializeCommand; host paths are kept so git worktree paths match on both sides
+    # WORKSPACE and GIT_COMMON come from .env, written by initializeCommand; host paths are kept so git worktree paths match
+    # on both sides. The shared .git is read-only: git runs on the host, and hooks or config written in the container would
+    # run there. Shared SELinux label (z): containers of other worktrees mount the same .git.
     volumes:
-      - ${WORKSPACE}:${WORKSPACE}:cached
-      - ${GIT_COMMON}:${GIT_COMMON}
+      - ${WORKSPACE}:${WORKSPACE}:z
+      - ${GIT_COMMON}:${GIT_COMMON}:ro,z
+    # the site preview (npm run preview), for a browser on the host
+    ports:
+      - 127.0.0.1:4321:4321
     command: sleep infinity
     environment:
       DO_NOT_TRACK: "1"

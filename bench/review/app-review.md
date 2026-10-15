@@ -17,6 +17,10 @@ Rate each criterion from 1 (unacceptable) to 5 (excellent), with concrete eviden
 7. accessibility: labels, semantics, focus and error announcements, contrast (from code and screenshots).
 8. simplicity: dependencies and amount of code fit the problem.
 9. maintainability: could a developer who has never seen this app pick it up again later without problems? From the repository alone: run and setup instructions, regression tests that cover the behavior, a build and CI pipeline, a release or versioning approach, documentation of decisions and behavior (README, docs, specs, ADRs, a manual for staff if needed), pinned dependencies and runtime versions, and no undocumented manual steps.
+10. visual_design: from the screenshots: typography, color, spacing, alignment and consistency across pages; how finished it looks.
+11. layout: from the screenshots: page structure and hierarchy (the most important content is seen first), grouping, use of space, no overlaps, clipping or overflow.
+12. usability: how easily the brief's users complete their tasks: navigation, labels and calls to action, forms, feedback on errors and success, number of steps.
+13. reception: how the brief's audience would receive the app on a first visit: trust, professionalism, fit to the audience and purpose, whether they would use it again and recommend it.
 
 Then give `overall` from 1 to 10 (would you ship it to the winery as is), the three main strengths, the three main issues in order of severity, and a two-sentence verdict.
 

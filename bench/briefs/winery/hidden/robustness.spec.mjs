@@ -23,10 +23,12 @@ async function formArea(page) {
 }
 
 // "Invalid input is rejected with an error message shown next to the field it concerns" (winery-react; winery: "next to
-// the form"): the browser's own validation message on a field, or new text in the form's container.
+// the form"): a field marked invalid (the browser's own validation message, or `aria-invalid="true"`, which also covers
+// apps that validate while the guest types), or new text in the form's container after the submit.
 async function errorShown(page, [around, text]) {
-  const native = await page.locator('input, select, textarea').evaluateAll((es) => es.some((e) => e.validationMessage));
-  if (!native) await expect.poll(() => around.innerText()).not.toBe(text);
+  const flagged = () => page.locator('input, select, textarea')
+    .evaluateAll((es) => es.some((e) => e.validationMessage || e.getAttribute('aria-invalid') === 'true'));
+  await expect.poll(async () => (await flagged()) || (await around.innerText()) !== text).toBe(true);
 }
 
 // No booking (no confirmation, seats unchanged) and an error shown. The tasting must have seats for the request, so a

@@ -17,4 +17,4 @@ The hidden tests SHALL include robustness tests (titles starting with `R`), each
 #### Scenario: Separate score
 
 - **WHEN** a trial is parsed
-- **THEN** `trial.json` holds `features_passed` (of 6) and `robustness_passed` (of 8) separately
+- **THEN** `trial.json` holds `features_passed` (of 6) and `robustness_passed` (of 12) separately

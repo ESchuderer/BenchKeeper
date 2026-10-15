@@ -1,6 +1,6 @@
-// Hidden robustness tests for the winery briefs, scored separately from the feature tests (titles R1 to R8).
+// Hidden robustness tests for the winery briefs, scored separately from the feature tests (titles R1 to R12).
 // Each follows from a sentence of the brief. They run after acceptance.spec.mjs against the same app instance, in file
-// order (R2 to R6, R1, R7, R8).
+// order (R2 to R6, R10, R1, R7, R8, R9, R11, R12).
 import { test, expect } from '@playwright/test';
 import { book, bookButton, card, confirmed, fill, seatsLeft, signIn, submit, TITLES } from './helpers.mjs';
 
@@ -51,6 +51,7 @@ test('R3 nine guests are rejected', async ({ page }) => rejected(page, 9, 'r3@ex
 test('R4 a fractional number of guests is rejected', async ({ page }) => rejected(page, '2.5', 'r4@example.org'));
 test('R5 an empty name is rejected', async ({ page }) => rejected(page, 1, 'r5@example.org', ''));
 test('R6 an empty email is rejected', async ({ page }) => rejected(page, 1, ''));
+test('R10 a name of only spaces is rejected', async ({ page }) => rejected(page, 1, 'r10@example.org', '   '));
 
 // "A booking can never take more seats than are left": two bookings for the last seats at the same time.
 test('R1 simultaneous bookings for the last seats do not overbook', async ({ page, browser }) => {
@@ -99,4 +100,76 @@ test('R8 names with HTML characters are shown as text', async ({ page }) => {
   await signIn(page);
   await expect(page.locator('body')).toContainText('r8@example.org');
   await expect(page.locator('i', { hasText: 'R8' })).toHaveCount(0);
+});
+
+// Sets every field whose key names the guests (and the email, so each request is a new booking) in a captured request
+// body, JSON at any depth or form-encoded.
+function withGuests(body, guests, email) {
+  const set = (o) => {
+    for (const k of Object.keys(o)) {
+      if (o[k] && typeof o[k] === 'object') set(o[k]);
+      else if (/guest/i.test(k)) o[k] = typeof o[k] === 'string' ? String(guests) : guests;
+      else if (/mail/i.test(k)) o[k] = email;
+    }
+    return o;
+  };
+  try { return JSON.stringify(set(JSON.parse(body))); } catch {}
+  const p = new URLSearchParams(body);
+  for (const k of [...p.keys()]) if (/guest/i.test(k)) p.set(k, String(guests)); else if (/mail/i.test(k)) p.set(k, email);
+  return p.toString();
+}
+
+// "A booking can never take more seats than are left. Invalid input is rejected": also when the booking request is sent
+// without the form (no client-side checks). The app's own booking request is replayed with invalid guests.
+test('R9 the server rejects invalid guests sent without the form', async ({ page, request }) => {
+  const title = await roomiest(page);
+  expect(await fill(page, title, 1, 'r9@example.org')).toBe(true);
+  const origin = new URL(page.url()).origin;
+  const decoded = (r) => { try { return decodeURIComponent((r.postData() || '').replace(/\+/g, ' ')); } catch { return r.postData() || ''; } };
+  const sent = page.waitForRequest((r) => r.method() !== 'GET' && r.url().startsWith(origin) && decoded(r).includes('r9@example.org'));
+  await submit(page, bookButton(page));
+  const r = await sent;
+  await expect(confirmed(page)).toBeVisible();
+  const before = await seatsLeft(page, title);
+  const type = r.headers()['content-type'];
+  for (const g of [99, -3, 2.5]) {
+    await request.fetch(r.url(), { method: r.method(), headers: type ? { 'content-type': type } : {}, data: withGuests(r.postData() || '', g, `r9-${String(g).replace(/\W/g, '')}@example.org`), maxRedirects: 0 });
+  }
+  expect(await seatsLeft(page, title)).toBe(before);
+});
+
+// Staff see the names guests typed: names with accents and other scripts are kept exactly.
+test('R11 names with accents and other scripts are kept', async ({ page }) => {
+  const name = 'Zoë Ångström-Łukasiewicz 山田';
+  expect(await book(page, await roomiest(page), 1, 'r11@example.org', name)).toBe(true);
+  await expect(confirmed(page)).toBeVisible();
+  await signIn(page);
+  await expect(page.locator('body')).toContainText(name);
+});
+
+// "Signed in, staff ... can cancel a booking": the app's own cancel request, sent again without a session, cancels nothing.
+test('R12 cancelling needs sign-in', async ({ page, request }) => {
+  page.on('dialog', (d) => d.accept());
+  expect(await book(page, await roomiest(page), 1, 'r12@example.org')).toBe(true);
+  await expect(confirmed(page)).toBeVisible();
+  await signIn(page);
+  await expect(page.locator('body')).toContainText('r12@example.org');
+  const origin = new URL(page.url()).origin;
+  // Stop the request the Cancel button sends (a form post, a fetch, or a page load) and keep it.
+  let captured = null;
+  await page.route('**/*', (route) => {
+    const q = route.request();
+    if (!captured && q.url().startsWith(origin) && ['document', 'fetch', 'xhr'].includes(q.resourceType())) {
+      captured = { url: q.url(), method: q.method(), type: q.headers()['content-type'], body: q.postData() };
+      return route.abort();
+    }
+    return route.continue();
+  });
+  const cancel = page.getByRole('button', { name: 'Cancel' });
+  await page.locator('body *').filter({ hasText: 'r12@example.org' }).filter({ has: cancel }).last().locator(cancel).first().click();
+  await expect.poll(() => Boolean(captured)).toBe(true);
+  await page.unroute('**/*');
+  await request.fetch(captured.url, { method: captured.method, headers: captured.type ? { 'content-type': captured.type } : {}, data: captured.body ?? undefined, maxRedirects: 0 });
+  await signIn(page);
+  await expect(page.locator('body')).toContainText('r12@example.org');
 });

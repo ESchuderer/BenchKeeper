@@ -3,7 +3,7 @@
 ## 1. Tests
 
 - [x] 1.1 Helpers in `helpers.mjs`, feature tests unchanged in behavior
-- [x] 1.2 Robustness tests R1 to R8 in `robustness.spec.mjs`
+- [x] 1.2 Robustness tests R1 to R12 in `robustness.spec.mjs`
 - [x] 1.3 Mutants in both `validate.sh`; both pass
 
 ## 2. Scoring

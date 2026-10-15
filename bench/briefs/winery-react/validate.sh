@@ -16,18 +16,23 @@ run() { # <name> <expected failing tests> <sed script or empty> [files, default 
 }
 run reference "" ""
 run capacity F3,R1 's/  else if (t \&\& guests > left(t)) errors.guests = `Only ${left(t)} seats left.`;//'
-run staff-open F5,R7 's/const staff = (req) => sessions.has(.*$/const staff = () => true;/'
+run staff-open F5,R7,R12 's/const staff = (req) => sessions.has(.*$/const staff = () => true;/'
 run cancel-noop F6 's/  if (i >= 0) bookings.splice(i, 1);//'
 run email-unchecked F4,R6 "s#  if (!/^\[^\\\\s@\]+@\[^\\\\s@\]+\\\\.\[^\\\\s@\]+\$/.test(email)) errors.email = 'Enter a valid email address.';##"
 run race R1 "s#app.post('/api/bookings', (req, res)#app.post('/api/bookings', async (req, res)#; s#^  bookings.push(b);#  await new Promise((r) => setTimeout(r, 300));\n&#"
 run guests-zero R2 's/guests < 1 ||/guests < 0 ||/'
 run guests-nine R3 's/guests > 8)/guests > 9)/'
-run guests-fraction R4 's/!Number.isInteger(guests)/!Number.isFinite(guests)/'
-run name-empty R5 's/  if (!name.trim()) errors.name.*$//'
+run guests-fraction R4,R9 's/!Number.isInteger(guests)/!Number.isFinite(guests)/'
+run name-empty R5,R10 's/  if (!name.trim()) errors.name.*$//'
 run email-empty R6 's/.test(email)) errors.email/.test(email) \&\& email) errors.email/'
 # The bookings API without a session check, and a staff page that asks for the password before it loads them (F5 passes).
 run staff-leak R7 "s#(req, res) => (staff(req) ? res.json(bookings)#(req, res) => (true ? res.json(bookings)#; s#  useEffect(() => { load(); }, \[\]);##" "server.mjs src/main.jsx"
 run name-markup R8 's#<li key={b.ref}>{b.name},#<li key={b.ref}><span dangerouslySetInnerHTML={{ __html: b.name }} />,#' src/main.jsx
+# Guests checked only in the browser before the request, not by the server.
+run server-guests R9 "s#const f = Object.fromEntries(new FormData(e.target));#&\n      if (!/^[1-8]\$/.test(f.guests)) return setErrors({ guests: \"Guests must be 1 to 8.\" });#; s#if (!Number.isInteger(guests) || guests < 1 || guests > 8) errors.guests#if (false) errors.guests#" "server.mjs src/main.jsx"
+run name-spaces R10 's/if (!name.trim()) errors.name/if (!name) errors.name/'
+run name-ascii R11 "s/name: name.trim(), email/name: name.trim().replace(\/[^ -~]\/g, '?'), email/"
+run cancel-open R12 's/^  if (!staff(req)) return res.status(401).json({});$//'
 # A correct app with other behavior: a guests dropdown, "1 seat left" in the singular, and a staff page that shows
 # "Loading" while it checks the session.
 run variant "" 's#{field(.guests., .Guests.)}#<p><label htmlFor="guests">Guests</label> <select id="guests" name="guests">{[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n}>{n}</option>)}</select>{errors.guests \&\& <span role="alert"> {errors.guests}</span>}</p>#

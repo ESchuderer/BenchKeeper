@@ -81,7 +81,7 @@ for r in $(seq "$k"); do
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
     # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first.
     podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
-      sh -c '[ ! -d ~/project-template ] || [ -z "$(ls -A ~/project-template)" ] || { cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && git commit -qm "chore: project setup"; }' \
+      sh -c '[ ! -d ~/project-template ] || [ -z "$(ls -A ~/project-template)" ] || { cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && { git diff --cached --quiet || git commit -qm "chore: project setup"; }; }' \
       || { echo "project setup for arm $arm failed" >&2; exit 1; }
     start=$(date +%s) && echo "$start" > "$t/start"
     # The container lives for the whole trial, so follow-up turns continue the same session; removed on any exit.

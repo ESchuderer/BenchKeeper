@@ -93,9 +93,9 @@
       "R1": true,
       "R7": true,
       "R8": true,
-      "R9": true,
-      "R11": false,
-      "R12": false
+      "R11": true,
+      "R12": false,
+      "R9": false
     },
     "robustness_passed": 10,
     "axe": {
@@ -105,7 +105,7 @@
       "staff": 0
     },
     "lighthouse": {
-      "performance": 0.91,
+      "performance": 0.89,
       "accessibility": 1,
       "best-practices": 1
     },
@@ -113,7 +113,7 @@
       "high": 0,
       "total": 0
     },
-    "hidden_tests": "30f485b9450f40ed"
+    "hidden_tests": "374dfd34d02f0c2f"
   },
   "lines": {
     "source": 1295,

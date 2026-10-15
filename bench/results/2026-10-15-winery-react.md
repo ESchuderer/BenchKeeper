@@ -1,6 +1,6 @@
 # React winery brief: Claude Code and OpenCode on Haiku 5.5 and Sonnet 5.5
 
-Runs 2026-10-14 to 2026-10-16, protocol `bench/PROTOCOL.md` v1.9. All 58 trials scored with the same hidden tests (`30f485b9450f40ed`: 6 feature tests, 12 robustness tests); agent runs unchanged by rescoring. One trial per arm and model; descriptive only. Results page with screenshots: https://claude.ai/artifact/E4fVUmc4WnofiUD8BoirLz (private to the owner).
+Runs 2026-10-14 to 2026-10-16, protocol `bench/PROTOCOL.md` v1.9. All 58 trials scored with the same hidden tests (`374dfd34d02f0c2f`: 6 feature tests, 12 robustness tests); agent runs unchanged by rescoring. One trial per arm and model; descriptive only. Results page with screenshots: https://claude.ai/artifact/E4fVUmc4WnofiUD8BoirLz (private to the owner).
 
 ## Setup
 
@@ -108,9 +108,9 @@ Caveat: the OpenCode USD, tokens, tool uses and phases cover only the main sessi
 
 ## Robustness tests (#27)
 
-12 tests from the brief's sentences (`bench/PROTOCOL.md`): simultaneous bookings for the last seats (R1), invalid guests 0, 9, 2.5 (R2 to R4), empty name and email (R5, R6), booking data without sign-in including API responses (R7), HTML in names (R8), invalid guests sent without the form (R9), a name of only spaces (R10), accents and other scripts (R11), cancelling without a session (R12).
+12 tests from the brief's sentences (`bench/PROTOCOL.md`): simultaneous bookings for the last seats (R1), invalid guests 0, 9, 2.5 (R2 to R4), empty name and email (R5, R6), booking data without sign-in including API responses (R7), HTML in names (R8), invalid guests sent without the form, with a valid replay as control (R9), a name of only spaces (R10), accents and other scripts (R11), cancelling without a session (R12).
 
-- Every app that started passes all 12, except Haiku G (10 of 12): G limits bookings to 10 per 15 minutes per client (`src/server/app.ts`, `express-rate-limit`), and the hidden tests send more than 10 bookings from one client, so the bookings of R11 and R12 were refused. This is a limit of the test suite, not a defect in what R11 and R12 test.
+- Every app that started passes all 12, except Haiku G (10 of 12): G limits bookings to 10 per 15 minutes per client (`src/server/app.ts`, `express-rate-limit`), and the hidden tests send more than 10 bookings from one client, so the bookings of R12 and R9 (the last two tests) were refused. This is a limit of the test suite, not a defect in what R12 and R9 test.
 - Haiku S (OpenCode, oso) did not start: no robustness score.
 - Like the feature tests, the robustness tests do not separate the arms on this brief.
 

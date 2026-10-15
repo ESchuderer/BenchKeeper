@@ -71,9 +71,9 @@
       "R1": true,
       "R7": true,
       "R8": true,
-      "R9": true,
       "R11": true,
-      "R12": true
+      "R12": true,
+      "R9": true
     },
     "robustness_passed": 12,
     "axe": {
@@ -91,7 +91,7 @@
       "high": 0,
       "total": 0
     },
-    "hidden_tests": "30f485b9450f40ed"
+    "hidden_tests": "374dfd34d02f0c2f"
   },
   "lines": {
     "source": 548,

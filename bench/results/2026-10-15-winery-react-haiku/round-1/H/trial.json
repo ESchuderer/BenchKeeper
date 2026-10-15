@@ -1,0 +1,99 @@
+{
+  "arm": "H",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 860,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": []
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 2214,
+    "result_events": 4,
+    "turns": 77,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 1.43141518,
+    "usage": {
+      "input": 188,
+      "cache_creation": 333715,
+      "cache_read": 11786930,
+      "output": 161327,
+      "thinking": 69696
+    }
+  },
+  "workflow": {
+    "tool_calls": 95,
+    "subagent_tool_calls": 15,
+    "skills": [],
+    "agents": [
+      "code-reviewer",
+      "security-reviewer"
+    ],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/tasting-bookings/proposal.md",
+      "/work/openspec/changes/tasting-bookings/specs/guest-tasting-booking/spec.md",
+      "/work/openspec/changes/tasting-bookings/specs/staff-booking-management/spec.md",
+      "/work/openspec/changes/tasting-bookings/design.md",
+      "/work/openspec/changes/tasting-bookings/tasks.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash rm -rf coverage && printf 'coverage/\\n' >> .gitignore && OPENSPEC_TELEMETRY=0 np"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 1,
+      "confirmation": 1,
+      "form": 1,
+      "staff": 1
+    },
+    "lighthouse": {
+      "performance": 0.88,
+      "accessibility": 0.95,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "0c89d28500b65ba5"
+  },
+  "lines": {
+    "source": 1509,
+    "test": 1001,
+    "files": 38
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  }
+}

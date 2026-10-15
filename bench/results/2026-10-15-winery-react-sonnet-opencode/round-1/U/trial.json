@@ -1,0 +1,130 @@
+{
+  "arm": "U",
+  "runtime": "opencode",
+  "followups": 0,
+  "wall_seconds": 1289,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 26
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 66,
+    "cost_usd_api_equivalent": 2.4947010999999994,
+    "usage": {
+      "input": 134,
+      "cache_creation": 278542,
+      "cache_read": 7213581,
+      "output": 80458,
+      "thinking": 27214
+    }
+  },
+  "workflow": {
+    "tool_calls": 75,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "test-driven-development",
+      "frontend-ui-engineering",
+      "code-review-and-quality"
+    ],
+    "agents": [],
+    "plan_or_spec_files": [
+      "design.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash cd /work && openspec archive winery-tasting-bookings --yes 2>&1 | tail -15; ls o"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.79,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "0c89d28500b65ba5"
+  },
+  "lines": {
+    "source": 1556,
+    "test": 1200,
+    "files": 36
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "phases": {
+    "phases": {
+      "explore": {
+        "calls": 1,
+        "minutes": 0,
+        "usd": 0.043
+      },
+      "build": {
+        "calls": 28,
+        "minutes": 7.1,
+        "usd": 1.207
+      },
+      "verify": {
+        "calls": 19,
+        "minutes": 8.7,
+        "usd": 0.475
+      },
+      "spec": {
+        "calls": 1,
+        "minutes": 0.5,
+        "usd": 0.044
+      },
+      "test": {
+        "calls": 14,
+        "minutes": 4.2,
+        "usd": 0.622
+      },
+      "review": {
+        "calls": 3,
+        "minutes": 0.6,
+        "usd": 0.103
+      }
+    },
+    "subagents": {},
+    "method": "reported"
+  }
+}

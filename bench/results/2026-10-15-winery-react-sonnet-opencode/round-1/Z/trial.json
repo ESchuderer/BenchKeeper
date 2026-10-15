@@ -1,0 +1,130 @@
+{
+  "arm": "Z",
+  "runtime": "opencode",
+  "followups": 0,
+  "wall_seconds": 1343,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 28
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 93,
+    "cost_usd_api_equivalent": 2.8257664000000005,
+    "usage": {
+      "input": 188,
+      "cache_creation": 310436,
+      "cache_read": 9909404,
+      "output": 75993,
+      "thinking": 29843
+    }
+  },
+  "workflow": {
+    "tool_calls": 108,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "ask-matt",
+      "grill-with-docs",
+      "grilling",
+      "domain-modeling"
+    ],
+    "agents": [
+      "general",
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "/work/.scratch/winery-bookings/spec.md",
+      "/work/.scratch/winery-bookings/spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "todowrite "
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 1,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.96,
+      "accessibility": 1,
+      "best-practices": 1
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "0c89d28500b65ba5"
+  },
+  "lines": {
+    "source": 1278,
+    "test": 672,
+    "files": 32
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "phases": {
+    "phases": {
+      "explore": {
+        "calls": 1,
+        "minutes": 0,
+        "usd": 0.038
+      },
+      "spec": {
+        "calls": 7,
+        "minutes": 1.1,
+        "usd": 0.187
+      },
+      "verify": {
+        "calls": 30,
+        "minutes": 4.7,
+        "usd": 0.618
+      },
+      "build": {
+        "calls": 25,
+        "minutes": 7.3,
+        "usd": 0.98
+      },
+      "test": {
+        "calls": 30,
+        "minutes": 8.9,
+        "usd": 1.003
+      }
+    },
+    "subagents": {},
+    "method": "reported"
+  }
+}

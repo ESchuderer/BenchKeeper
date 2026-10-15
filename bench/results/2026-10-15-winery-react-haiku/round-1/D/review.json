@@ -1,0 +1,45 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.45049599999999995,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 3
+    },
+    "evidence": {
+      "requirements": "All brief items met: start page lists title/date/price/'<n> seats left' and 'Book <title>' links (start.jpg, StartPage.tsx:42-60, format.ts:2); form with labelled Name/Email/Guests and 'Book' button, errors under the field (form.jpg, BookingPage.tsx:95-170); seat limit enforced server-side (bookings.ts:33-41, app.ts:137-140); confirmation with 'Booking confirmed', tasting, guests, total, reference (confirmation.jpg, ConfirmationPage.tsx:22-33); /staff with Password + Sign in, STAFF_PASSWORD from env (StaffPage.tsx:87-110, index.ts:4); grouped bookings with Cancel freeing seats (staff.jpg, app.ts:182-212); React + Express + react-hook-form + zod + Tailwind + React Router; PORT default 3000 (index.ts:3); in-memory store; English UI. Fully booked badge exists (StartPage.tsx:52-53) and booking form refuses sold-out tasting (BookingPage.tsx:50). OpenSpec specs mirror the brief.",
+      "correctness": "Atomic synchronous check-and-insert prevents overbooking; tested with parallel HTTP requests (public-api.test.ts:121-132). Boundaries 1/8, 0/9/1.5/'abc' rejected (booking.test.ts:33-55); exact-seats and one-over cases tested (bookings.test.ts:22-36). Non-object body handled (app.ts:131), malformed JSON goes to 400 via error handler (app.ts:224-231). 409 errors mapped to the Guests field and tasting reloaded (BookingPage.tsx:68-73). Cancel deletes booking and frees seats (bookings.ts:48). Minor: SignInForm onSubmit has no try/catch, so a network failure shows nothing (StaffPage.tsx:67-83); cancelled booking's confirmation link becomes 'Booking not found'; staff cancel has no confirmation.",
+      "security": "Password compared with timingSafeEqual over SHA-256 digests (app.ts:35-37,99-102); refused when STAFF_PASSWORD unset; session.regenerate on sign-in (app.ts:109); cookie HttpOnly, SameSite=Strict, secure:auto, 8h maxAge (app.ts:82-87); random per-process session secret, no secrets in code; rate limit 5 failed attempts/15 min (app.ts:91-97); Origin check on cancel/sign-out (app.ts:166-173); staff endpoints require session (app.ts:157-163); public confirmation endpoint omits PII (tested public-api.test.ts:147-154); React escaping, no dangerouslySetInnerHTML. Minor: no security headers; without TRUST_PROXY behind a proxy all clients share one limiter bucket (documented in README).",
+      "code_quality": "Clear split server/shared/client; shared zod schema used by both sides (shared/booking.ts); discriminated unions for results (bookings.ts:7-9, StaffPage.tsx:18-21); small focused files; consistent error handling. Minor duplication: TastingSummary type defined in StartPage.tsx:6 and BookingPage.tsx:10, input class strings repeated; non-null assertion tasting! in BookingPage.tsx:59.",
+      "tests": "Vitest + supertest cover tastings list, booking creation/total, per-field 400 errors, 409 seat limit and fully booked, unknown tasting, concurrent requests, confirmation lookup, sign-in success/failure/unset password, rate limit, cookie attributes incl. Secure over HTTPS, 401/403 on protected routes, grouping, cancel freeing seats, sign-out. No client/UI tests at all (labels, error placement, 'Book <title>' links, fully booked UI, confirmation page untested); bookings.test.ts:60 'simultaneous' test is sequential.",
+      "ux_design": "Coherent winery look: deep wine header with gold rule, parchment cards, serif headings (start.jpg, form.jpg, staff.jpg). Clear inline error with red border (form.jpg). Readable confirmation card with monospaced reference (confirmation.jpg). Staff view tidy with 'No bookings yet' state (staff.jpg). Responsive grid and horizontally scrollable staff table (StartPage.tsx:39, StaffPage.tsx:182). Weaknesses: confirmation has no distinct success styling (--color-success unused, index.css:12); no hint of the 1-8 guest range; Cancel acts immediately without confirmation; raw ISO date format.",
+      "accessibility": "Labels tied via htmlFor/id, aria-invalid and aria-describedby on errors (BookingPage.tsx:96-155, StaffPage.tsx:90-105); role=alert on form-level errors; html lang=en; table headers with sr-only 'Actions' (StaffPage.tsx:190-192); react-hook-form focuses first invalid field on client validation. Gaps: field errors are not live regions and server-returned errors (setError at BookingPage.tsx:70) are neither focused nor announced; no custom focus styles on links/buttons beyond browser default. Contrast of muted #6e625b on parchment #efe5cf estimated at ~4.7:1, which passes AA.",
+      "simplicity": "Around 900 lines of source; dependencies are standard and each justified (express, express-session, express-rate-limit, react-hook-form, zod, react-router, tailwind). No needless abstraction; booking store is a small Map-based closure (bookings.ts).",
+      "maintainability": "README has run steps, env var table, notes on memory storage and single process, scripts (README.md). OpenSpec specs document behavior. Lint, typecheck and test scripts exist and package-lock.json is present. Missing: no CI pipeline; no release/versioning or changelog; engines '>=22' with no .nvmrc and caret ranges; `npm run dev` runs Vite alone with no API proxy (vite.config.ts), so the dev workflow cannot reach the API and this is undocumented; no ADRs or staff manual."
+    },
+    "unmet_requirements": [
+      "Partly: 'clear states for ... success' — confirmation page has no distinct success styling (success colour defined but unused)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "All brief requirements implemented and visible in the screenshots, with server-side seat enforcement that is safe under concurrent requests",
+      "Careful security: timing-safe password check, session regeneration, HttpOnly/SameSite=Strict/auto-Secure cookies, sign-in rate limit, Origin check on state-changing staff routes",
+      "Small, readable codebase on established libraries with a single zod schema shared by client and server, plus meaningful server API tests"
+    ],
+    "issues": [
+      "Maintainability gaps: no CI pipeline, no versioning/changelog, Node not pinned (engines >=22, no .nvmrc), and `npm run dev` starts Vite without an API proxy so the dev workflow does not work and is undocumented",
+      "No client/UI tests: labels, field-adjacent errors, 'Book <title>' links, fully booked state and confirmation page are untested; store 'simultaneous' test is sequential",
+      "UX/a11y rough edges: staff Cancel deletes immediately without confirmation, server-returned field errors are not focused or announced, no distinct success styling on confirmation, sign-in has no network error handling"
+    ],
+    "verdict": "A clean, secure and complete booking app that meets the brief and looks like a small winery's own site, with solid server-side seat logic and good API tests. It needs CI, a working or documented dev setup, a few UI tests and a cancel confirmation before it is fully production-ready."
+  }
+}

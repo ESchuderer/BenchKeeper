@@ -1,0 +1,96 @@
+{
+  "arm": "B",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 925,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 77158,
+    "result_events": 2,
+    "turns": 67,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 0.4834184599999999,
+    "usage": {
+      "input": 144,
+      "cache_creation": 206093,
+      "cache_read": 6825821,
+      "output": 134856,
+      "thinking": 75848
+    }
+  },
+  "workflow": {
+    "tool_calls": 106,
+    "subagent_tool_calls": 17,
+    "skills": [],
+    "agents": [
+      "general-purpose"
+    ],
+    "plan_or_spec_files": [
+      "/work/docs/SPEC.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": false,
+    "last_tool": "Bash for p in /proc/[0-9]*; do c=$(tr '\\0' ' ' < $p/cmdline 2>/dev/null); case \"$c\" i"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.89,
+      "accessibility": 1,
+      "best-practices": 1
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "0c89d28500b65ba5"
+  },
+  "lines": {
+    "source": 937,
+    "test": 300,
+    "files": 19
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  }
+}

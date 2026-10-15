@@ -1,0 +1,103 @@
+{
+  "arm": "R",
+  "runtime": "opencode",
+  "followups": 0,
+  "wall_seconds": 1207,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [
+      "file:///home/node/.bench-src/superpowers"
+    ],
+    "skills": 16
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 75,
+    "cost_usd_api_equivalent": 0.7648931900000002,
+    "usage": {
+      "input": 152,
+      "cache_creation": 210370,
+      "cache_read": 9382860,
+      "output": 96423,
+      "thinking": 58934
+    }
+  },
+  "workflow": {
+    "tool_calls": 92,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "brainstorming",
+      "executing-plans"
+    ],
+    "agents": [
+      "general",
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "/work/docs/superpowers/specs/2026-10-15-kieselbrunnen-tastings-design.md",
+      "/work/docs/superpowers/specs/2026-10-15-kieselbrunnen-tastings-design.md",
+      "/work/docs/superpowers/specs/2026-10-15-kieselbrunnen-tastings-design.md",
+      "/work/docs/superpowers/plans/2026-10-15-kieselbrunnen-tastings.md",
+      "/work/docs/superpowers/plans/2026-10-15-kieselbrunnen-tastings.md",
+      "/work/docs/superpowers/plans/2026-10-15-kieselbrunnen-tastings.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "todowrite "
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 1,
+      "confirmation": 1,
+      "form": 1,
+      "staff": 1
+    },
+    "lighthouse": {
+      "performance": 0.89,
+      "accessibility": 0.9,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "0c89d28500b65ba5"
+  },
+  "lines": {
+    "source": 1374,
+    "test": 1104,
+    "files": 39
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  }
+}

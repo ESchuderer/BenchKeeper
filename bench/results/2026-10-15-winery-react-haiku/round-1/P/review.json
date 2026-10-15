@@ -1,0 +1,46 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.4668996,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 5,
+      "code_quality": 5,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3
+    },
+    "evidence": {
+      "requirements": "Every brief item is met. Start page shows title, date/time, price and \"<n> seats left\" (TastingsPage.tsx:19-22, format.ts:16, start.jpg). Each card has a \"Book <title>\" link (TastingsPage.tsx:25-27). The form has Name/Email/Guests labels, 1-8 limits and a \"Book\" button (BookingPage.tsx:96-176, booking.ts:18-22). The server stops overbooking (store.ts:71-72) and puts errors next to the field (form.jpg; app.ts:110,122). The confirmation has the \"Booking confirmed\" heading, tasting, guests, total and reference (ConfirmationPage.tsx:14-28, confirmation.jpg). /staff has a Password field and a Sign in button, using STAFF_PASSWORD (StaffPage.tsx:144-171, index.ts:5). Staff see bookings grouped by tasting with a Cancel button, and cancelling frees seats (app.ts:167-186, staff.jpg). Uses React, Express, React Router, RHF, Zod and Tailwind. PORT defaults to 3000 and the UI is in English. Small deviation: bookings persist in data/bookings.json, so only the first start is empty. The brief allows a local file.",
+      "correctness": "Check-then-add is synchronous in one handler, so concurrent requests cannot overbook, and a 30-parallel-request test covers this (store.ts:51-79, bookings.test.ts:148-156). Boundaries are tested: last exact seats, 0, 9, 1.5 and the string '2' (bookings.test.ts:103-138). Cancel deletes the booking and frees its seats (store.ts:80-86). The disk write happens before memory is updated, so a failed save does not leave a phantom booking (store.ts:74-77). A damaged file is refused rather than overwritten (store.ts:23-25). Tastings close at start time (tastings.ts:23-26). Malformed JSON gets a 400 from the error handler (app.ts:203-207). A missing body is handled (app.ts:107). Minor: the confirmation lives only in router state, so a refresh redirects to / (ConfirmationPage.tsx:7-8).",
+      "security": "Passwords are compared as SHA-256 digests with timingSafeEqual (app.ts:35-38). Session tokens are random 32-byte values kept in memory with 8h expiry (staffSessions.ts:13-24). The cookie is HttpOnly, SameSite=Strict, and Secure when the request is secure (app.ts:146-152). Sign-out invalidates the token server-side (app.ts:160-165). Failed sign-ins are rate-limited (app.ts:59-66), and so are bookings (app.ts:51-57). A Sec-Fetch-Site check guards state-changing requests (app.ts:86-89). Helmet sets CSP, JSON body size is capped at 10kb, and API responses are no-store. Staff endpoints are guarded by requireStaff. The public API leaves out names and emails (bookings.test.ts:57-63). React escapes all output, and there is no dangerouslySetInnerHTML. No secrets are in the code, and the data file is written with mode 0600 (store.ts:34).",
+      "code_quality": "Server structure is small and clear: app, store, sessions, tastings. The client has four pages plus api/format/useTastings. One Zod schema is shared by client and server (shared/booking.ts). Names are clear and errors are handled consistently in an {errors: {field|form}} shape (api.ts:35-55). Types come in through a discriminated AddResult (store.ts:14). Comments are short and explain why. No needless abstraction. Minor: a hand-rolled cookie parser (app.ts:26-32) and stray double blank lines (tastings.ts:11-12, BookingPage.tsx:8-9).",
+      "tests": "Supertest suites cover listing, booking, every validation field, seat limits, singular wording, concurrency, closed/start-time boundaries, 404s, rate limits, CSRF header, staff auth, session expiry at 8h, sign-out and cancel freeing seats (bookings.test.ts, staff.test.ts). Store tests cover persistence, atomic write, failed save, file mode and unique references (store.test.ts). SPA fallback is tested (static.test.ts). Testing Library tests check the brief's labels and button names, errors linked by accessible description, the server seats-left error on the Guests field, confirmation contents, fully booked and closed states, and the staff flows (tests/client/*). No end-to-end browser test is in the repo.",
+      "ux_design": "The screenshots show a coherent winery look: cream/parchment background, wine-red serif headings, card layout and clear buttons (start.jpg). The form error is clear: tinted field, red message under it and a live total (form.jpg). The confirmation is tidy with a definition list and a monospace reference (confirmation.jpg). The staff list is readable with Cancel per row (staff.jpg). Fully booked and closed badges, a non-bookable state, and responsive classes exist (TastingsPage.tsx:6-9, BookingPage.tsx:34-44). Weaker points: Cancel uses the browser's window.confirm (StaffPage.tsx:45). The footer still shows \"Staff sign-in\" when signed in (staff.jpg). The design is plain, with no imagery, and no screenshot shows a fully booked or phone layout.",
+      "accessibility": "Labels use htmlFor/id. aria-invalid and aria-describedby link errors to fields (BookingPage.tsx:104-111). RHF focuses the first invalid field. Root errors use role=alert. There are landmarks (header/main/footer), a heading hierarchy, labelled articles/sections, 44px minimum targets (index.css:32) and a focus-visible outline. Weaknesses: per-field errors are not in a live region. The focus outline colour #c8a24a on cream/white is about 2.2:1, below the 3:1 needed for non-text contrast (index.css:26). Input borders #e3d7c2 on white are very faint (index.css:41). The Cancel buttons all share one name (StaffPage.tsx:94-96), though they sit inside labelled regions.",
+      "simplicity": "Nine runtime dependencies, each with a clear purpose. Around 900 lines of source fits the task. Some hardening goes past what a 3-tasting winery app needs: directory fsync, temp-file mode handling (store.ts:29-49), Sec-Fetch-Site filtering, trust-proxy configuration, and a booking rate limiter. Each is small and commented.",
+      "maintainability": "The README has run, test and env-var instructions and a code map (README.md). The specs folder holds spec, plan, research with decisions, data model, API contract, quickstart with manual checks, and tasks. The test suite works as regression coverage. There is a package-lock.json and a typecheck script. Missing: any CI pipeline config, any release/versioning approach or changelog (version 0.1.0 only), and a pinned runtime (engines \">=22\", no .nvmrc). Dependencies use caret ranges, mitigated by the lockfile. There is no staff manual beyond one line in the quickstart."
+    },
+    "unmet_requirements": [
+      "Minor: bookings persist in data/bookings.json, so only the first start is empty. The brief allows a local file, but restarts keep old bookings.",
+      "No screenshot shows the fully booked state or a phone layout; both exist only in code."
+    ],
+    "overall": 8,
+    "strengths": [
+      "Correct, well-tested booking logic: one shared Zod schema, an atomic seat check that is tested under concurrency, cancel freeing seats, a failed save not leaving a phantom booking, and closed tastings",
+      "Solid staff security: constant-time digest comparison, random in-memory sessions with expiry, HttpOnly SameSite=Strict cookie, server-side sign-out, rate limiting, helmet and a CSRF header check",
+      "Polished, coherent winery look with clear error, success and fully booked states, plus thorough server and component tests tied to the brief's exact labels and wording"
+    ],
+    "issues": [
+      "Maintainability gaps: no CI pipeline, no release/versioning approach, Node version not pinned (engines \">=22\", no .nvmrc), and no staff manual",
+      "Accessibility contrast: the focus outline (#c8a24a) and input borders (#e3d7c2) are below 3:1 on cream/white, and field errors are not announced through a live region",
+      "Small UX rough edges: the browser's window.confirm for cancelling, the confirmation lost on refresh (router state only), and \"Staff sign-in\" still in the footer when signed in"
+    ],
+    "verdict": "The app meets every requirement in the brief, has correct and well-tested booking and cancel logic, sound staff security, and a polished winery look in all four screenshots. It is close to ready to ship; what's left is mostly operational: CI, version pinning, release notes, a staff guide, and a few contrast and UX fixes."
+  }
+}

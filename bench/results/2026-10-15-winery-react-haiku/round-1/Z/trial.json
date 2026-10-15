@@ -1,0 +1,96 @@
+{
+  "arm": "Z",
+  "runtime": "opencode",
+  "followups": 0,
+  "wall_seconds": 2696,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 28
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 133,
+    "cost_usd_api_equivalent": 1.8365687499999999,
+    "usage": {
+      "input": 268,
+      "cache_creation": 692692,
+      "cache_read": 22567459,
+      "output": 116740,
+      "thinking": 100094
+    }
+  },
+  "workflow": {
+    "tool_calls": 154,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [
+      "general",
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "/work/.scratch/kieselbrunnen-tastings/spec.md",
+      "/work/.scratch/kieselbrunnen-tastings/issues/04-visual-design-and-responsive.md",
+      "/work/.scratch/kieselbrunnen-tastings/spec.md",
+      "/work/.scratch/kieselbrunnen-tastings/spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": false,
+    "last_tool": "todowrite "
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.85,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "0c89d28500b65ba5"
+  },
+  "lines": {
+    "source": 1229,
+    "test": 731,
+    "files": 35
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  }
+}

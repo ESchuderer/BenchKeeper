@@ -5,8 +5,12 @@
 # Usage: bench/publish.sh <run-dir> <name>
 set -eu
 run=$(realpath "$1"); results=$(dirname "$(realpath "$0")")/results; out=$results/$2
+mkdir -p "$results"
+# Both credentials are searched for: the subscription token (Claude Code arms) and the API key (OpenCode arms).
 token=${CLAUDE_CODE_OAUTH_TOKEN:-$(cat "$HOME/.config/benchkeeper/oauth-token" 2>/dev/null || true)}
+key=${ANTHROPIC_API_KEY:-$(cat "$HOME/.config/benchkeeper/anthropic-api-key" 2>/dev/null || true)}
 [ -n "$token" ] || { echo "no token to scan for: set CLAUDE_CODE_OAUTH_TOKEN or write ~/.config/benchkeeper/oauth-token" >&2; exit 1; }
+found() { grep -aqF -- "$token" "$1" || { [ -n "$key" ] && grep -aqF -- "$key" "$1"; }; }
 tmp=$(mktemp -d "$results/.publish-XXXXXX") && trap 'rm -rf "$tmp"' EXIT
 cp "$run/manifest.txt" "$tmp/"
 for t in "$run"/round-*/*/; do
@@ -15,7 +19,7 @@ for t in "$run"/round-*/*/; do
   podman run --rm --userns=keep-id -v "$t/workspace":/w:ro,Z benchkeeper-arm-a sh -c \
     'find /w -name .git -type d -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
     || { echo "git object scan failed for $t" >&2; exit 1; }
-  if grep -aqF -- "$token" "$objs"; then echo "token in the git objects of $t" >&2; exit 1; fi
+  if found "$objs"; then echo "credential in the git objects of $t" >&2; exit 1; fi
   rm -f "$objs"
   d=$tmp/$(basename "$(dirname "$t")")/$(basename "$t") && mkdir -p "$d"
   cp "$t/trial.json" "$d/" && gzip -9 -c "$t/transcript.jsonl" > "$d/transcript.jsonl.gz"
@@ -24,7 +28,8 @@ for t in "$run"/round-*/*/; do
   [ ! -f "$t/review.json" ] || cp "$t/review.json" "$d/"
 done
 for f in $(find "$tmp" -type f); do
-  case $f in *.gz) zcat "$f" | grep -qF -- "$token" ;; *) grep -qF -- "$token" "$f" ;; esac && { echo "token found in ${f#$tmp/}" >&2; exit 1; }
+  case $f in *.gz) zcat "$f" > "$tmp/.plain" && found "$tmp/.plain" ;; *) found "$f" ;; esac && { echo "credential found in ${f#$tmp/}" >&2; exit 1; }
+  rm -f "$tmp/.plain"
 done
 rm -rf "$out" && mv "$tmp" "$out" && trap - EXIT
 du -sh "$out"

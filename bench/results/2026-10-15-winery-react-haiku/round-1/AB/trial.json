@@ -1,0 +1,108 @@
+{
+  "arm": "AB",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1414,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": []
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 96840,
+    "result_events": 2,
+    "turns": 143,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 1.9247852150000004,
+    "usage": {
+      "input": 312,
+      "cache_creation": 411720,
+      "cache_read": 25969306,
+      "output": 265583,
+      "thinking": 132156
+    }
+  },
+  "workflow": {
+    "tool_calls": 180,
+    "subagent_tool_calls": 32,
+    "skills": [
+      "code-review",
+      "security-review"
+    ],
+    "agents": [
+      "general-purpose"
+    ],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/add-tasting-bookings/proposal.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/tasting-catalog/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/tasting-bookings/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/tasting-bookings/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/site-presentation/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/app-runtime/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/add-tasting-bookings/design.md",
+      "/work/openspec/changes/add-tasting-bookings/design.md",
+      "/work/openspec/changes/add-tasting-bookings/tasks.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash npm run typecheck >/tmp/tc.log 2>&1; echo \"typecheck=$?\"; npm test 2>&1 | grep -"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.87,
+      "accessibility": 1,
+      "best-practices": 0.92
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "0c89d28500b65ba5"
+  },
+  "lines": {
+    "source": 1360,
+    "test": 995,
+    "files": 39
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "arm": "K",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1331,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": []
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 258308,
+    "result_events": 2,
+    "turns": 121,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 3.414199560000001,
+    "usage": {
+      "input": 284,
+      "cache_creation": 601009,
+      "cache_read": 32769752,
+      "output": 286943,
+      "thinking": 143673
+    }
+  },
+  "workflow": {
+    "tool_calls": 206,
+    "subagent_tool_calls": 30,
+    "skills": [],
+    "agents": [
+      "architect",
+      "code-reviewer",
+      "security-reviewer"
+    ],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/winery-tasting-bookings/proposal.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/tasting-catalogue/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/tasting-booking/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/tasting-catalogue/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/tasting-booking/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/tasting-booking/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/tasting-booking/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/tasting-booking/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/design.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md",
+      "/work/openspec/changes/winery-tasting-bookings/tasks.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash cd /work && git status --short | head -60 && echo \"---\" && find src e2e -type f "
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "axe": {
+      "start": 1,
+      "confirmation": 2,
+      "form": 1,
+      "staff": 1
+    },
+    "lighthouse": {
+      "performance": 0.8,
+      "accessibility": 0.92,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "0c89d28500b65ba5"
+  },
+  "lines": {
+    "source": 1596,
+    "test": 1175,
+    "files": 50
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  }
+}

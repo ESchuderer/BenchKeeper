@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.7285882,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 5,
+      "code_quality": 5,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3
+    },
+    "evidence": {
+      "requirements": "All brief items met. Start page shows title, date/time, price per guest and '<n> seats left' (TastingCard.tsx:19-37, format.ts:12-14, start.jpg). Each card has a link 'Book <title>' (TastingCard.tsx:44-46). The form has fields labelled Name/Email/Guests (1-8) and a 'Book' button (BookingPage.tsx:109-140). Field errors appear next to the field (TextField.tsx:35-40, form.jpg). The server enforces seat limits (store.ts:49-50, app.ts:100-105). Confirmation shows heading 'Booking confirmed', tasting, guests, total and reference (ConfirmationPage.tsx:12-36, confirmation.jpg). /staff has a 'Password' field and 'Sign in' button; the password comes from STAFF_PASSWORD (index.ts:19, StaffPage.tsx:72-82). Bookings are grouped by tasting with name/email/guests/reference and a 'Cancel' button, and cancelling frees seats (app.ts:163-185, StaffPage.tsx:136-203, staff.jpg). Fully booked state exists (TastingCard.tsx:16,41-42; BookingPage.tsx:48-63). Uses React, Express, react-router, react-hook-form, zod and Tailwind. npm start serves on PORT with default 3000 (index.ts:10-18); prestart builds if needed. Bookings are in memory and start empty.",
+      "correctness": "Seat check and insert happen in one synchronous method, so concurrent requests cannot over-book (store.ts:43-60); bookings.test.ts:101-116 sends 25 parallel requests and checks exactly 10 succeed. The boundary of booking exactly the seats left is accepted (bookings.test.ts:89-99). The server re-validates guests as an integer from 1 to 8, with numeric-string preprocessing and rejection of empty, fractional and non-numeric values (schemas.ts:5-33). A cancelled booking is deleted, which frees its seats, and its confirmation then returns 404 (store.ts:67-69, bookings.test.ts:159-165). On a 409 the client revalidates seats (BookingPage.tsx:41). Reference collisions are retried (store.ts:53-55). Session expiry is checked (staff-auth.ts:28-37). Minor: the sign-in rate limit counts successful sign-ins too, and with trust proxy off, every user behind a reverse proxy shares one IP bucket (app.ts:59-67).",
+      "security": "React escapes all output and there is no dangerouslySetInnerHTML. Password comparison uses SHA-256 digests with timingSafeEqual (staff-auth.ts:7-11). Session token is randomBytes(32) in an HttpOnly, SameSite=Strict cookie, Secure when the request is HTTPS, with an 8h TTL and server-side revocation on sign-out (app.ts:146-161). Sign-in fails closed with 503 when STAFF_PASSWORD is unset (app.ts:130-133). Sign-in is rate limited (app.ts:59-67). helmet sets a CSP (app.ts:34-42). JSON body is limited to 10kb. Staff responses send no-store. Errors are generic, with no stack traces (app.ts:207-214). The public confirmation leaves out the email (views.ts:9-20). No secrets in code; .env is gitignored.",
+      "code_quality": "Clear split into shared/server/client. The store returns result types for expected failures instead of throwing (store.ts:16-20). Validation schemas are shared between client and server (schemas.ts). App options are injectable for tests: store, clock, staticDir (app.ts:13-21). Small focused components (TextField, TastingCard, Layout). Consistent naming and error handling in api.ts:15-37. Size fits the task. Minor drift: SPEC lists jsx-a11y and todo.md names files (router.tsx, errors.ts, Booking.tsx) that don't match the delivered code.",
+      "tests": "Thorough coverage across layers. Store unit tests cover the boundary, unknown tasting, invalid guests and reference uniqueness (store.test.ts). API tests cover 201/422/409/404/400, concurrency, cancel freeing seats, 401, cookie flags, 8h expiry, rate limiting, 503 when unconfigured, CSP and the generic 500. Component tests drive the real Express app through a fetch shim (helpers.tsx:13-38) and cover labels, inline errors with aria-describedby, the server 409 mapping, the fully booked state and the staff cancel flow. Playwright e2e covers the guest booking, seat limit, fully booked state, staff cancel and a phone viewport (e2e/*.spec.ts).",
+      "ux_design": "Coherent winery look: wine and cream palette, serif headings, gold rule under the header (start.jpg). Cards are clear and the confirmation is well laid out with a prominent monospace reference (confirmation.jpg). The form shows a summary banner plus an inline error, red border and '!' marker (form.jpg). Low availability is shown in amber and fully booked with a badge. The staff view is a clean grouped table with seat counts and empty states (staff.jpg). Weaknesses: 'Cancel' acts immediately with no confirmation step, so a misclick deletes a guest's booking, and the label is ambiguous. The staff table has min-w-[32rem], so it scrolls sideways on a phone (StaffPage.tsx:157).",
+      "accessibility": "Inputs have labels via htmlFor. aria-invalid and aria-describedby link errors and hints (TextField.tsx:19-28). A role=alert summary appears on invalid submit (BookingPage.tsx:97-101). The staff notice uses role=status/aria-live (StaffPage.tsx:127-129). Skip link, visible focus outline, semantic article/section/dl/table with caption and th scope, lang=en, and 44px tap targets. Weaknesses: the gold eyebrow text (#a97f3c on cream, text-sm) is below 4.5:1 contrast (styles.css:11, start.jpg 'TASTINGS AND CELLAR VISITS'). The jsx-a11y lint that SPEC.md:44 claims is not configured (eslint.config.js), and no axe scan was run (todo.md:98).",
+      "simplicity": "Dependencies are standard and justified: express, zod, react-hook-form, react-router, tailwind, helmet, express-rate-limit, cookie-parser. Roughly 700 lines of app code for two flows. A few extras beyond the brief (public GET booking by reference, session GET endpoint, rate limiter, sign out) add modest surface but are reasonable.",
+      "maintainability": "Strengths: SPEC.md documents commands, env vars, API, structure, assumptions and success criteria. package-lock.json is present. Tests and e2e protect against regressions, and the scripts cover typecheck, lint and test. Gaps: no README (deliberately skipped, todo.md:108), no CI pipeline config, no staff manual explaining that bookings are lost on restart or how to set STAFF_PASSWORD, and no changelog or release approach beyond version 1.0.0. The runtime is only 'engines >=22' with no .nvmrc, and dependencies use caret ranges. The spec and task docs partly disagree with the code (jsx-a11y; file names in todo.md)."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Correct, race-free seat logic: the synchronous check-and-insert is tested with 25 concurrent requests. The server re-validates every field with shared zod schemas and returns field-specific 422/409 errors that the form maps back next to the right field.",
+      "Solid staff security: timing-safe digest comparison, random HttpOnly SameSite=Strict session tokens with expiry and revocation, fail-closed when STAFF_PASSWORD is unset, a rate-limited sign-in, helmet CSP, and no-store on staff responses.",
+      "Meaningful layered tests (unit, Supertest API, RTL against the real Express app, Playwright e2e including a phone viewport) plus a polished, coherent winery look in all four screenshots."
+    ],
+    "issues": [
+      "Hard to pick up later: no README, no CI pipeline, no staff manual (for example, that bookings vanish on restart or how to set STAFF_PASSWORD), no release or changelog approach, and no pinned Node version (.nvmrc). Only SPEC.md documents how to run the app.",
+      "Staff 'Cancel' deletes a booking immediately with no confirmation step, and the staff table scrolls sideways on a phone (min-w-[32rem], StaffPage.tsx:157).",
+      "Small accessibility and consistency gaps: the gold eyebrow text fails AA contrast, and the jsx-a11y lint that SPEC.md lists is not configured. The sign-in rate limiter counts successful sign-ins, and with trust proxy off it puts everyone behind a reverse proxy in one bucket."
+    ],
+    "verdict": "The app meets every requirement in the brief with correct, well-tested booking logic, sound staff authentication and a polished winery look, so it is close to shippable. Before handing it over, add a README with run and staff instructions, a CI pipeline and a confirmation step for cancelling."
+  }
+}

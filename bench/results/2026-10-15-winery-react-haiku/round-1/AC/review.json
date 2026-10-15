@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.6056412,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 4,
+      "code_quality": 5,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 4
+    },
+    "evidence": {
+      "requirements": "All brief items met: start page lists title, date/time, price, '<n> seats left' (src/components/TastingCard.tsx, format.ts:21-23, start.jpg); 'Book <title>' links (TastingCard.tsx:32); form labelled Name/Email/Guests 1-8 with 'Book' button (BookingPage.tsx:131-156); field-level errors (form.jpg); confirmation with 'Booking confirmed', tasting, guests, total, reference (ConfirmationPage.tsx:56-80, confirmation.jpg); /staff Password + Sign in from STAFF_PASSWORD (StaffPage.tsx:88-96, server/index.ts:12); grouped bookings with name/email/guests/reference and Cancel (StaffPage.tsx:109-162, staff.jpg); fully booked state (TastingCard.tsx:15-27); React + Express/React Router/react-hook-form/Zod/Tailwind; npm start on PORT default 3000; English UI. Persisted file means restarts keep bookings, which the brief allows and the README documents.",
+      "correctness": "Seat check and insert are synchronous in one call (booking-service.ts:78-90), with a concurrency test (api-bookings.test.ts:86-96). Exact-capacity, over-capacity, fully booked and unknown-tasting cases are handled (booking-service.test.ts:55-91). Cancel removes the booking and frees seats (booking-service.ts:119; api-staff.test.ts:139-152). Shared Zod schema rejects non-integer, 0, 9 and string guests (booking-schema.ts:31-35). Writes are atomic via temp file and rename, with in-memory rollback on failure (booking-store.ts:50-83). Unique reference loop (booking-service.ts:87). Minor: a tasting that has started is reported as 'fully_booked' (booking-service.ts:60), a misleading label.",
+      "security": "Constant-time comparison of SHA-256 digests (staff-auth.ts:19-36); 32-byte random session tokens with 8h expiry; HttpOnly, SameSite=Strict, Secure-on-HTTPS cookie (routes/staff.ts:40-46); JSON-only API blocks form-based CSRF (app.ts:25-33); 16kb body limit; error details are not leaked (app.ts:57-77); React escapes output; confirmation lookup omits personal data (api-types.ts:24-32); data file mode 0600 (booking-store.ts:53-56); no secrets in code. Gaps: no sign-out endpoint and no brute-force throttling (README:68-70 documents the latter but does not mitigate it).",
+      "code_quality": "Clear split into shared/, server/ (store, service, auth, routes) and src/ (api, components, pages). Dependency injection of store, clock and catalogue makes code testable without over-abstraction. Discriminated-union results and load states (booking-service.ts:14-18, BookingPage.tsx:18-22). Consistent error handling via ApiError (src/api/client.ts). Files are small and readable.",
+      "tests": "About 18 test files: service unit tests (booking-service.test.ts), API tests with supertest for bookings, staff, auth, session expiry and cancel (api-bookings.test.ts, api-staff.test.ts), app-shell error handling (app-shell.test.ts), component tests for form validation, double-submit and server field errors (booking-form.test.tsx), staff page sign-in and cancel (staff-page.test.tsx), and a Playwright e2e flow covering every brief story plus a 375px phone overflow check (tests/e2e/booking-flow.spec.ts). They map directly to the brief's requirements.",
+      "ux_design": "start.jpg: polished wine-red and cream winery look, cards with seat pills and clear CTAs. form.jpg: red border and inline error under Email. confirmation.jpg: success alert plus a clear summary list with a monospaced reference. staff.jpg: grouped tables and 'No bookings yet' empty state. Mobile-first Tailwind with an overflow-x wrapper for the staff tables. Weaknesses: Cancel is instant with no confirmation, there is no sign-out, and the design is somewhat generic and has no imagery.",
+      "accessibility": "Labels are bound via htmlFor/id; aria-invalid and aria-describedby on errors; errors have role=alert (Field.tsx:20-41); Alert uses role alert/status (Alert.tsx:15); tables use th scope=col and an sr-only Actions header; staff sections are labelled regions (StaffPage.tsx:110); lang=en; visible focus rings. Gaps: repeated 'Cancel' buttons share the same accessible name with no booking context; no focus management or announcement on SPA route changes; muted ink/60 text is near the 4.5:1 contrast threshold.",
+      "simplicity": "Lean dependency set: express, cookie-parser, react, react-router, react-hook-form, zod, and Tailwind as a dev dependency. No database or session library; a small JSON file store. Code size fits the problem.",
+      "maintainability": "README covers run and dev setup, environment variables, scripts, layout and operating notes (README.md). A full spec, plan, research (decision records), API contract, data model and tasks are in specs/001-tasting-bookings/. package-lock.json is present; typecheck script; good regression tests. Missing: no CI pipeline config, no changelog or release/versioning approach beyond version 1.0.0, engines '>=22' rather than a pinned version, no .nvmrc. Caret ranges are mitigated by the lockfile."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Server-side seat enforcement is correct and concurrency-safe: check and insert happen in one synchronous call, with a 20-parallel-request test proving no overselling; cancelling frees seats",
+      "Thorough, meaningful tests at every layer (service, API, components, Playwright e2e including a phone-width check) that map directly to the brief",
+      "Polished, coherent winery design with clear error, success and fully booked states, and accessible field-level errors driven by one Zod schema shared by client and server"
+    ],
+    "issues": [
+      "No CI pipeline and no release/versioning approach; Node runtime is not pinned (engines '>=22')",
+      "Staff session gaps: no sign-out, and no throttling of password attempts (documented only)",
+      "Staff 'Cancel' irreversibly deletes a booking on one click with no confirmation, and every row's button has the same accessible name"
+    ],
+    "verdict": "A well-engineered, requirement-complete booking app with correct seat handling, solid security basics, a polished winery look and strong tests at every level. Adding a CI pipeline, a staff sign-out and a confirmation (or clearer labels) on Cancel would make it ready to hand to the winery."
+  }
+}

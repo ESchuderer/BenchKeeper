@@ -132,7 +132,7 @@ for r in $(seq "$k"); do
     }
     # The agent's final message waits for the user: its last line is a question, or its last lines ask for confirmation.
     waits() {
-      jq -rs '[.[] | if .type == "result" then .result elif .type == "text" then .part.text else empty end] | last // ""' \
+      jq -Rrn '[inputs | fromjson? | if .type == "result" then .result elif .type == "text" then .part.text else empty end] | last // ""' \
         "$t/transcript.jsonl" 2> /dev/null | waiting
     }
     n=0

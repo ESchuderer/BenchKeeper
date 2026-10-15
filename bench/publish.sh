@@ -15,9 +15,10 @@ for f in "$HOME"/.config/benchkeeper/*; do [ ! -f "$f" ] || tr -d '\r' < "$f" | 
   || { echo "no subscription token to scan for: set CLAUDE_CODE_OAUTH_TOKEN or write ~/.config/benchkeeper/oauth-token" >&2; exit 1; }
 # OpenCode trials ran on the API key: without it the scan would miss that credential.
 if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -s "$HOME/.config/benchkeeper/anthropic-api-key" ] \
-  && cat "$run"/round-*/*/trial.json 2>/dev/null | jq -se 'any(.[]; .outcome.runtime == "opencode")' > /dev/null; then
+  && cat "$run"/round-*/*/trial.json 2>/dev/null | jq -se 'any(.[]; (.runtime // .outcome.runtime) == "opencode")' > /dev/null; then
   echo "run has OpenCode trials but no API key to scan for: set ANTHROPIC_API_KEY or write ~/.config/benchkeeper/anthropic-api-key" >&2; exit 1
 fi
+[ -s "$pats" ] || { echo "no credential to scan for" >&2; exit 1; }
 found() { grep -aqF -f "$pats" -- "$1"; }
 cp "$run/manifest.txt" "$tmp/"
 for t in "$run"/round-*/*/; do

@@ -116,8 +116,16 @@ fi
 
 t=$HOME/project-template
 if [ "$bk" = yes ]; then
-  case $fw in as) rules=bk-rules.md ;; sp) rules=superpowers.rules.md ;; ecc) rules=ecc.rules.md ;; mp) rules=mattpocock.rules.md ;; esac
-  cp "/opt/bench/$rules" "$HOME/.claude/rules/00-global.md"
+  case ${BK:-v1} in v1|v2) ;; *) echo "BK must be v1 or v2, not $BK" >&2; exit 1 ;; esac
+  if [ "${BK:-v1}" = v2 ]; then
+    # v2: the rules and the sdlc skill of setup-v2.2; framework variants of v2 do not exist yet.
+    [ "$fw" = as ] || { echo "BK=v2 is defined for the agent-skills arms only (L, C)" >&2; exit 1; }
+    cp /opt/bench/bk-v2/global.md "$HOME/.claude/rules/00-global.md"
+    cp -r /opt/bench/bk-v2/skills/sdlc "$HOME/.claude/skills/"
+  else
+    case $fw in as) rules=bk-rules.md ;; sp) rules=superpowers.rules.md ;; ecc) rules=ecc.rules.md ;; mp) rules=mattpocock.rules.md ;; esac
+    cp "/opt/bench/$rules" "$HOME/.claude/rules/00-global.md"
+  fi
   cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md"
   clone vercel-labs/skills v1.7.2 && cp -r "$src/vercel-labs-skills/skills/find-skills" "$HOME/.claude/skills/"
   cp -r /opt/bench/skills/project-setup /opt/bench/skills/global-setup "$HOME/.claude/skills/"

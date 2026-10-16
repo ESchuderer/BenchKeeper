@@ -16,11 +16,13 @@ ws=$(realpath "$1"); out=$(realpath -m "$2")
 NODE=docker.io/library/node:22.23.3-bookworm@sha256:0e5f906573693feaa1e21057ebdcfdb5bd5021f050b2dc7c9deceb629c7da2a8
 STRYKER=10.0.0
 T=${MUTATION_TIMEOUT:-2700}
+# MUTATION_CPUS: CPU cap for the container and Stryker's test runners (default: no cap, 8 runners), so the host stays usable.
+C=${MUTATION_CPUS:-8}
 mkdir -p "$out" && rm -f "$out/mutation.json" "$out/mutation.exit"
 app=$(mktemp -d) && trap 'rm -rf "$app"' EXIT
 trap 'exit 130' INT TERM HUP
 cp -a "$ws/." "$app/" && rm -rf "$app/node_modules" "$app/reports" "$app/.stryker-tmp"
-podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER="$STRYKER" -e MUTATION_EXCLUDE="${MUTATION_EXCLUDE:-}" \
+podman run --rm --timeout "$T" ${MUTATION_CPUS:+--cpus "$MUTATION_CPUS"} -e C="$C" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER="$STRYKER" -e MUTATION_EXCLUDE="${MUTATION_EXCLUDE:-}" \
   -v "$app":/app:Z -v "$out":/out:Z -w /app "$NODE" sh -c '
   npm install --no-audit --no-fund > /dev/null 2>&1 || exit 10
   has() { node -e "const p = require(\"./package.json\"); process.exit($1 ? 0 : 1)"; }
@@ -44,7 +46,7 @@ podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER=
   "mutator": { "excludedMutations": ["StringLiteral"] },
   "reporters": ["json"],
   "jsonReporter": { "fileName": "/out/mutation.json" },
-  "concurrency": 8,
+  "concurrency": $C,
   "tempDirName": "/tmp/stryker-tmp",
   "tsconfigFile": "/nonexistent/tsconfig.json",
   "disableTypeChecks": "**/*.{ts,tsx,mts,cts}"

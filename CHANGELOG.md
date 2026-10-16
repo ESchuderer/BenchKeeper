@@ -2,6 +2,14 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
 
+## setup-v2.8 (2026-10-16)
+
+Punctuation rule (owner request: models swap the banned em dash for semicolons and middle dots).
+
+- `rules/global.md` "Forbidden characters" becomes "Punctuation". The em dash, emojis and emoticons stay banned.
+- No other joining mark takes the em dash's place: two sentences, or a comma, colon or parentheses.
+- Semicolons only in code syntax or in lists whose items contain commas. Middle dot and bullet only as list bullets or UI label separators.
+
 ## setup-v2.7 (2026-10-16)
 
 Context limits (owner request).

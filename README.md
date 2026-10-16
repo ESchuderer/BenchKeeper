@@ -74,7 +74,7 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
 ## Setup steps
 
 1. Install the [prerequisites](#prerequisites): at least one agent, plus the tools for the parts you apply. npm uses prefix `~/.local`, no sudo.
-2. Clone to `/mnt/data/Projects/benchkeeper` and open it in Claude Code or Codex.
+2. Clone it (`git clone https://github.com/ESchuderer/BenchKeeper.git`) and open the folder in Claude Code or Codex.
 3. Run `/setting-up-machine` (Codex: `$setting-up-machine`) and confirm the agents you use. It checks without changing anything, shows one plan (installs, changes, removals, version bumps), and applies only what you approve. Destructive items are marked and confirmed again before they run. Commands: [skills/setting-up-machine/SKILL.md](skills/setting-up-machine/SKILL.md).
 4. Restart the selected agents. Codex: run `/hooks` and trust the plugin hooks.
 

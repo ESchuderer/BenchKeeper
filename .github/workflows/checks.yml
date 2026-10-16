@@ -17,12 +17,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: actionlint
         run: docker run --rm -v "$PWD":/repo -w /repo docker.io/rhysd/actionlint@sha256:9d36088643581e728c969f35141f88139fec77280b2be23c1f66f8e40e1025e7 -color # 1.7.12
-      # rules/global.md, Forbidden characters: em dash and emoji in tracked files; vendored skills and lockfiles excluded.
+      # rules/global.md, Forbidden characters: em dash and emoji in tracked text files; vendored skills, lockfiles and
+      # recorded benchmark trial data (agent transcripts, apps, model reviews in bench/results/*/round-*) excluded.
       - name: Forbidden characters
         run: |
           # git grep: 0 match, 1 no match, anything else an error (for example a pattern PCRE rejects).
           rc=0
-          git grep -nP '\x{2014}|[\x{1F000}-\x{1FAFF}\x{2300}-\x{23FF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]|\x{FE0F}' -- . ':!.agents' ':!.claude' ':!*package-lock.json' ':!*.png' || rc=$?
+          git grep -nIP '\x{2014}|[\x{1F000}-\x{1FAFF}\x{2300}-\x{23FF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]|\x{FE0F}' -- . ':!.agents' ':!.claude' ':!*package-lock.json' ':!*.png' ':!bench/results/*/round-*' || rc=$?
           if [ "$rc" -eq 0 ]; then echo "::error::em dash or emoji found (rules/global.md, Forbidden characters)"; exit 1; fi
           if [ "$rc" -ne 1 ]; then echo "::error::git grep failed ($rc)"; exit 1; fi
       # AGENTS.md: SKILL.md front matter `description` in double quotes (it contains colons).

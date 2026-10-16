@@ -1,0 +1,45 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.5170784,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 4,
+      "code_quality": 5,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 3
+    },
+    "evidence": {
+      "requirements": "Every brief item is met. The start page lists title, date and time, price and seats left (StartPage.tsx:44-55; start.jpg shows \"12 seats left\" etc.). The links read \"Book <title>\" (StartPage.tsx:61). The form has fields labelled Name, Email and Guests (1-8) and a \"Book\" button (BookingPage.tsx:111-143; form.jpg). The seat cap is enforced on the server (bookings.ts:85-95) and the form shows errors under each field (form.jpg). The confirmation has the heading \"Booking confirmed\" plus tasting, guests, total and reference (ConfirmationPage.tsx:41-75; confirmation.jpg shows EUR 64 = 2×32). /staff has a Password field and a Sign in button, with the password from STAFF_PASSWORD (app.ts:28, StaffPage.tsx:84-99). Staff see bookings grouped by tasting with a Cancel button that frees seats (StaffBookings.tsx; bookings.ts:116-118; staff.jpg). Fully booked state: StartPage.tsx:47-50 and BookingPage.tsx:100-104. React + Express + react-router + react-hook-form + zod + Tailwind. npm start uses PORT with default 3000 (index.ts:4). Bookings are in memory and the UI is in English. One small deviation: when one seat is left it shows \"1 seat left\" (format.ts:16), not the literal \"<n> seats left\" pattern.",
+      "correctness": "Booking is synchronous in single-threaded Node, so the seat check and the insert can't interleave between concurrent requests (bookings.ts:85-107). Seats left is computed from the bookings currently stored, so cancelling frees seats automatically (bookings.ts:39-47, 116-118). The shared zod schema trims name and email and rejects 0, 9, 2.5, NaN, true, '0x2', [3] and '' for guests (booking-schema.ts:9-33; bookings.test.ts:81). Exactly filling the last seats is allowed, then the tasting is fully booked (bookings.test.ts:55-66). A 409 updates the client's seats left (BookingPage.tsx:76-78). Malformed JSON returns a JSON 400 (app.ts:129-135). Unknown tasting gives 404, and a second cancel gives 404. Minor: a network failure while loading tastings on the booking page shows \"Tasting not found\" (BookingPage.tsx:31-34,40-41), which is misleading.",
+      "security": "The password is compared via constant-time timingSafeEqual on SHA-256 digests (staff-auth.ts:6,16). An empty or unset STAFF_PASSWORD refuses every login (staff-auth.ts:10; staff-sign-in.test.ts:35-42). Session tokens are random (randomBytes(32)), stored on the server with an 8 h TTL and deleted on sign-out. The cookie is httpOnly and SameSite=Strict; secure is set from req.secure (app.ts:84-90). Failed sign-ins are rate-limited (app.ts:40-47). Staff routes are guarded by requireStaff (app.ts:98). React escapes all output, there is no dangerouslySetInnerHTML, and there are no secrets in code. Weaknesses: no 'trust proxy' setting, so behind a TLS-terminating proxy the cookie is never Secure. No security headers (no helmet/CSP). The public GET /api/bookings/:reference has no rate limit, though it returns no name or email.",
+      "code_quality": "Clear split into shared/server/client. The booking service is a small factory returning a discriminated-union result (bookings.ts:12-16), and app.ts maps each case to an HTTP status cleanly. A single validation schema is shared by client and server (booking-schema.ts). Components are small: TextField, Alert, Layout. Names are clear and comments explain why rather than what (e.g. bookings.ts:22, app.ts:39). Strict TypeScript. File sizes fit the task, with no needless abstraction. Minor: BookingPage calls fetch inline (BookingPage.tsx:52) instead of going through api.ts like everything else.",
+      "tests": "There are 11 test files: unit tests for the booking service (seat limits, boundary fill, validation matrix, unique references, cancellation, listing order), supertest API tests (201/400/404/409, malformed JSON, staff auth, cookie flags, rate limit, forged token, sign-out, 401 on staff endpoints, cancel frees seats), RTL component tests (start page, booking errors via accessible description, client-side seat check, fully booked, network error, confirmation, staff sign-in states, cancel, expired session), and a Playwright journey on a 375 px viewport that checks seat counts, staff cancel and horizontal overflow (journey.spec.ts). Together these cover every brief requirement.",
+      "ux_design": "The screenshots show a coherent winery look: wine-red header with a gold rule, cream background, serif headings and card layout (start.jpg). The error state shows a red border and inline message (form.jpg). The confirmation is a clear summary with a prominent reference (confirmation.jpg). The staff view is tidy and grouped, with per-tasting seats left and 'No bookings yet.' (staff.jpg). Fully booked is shown as a badge with the button removed (StartPage.tsx:47-63). Phone layout was checked in e2e (journey.spec.ts:78-96). Gaps: Cancel has no confirmation step and no pending feedback (StaffBookings.tsx:80-86). The footer keeps showing 'Staff sign-in' while signed in (staff.jpg). The booking form gives no price preview before submitting.",
+      "accessibility": "Every input has a real label via htmlFor (TextField.tsx:13). On error, aria-invalid and aria-describedby point at the message, verified by toHaveAccessibleDescription tests. react-hook-form focuses the first invalid field when client validation fails. Alerts use role=alert (Alert.tsx:6). Sections and articles are named with aria-labelledby or aria-label. There is a visible gold focus-visible outline (styles.css:28-30), lang=\"en\", and min-h-11 tap targets. Gaps: inline field errors are not live regions, and errors that come back from the server do not move focus. Muted grey #6a5e56 on cream is fine, but the gold eyebrow text (#b8893b on #f7f1e5, start.jpg) has low contrast (~2.8:1). There is no skip link.",
+      "simplicity": "Dependencies all fit the job: express, cookie-parser, express-rate-limit, zod, react-hook-form with resolvers, react-router, Tailwind. There is no database, no state library, and no custom framework. About 600 lines of source cover the whole feature set. The in-memory Map store matches the brief.",
+      "maintainability": "The README has run, develop and test commands, the environment variables, a layout overview and build output (README.md). package-lock.json is present, there are typecheck and prettier configs, and the regression suite is thorough. Missing: there is no CI pipeline. There is no release, changelog or versioning approach beyond \"1.0.0\". There are no ADRs or docs and no staff manual. The README links to a spec in `.scratch/winery-tastings/` that is not in the delivered repo (README.md:8). The runtime is not pinned: engines is \"node >=22\", with no .nvmrc. Dependencies use caret ranges (only the lockfile pins them). E2E setup needs a manual Playwright browser install (documented)."
+    },
+    "unmet_requirements": [
+      "Partly: seats left is shown as \"1 seat left\" when one seat remains (format.ts:16), not the literal \"<n> seats left\" format the brief specifies"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Every brief requirement is implemented, with server-side seat enforcement, one zod schema shared by client and server, and correct cancellation semantics",
+      "Solid staff security: constant-time password check, random server-side sessions with TTL, HttpOnly/SameSite=Strict cookie, and rate limiting on failed sign-ins",
+      "Thorough tests at unit, API, component and Playwright e2e levels, plus a polished, coherent winery design that works on phones"
+    ],
+    "issues": [
+      "Maintainability gaps: no CI pipeline, no versioning or changelog, no decision docs or staff manual, the README links to a spec missing from the repo, and the Node version is not pinned (engines >=22, no .nvmrc)",
+      "Staff Cancel deletes a booking immediately, with no confirmation step and no pending state (StaffBookings.tsx:80-86); the footer still shows 'Staff sign-in' after signing in",
+      "Smaller hardening and accessibility gaps: no trust-proxy setting, so the cookie is never Secure behind a TLS proxy; no security headers; low-contrast gold eyebrow text; field errors are not announced live and server errors don't move focus"
+    ],
+    "verdict": "This is a well-built, correct and attractive booking app that meets the brief almost word for word, with strong security fundamentals and an unusually thorough test suite. It could be shipped to the winery after small fixes (a confirmation step on Cancel, CI, and pinning the runtime and documentation); the main deductions are in the repository's long-term maintainability scaffolding."
+  }
+}

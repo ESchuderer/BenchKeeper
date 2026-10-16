@@ -1,0 +1,46 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.49209,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 5,
+      "security": 5,
+      "code_quality": 5,
+      "tests": 5,
+      "ux_design": 5,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 2
+    },
+    "evidence": {
+      "requirements": "All functional points are met. Start page shows title, date/time, 'EUR n per guest' and '<n> seats left' (TastingsPage.tsx:39-51, start.jpg). Each card has a link 'Book <title>' (TastingsPage.tsx:57-62). The form has labelled Name/Email/Guests fields and a 'Book' button (BookingPage.tsx:110-147). Seat limit is enforced on the server (booking-rules.ts:10-35, app.ts:87). Errors appear next to their field (form.jpg). Confirmation shows the 'Booking confirmed' heading, tasting, guests, total and reference (ConfirmationPage.tsx:37-51, confirmation.jpg). /staff has a 'Password' field and 'Sign in' button, reading STAFF_PASSWORD from the environment (main.ts:6). Bookings are grouped by tasting with a Cancel button that frees seats (StaffPage.tsx:141-191, staff.jpg). The app uses React plus established libraries (express, react-router, react-hook-form, zod, tailwind). PORT defaults to 3000 (main.ts:4) and storage is in memory. Partly met: (1) Process: the brief asks for a spec/plan/review process, but the repo has no specs, ADRs, README or docs at all. (2) Fully booked tastings drop the 'Book <title>' link (TastingsPage.tsx:55), which bends 'Each tasting has a link'; it is a defensible choice.",
+      "correctness": "Checking seats and adding the booking happen in one synchronous step, so concurrent requests cannot oversell (app.ts:85-93). This is tested with two parallel requests for the last seat (booking-api.test.ts:114-125). Seats left are derived from stored bookings, so a cancellation frees them immediately (booking-store.ts:54-58, 75-81). Validation handles non-integers, 0, 9, the string \"2\", null and blank names (booking-rules.ts:16-36). An empty guests field becomes NaN and is rejected. Malformed JSON gets a 400 and oversized bodies a 413 (app.ts:177-189). Unknown tastings and references get 404s. With no password configured, sign-in returns 503 and the form shows the message. Cancelling an already-cancelled booking (404) or after sign-out (401) refreshes the list. Minor: the network-failure text 'can't confirm your booking' is reused for every request, including staff sign-in (api.ts:15).",
+      "security": "React escapes all output and there is no dangerouslySetInnerHTML. The password check hashes both sides with SHA-256 and compares with timingSafeEqual (staff-auth.ts:22-26). Sessions are server-side via express-session/memorystore with httpOnly, SameSite=strict cookies, secure in production and a 12h lifetime (staff-auth.ts:32-47). The session id is regenerated on sign-in (app.ts:130) and destroyed on sign-out (app.ts:140-149). Sign-in is rate-limited to 10 failures per 15 minutes (staff-auth.ts:50-59). The session secret is random per process and no secrets are in the code. The public /api/bookings/:reference endpoint leaves out name and email (tested in booking-api.test.ts:188). Minor: 'trust proxy' is not set, so behind a reverse proxy the limiter would key on the proxy's address.",
+      "code_quality": "Small, well-separated modules. Server: catalogue, store, auth and app. Client: pages, components, api and format. Shared: rules, messages and types. Client and server use the same zod schema and message strings, so validation cannot drift (booking-rules.ts, messages.ts). Naming is clear and comments are short and explain intent (app.ts:85-86, 109, 129). Error handling is consistent through ApiError (api.ts). TypeScript runs in strict mode with noUncheckedIndexedAccess. No needless abstraction.",
+      "tests": "Supertest API tests cover listing, booking success, per-field validation including boundaries (0, 9, 1.5, -1, \"2\", null), seats-left messages including the singular, fully booked, concurrent last-seat booking, 404s, malformed and oversized bodies, sign-in, wrong or empty password, 503 when unconfigured, rate limiting, forged cookies, a copied cookie after sign-out, staff grouping, and cancel freeing seats (tests/server/*). Playwright e2e tests run on desktop and mobile projects with a fresh server each (playwright.config.ts). They cover the exact labels and buttons, errors via accessible descriptions, the seat limit in the UI, confirmation surviving a reload, fully-booked state, offline errors, the disabled button while sending, staff cancel and dismiss, no sideways scrolling at 375px, and no third-party requests. test-results/.last-run.json shows a passing run.",
+      "ux_design": "start.jpg has a coherent winery look: deep wine header with a gold rule, serif display type, parchment cards, clear seat pills and full-width Book buttons. form.jpg shows a two-column layout with a summary on the left, a live total (EUR 28), and an invalid field outlined and tinted with its message right below. confirmation.jpg has a check badge, a clean definition list, a monospace reference and a 'quote your reference' hint. staff.jpg groups tables per tasting with 'n of N seats booked' and a 'No bookings yet' empty state. There is a distinct 'Fully booked' pill and notice, and a confirm dialog before cancelling. Responsive grid with a mobile overflow test. A slightly plain hero, but polished overall.",
+      "accessibility": "Every input has a label (Field.tsx:15). Errors are linked via aria-describedby and marked aria-invalid (Field.tsx:21-22), and react-hook-form focuses the first invalid field. Banners use role=alert/status (Notice.tsx:18), the total is aria-live (BookingPage.tsx:132), and html lang=en. Staff tables use scope=col headers, a sr-only 'Actions' header and per-row sr-only button text (StaffPage.tsx:161-185). Sections are labelled regions. Muted #6b5d56 on cream passes AA. Gaps: the global focus outline is wine-coloured (styles.css:18-21), so it is nearly invisible on the wine header links (Layout.tsx:9-18). Cancel uses a native window.confirm.",
+      "simplicity": "About 1,000 lines of source for the whole app, with no over-engineering in the code. Dependencies are a bit heavy for three fixed tastings: @tanstack/react-query, react-hook-form, @hookform/resolvers, zod, express-session, memorystore and express-rate-limit. Each is justified and in line with the brief's call for established libraries, but react-query and memorystore are more than strictly needed.",
+      "maintainability": "There is no README, so run instructions, STAFF_PASSWORD setup, the NODE_ENV=production secure-cookie behaviour and the test commands are all undocumented. There are no docs, ADRs, specs or staff manual, and no CI configuration. Versioning is only version 1.0.0 in package.json, with no changelog or release process. Positives: package-lock.json is present, engines requires node >=22 (not pinned to exactly 22, no .nvmrc), and there are clear npm scripts (build, start, typecheck, test, test:e2e) and a good regression suite. Code and tests are readable enough to find one's way, but everything else depends on reading the source."
+    },
+    "unmet_requirements": [
+      "Process: no specs, plans, ADRs or review artifacts in the repo, even though the brief asks for a spec-driven process (partly met)",
+      "Fully booked tastings drop their 'Book <tasting title>' link instead of keeping a disabled one (partly met; reasonable reading)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Seat logic is correct and race-free: check-and-insert is atomic, seats are derived from bookings, and client and server share one zod schema with field-level messages",
+      "Staff auth is well secured: hashed timing-safe comparison, server-side sessions regenerated on sign-in and destroyed on sign-out, strict httpOnly cookies, rate limiting",
+      "Thorough API and Playwright tests (desktop and mobile) covering every brief requirement and the edge cases, plus a polished winery design visible in all four screenshots"
+    ],
+    "issues": [
+      "No README or documentation: setup, STAFF_PASSWORD, production cookie behaviour, test commands and the staff workflow are all undocumented",
+      "No CI pipeline, release or versioning approach; Node is only constrained to >=22 with no .nvmrc",
+      "Focus outline is wine on a wine header, so keyboard focus on the header links is barely visible; minor: the network-error text about 'your booking' is reused for staff requests"
+    ],
+    "verdict": "The product is functionally complete, correct under concurrency, secure, well tested and nicely designed for a family winery. What holds it back from shipping as is: there is no README, documentation or CI, so the next developer has to reverse-engineer how to set it up and run it."
+  }
+}

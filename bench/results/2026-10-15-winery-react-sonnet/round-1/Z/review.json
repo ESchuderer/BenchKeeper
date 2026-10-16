@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.3984398,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 4,
+      "code_quality": 5,
+      "tests": 5,
+      "ux_design": 5,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2
+    },
+    "evidence": {
+      "requirements": "Every requirement is met. tastings.ts:13-42 has the three tastings exactly as in the brief. The start page (home.tsx:44-74, start.jpg) shows title, date and time, \"EUR 25 per guest\" and \"12 seats left\" (format.ts:8-10 always uses the \"<n> seats left\" wording), plus a \"Book <title>\" link (home.tsx:71). The booking form has fields labelled Name, Email and Guests (min 1, max 8) and a \"Book\" button (book.tsx:75-103). Errors appear next to the field they concern (ui.tsx:55-63, form.jpg). The confirmation has the heading \"Booking confirmed\", the tasting, guests, total price and reference (confirmation.tsx:28-46, confirmation.jpg). /staff has a Password field and a Sign in button, and reads the password from process.env.STAFF_PASSWORD (staff-session.ts:23-25). Signed in, staff see bookings grouped by tasting with name, email, guests and reference, and a Cancel button that frees the seats (staff.tsx:125-180, booking-desk.ts:156, staff.jpg). It is built with React Router v8 framework mode, Tailwind and zod. `npm start` runs react-router-serve, which listens on PORT. Bookings are kept in memory and the interface is in English.",
+      "correctness": "booking-desk.ts:118-147 validates every field independently and reports all errors at once. It checks seats left (including fully booked) and writes the booking in one synchronous step, so concurrent requests can't oversell; validation.spec.ts:184-196 posts 20 bookings at once and expects exactly 8 to be accepted. Edge cases are handled: guests must be digits only, so \"2.5\", \"1e1\", \"-1\", \"0\" and \"9\" are rejected (booking-desk.ts:40-46); booking the exact last seats works (validation.spec.ts:104); a form opened before the tasting filled up is refused on submit (validation.spec.ts:145); booking references are unique (booking-desk.ts:104-108); a cancelled booking frees its seats and its confirmation URL returns 404 (staff-cancel.spec.ts:61-76); unknown slugs return 404. Totals are computed in integer cents. Minor point: cancelling with an expired session shows the generic \"Something went wrong\" error page instead of the sign-in form.",
+      "security": "React escapes all output and there is no dangerouslySetInnerHTML. The password is compared with timingSafeEqual on SHA-256 digests (staff-session.ts:35-40). An unset or empty STAFF_PASSWORD disables sign-in. Sessions are kept in server memory with an httpOnly, SameSite=Lax cookie, signed with a random secret generated per process, so there are no secrets in the code. Sign-in creates a fresh session, sign-out destroys it, and a replayed old cookie is rejected (tested in staff.spec.ts:130). The cancel action is guarded by requireStaff and returns 403 (staff-cancel.spec.ts:78). Gaps: there is no rate limiting or lockout on password attempts, the cookie has no `secure` flag, and the only CSRF protection is SameSite=Lax.",
+      "code_quality": "The structure is small and clear: domain logic in .server/booking-desk.ts behind a typed BookingDesk interface, the session in its own module, thin route modules, and shared UI and format helpers. Names follow GLOSSARY.md consistently (Tasting, Booking, Seats left). Results are typed (BookingResult with FieldErrors), loaders throw 404s, and the root ErrorBoundary is friendly. There is no needless abstraction. One small leftover is the template comment \"Config options...\" in react-router.config.ts:4.",
+      "tests": "Six Playwright specs run against the built production server, started fresh per test (fixtures.ts), on both a desktop and a phone project. They cover the start page content and server rendering; the booking flow and confirmation, including that a reload doesn't book again; validation of every field with boundary values; the seat limit, last seats, fully booked state, a stale form and a direct POST; concurrent oversell; staff auth (wrong password, unset password, cookie replay after sign-out); grouping by tasting; cancellation freeing seats and the 403 guard; and layout (no sideways scroll, 44px tap targets, a 320px viewport). Error tests also check aria-invalid and the accessible description. test-results/.last-run.json records a passing run. There are no unit tests, but the e2e tests exercise every requirement in the brief.",
+      "ux_design": "The screenshots show a coherent winery look: deep wine-red header with a gold rule, a Fraunces serif for headings, cream background and card layout (start.jpg). The form error is clear, with a red border, an icon and a message under the field; the hint \"1 to 8 guests\" helps (form.jpg). The confirmation is tidy, with a check icon, a definition list and a prominent reference (confirmation.jpg). The staff list is readable and shows \"4 of 8 seats booked\" per tasting (staff.jpg). Fully booked tastings get a badge and an info notice in place of the form (tasting-summary.tsx:22, book.tsx:59-67). The layout is responsive and tested on a phone. Minor: Cancel acts immediately, with no confirmation step.",
+      "accessibility": "Labels are tied to inputs with htmlFor and id. Errors are linked with aria-describedby and aria-invalid and carry a hidden \"Error:\" prefix for screen readers (ui.tsx:36-70). There is a skip link and lang=\"en\", plus header, main and footer landmarks. Staff sections are labelled with aria-labelledby. Icons are aria-hidden, and notices use role=status or role=alert. Tap targets are at least 44px. Gaps: after a failed submit, focus is not moved to the first invalid field, and field errors are not in a live region. The gold focus outline (#b5893a) on cream is about 2.9:1, just under the 3:1 non-text contrast guideline.",
+      "simplicity": "The dependencies fit the problem: react-router with its server, Tailwind, zod, two fontsource fonts and isbot. App code is roughly 700 lines across about 12 files. There is no database, state library or custom framework, and only one small UI-primitives file.",
+      "maintainability": "The repository has no README, so nothing documents how to run it, that STAFF_PASSWORD is required, the PORT variable, or the in-memory bookings that vanish on restart. There is no CI workflow, no release or versioning approach (no CHANGELOG or version field), and no ADRs, specs or staff manual; GLOSSARY.md is the only documentation. On the plus side: package-lock.json is present (though package.json uses ^ ranges), engines requires node >=22 but no .nvmrc exists, there are scripts for typecheck, test and format plus a Prettier config, and the regression tests are strong. The code is readable enough to pick up, but setup and operational knowledge has to be reverse-engineered."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Correct, race-safe booking logic: all fields validated at once, seat limits enforced in one synchronous check-and-write, cancellations free seats, backed by a test that fires 20 concurrent bookings at an 8-seat tasting",
+      "Thorough end-to-end Playwright tests on desktop and phone that cover every requirement in the brief, including auth edge cases, accessible error descriptions and mobile layout",
+      "Polished, coherent winery design with clear error, success and fully booked states, plus careful staff session handling (constant-time comparison, server-side sessions, real sign-out)"
+    ],
+    "issues": [
+      "No README, CI pipeline, versioning or decision docs: a new developer or operator has no written guidance on setup, the STAFF_PASSWORD requirement, or bookings being lost on restart",
+      "Staff sign-in has no rate limiting or lockout, and the session cookie has no `secure` flag",
+      "Accessibility and UX gaps: focus is not moved to or announced at the first error after a failed submit, the gold focus ring is below 3:1 contrast on cream, and Cancel removes a booking without asking for confirmation"
+    ],
+    "verdict": "A complete, correct and well-tested booking app with a polished winery look; every requirement in the brief is met and the core logic holds up under edge cases and concurrent requests. It is held back mainly by missing documentation and CI and by minor security hardening gaps, so it is shippable but should get a README and a CI workflow first."
+  }
+}

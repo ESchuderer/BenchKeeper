@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.41043860000000004,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 4,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 2
+    },
+    "evidence": {
+      "requirements": "Every brief requirement is met. The start page lists title, date and time, price and \"<n> seats left\" (Home.tsx:50-62, start.jpg), with \"Book <title>\" links (Home.tsx:76). The form has fields labelled Name/Email/Guests, a 1-8 limit and a \"Book\" button (BookingForm.tsx:96-120). The seat limit is enforced on the client and the server (booking.ts:28, store.ts:52). Errors show under the field they concern (Field.tsx:29-34, form.jpg). The confirmation page shows the heading, tasting, guests, total and reference (ConfirmationPage.tsx:24-31, confirmation.jpg). /staff has a Password field and a Sign in button, and the password comes from STAFF_PASSWORD (Staff.tsx:65-71, index.ts:3). Staff see bookings grouped by tasting with a Cancel button, and cancelling frees the seats (Staff.tsx:118-146, store.ts:65, staff.jpg). There is a fully booked state (Home.tsx:63-70, BookingForm.tsx:47-56). It is built with React, Express and Tailwind, `npm start` uses PORT with a default of 3000, and bookings are kept in memory. No requirement is unmet.",
+      "correctness": "store.book checks seats and inserts in one synchronous step, so two concurrent requests cannot both take the last seats (store.ts:31-63, tested in app.test.ts:80-90). The schema is rebuilt per request with the current seatsLeft (app.ts:57). There is a fallback error when seats are taken between the check and the booking (app.ts:63-65). Guests input is coerced and checked for whole numbers and bounds (booking.ts:21-34), and name and email are trimmed and length-limited. The id lookup handles __proto__ (app.test.ts:51). Cancelling deletes the booking, which frees the seats and makes the confirmation page return 404 (app.test.ts:140-147). One minor point: the singular case still reads \"1 seats left\", but that follows the brief's format literally.",
+      "security": "React escapes all output, and a test checks that markup in names is shown as text (staff.test.tsx:89-94). The password check uses timingSafeEqual over SHA-256 digests and rejects an empty or missing STAFF_PASSWORD (app.ts:16-19). The session cookie is signed by cookie-session with httpOnly and sameSite=lax, and its secret is random per process (app.ts:33-40). Login is rate-limited, helmet sets CSP, JSON bodies are capped at 10 kB, and the error handler leaks no details (app.ts:30-31, 91, 136-140). The public booking lookup leaves out name and email (app.test.ts:38-45). There are no secrets in the code. Weaknesses: cookie-session expiry is set only on the cookie and not checked by the server, so a captured cookie stays valid until the server restarts. The booking endpoint has no rate limit, so anyone can script bookings until every tasting is full.",
+      "code_quality": "The structure is clear: shared/ holds the schema and catalogue, server/ the app and store, and src/ the pages and components. Names are good and files are small. The zod schema is shared between client and server (booking.ts). Errors are handled on every query and mutation. Small blemishes: the confirmation payload is built twice in the same way (app.ts:67-74 and 81-88), and there is an `as never` cast on zodResolver (BookingForm.tsx:69).",
+      "tests": "There are meaningful tests at every layer. The schema and catalogue tests cover boundaries such as 0, 9, 2.5, empty, null and over-long input (booking.test.ts). Store tests cover overbooking, exactly the last seats, cancel and unique references (store.test.ts). Supertest API tests cover the concurrent last-seat booking, malformed JSON, auth, logout, a missing STAFF_PASSWORD, cancelling freeing seats, SPA fallback and headers (app.test.ts). UI tests cover labels, errors next to fields, the seat limit, double-submit, fully booked, the confirmation content, staff grouping, XSS, cancel success and failure, session expiry and sign-out (guest.test.tsx, staff.test.tsx). There is no browser end-to-end test, and the UI tests mock fetch.",
+      "ux_design": "The design is coherent and looks like a winery: a burgundy header, cream background, serif headings and gold-bordered cards (start.jpg). The form error is a clear red message with an icon under the field, and the form shows a live total (form.jpg). The confirmation card is clean and makes the reference easy to see (confirmation.jpg). The staff list is tidy with seat counts per tasting (staff.jpg). The code also covers a fully booked badge, a low-seat highlight and mobile layout with full-width buttons. Weaknesses: Cancel acts at once with no confirmation, so staff can delete a booking by mis-tapping. The start page is text-only with no imagery, and none of the screenshots show the fully booked or phone views.",
+      "accessibility": "The language is set (lang=en), and every input has a label linked with htmlFor (Field.tsx:12). Inputs get aria-invalid, and aria-describedby links the hint and error text (Field.tsx:9-23). Errors have role=alert and status messages have role=status (Field.tsx:30, Alert.tsx:11). react-hook-form moves focus to the first invalid field by default. Buttons have visible focus styles, touch targets are 48 px, and the page uses semantic headings, dl, ul and section. Text contrast looks sufficient in the screenshots. Minor issues: the dl contains an aria-hidden span outside dt/dd (Home.tsx:56), several role=alert regions can fire at once, and the staff Cancel buttons do not say which booking they cancel.",
+      "simplicity": "There are about 15 small source files. The dependencies are mainstream and fit the brief's request to use established libraries: Express, React Router, React Query, react-hook-form, zod and Tailwind. helmet, express-rate-limit and React Query add some weight for a three-tasting app but are justified. There is no hand-rolled replacement for anything a library already does.",
+      "maintainability": "There is no README, no docs, ADRs or specs, no CI pipeline, and no manual for staff. STAFF_PASSWORD and PORT are documented only in code (index.ts). On the plus side, package-lock.json pins the dependency tree, engines requires node >=22.18, and the test and typecheck scripts work as regression checks. There is a version (1.0.0) but no changelog or release approach. Dependencies in package.json use caret ranges, and there is no .nvmrc. A new developer would have to read the code to learn how to run the app, sign in and what it does."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Booking logic is correct and safe under concurrency: the seat check and insert happen in one synchronous step, and the same zod schema validates on the client and the server, with per-field errors placed next to the fields.",
+      "A thorough test suite at the schema, store, API and UI levels covers the brief's rules, edge cases, the concurrent last seat, XSS and session expiry.",
+      "A polished, coherent winery look with clear error, success and fully booked states, plus solid security basics (timing-safe password check, signed httpOnly session, login rate limit, helmet)."
+    ],
+    "issues": [
+      "There is no README, docs, staff manual or CI pipeline: how to run the app, the STAFF_PASSWORD setting and the app's behaviour are not written down anywhere in the repo.",
+      "Staff Cancel deletes a booking right away with no confirmation or undo, so one mis-tap loses a guest's booking.",
+      "The booking endpoint has no rate limit, and the stateless session cookie's expiry is not checked by the server: anyone can script bookings to fill every tasting, and a captured staff cookie stays valid until the server restarts."
+    ],
+    "verdict": "The app meets every requirement in the brief, its booking logic is correct, it is well tested and it looks right for a family winery. Before shipping it needs a README and staff instructions, a CI pipeline, and a confirmation step on Cancel."
+  }
+}

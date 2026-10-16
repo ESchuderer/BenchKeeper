@@ -1,0 +1,147 @@
+{
+  "arm": "A",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 397,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": []
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 381493,
+    "result_events": 1,
+    "turns": 25,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 0.9181185000000001,
+    "usage": {
+      "input": 56,
+      "cache_creation": 83239,
+      "cache_read": 1193530,
+      "output": 49404,
+      "thinking": 8857
+    }
+  },
+  "workflow": {
+    "tool_calls": 27,
+    "subagent_tool_calls": 2,
+    "skills": [
+      "run",
+      "code-review"
+    ],
+    "agents": [],
+    "plan_or_spec_files": [
+      "docs/SPEC.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash cat > README.md <<'EOF'\n# Weingut Kieselbrunnen – tasting bookings\n\nReact (Vite,"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R11": true,
+      "R12": true,
+      "R9": true
+    },
+    "robustness_passed": 12,
+    "axe": {
+      "start": 1,
+      "confirmation": 0,
+      "form": 1,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.89,
+      "accessibility": 0.95,
+      "best-practices": 1
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "374dfd34d02f0c2f"
+  },
+  "lines": {
+    "source": 901,
+    "test": 430,
+    "files": 19
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "phases": {
+    "phases": {
+      "build": {
+        "calls": 17,
+        "minutes": 3.4,
+        "usd": 0.601
+      },
+      "spec": {
+        "calls": 1,
+        "minutes": 0.5,
+        "usd": 0.022
+      },
+      "test": {
+        "calls": 1,
+        "minutes": 0.4,
+        "usd": 0.046
+      },
+      "verify": {
+        "calls": 2,
+        "minutes": 1.1,
+        "usd": 0.053
+      },
+      "review": {
+        "calls": 6,
+        "minutes": 1,
+        "usd": 0.195
+      }
+    },
+    "subagents": {
+      "unknown": {
+        "calls": 2,
+        "minutes": 0,
+        "usd": 0.053
+      }
+    },
+    "method": "estimate"
+  }
+}

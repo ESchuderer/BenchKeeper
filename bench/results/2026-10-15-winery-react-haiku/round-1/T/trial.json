@@ -1,0 +1,115 @@
+{
+  "arm": "T",
+  "runtime": "opencode",
+  "followups": 0,
+  "wall_seconds": 1565,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 26
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 114,
+    "cost_usd_api_equivalent": 1.5004399999999996,
+    "usage": {
+      "input": 230,
+      "cache_creation": 293036,
+      "cache_read": 20301216,
+      "output": 102179,
+      "thinking": 86076
+    }
+  },
+  "workflow": {
+    "tool_calls": 127,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "spec-driven-development",
+      "using-agent-skills",
+      "planning-and-task-breakdown",
+      "test-driven-development",
+      "incremental-implementation",
+      "frontend-ui-engineering",
+      "security-and-hardening",
+      "code-review-and-quality"
+    ],
+    "agents": [],
+    "plan_or_spec_files": [
+      "/work/SPEC.md",
+      "/work/tasks/plan.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "todowrite "
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R11": true,
+      "R12": true,
+      "R9": true
+    },
+    "robustness_passed": 12,
+    "axe": {
+      "start": 0,
+      "confirmation": 1,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.84,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "374dfd34d02f0c2f"
+  },
+  "lines": {
+    "source": 1360,
+    "test": 1149,
+    "files": 46
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": false
+  }
+}

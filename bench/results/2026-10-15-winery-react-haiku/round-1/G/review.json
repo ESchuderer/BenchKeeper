@@ -1,0 +1,45 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.485421,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3
+    },
+    "evidence": {
+      "requirements": "Every requirement in the brief is met. Each tasting card shows the title, date and time, \"EUR n per guest\" and \"<n> seats left\" (TastingCard.tsx:14-24, start.jpg). Each card has a \"Book <title>\" link (TastingCard.tsx:36-41). The form has fields labelled Name, Email and Guests, with Guests running from 1 to min(8, seats left), and a \"Book\" button (BookingPage.tsx:161-208, form.jpg). The server enforces the seat limit (bookingStore.ts:130-131). Errors appear under the field they concern (FormField.tsx:32-36; form.jpg shows the email error under Email). The confirmation has the heading \"Booking confirmed\", the tasting, guests, total and reference (ConfirmationPage.tsx:60-83, confirmation.jpg). /staff has a Password field and a Sign in button, and the password comes from STAFF_PASSWORD (index.ts:21, StaffPage.tsx:112-130). Staff see bookings grouped by tasting with name, email, guests, reference and a Cancel button (staff.jpg), and cancelling frees the seats (bookingStore.ts:175-177). Bookings are in memory, PORT defaults to 3000 and the interface is in English. The fully booked state is a disabled \"Fully booked\" button plus \"0 seats left\". Phone layout is only claimed through responsive Tailwind classes; the agent's ledger (progress.md:24,39) admits no visual check was done.",
+      "correctness": "The seat check and insert run synchronously with no other request in between (bookingStore.ts:129-142), and a test confirms concurrent requests give one 201 and one 409. A 409 refreshes the seats and clamps the guest count (BookingPage.tsx:62-67,85). Validation is strict: whole numbers only, names made only of zero-width characters are rejected, and input is trimmed (schemas.ts). The Berlin time-zone closing logic is correct and tested. Weak spots: the booking rate limiter counts every POST, including failed ones, at 10 per 15 minutes per IP (app.ts:61-67), so guests behind a shared NAT can be locked out. The error handler labels every 400 as \"Invalid JSON.\" (app.ts:182-183). Cancel is not disabled while in flight, so a double click shows a false \"could not be cancelled\" error (StaffPage.tsx:76-88; ledger lines 31-32 defer both).",
+      "security": "React escapes all output and there is no dangerouslySetInnerHTML. The password check compares SHA-256 digests with timingSafeEqual (staffAuth.ts:16,35). Session tokens are 32 random bytes held server-side and expire after 8 hours. The cookie is HttpOnly and SameSite=Strict, and Secure behind a trusted proxy (app.ts:77-82). Sign-in is rate-limited, the JSON body limit is 10kb and x-powered-by is disabled. Sign-in is refused when STAFF_PASSWORD is unset, and there are no secrets in code. The public confirmation endpoint leaves out name and email. Only gap: no security headers (no helmet), which the ledger records as deferred.",
+      "code_quality": "The layout is clear: shared, server and client, with a shared Zod schema and typed result unions (CreateBookingResult). The store and auth factories take injected clocks and random sources, which makes them testable. Naming is good and errors are handled in every view state. Small duplication: guestsLabel is defined twice (BookingPage.tsx:19, StaffPage.tsx:13), the back link is repeated and the alert box markup is copied about six times. StaffPage has the same load logic in both loadBookings and useEffect.",
+      "tests": "There are 92 tests per the ledger, all of which I read. They cover the schema boundaries (0, 9, 2.5, NaN, a string, zero-width names), the store (seat limits, full tasting, closed tasting, cancel frees seats, reference collisions), and the API through supertest (400/409/404/429, concurrent last seat, auth cookie flags, session expiry, sign-out invalidation, deep links). React Testing Library covers the home page (Book links, fully booked, seats label), the booking form (labels, errors linked by aria-describedby, seat-limited options, 409 refresh) and the staff page (grouping, cancel, confirm declined, sign-out failure). There is no browser end-to-end test.",
+      "ux_design": "The design is coherent and calm, with a wine-red serif heading, cream background and rounded cards (start.jpg). The form is clean and the inline error sits right under the field (form.jpg). The reference is shown prominently in a monospace font on the confirmation (confirmation.jpg). The staff list is easy to scan (staff.jpg). Weaknesses: the look is fairly generic, with no imagery or winery character beyond colours and fonts. The success panel looks grey-beige rather than clearly successful (confirmation.jpg). The footer still says \"Staff sign-in\" while staff are signed in (staff.jpg). There is no success message after a cancel, and phone layout was never verified visually.",
+      "accessibility": "Every field has a label with htmlFor. Error messages are linked by aria-describedby, carry aria-invalid and use role=alert (FormField.tsx). The page uses lang=en, one h1 per page, h2 headings for each staff group and a definition list on the confirmation. Focus shows a 3px gold outline (index.css:22-25), and React Hook Form moves focus to the first invalid field (form.jpg shows the email focused). Colour contrast of ink and muted text on cream looks adequate. Gaps: focus does not move to server-side errors, the document title does not change per page, there is no focus management on route changes, and several role=alert elements can fire at once.",
+      "simplicity": "The dependencies are established and fit the task: Express, express-rate-limit, cookie-parser, React Router, React Hook Form with Zod, Tailwind and Vite. The code is moderately sized. Some extras go beyond the brief: the Berlin-offset closing rule (bookingStore.ts:44-78), the HOST and TRUST_PROXY settings, and the booking rate limiter. Each is defensible but adds surface.",
+      "maintainability": "The README covers running the app, environment variables, the in-memory caveat, the closing rule, session behaviour, tests and layout. package-lock.json is present and there are typecheck and test scripts. Gaps: there is no CI pipeline. The Node version is not pinned (engines \">=22\", no .nvmrc). The README points to docs/superpowers/ for the spec and plan, but that folder is not in the repo. There are no ADRs, changelog or release and versioning approach beyond version 1.0.0, and no separate staff manual beyond the short README section."
+    },
+    "unmet_requirements": [
+      "Usable on a phone: responsive classes exist, but the agent never checked it visually (progress.md:24,39) and there is no mobile screenshot to confirm it"
+    ],
+    "overall": 8,
+    "strengths": [
+      "The core rules are correct and enforced on the server: the seat limit is checked and stored synchronously, one Zod schema is shared by client and server, a guest choice that no longer fits is refreshed after a 409, and cancelling frees seats",
+      "Staff authentication is solid: digests compared in constant time, random server-side sessions, HttpOnly and SameSite=Strict cookie, rate-limited sign-in, and sign-in refused when no password is set",
+      "Thorough, meaningful tests at every layer (schema, store, API through supertest, React pages) that map directly onto the brief's requirements"
+    ],
+    "issues": [
+      "The booking rate limiter counts every POST, failed ones included, at 10 per 15 minutes per IP (app.ts:61-67), which can lock out real guests who share one IP",
+      "Maintainability gaps: no CI pipeline, Node version not pinned, the README points to a docs/superpowers spec and plan that are not in the repo, and no versioning or release notes",
+      "Smaller polish issues: no visual check on phones, the success panel looks grey rather than clearly successful, no feedback after a cancel and no guard against a double click, and every 400 is labelled \"Invalid JSON.\""
+    ],
+    "verdict": "This is a well-built, secure and well-tested booking app that meets every point in the brief and looks tidy and appropriate for a small winery. Before shipping, I would loosen or rework the booking rate limit, add CI and pin the Node version, and check the layout on a phone."
+  }
+}

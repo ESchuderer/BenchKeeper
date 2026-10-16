@@ -96,6 +96,44 @@ USD is the API-equivalent cost of the trial transcript (subscription trials are 
 | Z | Matt Pocock | 6/6 | 2 | 44 | 3.13 | 6 | 3 | 4 | 5 | 4 | 4 | 3 | 4 | 5 | 2 | 3 | 3 | 4 | 3 |
 | AA | Matt Pocock + OpenSpec | 6/6 | 2 | 68 | 3.44 | 7 | 4 | 4 | 5 | 4 | 4 | 3 | 4 | 5 | 2 | 4 | 4 | 4 | 4 |
 
+## Ranking by review criteria
+
+The overall rating ties most arms (19 Sonnet arms at 8). The sum of the 13 review criteria (1 to 5 each, at most 65) separates them more finely. Only apps that pass all 6 hidden feature tests are ranked. Ties go to fewer minutes. One trial per arm: a gap of 1 or 2 points is within noise.
+
+### Sonnet 5.5, top 10
+
+| Rank | Arm | Runtime | Setup | Criteria sum (of 65) | Overall | Minutes |
+|---|---|---|---|---|---|---|
+| 1 | W | Claude Code | Matt Pocock + OpenSpec | 55 | 8 | 58 |
+| 2 | L | Claude Code | BK + agent-skills | 54 | 8 | 33 |
+| 3 | O | Claude Code | Ponytail + OpenSpec | 54 | 8 | 33 |
+| 4 | AB | Claude Code | OpenSpec | 54 | 8 | 38 |
+| 5 | G | Claude Code | Superpowers | 54 | 8 | 41 |
+| 6 | AC | Claude Code | Spec Kit | 54 | 8 | 47 |
+| 7 | Q | OpenCode | OpenSpec + targeted skills | 53 | 8 | 25 |
+| 8 | Y | Claude Code | BK + Matt Pocock + OpenSpec | 53 | 8 | 31 |
+| 9 | N | Claude Code | BK + ECC | 53 | 7 | 37 |
+| 10 | H | Claude Code | ECC | 53 | 8 | 39 |
+
+Not ranked (fewer than 6 features): AA (2 of 6, criteria sum 43), J (5 of 6, criteria sum 52), K (2 of 6, criteria sum 54).
+
+### Haiku 5.5, top 10
+
+| Rank | Arm | Runtime | Setup | Criteria sum (of 65) | Overall | Minutes |
+|---|---|---|---|---|---|---|
+| 1 | A | Claude Code | plain | 51 | 7 | 21 |
+| 2 | AA | OpenCode | Matt Pocock + OpenSpec | 51 | 7 | 68 |
+| 3 | V | Claude Code | Matt Pocock | 50 | 7 | 23 |
+| 4 | AC | Claude Code | Spec Kit | 49 | 7 | 23 |
+| 5 | W | Claude Code | Matt Pocock + OpenSpec | 49 | 7 | 28 |
+| 6 | R | OpenCode | Superpowers | 48 | 7 | 40 |
+| 7 | H | Claude Code | ECC | 47 | 6 | 21 |
+| 8 | AB | Claude Code | OpenSpec | 47 | 6 | 27 |
+| 9 | F | Claude Code | agent-skills | 47 | 6 | 27 |
+| 10 | C | Claude Code | BK + agent-skills + OpenSpec | 47 | 6 | 28 |
+
+Not ranked (fewer than 6 features): I (5 of 6, criteria sum 46), Q (0 of 6, criteria sum 14), S (0 of 6, criteria sum 13), T (0 of 6, criteria sum 21).
+
 ## Findings
 
 - The hidden tests separate the arms more than on the winery brief, but most arms still pass: Claude Code 41 of 44 trials at 6 of 6 (Sonnet J 5 of 6 and K 2 of 6, Haiku I 5 of 6), OpenCode 10 of 14 (Haiku Q, S, T 0 of 6, Sonnet AA 2 of 6).

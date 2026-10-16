@@ -20,10 +20,12 @@ run no-l6 C4 app.js 's/hdim(0, L.L6, top - maxR - 8, `L6 ${L.L6}`),//'
 run no-print-css C5 index.html '/print.css/d'
 run modules C6 index.html 's/<script src=/<script type="module" src=/'
 run no-address C6 app.js 's/^  route();$/  renderList();/'
-# A correct app with other markup: the list as a table, the drawing named by <title>, the symbol as a plain cell.
+# A correct app with other markup: the list as a table, the drawing named by <title>, the symbol as a plain cell, the
+# Family select inside its label.
 run variant "" app.js 's#el(.ul., { class: .list. })#el("table", {})#
 s#el(.li., {}, el(.a., { href: `\#${c.key}`, text: c.name }),#el("tr", {}, el("td", {}, el("a", { href: `\#${c.key}`, text: c.name })),#
 s#el(.span., { class: .muted., text: ` ${c.family}, L3 ${c.cartridge.lengths.L3} mm` })#el("td", { text: `${c.family}, L3 ${c.cartridge.lengths.L3} mm` })#
 s#role="img" aria-label="${esc(c.name)} drawing" #aria-labelledby="t-${c.key}" #
 s#xmlns="http://www.w3.org/2000/svg">`#xmlns="http://www.w3.org/2000/svg"><title id="t-${c.key}">${esc(c.name)} drawing</title>`#
-s#el(.th., { scope: .row., text: LABELS\[f\] ?? f })#el("td", { text: LABELS[f] ?? f })#'
+s#el(.th., { scope: .row., text: LABELS\[f\] ?? f })#el("td", { text: LABELS[f] ?? f })#
+s#el(.label., { for: .f., text: .Family . }), family#el("label", {}, "Family ", family)#'

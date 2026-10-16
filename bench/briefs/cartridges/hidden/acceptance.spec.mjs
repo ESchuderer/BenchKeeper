@@ -86,7 +86,8 @@ test('C2 search by alternative name and filter by family', async ({ page, browse
   // A fresh context, so a search the app remembers (for example in localStorage) does not carry over.
   page = await (await browser.newContext({ baseURL: info.project.use.baseURL })).newPage();
   await page.goto('/');
-  const family = page.getByLabel('Family', { exact: true });
+  // By role and a name starting with Family: a label that wraps the select also holds the option texts.
+  const family = page.getByRole('combobox', { name: /^\s*Family\b/ }).or(page.getByLabel(/^\s*Family\b/)).first();
   const belted = await family.locator('option').evaluateAll((os) => os.find((o) => o.textContent.trim().toLowerCase() === 'belted')?.value);
   expect(belted, 'option "belted"').toBeDefined();
   await family.selectOption(belted);

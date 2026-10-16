@@ -1,7 +1,7 @@
 A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here wins.
 
 ## Workflow
-- Before any edit in a repository, and before research with two or more independent items, load the `sdlc` skill and follow it: it sets the task tier and its steps (issue, branch, tests, review, pull request). Plain questions need neither.
+- Load the `sdlc` skill and follow it before any edit in a repository, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items. It sets the task tier and its steps (issue, branch, tests, review, pull request). Plain questions need neither.
 - Always, even without the skill: commit, push or merge on the default branch only when the user said so in this task; never merge a pull request without the user's instruction.
 
 ## Ask, do not assume

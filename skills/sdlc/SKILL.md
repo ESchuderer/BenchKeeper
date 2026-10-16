@@ -1,6 +1,6 @@
 ---
 name: sdlc
-description: "Development workflow for any repository change: picks the task tier (quick, standard, full, research) and its steps: GitHub issue, branch, tests first, OpenSpec spec, review before push, draft pull request. Use before the first edit in a repository, before research with two or more independent items, before pushing, and before opening or merging a pull request."
+description: "Development workflow for any repository change: picks the task tier (quick, standard, full, research) and its steps: GitHub issue, branch, tests first, OpenSpec spec, review before push, draft pull request. Use before the first edit in a repository, before creating or editing a GitHub issue, before research with two or more independent items, before pushing, and before opening or merging a pull request."
 when_to_use: "Fix, add, change, refactor, rename, update, upgrade or remove anything in a repository; compare or evaluate several tools or options; push, open a PR, or merge."
 ---
 
@@ -67,4 +67,4 @@ Default tier and the check before reporting done, in addition to Verify below. R
 - Build: `incremental-implementation`, tests first where the repository has a test suite (`test-driven-development`; standard, full); with OpenSpec through `openspec-apply-change`. Assess simplicity within `code-review-and-quality`; use `code-simplification` where needed within scope.
 - Verify: the project's own build, types, lint and tests before reporting done, not repeated re-reading of finished work; UI changes in a browser (Playwright MCP). Report failures as they are; show the evidence (command and result).
 - Review and ship: code review before push (above); push the branch and open a draft pull request (above); wait for checks (`gh pr checks --watch`, `ci-cd-and-automation`), report failures as they are, mark ready when they pass; `openspec-archive-change` on the branch (above). Merge only on the user's instruction.
-- Maintain: on request, `/maintain`.
+- Maintain: after a milestone or a large merge, suggest that the user runs `/maintain`.

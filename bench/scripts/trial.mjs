@@ -44,6 +44,8 @@ export function audit(events, arm) {
   // while the first turn's hook output stays in the continued conversation.
   const starts = events.filter((e) => e.subtype === 'hook_response' && e.hook_name === 'SessionStart:startup').map((e) => e.output || '');
   for (const h of EXPECT[arm].hooks) if (!starts.some((o) => o.includes(h))) problems.push(`no SessionStart:startup output "${h}"`);
+  // A server pending at a follow-up turn counts as connected there (auditInit), but pending at every turn never started.
+  for (const n of EXPECT[arm].mcp || []) if (!inits.some((e) => (e.mcp_servers || []).some((m) => m.name === n && m.status === 'connected'))) problems.push(`mcp ${n} never connected`);
   return { ...results[0], ok: problems.length === 0, problems };
 }
 

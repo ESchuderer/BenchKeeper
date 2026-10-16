@@ -274,4 +274,5 @@ test('audit: a configured MCP server still pending at a follow-up turn counts as
   assert.equal(audit(events, 'L').ok, true);
   assert.equal(audit([...events, turn('pending')], 'L').ok, true);
   assert.deepEqual(audit([...events, turn('failed')], 'L').problems, ['mcp playwright:failed']);
+  assert.deepEqual(audit(events.map((e) => (e.subtype === 'init' ? turn('pending') : e)), 'L').problems, ['mcp playwright never connected']);
 });

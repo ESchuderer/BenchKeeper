@@ -79,7 +79,6 @@ export function BenchShell({ base, children }: { base: string; children: ReactNo
   );
 }
 
-
 export type Brief = { id: string; summary: string; trials: number; arms: number; runtimes: string[]; models: string[]; dates: string[]; methods: { label: string; count: number }[]; reports: string[] };
 
 function Methods({ brief }: { brief: Brief }) {

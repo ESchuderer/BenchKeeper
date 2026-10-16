@@ -1,8 +1,8 @@
 # Skills inventory and usage (#36, steps 1 and 2)
 
-Generated 2026-10-16 with `bench/scripts/skills-inventory.sh` (the SKILL.md files under `~/.claude` and the project template of each arm image, saved as `skills-files-2026-10-16.json`) and `bench/scripts/skills-inventory.mjs` (the skills each framework adds: the arm's init skills minus those of the plain arm A, and for the BenchKeeper layer minus those of agent-skills arm F; phase by `bench/scripts/phases.mjs`; tokens are file bytes divided by 4, an estimate). Usage: the 58 trials in `bench/results/` (React winery brief, Claude Code and OpenCode on Haiku 5.5 and Sonnet 5.5, testing method protocol 1.9, BenchKeeper layer v1); "fired" counts trials in which the agent called the skill through the Skill tool, of the trials whose arm had the skill installed. Correlation only: one brief, one trial per arm and model.
+Generated 2026-10-16 with `bench/scripts/skills-inventory.sh` (the SKILL.md files under `~/.claude` and the project template of each arm image, saved as `skills-files-2026-10-16.json`) and `bench/scripts/skills-inventory.mjs` (the skills each framework adds: the arm's init skills minus those of the plain arm A, and for the BenchKeeper layer minus those of agent-skills arm F; phase by `bench/scripts/phases.mjs`; tokens are file bytes divided by 4, an estimate). Usage: the 58 trials in `bench/results/` (React winery brief, Claude Code and OpenCode on Haiku 5.5 and Sonnet 5.5, testing method protocol 1.9, BenchKeeper layer v1); "fired" counts the trials of the framework's own arms that had the skill installed and in which the agent called it through the Skill tool (Claude Code by full name with the plugin prefix, OpenCode by name), so skills that share a name across frameworks (for example `test-driven-development`, `code-review`) are counted apart. Correlation only: one brief, one trial per arm and model.
 
-Not counted: subagents (ECC works mainly through its agents, for example `code-reviewer`, `planner`, `security-reviewer`, which the trials record in `workflow.agents`), and commands that are not SKILL.md skills (for example ECC's `orch-build-mvp`, used once).
+Not counted: subagents (ECC works mainly through its agents, for example `code-reviewer`, `planner`, `security-reviewer`, which the trials record in `workflow.agents`), and commands that are not SKILL.md skills (for example agent-skills' `build`, `plan` and `spec`, and ECC's `orch-build-mvp`). ECC's `auto-update` and `setup-pm` are listed by Claude Code as skills but have no SKILL.md: tokens n/a.
 
 | Framework | Skills | Tokens (all SKILL.md files) | Fired at least once |
 |---|---|---|---|
@@ -13,7 +13,7 @@ Not counted: subagents (ECC works mainly through its agents, for example `code-r
 | Ponytail | 6 | 5108 | 1 |
 | OpenSpec | 6 | 23573 | 4 |
 | Spec Kit | 10 | 34895 | 6 |
-| BenchKeeper layer (with agent-skills) | 10 | 20096 | 1 |
+| BenchKeeper layer (with agent-skills) | 10 | 20096 | 0 |
 
 | Framework | Skill | Phase | Tokens | Fired in trials | Description |
 |---|---|---|---|---|---|
@@ -40,7 +40,7 @@ Not counted: subagents (ECC works mainly through its agents, for example `code-r
 | agent-skills | `agent-skills:shipping-and-launch` | other | 2879 | 0 of 12 | Prepares production launches. |
 | agent-skills | `agent-skills:source-driven-development` | build | 2510 | 1 of 12 | Grounds every implementation decision in official documentation. |
 | agent-skills | `agent-skills:spec-driven-development` | build | 3274 | 4 of 10 | Creates specs before coding. |
-| agent-skills | `agent-skills:test-driven-development` | test | 4169 | 14 of 26 | Drives development with tests using the red-green-refactor loop. |
+| agent-skills | `agent-skills:test-driven-development` | test | 4169 | 6 of 14 | Drives development with tests using the red-green-refactor loop. |
 | agent-skills | `agent-skills:using-agent-skills` | other | 2612 | 1 of 10 | Discovers and invokes agent skills. |
 | Superpowers | `superpowers:brainstorming` | spec | 2518 | 12 of 12 | You MUST use this before any creative work - creating features, building components, adding functionality, modifying behavior, or plannin... |
 | Superpowers | `superpowers:diagnosing-superpowers` | other | 1726 | 0 of 10 | Use when a superpowers session went wrong and your human partner wants to know why, repeated work, ignored plans, stumbles, poor results,... |
@@ -51,7 +51,7 @@ Not counted: subagents (ECC works mainly through its agents, for example `code-r
 | Superpowers | `superpowers:requesting-code-review` | review | 744 | 7 of 12 | Use when completing tasks, implementing major features, or before merging to verify work meets requirements |
 | Superpowers | `superpowers:subagent-driven-development` | build | 8144 | 0 of 12 | Use when executing implementation plans with independent tasks in the current session |
 | Superpowers | `superpowers:systematic-debugging` | other | 2383 | 0 of 12 | Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes |
-| Superpowers | `superpowers:test-driven-development` | test | 2395 | 14 of 26 | Use when implementing any feature or bugfix, before writing implementation code |
+| Superpowers | `superpowers:test-driven-development` | test | 2395 | 8 of 12 | Use when implementing any feature or bugfix, before writing implementation code |
 | Superpowers | `superpowers:using-git-worktrees` | other | 1703 | 2 of 12 | Use when starting feature work that needs isolation from current workspace or before executing implementation plans - ensures an isolated... |
 | Superpowers | `superpowers:using-superpowers` | other | 798 | 0 of 12 | Use when starting any conversation - establishes how to find and use skills, requiring skill invocation before ANY response including cla... |
 | Superpowers | `superpowers:verification-before-completion` | verify | 912 | 1 of 12 | Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands a... |
@@ -108,7 +108,7 @@ Not counted: subagents (ECC works mainly through its agents, for example `code-r
 | ECC | `verification-loop` | verify | 698 | 0 of 8 | Run a six-phase verification of a Claude Code session's work, build, type check, lint, tests with coverage, security grep, and diff revie... |
 | ECC | `windows-desktop-e2e` | other | 7644 | 0 of 8 | E2E testing for Windows native desktop apps (WPF, WinForms, Win32/MFC, Qt) using pywinauto and Windows UI Automation. |
 | Matt Pocock | `mattpocock-skills:ask-matt` | other | 3113 | 1 of 12 | Ask which skill or flow fits your situation. |
-| Matt Pocock | `mattpocock-skills:code-review` | review | 1647 | 14 of 48 | Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's d... |
+| Matt Pocock | `mattpocock-skills:code-review` | review | 1647 | 7 of 12 | Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's d... |
 | Matt Pocock | `mattpocock-skills:codebase-design` | spec | 1612 | 0 of 12 | Shared vocabulary for designing deep modules. |
 | Matt Pocock | `mattpocock-skills:diagnosing-bugs` | other | 2133 | 0 of 12 | Diagnosis loop for hard bugs and performance regressions. |
 | Matt Pocock | `mattpocock-skills:domain-modeling` | spec | 837 | 1 of 12 | Build and sharpen a project's domain model. |
@@ -134,12 +134,12 @@ Not counted: subagents (ECC works mainly through its agents, for example `code-r
 | Matt Pocock | `mattpocock-skills:wayfinder` | other | 2977 | 0 of 12 | Plan a huge chunk of work (more than one agent session can hold) as a shared map of decision tickets on your issue tracker, and resolve t... |
 | Matt Pocock | `mattpocock-skills:wizard` | other | 1031 | 0 of 12 | Generate an interactive bash wizard that walks a human through steps only they can perform. |
 | Matt Pocock | `mattpocock-skills:writing-for-agents` | other | 2722 | 0 of 12 | Writing documents for agents. |
-| Ponytail | `ponytail:ponytail` | other | 817 | 0 of 22 | Lazy senior dev mode for any coding task: the smallest change that fully solves it, and a reply a busy human understands in one read. |
-| Ponytail | `ponytail:ponytail-audit` | review | 1313 | 0 of 22 | Quality audit of the whole repo: bugs, security, real load, missing tests, speed, and what to delete. |
-| Ponytail | `ponytail:ponytail-debt` | other | 449 | 0 of 22 | Harvest every shortcut: comment into one debt ledger, so deferrals get tracked instead of forgotten. |
-| Ponytail | `ponytail:ponytail-gain` | other | 560 | 0 of 22 | Show ponytail measured impact as a scoreboard: less code, less cost, more speed, from the agentic benchmark averages. |
-| Ponytail | `ponytail:ponytail-help` | other | 725 | 0 of 22 | Quick reference for ponytail's modes, skills, and commands. |
-| Ponytail | `ponytail:ponytail-review` | review | 1244 | 2 of 22 | Quality review of a diff: bugs, security, real load, missing tests, speed, and what to delete. |
+| Ponytail | `ponytail:ponytail` | other | 817 | 0 of 6 | Lazy senior dev mode for any coding task: the smallest change that fully solves it, and a reply a busy human understands in one read. |
+| Ponytail | `ponytail:ponytail-audit` | review | 1313 | 0 of 6 | Quality audit of the whole repo: bugs, security, real load, missing tests, speed, and what to delete. |
+| Ponytail | `ponytail:ponytail-debt` | other | 449 | 0 of 6 | Harvest every shortcut: comment into one debt ledger, so deferrals get tracked instead of forgotten. |
+| Ponytail | `ponytail:ponytail-gain` | other | 560 | 0 of 6 | Show ponytail measured impact as a scoreboard: less code, less cost, more speed, from the agentic benchmark averages. |
+| Ponytail | `ponytail:ponytail-help` | other | 725 | 0 of 6 | Quick reference for ponytail's modes, skills, and commands. |
+| Ponytail | `ponytail:ponytail-review` | review | 1244 | 2 of 6 | Quality review of a diff: bugs, security, real load, missing tests, speed, and what to delete. |
 | OpenSpec | `openspec-apply-change` | build | 2858 | 10 of 26 | Implement tasks from an OpenSpec change. |
 | OpenSpec | `openspec-archive-change` | spec | 4149 | 3 of 26 | Archive a completed OpenSpec change in the experimental workflow. |
 | OpenSpec | `openspec-explore` | spec | 5705 | 0 of 26 | Enter OpenSpec explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements in a project th... |
@@ -159,10 +159,10 @@ Not counted: subagents (ECC works mainly through its agents, for example `code-r
 | BenchKeeper layer (with agent-skills) | `find-skills` | other | 1368 | 0 of 16 | Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that ... |
 | BenchKeeper layer (with agent-skills) | `global-setup` | other | 3549 | 0 of 16 | Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, Ponytail (full), ad... |
 | BenchKeeper layer (with agent-skills) | `playwright-best-practices` | other | 6577 | 0 of 16 | Use when writing Playwright tests, fixing flaky tests, debugging failures, implementing Page Object Model, configuring CI/CD, optimizing ... |
-| BenchKeeper layer (with agent-skills) | `ponytail:ponytail` | other | 817 | 0 of 22 | Lazy senior dev mode for any coding task: the smallest change that fully solves it, and a reply a busy human understands in one read. |
-| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-audit` | review | 1313 | 0 of 22 | Quality audit of the whole repo: bugs, security, real load, missing tests, speed, and what to delete. |
-| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-debt` | other | 449 | 0 of 22 | Harvest every shortcut: comment into one debt ledger, so deferrals get tracked instead of forgotten. |
-| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-gain` | other | 560 | 0 of 22 | Show ponytail measured impact as a scoreboard: less code, less cost, more speed, from the agentic benchmark averages. |
-| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-help` | other | 725 | 0 of 22 | Quick reference for ponytail's modes, skills, and commands. |
-| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-review` | review | 1244 | 2 of 22 | Quality review of a diff: bugs, security, real load, missing tests, speed, and what to delete. |
+| BenchKeeper layer (with agent-skills) | `ponytail:ponytail` | other | 817 | 0 of 16 | Lazy senior dev mode for any coding task: the smallest change that fully solves it, and a reply a busy human understands in one read. |
+| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-audit` | review | 1313 | 0 of 16 | Quality audit of the whole repo: bugs, security, real load, missing tests, speed, and what to delete. |
+| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-debt` | other | 449 | 0 of 16 | Harvest every shortcut: comment into one debt ledger, so deferrals get tracked instead of forgotten. |
+| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-gain` | other | 560 | 0 of 16 | Show ponytail measured impact as a scoreboard: less code, less cost, more speed, from the agentic benchmark averages. |
+| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-help` | other | 725 | 0 of 16 | Quick reference for ponytail's modes, skills, and commands. |
+| BenchKeeper layer (with agent-skills) | `ponytail:ponytail-review` | review | 1244 | 0 of 16 | Quality review of a diff: bugs, security, real load, missing tests, speed, and what to delete. |
 | BenchKeeper layer (with agent-skills) | `project-setup` | other | 3494 | 0 of 16 | Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md,... |

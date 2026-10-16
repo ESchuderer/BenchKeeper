@@ -15,7 +15,7 @@ test('inventory: framework skills minus the plain arm, with phase, size and firs
   assert.equal(rows.some((r) => r.framework.startsWith('BenchKeeper') && r.skill === 'agent-skills:test-driven-development'), false, 'the layer lists only what it adds');
 });
 
-test('usage counts each skill once per trial, with or without the plugin prefix', () => {
+test('usage keeps names as recorded; counts use full names on Claude Code and the framework\'s own arms', () => {
   const root = mkdtempSync(join(tmpdir(), 'usage-'));
   const trial = (arm, skills) => { mkdirSync(join(root, 'run', 'round-1', arm), { recursive: true }); writeFileSync(join(root, 'run', 'round-1', arm, 'trial.json'), JSON.stringify({ workflow: { skills } })); };
   writeFileSync(join(root, 'run.md'), '');
@@ -25,13 +25,16 @@ test('usage counts each skill once per trial, with or without the plugin prefix'
   trial('A', ['agent-skills:tdd', 'tdd']);
   trial('B', ['tdd', 'brainstorming']);
   const trials = usage(root);
-  assert.deepEqual(trials.map((t) => [t.arm, [...t.skills]]), [['A', ['tdd']], ['B', ['tdd', 'brainstorming']]]);
-  // Only arms that have the skill count: C has it and did not use it; D does not have it.
-  const avail = { A: new Set(['tdd']), B: new Set(['tdd']), C: new Set(['tdd']), D: new Set() };
-  assert.match(table([{ framework: 'x', skill: 'p:tdd', phase: 'test', tokens: 5, description: 'a|b' }], [...trials, { arm: 'C', skills: new Set() }, { arm: 'D', skills: new Set() }], avail),
-    /\| x \| `p:tdd` \| test \| 5 \| 2 of 3 \| a\\\|b \|/);
+  assert.deepEqual(trials.map((t) => [t.arm, [...t.skills]]), [['A', ['agent-skills:tdd', 'tdd']], ['B', ['tdd', 'brainstorming']]]);
+  // Claude Code arms by full name, the framework's own arms only: F and I are agent-skills arms, G is Superpowers.
+  const avail = { F: new Set(['agent-skills:tdd']), I: new Set(['agent-skills:tdd']), G: new Set(['superpowers:tdd']), T: new Set(['tdd']), R: new Set(['tdd']) };
+  const ts = [{ arm: 'F', skills: new Set(['agent-skills:tdd']) }, { arm: 'I', skills: new Set() }, { arm: 'G', skills: new Set(['superpowers:tdd']) },
+    { arm: 'T', skills: new Set(['tdd']) }, { arm: 'R', skills: new Set(['tdd']) }];
+  // agent-skills: F fired, I did not, T (OpenCode, short name) fired; G and R are Superpowers arms and do not count.
+  assert.match(table([{ framework: 'agent-skills', skill: 'agent-skills:tdd', phase: 'test', tokens: 5, description: 'a|b' }], ts, avail),
+    /\| agent-skills \| `agent-skills:tdd` \| test \| 5 \| 2 of 3 \| a\\\|b \|/);
   const real = available(new URL('./fixtures/', import.meta.url).pathname);
-  assert.equal(real.F.has('test-driven-development'), true);
+  assert.equal(real.F.has('agent-skills:test-driven-development'), true);
   assert.equal(real.T.has('test-driven-development'), true);
   assert.equal(real.A.has('test-driven-development'), false);
 });

@@ -23,8 +23,11 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Never invent a source. If a claim is unverified, label it "unverified".
 - On complex, debated, or uncertain topics, state a confidence level (high, medium, low) and name what is uncertain or disputed. Skip this for trivial facts.
 
-## Forbidden characters
-- Never output the em dash (U+2014), emojis, or emoticons (smileys made of punctuation) in answers, code, comments, commit messages, docs, UI copy, or designs. Use a comma, colon, period, or parentheses instead.
+## Punctuation
+- Never output the em dash (U+2014), emojis, or emoticons (smileys made of punctuation) in answers, code, comments, commit messages, docs, UI copy, or designs.
+- Do not replace the em dash with another joining mark. Split the thought into two sentences, or use a comma, colon, or parentheses where they read naturally.
+- Semicolons only where required: code syntax, or a list whose items contain commas.
+- Middle dot (·) and bullet (•) only as list bullets or as separators in UI labels that follow a convention, never inside sentences.
 
 ## Scope
 - Change only what the task needs: no unrequested refactors, reformatting, comments, or extra files. Documentation the task needs is in scope: a new project or app gets a README with setup, run, test and configuration, and a change to setup or behavior updates the README where it covers that.

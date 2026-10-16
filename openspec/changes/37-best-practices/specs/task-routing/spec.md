@@ -2,7 +2,7 @@
 
 ### Requirement: Tier selection
 
-The agent SHALL load the `sdlc` skill before any edit in a repository and before research with two or more independent items; plain questions SHALL need neither. Following `sdlc`, the agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. An explicit tier from the user SHALL win; for a risky change the agent SHALL name the full tier and ask, and the user's answer SHALL decide. A project default tier SHALL apply when no other tier clearly matches. Tier steps, escalation, the research flow, change types, request handling and risky changes SHALL be defined in `sdlc`; the always-on rules SHALL keep only the trigger and the limits that hold without it (no commit, push or merge on the default branch and no pull request merge without the user's instruction). The Maintain pass SHALL run only when the user invokes it.
+The agent SHALL load the `sdlc` skill before any edit in a repository, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items; plain questions SHALL need neither. Following `sdlc`, the agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. An explicit tier from the user SHALL win; for a risky change the agent SHALL name the full tier and ask, and the user's answer SHALL decide. A project default tier SHALL apply when no other tier clearly matches. Tier steps, escalation, the research flow, change types, request handling and risky changes SHALL be defined in `sdlc`; the always-on rules SHALL keep only the trigger and the limits that hold without it (no commit, push or merge on the default branch and no pull request merge without the user's instruction). The Maintain pass SHALL run only when the user invokes it.
 
 #### Scenario: Small UI change
 
@@ -38,7 +38,7 @@ The agent SHALL load the `sdlc` skill before any edit in a repository and before
 
 ### Requirement: Permission rules
 
-In Claude Code, native permission rules installed by `global-setup` SHALL deny skipping git hooks and SHALL ask before destructive or shared-history git and GitHub actions (force push, branch deletion, pushes that name `main` or `master`, hard reset, `git clean`, rebase, history rewrite, pull request merge, repository or release deletion), also with git global options. These limits SHALL use no hooks; what a rule cannot see SHALL stay a prose rule.
+In Claude Code, native permission rules installed by `global-setup` SHALL ask before skipping git hooks and before destructive or shared-history git and GitHub actions (force push, branch deletion, pushes that name `main` or `master`, hard reset, `git clean`, rebase, history rewrite, pull request merge, repository or release deletion), also with git global options. These limits SHALL use no hooks; what a rule cannot see SHALL stay a prose rule.
 
 #### Scenario: Force push through git -C
 
@@ -48,9 +48,9 @@ In Claude Code, native permission rules installed by `global-setup` SHALL deny s
 #### Scenario: Skipped hooks
 
 - **WHEN** the agent runs `git commit -n -m x`
-- **THEN** the command is denied
+- **THEN** Claude Code asks before it runs
 
 #### Scenario: Ordinary work
 
-- **WHEN** the agent runs `git push origin fix/x` or `git commit --amend --no-edit`
+- **WHEN** the agent runs `git push origin fix/x`, `git commit --amend --no-edit`, or `git commit -m "chore: clean up docs"`
 - **THEN** no rule matches and the command runs

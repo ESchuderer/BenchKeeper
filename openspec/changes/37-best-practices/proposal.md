@@ -9,10 +9,10 @@ Issue: [#37](https://github.com/ESchuderer/BenchKeeper/issues/37) (part A: docum
 ## What Changes
 
 - `rules/global.md`: an always-on core (ask, brevity, structure, sources, confidence, forbidden characters, scope, environment, safety, context, a compaction instruction) and a short pointer that names when to load the workflow skill. The three contradictions are resolved.
-- New skill `skills/sdlc/`: tiers, change types, issue, branch and pull request flow, SDLC phases with agent-skills and OpenSpec, the research flow. Loaded by the model before the first edit of a change larger than a one-sentence diff.
+- New skill `skills/sdlc/`: tiers, change types, issue, branch and pull request flow, SDLC phases with agent-skills and OpenSpec, the research flow. Loaded by the model before any edit in a repository, before issues, pushes and pull requests, and before research with several items.
 - New skill `skills/maintain/`: the Maintain pass, plus `/doctor prompt-audit` and `/skill-doctor`; user-invoked only.
-- `skills/global-setup`, `skills/project-setup`: `disable-model-invocation: true`.
-- Permission rules for Claude Code, installed by `global-setup` (native, no hooks, owner decision 2026-10-16): deny skipping git hooks; ask before force pushes, branch deletion, pushes to `main` or `master`, hard resets, `git clean`, rebases, history rewrites and pull request merges. Em dashes, emojis and commits on the default branch stay prose rules. Codex keeps all of them as prose.
+- `skills/global-setup`, `skills/project-setup`, `skills/maintain`: never start on their own (`disable-model-invocation: true` for Claude Code, `agents/openai.yaml` with `allow_implicit_invocation: false` for Codex, https://learn.chatgpt.com/docs/build-skills).
+- Permission rules for Claude Code, installed by `global-setup` (native, no hooks, owner decision 2026-10-16), all ask rules: before skipping git hooks, force pushes, branch deletion, pushes to `main` or `master`, hard resets, `git clean`, rebases, history rewrites and pull request merges. Em dashes, emojis and commits on the default branch stay prose rules. Codex keeps all of them as prose.
 - `global-setup`: links the new skills, merges the permission rules (existing rules stay, in their order), checks `CLAUDE_CODE_DISABLE_ADVISOR_TOOL`.
 - Duplicates removed: the `/clear` suggestion (Claude Code shows it natively), the Ponytail `full` default (its config sets it), restated skill triggers, the host/container split repeated in `global-setup`.
 - Versioning: root `CHANGELOG.md`; tags `setup-v1.0` (state before this change) and `setup-v2.0` (after merge).

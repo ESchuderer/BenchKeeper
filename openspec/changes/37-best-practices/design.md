@@ -13,12 +13,12 @@ So the router is one trigger in the always-on core: load `sdlc` before any edit 
 | Ask, brevity, structure, sources, confidence, forbidden characters, scope, environment, safety, context, compaction | `rules/global.md` | every session (Claude Code, Codex) |
 | Tiers, change types, issue/branch/PR flow, SDLC phases, OpenSpec, research flow | `skills/sdlc/SKILL.md` | on demand (model), or `/sdlc` |
 | Maintain pass, `/doctor prompt-audit`, `/skill-doctor` | `skills/maintain/SKILL.md` | `/maintain` only |
-| Skipping git hooks; force push, branch deletion, push to `main`, hard reset, `git clean`, rebase, history rewrite, merge | permission rules (deny, ask) in `global-setup` part 11 | every Bash call (Claude Code) |
+| Skipping git hooks; force push, branch deletion, push to `main`, hard reset, `git clean`, rebase, history rewrite, merge | permission rules (ask) in `global-setup` part 11 | every Bash call (Claude Code) |
 | Em dashes, emojis, commits on the default branch | prose in the core | every session |
 
 ## Why permission rules and no hooks
 
-The owner prefers no hooks where they can be avoided (they run scripts on every tool call). Native permission rules cover the destructive git and gh actions: "Deny rules block in every mode, including `bypassPermissions`", and an explicit ask rule prompts "even in `auto` mode" (https://code.claude.com/docs/en/permission-modes). Bash rules match the whole command text with `*` wildcards and apply to every subcommand of a compound command (https://code.claude.com/docs/en/permissions); `git *` also covers global options such as `git -C <path>`. What a rule cannot see (the current branch, the characters in written text) stays a prose rule. The patterns were checked by running each command through headless Claude Code in `dontAsk` mode in a throwaway repository.
+The owner prefers no hooks where they can be avoided (they run scripts on every tool call). Native permission rules cover the destructive git and gh actions: an explicit ask rule prompts "even in `auto` mode" (https://code.claude.com/docs/en/permission-modes), and the user can approve an action they asked for (a deny rule could not be approved, so none is used). Bash rules match the whole command text with `*` wildcards and apply to every subcommand of a compound command (https://code.claude.com/docs/en/permissions). Every rule starts with the command (`git push`, `git reset`), because a leading `git *` also matched words in commit messages; `git -C <path>` forms are listed for the most destructive actions. What a rule cannot see (the current branch, the characters in written text) stays a prose rule. The patterns were checked by running each command through headless Claude Code in `dontAsk` mode in a throwaway repository: `permission-probe.md`.
 
 ## Codex
 

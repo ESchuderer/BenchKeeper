@@ -1,0 +1,6 @@
+{
+  "phase": "debug",
+  "steps": "sessions",
+  "serve": "none",
+  "followup": "Continue until the task is complete in the repository. Do not wait for approval."
+}

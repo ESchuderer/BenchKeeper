@@ -1,0 +1,17 @@
+{
+  "name": "unitconv",
+  "version": "2.0.0",
+  "description": "Unit conversion library and command line tool",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "src"
+  ],
+  "main": "src/index.js",
+  "bin": {
+    "unitconv": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

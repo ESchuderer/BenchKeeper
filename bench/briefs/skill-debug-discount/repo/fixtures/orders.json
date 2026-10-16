@@ -1,0 +1,6 @@
+[
+  { "id": 1001, "items": [{ "sku": "MUG", "qty": 2 }] },
+  { "id": 1002, "code": "SAVE10", "items": [{ "sku": "TEE", "qty": 1 }, { "sku": "CAP", "qty": 1 }] },
+  { "id": 1003, "code": "SAVE10", "items": [{ "sku": "TEE", "qty": 2 }, { "sku": "GIFT", "qty": 1 }] },
+  { "id": 1004, "items": [{ "sku": "CAP", "qty": 1 }, { "sku": "MUG", "qty": 1 }] }
+]

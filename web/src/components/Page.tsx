@@ -184,9 +184,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">sdlc</Code>} scope="Before repository work, both agents">
               Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded on demand, so it costs context only when used.
             </FeatureCard>
-            <FeatureCard icon={<IconShieldLock size={20} />} title={<Code fz="sm">Permission rules</Code>} scope="Global, Claude Code">
-              Ask before skipping git hooks, force pushes, branch deletion, pushes to main, hard resets, rebases, history rewrites, discarding uncommitted work and gh pr merge. Native rules, no hooks; they also apply where no auto-mode classifier runs.
-            </FeatureCard>
           </SimpleGrid>
         </Section>
 
@@ -276,13 +273,13 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="quality" title="How it raises quality" intro={<>Each item is a rule from <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor> (every session), the <Anchor href={`${REPO}/blob/main/skills/sdlc/SKILL.md`}>sdlc skill</Anchor> (before repository work) or the <Anchor href={`${REPO}/blob/main/skills/global-setup/SKILL.md`}>permission rules</Anchor>.</>}>
+        <Section id="quality" title="How it raises quality" intro={<>Each item is a rule from <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor> (every session) or the <Anchor href={`${REPO}/blob/main/skills/sdlc/SKILL.md`}>sdlc skill</Anchor> (before repository work).</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48}>
             <List spacing="lg" styles={listTop}>
               <Check ok title="Ask, do not assume.">Ambiguous requests stop for precise questions instead of a guess.</Check>
               <Check ok title="Spec before code.">Non-trivial changes get a written spec and a task list.</Check>
               <Check ok title="Tests first">where the repository has a test suite; non-trivial logic leaves a test.</Check>
-              <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions, disabled lint rules or --no-verify unless you ask; Claude Code asks before --no-verify.</Check>
+              <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions, disabled lint rules or --no-verify unless you ask.</Check>
             </List>
             <List spacing="lg" styles={listTop}>
               <Check ok title="Review before push.">A correctness review runs on the commits, and a security review on risky changes; findings wait for your decision.</Check>

@@ -181,6 +181,10 @@ export function score(dir) {
     // Robustness tests (protocol v1.7) are scored apart from the features; null for trials scored before them.
     robustness: specs.some((s) => s.title.startsWith('R')) ? Object.fromEntries(specs.filter((s) => s.title.startsWith('R')).map((s) => [s.title.split(' ')[0], s.ok])) : null,
     robustness_passed: specs.some((s) => s.title.startsWith('R')) ? specs.filter((s) => s.title.startsWith('R') && s.ok).length : null,
+    // Iterative briefs: one test per change request (titles S1, S2, ...); strict means every test that ran passed.
+    changes: specs.some((s) => /^S\d/.test(s.title)) ? Object.fromEntries(specs.filter((s) => /^S\d/.test(s.title)).map((s) => [s.title.split(' ')[0], s.ok])) : null,
+    strict: specs.length ? specs.every((s) => s.ok) : null,
+    code: code(dir),
     // Violations per page; null unless all four pages were scanned, so a broken app does not score fewer violations.
     axe: axe && AXE_PAGES.every((k) => axe[k]) ? Object.fromEntries(AXE_PAGES.map((k) => [k, axe[k].length])) : null,
     lighthouse: lh?.categories ? Object.fromEntries(Object.entries(lh.categories).map(([k, v]) => [k, v.score])) : null,
@@ -190,6 +194,22 @@ export function score(dir) {
   };
 }
 const AXE_PAGES = ['start', 'confirmation', 'form', 'staff'];
+
+// Code metrics from the scorer (erosion.mjs and jscpd), null when the metrics step did not run.
+export function code(dir) {
+  const read = (f) => { try { return JSON.parse(readFileSync(join(dir, f), 'utf8')); } catch { return null; } };
+  const e = read('erosion.json'), d = read('jscpd/jscpd-report.json')?.statistics?.total;
+  if (!e) return null;
+  return { ...e, duplication: d ? Math.round(10 * d.percentage) / 10 : null, duplicated_lines: d?.duplicatedLines ?? null, clones: d?.clones ?? null };
+}
+
+// Iterative briefs: the scores after each change request (checkpoints/<k>/, written by the runner), then the final score.
+export function checkpoints(dir) {
+  const root = join(dir, 'checkpoints');
+  if (!existsSync(root)) return null;
+  const ks = readdirSync(root).filter((k) => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+  return [...ks.map((k) => ({ k, ...score(join(root, String(k))) })), { k: ks.length, ...score(join(dir, 'score')) }];
+}
 
 // The testing method that produced the scores: protocol version (bench/PROTOCOL.md when the trial was scored or
 // re-parsed), hidden tests hash, BenchKeeper layer version (the runner's `bk` file; v1 before it was recorded).
@@ -234,6 +254,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     outcome: oc ? ocOutcome(events, all) : outcome(events),
     workflow: oc ? workflow(events, ocUses(events, all)) : workflow(events),
     score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')), maintenance: maintenance(join(dir, 'workspace')),
+    condition: existsSync(join(dir, 'condition')) ? readFileSync(join(dir, 'condition'), 'utf8').trim() : 'empty',
+    checkpoints: checkpoints(dir),
+    steps_sent: wall('steps'),
     method: method(dir),
   };
   // Per-phase and per-subagent measurements, only for trials the runner marked (PHASES=1).

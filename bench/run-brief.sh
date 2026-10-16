@@ -29,7 +29,8 @@ fi
 export CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY
 # OpenCode isolation, every turn: no Claude Code or .agents files, no autoupdate, the model catalog fetched at build.
 OC_ENV="-e OPENCODE_DISABLE_CLAUDE_CODE=1 -e OPENCODE_DISABLE_EXTERNAL_SKILLS=1 -e OPENCODE_DISABLE_AUTOUPDATE=1 -e OPENCODE_DISABLE_LSP_DOWNLOAD=1 -e OPENCODE_DISABLE_MODELS_FETCH=1"
-runs=$bench/runs/$brief-$model-$effort-seed$seed
+# SCAFFOLD=1: the trial starts from the brief's skeleton workspace (bench/briefs/<brief>/scaffold/), a run of its own.
+runs=$bench/runs/$brief-$model-$effort-seed$seed$([ "${SCAFFOLD:-}" != 1 ] || echo -scaffold)
 mkdir -p "$runs"
 
 # SKIP_BUILD=1 uses the existing images (for parallel runners after one build).
@@ -95,6 +96,11 @@ for r in $(seq "$k"); do
     podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
       sh -c '[ ! -d ~/project-template ] || [ -z "$(ls -A ~/project-template)" ] || { cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && { git diff --cached --quiet || git commit -qm "chore: project setup"; }; }' \
       || { echo "project setup for arm $arm failed" >&2; exit 1; }
+    if [ "${SCAFFOLD:-}" = 1 ]; then
+      cp -a "$bench/briefs/$brief/scaffold/." "$t/workspace/" && echo scaffold > "$t/condition"
+      podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
+        sh -c '[ ! -d .git ] || { git add -A && git commit -qm "chore: scaffold"; }' || { echo "scaffold for arm $arm failed" >&2; exit 1; }
+    fi
     start=$(date +%s) && echo "$start" > "$t/start"
     # The container lives for the whole trial, so follow-up turns continue the same session; removed on any exit.
     c=bk-$$-r$r-$arm
@@ -141,6 +147,23 @@ for r in $(seq "$k"); do
       n=$((n + 1))
       turn "$FOLLOWUP" --continue; rc=$?
     done
+    # Iterative briefs (bench/briefs/<brief>/changes/<k>.md): score the step just finished with the hidden tests of all
+    # steps so far (checkpoints/<k>/), then send the next change request in the same session, with the same follow-up
+    # rule. The last step is scored like any trial (score/, every hidden test).
+    upto() { (cd "$bench/briefs/$brief/hidden" && i=1 && f=acceptance.spec.mjs && while [ "$i" -le "$1" ]; do f="$f $(ls s$i-*.spec.mjs)"; i=$((i + 1)); done && echo "$f"); }
+    k=0
+    for ch in $(ls "$bench/briefs/$brief/changes/" 2>/dev/null | grep -E '^[0-9]+\.md$' | sort -n); do
+      HIDDEN_FILES=$(upto "$k") "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/checkpoints/$k" > "$t/log/score-$k.log" 2>&1
+      k=$((k + 1))
+      [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] || break
+      turn "$(cat "$bench/briefs/$brief/changes/$ch")" --continue; rc=$?
+      m=0
+      while [ "$m" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && { ! runs_app || waits; }; do
+        m=$((m + 1)); n=$((n + 1))
+        turn "$FOLLOWUP" --continue; rc=$?
+      done
+    done
+    [ ! -d "$bench/briefs/$brief/changes" ] || echo "$k" > "$t/steps"
     # OpenCode streams only the main session: export every session for tokens and cost. `session list` shows only
     # root sessions, so subagent sessions are found through the task calls that started them.
     [ "$rt" != opencode ] || podman exec "$c" sh -c 'opencode session list --format json | jq -r ".[].id" > /tmp/todo

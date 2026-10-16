@@ -68,4 +68,4 @@ Descriptive only, no causal claim. Usage is "fired in at least one saved trial" 
 
 - No relation shows across collections: ECC (0 of 48 fired) and Spec Kit (6 of 10) both rank low; Spec Kit skills fire because the workflow calls them by name, ECC works mainly through subagents, which the inventory does not count.
 - Within a collection, skills whose description fails the trigger check fired as often as the others (8 of 25 against 28 of 112 over the matched skills); Matt Pocock, the only collection with both groups before user-invoked skills were exempted, gave 4 of 12 against 2 of 15. Too few trials to separate.
-- Trigger evaluations in #36 can target the descriptions the reviews call broad or overlapping (Ponytail review, agent-skills "stress-test", Superpowers catch-all triggers, Spec Kit).
+- The targeted tasks (`bench/PROTOCOL.md`) record whether each skill fired and can check the descriptions the reviews call broad or overlapping (Ponytail review, agent-skills "stress-test", Superpowers catch-all triggers, Spec Kit).

@@ -2,7 +2,7 @@
 # Runs one brief through the arms, k rounds, arm order shuffled per round; scores and summarizes each trial.
 # Usage: bench/run-brief.sh <brief> <model> <effort> <k> <seed> [arms]   e.g. bench/run-brief.sh winery claude-opus-5-5 high 3 19
 # Credentials, never printed: Claude Code arms use the subscription token (CLAUDE_CODE_OAUTH_TOKEN or the file
-# ~/.config/benchkeeper/oauth-token, from `claude setup-token`); OpenCode arms (Q to U) use an Anthropic API key
+# ~/.config/benchkeeper/oauth-token, from `claude setup-token`); OpenCode arms (Q to U, Z, AA) use an Anthropic API key
 # (ANTHROPIC_API_KEY or ~/.config/benchkeeper/anthropic-api-key). Each container gets only its own runtime's credential.
 # Resumable: trials with a trial.json are skipped; delete a trial directory to rerun it. Runners for different arm groups
 # can share one run: an arm another live runner has claimed is skipped (`claim`).

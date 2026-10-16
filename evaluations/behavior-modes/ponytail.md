@@ -20,7 +20,7 @@ Contradictions: JetBrains reports cost -10.3% (SkillsBench, Sonnet 5, rules inje
 
 ## Benchmark
 
-Arms: B (Ponytail alone), O and P (with OpenSpec or Spec Kit), and every BenchKeeper layer arm (L, M, N, X, C, D, E, Y). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arms: B (Ponytail alone), O and P (with OpenSpec or Spec Kit), and every BenchKeeper layer arm (L, M, N, X, C, D, E, Y, and the layer v3 arms AD and AE, not run yet). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
 
 ## Skill authoring check
 

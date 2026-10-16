@@ -1,6 +1,6 @@
 # Benchmark scenarios
 
-Comparison matrix of the arms in `bench/PROTOCOL.md` (v1.1). Every arm gets the same brief, hidden tests, scorer, app review, timeout and follow-up rule. Images are built by `bench/image/Containerfile` and `bench/image/install-arm.sh`, and each trial runs in its own container with only its arm's components.
+Comparison matrix of the arms in `bench/PROTOCOL.md`. Every arm gets the same brief, hidden tests, scorer, app review, timeout and follow-up rule. Images are built by `bench/image/Containerfile` and `bench/image/install-arm.sh`, and each trial runs in its own container with only its arm's components.
 
 ## Claude Code arms (Claude Code 2.1.299, subscription)
 
@@ -67,10 +67,13 @@ Excluded: MerrillLi/openspec-superpowers (owner decision 2026-10-14). Its README
 
 ## Briefs
 
-- `winery-react`: server app with React (bookings, staff sign-in). Hidden tests F1 to F6.
-- `cartridges`: static app (25 C.I.P. cartridges, 2D drawings, print view, works from `file://`). Hidden tests C1 to C6. Settings in `bench/briefs/cartridges/brief.json`. Protocol: the cartridges section of `bench/PROTOCOL.md`.
+Each brief has its section in `bench/PROTOCOL.md`. All briefs run through the same arms and images.
 
-Both briefs run through the same arms, images, timeout and app review criteria.
+- `winery-react`: server app with React (bookings, staff sign-in). Hidden tests F1 to F6.
+- `winery-iterative`: `winery-react` plus four change requests as follow-up turns.
+- `cartridges`: static app (25 C.I.P. cartridges, 2D drawings, print view, works from `file://`). Hidden tests C1 to C6.
+- `openballistics`: brownfield, three steps in separate sessions on a clone of OpenBallistics.
+- `skill-*`: seven targeted tasks, one per phase, for the per-skill ratings.
 
 ## Failure classes
 

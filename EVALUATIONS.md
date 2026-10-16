@@ -17,7 +17,7 @@ Components considered for BenchKeeper, the evidence for each, and whether each i
 
 | Component | Decision | Summary |
 |---|---|---|
-| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms L, M, N, X, C, D, E, Y, one trial per arm and model: [winery-react](bench/results/2026-10-15-winery-react.md), [cartridges](bench/results/2026-10-16-cartridges.md) |
+| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms L, M, N, X, C, D, E, Y (layer v1, one trial per arm and model) and AD, AE (layer v3, not run yet): [winery-react](bench/results/2026-10-15-winery-react.md), [cartridges](bench/results/2026-10-16-cartridges.md) |
 
 ### Behavior modes
 

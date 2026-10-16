@@ -3,9 +3,9 @@
 ## 1. Preparation (this change)
 
 - [x] 1.1 Prompt sets `bench/triggers/<collection>.json` for the 122 model-invocable skills, with `bench/scripts/triggers.test.mjs`
-- [x] 1.2 Image `bench/image/triggers.Containerfile` and harness `bench/scripts/trigger-eval.sh` with the usage gate
+- [x] 1.2 Image `bench/image/triggers.Containerfile` and harness `bench/scripts/trigger-eval.sh` with the usage gate, fail-closed gate and sanity query, settings check on resume, token scan on every exit
 - [x] 1.3 Summary `bench/scripts/trigger-summary.mjs` with a test
-- [x] 1.4 Smoke test `bench/scripts/trigger-eval.smoke.sh` with a fake `claude`
+- [x] 1.4 Smoke test `bench/scripts/trigger-eval.smoke.sh` with a fake `claude` (all eight collection layouts, gate without headers, rejected token, resume with other settings)
 - [x] 1.5 Protocol entry in `bench/PROTOCOL.md`; sizing and order in the proposal
 
 ## 2. Runs (owner)

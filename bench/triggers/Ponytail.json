@@ -17,7 +17,7 @@
       "should_trigger": true
     },
     {
-      "query": "switch ponytail to ultra for the rest of this session and then fix the off-by-one in paginate() in lib/pagination.js, page 1 skips the first item",
+      "query": "switch to ultra level for the rest of this session and then fix the off-by-one in paginate() in lib/pagination.js, page 1 skips the first item",
       "should_trigger": true
     },
     {
@@ -88,7 +88,7 @@
       "should_trigger": true
     },
     {
-      "query": "use ponytail-review on my diff against main",
+      "query": "check my diff against main before I open the PR: is the logic right, is it safe, and is every line needed?",
       "should_trigger": true
     },
     {
@@ -115,13 +115,11 @@
     },
     {
       "query": "I got 14 review comments on PR #301 from our staff engineer and some seem wrong (he wants a mutex around a single-threaded loop). help me work through which ones to actually apply",
-      "should_trigger": false,
-      "near_miss_of": "Superpowers/receiving-code-review"
+      "should_trigger": false
     },
     {
       "query": "write the PR description for my branch feature/csv-export, it closes #77 and adds streaming export for large reports",
-      "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/pr"
+      "should_trigger": false
     },
     {
       "query": "list every shortcut: comment in the repo with the upgrade trigger it names",
@@ -160,7 +158,7 @@
       "should_trigger": true
     },
     {
-      "query": "run /ponytail-audit on the monorepo, packages/* included",
+      "query": "audit the whole monorepo, packages/* included, and rank the findings. no edits",
       "should_trigger": true
     },
     {
@@ -192,13 +190,11 @@
     },
     {
       "query": "npm audit shows 3 high severity advisories in package-lock.json, triage them and tell me which actually affect us",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/security-and-hardening"
+      "should_trigger": false
     },
     {
       "query": "audit my ~/.claude setup, I have way too many skills and some MCP servers I never use",
-      "should_trigger": false,
-      "near_miss_of": "ECC/config-gc"
+      "should_trigger": false
     },
     {
       "query": "delete the unused legacyExport function from src/export.ts and its test, I already checked nothing calls it",
@@ -211,8 +207,7 @@
     },
     {
       "query": "we launch next tuesday. what has to be in place before we ship: rollback plan, monitoring, feature flags?",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/shipping-and-launch"
+      "should_trigger": false
     }
   ],
   "ponytail-debt": [
@@ -229,7 +224,7 @@
       "should_trigger": true
     },
     {
-      "query": "use ponytail-debt for packages/api only",
+      "query": "packages/api only: which shortcuts did we leave in there on purpose, and what upgrade does each one name?",
       "should_trigger": true
     },
     {
@@ -300,7 +295,7 @@
       "should_trigger": true
     },
     {
-      "query": "show me the ponytail gain numbers, cost only",
+      "query": "just the cost figure: what does ponytail save per task according to its benchmark?",
       "should_trigger": true
     },
     {
@@ -331,8 +326,7 @@
     },
     {
       "query": "benchmark the old vs new JSON parser in src/parse/ with hyperfine and tell me which one is faster on the 200MB fixture",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/performance-optimization"
+      "should_trigger": false
     },
     {
       "query": "make src/report/aggregate.ts smaller and faster, it builds three intermediate arrays just to sum two columns",
@@ -367,7 +361,7 @@
       "should_trigger": true
     },
     {
-      "query": "ponytail help: what levels and commands are there again?",
+      "query": "forgot what levels and commands ponytail has, list them again",
       "should_trigger": true
     },
     {
@@ -391,7 +385,7 @@
       "should_trigger": true
     },
     {
-      "query": "switch ponytail to ultra for the rest of this session and then fix the off-by-one in paginate() in lib/pagination.js, page 1 skips the first item",
+      "query": "switch to ultra level for the rest of this session and then fix the off-by-one in paginate() in lib/pagination.js, page 1 skips the first item",
       "should_trigger": false,
       "near_miss_of": "Ponytail/ponytail"
     },
@@ -406,7 +400,7 @@
       "near_miss_of": "Ponytail/ponytail-debt"
     },
     {
-      "query": "run /ponytail-audit on the monorepo, packages/* included",
+      "query": "audit the whole monorepo, packages/* included, and rank the findings. no edits",
       "should_trigger": false,
       "near_miss_of": "Ponytail/ponytail-audit"
     },

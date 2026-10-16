@@ -29,7 +29,7 @@
       "should_trigger": true
     },
     {
-      "query": "use the api-and-interface-design skill for this: webhook payloads for our Stripe-like event system, including versioning, idempotency keys and retry semantics",
+      "query": "design the webhook payloads for our Stripe-like event system before we build it: versioning, idempotency keys and retry semantics, so consumers can rely on the contract",
       "should_trigger": true
     },
     {
@@ -780,7 +780,7 @@
       "near_miss_of": "agent-skills/source-driven-development"
     },
     {
-      "query": "is 'doubt-driven development' an established methodology or a recent coinage? curious where the term comes from",
+      "query": "is adversarial review by an independent second reviewer an established practice in safety-critical software? curious where the idea comes from",
       "should_trigger": false
     },
     {
@@ -942,7 +942,7 @@
       "should_trigger": true
     },
     {
-      "query": "stress-test my plan: we want to monetize our open source library by selling a hosted version. what's weak about it?",
+      "query": "we want to make money from our open source library but it is only a vague notion so far, maybe a hosted version? what other options are there, and which one looks most promising?",
       "should_trigger": true
     },
     {
@@ -962,7 +962,7 @@
       "should_trigger": true
     },
     {
-      "query": "before I commit to rewriting our mobile app in Flutter, poke at the assumptions behind the idea and lay out some alternatives",
+      "query": "thinking about rewriting our mobile app in Flutter, but I have not looked at anything else yet. lay out some alternatives and help me pick a direction before I commit",
       "should_trigger": true
     },
     {
@@ -971,7 +971,7 @@
       "near_miss_of": "agent-skills/interview-me"
     },
     {
-      "query": "interview me about what I want from the new onboarding flow, one question at a time",
+      "query": "ask me questions one at a time about what I want from the new onboarding flow, until you understand it",
       "should_trigger": false,
       "near_miss_of": "agent-skills/interview-me"
     },
@@ -1082,7 +1082,7 @@
       "should_trigger": true
     },
     {
-      "query": "interview me about what I want from the new onboarding flow, one question at a time",
+      "query": "ask me questions one at a time about what I want from the new onboarding flow, until you understand it",
       "should_trigger": true
     },
     {
@@ -1098,7 +1098,7 @@
       "should_trigger": true
     },
     {
-      "query": "stress-test my thinking on why I want AI features in our todo app. ask me questions until you understand what I really want",
+      "query": "the CEO wants AI features in our todo app and so do I, kind of, but I could not tell you what they would be for. ask me questions until you understand what I really want",
       "should_trigger": true
     },
     {
@@ -1752,7 +1752,7 @@
       "should_trigger": true
     },
     {
-      "query": "use using-agent-skills to decide how to approach migrating our cron jobs to Temporal",
+      "query": "about to migrate our cron jobs to Temporal. before touching anything, tell me which of your workflows fit this and whether to start with a spec or a plan",
       "should_trigger": true
     },
     {
@@ -1782,8 +1782,7 @@
     },
     {
       "query": "write a new SKILL.md for our team's release process so agents follow it",
-      "should_trigger": false,
-      "near_miss_of": "Superpowers/writing-skills"
+      "should_trigger": false
     },
     {
       "query": "how do I install a skill from a github repo into claude code?",

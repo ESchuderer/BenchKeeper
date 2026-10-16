@@ -2,7 +2,7 @@
   "openspec-propose": [
     {"query": "I want to add CSV export to the invoices page, get a proposal with design, specs and tasks ready so I can review it tomorrow", "should_trigger": true},
     {"query": "new change: rate limiting on the public API, 100 req/min per key, 429 with Retry-After. set up everything under openspec/changes", "should_trigger": true},
-    {"query": "opsx propose: two-factor login via TOTP for admin accounts", "should_trigger": true},
+    {"query": "new change for two-factor login via TOTP on admin accounts. generate the proposal, design, specs and tasks in one pass", "should_trigger": true},
     {"query": "we need soft-delete for projects (restore within 30 days). write up the change proposal and tasks before anyone codes it", "should_trigger": true},
     {"query": "draft the spec for webhook retries: exponential backoff, max 5 attempts, dead letter queue after that", "should_trigger": true},
     {"query": "pm wants dark mode in the settings screen. turn that into a change with proposal.md, design.md and tasks.md", "should_trigger": true},
@@ -12,14 +12,14 @@
     {"query": "the add-2fa-login change needs to also cover recovery codes now, product decided that this morning. fold it into the proposal, specs and tasks", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-update-change"},
     {"query": "start implementing openspec/changes/rate-limit-api, begin with task 1.1", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-apply-change"},
     {"query": "csv-export is all done and deployed, every task is checked. wrap it up and move it to the archive", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-archive-change"},
-    {"query": "create the feature spec in specs/004-csv-export/spec.md from this description: users can export invoices as CSV from the invoices page, filtered by date range", "should_trigger": false, "near_miss_of": "Spec-Kit/speckit-specify"},
-    {"query": "write .specify/memory/constitution.md for this project: test-first, no new dependencies without review, WCAG AA", "should_trigger": false, "near_miss_of": "Spec-Kit/speckit-constitution"},
+    {"query": "create the feature spec in specs/004-csv-export/spec.md from this description: users can export invoices as CSV from the invoices page, filtered by date range", "should_trigger": false},
+    {"query": "write .specify/memory/constitution.md for this project: test-first, no new dependencies without review, WCAG AA", "should_trigger": false},
     {"query": "run openspec update, we bumped the CLI and the generated skill files are stale", "should_trigger": false},
-    {"query": "write an ADR in docs/adr/ on why we picked postgres over dynamodb for the events store", "should_trigger": false, "near_miss_of": "agent-skills/documentation-and-adrs"}
+    {"query": "write an ADR in docs/adr/ on why we picked postgres over dynamodb for the events store", "should_trigger": false}
   ],
   "openspec-explore": [
     {"query": "not sure yet whether we should do the SSO thing as SAML or OIDC, can we think it through first before creating any change?", "should_trigger": true},
-    {"query": "opsx explore: users say search is slow and I don't know if it's the index or the query builder. investigate with me before we commit to a change", "should_trigger": true},
+    {"query": "users say search is slow and I don't know if it's the index or the query builder. investigate with me before we commit to an openspec change", "should_trigger": true},
     {"query": "I'm halfway through the add-2fa-login change and realised I don't get how recovery should work when someone loses their phone. lets talk through the options", "should_trigger": true},
     {"query": "thinking about multi-tenancy for the billing service. what requirements would we even need to nail down? no artifacts yet", "should_trigger": true},
     {"query": "help me clarify what 'offline mode' should mean for the mobile app before we write any proposal. what questions do we need to answer?", "should_trigger": true},
@@ -29,16 +29,16 @@
     {"query": "I want to add CSV export to the invoices page, get a proposal with design, specs and tasks ready so I can review it tomorrow", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-propose"},
     {"query": "the add-2fa-login change needs to also cover recovery codes now, product decided that this morning. fold it into the proposal, specs and tasks", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-update-change"},
     {"query": "csv-export is all done and deployed, every task is checked. wrap it up and move it to the archive", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-archive-change"},
-    {"query": "the feature spec in specs/003-search/spec.md is vague about error states and pagination. ask me the questions and write the answers back into the spec", "should_trigger": false, "near_miss_of": "Spec-Kit/speckit-clarify"},
-    {"query": "check spec.md, plan.md and tasks.md in specs/003-search for contradictions and gaps, report only", "should_trigger": false, "near_miss_of": "Spec-Kit/speckit-analyze"},
-    {"query": "the checkout page throws \"TypeError: Cannot read properties of undefined (reading 'total')\" since the last deploy, find out why and fix it", "should_trigger": false, "near_miss_of": "agent-skills/debugging-and-error-recovery"},
+    {"query": "the feature spec in specs/003-search/spec.md is vague about error states and pagination. ask me the questions and write the answers back into the spec", "should_trigger": false},
+    {"query": "we are done thinking about the slow search, the fix-search-index change is written up. start on its tasks", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-apply-change"},
+    {"query": "the checkout page throws \"TypeError: Cannot read properties of undefined (reading 'total')\" since the last deploy, find out why and fix it", "should_trigger": false},
     {"query": "list the open changes in openspec/changes and how many tasks each has left", "should_trigger": false},
     {"query": "explore the codebase and tell me where the auth middleware is registered", "should_trigger": false}
   ],
   "openspec-apply-change": [
     {"query": "start implementing openspec/changes/rate-limit-api, begin with task 1.1", "should_trigger": true},
     {"query": "continue with the add-2fa-login tasks, we stopped after 2.3 yesterday", "should_trigger": true},
-    {"query": "opsx apply csv-export", "should_trigger": true},
+    {"query": "implement the csv-export change", "should_trigger": true},
     {"query": "the soft-delete-projects proposal is approved. build it, work through tasks.md and tick them off as you go", "should_trigger": true},
     {"query": "pick up the next unchecked task in the webhook-retries change and do it", "should_trigger": true},
     {"query": "design and specs for dark-mode-settings look good to me, go ahead and write the code", "should_trigger": true},
@@ -46,7 +46,7 @@
     {"query": "work through openspec/changes/sso-okta/tasks.md, section 3 (provisioning) only", "should_trigger": true},
     {"query": "csv-export is all done and deployed, every task is checked. wrap it up and move it to the archive", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-archive-change"},
     {"query": "the add-2fa-login change needs to also cover recovery codes now, product decided that this morning. fold it into the proposal, specs and tasks", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-update-change"},
-    {"query": "implement the tasks in specs/004-csv-export/tasks.md, it's the spec-kit feature from last sprint", "should_trigger": false, "near_miss_of": "Spec-Kit/speckit-implement"},
+    {"query": "implement the tasks in specs/004-csv-export/tasks.md, we planned that feature with the .specify/ templates last sprint, not with openspec", "should_trigger": false},
     {"query": "new change: rate limiting on the public API, 100 req/min per key, 429 with Retry-After. set up everything under openspec/changes", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-propose"},
     {"query": "I'm halfway through the add-2fa-login change and realised I don't get how recovery should work when someone loses their phone. lets talk through the options", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-explore"},
     {"query": "merge the delta specs from rate-limit-api into openspec/specs now but keep the change open, tasks 4.x are still left", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-sync-specs"},
@@ -55,7 +55,7 @@
   ],
   "openspec-archive-change": [
     {"query": "csv-export is all done and deployed, every task is checked. wrap it up and move it to the archive", "should_trigger": true},
-    {"query": "opsx archive add-2fa-login", "should_trigger": true},
+    {"query": "add-2fa-login is merged and every task is ticked, archive the change", "should_trigger": true},
     {"query": "PR #88 for rate-limit-api is approved and the implementation is complete. finalize the openspec change before I merge", "should_trigger": true},
     {"query": "we shipped dark-mode-settings last week but its folder is still sitting in openspec/changes. finish it off properly", "should_trigger": true},
     {"query": "all tasks in webhook-retries are ticked. close out the change so the main specs reflect it", "should_trigger": true},
@@ -65,15 +65,15 @@
     {"query": "merge the delta specs from rate-limit-api into openspec/specs now but keep the change open, tasks 4.x are still left", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-sync-specs"},
     {"query": "continue with the add-2fa-login tasks, we stopped after 2.3 yesterday", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-apply-change"},
     {"query": "the add-2fa-login change needs to also cover recovery codes now, product decided that this morning. fold it into the proposal, specs and tasks", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-update-change"},
-    {"query": "branch feature/csv-export is done and all tests pass. how should I integrate it, merge locally or open a PR?", "should_trigger": false, "near_miss_of": "Superpowers/finishing-a-development-branch"},
-    {"query": "feature 003-search is supposedly done, all tasks in specs/003-search/tasks.md are checked. compare against the code and add whatever is still unbuilt as new tasks", "should_trigger": false, "near_miss_of": "Spec-Kit/speckit-converge"},
+    {"query": "branch feature/csv-export is done and all tests pass. how should I integrate it, merge locally or open a PR?", "should_trigger": false},
+    {"query": "webhook-retries is almost done, 6.2 and 6.3 are still unchecked. finish those so we can wrap the change up", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-apply-change"},
     {"query": "write a cron script that archives logs in /var/log/app older than 30 days into a tar.gz", "should_trigger": false},
     {"query": "drop the experimental-graphql change, we're not doing it. just delete the folder and don't touch the main specs", "should_trigger": false},
     {"query": "close github issue #88 and the v2.4 milestone, the release went out", "should_trigger": false}
   ],
   "openspec-sync-specs": [
     {"query": "merge the delta specs from rate-limit-api into openspec/specs now but keep the change open, tasks 4.x are still left", "should_trigger": true},
-    {"query": "opsx sync add-2fa-login", "should_trigger": true},
+    {"query": "sync the add-2fa-login delta specs into the main specs, the change stays open", "should_trigger": true},
     {"query": "the platform team needs our new auth requirements in the main spec today but the change isn't finished. push the deltas from add-2fa-login into openspec/specs/auth/spec.md without archiving", "should_trigger": true},
     {"query": "apply the ADDED and MODIFIED requirements from changes/webhook-retries/specs to the main specs, we're not archiving yet", "should_trigger": true},
     {"query": "main specs are behind the delta in jwt-sessions, update them from the change", "should_trigger": true},
@@ -84,7 +84,7 @@
     {"query": "PR #88 for rate-limit-api is approved and the implementation is complete. finalize the openspec change before I merge", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-archive-change"},
     {"query": "the add-2fa-login change needs to also cover recovery codes now, product decided that this morning. fold it into the proposal, specs and tasks", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-update-change"},
     {"query": "I edited proposal.md in webhook-retries to drop the dead letter queue, make design.md and tasks.md consistent with it", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-update-change"},
-    {"query": "update specs/004-csv-export/spec.md with the error-state answers we just agreed on", "should_trigger": false, "near_miss_of": "Spec-Kit/speckit-specify"},
+    {"query": "update specs/004-csv-export/spec.md with the error-state answers we just agreed on", "should_trigger": false},
     {"query": "sync my fork with upstream main, there are about 40 new commits", "should_trigger": false},
     {"query": "openspec/specs/auth/spec.md has a typo in a scenario name ('Sucessful login'), fix it", "should_trigger": false},
     {"query": "run openspec validate --all --strict and fix whatever fails", "should_trigger": false}
@@ -92,7 +92,7 @@
   "openspec-update-change": [
     {"query": "the add-2fa-login change needs to also cover recovery codes now, product decided that this morning. fold it into the proposal, specs and tasks", "should_trigger": true},
     {"query": "I edited proposal.md in webhook-retries to drop the dead letter queue, make design.md and tasks.md consistent with it", "should_trigger": true},
-    {"query": "opsx update rate-limit-api: we're switching from per-key to per-account limits", "should_trigger": true},
+    {"query": "rate-limit-api: we're switching from per-key to per-account limits, revise the proposal, design and tasks for that", "should_trigger": true},
     {"query": "after review we decided soft-delete keeps items 14 days, not 30. revise the change's plan accordingly", "should_trigger": true},
     {"query": "tasks in jwt-sessions don't match the design anymore since we moved token refresh to the gateway. reconcile the artifacts", "should_trigger": true},
     {"query": "scope cut on sso-okta: SCIM provisioning is out. update all the planning docs for that change", "should_trigger": true},
@@ -104,7 +104,7 @@
     {"query": "continue with the add-2fa-login tasks, we stopped after 2.3 yesterday", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-apply-change"},
     {"query": "the code for add-2fa-login drifted from the plan, update src/auth/totp.ts so it does what design.md says", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-apply-change"},
     {"query": "not sure yet whether we should do the SSO thing as SAML or OIDC, can we think it through first before creating any change?", "should_trigger": false, "near_miss_of": "OpenSpec/openspec-explore"},
-    {"query": "plan.md for specs/003-search changed, regenerate tasks.md from it", "should_trigger": false, "near_miss_of": "Spec-Kit/speckit-tasks"},
+    {"query": "plan.md for specs/003-search changed, regenerate tasks.md from it", "should_trigger": false},
     {"query": "update the rate limits section in README.md to say 100 req/min per key", "should_trigger": false}
   ]
 }

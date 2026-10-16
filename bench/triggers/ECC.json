@@ -25,7 +25,7 @@
       "should_trigger": true
     },
     {
-      "query": "Can you run agent-introspection-debugging on the failed run from this morning? The transcript is at ~/.claude/projects/acme-api/4f1c.jsonl",
+      "query": "Can you dig into the failed agent run from this morning and give me a structured diagnosis before anyone retries it? The transcript is at ~/.claude/projects/acme-api/4f1c.jsonl",
       "should_trigger": true
     },
     {
@@ -33,14 +33,12 @@
       "should_trigger": true
     },
     {
-      "query": "the superpowers flow went sideways yesterday: brainstorming, then writing-plans, then it ignored the plan and redid the same work twice. why did that session go wrong?",
-      "should_trigger": false,
-      "near_miss_of": "Superpowers/diagnosing-superpowers"
+      "query": "claude code says 'MCP server playwright failed to start' every time I launch it, but .mcp.json looks right. what's wrong with the config?",
+      "should_trigger": false
     },
     {
       "query": "my express app throws 'TypeError: Cannot read properties of undefined (reading id)' in src/routes/orders.ts since the last deploy, help me find the root cause",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+      "should_trigger": false
     },
     {
       "query": "We want to measure how often our coding agent passes the 'add endpoint' task across 10 runs. Define pass/fail graders and track pass@k.",
@@ -102,13 +100,12 @@
       "should_trigger": true
     },
     {
-      "query": "run agent-self-evaluation on the PR description you just drafted for #317",
+      "query": "score the PR description you just drafted for #317 on accuracy, completeness, clarity, actionability and conciseness, with evidence for each",
       "should_trigger": true
     },
     {
       "query": "review the diff in PR #204 that Priya wrote for the payment webhook: correctness, readability, security",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/code-review-and-quality"
+      "should_trigger": false
     },
     {
       "query": "before we publish the release notes for v4.2, have two independent reviewers check them against the same rubric and only ship if both pass",
@@ -118,7 +115,7 @@
     {
       "query": "you said the tests pass. did you actually run them? run the suite and show me the output before you call this done",
       "should_trigger": false,
-      "near_miss_of": "Superpowers/verification-before-completion"
+      "near_miss_of": "ECC/verification-loop"
     },
     {
       "query": "run build, typecheck, lint and tests with coverage on this branch and give me a PASS/FAIL report before I open the PR",
@@ -126,7 +123,7 @@
       "near_miss_of": "ECC/verification-loop"
     },
     {
-      "query": "capture what we learned from today's flaky-test hunt as a growth log entry: root cause, rule, signal",
+      "query": "capture what we learned from today's flaky-test hunt as a reusable pattern: root cause, rule, signal",
       "should_trigger": false,
       "near_miss_of": "ECC/growth-log"
     },
@@ -174,7 +171,7 @@
       "should_trigger": true
     },
     {
-      "query": "run agent-sort on this repo",
+      "query": "which parts of ECC does this repo need loaded every day and which can sit in a library? back it with evidence from the code",
       "should_trigger": true
     },
     {
@@ -245,7 +242,7 @@
       "should_trigger": true
     },
     {
-      "query": "use ai-regression-testing for the webhook handler changes Claude made in PR #91",
+      "query": "add regression coverage for the webhook handler changes Claude made in PR #91. Claude also reviewed them, so I don't trust that review",
       "should_trigger": true
     },
     {
@@ -269,9 +266,9 @@
       "near_miss_of": "ECC/verification-loop"
     },
     {
-      "query": "review this PR that Claude wrote before I merge it: correctness, security, readability",
+      "query": "check whether Claude's changes in PR #91 degraded the code health of the files it touched",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/code-review-and-quality"
+      "near_miss_of": "ECC/codehealth-mcp"
     },
     {
       "query": "our churn model's AUC dropped from 0.91 to 0.84 after retraining on september data. which features shifted?",
@@ -325,24 +322,23 @@
       "near_miss_of": "ECC/council"
     },
     {
-      "query": "update the README and the public API reference for the new /v2/search endpoint",
+      "query": "our docs/ folder has drifted from the code and agents keep recreating a STATUS.md we deleted on purpose. sort out which doc is the source of truth for status and history",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/documentation-and-adrs"
+      "near_miss_of": "ECC/living-docs-governance"
     },
     {
       "query": "design the interface between the billing module and the ledger module: types, boundaries, what each side owns",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/api-and-interface-design"
+      "should_trigger": false
     },
     {
-      "query": "write a GLOSSARY.md for our domain terms: Order, Fulfillment, Shipment, Return",
+      "query": "explain how the auth subsystem works as a step-by-step walkthrough file new hires can click through in VS Code",
       "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/domain-modeling"
+      "near_miss_of": "ECC/code-tour"
     },
     {
-      "query": "write a spec for the bulk export feature before we start coding",
+      "query": "before we build bulk export, turn the request into scoped acceptance criteria we can verify",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/spec-driven-development"
+      "near_miss_of": "ECC/intent-driven-development"
     },
     {
       "query": "adr-tools isnt on my PATH after brew install, i get 'adr: command not found' in fish",
@@ -387,7 +383,7 @@
       "should_trigger": true
     },
     {
-      "query": "browser-qa the release candidate at rc.shopfront.dev",
+      "query": "QA the release candidate at rc.shopfront.dev in a real browser before we ship it",
       "should_trigger": true
     },
     {
@@ -402,8 +398,7 @@
     },
     {
       "query": "the dropdown on localhost:3000/settings doesnt open, inspect the DOM and console to see why",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+      "should_trigger": false
     },
     {
       "query": "write E2E tests for our WPF inventory app using pywinauto",
@@ -412,18 +407,16 @@
     },
     {
       "query": "LCP on our homepage is 4.2s, optimize the hero image and font loading",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/performance-optimization"
+      "should_trigger": false
     },
     {
-      "query": "what do we need in place before the new app goes to production next week: monitoring, staged rollout, rollback plan?",
+      "query": "what breaks in prod if we launch the new app next week? audit the repo for readiness, nothing leaves this machine",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/shipping-and-launch"
+      "near_miss_of": "ECC/production-audit"
     },
     {
       "query": "add aria-labels to the icon-only buttons in src/components/Toolbar.tsx and make the focus ring visible",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/frontend-ui-engineering"
+      "should_trigger": false
     },
     {
       "query": "puppeteer crashes in our Dockerfile with 'No usable sandbox!'. how do I run headless chromium in the container properly",
@@ -531,7 +524,7 @@
       "should_trigger": true
     },
     {
-      "query": "run a click-path-audit on the admin dashboard after the store refactor",
+      "query": "after the store refactor, trace every button on the admin dashboard through its state changes and find the ones that cancel each other out",
       "should_trigger": true
     },
     {
@@ -546,18 +539,16 @@
     },
     {
       "query": "the Submit button throws 'TypeError: onSubmit is not a function' in the console, fix it",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+      "should_trigger": false
     },
     {
       "query": "inspect the network requests when I click Save on localhost:5173, the PUT returns 500",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+      "should_trigger": false
     },
     {
-      "query": "the list got janky after the refactor, every click rerenders all 2000 rows. profile and fix",
+      "query": "the Undo bug is confirmed: clicking Undo after Save restores the old total. write a failing test that reproduces it first, then fix it",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/performance-optimization"
+      "near_miss_of": "ECC/tdd-workflow"
     },
     {
       "query": "when a toolbar action fails, show a friendly toast instead of crashing the page, and retry once for network errors",
@@ -603,7 +594,7 @@
       "should_trigger": true
     },
     {
-      "query": "codebase-onboarding for this repo please",
+      "query": "I just got access to this repo and know nothing about it, get me oriented",
       "should_trigger": true
     },
     {
@@ -622,9 +613,9 @@
       "near_miss_of": "ECC/ecc-guide"
     },
     {
-      "query": "my agent's output gets worse in long sessions. how should I set up rules files and context for this project?",
+      "query": "my session quality drops after a couple hours on this repo. tell me at which task phases I should compact manually",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/context-engineering"
+      "near_miss_of": "ECC/strategic-compact"
     },
     {
       "query": "our docs drift from the code. assign the existing docs clear roles and keep them current",
@@ -633,8 +624,7 @@
     },
     {
       "query": "update CLAUDE.md to say we use pnpm, not npm, and that tests run with vitest",
-      "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/writing-for-agents"
+      "should_trigger": false
     },
     {
       "query": "build the user onboarding flow for our SaaS: welcome screen, profile setup, invite teammates",
@@ -675,13 +665,13 @@
       "should_trigger": true
     },
     {
-      "query": "use codehealth-mcp to score the files in this PR",
+      "query": "score the files in this PR with CodeScene before I merge",
       "should_trigger": true
     },
     {
-      "query": "review PR #77 for correctness, readability, architecture and security before merge",
+      "query": "have two independent reviewers check PR #77 against the same rubric and only ship when both pass",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/code-review-and-quality"
+      "near_miss_of": "ECC/santa-method"
     },
     {
       "query": "set up auto-formatting and linting on every file edit via hooks, with auto-fix",
@@ -689,14 +679,14 @@
       "near_miss_of": "ECC/plankton-code-quality"
     },
     {
-      "query": "audit the whole repo: bugs, security holes, risky untested code, what to delete",
+      "query": "audit the repo for what breaks in prod before launch: config, error paths, missing timeouts",
       "should_trigger": false,
-      "near_miss_of": "Ponytail/ponytail-audit"
+      "near_miss_of": "ECC/production-audit"
     },
     {
-      "query": "simplify this 300-line function in src/report/build.ts without changing behavior",
+      "query": "before you refactor legacy/report.php, scan the codebase for our unwritten conventions and write them down as rules agents must follow",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/code-simplification"
+      "near_miss_of": "ECC/inherit-legacy-style"
     },
     {
       "query": "run build, typecheck, lint and tests and give me a PASS/FAIL report before I open the PR",
@@ -746,7 +736,7 @@
       "should_trigger": true
     },
     {
-      "query": "code tour for onboarding to the payments module please",
+      "query": "make a walkthrough of the payments module for onboarding, with real file and line anchors",
       "should_trigger": true
     },
     {
@@ -761,23 +751,21 @@
     },
     {
       "query": "write the PR description for #340, it splits the scheduler into producer and worker",
-      "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/pr"
+      "should_trigger": false
     },
     {
-      "query": "review PR #340 before I merge it",
+      "query": "check whether the changes in PR #340 degraded the CodeScene health score of src/scheduler/",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/code-review-and-quality"
+      "near_miss_of": "ECC/codehealth-mcp"
     },
     {
       "query": "document the public functions of the sdk in docs/api.md",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/documentation-and-adrs"
+      "should_trigger": false
     },
     {
-      "query": "research how other projects implement plugin loading, cite primary sources, and save the findings in docs/research/",
+      "query": "show me the plan for splitting the scheduler in a browser page where I can point at steps and annotate them",
       "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/research"
+      "near_miss_of": "ECC/plan-canvas"
     },
     {
       "query": "add a product tour for first-time users in our react app with react-joyride",
@@ -818,7 +806,7 @@
       "should_trigger": true
     },
     {
-      "query": "config GC please",
+      "query": "time for the periodic cleanup of ~/.claude, walk me through what can go",
       "should_trigger": true
     },
     {
@@ -889,7 +877,7 @@
       "should_trigger": true
     },
     {
-      "query": "run configure-ecc with strict hooks",
+      "query": "reconfigure my ECC install with the strict hook profile",
       "should_trigger": true
     },
     {
@@ -923,7 +911,7 @@
       "near_miss_of": "ECC/plankton-code-quality"
     },
     {
-      "query": "configure ECC key generation (P-256) for signing JWTs in our node api, the config is in src/config/jwt.ts",
+      "query": "set up ECC (P-256) key generation for signing JWTs in our node api, the config is in src/config/jwt.ts",
       "should_trigger": false
     },
     {
@@ -961,7 +949,7 @@
       "should_trigger": true
     },
     {
-      "query": "run context-budget on my setup",
+      "query": "how much of my context window do my agents, skills, MCP servers and rules take? rank them",
       "should_trigger": true
     },
     {
@@ -981,8 +969,7 @@
     },
     {
       "query": "agent output degrades when I switch tasks mid-session. how should I set up context and rules files?",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/context-engineering"
+      "should_trigger": false
     },
     {
       "query": "my subagent lacks context about the monorepo when I dispatch it. refine what it retrieves",
@@ -1009,17 +996,17 @@
       "near_miss_of": "ECC/continuous-learning-v2"
     },
     {
-      "query": "use the v1 continuous-learning stop hook to pull learnings out at session end",
+      "query": "use the old v1 stop-hook extractor to pull learnings out at session end",
       "should_trigger": false,
       "near_miss_of": "ECC/continuous-learning-v2"
     },
     {
-      "query": "set up continuous learning so claude learns from my sessions",
+      "query": "set it up so claude learns from my sessions automatically",
       "should_trigger": false,
       "near_miss_of": "ECC/continuous-learning-v2"
     },
     {
-      "query": "I want the old continuous-learning skill extractor, not v2, the one that runs on the stop hook",
+      "query": "I want the old stop-hook pattern extractor, not the instinct-based v2",
       "should_trigger": false,
       "near_miss_of": "ECC/continuous-learning-v2"
     },
@@ -1049,7 +1036,7 @@
       "near_miss_of": "ECC/continuous-learning-v2"
     },
     {
-      "query": "write a growth log entry about the rollback we did today: root cause, rule, signal",
+      "query": "write up the rollback we did today as a reusable lesson: root cause, rule, signal",
       "should_trigger": false,
       "near_miss_of": "ECC/growth-log"
     },
@@ -1103,7 +1090,7 @@
       "should_trigger": true
     },
     {
-      "query": "set up continuous learning for this repo",
+      "query": "make claude learn from my sessions in this repo, scoped to this project",
       "should_trigger": true
     },
     {
@@ -1115,7 +1102,7 @@
       "should_trigger": true
     },
     {
-      "query": "write a growth log entry for the outage postmortem: root cause, transferable rule, signal",
+      "query": "turn the outage postmortem into a reusable lesson entry: root cause, transferable rule, signal",
       "should_trigger": false,
       "near_miss_of": "ECC/growth-log"
     },
@@ -1146,8 +1133,7 @@
     },
     {
       "query": "set up continuous integration for this repo with GitHub Actions: lint, test, build",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/ci-cd-and-automation"
+      "should_trigger": false
     },
     {
       "query": "add a cosine learning-rate scheduler with warmup to train.py",
@@ -1184,7 +1170,7 @@
       "should_trigger": true
     },
     {
-      "query": "council-multi-model on the draft above",
+      "query": "get an outside model to try to break the decision draft above, ok to send it to OpenAI",
       "should_trigger": true
     },
     {
@@ -1204,13 +1190,12 @@
     },
     {
       "query": "grill me on my plan to split the monolith into microservices",
-      "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/grilling"
+      "should_trigger": false
     },
     {
-      "query": "cross-examine every assumption in this migration plan with a fresh-context review before it stands",
+      "query": "before the migration runbook goes to the compliance team, have two independent reviewers grade it against one rubric, both must pass",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/doubt-driven-development"
+      "near_miss_of": "ECC/santa-method"
     },
     {
       "query": "compare claude and gpt answers on our 200-ticket eval set and track pass rates across model versions",
@@ -1256,7 +1241,7 @@
       "should_trigger": true
     },
     {
-      "query": "run the council skill on this: should we adopt bun in production",
+      "query": "should we adopt bun in production? I want several voices to disagree before we decide",
       "should_trigger": true
     },
     {
@@ -1270,9 +1255,9 @@
       "near_miss_of": "ECC/dev-team"
     },
     {
-      "query": "grill me on my migration plan, one question at a time",
+      "query": "ask me questions about the migration until the acceptance criteria are concrete enough to hand to another agent",
       "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/grilling"
+      "near_miss_of": "ECC/intent-driven-development"
     },
     {
       "query": "we decided on the monolith. record it as an ADR in docs/adr",
@@ -1324,7 +1309,7 @@
       "should_trigger": true
     },
     {
-      "query": "configure the delivery-gate stop hook for this repo",
+      "query": "add a stop hook to this repo that blocks you from saying done until the quality checks actually pass",
       "should_trigger": true
     },
     {
@@ -1339,7 +1324,7 @@
     {
       "query": "before you claim this is fixed, run the tests and show me the output",
       "should_trigger": false,
-      "near_miss_of": "Superpowers/verification-before-completion"
+      "near_miss_of": "ECC/verification-loop"
     },
     {
       "query": "create a hookify rule that blocks 'rm -rf' in bash commands",
@@ -1347,7 +1332,7 @@
       "near_miss_of": "ECC/hookify-rules"
     },
     {
-      "query": "write a growth log entry about what we learned from the cache invalidation bug",
+      "query": "write up what we learned from the cache invalidation bug as a pattern, not a diary entry",
       "should_trigger": false,
       "near_miss_of": "ECC/growth-log"
     },
@@ -1358,8 +1343,7 @@
     },
     {
       "query": "add a required status check on main so PRs cant merge unless CI is green",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/ci-cd-and-automation"
+      "should_trigger": false
     },
     {
       "query": "our delivery service returns 502 when the courier API times out. add a timeout, retries and a circuit breaker",
@@ -1377,7 +1361,7 @@
       "should_trigger": true
     },
     {
-      "query": "review docs/proposals/realtime-collab.md the way a dev team would: product manager, architect, dev and QA each weigh in",
+      "query": "review docs/proposals/realtime-collab.md the way a whole team would: product manager, architect, dev and QA each weigh in",
       "should_trigger": true
     },
     {
@@ -1401,7 +1385,7 @@
       "should_trigger": true
     },
     {
-      "query": "dev-team mode for the billing portal feature",
+      "query": "PM, architect, developer and QA: all weigh in together on the billing portal feature",
       "should_trigger": true
     },
     {
@@ -1411,18 +1395,16 @@
     },
     {
       "query": "break the realtime-collab spec into ordered, verifiable tasks",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+      "should_trigger": false
     },
     {
       "query": "dispatch subagents in parallel to fix these 3 independent failing test files",
-      "should_trigger": false,
-      "near_miss_of": "Superpowers/dispatching-parallel-agents"
+      "should_trigger": false
     },
     {
-      "query": "write a spec for team invites before we write any code",
+      "query": "we picked websockets over SSE for realtime collab, write that decision up in docs/adr with the alternatives",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/spec-driven-development"
+      "near_miss_of": "ECC/architecture-decision-records"
     },
     {
       "query": "pressure-test the product direction: will anyone actually pay for team invites?",
@@ -1473,7 +1455,7 @@
       "should_trigger": true
     },
     {
-      "query": "set up e2e-testing for the admin app in our nx monorepo",
+      "query": "set up Playwright end-to-end tests for the admin app in our nx monorepo",
       "should_trigger": true
     },
     {
@@ -1493,13 +1475,11 @@
     },
     {
       "query": "set up github actions to run lint and unit tests on every PR",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/ci-cd-and-automation"
+      "should_trigger": false
     },
     {
       "query": "the modal doesnt render on localhost:3000, check the console and DOM to see why",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+      "should_trigger": false
     },
     {
       "query": "undo and save each work but together they leave the list in the wrong state, trace the click paths",
@@ -1545,7 +1525,7 @@
       "should_trigger": true
     },
     {
-      "query": "ecc-guide: what rules are in the typescript rule set?",
+      "query": "what rules are in ECC's typescript rule set?",
       "should_trigger": true
     },
     {
@@ -1617,16 +1597,16 @@
       "should_trigger": true
     },
     {
-      "query": "ecc-recipes for a docs update workflow",
+      "query": "which ECC commands do I run, in what order, for a docs update workflow?",
       "should_trigger": true
     },
     {
-      "query": "what does the ECC /code-review command do exactly, what flags does it take?",
+      "query": "what does ECC's code-review command do exactly, what flags does it take?",
       "should_trigger": false,
       "near_miss_of": "ECC/ecc-guide"
     },
     {
-      "query": "run the TDD workflow on the CSV export feature now",
+      "query": "build the CSV export feature now, write the failing tests first",
       "should_trigger": false,
       "near_miss_of": "ECC/tdd-workflow"
     },
@@ -1647,13 +1627,11 @@
     },
     {
       "query": "write a github actions pipeline that runs lint, test, then deploy in sequence",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/ci-cd-and-automation"
+      "should_trigger": false
     },
     {
       "query": "plan this database migration into ordered tasks with acceptance criteria",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+      "should_trigger": false
     },
     {
       "query": "add a recipes table to our supabase schema with ingredients as jsonb and a GIN index",
@@ -1695,13 +1673,12 @@
     },
     {
       "query": "getting 'TypeError: Cannot read properties of undefined' in prod in OrderList.tsx, find the cause",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+      "should_trigger": false
     },
     {
-      "query": "add structured logging and alerting on the 5xx rate for the orders API",
+      "query": "after the store refactor, Retry and Cancel each work on their own but clicking both leaves the upload stuck in 'pending'. trace the button state sequence",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/observability-and-instrumentation"
+      "near_miss_of": "ECC/click-path-audit"
     },
     {
       "query": "my agent run failed halfway through the migration, diagnose it instead of retrying",
@@ -1710,18 +1687,17 @@
     },
     {
       "query": "tests fail in CI with 'connect ECONNREFUSED 127.0.0.1:5432' but pass locally",
-      "should_trigger": false,
-      "near_miss_of": "Superpowers/systematic-debugging"
+      "should_trigger": false
     },
     {
-      "query": "harden the login handler against injection and brute force attempts",
+      "query": "before launch, check what in the orders service breaks in prod: missing timeouts, unhandled rejections, retry storms",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/security-and-hardening"
+      "near_miss_of": "ECC/production-audit"
     },
     {
-      "query": "design the REST endpoints and request/response contracts for the orders resource",
+      "query": "Claude wrote and reviewed the new retry wrapper in src/http/retry.ts. add regression tests that catch what the same model would miss",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/api-and-interface-design"
+      "near_miss_of": "ECC/ai-regression-testing"
     },
     {
       "query": "fix the typo in the error message 'Pasword is required' in src/forms/login.ts",
@@ -1762,7 +1738,7 @@
       "should_trigger": true
     },
     {
-      "query": "use eval-harness for the summarizer agent, we need a model-based grader plus a human review step for the edge cases",
+      "query": "set up evals for the summarizer agent, we need a model-based grader plus a human review step for the edge cases",
       "should_trigger": true
     },
     {
@@ -1833,28 +1809,27 @@
       "should_trigger": true
     },
     {
-      "query": "can you use the git-workflow skill to tidy up my local history on fix/JIRA-882 before I merge it",
+      "query": "tidy up my local history on fix/JIRA-882 before I merge it",
       "should_trigger": true
     },
     {
       "query": "cut release 2.4.0: pick the semver bump from the commits since v2.3.1, tag it and write the CHANGELOG entry",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+      "should_trigger": false
     },
     {
-      "query": "I'm about to start the OAuth feature but have uncommitted work on this branch. set me up with an isolated git worktree so both can progress",
+      "query": "save where I am on the OAuth branch, next steps and decisions included, so tomorrow's session can resume without me re-explaining",
       "should_trigger": false,
-      "near_miss_of": "Superpowers/using-git-worktrees"
+      "near_miss_of": "ECC/ck"
     },
     {
-      "query": "all tests pass on feature/export-csv and the implementation is done. help me decide whether to merge locally, open a PR, or keep the branch around",
+      "query": "feature/export-csv is done. run build, typecheck, lint, tests and a diff review before I open the PR, PASS/FAIL please",
       "should_trigger": false,
-      "near_miss_of": "Superpowers/finishing-a-development-branch"
+      "near_miss_of": "ECC/verification-loop"
     },
     {
-      "query": "write the PR description for my branch, it adds rate limiting to /api/upload and changes the redis config",
+      "query": "make a PR tour for #512 so reviewers can step through the changed files in order",
       "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/pr"
+      "near_miss_of": "ECC/code-tour"
     },
     {
       "query": "git bisect says commit a3f9c1e introduced the failing test in test_orders.py, figure out why that change breaks it",
@@ -1865,8 +1840,9 @@
       "should_trigger": false
     },
     {
-      "query": "write a GitHub Actions workflow that runs eslint on every push to any branch",
-      "should_trigger": false
+      "query": "add a guardrail that blocks 'git push --force' to main whenever the agent tries it and shows a warning",
+      "should_trigger": false,
+      "near_miss_of": "ECC/hookify-rules"
     },
     {
       "query": "git push fails with 'Permission denied (publickey)' on my new laptop, how do I fix the ssh key setup?",
@@ -1883,11 +1859,11 @@
       "should_trigger": true
     },
     {
-      "query": "the delivery gate is blocking me and asking what I learned from this task. help me write a proper entry",
+      "query": "the stop hook won't let me finish until I say what I learned from this task. help me write a proper entry",
       "should_trigger": true
     },
     {
-      "query": "add an entry to docs/growth-log.md about today's fix: the bug was caching a user-scoped response at the CDN",
+      "query": "add an entry to docs/learnings.md about today's fix as a reusable pattern, not a diary: the bug was caching a user-scoped response at the CDN",
       "should_trigger": true
     },
     {
@@ -2043,7 +2019,7 @@
       "should_trigger": true
     },
     {
-      "query": "use inherit-legacy-style on the billing-core repo",
+      "query": "the billing-core repo is 12 years of hand-written PHP. keep agents from drifting away from its style",
       "should_trigger": true
     },
     {
@@ -2057,9 +2033,9 @@
       "near_miss_of": "ECC/rules-distill"
     },
     {
-      "query": "legacy/OrderManager.java is 3000 lines. simplify it without changing behavior",
+      "query": "make a step-by-step walkthrough of legacy/OrderManager.java with file and line anchors for the new hire",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/code-simplification"
+      "near_miss_of": "ECC/code-tour"
     },
     {
       "query": "our docs keep drifting from the code and agents keep recreating files we deliberately deleted, set up governance for the docs we already have",
@@ -2113,7 +2089,7 @@
       "should_trigger": true
     },
     {
-      "query": "use intent-driven-development on this ticket before implementing: 'admins can impersonate users'",
+      "query": "before implementing this ticket, pin down scoped acceptance criteria: 'admins can impersonate users'",
       "should_trigger": true
     },
     {
@@ -2122,14 +2098,14 @@
       "near_miss_of": "ECC/product-lens"
     },
     {
-      "query": "the acceptance criteria in docs/specs/export.md are final. break the work into ordered tasks with dependencies",
+      "query": "the acceptance criteria for export are final. open the implementation plan as a page in my browser where I can click on steps, leave notes and approve it",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+      "near_miss_of": "ECC/plan-canvas"
     },
     {
-      "query": "users report the CSV export times out for accounts over 50k rows, nginx returns 504. find out why",
+      "query": "the AC for API-81 are clear: rate-limit exports to 3 per hour per account. write the failing tests first, then implement",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+      "near_miss_of": "ECC/tdd-workflow"
     },
     {
       "query": "two valid ways to do the export: async job with an emailed link vs streaming download. I want structured disagreement before we choose",
@@ -2183,7 +2159,7 @@
       "should_trigger": true
     },
     {
-      "query": "apply the iterative-retrieval pattern to agents/planner.ts, right now it hands the coder agent a static file list",
+      "query": "agents/planner.ts hands the coder agent a static file list. make it refine what it retrieves over several passes",
       "should_trigger": true
     },
     {
@@ -2197,9 +2173,9 @@
       "near_miss_of": "ECC/strategic-compact"
     },
     {
-      "query": "I have 4 independent bugs in unrelated packages, split them across parallel agents",
+      "query": "the nightly agent job crashed with 'tool_use without tool_result' at turn 40. capture the transcript and give me a reproducible diagnosis, not a retry",
       "should_trigger": false,
-      "near_miss_of": "Superpowers/dispatching-parallel-agents"
+      "near_miss_of": "ECC/agent-introspection-debugging"
     },
     {
       "query": "hand off my current state on the payments refactor to codex so it can pick it up",
@@ -2253,7 +2229,7 @@
       "should_trigger": true
     },
     {
-      "query": "use living-docs-governance for this repo, the docs folder is a mess",
+      "query": "the docs folder in this repo is a mess and agents keep reading stale files. give each doc a clear role",
       "should_trigger": true
     },
     {
@@ -2323,7 +2299,7 @@
       "should_trigger": true
     },
     {
-      "query": "use loop-design-check on .claude/loops/refactor-loop.md",
+      "query": "check .claude/loops/refactor-loop.md for ways it could spin or game its verifier",
       "should_trigger": true
     },
     {
@@ -2389,7 +2365,7 @@
       "should_trigger": true
     },
     {
-      "query": "use plan-canvas for the onboarding redesign proposal",
+      "query": "show me the onboarding redesign proposal in a browser page I can annotate and approve",
       "should_trigger": true
     },
     {
@@ -2397,14 +2373,14 @@
       "should_trigger": true
     },
     {
-      "query": "break the onboarding redesign into ordered tasks with acceptance criteria",
+      "query": "have a PM, architect, dev and QA each react to the onboarding redesign plan in one session",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+      "near_miss_of": "ECC/dev-team"
     },
     {
-      "query": "we have the spec for the CSV import, write an implementation plan before touching code",
+      "query": "before anyone plans the CSV import, turn the request into scoped acceptance criteria we can verify",
       "should_trigger": false,
-      "near_miss_of": "Superpowers/writing-plans"
+      "near_miss_of": "ECC/intent-driven-development"
     },
     {
       "query": "test the deployed preview at staging.acme.dev: console errors, screenshots at three breakpoints, axe, then tell me if it ships",
@@ -2412,9 +2388,9 @@
       "near_miss_of": "ECC/browser-qa"
     },
     {
-      "query": "review the diff on my branch for bugs before I merge",
+      "query": "two plans for the onboarding redesign are on the table and both are reasonable. give me structured disagreement before we pick one",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/code-review-and-quality"
+      "near_miss_of": "ECC/council"
     },
     {
       "query": "draw a canvas-based chart of weekly signups in dashboard/Signups.tsx using chart.js",
@@ -2483,8 +2459,7 @@
     },
     {
       "query": "add a GitHub Actions job that runs eslint and prettier --check on every PR",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/ci-cd-and-automation"
+      "should_trigger": false
     },
     {
       "query": "eslint throws 'Parsing error: Unexpected token <' on all our .tsx files, fix the config",
@@ -2495,8 +2470,9 @@
       "should_trigger": false
     },
     {
-      "query": "what's a sensible max line length for our flake8 config? the team argues 88 vs 120",
-      "should_trigger": false
+      "query": "before agents touch this hand-written codebase, scan it for the formatting and naming conventions it actually follows and write them down as enforceable rules",
+      "should_trigger": false,
+      "near_miss_of": "ECC/inherit-legacy-style"
     },
     {
       "query": "add a husky pre-commit hook that runs lint-staged",
@@ -2533,13 +2509,13 @@
       "should_trigger": true
     },
     {
-      "query": "use production-audit before the GA release",
+      "query": "what breaks in prod before the GA release? audit locally, no external service",
       "should_trigger": true
     },
     {
-      "query": "write a launch plan for the new pricing page: staged rollout percentages, monitoring, and a rollback strategy",
+      "query": "the launch announcement makes claims about uptime and SOC 2. have two independent reviewers check it against the same rubric before it goes out",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/shipping-and-launch"
+      "near_miss_of": "ECC/santa-method"
     },
     {
       "query": "the feature is on staging, run console-error checks, screenshot regressions and axe and tell me SHIP or DO-NOT-SHIP",
@@ -2547,14 +2523,14 @@
       "near_miss_of": "ECC/browser-qa"
     },
     {
-      "query": "audit the login handler in auth/login.ts against the OWASP top ten",
+      "query": "run build, typecheck, lint, tests with coverage and a security grep on this branch and give me PASS/FAIL",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/security-and-hardening"
+      "near_miss_of": "ECC/verification-loop"
     },
     {
-      "query": "add metrics, structured logs and tracing to the checkout service so we can see what it does in prod",
+      "query": "go/no-go on launching Friday vs next Tuesday, I want the tradeoffs argued from several sides",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/observability-and-instrumentation"
+      "near_miss_of": "ECC/council"
     },
     {
       "query": "prod is down right now, 502s from the load balancer since 14:05. help me find out why",
@@ -2608,8 +2584,7 @@
     },
     {
       "query": "brainstorm 15 different directions we could take the habit tracker, go wide before narrowing",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/idea-refine"
+      "should_trigger": false
     },
     {
       "query": "we decided to build CSV import. now define testable acceptance criteria for it before implementation",
@@ -2617,9 +2592,9 @@
       "near_miss_of": "ECC/intent-driven-development"
     },
     {
-      "query": "create the feature spec for CSV import from this description: users upload CSVs up to 50MB, map columns, preview, commit",
+      "query": "we chose to build CSV import on a background job queue instead of in-request. record that decision with the alternatives in docs/adr",
       "should_trigger": false,
-      "near_miss_of": "Spec-Kit/speckit-specify"
+      "near_miss_of": "ECC/architecture-decision-records"
     },
     {
       "query": "simulate a PM, architect, dev and QA discussing the design of the new import feature together",
@@ -2627,8 +2602,9 @@
       "near_miss_of": "ECC/dev-team"
     },
     {
-      "query": "add an image carousel to the product detail page in pages/product/[id].tsx",
-      "should_trigger": false
+      "query": "open the product brief for the habit tracker in a browser page where I can point at sections and leave notes",
+      "should_trigger": false,
+      "near_miss_of": "ECC/plan-canvas"
     },
     {
       "query": "track a first_dashboard_created event in posthog when users finish onboarding",
@@ -2645,15 +2621,15 @@
   ],
   "repo-scan": [
     {
-      "query": "install the cross-stack source-code asset audit skill so I can run it on our monorepo",
+      "query": "install the cross-stack source-code asset audit so I can run it on our monorepo, it isn't on this machine",
       "should_trigger": true
     },
     {
-      "query": "I want to find out how much of this C++/Android/iOS codebase is ours vs vendored third-party code. get the scanning skill for that set up first",
+      "query": "I want to find out how much of this C++/Android/iOS codebase is ours vs vendored third-party code. get the scanner for that set up first",
       "should_trigger": true
     },
     {
-      "query": "set up that external code asset audit skill from its pinned commit, I want to review the code before it installs",
+      "query": "set up that external code asset audit from its pinned commit, I want to review the code before it installs",
       "should_trigger": true
     },
     {
@@ -2661,7 +2637,7 @@
       "should_trigger": true
     },
     {
-      "query": "the cross-stack audit skill says skill not found when I invoke it, install it properly",
+      "query": "invoking the cross-stack audit fails with 'skill not found', install it properly",
       "should_trigger": true
     },
     {
@@ -2669,11 +2645,11 @@
       "should_trigger": true
     },
     {
-      "query": "before we reorganize the monorepo I want the cross-stack asset audit run, but the audit skill is not on this machine yet",
+      "query": "before we reorganize the monorepo I want the cross-stack asset audit run, but it is not installed on this machine yet",
       "should_trigger": true
     },
     {
-      "query": "use repo-scan, install it from the reviewed commit",
+      "query": "get the cross-stack source asset audit installed from the reviewed, pinned commit",
       "should_trigger": true
     },
     {
@@ -2693,8 +2669,7 @@
     },
     {
       "query": "find dead code, bloat and what I can delete in this repo, ranked",
-      "should_trigger": false,
-      "near_miss_of": "Ponytail/ponytail-audit"
+      "should_trigger": false
     },
     {
       "query": "run trivy on our docker images and report the critical CVEs",
@@ -2705,8 +2680,9 @@
       "should_trigger": false
     },
     {
-      "query": "count lines of code per language with cloc and put the table in the README",
-      "should_trigger": false
+      "query": "scan the repo with CodeScene and tell me which files have the worst code health",
+      "should_trigger": false,
+      "near_miss_of": "ECC/codehealth-mcp"
     },
     {
       "query": "npm ls shows two versions of react in the tree, dedupe them",
@@ -2743,7 +2719,7 @@
       "should_trigger": true
     },
     {
-      "query": "run rules-distill over our skills folder and pull the repeated principles into rule files",
+      "query": "pull the repeated principles in our skills folder into rule files",
       "should_trigger": true
     },
     {
@@ -2809,7 +2785,7 @@
       "should_trigger": true
     },
     {
-      "query": "run the santa method on the release notes before they go public",
+      "query": "two independent reviewers on the release notes, both must pass before they go public",
       "should_trigger": true
     },
     {
@@ -2822,14 +2798,14 @@
       "near_miss_of": "ECC/council"
     },
     {
-      "query": "review my PR for correctness, readability, architecture, security and performance",
+      "query": "rate the release notes you just wrote on accuracy, completeness, clarity, actionability and conciseness, 1-5 with evidence",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/code-review-and-quality"
+      "near_miss_of": "ECC/agent-self-evaluation"
     },
     {
-      "query": "cross-examine every assumption in my migration plan with a fresh-context adversarial review before we commit to it",
+      "query": "the council's decision draft on the migration is ready. get one external Codex critique to try to break it, I consent to sending it to OpenAI",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/doubt-driven-development"
+      "near_miss_of": "ECC/council-multi-model"
     },
     {
       "query": "run build, lint, tests and a diff review and tell me PASS or FAIL",
@@ -2855,7 +2831,7 @@
   ],
   "skill-comply": [
     {
-      "query": "do agents actually follow our tdd skill? I want tool call timelines showing whether they write the test before the implementation",
+      "query": "do agents actually follow the test-first instructions in .claude/skills/test-first/SKILL.md? I want tool call timelines showing whether they write the test before the implementation",
       "should_trigger": true
     },
     {
@@ -2871,11 +2847,11 @@
       "should_trigger": true
     },
     {
-      "query": "check whether the 'search before creating' instruction in our skill-scout skill is followed when the prompt is vague vs explicit",
+      "query": "check whether the 'search before creating' instruction in .claude/skills/find-existing/SKILL.md is followed when the prompt is vague vs explicit",
       "should_trigger": true
     },
     {
-      "query": "visualize adherence to the verification-loop skill across 3 levels of prompt strictness",
+      "query": "visualize how well agents adhere to our 'verify before PR' rules across 3 levels of prompt strictness",
       "should_trigger": true
     },
     {
@@ -2883,7 +2859,7 @@
       "should_trigger": true
     },
     {
-      "query": "use skill-comply for agents/planner.md",
+      "query": "are the instructions in agents/planner.md actually followed when agents run? show me compliance rates",
       "should_trigger": true
     },
     {
@@ -2902,9 +2878,9 @@
       "near_miss_of": "ECC/rules-distill"
     },
     {
-      "query": "I'm writing a new skill for database migrations, help me create it and test it before deploying",
+      "query": "I'm about to write a new skill for database migrations, first check whether one already exists locally or on github",
       "should_trigger": false,
-      "near_miss_of": "Superpowers/writing-skills"
+      "near_miss_of": "ECC/skill-scout"
     },
     {
       "query": "check our web app for GDPR compliance: cookie consent, data export, account deletion",
@@ -2937,7 +2913,7 @@
       "should_trigger": true
     },
     {
-      "query": "I'm about to fork the tdd skill to add pytest specifics. first see if someone already published a pytest-flavored one",
+      "query": "I'm about to fork .claude/skills/test-first/SKILL.md to add pytest specifics. first see if someone already published a pytest-flavored one",
       "should_trigger": true
     },
     {
@@ -2953,13 +2929,12 @@
       "should_trigger": true
     },
     {
-      "query": "use skill-scout to look for an existing figma-to-code skill",
+      "query": "look for an existing figma-to-code skill before I build one",
       "should_trigger": true
     },
     {
       "query": "edit my existing skill at .claude/skills/db-migrate/SKILL.md, the rollback instructions are wrong",
-      "should_trigger": false,
-      "near_miss_of": "Superpowers/writing-skills"
+      "should_trigger": false
     },
     {
       "query": "audit my installed skills for quality and tell me which to retire",
@@ -2977,9 +2952,9 @@
       "near_miss_of": "ECC/agent-sort"
     },
     {
-      "query": "tighten the wording in our AGENTS.md, it's 400 lines and agents skim it",
+      "query": "the same 'never commit secrets' line is copied into six of our SKILL.md files, move it into a rule file",
       "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/writing-for-agents"
+      "near_miss_of": "ECC/rules-distill"
     },
     {
       "query": "find the function that parses ISO dates in this repo and tell me who calls it",
@@ -3020,7 +2995,7 @@
       "should_trigger": true
     },
     {
-      "query": "do a skill stocktake, I want to know which of my skills and commands are low quality",
+      "query": "go through all my skills and commands and tell me which are low quality",
       "should_trigger": true
     },
     {
@@ -3095,7 +3070,7 @@
       "should_trigger": true
     },
     {
-      "query": "use strategic-compact for this long session",
+      "query": "this session has gone long. where's a sensible point to compact without losing the current phase?",
       "should_trigger": true
     },
     {
@@ -3114,9 +3089,9 @@
       "near_miss_of": "ECC/unified-memory"
     },
     {
-      "query": "agent output quality has been degrading in this project, set up the rules files and context properly",
+      "query": "the subagent I spawn for the API phase keeps missing files it needs. make it refine what context it retrieves across passes instead of one static list",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/context-engineering"
+      "near_miss_of": "ECC/iterative-retrieval"
     },
     {
       "query": "compact the sqlite database, it's still 2GB after we deleted most rows",
@@ -3165,7 +3140,7 @@
       "should_trigger": true
     },
     {
-      "query": "use tdd-workflow to add the archive endpoint",
+      "query": "add the archive endpoint, tests first, and watch them fail before you implement",
       "should_trigger": true
     },
     {
@@ -3305,7 +3280,7 @@
       "should_trigger": true
     },
     {
-      "query": "run the verification-loop on what we just changed before I open the PR",
+      "query": "verify what we just changed before I open the PR: build, types, lint, tests, PASS/FAIL",
       "should_trigger": true
     },
     {
@@ -3375,7 +3350,7 @@
       "should_trigger": true
     },
     {
-      "query": "write windows desktop e2e tests for the .NET 8 WinForms point of sale app",
+      "query": "write end-to-end tests for the .NET 8 WinForms point of sale app",
       "should_trigger": true
     },
     {
@@ -3394,9 +3369,9 @@
       "near_miss_of": "ECC/tdd-workflow"
     },
     {
-      "query": "inspect the DOM and network requests of our web app in chrome devtools to see why the form submit fails",
+      "query": "after refactoring the shared state store in our Electron app, Save and Undo each work but together leave the form dirty. trace each button's state changes",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+      "near_miss_of": "ECC/click-path-audit"
     },
     {
       "query": "our WPF datagrid is slow with 10k rows, enable virtualization",

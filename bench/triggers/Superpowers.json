@@ -80,7 +80,7 @@
       "should_trigger": true
     },
     {
-      "query": "Hi! First time using you with the superpowers plugin installed. How does this work?",
+      "query": "Hi! Just installed the superpowers plugin and this is my first chat with it. How does this work?",
       "should_trigger": true
     },
     {
@@ -100,11 +100,11 @@
       "should_trigger": true
     },
     {
-      "query": "load using-superpowers first, then let's plan today's work on the invoice exporter",
+      "query": "fresh chat, nothing set up yet. get your rules for picking up skills in place before we plan today's work on the invoice exporter",
       "should_trigger": true
     },
     {
-      "query": "last session you never ran the brainstorming skill even though I asked for a new feature. session id 7f3c2a. why didn't it fire?",
+      "query": "last session (id 7f3c2a) I asked for a new feature and you jumped straight into code with no design questions, even though that step is supposed to come first. why didn't it kick in?",
       "should_trigger": false,
       "near_miss_of": "Superpowers/diagnosing-superpowers"
     },
@@ -602,19 +602,19 @@
       "near_miss_of": "Superpowers/finishing-a-development-branch"
     },
     {
-      "query": "split my uncommitted changes into 3 atomic commits: the migration, the model, and the tests",
+      "query": "Spec for the CSV export is approved in docs/specs/csv-export.md (columns, filters, 50k row limit). Turn it into a step-by-step implementation plan before we start coding.",
       "should_trigger": false,
-      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+      "near_miss_of": "Superpowers/writing-plans"
     },
     {
-      "query": "which branching strategy should our team of 6 use, trunk-based or gitflow? we deploy twice a week",
+      "query": "want to make a little app to track our kitchen remodel: budget, contractor quotes, timeline. what should it even do?",
       "should_trigger": false,
-      "near_miss_of": "ECC/git-workflow"
+      "near_miss_of": "Superpowers/brainstorming"
     },
     {
-      "query": "rebase feature/search-v2 onto main and resolve the conflict in package-lock.json",
+      "query": "I have 3 unrelated failing test files (auth, billing, search), each broken for a different reason. can you work them in parallel?",
       "should_trigger": false,
-      "near_miss_of": "ECC/git-workflow"
+      "near_miss_of": "Superpowers/dispatching-parallel-agents"
     },
     {
       "query": "`git worktree remove` says 'contains modified or untracked files'. what does that mean and is --force safe here?",
@@ -677,9 +677,9 @@
       "near_miss_of": "Superpowers/requesting-code-review"
     },
     {
-      "query": "write the PR body for this branch: it adds CSV export with filters and a 50k row cap, closes #231",
+      "query": "the reviewer left 11 comments on PR #530. go through them and apply the ones that make sense",
       "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/pr"
+      "near_miss_of": "Superpowers/receiving-code-review"
     },
     {
       "query": "starting work on ticket PAY-77 (refund webhooks). don't touch my current checkout, I'm in the middle of reviewing another branch",
@@ -752,9 +752,9 @@
       "near_miss_of": "Superpowers/systematic-debugging"
     },
     {
-      "query": "run the full six-phase check on this session's work (build, types, lint, tests with coverage, security grep, diff review) and give me a PASS/FAIL report",
+      "query": "Bug: `formatCurrency(2.675, 'EUR')` returns '2.67 EUR' instead of '2.68 EUR' because we round the float directly. Cause is known: fix it by converting to integer cents before rounding.",
       "should_trigger": false,
-      "near_miss_of": "ECC/verification-loop"
+      "near_miss_of": "Superpowers/test-driven-development"
     },
     {
       "query": "add a CI step that fails the build when line coverage drops below 80%",
@@ -803,7 +803,7 @@
       "should_trigger": true
     },
     {
-      "query": "use requesting-code-review on the cache layer work",
+      "query": "wrapped up the cache layer in src/cache/ (LRU + TTL). get it checked against what ticket CACHE-12 asked for before I call it done",
       "should_trigger": true
     },
     {
@@ -888,8 +888,7 @@
     },
     {
       "query": "review PR #530 from my teammate and leave comments on anything risky",
-      "should_trigger": false,
-      "near_miss_of": "agent-skills/code-review-and-quality"
+      "should_trigger": false
     },
     {
       "query": "PR #512 is approved and CI is green. merge it and clean up the branch",
@@ -909,8 +908,9 @@
       "should_trigger": false
     },
     {
-      "query": "use the GitHub API to count how many review comments each person on the team left last month",
-      "should_trigger": false
+      "query": "can we turn our code review guidelines (docs/review.md) into a reusable skill that kicks in on PR reviews?",
+      "should_trigger": false,
+      "near_miss_of": "Superpowers/writing-skills"
     }
   ],
   "writing-skills": [
@@ -923,7 +923,7 @@
       "should_trigger": true
     },
     {
-      "query": "the brainstorming skill asks way too many questions for small tweaks. edit it so it goes straight to a design for one-line changes",
+      "query": "the skill that runs before every new feature asks way too many questions for small tweaks. edit its SKILL.md so it goes straight to a design for one-line changes",
       "should_trigger": true
     },
     {
@@ -947,7 +947,7 @@
       "should_trigger": true
     },
     {
-      "query": "last session you never ran the brainstorming skill even though I asked for a new feature. session id 7f3c2a. why didn't it fire?",
+      "query": "last session (id 7f3c2a) I asked for a new feature and you jumped straight into code with no design questions, even though that step is supposed to come first. why didn't it kick in?",
       "should_trigger": false,
       "near_miss_of": "Superpowers/diagnosing-superpowers"
     },
@@ -958,17 +958,16 @@
     },
     {
       "query": "update AGENTS.md: we use pnpm not npm, and tests run with vitest",
-      "should_trigger": false,
-      "near_miss_of": "Matt-Pocock/writing-for-agents"
+      "should_trigger": false
     },
     {
       "query": "is there already a skill out there for reviewing terraform plans? search before we build our own",
-      "should_trigger": false,
-      "near_miss_of": "ECC/skill-scout"
+      "should_trigger": false
     },
     {
-      "query": "write a job description for a senior backend engineer, required skills: Go, Postgres, Kubernetes",
-      "should_trigger": false
+      "query": "write an implementation plan for GH issue #231 (acceptance criteria are in the issue body) and save it under docs/plans/",
+      "should_trigger": false,
+      "near_miss_of": "Superpowers/writing-plans"
     },
     {
       "query": "add a `skills` field (array of strings) to the User model and expose it in the profile API",
@@ -979,13 +978,14 @@
       "should_trigger": false
     },
     {
-      "query": "go through team/skills.csv (our skills matrix) and find the gaps we should hire for in Q1",
-      "should_trigger": false
+      "query": "it took way too long to get through the webhooks plan, like 3 hours. dig into the session and tell me where the time went",
+      "should_trigger": false,
+      "near_miss_of": "Superpowers/diagnosing-superpowers"
     }
   ],
   "diagnosing-superpowers": [
     {
-      "query": "last session you never ran the brainstorming skill even though I asked for a new feature. session id 7f3c2a. why didn't it fire?",
+      "query": "last session (id 7f3c2a) I asked for a new feature and you jumped straight into code with no design questions, even though that step is supposed to come first. why didn't it kick in?",
       "should_trigger": true
     },
     {
@@ -993,7 +993,7 @@
       "should_trigger": true
     },
     {
-      "query": "why was that last run so expensive? it burned 2M tokens on a 3-task plan with subagent-driven development",
+      "query": "why was that last run so expensive? it burned 2M tokens on a 3-task plan where every task went to its own subagent",
       "should_trigger": true
     },
     {
@@ -1009,15 +1009,15 @@
       "should_trigger": true
     },
     {
-      "query": "in codex (not claude code) the superpowers TDD skill fired but then got abandoned halfway. session file: ~/.codex/sessions/2026/10/15/rollout-xyz.jsonl",
+      "query": "in codex (not claude code) the superpowers test-first workflow kicked in but then got abandoned halfway. session file: ~/.codex/sessions/2026/10/15/rollout-xyz.jsonl",
       "should_trigger": true
     },
     {
-      "query": "the brainstorming session this morning gave poor results: it designed the wrong feature after I clearly said what I wanted. what happened?",
+      "query": "the design session this morning gave poor results: it designed the wrong feature after I clearly said what I wanted. what happened?",
       "should_trigger": true
     },
     {
-      "query": "the brainstorming skill asks way too many questions for small tweaks. edit it so it goes straight to a design for one-line changes",
+      "query": "the skill that runs before every new feature asks way too many questions for small tweaks. edit its SKILL.md so it goes straight to a design for one-line changes",
       "should_trigger": false,
       "near_miss_of": "Superpowers/writing-skills"
     },
@@ -1033,8 +1033,7 @@
     },
     {
       "query": "my context window fills up after 20 minutes. which MCP servers, skills and rules are eating the tokens?",
-      "should_trigger": false,
-      "near_miss_of": "ECC/context-budget"
+      "should_trigger": false
     },
     {
       "query": "how do I uninstall the superpowers plugin and remove its hooks?",
@@ -1049,8 +1048,9 @@
       "should_trigger": false
     },
     {
-      "query": "what's new in superpowers 7.0.0 compared to 6.x?",
-      "should_trigger": false
+      "query": "Hi! Just installed the superpowers plugin and this is my first chat with it. How does this work?",
+      "should_trigger": false,
+      "near_miss_of": "Superpowers/using-superpowers"
     }
   ]
 }

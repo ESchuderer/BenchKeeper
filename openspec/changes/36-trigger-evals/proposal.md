@@ -8,9 +8,9 @@ A skill helps only if its description makes the model load it when it applies an
 
 ## What Changes
 
-- Prompt sets `bench/triggers/<collection>.json`: per model-invocable skill one eval set in the format of the vendored `run_eval.py` (`query`, `should_trigger`; optional `near_miss_of`, which `run_eval` ignores), 8 should-trigger and 8 should-not-trigger queries, at least 4 negatives being near-misses that belong to a named sibling skill.
-- Harness `bench/scripts/trigger-eval.sh`: one collection, model, effort and runs per query as parameters; one container per skill; the usage gate of `bench/run-brief.sh` before each skill; results and manifest in `bench/runs/triggers-<collection>-<model>-<effort>/`.
-- Summary `bench/scripts/trigger-summary.mjs`: per-skill recall, precision and false triggers as a Markdown table.
+- Prompt sets `bench/triggers/<collection>.json`: per model-invocable skill one eval set in the format of the vendored `run_eval.py` (`query`, `should_trigger`; optional `near_miss_of`, which `run_eval` ignores), 8 should-trigger and 8 should-not-trigger queries, at least 4 negatives being near-misses that belong to a named sibling installed in the same container; no query names an installed skill.
+- Harness `bench/scripts/trigger-eval.sh`: one collection, model and effort as arguments, runs per query and timeout as `RUNS` and `TIMEOUT`; one container per skill; fails closed (usage gate without rate-limit headers, a sanity query per container); results, `settings.json` (checked on resume) and manifest in `bench/runs/triggers-<collection>-<model>-<effort>-r<runs>-t<timeout>/`; token scan on every exit.
+- Summary `bench/scripts/trigger-summary.mjs`: per-skill recall, precision and false triggers as a Markdown table, with a check column (missing queries, runs other than the setting, no trigger in any run).
 - Smoke test `bench/scripts/trigger-eval.smoke.sh` with a fake `claude` (no network, no credentials); test of the prompt sets.
 - Protocol entry; no protocol version bump (no published result changes).
 

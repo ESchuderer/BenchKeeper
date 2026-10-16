@@ -1,11 +1,17 @@
 #!/bin/sh
-# Fake claude for bench/scripts/trigger-eval.smoke.sh (no network, no credentials). The usage gate's request gets rate-limit
-# headers; an eval query triggers the injected command unless the query contains "?", and only when the harness set
-# everything up: model claude-fake-1, effort low (added by the wrapper), the fake token, exactly one injected command,
-# and the installed copy of the skill hidden from the model.
+# Fake claude for bench/scripts/trigger-eval.smoke.sh (no network, no credentials). The usage gate's request gets
+# rate-limit headers (with any token); the sanity query answers READY only with the fake token; an eval query triggers the
+# injected command unless the query contains "?", and only when the harness set everything up: model claude-fake-1,
+# effort low (added by the wrapper), the fake token, exactly one injected command, and the installed copy of the skill
+# hidden from the model.
 case "$*" in *"Reply OK"*)
   printf '  "anthropic-ratelimit-unified-5h-utilization": "0.10",\n  "anthropic-ratelimit-unified-5h-reset": "1",\n'
   printf '  "anthropic-ratelimit-unified-7d-utilization": "0.20",\n  "anthropic-ratelimit-unified-7d-reset": "1",\n'
+  exit 0 ;;
+esac
+# Sanity query of the eval container: a normal reply only with the fake token.
+case "$*" in *"single word READY"*)
+  if [ "$CLAUDE_CODE_OAUTH_TOKEN" = fake-smoke-token ]; then echo READY; else echo "Invalid bearer token"; exit 1; fi
   exit 0 ;;
 esac
 q= m= e=

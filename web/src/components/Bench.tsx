@@ -76,7 +76,7 @@ function TopDetail({ t: x }: { t: Top }) {
         Final score out of 100 from six weighted categories; the inputs and weights are in the report. Totals within
         about 2 points are not separable with one trial per arm. Not part of the score: drawings, the cartridge drawings
         a Claude Opus 5.5 review found correct, and mutation, the share of mutants the app's own tests catch (Stryker).
-        n/a: not measured yet or not measurable.
+        n/a: not measured or not measurable.
       </Text>
       <Table.ScrollContainer minWidth={1000} type="native" mt="xs" tabIndex={0} role="region" aria-label={`${x.brief}: top 10`}>
         <Table striped verticalSpacing={4} fz="sm">

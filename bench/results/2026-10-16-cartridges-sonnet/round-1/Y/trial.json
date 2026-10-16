@@ -94,7 +94,14 @@
       "high": 0,
       "total": 0
     },
-    "mutation": null,
+    "mutation": {
+      "score": 49.8,
+      "killed": 984,
+      "timeout": 14,
+      "survived": 1005,
+      "no_coverage": 0,
+      "mutants": 2722
+    },
     "hidden_tests": "5c9d25395e3b332c"
   },
   "lines": {
@@ -118,7 +125,7 @@
   "steps": null,
   "steps_sent": null,
   "method": {
-    "protocol": "1.14",
+    "protocol": "1.15",
     "hidden_tests": "5c9d25395e3b332c",
     "bk": "v1"
   }

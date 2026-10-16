@@ -32,6 +32,7 @@
     "subagent_tool_calls": 0,
     "skills": [],
     "agents": [],
+    "tiers": [],
     "plan_or_spec_files": [
       "design.md",
       "cartridge-browser/spec.md"
@@ -88,8 +89,12 @@
       "total": 0
     },
     "mutation": {
-      "score": null,
-      "reason": "rerun pending after scorer fixes"
+      "score": 51,
+      "killed": 953,
+      "timeout": 19,
+      "survived": 933,
+      "no_coverage": 0,
+      "mutants": 2388
     },
     "hidden_tests": "5c9d25395e3b332c"
   },
@@ -114,7 +119,7 @@
   "steps": null,
   "steps_sent": null,
   "method": {
-    "protocol": "1.14",
+    "protocol": "1.16",
     "hidden_tests": "5c9d25395e3b332c",
     "bk": "v1"
   }

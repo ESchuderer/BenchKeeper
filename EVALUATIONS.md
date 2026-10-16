@@ -35,7 +35,7 @@ Components considered for BenchKeeper, the evidence found for each, and whether 
 |---|---|---|
 | [agent-skills](evaluations/skill-libraries/agent-skills.md) | In, unmeasured | no task-level study; about 2.8k tokens of descriptions, no hooks (0.6.13) |
 | [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | Not in | no controlled evidence; overlaps agent-skills |
-| [andrej-karpathy-skills](evaluations/skill-libraries/andrej-karpathy-skills.md) | Not in | accuracy 60/60 every arm, median cost +11.5%, skill-receipts |
+| [andrej-karpathy-skills](evaluations/skill-libraries/andrej-karpathy-skills.md) | Not in | accuracy 60/60 every arm, cost +11.5% (skill-receipts) and +6.6% (skillbench); Reddit claims checked 2026-10-16 |
 | [Anthropic document skills](evaluations/skill-libraries/anthropic-document-skills.md) | Not global, per project | DocOps: Claude Code Sonnet 4.6 0.519 with skills vs 0.552 without |
 | [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation; `project-setup` vets single skills |
 

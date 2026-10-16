@@ -1,8 +1,8 @@
 # Permission rule probe
 
-2026-10-16, Claude Code 2.1.301, `claude -p` with `claude-haiku-5-5`, `--permission-mode dontAsk` (an ask rule refuses the call), the ask rules of `skills/global-setup/SKILL.md` part 11 plus an allow rule `Bash(git *)`, in a throwaway repository with a local bare remote. `refused` means the call was listed in `permission_denials`.
+2026-10-16, Claude Code 2.1.301, `claude -p` with `claude-haiku-5-5`, `--permission-mode dontAsk` (an ask rule refuses the call), the 60 ask rules of `skills/global-setup/SKILL.md` part 11 plus allow rules `Bash(git *)` and `Bash(gh *)`, in a throwaway repository with a local bare remote; `gh` ran with an invalid token. `refused` means the call was listed in `permission_denials`. Every rule matches at least one refused command; no command expected to run matches a rule.
 
-Result: 32 of 32 as expected.
+Result: 75 of 75 as expected.
 
 | Expected | Got | Command |
 |---|---|---|
@@ -38,5 +38,48 @@ Result: 32 of 32 as expected.
 | run | run | `git grep -n -e verify` |
 | run | run | `git commit --amend --no-edit` |
 | run | run | `git status` |
+| refused | refused | `git push origin fix/x -f` |
+| refused | refused | `git push origin --mirror` |
+| refused | refused | `git push --delete origin fix/x` |
+| refused | refused | `git push -d origin fix/x` |
+| refused | refused | `git push origin -d fix/x` |
+| refused | refused | `git push origin --prune` |
+| refused | refused | `git push --no-verify origin fix/x` |
+| refused | refused | `git push origin fix/x --no-verify` |
+| refused | refused | `git push origin main --tags` |
+| refused | refused | `git push origin HEAD:main --tags` |
+| refused | refused | `git push origin master` |
+| refused | refused | `git push origin master --tags` |
+| refused | refused | `git push origin HEAD:master` |
+| refused | refused | `git push origin HEAD:master --tags` |
+| refused | refused | `git push origin HEAD:refs/heads/master` |
+| refused | refused | `git reset HEAD --hard` |
+| refused | refused | `git rebase` |
+| refused | refused | `git filter-branch --force --index-filter true HEAD` |
+| refused | refused | `git filter-repo --force` |
+| refused | refused | `git branch -d old2` |
+| refused | refused | `git branch old2 -d` |
+| refused | refused | `git branch old2 -D` |
+| refused | refused | `git branch old2 --delete` |
+| refused | refused | `git commit --allow-empty -m probe --no-verify` |
+| refused | refused | `git merge --no-verify fix/x` |
+| refused | refused | `git pull --rebase origin main` |
+| refused | refused | `git pull --no-verify origin main` |
+| refused | refused | `git am --no-verify x.patch` |
+| refused | refused | `git config core.hooksPath /dev/null` |
+| refused | refused | `git -C <repo> push origin fix/x --force` |
+| refused | refused | `git -C <repo> push -f origin fix/x` |
+| refused | refused | `git -C <repo> push origin fix/x -f` |
+| refused | refused | `git -C <repo> reset --hard` |
+| refused | refused | `git -C <repo> clean -fd` |
+| refused | refused | `git -C <repo> branch -D old2` |
+| refused | refused | `gh pr merge 1 --repo ESchuderer/does-not-exist-probe` |
+| refused | refused | `gh repo delete ESchuderer/does-not-exist-probe --yes` |
+| refused | refused | `gh release delete v0 --repo ESchuderer/does-not-exist-probe --yes` |
+| run | run | `git commit --allow-empty -m "docs: update readme"` |
+| run | run | `git pull origin main` |
+| run | run | `git config user.name probe` |
+| refused | refused | `git commit --allow-empty -m probe -n` |
+| refused | refused | `git config core.hookspath /dev/null` |
 
 An earlier run with a rule ending in `:*` let `git push origin :fix/x` through: a trailing `:*` is the old trailing-wildcard form ([permissions](https://code.claude.com/docs/en/permissions)), so the rule now ends in `:**`.

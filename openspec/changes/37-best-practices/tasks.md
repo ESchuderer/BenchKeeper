@@ -13,8 +13,8 @@
 
 ## 3. Permission rules
 
-- [x] 3.1 `global-setup` part 11: deny and ask rules, order-preserving merge, skills links, advisor variable check
-- [x] 3.2 Each pattern checked through headless Claude Code (`dontAsk`) in a throwaway repository: commands that must be refused and commands that must run
+- [x] 3.1 `global-setup` part 11: ask rules, order-preserving merge, skills links, advisor variable check
+- [x] 3.2 Every rule checked at least once through headless Claude Code (`dontAsk`) in a throwaway repository: commands that must be refused and commands that must run
 
 ## 4. Docs and checks
 

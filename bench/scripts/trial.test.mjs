@@ -193,3 +193,16 @@ test('phases: an OpenCode subagent session takes the phase of the task call that
   assert.equal(p.phases.verify.usd, 1);
   assert.equal(p.subagents.reviewer.usd, 2);
 });
+
+test('mutation score: detected over counted mutants, or null with a reason', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { mutation } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/mutation-');
+  assert.equal(mutation(dir), null);
+  writeFileSync(`${dir}/mutation.exit`, '11\n');
+  assert.deepEqual(mutation(dir), { score: null, reason: 'no test script' });
+  writeFileSync(`${dir}/mutation.exit`, '0\n');
+  const m = (status) => ({ status });
+  writeFileSync(`${dir}/mutation.json`, JSON.stringify({ files: { 'a.js': { mutants: [m('Killed'), m('Killed'), m('Timeout'), m('Survived')] }, 'b.js': { mutants: [m('NoCoverage'), m('Ignored'), m('CompileError')] } } }));
+  assert.deepEqual(mutation(dir), { score: 60, killed: 2, timeout: 1, survived: 1, no_coverage: 1, mutants: 7 });
+});

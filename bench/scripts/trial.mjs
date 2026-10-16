@@ -185,10 +185,26 @@ export function score(dir) {
     axe: axe && AXE_PAGES.every((k) => axe[k]) ? Object.fromEntries(AXE_PAGES.map((k) => [k, axe[k].length])) : null,
     lighthouse: lh?.categories ? Object.fromEntries(Object.entries(lh.categories).map(([k, v]) => [k, v.score])) : null,
     audit: vulns ? { high: vulns.high + vulns.critical, total: vulns.total } : null,
+    mutation: mutation(dir),
     hidden_tests: (() => { try { return readFileSync(join(dir, 'hidden.sha256'), 'utf8').trim(); } catch { return null; } })(),
   };
 }
 const AXE_PAGES = ['start', 'confirmation', 'form', 'staff'];
+
+// Mutation score of the agent's own tests (bench/scorer/mutation.sh): killed and timed-out mutants count as detected,
+// Stryker's convention; compile and runtime errors and ignored mutants are left out. Unmeasured: score null and a reason.
+const MUTATION_REASONS = { 10: 'npm install failed', 11: 'no test script', 12: 'mutation tool install failed', 13: 'mutation run failed', 124: 'time limit', 137: 'time limit' };
+export function mutation(dir) {
+  let rc = null;
+  try { rc = Number(readFileSync(join(dir, 'mutation.exit'), 'utf8')); } catch { return null; }
+  if (rc !== 0) return { score: null, reason: MUTATION_REASONS[rc] || `exit ${rc}` };
+  const r = JSON.parse(readFileSync(join(dir, 'mutation.json'), 'utf8'));
+  const n = { killed: 0, timeout: 0, survived: 0, no_coverage: 0, mutants: 0 };
+  const key = { Killed: 'killed', Timeout: 'timeout', Survived: 'survived', NoCoverage: 'no_coverage' };
+  for (const f of Object.values(r.files || {})) for (const m of f.mutants || []) { n.mutants++; if (key[m.status]) n[key[m.status]]++; }
+  const counted = n.killed + n.timeout + n.survived + n.no_coverage;
+  return { score: counted ? Math.round(1000 * (n.killed + n.timeout) / counted) / 10 : null, ...n, ...(counted ? {} : { reason: 'no mutants' }) };
+}
 const collect = (o) => [...(o.specs || []), ...(o.suites || []).flatMap(collect)];
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

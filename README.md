@@ -6,7 +6,7 @@
 BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the sdlc skill sizes each request first and small changes skip the steps they do not need.
 <!-- /generated:description -->
 
-Global agent setup for Claude Code and Codex: rules, four skills, permission rules, rebuild steps.
+Global agent setup for Claude Code and Codex: rules, four skills, rebuild steps.
 
 Opinionated: one SDLC sized to each change, one tool per job, exact versions everywhere. To change a choice, edit [rules/global.md](rules/global.md) or the skills and rerun `/global-setup`.
 
@@ -78,7 +78,7 @@ Not installed by BenchKeeper; see each official page. Tables marked as generated
 3. Run `/global-setup` (Codex: `$global-setup`). Confirm which installed agents you use. It checks applicable parts without changing anything, shows one plan (installs, changes, removals, version bumps) with destructive items marked, and applies only what you approve; destructive items are confirmed again right before they run. Cleanup stays within that scope. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
 4. Restart selected agents; if Codex is selected, run `/hooks` and trust the plugin hooks.
 
-Rerun `/global-setup` after editing `rules/global.md` (Codex gets a copy, not a link) or the permission rules in its part 11.
+Rerun `/global-setup` after editing `rules/global.md` (Codex gets a copy, not a link).
 
 ## Per repo
 

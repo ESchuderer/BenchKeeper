@@ -1,0 +1,51 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.34163679999999996,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 4,
+      "code_quality": 5,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Every brief item is implemented. The start page lists title, date and time, 'EUR n per guest' and '<n> seats left' (Tastings.jsx:23-31, start.jpg). Each tasting has a 'Book <title>' link (Tastings.jsx:33). The form has 'Name', 'Email' and 'Guests' fields (1-8, shared/booking.js:8-12) and a 'Book' button (Book.jsx:72-82). The server enforces the seat limit and returns a field error (store.js:33-36, Book.jsx:51-53). Errors show next to their field (form.jpg). The confirmation shows the heading 'Booking confirmed', the tasting, guests, total and reference (Confirmation.jsx:10-17, confirmation.jpg). /staff has a 'Password' field and a 'Sign in' button, with the password taken from STAFF_PASSWORD (server/index.js:4, Staff.jsx:24,32). Bookings are grouped with name, email, guests, reference and a 'Cancel' button (Staff.jsx:71-96, staff.jpg). Cancelling frees seats because seats are derived from bookings (store.js:14-16,43). Fully booked tastings get a badge and no book link (Tastings.jsx:29-34). Stack: React with Express, react-router, react-hook-form and zod. npm start uses PORT with a default of 3000. Nothing is unmet.",
+      "correctness": "Seat check and insert run synchronously with no await between them (store.js:28-39), and a test confirms that 10 concurrent bookings produce exactly 2 successes (api.test.js:90-96). Exact-fit and over-limit boundaries are tested (api.test.js:80-88). Guests must be an int from 1 to 8; strings, null and 1.5 are rejected (booking.js:8-12, api.test.js:46-60). Names are trimmed. References are unique via a collision loop (store.js:18-23). Cancelling twice returns 404 (api.test.js:149). A seat error on the client triggers a reload of the seat count (Book.jsx:53). Reloading the confirmation page loses its state and redirects home (Confirmation.jsx:6), which is acceptable.",
+      "security": "Password check runs timingSafeEqual over SHA-256 digests, and an empty or unset password is refused (app.js:14,55). Session tokens are 32 random bytes, kept in a server-side Map with a 2h expiry, set as an HttpOnly, SameSite=Strict cookie that is Secure over HTTPS (app.js:58-65). Logout deletes the session (app.js:79-82). Sign-in is rate-limited to 5 failures per 15 minutes (app.js:44-51). JSON body is capped at 10kb, and x-powered-by is disabled. React escapes all output, and the code has no secrets. Gaps: no security headers (helmet/CSP), and 'trust proxy' is an acknowledged shortcut (app.js:21, README:15). Expired sessions are only purged on login.",
+      "code_quality": "Small, well-separated modules: app.js (99 lines), store.js (45), and a validation schema shared by client and server (shared/booking.js). Naming is clear, and the code handles network, 404 and 500 errors with user-facing messages (api.js, Book.jsx:56, Staff.jsx:52). Abstractions are kept small; for example, the Field helper in Book.jsx:8-16 exists only for the form. Nothing is over-engineered.",
+      "tests": "The Vitest+supertest suite (api.test.js) covers the listing, total price, unique references, each invalid field, unknown tasting, fully booked, exact fit, concurrency, 401 without a session, wrong password, unset password, cookie flags, grouping, cancel freeing seats, logout, expiry, lockout, and successful logins not counting against the limit. The Playwright e2e tests cover the guest flow, field errors via accessible descriptions, the fully booked UI, server seat errors shown at the field, phone overflow, and the staff sign-in, cancel and sign-out flow. Each e2e test gets its own app instance (fixtures.js). The last run passed (test-results/.last-run.json).",
+      "ux_design": "Clear wine-and-cream palette and card layout (start.jpg). The invalid email is highlighted with a red tint and an inline message (form.jpg). The success state is a distinct green panel (confirmation.jpg). Fully booked tastings get a badge and a greyed card (styles.css:42-48). Staff cards include a seat summary such as '4 of 8 seats booked' (staff.jpg). The mobile layout turns the table into stacked cards (.playwright-mcp/mobile-staff.png). Weaknesses: no imagery or description of each tasting, and Cancel acts immediately with no confirmation (Staff.jsx:89).",
+      "accessibility": "Labels use htmlFor/id. Errors are linked with aria-invalid and aria-describedby (Book.jsx:59-63, Staff.jsx:28). react-hook-form focuses the first invalid field. There is a visible gold focus ring (styles.css:38, visible in form.jpg). The page has lang=en, semantic sections with aria-labelledby, a dl summary, an sr-only header for the action column, and role=alert on general errors. Gaps: every row's 'Cancel' button has the same accessible name with no booking context; field errors are not in a live region; focus is not moved to the new heading on route change; muted text #6f6168 on cream is borderline for small text.",
+      "simplicity": "Nine runtime dependencies, each standard for its job (express, react-router, react-hook-form, zod, express-rate-limit, cookie-parser). About 500 lines of source in total. No database, no state library, no UI kit.",
+      "maintainability": "There is a concise README with run steps, env vars and test commands, plus OpenSpec specs for both capabilities and a package-lock.json. Tests are strong regression coverage. Missing: no CI pipeline config, the Node version is only 'engines >=22' with no .nvmrc, no changelog or release approach, no ADRs documenting decisions (in-memory store, no helmet), and no short staff manual. The README mentions a manual 'trust proxy' code edit needed for deployment.",
+      "visual_design": "Consistent palette: dark wine header with a gold rule, serif headings, cream background, and cards with a wine top border, the same on every page (all screenshots). Button styles are consistent, and the monospace reference reads clearly. It looks finished but generic: no logo, imagery or tasting descriptions, and the start page is sparse.",
+      "layout": "Content sits in a centred 62rem column. The h1 and lead come first, then a three-card grid (start.jpg). The form is in a contained 28rem panel (form.jpg). The staff page has the title and Sign out on one row, then per-tasting groups (staff.jpg). There is no overflow, and e2e checks the 375px width (guest.spec.js:71-77). Left-aligned form and confirmation panels leave large empty space on the right at desktop width. On mobile, the 'Back to tastings' link appears slightly indented (mobile-book.png).",
+      "usability": "The booking is a single step from the start page. Guests defaults to 2. The form header repeats the date, price and seats left (form.jpg). Errors are specific, e.g. 'Only 3 seats left'. The confirmation has a clear 'Back to tastings' link. For staff: the Staff link in the footer, the password form, the grouped tables and Sign out. Weaknesses: Cancel deletes immediately with no confirmation and no undo; the form shows no running total before booking.",
+      "reception": "Guests would find it trustworthy and on-brand for a small family winery: the wine colours, serif type and clear prices fit. Staff get a clean overview. It feels a little bare (no imagery, no description of what each tasting includes, no venue or contact info), but it is professional enough to use."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "All of the brief is implemented correctly. Seat limits are enforced on the server with synchronous check-and-insert, proven by a concurrency test, and one zod schema is shared by client and server.",
+      "Thorough, meaningful tests: supertest API tests for each requirement and edge case (boundaries, cancel, sessions, lockout) plus Playwright e2e tests for both user flows and phone width.",
+      "Solid staff security (timing-safe comparison, random server-side sessions, HttpOnly/SameSite/Secure cookie, expiry, rate-limited sign-in) and a small, readable codebase on standard libraries."
+    ],
+    "issues": [
+      "Staff 'Cancel' deletes a booking immediately with no confirmation or undo, and every row's button has the same accessible name with no booking context (Staff.jsx:89).",
+      "Maintainability gaps: no CI pipeline, no pinned Node version (.nvmrc), no changelog or ADRs, no staff manual, and deployment behind a proxy needs a manual code edit (README:15, app.js:21).",
+      "No security headers (helmet/CSP). The visual design is polished but generic and sparse (no imagery or tasting descriptions), and focus and announcements are not managed on route changes."
+    ],
+    "verdict": "A correct, well-tested and secure tasting booking app that meets every requirement in the brief and looks coherent and on-brand on desktop and phone. Before shipping I would add a confirmation step for staff cancellations and a CI pipeline with a pinned Node version."
+  }
+}

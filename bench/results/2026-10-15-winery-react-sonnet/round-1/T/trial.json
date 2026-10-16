@@ -1,0 +1,150 @@
+{
+  "arm": "T",
+  "runtime": "opencode",
+  "followups": 0,
+  "wall_seconds": 1641,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 26
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 95,
+    "cost_usd_api_equivalent": 3.3173166000000003,
+    "usage": {
+      "input": 192,
+      "cache_creation": 245521,
+      "cache_read": 13925201,
+      "output": 90731,
+      "thinking": 40330
+    }
+  },
+  "workflow": {
+    "tool_calls": 120,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "spec-driven-development",
+      "planning-and-task-breakdown",
+      "test-driven-development",
+      "incremental-implementation",
+      "frontend-ui-engineering",
+      "security-and-hardening",
+      "api-and-interface-design",
+      "git-workflow-and-versioning",
+      "source-driven-development",
+      "code-review-and-quality"
+    ],
+    "agents": [
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "/work/SPEC.md",
+      "/work/tasks/plan.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash cd /work && (env -u PORT STAFF_PASSWORD=x setsid nohup npm start > /tmp/opencode"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R11": true,
+      "R12": true,
+      "R9": true
+    },
+    "robustness_passed": 12,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.97,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "374dfd34d02f0c2f"
+  },
+  "lines": {
+    "source": 1606,
+    "test": 1066,
+    "files": 51
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": false
+  },
+  "phases": {
+    "phases": {
+      "build": {
+        "calls": 59,
+        "minutes": 12.5,
+        "usd": 1.653
+      },
+      "spec": {
+        "calls": 3,
+        "minutes": 1.3,
+        "usd": 0.155
+      },
+      "review": {
+        "calls": 7,
+        "minutes": 5.2,
+        "usd": 0.292
+      },
+      "verify": {
+        "calls": 12,
+        "minutes": 3.1,
+        "usd": 0.462
+      },
+      "test": {
+        "calls": 14,
+        "minutes": 4.9,
+        "usd": 0.755
+      }
+    },
+    "subagents": {},
+    "method": "reported"
+  }
+}

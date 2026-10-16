@@ -1,0 +1,82 @@
+{
+  "arm": "S",
+  "runtime": "opencode",
+  "followups": 2,
+  "wall_seconds": 1117,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [
+      "superpowers@git+https://github.com/obra/superpowers.git#v6.1.1"
+    ],
+    "skills": 15
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 108,
+    "cost_usd_api_equivalent": 0.957514585,
+    "usage": {
+      "input": 222,
+      "cache_creation": 218399,
+      "cache_read": 14214967,
+      "output": 89324,
+      "thinking": 51941
+    }
+  },
+  "workflow": {
+    "tool_calls": 147,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "brainstorming",
+      "using-git-worktrees",
+      "test-driven-development"
+    ],
+    "agents": [
+      "general"
+    ],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash cd /work/.worktrees/kieselbrunnen-tastings && npm test 2>&1 | grep -E \"Test File"
+  },
+  "score": {
+    "install": 254,
+    "build": 254,
+    "acceptance_run": 3,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "374dfd34d02f0c2f"
+  },
+  "lines": {
+    "source": 1538,
+    "test": 987,
+    "files": 35
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": false,
+    "test_script": false,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  }
+}

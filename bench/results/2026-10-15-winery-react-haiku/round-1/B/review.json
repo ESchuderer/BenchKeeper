@@ -1,0 +1,45 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.43780040000000003,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 5,
+      "security": 4,
+      "code_quality": 5,
+      "tests": 4,
+      "ux_design": 5,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 3
+    },
+    "evidence": {
+      "requirements": "Almost everything in the brief is met. The start page shows title, date and time, price and seats left (start.jpg; TastingsPage.tsx:43-66). The buttons read \"Book <title>\" (TastingsPage.tsx:75-77). The form has Name, Email and Guests (1–8) and a Book button (BookingPage.tsx:126-157). Errors appear next to the field (form.jpg). The confirmation shows the heading, tasting, guests, total and reference (confirmation.jpg). /staff has Password and Sign in, with the password read from STAFF_PASSWORD (StaffPage.tsx:65-87, index.ts:8). Bookings are grouped by tasting with Cancel buttons (staff.jpg), and cancelling frees seats (store.ts:57-63). React, Express, react-router, react-hook-form and Tailwind are used, and the app serves on PORT with a default of 3000. Partly met: the brief says \"<n> seats left\", but format.ts:12-13 shows \"1 seat left\" for one seat and \"Fully booked\" at zero. This deviates from the literal wording, though SPEC.md:74 documents it.",
+      "correctness": "The server checks the seat limit after validation and returns 409 with an error on the guests field (app.ts:94-101). Store operations are synchronous, so a check followed by an add cannot interleave with another request (store.ts:16-19). Seats come from the live bookings, so cancelled bookings free them at once. Validation trims input, counts name length in code points, rejects decimals and text for guests, and treats NaN from an empty number field as a type error (shared/booking.ts). After a 409, the client reloads the tasting and switches to the fully booked state if needed (BookingPage.tsx:95,120-123). File writes are atomic (store.ts:26-31). Minor: a corrupt data file makes JSON.parse throw and crashes the server at startup (store.ts:21-23). The in-memory session map is only cleaned up when a session is used.",
+      "security": "React escapes all output and there is no dangerouslySetInnerHTML. The password check hashes both sides with SHA-256 and compares them with timingSafeEqual (app.ts:48-52). Session tokens are 32 random bytes in an HttpOnly, SameSite=Strict cookie that expires after 8 hours, and logout invalidates the token on the server (app.ts:121-137). Failed sign-ins are rate-limited (app.ts:27-34). Sign-in is refused when the password is unset or blank (index.ts:8, app.ts:115). JSON bodies are capped at 10 KB, and the error handler hides 500 details. No secrets are in the code. Gaps: the cookie is not marked Secure (documented in README:41), there are no security headers such as helmet, and expired sessions are never cleaned up in bulk.",
+      "code_quality": "The structure is clean and small: server/, shared/ and src/ (pages, api, format). One zod schema is shared by the client and the server. Names are clear, comments are sparse and useful, and the UI uses discriminated-union state types. Error handling is thought through: the client deliberately warns that a booking with an unknown outcome may still have been made (BookingPage.tsx:97-98), and 401 and 404 are handled on cancel (StaffPage.tsx:105-111). There is no needless abstraction.",
+      "tests": "server/api.test.ts has about 30 supertest cases. They cover the catalogue, the happy path and confirmation shape, each validation error on its field, over-capacity and exact-capacity bookings, fully booked, 404, staff auth (401, 503, 429, cookie flags, logout), the grouped listing, cancel freeing seats, and persistence. BookingPage.test.tsx covers field errors, the server's seat error on Guests, and the confirmation. Missing: UI tests for TastingsPage (seats label, Book buttons, fully booked state) and StaffPage (sign-in, cancel flow). There are no end-to-end tests.",
+      "ux_design": "The look is coherent: wine and cream colours with serif headings, like a small winery's own site (start.jpg). Cards show availability as coloured pills (green, gold when low, red when full; TastingsPage.tsx:56-66). The error state has a red border and the message under the field (form.jpg). The confirmation is clear, with the reference in a monospace font (confirmation.jpg). The staff page is tidy, with per-tasting cards and seat counts (staff.jpg). The layout is responsive, and the staff tables scroll horizontally on a phone. The fully booked state replaces the button with \"Fully booked\" (TastingsPage.tsx:72-73) and the form with a status message (BookingPage.tsx:120-123).",
+      "accessibility": "Every input has a label linked by htmlFor/id. The code sets aria-invalid and links errors and hints with aria-describedby (BookingPage.tsx:172-181). react-hook-form moves focus to the first invalid field. The pages use real headings, dl elements and tables with th scope, a focus-visible outline and lang=en. Load errors use role=alert. Gaps: field-level error messages have no live region, so later server errors such as a 409 on Guests are not announced. The Cancel buttons carry aria-label \"Cancel booking KB-… for …\" (StaffPage.tsx:185), which changes their accessible name from the specified \"Cancel\". The \"Fully booked\" placeholder is a <p> styled as a button.",
+      "simplicity": "Dependencies fit the problem: Express, cookie-parser, express-rate-limit, React, react-router, react-hook-form, zod and Tailwind. The code is about 900 lines in total, there are no custom replacements for framework features, and a single JSON file is the store.",
+      "maintainability": "The README covers run steps, environment variables, development mode, checks, layout and limits. SPEC.md records requirements, the API contract, validation rules, the test plan and decisions. package-lock.json is present and there are typecheck and test scripts. Missing: no CI pipeline, no release or versioning approach beyond version 1.0.0, and no changelog. The Node version is only engines \">=22\", with no .nvmrc or Volta pin and no exact pins. There is no short manual for staff, and decisions live inside SPEC.md rather than in ADRs."
+    },
+    "unmet_requirements": [
+      "Seats label deviates from the literal \"<n> seats left\": shows \"1 seat left\" and \"Fully booked\" (src/format.ts:12-13); documented in SPEC.md:74"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Solid server logic: one shared zod schema, the seat check on the server returns a 409 shown on the Guests field, cancelled bookings free seats at once, and file writes are atomic",
+      "Careful staff security: hashed timing-safe password comparison, random HttpOnly/SameSite=Strict session cookies, rate-limited sign-in, and sign-in refused when no password is set",
+      "Polished, coherent winery look with clear availability, error and confirmation states, backed by thorough API tests"
+    ],
+    "issues": [
+      "Maintainability gaps: no CI pipeline, no release or versioning approach, Node version only set as \">=22\", and no manual for staff",
+      "Accessibility gaps: field error messages have no live region, so server-side errors are not announced, and the Cancel buttons' aria-label changes their accessible name from \"Cancel\"",
+      "Robustness and tests: a corrupt bookings.json crashes startup (store.ts:21-23), the cookie is not marked Secure and there are no security headers, and there are no UI tests for the start page or staff page"
+    ],
+    "verdict": "This is a well-built, compact app that meets the brief almost exactly, with correct seat handling, sound staff authentication and a polished winery look. It could ship after small fixes; what holds it back is the missing CI and release process, a few accessibility gaps in how errors are announced, and the literal seats-left wording."
+  }
+}

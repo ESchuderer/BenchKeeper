@@ -1,0 +1,157 @@
+{
+  "arm": "J",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1775,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "superpowers"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 5768,
+    "result_events": 3,
+    "turns": 92,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 3.0250516999999992,
+    "usage": {
+      "input": 214,
+      "cache_creation": 223988,
+      "cache_read": 10784172,
+      "output": 113269,
+      "thinking": 28366
+    }
+  },
+  "workflow": {
+    "tool_calls": 110,
+    "subagent_tool_calls": 13,
+    "skills": [
+      "superpowers:brainstorming",
+      "openspec-propose",
+      "openspec-apply-change",
+      "superpowers:test-driven-development",
+      "superpowers:requesting-code-review"
+    ],
+    "agents": [
+      "general-purpose"
+    ],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/winery-tasting-booking/specs/tasting-booking/spec.md",
+      "/work/openspec/changes/winery-tasting-booking/specs/staff-bookings/spec.md",
+      "/work/openspec/changes/winery-tasting-booking/specs/winery-site-experience/spec.md",
+      "design.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "review": true,
+    "last_tool": "Bash npm run typecheck >/dev/null 2>&1; echo typecheck exit $?; export LD_LIBRARY_PAT"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R11": true,
+      "R12": true,
+      "R9": true
+    },
+    "robustness_passed": 12,
+    "axe": {
+      "start": 0,
+      "confirmation": 0,
+      "form": 0,
+      "staff": 0
+    },
+    "lighthouse": {
+      "performance": 0.66,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "374dfd34d02f0c2f"
+  },
+  "lines": {
+    "source": 1218,
+    "test": 986,
+    "files": 37
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "phases": {
+    "phases": {
+      "spec": {
+        "calls": 10,
+        "minutes": 1.8,
+        "usd": 0.197
+      },
+      "verify": {
+        "calls": 10,
+        "minutes": 10.4,
+        "usd": 0.276
+      },
+      "build": {
+        "calls": 44,
+        "minutes": 7.9,
+        "usd": 1.453
+      },
+      "test": {
+        "calls": 23,
+        "minutes": 7.5,
+        "usd": 0.666
+      },
+      "review": {
+        "calls": 18,
+        "minutes": 1.8,
+        "usd": 0.433
+      }
+    },
+    "subagents": {
+      "general-purpose": {
+        "calls": 13,
+        "minutes": 1.3,
+        "usd": 0.238
+      }
+    },
+    "method": "estimate"
+  }
+}

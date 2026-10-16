@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 0.37797800000000004,
+  "review": {
+    "scores": {
+      "requirements": 5,
+      "correctness": 5,
+      "security": 5,
+      "code_quality": 5,
+      "tests": 4,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2
+    },
+    "evidence": {
+      "requirements": "Every brief item is met. The start page lists title, date, time, 'EUR n per guest' and '<n> seats left' (TastingList.jsx:29-55, start.jpg). There is a 'Book <title>' link per tasting (TastingList.jsx:63-65). The form has Name/Email/Guests labels and a 'Book' button (BookingForm.jsx:82-127). Guests are limited to 1-8 (booking-schema.js:9-12), and the seat limit is enforced on the server (store.js:30-34). Errors appear next to each field (form.jpg). The confirmation shows the 'Booking confirmed' heading, tasting, guests, total and reference (Confirmation.jsx:33-58, confirmation.jpg). /staff has a Password field and 'Sign in' button, and the password is read from STAFF_PASSWORD (StaffPage.jsx:28-48, index.js:7). Bookings are grouped by tasting with a Cancel button (staff.jpg), and cancelling frees seats (store.js:45-50). Express serves the built React app on PORT, defaulting to 3000 (index.js:8). Storage is in memory and the interface is in English. Responsive classes (sm:grid-cols-2, flex-wrap, sm:flex-row) support phones; no phone screenshot was provided.",
+      "correctness": "The seat check and insert run in one synchronous step (store.js:29-42), and test/bookings-api.test.js:57-67 confirms concurrent requests cannot oversell. Out-of-range guests and strings such as '0x3' or '1e0' are rejected, and names are trimmed (booking-schema.js). The 409 response puts the error on the guests field and the form then refreshes seats (BookingForm.jsx:56-61). Cancelling deletes the booking, frees its seats and makes its confirmation return 404 (staff-bookings.test.js:30-48). References are never reused (store.js:16,36-39). Malformed JSON returns 400 through the error handler (app.js:107-109). Minor issues: the staff list shows '1 guests' (StaffPage.jsx:108, staff.jpg). Any non-OK response from /staff/bookings, including a 500, falls back to the sign-in form (StaffPage.jsx:60).",
+      "security": "The password check is a timingSafeEqual over SHA-256 digests and refuses sign-in when STAFF_PASSWORD is empty (staff-auth.js:8-17). Session tokens are random 32-byte values held server-side with an 8-hour expiry, and sign-out invalidates them (staff-auth.js:44-62). Cookies are HttpOnly, SameSite=Strict, and Secure when the request is HTTPS (app.js:25). Five failures in 15 minutes trigger a per-IP lockout, and trust proxy is configurable so forged X-Forwarded-For headers are ignored (staff-auth.js; staff-access.test.js:54-69). The app uses helmet and a 4kb JSON limit (app.js:28-29). React escapes all output and there is no dangerouslySetInnerHTML. No secrets are in the code. The public confirmation endpoint returns no personal data (app.js:53-63, tested at bookings-api.test.js:98).",
+      "code_quality": "The structure is small and clear: server/app.js for routes, store.js for domain logic, staff-auth.js, a single Zod schema in shared/ used by both client and server, and four focused page components. Names are meaningful and comments explain why rather than what (store.js:3,16,29; format.js:9). Error handling is consistent ({errors:{field}} for field errors, {error} otherwise). createApp accepts injected `now`, `tastings` and `distDir`, which makes it testable without overengineering. There is no needless abstraction.",
+      "tests": "node:test suites cover the API: listing, seat decrement, the over-limit 409 with its message, last seats and fully booked, concurrency, invalid input, 404s, and a confirmation without PII. Staff tests cover grouping, cancel freeing seats, and the auth requirement. Auth tests cover wrong or missing password, cookie flags, proxy handling, session expiry with an injected clock, sign-out and the lockout window. Schema tests cover boundary values. A Playwright e2e suite (test/e2e/booking.spec.js) walks the whole guest and staff flow, including errors next to fields and the fully booked button. Gaps: the e2e steps are serial and depend on each other, nothing tests the form's sold-out state or a mobile viewport, and no CI runs any of these tests.",
+      "ux_design": "The look is coherent and polished, with wine and parchment colours and a serif heading font (start.jpg, form.jpg). Cards with a seats-left badge change colour when few seats remain (amber) or the tasting is sold out (grey, with a disabled 'Fully booked' button; TastingList.jsx:45-66). Field errors are clear, with a red border and message under the field (form.jpg). The confirmation card is clean and the reference is in monospace (confirmation.jpg). Weaknesses: cancelling a booking takes effect at once, with no confirmation or undo (StaffPage.jsx:113), so a staff misclick deletes a guest's booking. The page shows '1 guests' (staff.jpg). The 'fully booked' notice on the form reuses the red error style (index.css:35, BookingForm.jsx:76). The site is fairly generic, with no imagery, address or contact details that would make it feel like the winery's own site.",
+      "accessibility": "Every input has a <label htmlFor>. Inputs carry aria-invalid, aria-describedby pointing to the error, and errors use role=alert (BookingForm.jsx:9-15,83-122; StaffPage.jsx:36-43). React Hook Form focuses the first invalid field by default. Visible focus outlines are set (index.css:20-28), lang=en is declared (index.html:2), and the markup is semantic (h1/h2, dl, ul). Weaknesses: muted text such as the dt labels at text-ink/55 and the footer at ink/60 looks below 4.5:1 contrast (start.jpg). Focus is not managed and the document title does not change on route changes. The Cancel buttons have no accessible context naming which booking they cancel.",
+      "simplicity": "Dependencies match the brief's request for established libraries: Express, React Router, React Hook Form with Zod, Tailwind and Vite, plus helmet and cookie-parser. The code totals roughly 600 lines and has no unneeded layers. The lockout and trust-proxy logic adds a little code, but it addresses real risks.",
+      "maintainability": "There is no README. Run instructions, the STAFF_PASSWORD and TRUST_PROXY variables, and the fact that bookings are lost on restart (in-memory store) are documented only in code (index.js:7-15). There is no CI configuration, no staff manual, no ADRs and no changelog or release process beyond version 1.0.0. OpenSpec specs exist and are accurate (openspec/specs/*), and there are good regression tests and a package-lock.json. Dependencies use caret ranges and engines is '>=22' rather than pinned to Node 22, with no .nvmrc."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Correct, race-free seat handling: a synchronous check-and-insert, tests for concurrency and fully booked tastings, and cancellations that free seats immediately",
+      "Strong staff security: constant-time password comparison, random server-side sessions with expiry and sign-out, HttpOnly SameSite=Strict cookies, a lockout with proxy-aware IP handling, and helmet",
+      "A clean, small codebase with one Zod schema shared by client and server, plus meaningful unit, API and Playwright e2e tests that follow the brief and the OpenSpec specs"
+    ],
+    "issues": [
+      "No README, CI pipeline or staff manual: setup, the STAFF_PASSWORD and TRUST_PROXY variables, and the in-memory data loss on restart are documented nowhere; runtime and dependency versions are only loosely pinned (engines '>=22', caret ranges)",
+      "Staff 'Cancel' deletes a booking immediately, with no confirmation or undo (StaffPage.jsx:113), so one misclick loses a guest's booking",
+      "Small UX and accessibility gaps: '1 guests' wording, the red error style reused for the fully booked notice, muted text contrast that looks below 4.5:1, and no focus or title management on route changes"
+    ],
+    "verdict": "This is a functionally complete, secure and well-tested booking app that meets every requirement in the brief, with a polished winery look. It is held back mainly by missing handover material (no README, CI or staff notes) and a Cancel button with no confirmation, both of which should be fixed before the winery relies on it."
+  }
+}

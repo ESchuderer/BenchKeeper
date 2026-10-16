@@ -14,6 +14,7 @@ for arm in A B F G H V AB AC L; do
       const field = (k) => (new RegExp(`^${k}:\\s*(.*)$`, "m").exec(fm) || [])[1]?.replace(/^["\x27]|["\x27]$/g, "") || "";
       return { dir: f.split("/").slice(-2, -1)[0], name: field("name"), description: field("description"), bytes: Buffer.byteLength(text) };
     });
-    process.stdout.write(JSON.stringify(out));'
+    // ASCII-only JSON (non-ASCII as \u escapes): the recorded descriptions may contain characters the repository forbids.
+    process.stdout.write(JSON.stringify(out).replace(/[\u007f-\uffff]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")));'
 done
 printf '}\n'

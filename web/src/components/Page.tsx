@@ -292,7 +292,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="Cost and quality" intro={<>Ponytail: fewer lines of code in every measurement. Its cost effect differs by source: +0.7% to +55% in four external tests besides JetBrains' (different injection methods and models), lower cost in all 6 Ponytail pairs of BenchKeeper's winery-react runs (one trial per arm, API-equivalent USD). Curated skills raised the pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>, not measured for agent-skills. Fewer rounds of fixes from the checks and the spec: not measured. Components evaluated, included or not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="Cost and quality" intro={<>Ponytail: fewer lines of code in every measurement. Cost -10.3% in JetBrains' test (card below), +0.7% to +55% in four other independent tests (different injection methods and models). BenchKeeper's own cost measurements are in the benchmark reports. Curated skills raised the pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>, not measured for agent-skills. Fewer rounds of fixes from the checks and the spec: not measured. Components evaluated, included or not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 3 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconGauge size={18} /></ThemeIcon><Text fw={700}>BenchKeeper, own benchmark</Text></Group>

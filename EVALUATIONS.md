@@ -23,7 +23,7 @@ Components considered for BenchKeeper, the evidence for each, and whether each i
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Ponytail](evaluations/behavior-modes/ponytail.md) | In, evidence mixed (arm B, k=1) | lines down in every source that measured them, cost -10.3% (JetBrains) to +55% elsewhere |
+| [Ponytail](evaluations/behavior-modes/ponytail.md) | In, evidence mixed (arm B, k=1) | lines down in every source that measured them, cost -10.3% (JetBrains) to +55% elsewhere, lower in all 6 winery-react pairs (k=1) |
 | [caveman](evaluations/behavior-modes/caveman.md) | Not in, never part of BenchKeeper | advertised -65%, measured -8.5% output tokens, score p=0.82 (JetBrains). Cost not reduced in 3 sources |
 
 ### Skill libraries

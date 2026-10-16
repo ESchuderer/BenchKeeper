@@ -41,7 +41,7 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
 
 ## Per repo
 
-Run `/setting-up-projects` (Codex: `$setting-up-projects`) and confirm the agents for this project. A new repo is set up, an existing setup is updated and cleaned. It shows one plan first and applies only what you approve. Destructive items are confirmed again. Commit the result. On a fresh clone, it restores the skills from their recorded sources.
+Run `/setting-up-projects` (Codex: `$setting-up-projects`) and confirm the agents for this project. A new repo is set up, an existing setup is updated and cleaned. Plan and approval as in step 3 of the setup steps. Commit the result. On a fresh clone, it restores the skills from their recorded sources.
 
 The agent, its sign-in, BenchKeeper, the global rules and skills stay on the host. `setting-up-machine` configures the host tooling, checks Docker and installs the pinned Dev Containers CLI. `setting-up-projects` creates or updates the repository's container and toolchain. Rootless engines, VMs and microVMs are not required.
 

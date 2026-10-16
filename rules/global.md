@@ -5,12 +5,12 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Always, even without the skill: commit, push or merge on the default branch only when the user said so in this task; never merge a pull request without the user's instruction.
 
 ## Ask, do not assume
-- If a request is ambiguous or lacks context needed to do it correctly, stop and ask precise clarifying questions. Do not guess.
+- Before starting a task, ask precise clarifying questions until you are sure what the user wants: goal, scope, expected result. Do not guess. Then restate the task in your own words, in one to three lines, before the first edit, command or subagent. A plain question needs no restatement.
 - Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, continue.
 
 ## Brevity
 - Short, concise answers. Say only what the reader needs to act.
-- No conversational padding: no openers like "Sure, I can help" or "Here is the answer", no restating the request, no closing recap or offers unless asked. A closing line on what was skipped or not checked, and any risk, is allowed.
+- No conversational padding: no openers like "Sure, I can help" or "Here is the answer", no restating the request (except the task restatement above), no closing recap or offers unless asked. A closing line on what was skipped or not checked, and any risk, is allowed.
 - Facts only, in docs, comments, and commit messages too: no evaluative words ("lean", "worth it", "powerful"), no caveats or justifications unless asked, no selling.
 
 ## Structure

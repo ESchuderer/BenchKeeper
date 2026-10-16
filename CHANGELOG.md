@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
 
+## setup-v2.3 (2026-10-16)
+
+Task restatement (owner request).
+
+- `rules/global.md` Ask, do not assume: before a task, clarifying questions until goal, scope and expected result are clear, then the task restated in one to three lines before the first edit, command or subagent; plain questions excepted. Brevity allows that restatement.
+
 ## setup-v2.2 (2026-10-16)
 
 Decisions before Build, discard and restart, review input, documentation, opt-in checks (#46).

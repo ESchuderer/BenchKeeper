@@ -2,6 +2,14 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
 
+## setup-v2.3 (2026-10-16)
+
+Task restatement (owner request); rules trimmed to what the model does not do by default (audit of 2026-10-16 against the Claude Code and Claude prompting docs and arXiv 2602.11988, which found context files raise cost by over 20% without raising task success; https://arxiv.org/abs/2602.11988).
+
+- `rules/global.md` Ask, do not assume: before a task, clarifying questions until goal, scope and expected result are clear, then the task restated in one to three lines with the tier line, before the first edit, command or subagent; plain questions excepted.
+- Brevity: allows that restatement and the closing line on what was skipped; the opener clause removed (current models answer directly); "no caveats" is now "no hedging", with uncertainty in a confidence level.
+- Removed as self-evident or duplicated: "code, commands, error messages ... stay exact"; the Ponytail precedence line (in `sdlc`); the mount scoping line (in `project-setup`); "do not re-read unchanged files" (Claude Code's Read tool says so). Sources and Confidence merged into one section.
+
 ## setup-v2.2 (2026-10-16)
 
 Decisions before Build, discard and restart, review input, documentation, opt-in checks (#46).

@@ -6,7 +6,8 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 
 Context limits (owner request).
 
-- `rules/global.md` Context: soft limit by tier (quick after the pull request; standard and full after the plan and after the pull request; any tier before an unrelated request): the agent suggests `/clear`, or `/compact` when the work continues. Hard limit: the client compacts by itself.
+- `following-dev-workflow` Task tiers: soft context limit by tier (quick: `/clear` after the pull request; standard and full: `/compact` after the plan, `/clear` after the pull request), suggested by the agent.
+- `rules/global.md` Context: one line, suggest `/clear` before an unrelated request; the client compacts by itself at its window (hard limit).
 - `setting-up-machine` part 7: `autoCompactWindow` (default 400000 tokens, the user's value kept); its effect on usage is measured in #66.
 
 ## setup-v2.6 (2026-10-16)

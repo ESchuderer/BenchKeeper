@@ -185,7 +185,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded on demand, so it costs context only when used.
             </FeatureCard>
             <FeatureCard icon={<IconShieldLock size={20} />} title={<Code fz="sm">Permission rules</Code>} scope="Global, Claude Code">
-              Ask before pushes to main, skipping git hooks, branch deletion, rebases, history rewrites, force pushes and hard resets: what the auto-mode classifier does not already block, plus a backup for the most destructive. Native rules, no hooks.
+              Ask before skipping git hooks, force pushes, branch deletion, pushes to main, hard resets, rebases, history rewrites, discarding uncommitted work and gh pr merge. Native rules, no hooks; they also apply where no auto-mode classifier runs.
             </FeatureCard>
           </SimpleGrid>
         </Section>
@@ -285,7 +285,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions, disabled lint rules or --no-verify unless you ask; Claude Code asks before --no-verify.</Check>
             </List>
             <List spacing="lg" styles={listTop}>
-              <Check ok title="Review before push.">A correctness review runs on the commits; findings wait for your decision.</Check>
+              <Check ok title="Review before push.">A correctness review runs on the commits, and a security review on risky changes; findings wait for your decision.</Check>
               <Check ok title="Sources and confidence.">External claims carry an official URL; uncertain topics state a confidence level.</Check>
               <Check ok title="Reproducible tools.">Exact versions for every install and container image.</Check>
               <Check ok title="Cleanup on request.">The Maintain pass (/maintain) finds dead code, stale shortcuts, vulnerable dependencies, docs drift and unused skills.</Check>

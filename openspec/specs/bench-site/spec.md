@@ -2,47 +2,33 @@
 
 ## Purpose
 
-Show every published benchmark trial on the Pages site, one page per brief, with its scores, review ratings and screenshots, generated from `bench/results/` and without cost figures.
+Show a summary of every published benchmark run on the Pages site, one page, generated from `bench/results/` and without cost figures; full results stay in the Markdown reports.
 
 ## Requirements
 
-### Requirement: Briefs overview
-
-The site SHALL have a page `/bench/` with one entry per brief that has published trials: the brief's first paragraph, the number of trials and arms, the runtimes, models and run dates, and a link to the brief's page.
-
-#### Scenario: New run published
-
-- **WHEN** a run of a new brief is published to `bench/results/` and the site is built
-- **THEN** the overview lists the brief without a hand edit
-
-### Requirement: One page per brief
-
-Each brief SHALL have a page `/bench/<brief>/` that lists every trial of that brief from `bench/results/*/round-*/*/`, read at build time: arm, setup, runtime, model, features, robustness, review ratings, follow-ups, tests first, review step, minutes and screenshots. A page SHALL NOT mix briefs or show cost figures.
-
-#### Scenario: Briefs kept apart
-
-- **WHEN** two briefs have published trials
-- **THEN** each brief's page lists only its own trials
-
-#### Scenario: No costs
-
-- **WHEN** the pages are built
-- **THEN** they contain no USD amounts
-
-### Requirement: Filter and sort
-
-A brief's page SHALL filter its trials by runtime, model, framework, spec tool, BenchKeeper layer and Ponytail, search by text, and sort by any number column; the filter state SHALL be kept in the URL, and the full table SHALL render without JavaScript.
-
-#### Scenario: Shared link
-
-- **WHEN** a visitor opens a link with filter parameters
-- **THEN** the page shows only the matching trials
-
 ### Requirement: Accessible in both themes
 
-The pages SHALL have no axe violations in light and dark mode and SHALL not scroll horizontally at phone width outside the table's own scroll area.
+The summary page SHALL have no axe violations in light and dark mode and SHALL not scroll horizontally at phone width outside the tables' own scroll areas.
 
 #### Scenario: Dark mode
 
 - **WHEN** the axe test runs in dark mode
 - **THEN** it reports no violations
+
+### Requirement: Benchmark summary page
+
+The site SHALL have one page `/bench/` with an entry per published run (brief and model): one sentence on the brief, the model, effort, k and protocol version, a ranked table per runtime, up to 5 key findings, and a link to the run's Markdown report on GitHub. The page SHALL also link the benchmark reports that have no trials, and SHALL NOT show cost figures or excluded components.
+
+#### Scenario: No costs
+
+- **WHEN** the page is built
+- **THEN** it contains no USD amounts
+
+### Requirement: Ranked tables from the data
+
+Each table SHALL be generated at build time from `bench/results/*/round-*/*/` and list the run's arms of one runtime ranked by review overall, then features, robustness and fewer minutes: rank, arm, setup in plain words, features, robustness, review, minutes.
+
+#### Scenario: New run published
+
+- **WHEN** a new run is published to `bench/results/` and the site is built
+- **THEN** the page shows its setup and ranked table without a hand edit

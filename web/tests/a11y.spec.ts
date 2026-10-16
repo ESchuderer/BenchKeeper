@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-for (const [name, path] of [['main page', './'], ['benchmark overview', './bench/'], ['benchmark brief', './bench/winery-react/']]) {
+for (const [name, path] of [['main page', './'], ['benchmark overview', './bench/']]) {
   for (const scheme of ['light', 'dark']) {
     test(`no axe violations on the ${name} in ${scheme} mode`, async ({ page }) => {
       await page.goto(path);

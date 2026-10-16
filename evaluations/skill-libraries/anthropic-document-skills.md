@@ -2,11 +2,9 @@
 
 [Repository](https://github.com/anthropics/skills), Category: skill libraries, Checked 2026-10-14, Decision: Not global, per project
 
-Skills: docx, xlsx, pptx, pdf.
-
 ## Advertised
 
-- None quantitative.
+- Skills docx, xlsx, pptx, pdf; no quantitative claim.
 
 ## Independent evidence
 
@@ -14,6 +12,6 @@ Skills: docx, xlsx, pptx, pdf.
 
 ## Decision
 
-Not part of the coding setup; install per need.
+Not global, per project: not part of the coding setup; install per need.
 
 [All evaluations](../../EVALUATIONS.md)

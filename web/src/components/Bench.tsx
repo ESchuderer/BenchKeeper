@@ -47,12 +47,13 @@ export function BenchShell({ base, children }: { base: string; children: ReactNo
 export type Row = { key: string; arm: string; setup: string; rank: number; features: number | null; robustness: number | null; overall: number | null; minutes: number };
 export type Run = {
   run: string; brief: string; model: string; effort: string; k: string; date: string; report: string | null; protocols: string[];
+  featuresOf: number | null; robustnessOf: number | null;
   groups: { runtime: string; criteria: number[]; rows: Row[] }[];
 };
 export type Notes = { briefs: Record<string, string>; runs: Record<string, { protocol?: string; findings: string[] }>; reports: { file: string; title: string; summary: string }[] };
 
 const plain = (setup: string) => (setup === 'plain' ? 'no add-ons' : setup.replace(/^BK\b/, 'BenchKeeper layer'));
-const score = (n: number | null, of: number) => (n == null ? 'n/a' : `${n}/${of}`);
+const score = (n: number | null, of: number | null) => (n == null || of == null ? 'n/a' : `${n}/${of}`);
 
 export default function BenchSummary({ base, runs, notes }: { base: string; runs: Run[]; notes: Notes }) {
   return (
@@ -98,7 +99,7 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
                       {g.rows.map((t) => (
                         <Table.Tr key={t.key}>
                           <Table.Td>{t.rank}</Table.Td><Table.Td>{t.arm}</Table.Td><Table.Td>{plain(t.setup)}</Table.Td>
-                          <Table.Td>{score(t.features, 6)}</Table.Td><Table.Td>{score(t.robustness, 12)}</Table.Td>
+                          <Table.Td>{score(t.features, r.featuresOf)}</Table.Td><Table.Td>{score(t.robustness, r.robustnessOf)}</Table.Td>
                           <Table.Td>{t.overall ?? 'n/a'}</Table.Td><Table.Td>{t.minutes}</Table.Td>
                         </Table.Tr>
                       ))}

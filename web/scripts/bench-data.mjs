@@ -44,6 +44,7 @@ export function loadTrials(results) {
           key: `${run}/${round}/${id}`, run, brief: meta.brief, model: MODELS[meta.model] || meta.model, effort: meta.effort, k: meta.k,
           runtime: t.runtime === 'opencode' ? 'OpenCode' : 'Claude Code', arm: id, setup: arm(id).setup,
           features: t.score?.features_passed ?? null, robustness: t.score?.robustness_passed ?? null,
+          featuresOf: Object.keys(t.score?.features || {}).length || null, robustnessOf: Object.keys(t.score?.robustness || {}).length || null,
           minutes: Math.round((t.wall_seconds ?? 0) / 60), overall: r?.overall ?? null,
           protocol: t.method?.protocol ?? null, criteria: Object.keys(r?.scores || {}).length || null,
         });
@@ -65,6 +66,8 @@ export function summarizeRuns(trials, reports = []) {
     const report = reports.includes(`${run}.md`) ? `${run}.md` : reports.filter((f) => f.endsWith(`-${t0.brief}.md`)).sort().at(-1) ?? null;
     return {
       run, brief: t0.brief, model: t0.model, effort: t0.effort, k: t0.k, date: run.slice(0, 10), report,
+      // Test totals of the run: an app that did not start records no tests.
+      featuresOf: Math.max(0, ...ts.map((t) => t.featuresOf ?? 0)) || null, robustnessOf: Math.max(0, ...ts.map((t) => t.robustnessOf ?? 0)) || null,
       protocols: [...new Set(ts.map((t) => t.protocol).filter(Boolean))].sort(),
       groups: [...new Set(ts.map((t) => t.runtime))].sort().map((runtime) => {
         const rows = ts.filter((t) => t.runtime === runtime).sort(rankOrder);

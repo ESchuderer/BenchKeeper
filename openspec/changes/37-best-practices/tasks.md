@@ -20,4 +20,4 @@
 
 - [x] 4.1 README, `facts.json`, site text for the new layout; README sync
 - [x] 4.2 Checks in the dev container: link test, README sync, site build and tests
-- [ ] 4.3 Pre-push review; draft PR; tag `setup-v2.0` after merge
+- [x] 4.3 Pre-push review (three rounds plus a final pass); the draft PR and the `setup-v2.0` tag follow the merge

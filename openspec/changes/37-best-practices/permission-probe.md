@@ -1,8 +1,8 @@
 # Permission rule probe
 
-2026-10-16, Claude Code 2.1.301, `claude -p` with `claude-haiku-5-5`, `--permission-mode dontAsk` (an ask rule refuses the call), the 60 ask rules of `skills/global-setup/SKILL.md` part 11 plus allow rules `Bash(git *)` and `Bash(gh *)`, in a throwaway repository with a local bare remote; `gh` ran with an invalid token. `refused` means the call was listed in `permission_denials`. Every rule matches at least one refused command; no command expected to run matches a rule.
+2026-10-16, Claude Code 2.1.301, `claude -p` with `claude-haiku-5-5`, `--permission-mode dontAsk` (an ask rule refuses the call), the 69 ask rules of `skills/global-setup/SKILL.md` part 11 plus allow rules `Bash(git *)` and `Bash(gh *)`, in a throwaway repository with a local bare remote; `gh` ran with an invalid token. `refused` means the call was listed in `permission_denials`. Every rule matches at least one refused command except `Bash(git pull * -r*)` (unverified); no command expected to run matches a rule.
 
-Result: 75 of 75 as expected.
+Result: 90 of 90 as expected.
 
 | Expected | Got | Command |
 |---|---|---|
@@ -81,5 +81,20 @@ Result: 75 of 75 as expected.
 | run | run | `git config user.name probe` |
 | refused | refused | `git commit --allow-empty -m probe -n` |
 | refused | refused | `git config core.hookspath /dev/null` |
+| refused | refused | `git rebase` |
+| refused | refused | `git pull -r origin main` |
+| refused | refused | `git -c core.hookspath=/dev/null commit --allow-empty -m probe` |
+| refused | refused | `git stash drop` |
+| refused | refused | `git stash clear` |
+| refused | refused | `git restore .` |
+| refused | refused | `git checkout .` |
+| refused | refused | `git checkout -- .` |
+| refused | refused | `git checkout -f main` |
+| refused | refused | `git checkout main -f` |
+| run | run | `git checkout -b probe-new` |
+| run | run | `git checkout fix/x` |
+| run | run | `git stash list` |
+| run | run | `git restore --staged f.txt` |
+| run | run | `git pull origin main` |
 
 An earlier run with a rule ending in `:*` let `git push origin :fix/x` through: a trailing `:*` is the old trailing-wildcard form ([permissions](https://code.claude.com/docs/en/permissions)), so the rule now ends in `:**`.

@@ -1,6 +1,7 @@
 ---
 name: global-setup
-description: "Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, Ponytail (full), addy agent-skills, OpenSpec, Playwright MCP, telemetry. Use on a new machine, after editing the global rules, to update the pinned tool versions, or to verify or clean the global setup."
+description: "Check, install, and clean the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, workflow skills, Ponytail (full), addy agent-skills, OpenSpec, Playwright MCP, telemetry. Use on a new machine, after editing the global rules or skills, to update the pinned tool versions, or to verify or clean the global setup."
+disable-model-invocation: true
 ---
 
 # Global setup
@@ -31,9 +32,9 @@ Blocks listing both `claude` and `codex` commands are alternatives: run only sel
 
 In commands below, replace `<agent-flags>` with the selected agents' flags and `<skill-dir>` with a selected agent's directory; repeat directory-specific commands for each selection. Never omit the flags and rely on auto-detection. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
 
-Needs `npm` with prefix `~/.local`, `jq`, `curl` for applicable steps. Missing: stop and tell the user. `gh` missing or `gh auth status` failing: warn that the issue and pull request flow in `rules/global.md` falls back to local branches, and continue.
+Needs `npm` with prefix `~/.local`, `jq`, `curl` for applicable steps. Missing: stop and tell the user. `gh` missing or `gh auth status` failing: warn that the issue and pull request flow in the `sdlc` skill falls back to local branches, and continue.
 
-Agents run on the host; project development commands run in standard devcontainers. Apply this skill to the host agent setup and check part 9 before project setup. Keep BenchKeeper, agent authentication, global rules, and skills on the host. `project-setup` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials. Rootless engines, VMs, and microVMs are not required.
+This skill sets up the host (agents, authentication, global rules, skills); `project-setup` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials; rootless engines, VMs and microVMs are not required. Check part 9 before project setup.
 
 Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`). Add available bumps to the plan (package, pinned, latest). For each accepted bump, edit the pin everywhere it appears in `$B` (`grep -rn '<pkg>@' $B --include='*.md'`), then install it through its part. The pins change only here, at install time, where the new version is tested.
 
@@ -62,7 +63,7 @@ openspec config set delivery skills && openspec config set telemetry.enabled fal
 ```
 
 ### 3. Ponytail, level full
-Check: `ponytail@ponytail` enabled in each selected agent's plugin list; `~/.config/ponytail/config.json` has `"defaultMode": "full"`; `PONYTAIL_DEFAULT_MODE` is unset or `full` (it overrides the file, [upstream configuration](https://github.com/DietrichGebert/ponytail/blob/main/INSTALL.md#settings)). Keep Ponytail and agent-skills; their integration lives in `$B/rules/global.md`, not in installed plugin files.
+Check: `ponytail@ponytail` enabled in each selected agent's plugin list; `~/.config/ponytail/config.json` has `"defaultMode": "full"`; `PONYTAIL_DEFAULT_MODE` is unset or `full` (it overrides the file, [upstream configuration](https://github.com/DietrichGebert/ponytail/blob/main/INSTALL.md#settings)). Keep Ponytail and agent-skills; their integration lives in `$B/skills/sdlc/SKILL.md`, not in installed plugin files.
 Install:
 ```sh
 claude plugin marketplace add DietrichGebert/ponytail && claude plugin install ponytail@ponytail
@@ -85,12 +86,12 @@ codex plugin marketplace add addyosmani/agent-skills && codex plugin add agent-s
 Check: project Playwright runs inside its devcontainer; a host `npx` registration or host browser cache does not verify that connection. `project-setup` installs `@playwright/mcp@0.0.83` and its matching Chromium inside the container, configures the project connection, and tests browser access to the project application. Report existing host Playwright registrations for migration; keep them disabled for container projects until the replacement is verified.
 
 ### 6. Skills
-Check: each selected agent's skill directory links `project-setup` and `global-setup` into `$B/skills/`, and has a readable `find-skills/SKILL.md`.
+Check: each selected agent's skill directory links `project-setup`, `global-setup`, `sdlc` and `maintain` into `$B/skills/`, and has a readable `find-skills/SKILL.md`. `rules/global.md` loads `sdlc` before every repository edit, so a missing `sdlc` link is a failure.
 Install:
 ```sh
 DO_NOT_TRACK=1 npx -y skills@1.7.2 add vercel-labs/skills -s find-skills -g <agent-flags> --copy -y
 mkdir -p <skill-dir>
-for s in project-setup global-setup; do ln -sfn $B/skills/$s <skill-dir>/$s; done
+for s in project-setup global-setup sdlc maintain; do ln -sfn $B/skills/$s <skill-dir>/$s; done
 ```
 
 ### 7. Settings and telemetry
@@ -111,7 +112,7 @@ grep -q '^\[feedback\]' ~/.codex/config.toml || printf '\n[feedback]\nenabled = 
 
 ### 8. Advisor and Remote Control not disabled
 Skip this part unless Claude Code is selected.
-Check: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_GROWTHBOOK` are set nowhere: settings `env`, current environment, `~/.config/fish/`, `~/.bashrc`, `~/.zshrc`, `~/.profile`, `/etc/environment`. Each disables feature flags and with them the advisor; some also Remote Control.
+Check: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_GROWTHBOOK`, `CLAUDE_CODE_DISABLE_ADVISOR_TOOL` are set nowhere: settings `env`, current environment, `~/.config/fish/`, `~/.bashrc`, `~/.zshrc`, `~/.profile`, `/etc/environment`. The first four disable feature-flag fetching and with it the advisor and `/skill-doctor`; `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` and `DISABLE_GROWTHBOOK` also Remote Control ([env-vars](https://code.claude.com/docs/en/env-vars)); the last disables the advisor directly. A `DO_NOT_TRACK=1` prefix on a single command (as in the skills CLI lines) is fine.
 Fix: remove the line after asking (`/etc/environment`: give the user the command).
 
 ### 9. Devcontainer tooling (host)

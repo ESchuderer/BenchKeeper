@@ -10,6 +10,7 @@ Runs 2026-10-14 to 2026-10-16, protocol `bench/PROTOCOL.md` v1.9. All 58 trials 
 | Claude Code arms | 22 (A, B, C to P, V to Y, AB, AC), Claude Code 2.1.299, effort `high`; Haiku: the owner's Max subscription; Sonnet: 11 arms on the Max subscription (B C D E G I J K O X Y AB, until its weekly limit), 11 on the owner's Team seat (A F H L M N P V W AC) |
 | OpenCode arms | 7 (Q to U, Z, AA), OpenCode 1.19.0, `claude-haiku-5-5` and `claude-sonnet-5-5`, variant `high`, Anthropic API key |
 | Review | blind, `claude-opus-5-5`, effort `high`, `bench/review/`, billed to the API key. Haiku and OpenCode apps: 9 criteria; Sonnet Claude Code apps: 13 criteria (adds visual design, layout, usability, reception; protocol v1.7). The two sets of ratings are not directly comparable. |
+| Mutation score | share of mutants of the agent's own source that its own tests detect (killed or timed out), Stryker 10.0.0 command runner, `bench/scorer/mutation.sh`, rescored 2026-10-16 with agent runs unchanged (#44); unmeasured: Sonnet AB (every mutant timed out, TypeScript 7 build) and Sonnet Z (its own Playwright suite fails in the dry run) |
 | Seed, order | 41; Claude Code arms in three parallel runners plus single-arm reruns; order, image IDs and account switch in the run manifests |
 
 Review column: a review skill, a review agent type, or a subagent whose task description names a review (parser fixed during the run; all `trial.json` files re-parsed).
@@ -27,90 +28,90 @@ Confidence in the cost figures: medium. Not reconciled against the Anthropic Con
 
 ## Claude Code, Sonnet 5.5 (13 review criteria)
 
-Testing method: protocol 1.9, hidden tests `374dfd34d02f0c2f`, 13 review criteria, BenchKeeper layer v1.
+Testing method: agent runs under protocol 1.9; scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 13 review criteria, BenchKeeper layer v1.
 
-| Arm | Setup | Features | Robustness | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Visual | Layout | Usability | Reception | Tests first | Review |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| A | plain | 6/6 | 12/12 | 0 | 7 | 0.92 | 8 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | 5 | 3 | 5 | 4 | 4 | 4 | yes | yes |
-| B | Ponytail | 6/6 | 12/12 | 0 | 3 | 0.39 | 7 | 4 | 4 | 4 | 4 | 4 | 4 | 3 | 5 | 2 | 4 | 4 | 4 | 4 | yes | no |
-| AB | OpenSpec | 6/6 | 12/12 | 1 | 27 | 3.19 | 9 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | 5 | 4 | 5 | yes | yes |
-| AC | Spec Kit | 6/6 | 12/12 | 0 | 15 | 2.73 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | no | yes |
-| O | Ponytail + OpenSpec | 6/6 | 12/12 | 0 | 8 | 1.11 | 8 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | no | yes |
-| P | Ponytail + Spec Kit | 6/6 | 12/12 | 0 | 5 | 0.89 | 8 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 5 | 3 | 4 | 5 | 4 | 4 | yes | yes |
-| F | agent-skills | 6/6 | 12/12 | 1 | 26 | 3.5 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | 4 | 5 | 4 | 4 | yes | yes |
-| G | Superpowers | 6/6 | 12/12 | 0 | 11 | 1.9 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | 4 | 5 | 4 | 4 | yes | yes |
-| H | ECC | 6/6 | 12/12 | 0 | 23 | 5.58 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | 4 | 5 | 4 | 4 | yes | yes |
-| V | Matt Pocock | 6/6 | 12/12 | 1 | 13 | 1.86 | 8 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 4 | 3 | 4 | 5 | 4 | 4 | yes | yes |
-| I | agent-skills + OpenSpec | 6/6 | 12/12 | 0 | 16 | 2.77 | 8 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | 4 | 3 | 4 | 4 | 4 | 4 | yes | yes |
-| J | Superpowers + OpenSpec | 6/6 | 12/12 | 0 | 30 | 3.03 | 8 | 5 | 5 | 4 | 5 | 5 | 5 | 4 | 4 | 3 | 5 | 5 | 4 | 5 | yes | yes |
-| K | ECC + OpenSpec | 6/6 | 12/12 | 0 | 12 | n/a | 8 | 5 | 4 | 5 | 4 | 5 | 4 | 5 | 5 | 3 | 4 | 5 | 4 | 4 | yes | yes |
-| W | Matt Pocock + OpenSpec | 6/6 | 12/12 | 1 | 14 | 2.6 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 4 | 4 | 4 | yes | yes |
-| L | BK + agent-skills | 6/6 | 12/12 | 0 | 5 | 0.98 | 7 | 4 | 4 | 5 | 4 | 3 | 4 | 4 | 5 | 2 | 4 | 4 | 4 | 4 | yes | yes |
-| M | BK + Superpowers | 6/6 | 12/12 | 0 | 8 | 1.68 | 8 | 4 | 5 | 5 | 4 | 4 | 4 | 4 | 5 | 2 | 4 | 4 | 4 | 4 | yes | yes |
-| N | BK + ECC | 6/6 | 12/12 | 0 | 9 | 2.19 | 8 | 5 | 4 | 5 | 4 | 5 | 4 | 4 | 5 | 2 | 4 | 4 | 4 | 4 | no | yes |
-| X | BK + Matt Pocock | 6/6 | 12/12 | 0 | 6 | 1.32 | 8 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | 5 | 3 | 4 | 4 | 4 | 4 | yes | yes |
-| C | BK + agent-skills + OpenSpec | 6/6 | 12/12 | 0 | 30 | 1.63 | 8 | 5 | 4 | 5 | 5 | 5 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | yes | yes |
-| D | BK + Superpowers + OpenSpec | 6/6 | 12/12 | 0 | 26 | 1.73 | 8 | 5 | 4 | 5 | 5 | 5 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | no | yes |
-| E | BK + ECC + OpenSpec | 6/6 | 12/12 | 0 | 10 | 2.7 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 5 | 3 | 4 | 5 | 4 | 4 | yes | yes |
-| Y | BK + Matt Pocock + OpenSpec | 6/6 | 12/12 | 0 | 7 | 1.1 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | no | yes |
+| Arm | Setup | Features | Robustness | Mutation | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Visual | Layout | Usability | Reception | Tests first | Review |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | plain | 6/6 | 12/12 | 62.8% | 0 | 7 | 0.92 | 8 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | 5 | 3 | 5 | 4 | 4 | 4 | yes | yes |
+| B | Ponytail | 6/6 | 12/12 | 74.1% | 0 | 3 | 0.39 | 7 | 4 | 4 | 4 | 4 | 4 | 4 | 3 | 5 | 2 | 4 | 4 | 4 | 4 | yes | no |
+| AB | OpenSpec | 6/6 | 12/12 | unmeasured | 1 | 27 | 3.19 | 9 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | 5 | 4 | 5 | yes | yes |
+| AC | Spec Kit | 6/6 | 12/12 | 70.5% | 0 | 15 | 2.73 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | no | yes |
+| O | Ponytail + OpenSpec | 6/6 | 12/12 | 60.9% | 0 | 8 | 1.11 | 8 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | no | yes |
+| P | Ponytail + Spec Kit | 6/6 | 12/12 | 68.2% | 0 | 5 | 0.89 | 8 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 5 | 3 | 4 | 5 | 4 | 4 | yes | yes |
+| F | agent-skills | 6/6 | 12/12 | 75.2% | 1 | 26 | 3.5 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | 4 | 5 | 4 | 4 | yes | yes |
+| G | Superpowers | 6/6 | 12/12 | 73.8% | 0 | 11 | 1.9 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | 4 | 5 | 4 | 4 | yes | yes |
+| H | ECC | 6/6 | 12/12 | 89.7% | 0 | 23 | 5.58 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | 4 | 5 | 4 | 4 | yes | yes |
+| V | Matt Pocock | 6/6 | 12/12 | 44.8% | 1 | 13 | 1.86 | 8 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 4 | 3 | 4 | 5 | 4 | 4 | yes | yes |
+| I | agent-skills + OpenSpec | 6/6 | 12/12 | 72.1% | 0 | 16 | 2.77 | 8 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | 4 | 3 | 4 | 4 | 4 | 4 | yes | yes |
+| J | Superpowers + OpenSpec | 6/6 | 12/12 | 76.7% | 0 | 30 | 3.03 | 8 | 5 | 5 | 4 | 5 | 5 | 5 | 4 | 4 | 3 | 5 | 5 | 4 | 5 | yes | yes |
+| K | ECC + OpenSpec | 6/6 | 12/12 | 94% | 0 | 12 | n/a | 8 | 5 | 4 | 5 | 4 | 5 | 4 | 5 | 5 | 3 | 4 | 5 | 4 | 4 | yes | yes |
+| W | Matt Pocock + OpenSpec | 6/6 | 12/12 | 81.4% | 1 | 14 | 2.6 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 4 | 4 | 4 | yes | yes |
+| L | BK + agent-skills | 6/6 | 12/12 | 31.4% | 0 | 5 | 0.98 | 7 | 4 | 4 | 5 | 4 | 3 | 4 | 4 | 5 | 2 | 4 | 4 | 4 | 4 | yes | yes |
+| M | BK + Superpowers | 6/6 | 12/12 | 34.8% | 0 | 8 | 1.68 | 8 | 4 | 5 | 5 | 4 | 4 | 4 | 4 | 5 | 2 | 4 | 4 | 4 | 4 | yes | yes |
+| N | BK + ECC | 6/6 | 12/12 | 29.2% | 0 | 9 | 2.19 | 8 | 5 | 4 | 5 | 4 | 5 | 4 | 4 | 5 | 2 | 4 | 4 | 4 | 4 | no | yes |
+| X | BK + Matt Pocock | 6/6 | 12/12 | 35.6% | 0 | 6 | 1.32 | 8 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | 5 | 3 | 4 | 4 | 4 | 4 | yes | yes |
+| C | BK + agent-skills + OpenSpec | 6/6 | 12/12 | 30.5% | 0 | 30 | 1.63 | 8 | 5 | 4 | 5 | 5 | 5 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | yes | yes |
+| D | BK + Superpowers + OpenSpec | 6/6 | 12/12 | 74.8% | 0 | 26 | 1.73 | 8 | 5 | 4 | 5 | 5 | 5 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | no | yes |
+| E | BK + ECC + OpenSpec | 6/6 | 12/12 | 31% | 0 | 10 | 2.7 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 5 | 3 | 4 | 5 | 4 | 4 | yes | yes |
+| Y | BK + Matt Pocock + OpenSpec | 6/6 | 12/12 | 35.6% | 0 | 7 | 1.1 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | no | yes |
 
 Trials: USD 43.79 API-equivalent (21 trials; K without cost). Reviews: USD 9.54 billed. W was rerun under protocol v1.8 (the first trial, 0/6 after it stopped to wait for confirmation, is kept in `limited/W-v1.7`).
 
 ## Claude Code, Haiku 5.5 (9 review criteria, outdated)
 
-Testing method: protocol 1.9, hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
+Testing method: agent runs under protocol 1.9; scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
 
 Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not comparable with the 13-criteria ratings. Kept as reference until these apps are reviewed again with 13 criteria.
 
-| Arm | Setup | Features | Robustness | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Tests first | Review |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| A | plain | 6/6 | 12/12 | 0 | 18 | 1.18 | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | 4 | yes | yes |
-| B | Ponytail | 6/6 | 12/12 | 0 | 15 | 0.48 | 8 | 4 | 5 | 4 | 5 | 4 | 5 | 4 | 5 | 3 | yes | yes |
-| AB | OpenSpec | 6/6 | 12/12 | 0 | 24 | 1.92 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 4 | 3 | yes | yes |
-| AC | Spec Kit | 6/6 | 12/12 | 0 | 20 | 1.65 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 4 | yes | yes |
-| O | Ponytail + OpenSpec | 6/6 | 12/12 | 0 | 16 | 1.04 | 7 | 4 | 5 | 4 | 5 | 4 | 4 | 4 | 5 | 2 | yes | yes |
-| P | Ponytail + Spec Kit | 6/6 | 12/12 | 0 | 25 | 0.93 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | yes | yes |
-| F | agent-skills | 6/6 | 12/12 | 0 | 19 | 1.09 | 8 | 4 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 4 | yes | yes |
-| G | Superpowers | 6/6 | 10/12 | 0 | 16 | 1.69 | 8 | 5 | 4 | 5 | 4 | 5 | 4 | 4 | 4 | 3 | yes | yes |
-| H | ECC | 6/6 | 12/12 | 0 | 14 | 1.43 | 8 | 4 | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 3 | yes | yes |
-| V | Matt Pocock | 6/6 | 12/12 | 0 | 18 | 0.95 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 3 | yes | yes |
-| I | agent-skills + OpenSpec | 6/6 | 12/12 | 0 | 26 | 2.12 | 8 | 4 | 5 | 5 | 4 | 5 | 4 | 4 | 4 | 3 | no | yes |
-| J | Superpowers + OpenSpec | 6/6 | 12/12 | 1 | 25 | 1.4 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 4 | 3 | no | yes |
-| K | ECC + OpenSpec | 6/6 | 12/12 | 0 | 22 | 3.41 | 8 | 4 | 5 | 5 | 4 | 5 | 4 | 4 | 4 | 3 | yes | yes |
-| W | Matt Pocock + OpenSpec | 6/6 | 12/12 | 0 | 29 | 2.05 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 4 | 3 | yes | yes |
-| L | BK + agent-skills | 6/6 | 12/12 | 0 | 10 | 0.43 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 5 | 3 | yes | yes |
-| M | BK + Superpowers | 6/6 | 12/12 | 0 | 12 | 1.51 | 7 | 4 | 4 | 4 | 4 | 3 | 4 | 4 | 5 | 2 | yes | yes |
-| N | BK + ECC | 6/6 | 12/12 | 0 | 19 | 2.72 | 7 | 4 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 2 | no | yes |
-| X | BK + Matt Pocock | 6/6 | 12/12 | 0 | 12 | 0.6 | 8 | 5 | 4 | 4 | 5 | 4 | 4 | 4 | 5 | 2 | yes | yes |
-| C | BK + agent-skills + OpenSpec | 6/6 | 12/12 | 0 | 13 | 0.86 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 5 | 2 | yes | yes |
-| D | BK + Superpowers + OpenSpec | 6/6 | 12/12 | 1 | 17 | 1.39 | 8 | 5 | 4 | 5 | 4 | 4 | 4 | 4 | 5 | 3 | yes | yes |
-| E | BK + ECC + OpenSpec | 6/6 | 12/12 | 1 | 21 | 2.98 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 4 | 2 | no | yes |
-| Y | BK + Matt Pocock + OpenSpec | 6/6 | 12/12 | 0 | 15 | 1.41 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 5 | 3 | no | yes |
+| Arm | Setup | Features | Robustness | Mutation | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Tests first | Review |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | plain | 6/6 | 12/12 | 57.3% | 0 | 18 | 1.18 | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | 4 | yes | yes |
+| B | Ponytail | 6/6 | 12/12 | 45.6% | 0 | 15 | 0.48 | 8 | 4 | 5 | 4 | 5 | 4 | 5 | 4 | 5 | 3 | yes | yes |
+| AB | OpenSpec | 6/6 | 12/12 | 90.3% | 0 | 24 | 1.92 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 4 | 3 | yes | yes |
+| AC | Spec Kit | 6/6 | 12/12 | 94.1% | 0 | 20 | 1.65 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 4 | yes | yes |
+| O | Ponytail + OpenSpec | 6/6 | 12/12 | 74.1% | 0 | 16 | 1.04 | 7 | 4 | 5 | 4 | 5 | 4 | 4 | 4 | 5 | 2 | yes | yes |
+| P | Ponytail + Spec Kit | 6/6 | 12/12 | 68.8% | 0 | 25 | 0.93 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | yes | yes |
+| F | agent-skills | 6/6 | 12/12 | 98.9% | 0 | 19 | 1.09 | 8 | 4 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 4 | yes | yes |
+| G | Superpowers | 6/6 | 10/12 | 69.8% | 0 | 16 | 1.69 | 8 | 5 | 4 | 5 | 4 | 5 | 4 | 4 | 4 | 3 | yes | yes |
+| H | ECC | 6/6 | 12/12 | 67.6% | 0 | 14 | 1.43 | 8 | 4 | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 3 | yes | yes |
+| V | Matt Pocock | 6/6 | 12/12 | 96.6% | 0 | 18 | 0.95 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 3 | yes | yes |
+| I | agent-skills + OpenSpec | 6/6 | 12/12 | 90% | 0 | 26 | 2.12 | 8 | 4 | 5 | 5 | 4 | 5 | 4 | 4 | 4 | 3 | no | yes |
+| J | Superpowers + OpenSpec | 6/6 | 12/12 | unmeasured | 1 | 25 | 1.4 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 4 | 3 | no | yes |
+| K | ECC + OpenSpec | 6/6 | 12/12 | 78.5% | 0 | 22 | 3.41 | 8 | 4 | 5 | 5 | 4 | 5 | 4 | 4 | 4 | 3 | yes | yes |
+| W | Matt Pocock + OpenSpec | 6/6 | 12/12 | 83.9% | 0 | 29 | 2.05 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 4 | 3 | yes | yes |
+| L | BK + agent-skills | 6/6 | 12/12 | 35.4% | 0 | 10 | 0.43 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 5 | 3 | yes | yes |
+| M | BK + Superpowers | 6/6 | 12/12 | 42.8% | 0 | 12 | 1.51 | 7 | 4 | 4 | 4 | 4 | 3 | 4 | 4 | 5 | 2 | yes | yes |
+| N | BK + ECC | 6/6 | 12/12 | 78% | 0 | 19 | 2.72 | 7 | 4 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 2 | no | yes |
+| X | BK + Matt Pocock | 6/6 | 12/12 | 72% | 0 | 12 | 0.6 | 8 | 5 | 4 | 4 | 5 | 4 | 4 | 4 | 5 | 2 | yes | yes |
+| C | BK + agent-skills + OpenSpec | 6/6 | 12/12 | 47.9% | 0 | 13 | 0.86 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 5 | 2 | yes | yes |
+| D | BK + Superpowers + OpenSpec | 6/6 | 12/12 | 37.8% | 1 | 17 | 1.39 | 8 | 5 | 4 | 5 | 4 | 4 | 4 | 4 | 5 | 3 | yes | yes |
+| E | BK + ECC + OpenSpec | 6/6 | 12/12 | 45.6% | 1 | 21 | 2.98 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 4 | 2 | no | yes |
+| Y | BK + Matt Pocock + OpenSpec | 6/6 | 12/12 | 45.7% | 0 | 15 | 1.41 | 8 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 5 | 3 | no | yes |
 
 Trials: USD 33.24 API-equivalent.
 
 ## OpenCode, Haiku 5.5 and Sonnet 5.5 (9 review criteria, outdated)
 
-Testing method: protocol 1.9, hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
+Testing method: agent runs under protocol 1.9; scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
 
 Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not comparable with the 13-criteria ratings. Kept as reference until these apps are reviewed again with 13 criteria.
 
-| Arm | Setup | Features | Robustness | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Tests first | Review |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Q | OpenSpec + targeted skills (Haiku) | 6/6 | 12/12 | 0 | 40 | 1.6 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | no | no |
-| R | Superpowers (Haiku) | 6/6 | 12/12 | 0 | 20 | 0.76 | 7 | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 2 | no | yes |
-| S | OpenSpec + Superpowers (oso) (Haiku) | 0/6 | n/a | 2 | 19 | 0.96 | 3 | 2 | 4 | 4 | 4 | 4 | 2 | 4 | 4 | 1 | yes | yes |
-| T | agent-skills (Haiku) | 6/6 | 12/12 | 0 | 26 | 1.5 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | yes | yes |
-| U | agent-skills + OpenSpec (Haiku) | 6/6 | 12/12 | 0 | 23 | 1.22 | 8 | 4 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 2 | yes | yes |
-| Z | Matt Pocock (Haiku) | 6/6 | 12/12 | 0 | 45 | 1.84 | 8 | 4 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 2 | yes | yes |
-| AA | Matt Pocock + OpenSpec (Haiku) | 6/6 | 12/12 | 0 | 30 | 1.67 | 7 | 4 | 4 | 4 | 5 | 5 | 4 | 4 | 4 | 2 | no | yes |
-| Q | OpenSpec + targeted skills (Sonnet) | 6/6 | 12/12 | 0 | 30 | 3.02 | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 3 | yes | yes |
-| R | Superpowers (Sonnet) | 6/6 | 12/12 | 0 | 18 | 1.52 | 8 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 4 | 2 | no | yes |
-| S | OpenSpec + Superpowers (oso) (Sonnet) | 6/6 | 12/12 | 1 | 20 | 2.11 | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | no | yes |
-| T | agent-skills (Sonnet) | 6/6 | 12/12 | 0 | 27 | 3.32 | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | yes | yes |
-| U | agent-skills + OpenSpec (Sonnet) | 6/6 | 12/12 | 0 | 21 | 2.49 | 8 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 4 | 3 | yes | yes |
-| Z | Matt Pocock (Sonnet) | 6/6 | 12/12 | 0 | 22 | 2.83 | 8 | 5 | 5 | 4 | 5 | 5 | 5 | 4 | 5 | 2 | no | yes |
-| AA | Matt Pocock + OpenSpec (Sonnet) | 6/6 | 12/12 | 0 | 25 | 2.1 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 3 | no | yes |
+| Arm | Setup | Features | Robustness | Mutation | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Tests first | Review |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Q | OpenSpec + targeted skills (Haiku) | 6/6 | 12/12 | 97.7% | 0 | 40 | 1.6 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | no | no |
+| R | Superpowers (Haiku) | 6/6 | 12/12 | 82.5% | 0 | 20 | 0.76 | 7 | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 2 | no | yes |
+| S | OpenSpec + Superpowers (oso) (Haiku) | 0/6 | n/a | unmeasured | 2 | 19 | 0.96 | 3 | 2 | 4 | 4 | 4 | 4 | 2 | 4 | 4 | 1 | yes | yes |
+| T | agent-skills (Haiku) | 6/6 | 12/12 | 85.5% | 0 | 26 | 1.5 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | yes | yes |
+| U | agent-skills + OpenSpec (Haiku) | 6/6 | 12/12 | 73.5% | 0 | 23 | 1.22 | 8 | 4 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 2 | yes | yes |
+| Z | Matt Pocock (Haiku) | 6/6 | 12/12 | 52.7% | 0 | 45 | 1.84 | 8 | 4 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 2 | yes | yes |
+| AA | Matt Pocock + OpenSpec (Haiku) | 6/6 | 12/12 | 98% | 0 | 30 | 1.67 | 7 | 4 | 4 | 4 | 5 | 5 | 4 | 4 | 4 | 2 | no | yes |
+| Q | OpenSpec + targeted skills (Sonnet) | 6/6 | 12/12 | 75.3% | 0 | 30 | 3.02 | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 3 | yes | yes |
+| R | Superpowers (Sonnet) | 6/6 | 12/12 | 70.4% | 0 | 18 | 1.52 | 8 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 4 | 2 | no | yes |
+| S | OpenSpec + Superpowers (oso) (Sonnet) | 6/6 | 12/12 | 88.6% | 1 | 20 | 2.11 | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 | 3 | no | yes |
+| T | agent-skills (Sonnet) | 6/6 | 12/12 | 69.6% | 0 | 27 | 3.32 | 9 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | yes | yes |
+| U | agent-skills + OpenSpec (Sonnet) | 6/6 | 12/12 | 65.8% | 0 | 21 | 2.49 | 8 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 4 | 3 | yes | yes |
+| Z | Matt Pocock (Sonnet) | 6/6 | 12/12 | unmeasured | 0 | 22 | 2.83 | 8 | 5 | 5 | 4 | 5 | 5 | 5 | 4 | 5 | 2 | no | yes |
+| AA | Matt Pocock + OpenSpec (Sonnet) | 6/6 | 12/12 | 26.6% | 0 | 25 | 2.1 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 3 | no | yes |
 
 Trials: USD 26.94 over the main sessions; reviews of the 36 Haiku and OpenCode apps: USD 18.87 billed.
 

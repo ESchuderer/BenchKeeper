@@ -10,7 +10,7 @@ Runs 2026-10-14 to 2026-10-16, protocol `bench/PROTOCOL.md` v1.9. All 58 trials 
 | Claude Code arms | 22 (A, B, C to P, V to Y, AB, AC), Claude Code 2.1.299, effort `high`; Haiku: the owner's Max subscription; Sonnet: 11 arms on the Max subscription (B C D E G I J K O X Y AB, until its weekly limit), 11 on the owner's Team seat (A F H L M N P V W AC) |
 | OpenCode arms | 7 (Q to U, Z, AA), OpenCode 1.19.0, `claude-haiku-5-5` and `claude-sonnet-5-5`, variant `high`, Anthropic API key |
 | Review | blind, `claude-opus-5-5`, effort `high`, `bench/review/`, billed to the API key. Haiku and OpenCode apps: 9 criteria; Sonnet Claude Code apps: 13 criteria (adds visual design, layout, usability, reception; protocol v1.7). The two sets of ratings are not directly comparable. |
-| Mutation score | share of mutants of the agent's own source that its own tests detect (killed or timed out), Stryker 10.0.0 command runner, `bench/scorer/mutation.sh`, rescored 2026-10-16 with agent runs unchanged (#44); unmeasured: Haiku J (only time-outs), Haiku S (npm install failed), Sonnet AB and Sonnet Z (mutation run failed; Z's own Playwright suite fails in the dry run) |
+| Mutation score | share of mutants of the agent's own source that its own tests detect (killed or timed out), Stryker 10.0.0 command runner, `bench/scorer/mutation.sh`, rescored 2026-10-16 with agent runs unchanged (#44); unmeasured: Haiku J (only time-outs), Haiku S (npm install failed), Sonnet Z (its own Playwright suite fails in the dry run); Sonnet AB first failed on a TypeScript 7 tsconfig rewrite and was rescored with the workaround |
 | Seed, order | 41; Claude Code arms in three parallel runners plus single-arm reruns; order, image IDs and account switch in the run manifests |
 
 Review column: a review skill, a review agent type, or a subagent whose task description names a review (parser fixed during the run; all `trial.json` files re-parsed).
@@ -34,7 +34,7 @@ Testing method: agent runs under protocol 1.9; scored and parsed under protocol 
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | A | plain | 6/6 | 12/12 | 62.8% | 0 | 7 | 0.92 | 8 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | 5 | 3 | 5 | 4 | 4 | 4 | yes | yes |
 | B | Ponytail | 6/6 | 12/12 | 74.1% | 0 | 3 | 0.39 | 7 | 4 | 4 | 4 | 4 | 4 | 4 | 3 | 5 | 2 | 4 | 4 | 4 | 4 | yes | no |
-| AB | OpenSpec | 6/6 | 12/12 | unmeasured | 1 | 27 | 3.19 | 9 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | 5 | 4 | 5 | yes | yes |
+| AB | OpenSpec | 6/6 | 12/12 | 69.3% | 1 | 27 | 3.19 | 9 | 5 | 5 | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 5 | 5 | 4 | 5 | yes | yes |
 | AC | Spec Kit | 6/6 | 12/12 | 70.5% | 0 | 15 | 2.73 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | no | yes |
 | O | Ponytail + OpenSpec | 6/6 | 12/12 | 60.9% | 0 | 8 | 1.11 | 8 | 4 | 4 | 4 | 4 | 4 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | no | yes |
 | P | Ponytail + Spec Kit | 6/6 | 12/12 | 68.2% | 0 | 5 | 0.89 | 8 | 5 | 5 | 4 | 4 | 5 | 4 | 4 | 5 | 3 | 4 | 5 | 4 | 4 | yes | yes |
@@ -127,12 +127,12 @@ Caveat: the OpenCode USD, tokens, tool uses and phases cover only the main sessi
 
 ## Mutation score (#44)
 
-Share of mutants of the agent's own source that its own tests detect; 54 of 58 trials measured (unmeasured: Haiku J, Haiku S, Sonnet AB, Sonnet Z, see Setup). One trial per arm and model: descriptive only.
+Share of mutants of the agent's own source that its own tests detect; 55 of 58 trials measured (unmeasured: Haiku J, Haiku S, Sonnet Z, see Setup). One trial per arm and model: descriptive only.
 
 | Group | Trials | Median | Range |
 |---|---|---|---|
 | Claude Code, Haiku 5.5 | 21 | 69.8% | 35.4% to 98.9% |
-| Claude Code, Sonnet 5.5 | 21 | 68.2% | 29.2% to 94% |
+| Claude Code, Sonnet 5.5 | 22 | 68.75% | 29.2% to 94% |
 | OpenCode, Haiku 5.5 | 6 | 84% | 52.7% to 98% |
 | OpenCode, Sonnet 5.5 | 6 | 70% | 26.6% to 88.6% |
 
@@ -151,7 +151,7 @@ Top 10 trials:
 | 9 | Sonnet 5.5 | Claude Code | H | ECC | 89.7% |
 | 10 | Sonnet 5.5 | OpenCode | S | OpenSpec + Superpowers (oso) | 88.6% |
 
-For comparison: plain Claude Code (A) 57.3% on Haiku and 62.8% on Sonnet; Ponytail alone (B) 45.6% and 74.1%; the BenchKeeper layer with agent-skills (L) 35.4% and 31.4%. Lowest: Sonnet OpenCode AA 26.6%, Sonnet N 29.2%, Sonnet C 30.5%. All 54 measured trials passed 6 of 6 features, so the score separates arms the hidden tests do not.
+For comparison: plain Claude Code (A) 57.3% on Haiku and 62.8% on Sonnet; Ponytail alone (B) 45.6% and 74.1%; the BenchKeeper layer with agent-skills (L) 35.4% and 31.4%. Lowest: Sonnet OpenCode AA 26.6%, Sonnet N 29.2%, Sonnet C 30.5%. All 55 measured trials passed 6 of 6 features, so the score separates arms the hidden tests do not.
 
 ## Observations (one trial each)
 

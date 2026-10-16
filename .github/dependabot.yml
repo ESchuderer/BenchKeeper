@@ -1,0 +1,11 @@
+# Version updates for the pinned actions (SHA plus version comment) and the site's npm packages.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly

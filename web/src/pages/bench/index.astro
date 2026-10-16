@@ -25,16 +25,17 @@ const notes: Notes = {
     '2026-10-15-winery-react-sonnet': {
       protocol: '1.9',
       findings: [
-        'All 22 Claude Code apps and all 7 OpenCode apps pass the 6 feature tests and the 12 robustness tests. The hidden tests do not separate the arms on this brief.',
         'Claude Code reviews: OpenSpec alone (AB) is rated 9, Ponytail (B) and the BenchKeeper layer with agent-skills (L) 7, all other arms 8.',
+        'All 22 Claude Code apps and all 7 OpenCode apps pass the 6 feature tests and the 12 robustness tests. The hidden tests do not separate the arms on this brief.',
         'Maintainability is the weakest review criterion, mostly 2 or 3. No app has CI. The BenchKeeper-layer arms without OpenSpec score lowest on it (2, 2, 2, 3).',
         'Claude Code reviews use 13 criteria, OpenCode reviews 9. The two sets of ratings are not directly comparable.',
       ],
     },
     '2026-10-16-cartridges-sonnet': {
       findings: [
-        '20 of 22 Claude Code apps pass all 6 feature tests (J passes 5, K 2). 6 of 7 OpenCode apps do (AA passes 2).',
-        'Claude Code reviews: median 8, range 6 to 8. Plain Claude Code (A) is rated 7, the BenchKeeper layer with agent-skills (L) 8, Ponytail alone (B) 6.',
+        'Best overall: Q (OpenCode, OpenSpec + targeted skills), 84.8 of 100. Best Claude Code app: V (Matt Pocock), 84.0, 3rd. Plain Claude Code (A): 78.3, 19th of 29.',
+        'The BenchKeeper layer arms (v1, rules only) do not lead: the best is E (BK + ECC + OpenSpec), 5th; BK + agent-skills (L) is 13th, BK + Matt Pocock (X) 20th.',
+        '26 of 29 apps pass all 6 feature tests (J passes 5, K and AA 2). Every reviewed app draws proper cartridges with values that match the records.',
         'K passes 2 of 6 hidden tests but is rated 8: the review could not check the detail and print rendering, where the hidden tests failed.',
       ],
     },

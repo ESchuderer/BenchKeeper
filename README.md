@@ -21,6 +21,9 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 | [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink); copy in `~/.codex/AGENTS.md` |
 | [skills/global-setup](skills/global-setup/SKILL.md) | install, check, and clean the global setup (all commands) | `~/.claude/skills/`, `~/.agents/skills/`, and in this repo |
 | [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, OpenSpec | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/sdlc](skills/sdlc/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request); loaded before repository work | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/maintain](skills/maintain/SKILL.md) | the Maintain pass, on request (`/maintain`) | `~/.claude/skills/`, `~/.agents/skills/` |
+| [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 
 ## Components
@@ -36,7 +39,7 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 
 Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`.
 
-Ponytail and agent-skills remain separate plugins. [Global rules](rules/global.md#ponytail-and-agent-skills) integrate them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
+Ponytail and agent-skills remain separate plugins. The [sdlc skill](skills/sdlc/SKILL.md) integrates them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
 
 Every component evaluated, what is in and what is not, with the research behind each decision: [EVALUATIONS.md](EVALUATIONS.md).
 
@@ -75,7 +78,7 @@ Not installed by BenchKeeper; see each official page. Tables marked as generated
 3. Run `/global-setup` (Codex: `$global-setup`). Confirm which installed agents you use. It checks applicable parts without changing anything, shows one plan (installs, changes, removals, version bumps) with destructive items marked, and applies only what you approve; destructive items are confirmed again right before they run. Cleanup stays within that scope. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
 4. Restart selected agents; if Codex is selected, run `/hooks` and trust the plugin hooks.
 
-Rerun `/global-setup` after editing `rules/global.md` (Codex gets a copy, not a link).
+Rerun `/global-setup` after editing `rules/global.md` (Codex gets a copy, not a link) or the permission rules in its part 11.
 
 ## Per repo
 

@@ -192,8 +192,8 @@
         "name": "Maintain",
         "phase": "maintain",
         "sub": "findings: new requests",
-        "tip": "About every 10 merges: audit, debt, dependencies, docs drift. Findings become new requests.",
-        "text": "About every 10 merged changes: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, repository hygiene. Findings become new requests."
+        "tip": "On request (/maintain), after a milestone or about every 10 merges: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
+        "text": "On request (`/maintain`), after a milestone or about every 10 merged changes: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene. Findings become new requests."
       }
     ]
   }

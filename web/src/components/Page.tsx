@@ -170,21 +170,27 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and two skills. The skills install, check and clean the tools each agent uses. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select.<br /><br />It is opinionated: one SDLC sized to each change, one tool per job, exact versions everywhere. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/global-setup</Code>.</>}>
+        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and four skills. The setup skills install, check and clean the tools each agent uses; the workflow skill holds the SDLC. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select.<br /><br />It is opinionated: one SDLC sized to each change, one tool per job, exact versions everywhere. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/global-setup</Code>.</>}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} scope="Global, both agents">
-              How agents work in every repository: ask instead of assuming, sources for claims, issue to pull request flow, SDLC phases, safety, devcontainer use.
+              What applies in every session: ask instead of assuming, sources for claims, scope, safety, devcontainer use, and when to load the SDLC skill.
             </FeatureCard>
             <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/global-setup</Code>} scope="Once per machine">
-              Checks 9 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals and version bumps. Applies only what you approve.
+              Checks 10 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals and version bumps. Applies only what you approve.
             </FeatureCard>
             <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/project-setup</Code>} scope="Once per repository">
               Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config. Shows one plan first and applies only what you approve.
             </FeatureCard>
+            <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">sdlc</Code>} scope="Before repository work, both agents">
+              Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded on demand, so it costs context only when used.
+            </FeatureCard>
+            <FeatureCard icon={<IconShieldLock size={20} />} title={<Code fz="sm">Permission rules</Code>} scope="Global, Claude Code">
+              Deny skipping git hooks; ask before force pushes, branch deletion, pushes to main, hard resets, rebases, history rewrites and merges. Native rules, no hooks.
+            </FeatureCard>
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="A full agentic SDLC (issue, spec, plan, tests first, review) fits features and risky changes, not every change. The global rules size each request by tier and change type first, so small changes spend fewer tokens and less time; that saving is not measured yet. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and keep the plan to a few lines; full changes run all ten steps; research with several items fans out to parallel subagents without edits. Each change type adds its own check before done, such as terraform plan for infrastructure or a reproducer test for a bug. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="A full agentic SDLC (issue, spec, plan, tests first, review) fits features and risky changes, not every change. The sdlc skill sizes each request by tier and change type first, so small changes spend fewer tokens and less time; that saving is not measured yet. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and keep the plan to a few lines; full changes run all ten steps; research with several items fans out to parallel subagents without edits. Each change type adds its own check before done, such as terraform plan for infrastructure or a reproducer test for a bug. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -270,19 +276,19 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="quality" title="How it raises quality" intro={<>Each item is a rule the agents load in every session. Source: <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor>.</>}>
+        <Section id="quality" title="How it raises quality" intro={<>Each item is a rule from <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor> (every session), the <Anchor href={`${REPO}/blob/main/skills/sdlc/SKILL.md`}>sdlc skill</Anchor> (before repository work) or the <Anchor href={`${REPO}/blob/main/skills/global-setup/SKILL.md`}>permission rules</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48}>
             <List spacing="lg" styles={listTop}>
               <Check ok title="Ask, do not assume.">Ambiguous requests stop for precise questions instead of a guess.</Check>
               <Check ok title="Spec before code.">Non-trivial changes get a written spec and a task list.</Check>
               <Check ok title="Tests first">where the repository has a test suite; non-trivial logic leaves a test.</Check>
-              <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions, disabled lint rules or --no-verify unless you ask.</Check>
+              <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions or disabled lint rules unless you ask; --no-verify is denied.</Check>
             </List>
             <List spacing="lg" styles={listTop}>
               <Check ok title="Review before push.">A correctness review runs on the commits; findings wait for your decision.</Check>
               <Check ok title="Sources and confidence.">External claims carry an official URL; uncertain topics state a confidence level.</Check>
               <Check ok title="Reproducible tools.">Exact versions for every install and container image.</Check>
-              <Check ok title="Scheduled cleanup.">The Maintain pass finds dead code, stale shortcuts, vulnerable dependencies and docs drift.</Check>
+              <Check ok title="Cleanup on request.">The Maintain pass (/maintain) finds dead code, stale shortcuts, vulnerable dependencies, docs drift and unused skills.</Check>
             </List>
           </SimpleGrid>
         </Section>

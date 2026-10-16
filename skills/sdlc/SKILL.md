@@ -67,4 +67,4 @@ Default tier and the check before reporting done, in addition to Verify below. R
 - Build: `incremental-implementation`, tests first where the repository has a test suite (`test-driven-development`; standard, full); with OpenSpec through `openspec-apply-change`. Assess simplicity within `code-review-and-quality`; use `code-simplification` where needed within scope.
 - Verify: the project's own build, types, lint and tests before reporting done, not repeated re-reading of finished work; UI changes in a browser (Playwright MCP). Report failures as they are; show the evidence (command and result).
 - Review and ship: code review before push (above); push the branch and open a draft pull request (above); wait for checks (`gh pr checks --watch`, `ci-cd-and-automation`), report failures as they are, mark ready when they pass; `openspec-archive-change` on the branch (above). Merge only on the user's instruction.
-- Maintain: after a milestone or a large merge, suggest that the user runs `/maintain`.
+- Maintain: after a milestone or a large merge, suggest that the user runs `/maintain` (Codex: `$maintain`).

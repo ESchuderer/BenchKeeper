@@ -35,8 +35,8 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 
 ## Development environment
 - Agents run on the host; project dependency installs, builds, lint, tests, and local MCP/browser tools run in the project's devcontainer (`devcontainer exec --workspace-folder <project> ...`). Host file inspection and editing, Git, `gh`, container configuration and bootstrap, container lifecycle commands, and machine setup the user asked for stay on the host.
-- No devcontainer: ask the user to run `/project-setup`; if the container cannot start, report the failure instead of running development commands on the host.
-- `/global-setup` and `/project-setup` never start on their own (they install software and change settings): when one is needed, ask the user to run it.
+- No devcontainer: ask the user to run `/project-setup` (Codex: `$project-setup`); if the container cannot start, report the failure instead of running development commands on the host.
+- `/global-setup` and `/project-setup` (Codex: `$global-setup`, `$project-setup`) never start on their own (they install software and change settings): when one is needed, ask the user to run it.
 - Keep mounts scoped to the project: no host home directories, container-engine sockets, privileged mode, or credential forwarding by default.
 
 ## Safety

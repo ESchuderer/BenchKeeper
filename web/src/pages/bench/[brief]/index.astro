@@ -27,7 +27,7 @@ const trials = await Promise.all(all.map(async (t) => ({
   })),
 })));
 ---
-<BenchLayout title={`Brief ${brief.id}, benchmark database, BenchKeeper`} path={`/bench/${brief.id}/`}
+<BenchLayout title={`Brief ${brief.id}, benchmark database, BenchKeeper`}
   description={`BenchKeeper benchmark trials for the brief ${brief.id}: hidden test scores, blind review ratings and screenshots per arm, runtime and model.`}>
   <Bench base={base} brief={brief} trials={trials} />
   <script is:inline slot="script">

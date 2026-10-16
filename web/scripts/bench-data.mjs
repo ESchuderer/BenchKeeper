@@ -26,7 +26,7 @@ export function arm(id) {
 }
 
 // The site never shows an em dash (rules/global.md); recorded review text may contain one.
-const clean = (s) => String(s ?? '').replace(/\s*—\s*/g, ', ');
+const clean = (s) => String(s ?? '').replace(/\s*\u2014\s*/g, ', ');
 const json = (f) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null);
 const MODELS = { 'claude-haiku-5-5': 'Haiku 5.5', 'claude-sonnet-5-5': 'Sonnet 5.5', 'claude-opus-5-5': 'Opus 5.5' };
 

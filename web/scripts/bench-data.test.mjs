@@ -23,7 +23,7 @@ test('trials: one per arm directory, model from the manifest, review scores, no 
     score: { features_passed: 6, robustness_passed: 12 }, workflow: { tests_first: true, review: false },
   }));
   writeFileSync(join(t, 'review.json'), JSON.stringify({ cost_usd_api_equivalent: 0.4, review: {
-    overall: 8, scores: { requirements: 5, tests: { score: 4 } }, verdict: 'Ships — mostly.', strengths: ['a'], issues: [],
+    overall: 8, scores: { requirements: 5, tests: { score: 4 } }, verdict: 'Ships \u2014 mostly.', strengths: ['a'], issues: [],
   } }));
   writeFileSync(join(t, 'screenshots', 'start.jpg'), '');
   mkdirSync(join(root, 'run-1', 'round-1', 'C'));

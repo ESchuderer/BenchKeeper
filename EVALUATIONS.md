@@ -37,7 +37,7 @@ Components considered for BenchKeeper, the evidence found for each, and whether 
 | [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | Not in | no controlled evidence; overlaps agent-skills |
 | [andrej-karpathy-skills](evaluations/skill-libraries/andrej-karpathy-skills.md) | Not in | accuracy 60/60 every arm, cost +11.5% (skill-receipts) and +6.6% (skillbench); Reddit claims checked 2026-10-16 |
 | [Anthropic document skills](evaluations/skill-libraries/anthropic-document-skills.md) | Not global, per project | DocOps: Claude Code Sonnet 4.6 0.519 with skills vs 0.552 without |
-| [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation; `project-setup` vets single skills |
+| [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation; `setting-up-projects` vets single skills |
 
 ### Workflow frameworks
 
@@ -85,6 +85,7 @@ Components considered for BenchKeeper, the evidence found for each, and whether 
 
 | Component | Decision | Summary |
 |---|---|---|
+| [Skill authoring guide (Anthropic)](evaluations/practices/skill-authoring.md) | In | BenchKeeper skills checked 2026-10-16: gerund names, third-person descriptions, no dated text; own skills have no evaluations yet (#36) |
 | [Project summary and layout in AGENTS.md](evaluations/practices/agents-md-overviews.md) | Not in | context files raised cost over 20%, no success gain, arXiv 2602.11988 |
 
 Also checked, no evidence found (independent or vendor), no file: BMAD Method (qualitative session log only, [bmad_benchmarking](https://github.com/addi-katzav/bmad_benchmarking)), gstack, oh-my-claudecode, SuperClaude, compound-engineering, wshobson/agents (one judge-only test without baseline, [#632](https://github.com/wshobson/agents/issues/632)), Taskmaster AI, Anthropic feature-dev and code-review plugins, last30days-skill, Agent-Reach (credential and supply chain issues: [#412](https://github.com/Panniantong/Agent-Reach/issues/412), [#547](https://github.com/Panniantong/Agent-Reach/issues/547)).

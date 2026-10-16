@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 RUN npm i -g @anthropic-ai/claude-code@2.1.299
 ENV DISABLE_AUTOUPDATER=1 PATH=/home/node/.local/bin:$PATH
 COPY bench/arms/bk-rules.md bench/arms/superpowers.rules.md bench/arms/ecc.rules.md bench/arms/mattpocock.rules.md bench/arms/mattpocock-agent-skills.md bench/arms/candidate.rules.md bench/arms/opencode-addy-openspec.AGENTS.md bench/image/install-arm.sh /opt/bench/
-COPY skills /opt/bench/skills
+COPY bench/arms/bk-skills /opt/bench/skills
 COPY bench/arms/project-setup /opt/bench/project-setup
 COPY bench/arms/bk-v2 /opt/bench/bk-v2
 ARG ARM

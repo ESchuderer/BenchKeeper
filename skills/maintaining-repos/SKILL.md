@@ -1,6 +1,6 @@
 ---
-name: maintain
-description: "Repository-wide maintenance pass: dead code, unused options and dependencies, shortcut debt, dependency audit, docs drift, instruction-file audit, unused skills, repository hygiene. Run after a milestone, about every 10 merged changes, or on request."
+name: maintaining-repos
+description: "Runs a repository-wide maintenance pass: dead code, unused options and dependencies, shortcut debt, dependency audit, docs drift, instruction-file audit, unused skills, repository hygiene. Use after a milestone, about every 10 merged changes, or on request."
 disable-model-invocation: true
 ---
 

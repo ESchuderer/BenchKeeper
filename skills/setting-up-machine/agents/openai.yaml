@@ -1,0 +1,3 @@
+# Codex: run only when the user invokes the skill ($setting-up-machine); https://learn.chatgpt.com/docs/build-skills
+policy:
+  allow_implicit_invocation: false

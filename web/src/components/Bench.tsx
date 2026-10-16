@@ -1,6 +1,6 @@
 import { ActionIcon, Anchor, Box, Button, Container, Group, MantineProvider, Stack, Table, Text, Title, createTheme } from '@mantine/core';
 import { IconArrowLeft, IconBrandGithub, IconMoon, IconSun } from '@tabler/icons-react';
-import { Fragment, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 const theme = createTheme({
   primaryColor: 'teal',
@@ -65,28 +65,24 @@ const CATEGORIES: [string, string][] = [['correctness', 'Correctness'], ['code_q
   ['security', 'Security'], ['ux_accessibility', 'UX and accessibility'], ['documentation', 'Documentation']];
 const one = (v: number) => v.toFixed(1);
 
-// The top 10 of a brief across models by final score, plain Claude Code appended as the baseline (bench-data.mjs, topByBrief).
+// The top 10 of a brief by final score, plain Claude Code appended as the baseline (bench-data.mjs, topByBrief).
 function TopDetail({ t: x }: { t: Top }) {
   const cats = CATEGORIES.map(([k, label]) => ({ k, label, max: x.top[0].final.categories[k]?.max }));
   const rows = [...x.top.map((t, i) => ({ t, rank: String(i + 1) })), ...x.baselines.map((t) => ({ t, rank: `${t.place} (baseline)` }))];
   return (
-    <Box component="section" aria-labelledby={`top-${x.brief}`} mb={56}>
-      <Title order={2} id={`top-${x.brief}`}>{x.brief}: top 10 of {x.of} apps</Title>
-      <Text size="sm" c="dimmed" mt="xs">
-        Final score out of 100 from six weighted categories: correctness (hidden feature tests, print
-        check, review), code quality (review, erosion, type errors, Sonar bugs, lint, duplication), tests (line coverage,
-        review), security (filtered security findings, review), UX and accessibility (review, axe, Lighthouse, HTML
-        validity) and documentation (README coverage and accuracy, code comments, decision records). Totals within about
-        2 points are not separable with one trial per arm. Not part of the score, measured for these apps only:
-        drawings, of the 25 cartridge drawings how many a Claude Opus 5.5 review found correct (a shoulder angle drawn
-        as a label instead of an angle dimension not counted against it), and mutation, the share of mutants the
-        app's own tests catch (Stryker). n/a: not measured yet or not measurable.
+    <Box mt="lg">
+      <Title order={3} fz="lg">Top 10 of {x.of} apps</Title>
+      <Text size="sm" c="dimmed">
+        Final score out of 100 from six weighted categories; the inputs and weights are in the report. Totals within
+        about 2 points are not separable with one trial per arm. Not part of the score: drawings, the cartridge drawings
+        a Claude Opus 5.5 review found correct, and mutation, the share of mutants the app's own tests catch (Stryker).
+        n/a: not measured yet or not measurable.
       </Text>
-      <Table.ScrollContainer minWidth={1100} type="native" mt="xs" tabIndex={0} role="region" aria-label={`${x.brief}: top 10 in detail`}>
+      <Table.ScrollContainer minWidth={1000} type="native" mt="xs" tabIndex={0} role="region" aria-label={`${x.brief}: top 10`}>
         <Table striped verticalSpacing={4} fz="sm">
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Rank</Table.Th><Table.Th>Model</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Runtime</Table.Th><Table.Th>Setup</Table.Th>
+              <Table.Th>Rank</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Runtime</Table.Th><Table.Th>Setup</Table.Th>
               <Table.Th>Final</Table.Th>{cats.map((c) => <Table.Th key={c.k}>{c.label} ({c.max})</Table.Th>)}
               <Table.Th>Drawings</Table.Th><Table.Th>Mutation</Table.Th><Table.Th>Minutes</Table.Th>
             </Table.Tr>
@@ -94,8 +90,8 @@ function TopDetail({ t: x }: { t: Top }) {
           <Table.Tbody>
             {rows.map(({ t, rank }) => (
               <Table.Tr key={t.key}>
-                <Table.Td>{rank}</Table.Td><Table.Td>{t.model}</Table.Td><Table.Td>{t.arm}</Table.Td><Table.Td>{t.runtime}</Table.Td><Table.Td>{plain(t.setup)}</Table.Td>
-                <Table.Td>{one(t.final.total)}</Table.Td>
+                <Table.Td>{rank}</Table.Td><Table.Td>{t.arm}</Table.Td><Table.Td>{t.runtime}</Table.Td><Table.Td>{plain(t.setup)}</Table.Td>
+                <Table.Td fw={700}>{one(t.final.total)}</Table.Td>
                 {cats.map((c) => <Table.Td key={c.k}>{one(t.final.categories[c.k].score)}</Table.Td>)}
                 <Table.Td>{t.drawings ? `${t.drawings.correctAlphaApart}/${t.drawings.of}` : 'n/a'}</Table.Td><Table.Td>{pct(t.mutation)}</Table.Td>
                 <Table.Td>{t.minutes}</Table.Td>
@@ -119,27 +115,34 @@ export default function BenchSummary({ base, runs, tops, notes }: { base: string
           the <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>.
         </Text>
         <Text c="dimmed">
-          Features and robustness are hidden tests passed; review is a blind rating from 1 to 10 by Claude Opus 5.5.
-          Ranked by review, then features, robustness and fewer minutes. The BenchKeeper layer includes Ponytail.
+          Each brief starts with its winners: the top 10 by final score where the brief has one, then the key findings,
+          then all arms ranked by review. Features and robustness are hidden tests passed; review is a blind rating from
+          1 to 10 by Claude Opus 5.5. The BenchKeeper layer includes Ponytail.
         </Text>
       </Stack>
 
       {runs.map((r, i) => {
         const note = notes.runs[r.run];
-        // A brief's top 10 follows the last of its runs.
-        const top = runs.findLastIndex((x) => x.brief === r.brief) === i ? tops.find((t) => t.brief === r.brief) : undefined;
+        // A brief's top 10 opens the first of its runs.
+        const top = runs.findIndex((x) => x.brief === r.brief) === i ? tops.find((t) => t.brief === r.brief) : undefined;
         const protocol = r.protocols.join(', ') || note?.protocol || 'not recorded';
         return (
-          <Fragment key={r.run}>
-            <Box component="section" aria-labelledby={`run-${r.run}`} mb={56}>
+          <Box component="section" key={r.run} aria-labelledby={`run-${r.run}`} mb={56}>
               <Title order={2} id={`run-${r.run}`}>{r.brief}, {r.model}</Title>
               {notes.briefs[r.brief] && <Text mt="xs">{notes.briefs[r.brief]}</Text>}
               <Text size="sm" c="dimmed" mt="xs">
                 Model {r.model}, effort {r.effort}, k = {r.k} (trials per arm), protocol {protocol}, run {r.date}.
               </Text>
+              {top && <TopDetail t={top} />}
+              {note?.findings.length ? (
+                <>
+                  <Title order={3} fz="lg" mt="lg">Key findings</Title>
+                  <ul className="list">{note.findings.map((f) => <li key={f}>{f}</li>)}</ul>
+                </>
+              ) : null}
               {r.groups.map((g) => (
                 <Box key={g.runtime} mt="lg">
-                  <Title order={3} fz="lg">{g.runtime}</Title>
+                  <Title order={3} fz="lg">All {g.runtime} arms</Title>
                   <Text size="sm" c="dimmed">
                     {g.rows.length} arms; review with {g.criteria.join(' or ') || 'no'} criteria.
                   </Text>
@@ -164,18 +167,10 @@ export default function BenchSummary({ base, runs, tops, notes }: { base: string
                   </Table.ScrollContainer>
                 </Box>
               ))}
-              {note?.findings.length ? (
-                <>
-                  <Title order={3} fz="lg" mt="lg">Key findings</Title>
-                  <ul className="list">{note.findings.map((f) => <li key={f}>{f}</li>)}</ul>
-                </>
-              ) : null}
               {r.report && (
                 <Text mt="md">Full report: <Anchor href={`${REPO}/blob/main/bench/results/${r.report}`}>{r.report}</Anchor></Text>
               )}
-            </Box>
-            {top && <TopDetail t={top} />}
-          </Fragment>
+          </Box>
         );
       })}
 

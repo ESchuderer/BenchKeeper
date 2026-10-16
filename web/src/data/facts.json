@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the rules size each request first and small changes skip the steps they do not need.",
+  "description": "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the sdlc skill sizes each request first and small changes skip the steps they do not need.",
   "prerequisites": [
     {
       "name": "Claude Code",
@@ -192,8 +192,8 @@
         "name": "Maintain",
         "phase": "maintain",
         "sub": "findings: new requests",
-        "tip": "About every 10 merges: audit, debt, dependencies, docs drift. Findings become new requests.",
-        "text": "About every 10 merged changes: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, repository hygiene. Findings become new requests."
+        "tip": "On request (/maintain); the agent suggests it after a milestone or a large merge: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
+        "text": "On request (`/maintain`); the agent suggests it after a milestone or a large merge: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene. Findings become new requests."
       }
     ]
   }

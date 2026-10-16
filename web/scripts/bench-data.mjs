@@ -54,7 +54,7 @@ export function loadTrials(results) {
   return trials;
 }
 
-// Missing values sort last; ties keep the arm order.
+// Missing values sort last; equal scores are ordered by fewer minutes.
 const desc = (a, b) => (b ?? -1) - (a ?? -1);
 const rankOrder = (a, b) => desc(a.overall, b.overall) || desc(a.features, b.features) || desc(a.robustness, b.robustness) || a.minutes - b.minutes;
 
@@ -63,7 +63,7 @@ const rankOrder = (a, b) => desc(a.overall, b.overall) || desc(a.features, b.fea
 export function summarizeRuns(trials, reports = []) {
   return [...new Set(trials.map((t) => t.run))].map((run) => {
     const ts = trials.filter((t) => t.run === run), [t0] = ts;
-    const report = reports.includes(`${run}.md`) ? `${run}.md` : reports.filter((f) => f.endsWith(`-${t0.brief}.md`)).sort().at(-1) ?? null;
+    const report = reports.includes(`${run}.md`) ? `${run}.md` : reports.filter((f) => new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${t0.brief}\\.md$`).test(f)).sort().at(-1) ?? null;
     return {
       run, brief: t0.brief, model: t0.model, effort: t0.effort, k: t0.k, date: run.slice(0, 10), report,
       // Test totals of the run: an app that did not start records no tests.

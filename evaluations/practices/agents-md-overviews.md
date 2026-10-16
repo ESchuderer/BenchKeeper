@@ -1,6 +1,6 @@
 # Project summary and layout in generated AGENTS.md
 
-Category: practices, Checked 2026-10-16, Decision: Not in
+Category: practices, Checked 2026-10-14, Decision: Not in
 
 ## Advertised
 

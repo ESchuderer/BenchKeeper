@@ -1,6 +1,6 @@
 # scientific-agent-skills
 
-[Repository](https://github.com/K-Dense-AI/scientific-agent-skills), Category: skill libraries, Checked 2026-10-16, Decision: Not global, per project
+[Repository](https://github.com/K-Dense-AI/scientific-agent-skills), Category: skill libraries, Checked 2026-10-14, Decision: Not global, per project
 
 ## Advertised
 

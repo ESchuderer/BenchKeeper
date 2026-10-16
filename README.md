@@ -115,7 +115,7 @@ Not installed by BenchKeeper; each works with the agents and rules set up here.
 | [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs; notifications when an agent needs input; sidebar with branch, PR status and ports; browser pane inside the terminal | you are on macOS and want a terminal without a separate app |
 <!-- /generated:tools -->
 
-Declining the Orca skills does not fail setup; existing Orca skills and hooks are kept ([setup part 10](skills/setting-up-machine/SKILL.md#10-orca-skills-optional-ask), [Orca skill installation](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx)).
+Orca only: `/setting-up-machine` asks before installing the optional `orca-cli` and `orchestration` skills. Declining them does not fail setup; existing Orca skills and hooks are kept ([setup part 10](skills/setting-up-machine/SKILL.md#10-orca-skills-optional-ask), [Orca skill installation](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx)).
 
 <!-- generated:openhands -->
 **Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A self-hosted agent server with a web UI that runs work without you at the terminal.

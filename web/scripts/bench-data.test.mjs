@@ -53,4 +53,6 @@ test('runs: newest first, report file, runtimes apart, ranked with shared ranks 
   assert.deepEqual([cc.runtime, oc.runtime, cc.criteria, oc.criteria], ['Claude Code', 'OpenCode', [13], [9]]);
   assert.deepEqual(cc.rows.map((r) => `${r.arm}${r.rank}`), ['B1', 'C2', 'A2', 'D4']);
   assert.equal(summarizeRuns([t('2026-10-16-b1-sonnet', 'A', 'Claude Code', 8, 6, 12, 1)], ['2026-10-16-b1-sonnet.md', '2026-10-15-b1.md'])[0].report, '2026-10-16-b1-sonnet.md');
+  // A brief whose name ends another brief's name does not take that report.
+  assert.equal(summarizeRuns([t('2026-10-16-b1-sonnet', 'A', 'Claude Code', 8, 6, 12, 1)], ['2026-10-15-xb1.md'])[0].report, null);
 });

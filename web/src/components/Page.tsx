@@ -132,7 +132,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               </Group>
             </Anchor>
             <Group component="nav" aria-label="Sections" gap="lg" visibleFrom="md">
-              {[['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Rules'], ['cost', 'Cost'], ['not', 'What it is not'], ['tools', 'Tools'], ['prereq', 'Setup']].map(([id, l]) => (
+              {[['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Rules'], ['cost', 'Cost'], ['not', 'What it is not'], ['start', 'Quick start'], ['tools', 'Tools']].map(([id, l]) => (
                 <Anchor key={id} href={`#${id}`} c="dimmed" size="sm" underline="never">{l}</Anchor>
               ))}
             </Group>
@@ -162,7 +162,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <Text size="xl" maw={560}>{facts.description}</Text>
                 <Text size="lg" maw={560}><Text span fw={700}>Built on <Anchor href={facts.core.url}>{facts.core.name}</Anchor> by {facts.core.by}:</Text> {facts.core.role}.</Text>
                 <Group mt="sm">
-                  <Button component="a" href="#prereq" size="md">Get started</Button>
+                  <Button component="a" href="#start" size="md">Get started</Button>
                   <Button component="a" href="#sdlc" size="md" variant="default">See the SDLC</Button>
                 </Group>
               </Stack>
@@ -292,8 +292,18 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="Cost and quality" intro={<>Ponytail: fewer lines of code in every measurement, cost -10.3% in JetBrains' test and +0.7% to +55% in other setups (different injection methods and models). Curated skills raised the pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>, not measured for agent-skills. Fewer rounds of fixes from the checks and the spec: not measured. Vendor figures are not measurements of your repositories. BenchKeeper's own benchmark (one trial per arm, descriptive): <Anchor href={`${base}/bench/`}>benchmark summary</Anchor>, full results in the reports. Components evaluated, included or not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
-          <SimpleGrid cols={{ base: 1, md: 2 }}>
+        <Section id="cost" title="Cost and quality" intro={<>Ponytail: fewer lines of code in every measurement. Its cost effect differs by source: +0.7% to +55% in four external tests besides JetBrains' (different injection methods and models), lower cost in all 6 Ponytail pairs of BenchKeeper's winery-react runs (one trial per arm, API-equivalent USD). Curated skills raised the pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>, not measured for agent-skills. Fewer rounds of fixes from the checks and the spec: not measured. Components evaluated, included or not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+          <SimpleGrid cols={{ base: 1, md: 3 }}>
+            <Card withBorder padding="lg">
+              <Group gap="sm"><ThemeIcon variant="light" size={34}><IconGauge size={18} /></ThemeIcon><Text fw={700}>BenchKeeper, own benchmark</Text></Group>
+              <Text size="sm" c="dimmed" mt="sm">Cartridges brief, Claude Sonnet 5.5, one trial per arm, final score out of 100. 29 arms (Claude Code and OpenCode).</Text>
+              <SimpleGrid cols={2} mt="md" spacing="xs">
+                <Stat value="5th" label="of 29: best BenchKeeper layer arm (E, with ECC and OpenSpec)" />
+                <Stat value="19th" label="of 29: plain Claude Code" />
+              </SimpleGrid>
+              <Text size="sm" c="dimmed" mt="md">The published layer v1 (the SDLC in the rules file, no workflow skill) does not beat several frameworks without it. Layer v3 (arms AD and AE) is being benchmarked.</Text>
+              <Text size="xs" c="dimmed" mt="md">Source: <Anchor href={`${base}/bench/`}>benchmark summary</Anchor>, <Anchor href={`${REPO}/tree/main/bench/results`}>reports</Anchor>.</Text>
+            </Card>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>
               <Text size="sm" c="dimmed" mt="sm">Reduction against no skill. 39 tasks, 5 runs each, Claude Code on Opus 5.5.</Text>
@@ -340,24 +350,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="tools" title="Recommended tools" intro="Optional, not installed by BenchKeeper.">
-          <Text fw={700} mb="xs">Parallel agents: pick one</Text>
-          <Text size="sm" c="dimmed" mb="md" maw={760}>Orca, Nimbalyst and cmux each manage several agent sessions side by side. Running two duplicates the sessions and worktrees they track for the same repositories.</Text>
-          <SimpleGrid cols={{ base: 1, md: 3 }}>
-            {facts.parallelTools.map((t) => (
-              <ToolCard key={t.name} icon={toolIcons[t.icon]} name={t.name} href={t.url} platforms={t.platforms} points={t.points} when={t.when} />
-            ))}
-          </SimpleGrid>
-          <Text fw={700} mt={40} mb="xs">Unattended or isolated runs</Text>
-          <Card withBorder padding="lg" className="lift linked">
-            <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" color="orange" size={38}><IconServer size={20} /></ThemeIcon><Anchor href="https://github.com/OpenHands/OpenHands" fw={700} className="stretched" underline="hover">OpenHands</Anchor><Badge variant="outline" color="gray">self-hosted, web UI</Badge></Group>
-            <Text size="sm" c="dimmed" mt="sm">{facts.openhands.summary}</Text>
-            <List size="sm" mt="md" spacing={6}>
-              {facts.openhands.points.map((t) => <List.Item key={t}>{md(t)}</List.Item>)}
-            </List>
-          </Card>
-        </Section>
-
         <Section id="prereq" title="Before you start" intro="Not installed by BenchKeeper.">
           <Table.ScrollContainer minWidth={300} type="native">
             <Table withTableBorder striped highlightOnHover verticalSpacing="sm" horizontalSpacing="md">
@@ -371,7 +363,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Table.ScrollContainer>
         </Section>
 
-        <Section id="start" title="Quick start" intro="Steps that change your machine or repository show their plan first.">
+        <Section id="start" title="Quick start" intro="Needs the tools in Before you start. Steps that change your machine or repository show their plan first.">
           <Stack gap="lg" maw={760}>
             {quickstart.map(([title, cmd, note], k) => (
               <Group key={title} gap="md" wrap="nowrap" align="flex-start">
@@ -392,6 +384,24 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             ))}
             <span className="sr" aria-live="polite" data-copy-status></span>
           </Stack>
+        </Section>
+
+        <Section id="tools" title="Recommended tools" intro="Optional, not installed by BenchKeeper.">
+          <Text fw={700} mb="xs">Parallel agents: pick one</Text>
+          <Text size="sm" c="dimmed" mb="md" maw={760}>Orca, Nimbalyst and cmux each manage several agent sessions side by side. Running two duplicates the sessions and worktrees they track for the same repositories.</Text>
+          <SimpleGrid cols={{ base: 1, md: 3 }}>
+            {facts.parallelTools.map((t) => (
+              <ToolCard key={t.name} icon={toolIcons[t.icon]} name={t.name} href={t.url} platforms={t.platforms} points={t.points} when={t.when} />
+            ))}
+          </SimpleGrid>
+          <Text fw={700} mt={40} mb="xs">Unattended or isolated runs</Text>
+          <Card withBorder padding="lg" className="lift linked">
+            <Group gap="sm" wrap="nowrap"><ThemeIcon variant="light" color="orange" size={38}><IconServer size={20} /></ThemeIcon><Anchor href="https://github.com/OpenHands/OpenHands" fw={700} className="stretched" underline="hover">OpenHands</Anchor><Badge variant="outline" color="gray">self-hosted, web UI</Badge></Group>
+            <Text size="sm" c="dimmed" mt="sm">{facts.openhands.summary}</Text>
+            <List size="sm" mt="md" spacing={6}>
+              {facts.openhands.points.map((t) => <List.Item key={t}>{md(t)}</List.Item>)}
+            </List>
+          </Card>
         </Section>
 
         <Section id="files" title="Files it touches">

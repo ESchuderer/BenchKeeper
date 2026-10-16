@@ -3,7 +3,7 @@
 # BenchKeeper
 
 <!-- generated:description -->
-BenchKeeper sets up Claude Code and Codex with one rules file and four skills. The setup skills install and check rules, skills and tools, per machine and per repository: CLIs and MCP servers at pinned versions, plugins at their latest release. The following-dev-workflow skill sizes each request, so small changes skip the steps they do not need.
+BenchKeeper sets up Claude Code and Codex with one rules file and four skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The setup skills install and check rules, skills and tools, per machine and per repository: CLIs and MCP servers at pinned versions, plugins at their latest release. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.
 <!-- /generated:description -->
 
 <!-- generated:core -->
@@ -13,45 +13,6 @@ BenchKeeper sets up Claude Code and Codex with one rules file and four skills. T
 One tool per job, exact versions for CLIs and MCP servers. To change a choice, edit [rules/global.md](rules/global.md) or the skills and rerun `/setting-up-machine`.
 
 Claude Code and Codex are each optional. Setup detects installed agents, asks which you use, and configures only those (configuration, plugins, hooks, skills). It does not install agent CLIs.
-
-## Contents
-
-| Path | What | Linked as |
-|---|---|---|
-| [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink), copy in `~/.codex/AGENTS.md` |
-| [skills/setting-up-machine](skills/setting-up-machine/SKILL.md) | check, install, update and clean the global setup | `~/.claude/skills/`, `~/.agents/skills/` |
-| [skills/setting-up-projects](skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, stack skills, OpenSpec, dead config | `~/.claude/skills/`, `~/.agents/skills/` |
-| [skills/following-dev-workflow](skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request), loaded before repository work | `~/.claude/skills/`, `~/.agents/skills/` |
-| [skills/maintaining-repos](skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code, debt, dependency audit, docs drift, unused skills | `~/.claude/skills/`, `~/.agents/skills/` |
-| [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
-| [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
-
-## Components
-
-| Component | Scope | Purpose |
-|---|---|---|
-| [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | agents run on the host, project commands run inside the container |
-| [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity within agent-skills phases |
-| [agent-skills](https://github.com/addyosmani/agent-skills) | global, Claude + Codex | workflow: spec, plan, TDD, review, ship |
-| [OpenSpec](https://github.com/Fission-AI/OpenSpec) | CLI global, wired per repo | spec files (owns the artifacts, agent-skills drives the process, [#166](https://github.com/addyosmani/agent-skills/issues/166)) |
-| [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
-| [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
-
-Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`.
-
-The [following-dev-workflow skill](skills/following-dev-workflow/SKILL.md) combines Ponytail and agent-skills. The integration lives here, not in the installed plugin files. Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
-
-Components evaluated, included or not, with the research behind them (Dev Containers and find-skills have no evaluation file): [EVALUATIONS.md](EVALUATIONS.md).
-
-## Telemetry
-
-| Tool | Setting |
-|---|---|
-| Claude Code | `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1` |
-| Claude Code, not set | `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`: each disables feature flags and the advisor. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` also disables Remote Control ([docs](https://code.claude.com/docs/en/env-vars)) |
-| Codex | `[analytics] enabled = false` |
-| OpenSpec | off |
-| skills CLI | `DO_NOT_TRACK=1` per command only |
 
 ## Prerequisites
 
@@ -96,6 +57,51 @@ Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcont
 - Plugins (not pinned): `claude plugin marketplace update`, `codex plugin marketplace update`, each only for a selected agent.
 - CLIs and MCPs: `/setting-up-machine` compares the pins with the latest releases and proposes bumps.
 - Repo skills: `/setting-up-projects` updates them.
+
+## Benchmarks
+
+The published runs measure BenchKeeper layer v1 (the SDLC in the rules file, no workflow skill). It does not beat several frameworks without it. Cartridges brief, Claude Sonnet 5.5, one trial per arm, final score: the best layer arm (E, with ECC and OpenSpec) ranks 5th of 29 arms (Claude Code and OpenCode), plain Claude Code 19th. Layer v3 (arms AD and AE, with the following-dev-workflow skill) is being benchmarked.
+
+Summary: [benchmark page](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](bench/results). Method: [bench/PROTOCOL.md](bench/PROTOCOL.md).
+
+## Contents
+
+| Path | What | Linked as |
+|---|---|---|
+| [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink), copy in `~/.codex/AGENTS.md` |
+| [skills/setting-up-machine](skills/setting-up-machine/SKILL.md) | check, install, update and clean the global setup | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/setting-up-projects](skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, stack skills, OpenSpec, dead config | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/following-dev-workflow](skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request), loaded before repository work | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/maintaining-repos](skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code, debt, dependency audit, docs drift, unused skills | `~/.claude/skills/`, `~/.agents/skills/` |
+| [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
+| [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
+
+## Components
+
+| Component | Scope | Purpose |
+|---|---|---|
+| [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | agents run on the host, project commands run inside the container |
+| [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity within agent-skills phases |
+| [agent-skills](https://github.com/addyosmani/agent-skills) | global, Claude + Codex | workflow: spec, plan, TDD, review, ship |
+| [OpenSpec](https://github.com/Fission-AI/OpenSpec) | CLI global, wired per repo | spec files (owns the artifacts, agent-skills drives the process, [#166](https://github.com/addyosmani/agent-skills/issues/166)) |
+| [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
+| [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
+
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`.
+
+The [following-dev-workflow skill](skills/following-dev-workflow/SKILL.md) combines Ponytail and agent-skills. The integration lives here, not in the installed plugin files. Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
+
+Components evaluated, included or not, with the research behind them (Dev Containers and find-skills have no evaluation file): [EVALUATIONS.md](EVALUATIONS.md).
+
+## Telemetry
+
+| Tool | Setting |
+|---|---|
+| Claude Code | `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1` |
+| Claude Code, not set | `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`: each disables feature flags and the advisor. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` also disables Remote Control ([docs](https://code.claude.com/docs/en/env-vars)) |
+| Codex | `[analytics] enabled = false` |
+| OpenSpec | off |
+| skills CLI | `DO_NOT_TRACK=1` per command only |
 
 ## Recommended tools (optional)
 

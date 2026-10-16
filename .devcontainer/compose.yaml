@@ -13,9 +13,10 @@ services:
     volumes:
       - ${WORKSPACE}:${WORKSPACE}:z
       - ${GIT_COMMON}:${GIT_COMMON}:ro,z
-    # the site preview (npm run preview), for a browser on the host
+    # the site preview (npm run preview), for a browser on the host; a free host port, so containers of several worktrees
+    # can run at once
     ports:
-      - 127.0.0.1:4321:4321
+      - 127.0.0.1::4321
     command: sleep infinity
     environment:
       DO_NOT_TRACK: "1"

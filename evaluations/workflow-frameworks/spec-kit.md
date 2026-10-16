@@ -1,6 +1,6 @@
 # Spec Kit
 
-[Repository](https://github.com/github/spec-kit), Category: workflow frameworks, Checked 2026-10-14, Decision: Not in
+[Repository](https://github.com/github/spec-kit), Category: workflow frameworks, Checked 2026-10-16, Decision: Not in
 
 ## Advertised
 

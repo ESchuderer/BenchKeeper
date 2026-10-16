@@ -1,10 +1,10 @@
 # caveman
 
-Category: behavior modes, Checked 2026-10-14, Decision: Not in, never part of BenchKeeper
+[Repository](https://github.com/JuliusBrussee/caveman), Category: behavior modes, Checked 2026-10-14, Decision: Not in, never part of BenchKeeper
 
 ## Advertised
 
-- -65%.
+- -65% tokens ("cuts 65% of tokens", repository description).
 
 ## Independent evidence
 

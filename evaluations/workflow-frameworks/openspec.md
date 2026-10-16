@@ -1,6 +1,6 @@
 # OpenSpec
 
-[Repository](https://github.com/Fission-AI/OpenSpec), Category: workflow frameworks, Checked 2026-10-14, Decision: In, unmeasured
+[Repository](https://github.com/Fission-AI/OpenSpec), Category: workflow frameworks, Checked 2026-10-16, Decision: In, unmeasured
 
 ## Independent evidence
 

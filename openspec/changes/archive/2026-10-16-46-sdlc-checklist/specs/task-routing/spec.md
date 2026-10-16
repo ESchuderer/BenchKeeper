@@ -11,7 +11,7 @@ In the full tier, the Specify step SHALL record the deployment target, data stor
 
 ### Requirement: Discard and restart
 
-When an agent's work drifts from the plan or spec, or its result cannot be explained against them, the work SHALL be discarded and restarted in a fresh context with the cause added to the plan, instead of being patched; a pushed branch is deleted only after confirmation.
+When an agent's work drifts materially from the plan or spec (a different design or scope), or its result cannot be explained against them, the worktree or local branch created for the task and not yet pushed SHALL be discarded and the task restarted in a fresh context with the cause added to the plan, instead of being patched; a pushed branch is deleted only after confirmation.
 
 #### Scenario: Drifted worktree
 

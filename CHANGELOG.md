@@ -6,8 +6,8 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 
 Decisions before Build, discard and restart, review input, documentation, opt-in checks (#46).
 
-- `sdlc` Specify (full tier): records deployment target, data storage, module boundaries, core types and interfaces; a skeleton first only on request or in a repository without structure.
-- `sdlc` Build: work that drifts from the plan or spec is discarded and restarted in a fresh context with the cause added to the plan, instead of patched.
+- `sdlc` Specify (full tier): records deployment target, data storage, module boundaries, core types and interfaces where they apply, asking the user where the request leaves one open; a skeleton first only on request or in a repository without structure.
+- `sdlc` Build: work that drifts materially from the plan or spec (a different design or scope) is discarded and restarted in a fresh context (a new subagent or session) with the cause added to the plan, instead of patched; `rules/global.md` Safety: a worktree or local branch created for the current task and not pushed may be discarded without asking.
 - `sdlc` review and pull requests: the pre-push reviewer gets the diff and the plan or spec summary; the pull request lists the key decisions.
 - `rules/global.md` Scope: documentation the task needs is in scope (README for a new project or app, updated with setup or behavior changes).
 - `sdlc` opt-in for hard tasks, only on the user's explicit request: best-of-N in 2 or 3 worktrees, mutation testing on changed files.

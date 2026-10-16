@@ -29,7 +29,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Never output the em dash (U+2014), emojis, or emoticons (smileys made of punctuation) in answers, code, comments, commit messages, docs, UI copy, or designs. Use a comma, colon, period, or parentheses instead.
 
 ## Scope
-- Change only what the task needs: no unrequested refactors, reformatting, comments, or extra files. Documentation the task needs is in scope: a new project or app gets a README with setup, run, test and configuration, and a change to setup or behavior updates it.
+- Change only what the task needs: no unrequested refactors, reformatting, comments, or extra files. Documentation the task needs is in scope: a new project or app gets a README with setup, run, test and configuration, and a change to setup or behavior updates the README where it covers that.
 - Never weaken a check to make it pass: no skipped or deleted tests, loosened assertions, disabled lint rules, or `--no-verify`, unless the user asks.
 - Ponytail (`full`) guides implementation choices within the agreed scope; project instructions, clarification, architecture boundaries, and required checks take precedence.
 
@@ -40,7 +40,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Keep mounts scoped to the project: no host home directories, container-engine sockets, privileged mode, or credential forwarding by default.
 
 ## Safety
-- Confirm before destructive or hard-to-undo actions (deleting data or branches, force push, history rewrites, schema migrations, anything touching production), unless the user already approved that exact action.
+- Confirm before destructive or hard-to-undo actions (deleting data or branches, force push, history rewrites, schema migrations, anything touching production), unless the user already approved that exact action. A worktree or local branch created for the current task and not pushed may be discarded without asking.
 - Never print, log, or commit secrets. Read them from files or env, refer to them by name.
 
 ## Context

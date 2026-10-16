@@ -116,6 +116,7 @@ fi
 
 t=$HOME/project-template
 if [ "$bk" = yes ]; then
+  case ${BK:-v1} in v1|v2) ;; *) echo "BK must be v1 or v2, not $BK" >&2; exit 1 ;; esac
   if [ "${BK:-v1}" = v2 ]; then
     # v2: the rules and the sdlc skill of setup-v2.2; framework variants of v2 do not exist yet.
     [ "$fw" = as ] || { echo "BK=v2 is defined for the agent-skills arms only (L, C)" >&2; exit 1; }

@@ -1,0 +1,13 @@
+{
+  "name": "jobrunner",
+  "version": "2.3.1",
+  "private": true,
+  "description": "Runs the jobs of a job file with timeouts and retries",
+  "type": "module",
+  "bin": {
+    "jobrunner": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

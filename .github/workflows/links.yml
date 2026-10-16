@@ -17,9 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # github.com pages are rate-limited for runners; those links are checked through the API below. Gists stay with lychee (the Actions token cannot read the gists API).
+      # git.example.com: the made-up remote of the targeted tasks' fixture repositories (bench/briefs/skill-*).
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
-          args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://github\.com/' './**/*.md'
+          args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://github\.com/' --exclude '^https://git\.example\.com/' './**/*.md'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

@@ -2,29 +2,77 @@
 
 Runs 2026-10-14 to 2026-10-16, protocol `bench/PROTOCOL.md` v1.9. All 58 trials scored with the same hidden tests (`374dfd34d02f0c2f`: 6 feature tests, 12 robustness tests); agent runs unchanged by rescoring. One trial per arm and model; descriptive only. Results page with screenshots: https://claude.ai/artifact/E4fVUmc4WnofiUD8BoirLz (private to the owner).
 
-## Setup
+## Winners
 
-| Item | Value |
-|---|---|
-| Brief | `bench/briefs/winery-react/brief.md` (React, established frameworks, look and feel, process paragraph) |
-| Claude Code arms | 22 (A, B, C to P, V to Y, AB, AC), Claude Code 2.1.299, effort `high`; Haiku: the owner's Max subscription; Sonnet: 11 arms on the Max subscription (B C D E G I J K O X Y AB, until its weekly limit), 11 on the owner's Team seat (A F H L M N P V W AC) |
-| OpenCode arms | 7 (Q to U, Z, AA), OpenCode 1.19.0, `claude-haiku-5-5` and `claude-sonnet-5-5`, variant `high`, Anthropic API key |
-| Review | blind, `claude-opus-5-5`, effort `high`, `bench/review/`, billed to the API key. Haiku and OpenCode apps: 9 criteria; Sonnet Claude Code apps: 13 criteria (adds visual design, layout, usability, reception; protocol v1.7). The two sets of ratings are not directly comparable. |
-| Mutation score | share of mutants of the agent's own source that its own tests detect (killed or timed out), Stryker 10.0.0 command runner, `bench/scorer/mutation.sh`, rescored 2026-10-16 with agent runs unchanged (#44); unmeasured: Haiku J (only time-outs), Haiku S (npm install failed), Sonnet Z (its own Playwright suite fails in the dry run); Sonnet AB first failed on a TypeScript 7 tsconfig rewrite and was rescored with the workaround |
-| Seed, order | 41; Claude Code arms in three parallel runners plus single-arm reruns; order, image IDs and account switch in the run manifests |
+- Best Claude Code app by review: AB (OpenSpec), rated 9 of 10, criteria sum 62 of 65; the next best sum is 59.
+- Best mutation score (own tests catching mutants): K (ECC + OpenSpec) 94%, then H (ECC) 89.7%.
+- Plain Claude Code (A): rated 8, criteria sum 57 (rank 10 of 22), mutation 62.8%.
+- The hidden tests do not separate the arms: every Sonnet Claude Code app passes all 6 feature and 12 robustness tests.
 
-Review column: a review skill, a review agent type, or a subagent whose task description names a review (parser fixed during the run; all `trial.json` files re-parsed).
+## Top 10 (Claude Code, Sonnet 5.5)
 
-## How costs were recorded
+Ranked by the sum of the 13 review criteria (1 to 5 each, at most 65), then the overall rating, the mutation score and fewer minutes. One trial per arm: a gap of 1 or 2 points is within noise. OpenCode reviews use 9 criteria and are not ranked here.
 
-| Runtime and account | What "USD" is | Billed? |
-|---|---|---|
-| Claude Code, Max subscription or Team seat | `total_cost_usd` of Claude Code's final `result` event: an API-equivalent estimate that Claude Code computes from the token counts; summed over the session (follow-up turns continue it) | no: the subscription and the seat are flat-rate; the estimate shows API list-price equivalent, not what the account paid or how much of its usage limit a trial took |
-| OpenCode, API key | sum of the per-message `cost` in OpenCode's session exports, computed by OpenCode from its model catalog prices (fetched when the image was built) | yes, to the API key; main session only for these runs (see caveat) |
-| App reviews, API key | `cost_usd_api_equivalent` in `review.json`, from the reviewing Claude Code's `result` event | yes, to the API key |
-| Per-phase USD (Sonnet runs) | Claude Code: the trial total split by each call's token weight; OpenCode: per message as reported | estimate |
+| Rank | Arm | Setup | Criteria sum (of 65) | Overall (of 10) | Mutation score | Minutes |
+|---|---|---|---|---|---|---|
+| 1 | AB | OpenSpec | 62 | 9 | 69.3% | 27 |
+| 2 | H | ECC | 59 | 8 | 89.7% | 23 |
+| 3 | J | Superpowers + OpenSpec | 59 | 8 | 76.7% | 30 |
+| 4 | E | BK + ECC + OpenSpec | 59 | 8 | 31% | 10 |
+| 5 | W | Matt Pocock + OpenSpec | 58 | 8 | 81.4% | 14 |
+| 6 | K | ECC + OpenSpec | 57 | 8 | 94% | 12 |
+| 7 | F | agent-skills | 57 | 8 | 75.2% | 26 |
+| 8 | G | Superpowers | 57 | 8 | 73.8% | 11 |
+| 9 | AC | Spec Kit | 57 | 8 | 70.5% | 15 |
+| 10 | A | plain | 57 | 8 | 62.8% | 7 |
 
-Confidence in the cost figures: medium. Not reconciled against the Anthropic Console usage export or an invoice. Uncertain: whether the tools' built-in price tables match the prices charged (for example cache-write tiers), OpenCode subagent sessions missing from these runs (estimated USD 3), and Sonnet K, whose agent ended its own process before the final `result` event (no cost recorded). The account (Max or Team) does not change the API-equivalent estimate.
+## Key findings (one trial each)
+
+- Hidden tests: all 22 Sonnet and 22 Haiku Claude Code apps and 13 of 14 OpenCode apps pass all 6 features; robustness see above.
+- Maintainability is the weakest review criterion in every group (mostly 2 or 3; no app has CI). On both models the BenchKeeper-layer arms without OpenSpec score lowest (Haiku L M N X: 3, 2, 2, 2; Sonnet: 2, 2, 2, 3). Candidate cause: BenchKeeper's scope rule ("no unrequested ... extra files") and Ponytail's least-code rule.
+- Sonnet overall ratings: OpenSpec alone (AB) 9; B (Ponytail) and L (BK + agent-skills) 7; all others 8. Haiku: A (plain) 9; O, M, N 7; others 8.
+- Sonnet took 14 minutes per Claude Code trial on average, Haiku 18; Sonnet cost more in 15 of 21 pairs with a cost.
+- Ponytail lowered the cost in every baseline pair on Haiku (B vs A, O vs AB, P vs AC) and on Sonnet (B vs A, O vs AB, P vs AC).
+- Stops before the app was finished: Haiku D, E, J stopped after the specification (follow-up because the app did not run); Sonnet W stopped after its first task group to wait for confirmation while its skeleton app already ran, so v1.7 gave no follow-up (0 of 6); under v1.8 the rerun got one follow-up and reached 6 of 6.
+- Sonnet K's agent ended its own Claude Code process with a shell loop over `/proc` (exit 143); its app passes 6 of 6 and 12 of 12, but cost and turns were not recorded.
+- OpenCode with oso on Haiku (S) built the app in a git worktree and never merged it into the project folder: 0 of 6, review 3; a second run by another session (kept in `limited/S-rerun-1429` of the run, not published) also reached 0 of 6. On Sonnet the same arm merged and reached 9.
+- On OpenCode, Sonnet reviewed at least as high as Haiku in every arm.
+
+## Mutation score (#44)
+
+Share of mutants of the agent's own source that its own tests detect; 55 of 58 trials measured (unmeasured: Haiku J, Haiku S, Sonnet Z, see Setup). One trial per arm and model: descriptive only.
+
+| Group | Trials | Median | Range |
+|---|---|---|---|
+| Claude Code, Haiku 5.5 | 21 | 69.8% | 35.4% to 98.9% |
+| Claude Code, Sonnet 5.5 | 22 | 68.75% | 29.2% to 94% |
+| OpenCode, Haiku 5.5 | 6 | 84% | 52.7% to 98% |
+| OpenCode, Sonnet 5.5 | 6 | 70% | 26.6% to 88.6% |
+
+Top 10 trials:
+
+| Rank | Model | Runtime | Arm | Setup | Mutation score |
+|---|---|---|---|---|---|
+| 1 | Haiku 5.5 | Claude Code | F | agent-skills | 98.9% |
+| 2 | Haiku 5.5 | OpenCode | AA | Matt Pocock + OpenSpec | 98% |
+| 3 | Haiku 5.5 | OpenCode | Q | OpenSpec + targeted skills | 97.7% |
+| 4 | Haiku 5.5 | Claude Code | V | Matt Pocock | 96.6% |
+| 5 | Haiku 5.5 | Claude Code | AC | Spec Kit | 94.1% |
+| 6 | Sonnet 5.5 | Claude Code | K | ECC + OpenSpec | 94% |
+| 7 | Haiku 5.5 | Claude Code | AB | OpenSpec | 90.3% |
+| 8 | Haiku 5.5 | Claude Code | I | agent-skills + OpenSpec | 90% |
+| 9 | Sonnet 5.5 | Claude Code | H | ECC | 89.7% |
+| 10 | Sonnet 5.5 | OpenCode | S | OpenSpec + Superpowers (oso) | 88.6% |
+
+For comparison: plain Claude Code (A) 57.3% on Haiku and 62.8% on Sonnet; Ponytail alone (B) 45.6% and 74.1%; the BenchKeeper layer with agent-skills (L) 35.4% and 31.4%. Lowest: Sonnet OpenCode AA 26.6%, Sonnet N 29.2%, Sonnet C 30.5%. All 55 measured trials passed 6 of 6 features, so the score separates arms the hidden tests do not.
+
+## Robustness tests (#27)
+
+12 tests from the brief's sentences (`bench/PROTOCOL.md`): simultaneous bookings for the last seats (R1), invalid guests 0, 9, 2.5 (R2 to R4), empty name and email (R5, R6), booking data without sign-in including API responses (R7), HTML in names (R8), invalid guests sent without the form, with a valid replay as control (R9), a name of only spaces (R10), accents and other scripts (R11), cancelling without a session (R12).
+
+- Every app that started passes all 12, except Haiku G (10 of 12): G limits bookings to 10 per 15 minutes per client (`src/server/app.ts`, `express-rate-limit`), and the hidden tests send more than 10 bookings from one client, so the bookings of R12 and R9 (the last two tests) were refused. This is a limit of the test suite, not a defect in what R12 and R9 test.
+- Haiku S (OpenCode, oso) did not start: no robustness score.
+- Like the feature tests, the robustness tests do not separate the arms on this brief.
 
 ## Claude Code, Sonnet 5.5 (13 review criteria)
 
@@ -57,7 +105,7 @@ Testing method: agent runs under protocol 1.9; scored and parsed under protocol 
 
 Trials: USD 43.79 API-equivalent (21 trials; K without cost). Reviews: USD 9.54 billed. W was rerun under protocol v1.8 (the first trial, 0/6 after it stopped to wait for confirmation, is kept in `limited/W-v1.7`).
 
-## Claude Code, Haiku 5.5 (9 review criteria, outdated)
+## Claude Code, Haiku 5.5 (9 review criteria, outdated; Haiku is dropped from the benchmarks)
 
 Testing method: agent runs under protocol 1.9; scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
 
@@ -90,7 +138,7 @@ Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not com
 
 Trials: USD 33.24 API-equivalent.
 
-## OpenCode, Haiku 5.5 and Sonnet 5.5 (9 review criteria, outdated)
+## OpenCode, Haiku 5.5 and Sonnet 5.5 (9 review criteria, outdated; OpenCode is dropped from future runs)
 
 Testing method: agent runs under protocol 1.9; scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
 
@@ -117,55 +165,31 @@ Trials: USD 26.94 over the main sessions; reviews of the 36 Haiku and OpenCode a
 
 Caveat: the OpenCode USD, tokens, tool uses and phases cover only the main session of each trial. The runner exported root sessions only (`opencode session list` does not list subagent sessions; fixed after this run), and 11 of 14 trials started 1 or 2 subagents through the task tool (all except Q and T on Haiku and U on Sonnet), whose cost is missing. Estimated USD 3 more in total (about 0.80 Haiku, 2.20 Sonnet; unverified, from each main session's cost per active minute times the subagent minutes recorded in its task calls). All subagents were read-only reviews or design checks; features, reviews and wall minutes are unaffected. No rerun (owner decision).
 
-## Robustness tests (#27)
+## Method
 
-12 tests from the brief's sentences (`bench/PROTOCOL.md`): simultaneous bookings for the last seats (R1), invalid guests 0, 9, 2.5 (R2 to R4), empty name and email (R5, R6), booking data without sign-in including API responses (R7), HTML in names (R8), invalid guests sent without the form, with a valid replay as control (R9), a name of only spaces (R10), accents and other scripts (R11), cancelling without a session (R12).
+| Item | Value |
+|---|---|
+| Brief | `bench/briefs/winery-react/brief.md` (React, established frameworks, look and feel, process paragraph) |
+| Claude Code arms | 22 (A, B, C to P, V to Y, AB, AC), Claude Code 2.1.299, effort `high`; Haiku: the owner's Max subscription; Sonnet: 11 arms on the Max subscription (B C D E G I J K O X Y AB, until its weekly limit), 11 on the owner's Team seat (A F H L M N P V W AC) |
+| OpenCode arms | 7 (Q to U, Z, AA), OpenCode 1.19.0, `claude-haiku-5-5` and `claude-sonnet-5-5`, variant `high`, Anthropic API key |
+| Review | blind, `claude-opus-5-5`, effort `high`, `bench/review/`, billed to the API key. Haiku and OpenCode apps: 9 criteria; Sonnet Claude Code apps: 13 criteria (adds visual design, layout, usability, reception; protocol v1.7). The two sets of ratings are not directly comparable. |
+| Mutation score | share of mutants of the agent's own source that its own tests detect (killed or timed out), Stryker 10.0.0 command runner, `bench/scorer/mutation.sh`, rescored 2026-10-16 with agent runs unchanged (#44); unmeasured: Haiku J (only time-outs), Haiku S (npm install failed), Sonnet Z (its own Playwright suite fails in the dry run); Sonnet AB first failed on a TypeScript 7 tsconfig rewrite and was rescored with the workaround |
+| Seed, order | 41; Claude Code arms in three parallel runners plus single-arm reruns; order, image IDs and account switch in the run manifests |
 
-- Every app that started passes all 12, except Haiku G (10 of 12): G limits bookings to 10 per 15 minutes per client (`src/server/app.ts`, `express-rate-limit`), and the hidden tests send more than 10 bookings from one client, so the bookings of R12 and R9 (the last two tests) were refused. This is a limit of the test suite, not a defect in what R12 and R9 test.
-- Haiku S (OpenCode, oso) did not start: no robustness score.
-- Like the feature tests, the robustness tests do not separate the arms on this brief.
+Review column: a review skill, a review agent type, or a subagent whose task description names a review (parser fixed during the run; all `trial.json` files re-parsed).
 
-## Mutation score (#44)
+### How costs were recorded
 
-Share of mutants of the agent's own source that its own tests detect; 55 of 58 trials measured (unmeasured: Haiku J, Haiku S, Sonnet Z, see Setup). One trial per arm and model: descriptive only.
+| Runtime and account | What "USD" is | Billed? |
+|---|---|---|
+| Claude Code, Max subscription or Team seat | `total_cost_usd` of Claude Code's final `result` event: an API-equivalent estimate that Claude Code computes from the token counts; summed over the session (follow-up turns continue it) | no: the subscription and the seat are flat-rate; the estimate shows API list-price equivalent, not what the account paid or how much of its usage limit a trial took |
+| OpenCode, API key | sum of the per-message `cost` in OpenCode's session exports, computed by OpenCode from its model catalog prices (fetched when the image was built) | yes, to the API key; main session only for these runs (see caveat) |
+| App reviews, API key | `cost_usd_api_equivalent` in `review.json`, from the reviewing Claude Code's `result` event | yes, to the API key |
+| Per-phase USD (Sonnet runs) | Claude Code: the trial total split by each call's token weight; OpenCode: per message as reported | estimate |
 
-| Group | Trials | Median | Range |
-|---|---|---|---|
-| Claude Code, Haiku 5.5 | 21 | 69.8% | 35.4% to 98.9% |
-| Claude Code, Sonnet 5.5 | 22 | 68.75% | 29.2% to 94% |
-| OpenCode, Haiku 5.5 | 6 | 84% | 52.7% to 98% |
-| OpenCode, Sonnet 5.5 | 6 | 70% | 26.6% to 88.6% |
+Confidence in the cost figures: medium. Not reconciled against the Anthropic Console usage export or an invoice. Uncertain: whether the tools' built-in price tables match the prices charged (for example cache-write tiers), OpenCode subagent sessions missing from these runs (estimated USD 3), and Sonnet K, whose agent ended its own process before the final `result` event (no cost recorded). The account (Max or Team) does not change the API-equivalent estimate.
 
-Top 10 trials:
-
-| Rank | Model | Runtime | Arm | Setup | Mutation score |
-|---|---|---|---|---|---|
-| 1 | Haiku 5.5 | Claude Code | F | agent-skills | 98.9% |
-| 2 | Haiku 5.5 | OpenCode | AA | Matt Pocock + OpenSpec | 98% |
-| 3 | Haiku 5.5 | OpenCode | Q | OpenSpec + targeted skills | 97.7% |
-| 4 | Haiku 5.5 | Claude Code | V | Matt Pocock | 96.6% |
-| 5 | Haiku 5.5 | Claude Code | AC | Spec Kit | 94.1% |
-| 6 | Sonnet 5.5 | Claude Code | K | ECC + OpenSpec | 94% |
-| 7 | Haiku 5.5 | Claude Code | AB | OpenSpec | 90.3% |
-| 8 | Haiku 5.5 | Claude Code | I | agent-skills + OpenSpec | 90% |
-| 9 | Sonnet 5.5 | Claude Code | H | ECC | 89.7% |
-| 10 | Sonnet 5.5 | OpenCode | S | OpenSpec + Superpowers (oso) | 88.6% |
-
-For comparison: plain Claude Code (A) 57.3% on Haiku and 62.8% on Sonnet; Ponytail alone (B) 45.6% and 74.1%; the BenchKeeper layer with agent-skills (L) 35.4% and 31.4%. Lowest: Sonnet OpenCode AA 26.6%, Sonnet N 29.2%, Sonnet C 30.5%. All 55 measured trials passed 6 of 6 features, so the score separates arms the hidden tests do not.
-
-## Observations (one trial each)
-
-- Hidden tests: all 22 Sonnet and 22 Haiku Claude Code apps and 13 of 14 OpenCode apps pass all 6 features; robustness see above.
-- Maintainability is the weakest review criterion in every group (mostly 2 or 3; no app has CI). On both models the BenchKeeper-layer arms without OpenSpec score lowest (Haiku L M N X: 3, 2, 2, 2; Sonnet: 2, 2, 2, 3). Candidate cause: BenchKeeper's scope rule ("no unrequested ... extra files") and Ponytail's least-code rule.
-- Sonnet overall ratings: OpenSpec alone (AB) 9; B (Ponytail) and L (BK + agent-skills) 7; all others 8. Haiku: A (plain) 9; O, M, N 7; others 8.
-- Sonnet took 14 minutes per Claude Code trial on average, Haiku 18; Sonnet cost more in 15 of 21 pairs with a cost.
-- Ponytail lowered the cost in every baseline pair on Haiku (B vs A, O vs AB, P vs AC) and on Sonnet (B vs A, O vs AB, P vs AC).
-- Stops before the app was finished: Haiku D, E, J stopped after the specification (follow-up because the app did not run); Sonnet W stopped after its first task group to wait for confirmation while its skeleton app already ran, so v1.7 gave no follow-up (0 of 6); under v1.8 the rerun got one follow-up and reached 6 of 6.
-- Sonnet K's agent ended its own Claude Code process with a shell loop over `/proc` (exit 143); its app passes 6 of 6 and 12 of 12, but cost and turns were not recorded.
-- OpenCode with oso on Haiku (S) built the app in a git worktree and never merged it into the project folder: 0 of 6, review 3; a second run by another session (kept in `limited/S-rerun-1429` of the run, not published) also reached 0 of 6. On Sonnet the same arm merged and reached 9.
-- On OpenCode, Sonnet reviewed at least as high as Haiku in every arm.
-
-## Harness changes during the run
+### Harness changes during the run
 
 Recorded in the protocol history (v1.0 to v1.9): follow-up rule checks that the app runs (v1.2) and, from v1.8, also fires when the final message waits for confirmation; the app check runs on a copy of the workspace from v1.8 (before, its `npm install` and `npm run build` left `package-lock.json` and `dist/` in the workspace, so `maintenance.lockfile` of earlier trials does not show whether the agent committed a lockfile); usage gate at 70% of the 5-hour window and 98% of the weekly window; OpenCode runner fixes (missing subscription token, empty and pre-committed project template, worktree pointer files in the token scan, subagent session export); hidden test F6 waits for the cancel request; robustness tests R1 to R12 (v1.9); review criteria 10 to 13 (v1.7).
 

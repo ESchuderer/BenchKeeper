@@ -1,6 +1,14 @@
 # Changelog
 
-Versions of the BenchKeeper setup (rules, skills, permission rules, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
+Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
+
+## setup-v2.1 (2026-10-16)
+
+CI, permission rules removed (#39).
+
+- Custom permission rules removed (`global-setup` part 11, owner decision): Claude Code's own permission modes and the auto-mode classifier decide; the safety limits stay as prose in `rules/global.md` and `sdlc`.
+- `sdlc`: risky changes run `security-review` (Claude Code; reviews the diff between the branch and `origin`'s default branch, https://code.claude.com/docs/en/commands) before push, next to `code-review`.
+- CI (`checks.yml`): `actionlint`, forbidden characters (em dash, emoji), SKILL.md front matter, `openspec validate --all --strict`. All actions pinned to commit SHAs; `links.yml` declares read-only permissions; Dependabot for actions and npm.
 
 ## setup-v2.0 (2026-10-16)
 

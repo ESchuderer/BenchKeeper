@@ -44,7 +44,7 @@ Default tier and the check before reporting done, in addition to Verify below. R
 | Infrastructure as code | full | Terraform/OpenTofu `fmt -check`, `validate`, `plan`; Ansible `ansible-lint`, `--check --diff`; Kubernetes `kubeconform`, `kubectl diff`; Helm `helm lint`, `helm template` |
 | Schema migration | full | expand and contract; migrate a throwaway database |
 | Production data fix | full | dry run on a copy; the user runs it |
-| Auth, permissions, secrets, input validation | full | `security-and-hardening`, tests for denied paths |
+| Auth, permissions, secrets, input validation | full | `security-and-hardening` while building, `security-review` before push (Claude Code), tests for denied paths |
 | Performance | full | benchmark before and after on the same machine |
 
 ## Issues, branches and pull requests
@@ -54,7 +54,7 @@ Default tier and the check before reporting done, in addition to Verify below. R
 - Commits: atomic, message `<type>: <summary>` (Conventional Commits).
 - Pull requests: open as draft (`gh pr create --draft`), body contains `Closes #<issue>` when an issue exists; mark ready (`gh pr ready`) after checks pass. Review comments and failing checks: new commits on the same branch, no force push or rebase unless the user asks.
 - No GitHub remote or `gh auth status` fails: local branch only, skip issue and pull request, run the review below before reporting done (standard, full), say so in one line.
-- Before `git push` or opening a pull request that contains code or risky changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`). If it finds issues, report them and wait for the user before pushing. Skip when only docs change or the tier is quick, unless the change is risky.
+- Before `git push` or opening a pull request that contains code or risky changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`; otherwise `code-review-and-quality`); for a risky change, also run `security-review` (Claude Code). If either finds issues, report them and wait for the user before pushing. Skip when only docs change or the tier is quick, unless the change is risky.
 - OpenSpec (repository has `openspec/`, full tier): after the issue step, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>` or `<slug>`, issue linked in `proposal.md`); commit it with the code; run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
 
 ## Phases

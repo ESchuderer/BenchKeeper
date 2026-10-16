@@ -7,6 +7,8 @@
 #   L agent-skills + BK        M Superpowers + BK         N ECC + BK
 #   C agent-skills + BK + OpenSpec   D Superpowers + BK + OpenSpec   E ECC + BK + OpenSpec
 #   O Ponytail + OpenSpec      P Ponytail + Spec Kit      AB OpenSpec alone      AC Spec Kit alone
+#   V Matt Pocock alone        W Matt Pocock + OpenSpec   X Matt Pocock + BK     Y Matt Pocock + BK + OpenSpec
+#   AD Matt Pocock + BK v3 (bench/arms/bk-v3: current rules and the following-dev-workflow skill for Matt Pocock's skills)
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -92,6 +94,7 @@ case $arm in
   AB) fw=none bk=no pt=no spec=openspec ;;     AC) fw=none bk=no pt=no spec=speckit ;;
   V) fw=mp bk=no pt=no spec=none ;;            W) fw=mp bk=no pt=no spec=openspec ;;
   X) fw=mp bk=yes pt=yes spec=none ;;          Y) fw=mp bk=yes pt=yes spec=openspec ;;
+  AD) fw=mp bk=v3 pt=yes spec=none ;;
   Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac
@@ -115,9 +118,12 @@ if [ "$pt" = yes ]; then
 fi
 
 t=$HOME/project-template
-if [ "$bk" = yes ]; then
+if [ "$bk" != no ]; then
   case ${BK:-v1} in v1|v2) ;; *) echo "BK must be v1 or v2, not $BK" >&2; exit 1 ;; esac
-  if [ "${BK:-v1}" = v2 ]; then
+  if [ "$bk" = v3 ]; then
+    cp /opt/bench/bk-v3/global.md "$HOME/.claude/rules/00-global.md"
+    cp -r /opt/bench/bk-v3/skills/following-dev-workflow "$HOME/.claude/skills/"
+  elif [ "${BK:-v1}" = v2 ]; then
     # v2: the rules and the sdlc skill of setup-v2.2; framework variants of v2 do not exist yet.
     [ "$fw" = as ] || { echo "BK=v2 is defined for the agent-skills arms only (L, C)" >&2; exit 1; }
     cp /opt/bench/bk-v2/global.md "$HOME/.claude/rules/00-global.md"
@@ -126,9 +132,10 @@ if [ "$bk" = yes ]; then
     case $fw in as) rules=bk-rules.md ;; sp) rules=superpowers.rules.md ;; ecc) rules=ecc.rules.md ;; mp) rules=mattpocock.rules.md ;; esac
     cp "/opt/bench/$rules" "$HOME/.claude/rules/00-global.md"
   fi
-  cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md"
+  # v3 ships what the current setup installs: no candidate rules, no old setup skills (they are host installers).
+  [ "$bk" = v3 ] || cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md"
   clone vercel-labs/skills v1.7.2 && cp -r "$src/vercel-labs-skills/skills/find-skills" "$HOME/.claude/skills/"
-  cp -r /opt/bench/skills/project-setup /opt/bench/skills/global-setup "$HOME/.claude/skills/"
+  [ "$bk" = v3 ] || cp -r /opt/bench/skills/project-setup /opt/bench/skills/global-setup "$HOME/.claude/skills/"
   npm i -g --prefix "$HOME/.local" @playwright/mcp@0.0.83
   node "$HOME/.local/lib/node_modules/@playwright/mcp/node_modules/playwright-core/cli.js" install chromium
   cp -r /opt/bench/project-setup "$t" && rm "$t/README.md"

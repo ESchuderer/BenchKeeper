@@ -38,3 +38,13 @@ test('fails when a replaced section or line is missing', () => {
   assert.throws(() => variant('## Scope\n- x\n', '<!-- section: SDLC -->\n## SDLC\n- y\n'), /sections not found/);
   assert.throws(() => variant('## Scope\n- x\n', '<!-- replace: nope ==> y -->'), /text not found/);
 });
+
+// Layer v3 (arm AD): pinned copies of the current rules and the workflow skill for Matt Pocock's skills.
+test('bk-v3: no agent-skills or OpenSpec name, every named skill exists in arm AD', () => {
+  const text = read('bench/arms/bk-v3/global.md') + read('bench/arms/bk-v3/skills/following-dev-workflow/SKILL.md');
+  const have = listed('AD');
+  assert.deepEqual(agentSkills.filter((n) => text.includes(`\`${n}\``) && !have.has(n)), []);
+  assert.ok(!/agent-skills|openspec/i.test(text));
+  const skills = ['tdd', 'code-review', 'diagnosing-bugs', 'grilling', 'domain-modeling', 'codebase-design', 'pr', 'prototype', 'research', 'following-dev-workflow'];
+  assert.deepEqual(skills.filter((n) => text.includes(`\`${n}\``) && !have.has(n)), []);
+});

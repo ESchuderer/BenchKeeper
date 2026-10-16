@@ -7,7 +7,8 @@ import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
 import { claudePhases, opencodePhases, shellWriteTarget } from './phases.mjs';
 
-// Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer, spec tool.
+// Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3': rules and the
+// following-dev-workflow skill), spec tool.
 export const ARMS = {
   A: [null, 0, 0, null], B: [null, 1, 0, null],
   F: ['as', 0, 0, null], G: ['sp', 0, 0, null], H: ['ecc', 0, 0, null],
@@ -16,6 +17,7 @@ export const ARMS = {
   C: ['as', 1, 1, 'openspec'], D: ['sp', 1, 1, 'openspec'], E: ['ecc', 1, 1, 'openspec'],
   O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'], AB: [null, 0, 0, 'openspec'], AC: [null, 0, 0, 'speckit'],
   V: ['mp', 0, 0, null], W: ['mp', 0, 0, 'openspec'], X: ['mp', 1, 1, null], Y: ['mp', 1, 1, 'openspec'],
+  AD: ['mp', 1, 'v3', null],
 };
 
 // What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
@@ -26,7 +28,7 @@ function expect(fw, pt, bk, spec) {
   if (fw === 'ecc') e.skills.push('tdd-workflow'), e.agents.push('planner', 'code-reviewer');
   if (fw === 'mp') e.plugins.push('mattpocock-skills'), e.skills.push('mattpocock-skills:tdd');
   if (pt) e.plugins.push('ponytail'), e.skills.push('ponytail:ponytail'), e.hooks.push('PONYTAIL MODE ACTIVE');
-  if (bk) e.skills.push('find-skills', 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
+  if (bk) e.skills.push('find-skills', bk === 'v3' ? 'following-dev-workflow' : 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
   if (spec === 'openspec') e.skills.push('openspec-propose');
   if (spec === 'speckit') e.skills.push('speckit-specify');
   return e;
@@ -84,11 +86,15 @@ export function workflow(events, uses = claudeUses(events)) {
   const skills = uses.filter((u) => u.name === 'Skill').map((u) => u.input.skill || u.input.command || '?');
   const agents = uses.filter((u) => u.name === 'Agent' || u.name === 'Task').map((u) => u.input.subagent_type || 'general-purpose');
   const last = uses.at(-1);
+  // Tier lines the agent wrote (`Tier: quick`), from the main thread's text.
+  const tiers = events.filter((e) => e.type === 'assistant' && !e.parent_tool_use_id).flatMap((e) => (e.message?.content || [])
+    .filter((c) => c.type === 'text').flatMap((c) => [...(c.text || '').matchAll(/^\W*Tier:\s*(\w+)/gim)].map((m) => m[1].toLowerCase())));
   return {
     tool_calls: uses.length,
     subagent_tool_calls: uses.filter((u) => u.sub).length,
     skills,
     agents,
+    tiers,
     plan_or_spec_files: writes.filter((p) => /\.md$/i.test(p) && /(plan|spec|design|brainstorm|requirement)/i.test(p)),
     tests_written: firstTest >= 0,
     tests_first: firstTest >= 0 && (firstSource < 0 || firstTest < firstSource),

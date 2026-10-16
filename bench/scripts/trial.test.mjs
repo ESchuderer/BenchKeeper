@@ -37,6 +37,8 @@ test('workflow trace: skills, agents, plan files, tests first, review', () => {
   assert.equal(workflow([use('Write', { file_path: '/work/server.mjs' }), use('Write', { file_path: '/work/server.test.mjs' })]).tests_first, false);
   assert.equal(workflow([use('Agent', { subagent_type: 'general-purpose', description: 'Independent review of the app' })]).review, true);
   assert.equal(workflow([use('Agent', { subagent_type: 'general-purpose', description: 'Explore the codebase' })]).review, false);
+  const say = (text, sub) => ({ type: 'assistant', ...(sub ? { parent_tool_use_id: 'x' } : {}), message: { content: [{ type: 'text', text }] } });
+  assert.deepEqual(workflow([say('Tier: full. Build the app.'), say('Done.\n**Tier: Quick** for the fix'), say('Tier: standard', true)]).tiers, ['full', 'quick']);
 });
 
 test('outcome counts main-thread messages once and takes tokens from the cumulative model usage', () => {

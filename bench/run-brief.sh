@@ -119,7 +119,8 @@ for r in $(seq "$k"); do
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
     # PHASES=1: per-phase and per-subagent measurements for this trial (bench/scripts/phases.mjs).
     [ "${PHASES:-}" != 1 ] || touch "$t/log/phases"
-    echo "${BK:-v1}" > "$t/bk"
+    # Arm AD always carries layer v3 (bench/arms/bk-v3); the other layer arms the BK build argument (default v1).
+    case $arm in AD) echo v3 ;; *) echo "${BK:-v1}" ;; esac > "$t/bk"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
     [ "$steps" != sessions ] || { cp -a "$runs/baseline/." "$t/workspace/" && echo baseline > "$t/condition"; }
     # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first;

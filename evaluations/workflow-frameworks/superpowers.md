@@ -38,7 +38,7 @@ Arms: G (Superpowers alone), J (with OpenSpec), M (with the BenchKeeper layer), 
 
 ## Skill authoring check
 
-Rank 4 of 8, review 3.2, static checks 93% (7.0.0), workflows 5 and examples 5, the highest of the 8 collections in both areas. Descriptions leave out the "what" by house rule. Two bodies over 500 lines. The brainstorming server loads a remote logo unless a telemetry variable is set. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+Rank 4 of 8, review 3.2, static checks 93% (7.0.0), workflows 5 (highest of the 8 collections), examples 5 (tied with Matt Pocock). Descriptions leave out the "what" by house rule. Two bodies over 500 lines. The brainstorming server loads a remote logo unless a telemetry variable is set. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
 
 ## Decision
 

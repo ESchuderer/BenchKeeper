@@ -73,10 +73,9 @@ function TopDetail({ t: x }: { t: Top }) {
     <Box mt="lg">
       <Title order={3} fz="lg">Top 10 of {x.of} apps</Title>
       <Text size="sm" c="dimmed">
-        Final score out of 100 from six weighted categories; the inputs and weights are in the report. Totals within
-        about 2 points are not separable with one trial per arm. Not part of the score: drawings, the cartridge drawings
-        a Claude Opus 5.5 review found correct, and mutation, the share of mutants the app's own tests catch (Stryker).
-        n/a: not measured or not measurable.
+        Final score out of 100 from six weighted categories (inputs and weights in the report). Totals within about 2
+        points are not separable with one trial per arm. Not in the score: drawing correctness (Claude Opus 5.5 review)
+        and mutation score (share of mutants the app's own tests catch, Stryker). n/a: not measured.
       </Text>
       <Table.ScrollContainer minWidth={1000} type="native" mt="xs" tabIndex={0} role="region" aria-label={`${x.brief}: top 10`}>
         <Table striped verticalSpacing={4} fz="sm">
@@ -115,9 +114,8 @@ export default function BenchSummary({ base, runs, tops, notes }: { base: string
           the <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>.
         </Text>
         <Text c="dimmed">
-          Each brief starts with its winners: the top 10 by final score where the brief has one, then the key findings,
-          then all arms ranked by review. Features and robustness are hidden tests passed; review is a blind rating from
-          1 to 10 by Claude Opus 5.5. The BenchKeeper layer includes Ponytail.
+          Features and robustness: hidden tests passed. Review: blind rating from 1 to 10 by Claude Opus 5.5. The
+          BenchKeeper layer includes Ponytail.
         </Text>
       </Stack>
 

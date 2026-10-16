@@ -101,10 +101,10 @@ function StepList({ from, className }: { from: number; className?: string }) {
 
 
 const checks: [ReactNode, string, ReactNode][] = [
-  [<IconTestPipe size={18} />, 'Tests', <>Tests first where a suite exists. Verify runs build, types, lint and tests.</>],
+  [<IconTestPipe size={18} />, 'Tests', <>Tests first where a suite exists.</>],
   [<IconShieldLock size={18} />, 'Security', <><Code>security-and-hardening</Code> for input, auth, data and dependencies. Secrets are never printed or committed. Maintain audits dependencies.</>],
   [<IconGauge size={18} />, 'Performance', <><Code>performance-optimization</Code> when performance requirements exist. <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
-  [<IconAccessible size={18} />, 'UI and accessibility', <>UI changes are checked in a browser through Playwright MCP. <Code>frontend-ui-engineering</Code> covers WCAG when building interfaces.</>],
+  [<IconAccessible size={18} />, 'UI and accessibility', <><Code>frontend-ui-engineering</Code> covers WCAG when building interfaces.</>],
 ];
 
 const quickstart: [string, string, string][] = [
@@ -173,16 +173,16 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and four skills. Claude Code and Codex are each optional. Setup configures only the agents you select. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/setting-up-machine</Code>.</>}>
+        <Section id="what" title="What it is" intro={<>Claude Code and Codex are each optional. Setup configures only the agents you select. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/setting-up-machine</Code>.</>}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} scope="Global, both agents">
               Applies in every session: when to load the workflow skill, ask instead of assuming, brevity, structure, sources for claims, punctuation, scope, devcontainer use, safety, context.
             </FeatureCard>
             <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/setting-up-machine</Code>} scope="Once per machine">
-              Checks 9 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals, version bumps. Applies only what you approve.
+              Checks 9 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals, version bumps.
             </FeatureCard>
             <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/setting-up-projects</Code>} scope="Once per repository">
-              Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config. Same plan and approval as the machine setup. On a fresh clone it restores the skills.
+              Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config, with one plan first. On a fresh clone it restores the skills.
             </FeatureCard>
             <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} scope="Before repository work, both agents">
               Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded only when needed.
@@ -193,7 +193,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. Quick: no issue, spec, plan or pre-push review. Standard: no spec, a plan of a few lines. Full: all ten steps. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug. Token and time use: one trial per arm in the benchmark, descriptive only.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. Quick: no issue, spec, plan or pre-push review. Standard: no spec, a plan of a few lines. Full: all ten steps. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -250,14 +250,14 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Alert>
         </Section>
 
-        <Section id="parts" title="What each part gives you" intro="Each is a separate upstream project, configured for the selected agents. CLIs and MCP servers are pinned to an exact version, plugins install at their latest release.">
+        <Section id="parts" title="What each part gives you" intro="Each is a separate upstream project, configured for the selected agents.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconListCheck size={20} />} title="agent-skills" href="https://github.com/addyosmani/agent-skills" scope="Global, both agents"
               gives="Steps per task tier: spec before code for full changes, tests first, review before merge.">
               Skills for spec, planning, TDD, debugging, code review, security, performance and shipping. The agent loads the one each phase needs.
             </FeatureCard>
             <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, both agents"
-              gives="Fewer lines of code in every source that measured them. Cost results differ by setup, see Cost and quality.">
+              gives="Fewer lines of code in every source that measured them. Cost varies by setup.">
               Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
             </FeatureCard>
             <FeatureCard icon={<IconFileDescription size={20} />} title="OpenSpec" href="https://github.com/Fission-AI/OpenSpec" scope="CLI global, wired per repository"
@@ -265,7 +265,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               One change folder per change (proposal, spec deltas, tasks), merged into living specs on archive.
             </FeatureCard>
             <FeatureCard icon={<IconBrowser size={20} />} title="Playwright MCP" href="https://github.com/microsoft/playwright-mcp" scope="Per repository, browser in the container"
-              gives="UI changes are checked in a browser before the agent reports them done.">
+              gives="A browser the agent controls from the container.">
               Browser control over MCP: open pages, click, fill forms, read console and network, take screenshots.
             </FeatureCard>
             <FeatureCard icon={<IconContainer size={20} />} title="Dev Containers" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="CLI on host, config per repository"
@@ -287,7 +287,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </List>
             <List spacing="lg" styles={listTop}>
               <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions, disabled lint rules or --no-verify unless you ask.</Check>
-              <Check ok title="Sources and confidence.">External claims carry an official URL; uncertain topics state a confidence level.</Check>
+              <Check ok title="Sources and confidence.">External claims carry an official URL. Uncertain topics state a confidence level.</Check>
             </List>
           </SimpleGrid>
         </Section>
@@ -340,7 +340,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="tools" title="Recommended tools" intro="Optional, not installed by BenchKeeper. Each works with the agents and rules set up here.">
+        <Section id="tools" title="Recommended tools" intro="Optional, not installed by BenchKeeper.">
           <Text fw={700} mb="xs">Parallel agents: pick one</Text>
           <Text size="sm" c="dimmed" mb="md" maw={760}>Orca, Nimbalyst and cmux each manage several agent sessions side by side. Running two duplicates the sessions and worktrees they track for the same repositories.</Text>
           <SimpleGrid cols={{ base: 1, md: 3 }}>

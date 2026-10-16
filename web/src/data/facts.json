@@ -4,7 +4,7 @@
     "name": "agent-skills",
     "by": "Addy Osmani",
     "url": "https://github.com/addyosmani/agent-skills",
-    "role": "its skills drive each SDLC phase (specify, plan, tests first, build, review, ship). BenchKeeper configures them and sizes each task to the steps it needs"
+    "role": "its skills drive each SDLC phase (specify, plan, tests first, build, review, ship)"
   },
   "prerequisites": [
     {
@@ -60,8 +60,8 @@
       "platforms": "macOS, Windows, Linux",
       "icon": "stack",
       "points": [
-        "one git worktree per agent and the same prompt across several agents to compare results",
-        "terminal splits, SSH remote worktrees, mobile companion app",
+        "one git worktree per agent, the same prompt across agents",
+        "terminal splits, SSH remote worktrees, mobile app",
         "`/setting-up-machine` offers its `orca-cli` and `orchestration` skills after asking"
       ],
       "when": "you want terminal-based parallel agents with worktrees, remote machines or mobile access"
@@ -97,7 +97,7 @@
     "summary": "A self-hosted agent server with a web UI that runs work without you at the terminal.",
     "points": [
       "Each conversation can run in its own Docker container (`OH_CONVERSATION_RUNTIME=docker`), an isolation option BenchKeeper does not provide.",
-      "Runs its own agent or hosts Claude Code, Codex and Gemini CLI. Works with any LLM.",
+      "Runs its own agent or hosts Claude Code, Codex and Gemini CLI.",
       "Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks.",
       "Without a sandbox, the local agent has full access to your filesystem.",
       "Unverified: whether agents inside its containers load the BenchKeeper rules and skills, which are installed on the host."

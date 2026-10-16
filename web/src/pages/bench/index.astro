@@ -31,8 +31,7 @@ const notes: Notes = {
     },
     '2026-10-16-cartridges-sonnet': {
       findings: [
-        'Best overall: Q (OpenCode, OpenSpec + targeted skills), 84.8 of 100. Best Claude Code app: V (Matt Pocock), 84.0, 3rd. Plain Claude Code (A): 78.3, 19th of 29.',
-        'The BenchKeeper layer arms (v1, rules only) do not lead: the best is E (BK + ECC + OpenSpec), 5th; BK + agent-skills (L) is 13th, BK + Matt Pocock (X) 20th.',
+        'The BenchKeeper layer arms (v1: the SDLC in the rules file, no workflow skill) do not lead. The best is E (BK + ECC + OpenSpec), 5th of 29. BK + agent-skills (L) is 13th, BK + Matt Pocock (X) 20th.',
         '26 of 29 apps pass all 6 feature tests (J passes 5, K and AA 2). Every reviewed app draws proper cartridges with values that match the records.',
         'K passes 2 of 6 hidden tests but is rated 8: the review could not check the detail and print rendering, where the hidden tests failed.',
       ],
@@ -45,6 +44,6 @@ const notes: Notes = {
 };
 ---
 <BenchLayout title="Benchmarks, BenchKeeper"
-  description="BenchKeeper benchmark summary: per published run the setup, the arms ranked by review, hidden test scores and minutes, key findings and a link to the full report.">
+  description="BenchKeeper benchmark summary per published run: setup, top 10 by final score, hidden test scores, minutes, key findings, link to the full report.">
   <BenchSummary base={base} runs={runs} tops={tops} notes={notes} />
 </BenchLayout>

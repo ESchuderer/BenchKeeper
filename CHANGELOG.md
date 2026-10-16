@@ -2,6 +2,14 @@
 
 Versions of the BenchKeeper setup (rules, skills, permission rules, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
 
+## setup-v2.1 (unreleased)
+
+CI and permission rules (#39).
+
+- Permission rules (`global-setup` part 11): 59 ask rules, only for what Claude Code's auto-mode classifier does not already block (pushes to `main` or `master`, skipping git hooks, branch deletion, rebases, history rewrites, repo and release deletion), plus force push and hard reset as a fixed backup. Removed: `git clean`, `git stash drop` and `clear`, `git restore .`, `git checkout .` and `-- .`, `git checkout -f`, `gh pr merge` (the classifier blocks them).
+- `sdlc`: risky changes run `security-review` (Claude Code) before push, next to `code-review`.
+- CI (`checks.yml`): `actionlint`, forbidden characters (em dash, emoji), SKILL.md front matter, `openspec validate --all --strict`. All actions pinned to commit SHAs; `links.yml` declares read-only permissions; Dependabot for actions and npm.
+
 ## setup-v2.0 (2026-10-16)
 
 Claude Code best practices applied (#37, https://code.claude.com/docs/en/best-practices).

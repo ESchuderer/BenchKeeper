@@ -185,7 +185,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded on demand, so it costs context only when used.
             </FeatureCard>
             <FeatureCard icon={<IconShieldLock size={20} />} title={<Code fz="sm">Permission rules</Code>} scope="Global, Claude Code">
-              Ask before skipping git hooks, force pushes, branch deletion, pushes to main, hard resets, rebases, history rewrites, discarding uncommitted work and gh pr merge. Native rules, no hooks.
+              Ask before pushes to main, skipping git hooks, branch deletion, rebases, history rewrites, force pushes and hard resets: what the auto-mode classifier does not already block, plus a backup for the most destructive. Native rules, no hooks.
             </FeatureCard>
           </SimpleGrid>
         </Section>

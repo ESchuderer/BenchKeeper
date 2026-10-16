@@ -1,6 +1,7 @@
 ---
 name: project-setup
 description: "Set up or update a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, OpenSpec. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+disable-model-invocation: true
 ---
 
 # Project setup
@@ -74,9 +75,9 @@ Update or restore missing skills by reinstalling each selected skill from its re
 
 ## 5. Spec tool and default tier (ask)
 
-Ask whether this repository uses OpenSpec or none. Recommend none for config, infrastructure, and docs repositories. OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive; agent-skills drives the process and OpenSpec owns the spec files (`rules/global.md`). A repository with Spec Kit (`.specify/`) moves to OpenSpec: propose removing `.specify/`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*` and ignore or lint entries for `.specify`, then set up OpenSpec.
+Ask whether this repository uses OpenSpec or none. Recommend none for config, infrastructure, and docs repositories. OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive; agent-skills drives the process and OpenSpec owns the spec files (`sdlc` skill). A repository with Spec Kit (`.specify/`) moves to OpenSpec: propose removing `.specify/`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*` and ignore or lint entries for `.specify`, then set up OpenSpec.
 
-Ask for the default task tier (`rules/global.md`, Task tiers): none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories, `research` for notes, papers or evaluation repositories. The default applies when a request does not clearly match another tier. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions; none writes nothing and removes an existing line after asking.
+Ask for the default task tier (`sdlc` skill, Task tiers): none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories, `research` for notes, papers or evaluation repositories. The default applies when a request does not clearly match another tier. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions; none writes nothing and removes an existing line after asking.
 
 OpenSpec:
 - Setup: `openspec init --tools <tools> --no-animation`, replacing `<tools>` with `claude`, `codex`, or `claude,codex` for the selected agents.

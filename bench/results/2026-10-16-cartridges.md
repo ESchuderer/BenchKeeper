@@ -2,11 +2,16 @@
 
 Brief: a static reference database of 25 C.I.P. cartridges with search, a detail view, a computed 2D drawing and a one-page print view. 29 Sonnet 5.5 apps (22 Claude Code, 7 OpenCode), one trial per arm, runs 2026-10-15 to 2026-10-16: descriptive only, no significance tests. Haiku 5.5 trials are listed at the end as records: Haiku and OpenCode are dropped from future runs (PROTOCOL 1.15).
 
+- Arm: one tested setup (runtime, skills, rules, spec tool), named by letters (`bench/SCENARIOS.md`).
+- BK: the BenchKeeper layer, v1 in these runs (the SDLC in the rules file, Ponytail, the project template, no workflow skill).
+- Final score: 0 to 100 from six weighted categories (section "Final score").
+
 ## Winners
 
 - Best overall: Q (OpenCode, OpenSpec + targeted skills), final score 84.8 of 100.
 - Best Claude Code app: V (Matt Pocock), 84.0, rank 3.
 - Plain Claude Code (A): 78.3, rank 19 of 29 (median 79.8).
+- Best BenchKeeper layer (v1) arm: E (BK + ECC + OpenSpec), 83.2, rank 5.
 - The top 10 spans 81.8 to 84.8: with one trial per arm, totals within about 2 points are not separable.
 
 | Category (weight) | Best | Plain Claude Code (A) |

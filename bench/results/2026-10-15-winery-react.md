@@ -2,11 +2,15 @@
 
 Runs 2026-10-14 to 2026-10-16, protocol `bench/PROTOCOL.md` v1.9. All 58 trials scored with the same hidden tests (`374dfd34d02f0c2f`: 6 feature tests, 12 robustness tests). Agent runs unchanged by rescoring. One trial per arm and model, descriptive only.
 
+- Arm: one tested setup (runtime, skills, rules, spec tool), named by letters (`bench/SCENARIOS.md`).
+- BK: the BenchKeeper layer, v1 in these runs (the SDLC in the rules file, Ponytail, the project template, no workflow skill).
+
 ## Winners
 
 - Best Claude Code app by review: AB (OpenSpec), rated 9 of 10, criteria sum 62 of 65. The next best sum is 59.
 - Best mutation score (own tests catching mutants): K (ECC + OpenSpec) 94%, then H (ECC) 89.7%.
 - Plain Claude Code (A): rated 8, criteria sum 57 (rank 10 of 22), mutation 62.8%.
+- Best BenchKeeper layer (v1) arm: E (BK + ECC + OpenSpec), criteria sum 59 (rank 4).
 - The hidden tests do not separate the arms: every Sonnet Claude Code app passes all 6 feature and 12 robustness tests.
 
 ## Top 10 (Claude Code, Sonnet 5.5)
@@ -32,7 +36,7 @@ Ranked by the sum of the 13 review criteria (1 to 5 each, at most 65), then the 
 - Maintainability is the weakest review criterion in every group (mostly 2 or 3, no app has CI). On both models the BenchKeeper-layer arms without OpenSpec score lowest (Haiku L M N X: 3, 2, 2, 2; Sonnet: 2, 2, 2, 3). Candidate cause: BenchKeeper's scope rule ("no unrequested ... extra files") and Ponytail's least-code rule.
 - Sonnet overall ratings: 9 for OpenSpec alone (AB), 7 for B (Ponytail) and L (BK + agent-skills), 8 for all others. Haiku: 9 for A (plain), 7 for O, M and N, 8 for the others.
 - Sonnet took 14 minutes per Claude Code trial on average, Haiku 18. Sonnet cost more in 15 of 21 pairs with a cost.
-- Ponytail lowered the cost in every baseline pair on Haiku (B vs A, O vs AB, P vs AC) and on Sonnet (B vs A, O vs AB, P vs AC).
+- Ponytail lowered the API-equivalent cost in every baseline pair on Haiku (B vs A, O vs AB, P vs AC) and on Sonnet (the same pairs), one trial per arm. External tests report -10.3% to +55% ([evaluations/behavior-modes/ponytail.md](../../evaluations/behavior-modes/ponytail.md)).
 - Stops before the app was finished: Haiku D, E, J stopped after the specification (follow-up because the app did not run). Sonnet W stopped after its first task group to wait for confirmation while its skeleton app already ran, so v1.7 gave no follow-up (0 of 6). Under v1.8 the rerun got one follow-up and reached 6 of 6.
 - Sonnet K's agent ended its own Claude Code process with a shell loop over `/proc` (exit 143). Its app passes 6 of 6 and 12 of 12, but cost and turns were not recorded.
 - OpenCode with oso on Haiku (S) built the app in a git worktree and never merged it into the project folder: 0 of 6, review 3. A second run by another session (kept in `limited/S-rerun-1429` of the run, not published) also reached 0 of 6. On Sonnet the same arm merged and reached 9.

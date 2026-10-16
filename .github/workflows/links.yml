@@ -28,6 +28,7 @@ jobs:
       - run: node --test .github/scripts/github-links.test.mjs
       - run: node --test bench/scripts/*.test.mjs
       - run: sh bench/scripts/waits.test.sh
+      - run: sh bench/scripts/claims.test.sh
       - run: npm ci --prefix bench/scorer --ignore-scripts --no-audit --no-fund
       - run: node --test bench/scorer/*.test.mjs
       - run: node bench/scripts/arm-rules.mjs --check

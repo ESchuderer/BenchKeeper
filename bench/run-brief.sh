@@ -4,7 +4,8 @@
 # Credentials, never printed: Claude Code arms use the subscription token (CLAUDE_CODE_OAUTH_TOKEN or the file
 # ~/.config/benchkeeper/oauth-token, from `claude setup-token`); OpenCode arms (Q to U) use an Anthropic API key
 # (ANTHROPIC_API_KEY or ~/.config/benchkeeper/anthropic-api-key). Each container gets only its own runtime's credential.
-# Resumable: trials with a trial.json are skipped; delete a trial directory to rerun it.
+# Resumable: trials with a trial.json are skipped; delete a trial directory to rerun it. Runners for different arm groups
+# can share one run: an arm another live runner has claimed is skipped (`claim`).
 set -eu
 brief=$1 model=$2 effort=$3 k=$4 seed=$5 arms=${6:-"A B C D E F G H I J K L M N O P V W X Y"}
 bench=$(dirname "$(realpath "$0")"); repo=$(dirname "$bench")
@@ -81,13 +82,27 @@ gate() {
   done
 }
 
+# Several runners on one run (one per arm group) claim each arm with a symlink to their PID (`ln -s` is atomic), so a
+# runner never deletes a trial another live runner is running; a dead runner's claim is taken over.
+# shortcut: two runners taking over the same dead claim at once can both hold it; run one runner per arm group.
+claim() { # <claim path>; true when this runner holds it
+  mkdir -p "${1%/*}"
+  ln -s "$$" "$1" 2> /dev/null && return
+  owner=$(readlink "$1") || return 1
+  [ "$owner" = "$$" ] && return
+  ! kill -0 "$owner" 2> /dev/null || return 1
+  rm -f "$1" && ln -s "$$" "$1" 2> /dev/null
+}
+
 for r in $(seq "$k"); do
   order=$(printf '%s\n' $arms | awk -v s="$((seed * 100 + r))" 'BEGIN{srand(s)}{print rand()"\t"$0}' | sort | cut -f2 | tr '\n' ' ')
   echo "round $r order $order" >> "$runs/manifest.txt"
   for arm in $order; do
     t=$runs/round-$r/$arm
     rt=$(runtime "$arm")
-    [ -f "$t/trial.json" ] && continue
+    c=$runs/.claims/round-$r-$arm
+    claim "$c" || { echo "$(date -Is) round $r arm $arm skipped: runner $(readlink "$c") runs it" >> "$runs/manifest.txt"; continue; }
+    [ -f "$t/trial.json" ] && { rm -f "$c"; continue; }
     set +e
     # A finished agent run is never repeated: on resume only scoring and parsing run again.
     if [ ! -f "$t/agent.exit" ]; then
@@ -209,5 +224,6 @@ for r in $(seq "$k"); do
     set -e
     podman run --rm --userns=keep-id -e HOME=/tmp -v "$repo":/repo:ro,Z -v "$t":/t:Z -w /repo "$NODE" node bench/scripts/trial.mjs /t "$arm"
     echo "$(date -Is) round $r arm $arm done: $(jq -c '{audit: .audit.ok, features: .score.features_passed, cost: .outcome.cost_usd_api_equivalent}' "$t/trial.json")" | tee -a "$runs/manifest.txt"
+    rm -f "$c"
   done
 done

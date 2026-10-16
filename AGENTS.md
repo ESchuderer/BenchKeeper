@@ -4,7 +4,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 
 ## Checks
 - Links and bench tests: CI (`.github/workflows/links.yml`): lychee for all hosts except github.com, which `.github/scripts/github-links.mjs` checks through the GitHub API, plus the bench unit, scorer and brief check tests and `bench/scripts/arm-rules.mjs --check` (link checker test: `devcontainer exec --docker-path podman --workspace-folder . node --test .github/scripts/github-links.test.mjs`)
-- Repository: CI (`.github/workflows/checks.yml`): `actionlint`, no em dash or emoji in text files outside the vendored `.agents/` and `.claude/` folders and the recorded trial data in `bench/results/*/round-*`, SKILL.md `description` in double quotes, `openspec validate --all --strict`. Actions are pinned to commit SHAs with a version comment. Dependabot (`.github/dependabot.yml`) updates the `uses:` pins and the site's npm packages weekly. The actionlint image digest, the OpenSpec version and `node-version` are bumped by hand.
+- Repository: CI (`.github/workflows/checks.yml`): `actionlint`, no em dash or emoji in text files outside the vendored `.agents/` and `.claude/` folders and the recorded trial data in `bench/results/*/round-*`, SKILL.md `description` in double quotes. Actions are pinned to commit SHAs with a version comment. Dependabot (`.github/dependabot.yml`) updates the `uses:` pins and the site's npm packages weekly. The actionlint image digest and `node-version` are bumped by hand.
 - Site: CI (`.github/workflows/pages.yml`): README sync, build, axe in light and dark, lychee on the built HTML. Deploys to GitHub Pages from `main`
 - Site locally: `devcontainer exec --docker-path podman --workspace-folder . sh -lc 'cd web && npm ci && npm run build && npm test'`. Preview (`npm run preview`) under `/BenchKeeper/` on a free host port: `podman port $(podman ps -q --filter label=devcontainer.local_folder="$PWD") 4321`
 
@@ -22,4 +22,3 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 - `.agents/skills/skill-creator` is vendored from `anthropics/skills` (`skills-lock.json`): do not edit. Update with `DO_NOT_TRACK=1 npx -y skills@1.7.2 add anthropics/skills -s skill-creator -a claude-code -a codex --copy -y`.
 - Evaluations live in `evaluations/<category>/<tool>.md`, indexed in `EVALUATIONS.md`. Update both when a component is added, removed, changed, or new evidence appears.
 - `web/scripts/og.svg` is the source of `web/public/og.png`: `rsvg-convert -w 1200 -h 630`.
-- Specs use OpenSpec (`openspec/`: current specs in `specs/`, changes in `changes/`). Generated OpenSpec skills in `.claude/skills/openspec-*`, `.agents/skills/openspec-*` are vendored: do not edit.

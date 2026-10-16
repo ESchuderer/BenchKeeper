@@ -1,0 +1,10 @@
+{
+  "name": "tinykv",
+  "version": "0.4.0",
+  "private": true,
+  "description": "A key-value store kept in one JSON file",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

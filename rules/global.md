@@ -42,4 +42,5 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 ## Context
 - Read only what the task needs.
 - Send noisy commands (full test suites, builds, long logs) to a subagent when available; return only failures and key lines.
+- Before an unrelated request, suggest `/clear`; the client compacts by itself at its configured window (`/setting-up-machine` part 7).
 - When compacting, keep the task tier, the issue, branch and pull request numbers, the modified files, and the checks still to run.

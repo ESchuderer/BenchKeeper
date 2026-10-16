@@ -1,0 +1,55 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.3956871999999998,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Most of the brief is met. On the list page: the heading, the name links, family, L3, Search, Family (All plus 5 families) and the \"<n> cartridges\" count (list.jpg, app.js:25-65). The detail page has every fact in order, the capacity source link, the tables with Symbol/Value/Unit, Print, All cartridges, and hash routes that survive a reload (app.js:92-129, 137-163). The drawing has the title block (name, table, revised, Dimensions in mm, scale), the hatched section, the dash-dot centre line and missing-value notes (drawing.js:216-296). Print is one A4 page with a header and a source footer (print-308_win.jpg). Two rules are only partly met. (1) α is not dimensioned on the shoulder: drawing.js:158-169 draws a separate auxiliary V-and-arc symbol above the shoulder, with extension lines going only to the shoulder midpoint (visible in every bottleneck screenshot). (2) The diameter dimensions are half-length lines from the outline to the axis, and they are moved to columns right of the bullet tip (drawing.js:99-105, 172-181). Their long horizontal extension lines run along and over the outline, so 'labels do not overlap the outline' holds only for the text. The brief's 'L3 51.18' label format and the tolerance format '39.62 -0.2' are honoured.",
+      "correctness": "The geometry follows the rules closely. Rim type is rule 1 exactly (geometry.js:20-27). The chamfer uses min(f·tanβ, R1/4) (96). The rimfire half-round is centred so its outermost point lies at R1/2 (81-91). The groove goes in to E1, along the floor to R+e min, and ramps to P1/2 at E (106-128). The belt ramps at δ to R3/2, follows the belt to E and steps in (116-121). The shoulder runs through the published points, with tangent fillets r1 min and r2 (138-168). Bullet seating and k tables are in lines 171-172. The tangent ogive has its centre at G1/2-ρ (189-195), plus a quarter ellipse, cones and meplats. The heeled case uses H2 outside and H2-2tb for the heel (183-184). tb and tn come from rule 8, w includes the belt ramp end, and the pocket sizes are right (30-43). Screenshots agree with the references in proportion: 308 Win., 300 Win. Mag. (belt), 9 mm Luger (rounded nose, square straight case), 22 Long Rifle (rounded rim, heeled bullet), 44 Rem. Mag. (cylinder plus cone with a wide meplat), and 9,3 x 74 R (a rim with an 11° shoulder). Dimension values match the data (e.g. 'L3 51.18', 'α 39°59'49\"'). Weak points: α is a symbolic angle rather than drawn on the cone, and diameters use a half-view convention placed far from the features. For straight cases the wall is blended from tb to tn, which is an interpretation (SPEC.md decision 7). Print is verified as one page (print-308_win.jpg, appearance.test.js:47-73).",
+      "security": "The only innerHTML is app.js:98, which takes the SVG string from drawing.js. Every data string in it passes through esc() (drawing.js:14, 238-242, 281, 292-295), and the numbers go through fmt(). The rest of the DOM is built with createElement/append (app.js:11-20). The external capacity link must pass an http(s) check and carries rel=noopener (app.js:77). There is no eval and no fetch. A test asserts no outside requests (list.test.js:110-117) and that escaping works (drawing.test.js:128-134).",
+      "code_quality": "The modules are cleanly split: format (pure), geometry (pure, mapped to the rules), drawing (layout and SVG) and app (views and router). Each is about 80-370 lines, with clear names and rule-numbered sections. Missing values are collected in a structured way. Some dense one-liners hurt readability: the items.sort comparator at drawing.js:113, labels.push at 169, and the test at geometry.test.js:222. The CSS is tidy and token-based.",
+      "tests": "The tests are strong. The unit tests cover rules 1-9 with exact coordinates: chamfer and cap, the rimfire arc, groove, belt, straight versus bottleneck, fillets, every bullet shape, heeled, walls, w, pockets, missing values, and bullet-wall non-intrusion for all 25 records. They also cover formatting, tolerance, units, symbols and search. Layout tests check label overlap, extension-line crossing and view-box containment for all 25. The e2e tests run in both file:// and http: list, search, filter, routing and reload, tables, print to a PDF page count for every record, black and white, hidden chrome, phone overflow, dark mode, no network, and a clean console. The tests do not check that the α dimension sits on the shoulder.",
+      "ux_design": "Density and hierarchy suit the audience: compact facts, a tabular-number grid of tables, and a clear title block (detail-308_win.jpg). The drawing is the weak part. The diameter labels are stacked in a staircase to the right of the bullet tip (P1, P2, H2, H1, G1), and their long horizontal extension lines bundle over the case body and bullet, so tracing which line belongs to which feature is hard. H1 and H2 share one line on 308 Win. The detached α glyph reads like an icon rather than a dimension. The cartridge itself takes up a thin band, while the labels and title block are much larger than the outline. The print layout is clean and fits A4. No dark-mode screenshot was supplied, but the CSS tokens exist.",
+      "accessibility": "The SVG has role=img, aria-label '<name> drawing', <title> and <desc> (drawing.js:240-242). Tables have captions, th scope=col/row, and labelled inputs. The search form has role=search, the count is role=status with aria-live, focus-visible outlines are styled, and focus moves to h1 on route change (app.js:158-159). Primer abbreviations have abbr titles. The muted text (#5b646d on #fff) passes AA. There is no textual alternative that lists the drawn dimensions beyond the tables, which is acceptable because the tables are adjacent.",
+      "simplicity": "Plain HTML, CSS and JS with no runtime dependencies. Playwright is the only dev dependency. About 900 lines of app code for a 25-record reference with a computed drawing is proportionate. The greedy label solver adds complexity but serves a stated requirement.",
+      "maintainability": "The README covers run and test commands, and SPEC.md records 11 decisions plus the testing strategy. There are tasks/plan and todo files, a package-lock, and a test suite that doubles as regression coverage. Missing: any CI configuration, a pinned Node version (no engines field or .nvmrc, although the brief states Node 22), and any release or versioning notes beyond package.json 1.0.0. The Playwright browser install is mentioned only in a README comment.",
+      "visual_design": "The look is calm and technical: system font, a restrained teal accent, consistent table styling, and tabular numbers (detail-*.jpg, list.jpg). The drawing uses thin teal dimension lines, a black outline, a tan bullet section and fine hatching, which looks finished. However, the dimension text (f = 0.04·L6) is visually heavier than the outline, and the title block dominates the figure. Print is crisp black on white (print-308_win.jpg).",
+      "layout": "The list is clean with full-width rows and alternative names under each name (list.jpg). On the detail page the facts come first, then the drawing, then the tables in a three-column grid, which leaves ragged empty gaps where short tables sit beside long ones (e.g. 9_mm_luger Projectile alone on a row). Inside the figure, much of the space is empty around a small outline, with the right-hand label staircase. Nothing is clipped or overflowing, and phone overflow is tested.",
+      "usability": "Search as you type with literal-then-punctuation-insensitive fallback ('7.62x51' works), a family filter, a count with live region, and an empty-state message. Detail pages have bookmarkable hash routes, list scroll is restored on back, unknown keys show a not-found page with a link back, and Print is one click. The count says '1 cartridges' because it follows the brief's literal format.",
+      "reception": "Reloaders and engineers would trust the data presentation and print sheet: exact published values, tolerances beside values, revision dates and source footer. The drawing is to scale and recognisably correct against the OpenBallistics references. Its non-standard dimensioning (diameter labels far from features, an icon-like α) would draw criticism from drafting-minded users, but the tool is likely to be reused."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α is not dimensioned on the shoulder cone with extension lines; it is drawn as a separate auxiliary angle symbol above the shoulder (drawing.js:158-169)",
+      "Diameter dimensions are half-length radius lines moved to columns past the bullet tip; their extension lines run along and over the outline, so the dimensioning does not fully keep clear of the outline (drawing.js:99-105, 172-181; detail-308_win.jpg)",
+      "No CI pipeline or pinned Node runtime version (maintainability expectations; the brief specifies Node 22)"
+    ],
+    "overall": 7,
+    "strengths": [
+      "The geometry follows the brief's rules 1-9 faithfully (chamfer, rimfire half-round, groove, belt, filleted shoulder, ogive, ellipse and cone noses, heeled bullet, walls, w, primer pocket, missing-value notes), and is to scale against the references",
+      "Very thorough tests: unit tests per rule with exact coordinates, overlap and containment checks for all 25 records, and e2e tests in both file:// and http including PDF one-page print checks for every cartridge",
+      "Clean dependency-free architecture: pure format and geometry modules, escaped SVG string rendering, hash routing that works from file://, and a polished single-page A4 print"
+    ],
+    "issues": [
+      "Diameter dimensioning is hard to read: the labels sit in a staircase beyond the bullet tip and long extension lines bundle over the case outline (H1 and H2 share one line on 308 Win.), which is non-standard and confusing for drafting-literate users",
+      "The shoulder angle α is shown as a detached auxiliary glyph instead of an angle dimension on the shoulder cone, so the α dimension rule is only partly met",
+      "No CI configuration and no pinned Node version; release and versioning are undocumented"
+    ],
+    "verdict": "This is a carefully engineered, well-tested static reference whose geometry, data presentation and A4 print follow the brief closely and match the OpenBallistics outlines to scale. Its dimensioning style (diameter labels far from features, a symbolic α) and the missing CI keep it just short of publishable as is."
+  }
+}

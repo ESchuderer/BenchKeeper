@@ -1,0 +1,57 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.2815746,
+  "review": {
+    "scores": {
+      "requirements": 3,
+      "correctness": 3,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 2,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 3,
+      "reception": 2
+    },
+    "evidence": {
+      "requirements": "Start page meets the brief as written (list.jpg: heading 'Cartridges', 25 exact-name links, family, L3, Search and Family controls, '25 cartridges'). Search folds commas, spacing and diacritics (catalog.js:8-11). Detail model has facts in the brief's order, a capacity source link, tolerances next to their values and Symbol/Value/Unit tables (format.js:37-93, app.js:73-128). Hash address #/cartridge/<key> (app.js:7,31). Partly met or unmet: (1) the R dimension never gets arrowheads: drawing.js:23 `var END_ARROW = END_ARROW;` is undefined, and R is always on the 'short' branch (drawing.js:174-180), which is true for all 25 records (R ≤ 1.52 < 2.24·fs). (2) Every detail and print screenshot is missing, so the drawing, title block, tables and print page could not be reached by the automated check and cannot be confirmed on screen. (3) Heeled 22 LR neck uses tb instead of tn (geometry.js:238), a sensible but undocumented departure from rule 8.",
+      "correctness": "Geometry follows the rules closely in code. Chamfer min(f·tanβ, R1/4) (geometry.js:151-154); groove, belt ramp at δ, belt to E, step in to P1/2 (geometry.js:167-195); body and shoulder through the published points with r1 min/r2 fillets (geometry.js:211-228); seating, k and meplat tables match rule 7 (geometry.js:15-23); tangent-ogive ρ and centre (geometry.js:104-105); heeled bullet H2 and H2-2tb (geometry.js:98-99); walls tn/tb, w, primer pocket sizes (geometry.js:235-265). Unit tests check 308 Win. points against hand values (geometry.test.js:28-39). The checks also confirm the 300 Win. Mag. belt (126-140) and the 22 LR rim half-round (113-124). Defects: R has no arrowheads (drawing.js:23). The α arc radius ρ = max(0.8·shoulder, 1.6·fs) (drawing.js:229) is longer than the shoulder on short shoulders: on 9,3 x 74 R ρ≈4.8 against a 2.5 mm shoulder, so the arc starts inside the neck and crosses the outline. The H2 diameter line sits exactly on the mouth face (drawing.js:216). Diameters are dimensioned with lines straight through the part and the hatched section. That one A4 page fits is claimed only by an e2e test (drawing.test.js:119-160); print-308_win.jpg is missing.",
+      "security": "Values go into the DOM via textContent/createTextNode (app.js:19-29). The SVG string set with innerHTML (app.js:108) escapes all text and attributes (drawing.js:17-19,337,350,353), and an escape test exists (drawing.test.js:91-97). No eval. A test asserts no http(s) URLs in app code (data.test.js:23-30), and the e2e test asserts no external requests (app.test.js:71-72).",
+      "code_quality": "The modules are clear and split by concern: format, catalog, geometry and drawing are pure and Node-loadable, and app.js holds DOM and routing only. Naming is good and missing data is handled (geometry.js:125-128, notes). Weak points: the self-assigning END_ARROW bug (drawing.js:23). buildDrawing is a ~240-line function with nested closures and magic factors (drawing.js:120-359). The fallback 'Cannot happen' path silently places overlapping labels (drawing.js:279-282).",
+      "tests": "Unit tests cover formatting, symbols, units, tolerances, every value shown once, search/filter, and rules 1-9 with numeric checks. Layout collisions are tested for all 25 records. E2e tests on file:// and http cover search, family, routing and reload, the print button, light/dark/print colours, phone width, one-page A4 PDF per cartridge, and real-font label overlap (app.test.js, drawing.test.js). Gaps: nothing checks that each dimension has arrowheads (marker test drawing.test.js:65 only needs one), so the R bug slipped through. Hatch and pocket shape, fillet arcs and α arc placement are not checked.",
+      "ux_design": "list.jpg is dense, calm and readable, with tabular mono L3 values right-aligned. Column headers are tiny small caps (~8px 'NAME', 'FAMILY'), and 'CASE LENGTH L3' is in a different mono bold face. The core of the product (detail view with drawing, title block, tables, dark mode, print) has no screenshot, so its legibility and print layout cannot be judged and are not shown working.",
+      "accessibility": "The SVG has role=img and aria-label '<name> drawing' (drawing.js:353). Inputs have labels (index.html:23-28), the count is role=status aria-live, and tables have captions and th scope (app.js:74-82). The list has a scoped row header, focus moves to h1 on route change (app.js:161-165), and :focus-visible outlines are set (style.css:43). Muted #5a6570 on #f6f7f8 passes AA. Minus: the drawing's alternative is only its name (values are in the tables), header text is very small, and there is no skip link.",
+      "simplicity": "No runtime dependencies. Playwright is the only dev dependency. About 1,000 lines of plain JS for routing, formatting and a rule-based drawing. The backtracking label placer (drawing.js:241-290) is the one heavy part but is justified by the no-overlap rule.",
+      "maintainability": "The README has run, test and e2e setup steps and the address scheme, a data regeneration script (tools/build-data.js), and package-lock.json. Missing: CI configuration, an engines/.nvmrc for Node 22, ADRs or decision docs, specs (openspec/specs holds only .gitkeep), and a changelog or release approach. The README points to openspec/changes/... and .scratch/..., which are not in the repository. Playwright is a caret range (^1.50.0) in package.json.",
+      "visual_design": "From list.jpg the page looks finished: neutral palette, a thin header rule, consistent row rhythm, blue links. It is inconsistent in the right column header (mono bold against the small-caps sans of the others). No detail, drawing, dark or print screenshot exists to judge typography of the drawing or the tables.",
+      "layout": "list.jpg shows a clear hierarchy (title, filters, count, table) and no overlap or clipping. The 72rem table spreads three short columns very wide, with lots of empty space between name and family. Detail and print layouts are unverifiable because all their screenshots are missing.",
+      "usability": "The list task is quick: live search with comma, spacing and diacritic folding, a family select, and an empty-state message. In code, the detail view has a back link, a Print button, a bookmarkable hash, scroll restore and a not-found page (app.js:130-167). The automated check could not reach any detail page, so the main task (open a cartridge and read its drawing) is not shown working.",
+      "reception": "The list page looks professional and fits a technical audience. But a reloader or engineer needs the drawing and data sheet, which could not be reached in the automated check. The R dimension also lacks arrowheads, so trust on a first visit is at risk."
+    },
+    "unmet_requirements": [
+      "Dimension lines with arrowheads: the R dimension never has arrowheads (drawing.js:23, END_ARROW undefined; drawing.js:179-180)",
+      "The detail view, drawing, title block and print could not be reached by the automated check (all detail-*.jpg and print-308_win.jpg missing), so they are not verified on screen",
+      "Printed detail view fits one A4 page: claimed only by a test, with no print screenshot",
+      "Shoulder angle α: on short shoulders (e.g. 9,3 x 74 R) the α arc radius exceeds the shoulder length, so the arc crosses the neck outline (drawing.js:229-235)",
+      "Rule 8 on the heeled case: the neck wall uses tb instead of tn (geometry.js:238), an undocumented departure"
+    ],
+    "overall": 5,
+    "strengths": [
+      "Geometry follows the brief's rules 1-9 closely, with unit tests that compare 308 Win., 300 Win. Mag., 9,3 x 74 R, 9 mm Luger and 22 LR points to hand-computed values. Missing values produce notes instead of invented numbers.",
+      "Clean, dependency-free modules (format, catalog, geometry, drawing, app) that are pure and testable in Node, with escaped SVG output and no network use",
+      "Broad tests: label-collision checks with real fonts for all 25 records, one-page A4 PDF per cartridge, phone width, light/dark/print colours, and file:// plus http targets"
+    ],
+    "issues": [
+      "The automated check could not reach any detail or print view (all detail and print screenshots missing), so the core deliverable is not shown working on screen",
+      "The R dimension is drawn without arrowheads in every drawing because of the `var END_ARROW = END_ARROW;` self-assignment (drawing.js:23), and no test catches it",
+      "Drawing details are rough: the α arc overruns short shoulders into the neck, the H2 dimension sits on the mouth face, and diameter lines run through the hatched section. Maintainability gaps: no CI, no Node version pin, no decision records or specs, and the README links to missing planning folders."
+    ],
+    "verdict": "The code follows the drawing rules carefully and the start page looks clean and professional, with unusually thorough unit and browser tests. However, the automated check could not reach any detail or print view, and every drawing has an R dimension without arrowheads, so it should not be published until the detail view is shown rendering correctly and these defects are fixed."
+  }
+}

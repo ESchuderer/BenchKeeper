@@ -1,0 +1,56 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.2140218,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Almost every brief item is implemented. List: heading, links named exactly as each name, family, L3, Search over name and alternative names with whitespace ignored (model.js:42-47), Family select, '<n> cartridges' (app.js:23). Detail: all header facts plus capacity with its source link (app.js:38-54), Symbol/Value/Unit tables grouped by section with tolerance on the value row (model.js:26-40), Print button, 'All cartridges' link, a hash address that survives reload (app.js:68-94). Drawing: inline SVG at 1 unit = 1 mm, aria-label '<name> drawing', dash-dot centre line, hatched section, title block with scale (drawing.js:142-175). Missing values are listed under the drawing (geometry.js notes). Partly met: (1) print 'drawing at full width': the SVG element is full width, but the outline and labels fill only about half the page width because of max-height:100mm and the title block stacked underneath (print-308_win.jpg). (2) α has only a leader arrow to the shoulder (drawing.js:131-132), not an angle dimension with an arc and extension lines. (3) Tolerances do not appear on the drawing labels ('L1 39.62', not 'L1 39.62 -0.2'). (4) The heeled neck wall is set to tn = tb instead of the brief's tn = (H2-G1)/2; this is a documented deviation (SPEC.md:28).",
+      "correctness": "Geometry follows the rules closely. Chamfer with the min(f·tanβ, R1/4) cap (geometry.js:138). Rimfire half-round with ρ = min(R/2,(R1-P1)/2) (140-145). Groove and belt ramp at δ to R3/2, then to E, then a step to P1/2 (155-166). Fillets r1 min and r2 (185-188). Wall blending between L1 and L2 (211-214). w includes the belt ramp end (203-208). Primer pocket tables match the brief (11-12). Tangent ogive with the correct centre and meplat (60-71); seating and k values per shape and category (89-96). The heeled 22 LR shows the exposed bullet at case diameter and the heel inside (detail-22_long_rifle.jpg). Outlines match the reference proportions for 308, 300 WM, 9 mm and 22 LR. Dimension values match the data. Print is one A4 page, and the stated scale 1.24:1 matches the printed size: 71 mm becomes about 88 mm (print-308_win.jpg). Minor issues: angle rows show the degree sign twice ('40° °' in the Value and Unit columns); α is not an angle dimension; on the straight 9 mm case the wall tapers over the whole body, so it overlaps the seated bullet by about 0.03 mm.",
+      "security": "All data that goes into innerHTML passes through esc() (app.js:12,32,39-64; drawing.js:64,156,174). There is no eval or Function, and there are no external scripts, fonts or fetches. The capacity URL is only an <a href> to data in the brief. The e2e test asserts there are no foreign requests (app.spec.js:186-200).",
+      "code_quality": "Clear split into data, model, geometry, drawing and app, as small IIFE modules that also load in Node (geometry.js:4, drawing.js:5-6). Names follow the brief's symbols, and the rule numbers are in comments. Some lines are very dense and hard to scan (drawing.js:56-57,98,174; app.js:12,32). The row-placement loop has no explicit upper bound (drawing.js:116). SPEC.md:14 still says drawing.js holds the geometry rules, which moved to geometry.js.",
+      "tests": "Thorough node:test suites cover each geometry rule with exact coordinates: rim thresholds, chamfer cap, groove, belt, rimfire half-round, fillets, walls, w, pocket table, every nose shape, seating and k, heeled, and missing-value notes (geometry.test.js). Label overlap with each other and the outline, and view-box containment, are checked for all 25 records (drawing.test.js:113-146). Playwright runs under both file:// and http: search, filter, reload, focus, network isolation, dark scheme, print colours, a one-page A4 PDF for all 25, and real-font overlap (app.spec.js). test-results shows a passing run. Gap: the full-width print check measures the SVG element, not the drawing content.",
+      "ux_design": "Dense, calm technical reference. The metadata grid and three-column tables with right-aligned tabular values are easy to scan (detail-308_win.jpg). Drawing labels are legible and do not overlap. However, the drawing uses about 40–50% of its panel width on desktop: 22 LR and 9 mm are tiny, with large white margins (detail-22_long_rifle.jpg, detail-9_mm_luger.jpg). The title block sits below the part and takes a lot of height. Capacity notes wrap awkwardly in a narrow grid cell (detail-300_win_mag.jpg). The print layout is clean, black on white and on one page, but the drawing is undersized. There is no dark-mode screenshot; the CSS defines dark variables (style.css:16-30).",
+      "accessibility": "The SVG has role=img and an aria-label (drawing.js:174). Tables have a caption and th scope col/row (app.js:31-32). Search and Family have <label for> (index.html:16-19). The count has role=status. Focus moves to the h1 on each view change (app.js:79,91), and :focus-visible has an outline (style.css:61). There is a real button and real links. The muted grey #5b646d on #f5f4f0 has adequate contrast. The text alternative is only the name; the dimension values are not in it, though the tables carry them.",
+      "simplicity": "Plain HTML, CSS and JS, about 600 lines of app code with no runtime dependencies. The only dev dependency is Playwright. The size fits the problem.",
+      "maintainability": "SPEC.md documents commands, structure and the decisions the brief left open. package-lock.json is present and Playwright is pinned to 1.64.0. Gaps: no README, no CI workflow, no Node version pin (no engines field or .nvmrc), no changelog or release approach beyond version 1.0.0, and no ADRs. playwright.config.js has a local-Chromium path workaround. Leftover .playwright-mcp screenshots and test-results are in the delivered tree, though .gitignore lists them.",
+      "visual_design": "Consistent restrained palette and a monospace font for symbols and labels. Blue dimension lines on a beige case and tan bullet look clean and professional (detail-308_win.jpg). Table headings are small uppercase and evenly spaced. Weaknesses: the title-block text is larger than the drawing labels and visually heavy, and the drawing floats in an oversized white panel.",
+      "layout": "Hierarchy is right: name, facts, drawing, then tables. The list page is clear but confined to the left 40rem with an empty right half (list.jpg). On detail pages the drawing panel is mostly empty space, because the part is centred at a small size with the title block under it. There is no overlap, clipping or overflow in any screenshot, and the tables flow cleanly in three columns.",
+      "usability": "Tasks take one or two steps. Search filters as you type, and the filter value survives a round trip to a detail page (app.spec.js:47-55). Every name is a link, addresses can be bookmarked, unknown keys show 'Cartridge not found' with a way back, and an empty search says 'No cartridge matches.' Print is one click. A small drawing on desktop forces reading small labels for the short cartridges.",
+      "reception": "Accurate, true-to-scale drawings with values that match the C.I.P. data, plus clean tables and a single-page print. This would earn trust from reloaders and gunsmiths. The undersized drawing and the leader-only α make it look slightly less polished than the OpenBallistics reference."
+    },
+    "unmet_requirements": [
+      "Print: the drawing is not at full page width; it fills about half the width because of max-height:100mm and the title block stacked underneath (print-308_win.jpg)",
+      "Shoulder angle α has a leader arrow only, not a dimension with an arc and extension lines (drawing.js:131-132)",
+      "Tolerances are not shown next to the values on the drawing labels ('L1 39.62' instead of 'L1 39.62 -0.2')",
+      "Heeled case: the neck wall is tn = tb instead of the brief's (H2-G1)/2 (a documented deviation, SPEC.md:28)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Faithful geometry engine that implements every drawing rule (chamfer cap, rimfire half-round, groove and belt ramp, filleted shoulder, blended walls, w, primer pocket, all four nose shapes, heeled bullet), with true-to-scale output that matches the reference proportions",
+      "Excellent test suite: unit tests per rule with exact coordinates, overlap and view-box checks for all 25 records, and Playwright under file:// and http, including a one-page A4 PDF check for every cartridge",
+      "Minimal stack with no dependencies, consistent HTML escaping, good semantics (caption, th scope, labels, role=img, focus management), and clean dense tables with tolerances on the value row"
+    ],
+    "issues": [
+      "The drawing is undersized: on desktop it uses about half the panel width (22 LR and 9 mm are tiny), and in print it is far from full page width because the title block is stacked below and the height is capped at 100 mm",
+      "α is only labelled with a leader, not dimensioned as an angle; tolerances are missing from the drawing labels, and angle rows repeat the degree sign ('40° °')",
+      "Maintainability gaps: no README, no CI pipeline, no Node version pin, no release notes; SPEC.md:14 is stale, and tool artefacts (.playwright-mcp, test-results) were left in the tree"
+    ],
+    "verdict": "A well-engineered, rule-accurate and thoroughly tested reference app whose drawings and tables a technical audience can trust. Before publishing, the drawing should be made to fill its panel and the printed page, α should get a proper angle dimension, and a README and CI should be added."
+  }
+}

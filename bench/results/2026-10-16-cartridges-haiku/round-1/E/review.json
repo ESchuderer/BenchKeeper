@@ -1,0 +1,57 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.1589956000000001,
+  "review": {
+    "scores": {
+      "requirements": 3,
+      "correctness": 3,
+      "security": 4,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Met: start page heading, Search (alternative names, catalog.js:13-17), Family select, '<n> cartridges' (list.jpg); detail metadata, capacity with link, Symbol/Value/Unit tables, Print and 'All cartridges', hash URL #/cartridge/<key> (app.js:22-34); inline SVG with aria-label '<name> drawing', centre line, title block with scale; print on one A4 page (print-308_win.jpg); no deps (package.json). Partly met: the α 'dimension' is a text label only, with no arc, arrowheads or extension lines (drawing.js:326-351; detail-308_win.jpg 'α 40°' floating inside the body). Diameter labels E1/P2/H1/G1/H2 sit far from their dimension lines with no leaders (detail-9_mm_luger.jpg 'G1 9.03', 'E1 8.79' above the L6 line), so they cannot be read as belonging to their dimensions. The cut walls should be hatched but render solid black (all detail screenshots). Rule 9 reports only the core values; optional values that were dropped (e.g. r1 min on 338 Lapua) are not named. Light/dark on phone is not shown. There is no README.",
+      "correctness": "geometry.js follows the rules closely: rim type (165-171), chamfer f·tanβ capped at R1/4 (219-222), rimfire half-round (213-217), groove and belt ramp at δ (233-246), fillets r1 min/r2 (264-266), seating/cylinder/meplat table (124-138), tangent ogive with correct ρ and centre (141-149), heeled seat radius H2-2tb (291), tn/tb (173-176), w terms incl. 0.25·P1/2 (298-302), primer pocket table (7-15). Outlines match the references in outline and proportion (308, 300 WM, 9 mm, 22 LR). Values and tolerances show correctly ('L1 39.62 -0.2', '10°58'00\"'). Defect: .drawing-section stroke-width:1px has no vector-effect (style.css:218-222), so it strokes at 1 mm, wider than the 0.6 mm walls. Every section draws as a solid black band and the hatch can't be seen (detail-308_win.jpg, print-308_win.jpg). The print fits one A4 page.",
+      "security": "figure.innerHTML = drawingSvg(record) (app.js:121), but every text node goes through escapeXml (drawing.js:366-368, 393-399) and coordinates are numbers; all other DOM is built with createElement/textNode (app.js:11-20). There is no eval and no fetch; the data is embedded as a JS string (data/cartridges.js). The capacity URL from the data goes into an href without a scheme check (app.js:93), which is minor with fixed data.",
+      "code_quality": "There are five small focused modules (format, catalog, geometry, drawing, app) in UMD-style IIFEs that are testable in Node. Naming is clear. Label placement is a reasonable candidate search with collision tests (drawing.js:220-226). Small duplication: vector helpers appear in both geometry.js and drawing.js. layoutDrawing is a long 200-line function. Error handling is minimal but adequate (not-found view, missing-value note).",
+      "tests": "There are 5 node:test files. They cover data integrity, search including the '7,62 x 51' case, family filter, count text, formatting (angles, tolerances, symbols, units), every geometry rule with numeric checks (chamfer, rimfire rim, groove, belt, fillets, ogive tip, cylinder end, tn/tb, w, pocket, heeled, missing H1), and a no-overlap/no-touch label test across all 25 records (drawing.test.js:18-41). Gaps: no DOM/routing/print tests, no check that labels sit near their dimension, the heel inside diameter is not asserted, and nothing would have caught the 1 mm section stroke.",
+      "ux_design": "The tables are dense, tabular and well grouped, with Cartridge and Chamber side by side (detail-308_win.jpg). The drawing is the weak part. Labels are huge relative to the part, and diameter labels float far from their lines with no leaders (detail-9_mm_luger.jpg, detail-44_rem_mag.jpg, detail-22_long_rifle.jpg). The section reads as a black smear. The title block is as large as or larger than short cartridges. Pistol and rimfire pages show empty 'Junction cone' tables with only a header row. Print layout is compact and fits A4 with a footer (print-308_win.jpg). Dark mode CSS exists (style.css:17-27) but has no screenshot.",
+      "accessibility": "The SVG has role=img and aria-label '<name> drawing' (drawing.js:404). Tables use th scope=col/row (app.js:47,99,104). Search and Family use <label for> (app.js:70-71), the count is aria-live and the form has role=search. Focus is visible (style.css:45-48), lang=en, and muted text contrast is about 6:1. There is no longer text alternative describing the drawing, but the tables carry the same values.",
+      "simplicity": "Plain HTML/CSS/JS, zero dependencies, no build step; about 1000 lines of app code total, which fits the problem. The geometry and label-placement logic are about as complex as the task needs.",
+      "maintainability": "There is no README, no docs, no ADRs. openspec/specs holds only .gitkeep, and there is no CI config. package.json has a test script but no engines field and no Node version pin. Version 1.0.0 is set, but nothing describes how releases work. A newcomer gets only readable code and tests.",
+      "visual_design": "Calm, consistent typography with tabular numerals, a restrained palette, and neat section headings (list.jpg, detail screenshots). The drawing looks unfinished: oversized labels, solid black section walls, an oversized title block, and labels scattered above the part.",
+      "layout": "Hierarchy is right: name and metadata, then the drawing, then the tables. The tables use two columns well. In the drawing, the cartridge occupies a small part of the frame on short cases (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg), labels pile up above the L6 line far from their features, and the title block dominates the lower half. There is no clipping or overflow.",
+      "usability": "Search-as-you-type, the family filter, the count, direct links, a bookmarkable hash route, back link and print all work in one or two steps (list.jpg, app.js). The water capacity reads redundantly ('Source: kwk, kwk'). Empty section tables add noise.",
+      "reception": "Reloaders and engineers would trust the tables, which show correct values, tolerances and DMS angles. The drawing would undermine confidence: the section is solid black, and they can't tell which diameter label belongs to which dimension line without cross-referencing the tables. It is usable as a data reference, but the drawing falls short of the OpenBallistics standard."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α has no dimension arc, arrowheads or extension lines; it is only a floating text label (drawing.js:326-351)",
+      "Section walls are not visibly hatched: the 1 mm section stroke turns them solid black (style.css:218-222; all detail screenshots)",
+      "Diameter labels (E1, P2, H1, H2, G1) are placed far from their dimension lines without leaders, so they cannot be read as belonging to their dimensions (detail-9_mm_luger.jpg, detail-44_rem_mag.jpg)",
+      "Rule 9 is only partly met: missing optional values (e.g. r1 min on 338 Lapua Mag., beta/f on 22 WMR) are dropped silently instead of being named",
+      "No README or run instructions"
+    ],
+    "overall": 5,
+    "strengths": [
+      "The geometry engine implements nearly every drawing rule exactly as written (chamfer, groove, belt ramp at δ, fillets, tangent ogive, seating factors, heeled bullet, wall thicknesses, w, primer pockets), and the outlines match the reference drawings",
+      "Tables are correct and dense: symbols renamed as the brief specifies, tolerances inline, DMS angles, units, tabular numerals; the print layout fits one A4 page with a source footer",
+      "Zero-dependency vanilla app with meaningful node:test coverage of the rules, plus a label-overlap check across all 25 records"
+    ],
+    "issues": [
+      "The section drawing is illegible: a non-scaling-stroke is missing on .drawing-section, so it strokes at 1 mm and the hatched walls render as solid black bands on screen and in print",
+      "Dimension labels are disconnected from their dimensions: diameter labels float above the axial dimensions without leaders, and α has no angular dimension, which defeats the drawing's purpose for a technical audience",
+      "No README, docs, specs, CI or Node version pin; nothing beyond the code explains how to run, test or extend the app"
+    ],
+    "verdict": "The data layer, tables, search and rule-by-rule geometry are solid and well tested, and the printed page fits A4. The drawing, the app's centrepiece, is not publishable as is: the section renders solid black, the labels are detached from their dimensions, and the repository has no documentation."
+  }
+}

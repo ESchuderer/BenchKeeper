@@ -1,0 +1,155 @@
+{
+ "arm": "L",
+ "counts": {
+  "correct": 25,
+  "partly": 0,
+  "wrong": 0
+ },
+ "score": 25.0,
+ "drawings": {
+  "223_rem": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc",
+    "neck-end dimension lines (H2, G1, L3) close together but legible"
+   ]
+  },
+  "243_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "270_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "308_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc",
+    "belt drawn (R3 = R1, step to P1 at E), R3 not dimensioned (not required)"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc",
+    "belt drawn, R3 not dimensioned (not required)"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc",
+    "rimmed flange without groove, as the rules give"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc",
+    "rimmed flange without groove, as the rules give"
+   ]
+  },
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": [
+    "rimmed pistol head without groove, as the rules give"
+   ]
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_long_rifle": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "17_hmr": {
+   "verdict": "correct",
+   "issues": [
+    "alpha shown as a leader label pointing at the shoulder, no angular dimension arc",
+    "P2, H1, H2, G1 and L3 lines crowded at the short neck, labels still separate"
+   ]
+  }
+ },
+ "print": "Print view is black on white with page header, title block, all drawing labels legible, the tables and a source footer, but the drawing takes about a third of the page width rather than full width.",
+ "summary": "Arm L renders proper, true-to-scale cartridges for all 25 records: correct rim families (rimless groove, belt, rimmed flange, rimfire half-round), shoulders, necks, seated bullets of the right nose shape, a hatched section with primer pocket, and dimension values matching the records. The only recurring deviation is the shoulder angle alpha, labelled with a leader instead of an angular dimension arc."
+}

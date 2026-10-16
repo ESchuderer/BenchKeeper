@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { arm, loadTrials, summarizeRuns } from './bench-data.mjs';
+import { arm, loadTrials, summarizeRuns, topByBrief } from './bench-data.mjs';
 
 test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with Ponytail', () => {
   assert.deepEqual(arm('A'), { framework: 'none', spec: 'none', bk: false, ponytail: false, setup: 'plain' });
@@ -29,8 +29,25 @@ test('trials: one per arm directory, model, effort and k from the manifest, revi
   assert.deepEqual(x, {
     key: 'run-1/round-1/B', run: 'run-1', brief: 'winery-react', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime: 'Claude Code', arm: 'B',
     setup: 'Ponytail', features: 1, robustness: null, featuresOf: 2, robustnessOf: null, minutes: 10, overall: 8, protocol: '1.10', criteria: 2,
+    final: null, mutation: null, drawings: null,
   });
   assert.doesNotMatch(JSON.stringify(x), /cost|1\.23|0\.4/);
+});
+
+test('trials: final score, mutation score and the drawing review, a drawing faulted only for the alpha label counted apart', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-'));
+  const t = join(root, 'run-1', 'round-1', 'W');
+  mkdirSync(t, { recursive: true });
+  writeFileSync(join(root, 'run-1', 'manifest.txt'), 'brief=cartridges model=claude-sonnet-5-5 effort=high k=1 seed=41\n');
+  writeFileSync(join(t, 'trial.json'), JSON.stringify({ arm: 'W', runtime: 'claude-code', wall_seconds: 60,
+    score: { features: { C1: true }, features_passed: 1, mutation: { score: 71.5 } } }));
+  writeFileSync(join(root, 'run-1', 'final-score.json'), JSON.stringify({ trials: [{ arm: 'W', total: 80.5, categories: { tests: { score: 12, max: 15 } }, inputs: {} }] }));
+  writeFileSync(join(t, 'drawing-review.json'), JSON.stringify({ counts: { correct: 1, partly: 2, wrong: 0 }, drawings: {
+    a: { verdict: 'correct', issues: [] }, b: { verdict: 'partly', issues: ['shoulder angle α is a leader callout, not an angular dimension', 'values match record (L1 36.52)'] },
+    c: { verdict: 'partly', issues: ['R label overlaps the section'] } } }));
+  const [x] = loadTrials(root);
+  assert.deepEqual([x.final, x.mutation], [{ total: 80.5, categories: { tests: { score: 12, max: 15 } } }, 71.5]);
+  assert.deepEqual(x.drawings, { of: 3, correct: 1, partly: 2, wrong: 0, correctAlphaApart: 2, alphaOnly: 1 });
 });
 
 test('runs: newest first, report file, runtimes apart, ranked with shared ranks and missing values last', () => {
@@ -55,4 +72,16 @@ test('runs: newest first, report file, runtimes apart, ranked with shared ranks 
   assert.equal(summarizeRuns([t('2026-10-16-b1-sonnet', 'A', 'Claude Code', 8, 6, 12, 1)], ['2026-10-16-b1-sonnet.md', '2026-10-15-b1.md'])[0].report, '2026-10-16-b1-sonnet.md');
   // A brief whose name ends another brief's name does not take that report.
   assert.equal(summarizeRuns([t('2026-10-16-b1-sonnet', 'A', 'Claude Code', 8, 6, 12, 1)], ['2026-10-15-xb1.md'])[0].report, null);
+});
+
+test('top 10 per brief across models: final score, then fewer minutes; plain Claude Code of each model with its place as baseline', () => {
+  const t = (model, arm, total, minutes, brief = 'b') => ({ run: `r-${model}`, brief, model, runtime: 'Claude Code', arm, minutes, final: total == null ? null : { total, categories: {} } });
+  const ts = [t('Haiku', 'A', 90, 5), t('Sonnet', 'A', 40, 5), t('Sonnet', 'B', 80, 9), t('Sonnet', 'C', 80, 4), t('Haiku', 'N', null, 1), t('Sonnet', 'A', 99, 1, 'other')];
+  for (let i = 0; i < 9; i++) ts.push(t('Sonnet', `X${i}`, 70 - i, 10));
+  const [b, other, ...rest] = topByBrief(ts);
+  assert.equal(rest.length, 0);
+  assert.equal(b.of, 13);
+  assert.deepEqual(b.top.map((x) => `${x.model} ${x.arm}`), ['Haiku A', 'Sonnet C', 'Sonnet B', ...[0, 1, 2, 3, 4, 5, 6].map((i) => `Sonnet X${i}`)]);
+  assert.deepEqual(b.baselines.map((x) => `${x.model} ${x.arm} ${x.place}`), ['Sonnet A 13']);
+  assert.deepEqual([other.top.length, other.baselines.length], [1, 0]);
 });

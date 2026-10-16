@@ -1,0 +1,127 @@
+{
+  "arm": "AA",
+  "runtime": "opencode",
+  "followups": 2,
+  "wall_seconds": 4056,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 34
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 4,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 154,
+    "cost_usd_api_equivalent": 3.4406127649999996,
+    "usage": {
+      "input": 360,
+      "cache_creation": 678935,
+      "cache_read": 48626755,
+      "output": 148409,
+      "thinking": 300113
+    }
+  },
+  "workflow": {
+    "tool_calls": 215,
+    "subagent_tool_calls": 50,
+    "skills": [],
+    "agents": [
+      "general",
+      "general",
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/cartridge-reference-app/proposal.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-catalog/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-detail/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-drawing/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-catalog/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/design.md",
+      "/work/openspec/changes/cartridge-reference-app/tasks.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "todowrite "
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 6,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": true,
+    "code": {
+      "source_lines": 4131,
+      "functions": 126,
+      "complexity": 336,
+      "max_complexity": 69,
+      "erosion": 0.277,
+      "duplication": 8.3,
+      "duplicated_lines": 353,
+      "clones": 20
+    },
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 0.98,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 4316,
+    "test": 932,
+    "files": 20
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

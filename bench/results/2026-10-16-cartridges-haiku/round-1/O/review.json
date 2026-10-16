@@ -1,0 +1,57 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.176281,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 4,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 3,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Most of the brief is met. The list has the heading, name links, family and L3, Search over alternative names, the Family select and the '<n> cartridges' count (app.js:6-20, list.jpg). The detail view has all the facts, the capacity source link, grouped Symbol/Value/Unit tables, Print and 'All cartridges', and a hash route (app.js:24-34, 89-133). Tolerances join their value (format.js:44-54), the symbol map is complete, and angles use d°mm'ss\". The SVG is 1 unit = 1 mm with an aria-label, hatching, a dash-dot centre line, every required dimension and a title block (drawing.js). Print is one A4 page (print-308_win.jpg). Partly met: (1) the α dimension is an arc from the axis to one shoulder line at the cone apex, which spans α/2 but is labelled α. On 9,3 x 74 R the apex is at S=113 mm, so the arc and 'α 10°58'00\"' float far past the bullet tip (detail-9_3_x_74_r.jpg). (2) The title block always says 'Scale 1:1', but the SVG is scaled down by max-width:100%. The 308 drawing is about 192 mm wide against roughly 182 mm printable, and it shrinks further on a phone. (3) On straight cases the wall is blended from tb to tn along the whole body rather than tb along the body (profile.js:199-204). (4) The process asked for specs, but openspec/specs holds only a .gitkeep.",
+      "correctness": "The geometry in profile.js follows the rules for each family. Chamfer (R1/2-min(f·tanβ,R1/4)) at profile.js:114-116. Groove floor and ramp at :141. Belt ramp at δ to R3/2, then to E, then a step in, at :136-137. Rimfire half-round radius min(R/2,(R1-P1)/2) at :101-108. Rimmed/rimless/rebated ratios at :14-17. Fillets r1 min and r2 at :178-181. Bullet seating s, k and meplat m per shape and category at :214-218. The tangent ogive ρ is correct, and a test proves every nose point lies on the arc. Heeled Dx=H2 with heel radius (H2-2tb)/2 at :211-212. tn, tb and w use the max() rule; the pocket table is correct and rimfire has no pocket. Proportions match the references (print-308_win.jpg vs reference/308_win.png), and dimension values match the data. Errors: the α arc labels a half-angle and is placed at the apex, away from the shoulder. Diameters sit in columns past the tip, so long horizontal extension lines cross the case and bullet outline (print-308_win.jpg). 'Scale 1:1' is false when the drawing is resized. On 22 LR, tn=0 tapers the section wall to a knife edge at the mouth.",
+      "security": "Data is rendered with textContent and setAttribute (app.js:44-53). The SVG string is assigned with innerHTML (app.js:119), but every name and label passes through esc() (drawing.js:222-233). rec.key is put unescaped into the pattern id (drawing.js:239); the data is static, so this is low risk. No fetch, eval or external resources; the external links are plain anchors.",
+      "code_quality": "There are four small modules with clear names: Format, Profile, Drawing, App. Pure functions are separated from DOM code, which makes them testable. The label placement uses explicit collision checks. Profile.build is one long function (~160 lines) with many mutable locals and a nested ternary filter (profile.js:171-174). The 'shortcut' comments mark known simplifications.",
+      "tests": "Six node:test files cover data integrity, formatting (symbols, units, angles, tolerances, field order, every field shown once), routing and filtering, rim type for all 25 records, groove, heeled, belt, walls, w, pocket, bullet seating and ogive, and missing-value notes. There is also a label-collision and viewBox test across all 25 drawings. Missing: any DOM, detail-view or print test; any check of α, chamfer or the δ angle; and the 'a 1 mm scale' test is a tautology (drawing.test.js:73-77).",
+      "ux_design": "Print is excellent: dense, with four-column tables, a legible drawing and a footer (print-308_win.jpg). On screen the drawing renders at about 1:1 CSS mm, so it is small with roughly 11 px labels. The 22 LR and 9 mm drawings take about a quarter of the page width (detail-22_long_rifle.jpg). Diameter labels are far from their features and must be traced along long extension lines. The value tables run in a single column with the value at the far right of a 1000 px row, which makes pages 3000-3700 px long. Pistol and rimfire records show empty 'Junction cone' tables with only a header row (detail-9_mm_luger.jpg, detail-44_rem_mag.jpg).",
+      "accessibility": "Native labelled input and select, role=search, an aria-live count, th headers, lang=en, a role=img SVG with the required '<name> drawing' name, document.title updated per view, and adequate contrast in both themes (styles.css:2-23). Gaps: focus is not moved and the change is not announced on hash route changes. Tables have no caption or scope. The drawing has no longer text alternative. Empty tables are exposed to screen readers.",
+      "simplicity": "No dependencies. About 900 lines of plain JS and CSS in five files, which fits the geometry and labelling problem. No needless layers.",
+      "maintainability": "There is no README, no CI configuration, no docs or ADRs, and the openspec/specs folder is empty. package.json has `npm test` and engines node>=22, but nothing explains how to run the app or why the geometry was interpreted as it was (blended walls, column layout of diameters). Clear module comments and the regression tests partly make up for this.",
+      "visual_design": "Calm system-font typography, tabular numbers, consistent hairline rules and muted headings. It looks plain but tidy. The drawing is visually weak on screen: thin and small relative to the page, with a title block that leaves large empty area (detail-308_win.jpg). The long sparse tables look unfinished next to the polished print layout.",
+      "layout": "The hierarchy is right: name, facts, drawing, then tables. No overlaps or clipping in any screenshot. Space is used poorly on desktop: the drawing does not fill the width, the tables are full width with only three narrow columns, and empty sections take up space. Print layout is tight and fits one page.",
+      "usability": "Finding a cartridge is one step: search as you type or filter by family, then click the name. Back works through the 'All cartridges' link and browser history, the address can be bookmarked, and Print is obvious. An unknown key silently falls back to the list, with no message. Reading the diameter dimensions needs effort.",
+      "reception": "Reloaders and engineers would trust the data, the precise value formatting and the excellent print sheet. On screen the tiny drawing, the unusual diameter placement, the α annotation that floats away from the shoulder on shallow cases, and the empty tables reduce the professional impression."
+    },
+    "unmet_requirements": [
+      "Shoulder angle: the arc spans α/2 from the axis at the cone apex but is labelled α; on shallow shoulders (9,3 x 74 R) it floats far past the bullet tip",
+      "Title block 'Scale 1:1' is inaccurate when the SVG is scaled to fit (print of 308 Win. at about 0.95, phone screens)",
+      "Section walls on straight cases are blended linearly from tb to tn over the whole body instead of tb along the body",
+      "Drawing legibility on screen: labels are small because the drawing is not scaled up to the available width",
+      "Process/spec artefacts: the openspec specs folder is empty and there is no README or documentation"
+    ],
+    "overall": 6,
+    "strengths": [
+      "The geometry rules are carefully implemented across all families (chamfer, groove, belt at δ, rimfire half-round, fillets, tangent ogive, heeled bullet, walls, w, primer pocket), with missing values named instead of invented",
+      "Exact value formatting (tolerances joined to their value, symbol map, d°mm'ss\" angles, units), and every field is shown once in grouped tables",
+      "Excellent one-page A4 print layout with a legible full-width drawing, four-column tables and a source footer; tested label-collision avoidance for all 25 records"
+    ],
+    "issues": [
+      "Drawing presentation flaws engineers will notice: the α arc labels a half-angle and floats away from the shoulder on shallow cones; diameters sit in columns past the bullet tip, with long extension lines crossing the outline; 'Scale 1:1' is stated even when the drawing is rescaled",
+      "Screen UX is weak: the drawing is small with about 11 px labels, the value tables are sparse single columns making 3000+ px pages, and empty 'Junction cone' tables appear on pistol and rimfire records",
+      "No README, CI, docs, ADRs or specs, so a new developer gets no run instructions or record of design decisions"
+    ],
+    "verdict": "This is a clean, dependency-free implementation whose geometry, data formatting and print sheet are close to the brief, backed by meaningful unit tests on the drawing rules. It needs fixes to the α annotation and the scale statement, a more legible on-screen drawing and tables, and basic project documentation before it is published to a technical audience."
+  }
+}

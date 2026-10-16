@@ -1,0 +1,57 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.3516344,
+  "review": {
+    "scores": {
+      "requirements": 3,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Most of the brief is met. The list has the heading, name links, family, L3 with tolerance, Search, Family and the '25 cartridges' count (list.jpg, render.js:45-75). The detail view has the facts, the drawing, Symbol/Value/Unit tables, Print and 'All cartridges', and a #/cartridge/<key> route that survives a reload (format.js:102-114). Drawing rules 1-9 are implemented in geometry.js. Unmet or partly met: (1) The R dimension is never drawn on rimfire cases: geometry.js:462 skips it with rim !== 'rimfire'. So 22 LR, 22 WMR and 17 HMR lack this mandatory dimension; detail-22_long_rifle.jpg shows only R1, P1, H2, G1, L3 and L6. (2) The title block always says 'Scale 1:1' (geometry.js:597), but print stretches the SVG to the full width at a height of 96 mm (style.css:156). In print-308_win.jpg the case is about 1.4:1, so the stated scale is wrong. (3) Some L1/L3 labels are pushed to the left of the head, away from their own dimension lines (detail-308_win.jpg 'L1 39.62 -0.2', detail-9_mm_luger.jpg 'L3 19.15 -0.25'). P1 labels sit on the centre line, which the collision check does not include (geometry.js:575-579). (4) No README, so the delivered process artefacts are thin.",
+      "correctness": "The geometry follows the rules closely. Rim type: geometry.js:24-33. Chamfer R1/2 - min(f*tan(beta), R1/4): :322. Groove, and the belted ramp at delta with dz = dr/tan(delta): :341-357. Fillets with r1 min and r2: :374-375. Straight-case path: :370-379. Bullet seating, cylinder and meplat factors: :387-391. Tangent ogive rho and centre: :143-151 (it passes through the meplat edge). Quarter ellipse: :152-157. Heeled bullet uses H2/2 outside and H2/2-tb for the heel: :386, :431. tn, tb and w include the belt ramp end: :399-419. Primer pockets: :16-19. Outlines match the reference drawings for the 308 Win., 300 Win. Mag. belt, 9 mm Luger round nose and heeled 22 LR (detail-*.jpg vs reference/*.png). Values, tolerances ('R 1.4 -0.25', 'L2 43.48 -0.2') and angles ('10°58'00\"', '71°25'59\"') match the data, and print fits one A4 page (print-308_win.jpg). Defects: R is missing on rimfire; 'Scale 1:1' is wrong in print; and on straight cases the body wall tb runs to the mouth. For 9 mm and 44 Mag the inner mouth radius (4.23, 5.19) is smaller than G1/2 (4.52, 5.49), so the seated bullet overlaps the hatched wall in the section.",
+      "security": "render.js builds all DOM with createElement, setAttribute and textContent (el() :13-25, svgEl :27-31; label text :109). There is no innerHTML, no eval and no fetch. The data is embedded as a JS string and parsed with JSON.parse (format.js:22-24). index.html loads only local files. The only external URLs are source links the user clicks.",
+      "code_quality": "Clear split into format (pure formatting, tables, search, routes), geometry (pure model returning lines, labels and collisions) and render (DOM). A small UMD wrapper lets Node tests load the browser modules. The label placer with the Liang-Barsky segment test is compact and purposeful. Weak points: buildDrawing is a ~350-line function (geometry.js:276-626); names are terse (v, P, F, G, rhoA); the collision model ignores the centre line; and the drawing scale is a hard-coded string.",
+      "tests": "node:test suites cover every geometry rule against real records: rim types, chamfer formula, groove points, belt points, the rimfire half-round, shoulder points and fillets, the straight case, pointy and rounded bullet parameters, ogive radius, heeled bullet, walls, w, primer pockets, missing values, unknown shape, all 25 drawable, no label collisions across all 25, and the title block (geometry.test.js). format.test.js covers numbers, angles, symbols, units, tolerance merging, search incl. '7,62 x 51', family filter, count, routes and facts. Gaps: no DOM, print or file:// test; flat and semi_wadcutter shapes are untested; the belted w is untested; no test asserts R on every record, which would have caught the rimfire gap.",
+      "ux_design": "On desktop the drawing is capped at its physical millimetre width (style.css:99, width:min(100%, var(--w))). The main artefact is therefore about 370 px wide for the 308 and 240 px for the 9 mm on a 1024 px page, with ~11 px labels and barely visible hatching, groove and pocket (detail-308_win.jpg, detail-9_mm_luger.jpg). Dimension lines cluster in the neck (H1, H2, G1). The title block and tables are clean and dense, with tabular mono values. The print layout is good: 3-column facts, a large legible drawing, two-column tables and a footer (print-308_win.jpg). Dark mode exists in CSS (style.css:13-22), but no screenshot shows it.",
+      "accessibility": "The SVG has role=img and aria-label '<name> drawing' (render.js:85-86). Tables use th scope=col. The Search and Family controls are labelled (render.js:69-70). The count is aria-live. lang=en, headings h1/h2/h3, and native links and buttons give keyboard use; focus outlines are not removed. Muted text contrast is fine in both themes. Minor: focus is not moved or announced on hash navigation, and the drawing has no longer text alternative beyond its name (the values are in the tables).",
+      "simplicity": "No dependencies. package.json has only a test script using node --test. Four small JS files (~950 lines in total) plus the data. The label-placement engine is the only complex part, and the label-overlap requirement justifies it.",
+      "maintainability": "Positives: openspec specs describe behaviour and scenarios (openspec/specs/*/spec.md), there is a test script, and the code is modular. Negatives: no README with run or test instructions, no CI configuration, no engines field or .nvmrc pinning Node 22, no ADRs or decision notes (for example on the 1:1 physical-size choice or the label placement), and no changelog or release approach beyond version 1.0.0 in package.json.",
+      "visual_design": "Calm, consistent system-font typography with mono tabular values and hairline rules. It looks tidy but unfinished. The 'Value' header is bold mono and visually heavier than 'Symbol' and 'Unit' (all detail screenshots). In print, the mono values render much larger than the rest of the table text (print-308_win.jpg). The tiny centred drawing floats in large white space, and the list puts family and L3 far right of the names with lots of empty space (list.jpg).",
+      "layout": "The page order follows the brief (name, actions, facts, drawing, tables, footer). However, the single-column facts list takes about 250 px of height while the right two-thirds of the page stay empty. The drawing, the key content, is small and appears below the fold on a phone. The 4-column table grid leaves large gaps under short groups (Collar, Breech in detail-308_win.jpg). There is no clipping, and no label overlaps the outline in the screenshots. The print layout is well balanced on one page.",
+      "usability": "Tasks are short. Typing in Search filters live, Family filters, a name link opens the detail, the 'All cartridges' link returns, Print opens the dialog, and URLs are bookmarkable. The family filter and search keep their state on return to the list (render.js:11). Weak points: reading drawing details on desktop needs browser zoom, there is no empty-state message beyond '0 cartridges', and the list cannot be sorted.",
+      "reception": "Reloaders and engineers would trust the complete, correctly formatted tables, the faithful outlines and the clean one-page print. They would be put off by the small on-screen drawing, the 'Scale 1:1' claim on an enlarged print, and the missing R dimension on rimfire drawings. Useful, but not yet polished enough to recommend without reservations."
+    },
+    "unmet_requirements": [
+      "Drawing: R dimension is required on every cartridge but is skipped for rimfire cases (geometry.js:462); 22 LR, 22 WMR and 17 HMR have none",
+      "Title block: the scale is hard-coded 'Scale 1:1' (geometry.js:597), but the printed drawing is scaled to full width (~1.4:1 in print-308_win.jpg), so the stated scale is wrong",
+      "Labels: some length labels (L1, L3) sit to the left of the head, away from their own dimension lines, and P1 labels sit on the centre line, which is left out of the collision check (detail-308_win.jpg, detail-9_mm_luger.jpg)",
+      "Section on straight cases: the body wall tb runs up to the mouth, so the seated bullet overlaps the hatched wall (9 mm Luger, 44 Rem. Mag.)",
+      "Process/documentation: no README, CI or runtime pin delivered"
+    ],
+    "overall": 6,
+    "strengths": [
+      "Faithful implementation of nearly every geometry rule: chamfer, groove, belt at δ, rimfire half-round, fillets, the four bullet shapes with exact seating, cylinder and meplat factors, heeled bullet, walls, w and primer pockets. Outlines match the reference drawings.",
+      "Data presentation is correct and dense: tolerances merged into values, DMS angles, units, symbol mapping, grouped Symbol/Value/Unit tables. A clean one-page A4 print has a legible drawing and the source footer.",
+      "Safe, dependency-free, file://-friendly architecture (textContent only, embedded data). Pure geometry and format modules come with rule-level unit tests, including a collision check across all 25 drawings."
+    ],
+    "issues": [
+      "Mandatory R dimension is missing on all three rimfire drawings (geometry.js:462), and the title block claims 'Scale 1:1' while print enlarges the drawing to about 1.4:1. Both are factual errors in a technical drawing.",
+      "On screen the drawing is capped at its physical millimetre width (style.css:99): ~370 px for the 308 and ~240 px for the 9 mm on a desktop page. Labels are about 11 px, and section hatching and groove details are hard to read. Some labels sit away from their own lines, and P1 labels sit on the centre line.",
+      "Weak maintainability: no README, no CI, no Node version pin and no decision records. The tests cover only pure functions, with no DOM, print or file:// checks."
+    ],
+    "verdict": "A careful, safe, dependency-free implementation: the geometry rules are carefully implemented, the tables are correct and the one-page print is clean. The missing rimfire R dimension, the false 'Scale 1:1' on print, the small on-screen drawing and the missing README keep it from being publishable as is."
+  }
+}

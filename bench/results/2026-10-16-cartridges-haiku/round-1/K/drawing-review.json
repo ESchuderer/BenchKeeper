@@ -1,0 +1,187 @@
+{
+ "arm": "K",
+ "counts": {
+  "correct": 4,
+  "partly": 20,
+  "wrong": 1
+ },
+ "score": 14.0,
+ "drawings": {
+  "223_rem": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed above the neck, away from the shoulder",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "243_win": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed above the neck next to the L3 extension line",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "270_win": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the L1 dimension row",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the diameter label column under H1, reads like a diameter",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "308_win": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the L1 dimension row",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed above the neck",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label floats above the L6 dimension, far from the shoulder",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the diameter label rows next to H1",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the L3 dimension row",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the L1 dimension row",
+    "belt step barely visible (R3/P1 difference 0.24 mm), no R3 dimension (not required)",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the L1 dimension row",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "wrong",
+   "issues": [
+    "tolerances invented: L1 shown as 59 -0.2, L2 as 61.5 -0.2, P2 as 10.4 -0.2; the record has no L1Tol, L2Tol or P2Tol",
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the L3 dimension row"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label placed in the L3 dimension row",
+    "diameter labels stacked below the drawing without leaders to their dimension lines"
+   ]
+  },
+  "9_mm_luger": {
+   "verdict": "partly",
+   "issues": [
+    "L3 label sits above the L6 dimension line, L3 line has no adjacent label"
+   ]
+  },
+  "45_auto": {
+   "verdict": "partly",
+   "issues": [
+    "L3 label sits above the L6 dimension line, L3 line has no adjacent label"
+   ]
+  },
+  "40_s_w": {
+   "verdict": "partly",
+   "issues": [
+    "L3 label sits above the L6 dimension line, L3 line has no adjacent label"
+   ]
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_long_rifle": {
+   "verdict": "partly",
+   "issues": [
+    "L3 label sits above the L6 dimension line, L3 line has no adjacent label"
+   ]
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "17_hmr": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle shown as text only, no angle dimension with arc, arrowheads or extension lines",
+    "alpha label at the bullet tip beyond the L6 extension line",
+    "P2, H1, H2 and G1 arrows crowded and overlapping at the short neck"
+   ]
+  }
+ },
+ "print": "The print view shows the name header, metadata, the drawing with its title block, all tables and a source footer with the revised date in black on white without navigation or buttons, but the drawing fills only about 40% of the page width instead of full width.",
+ "summary": "All 25 drawings render recognisable cartridges of the right family to scale with outside view, hatched section, seated bullet, title block and values matching the record, except invented -0.2 tolerances on 9,3 x 74 R. The recurring error is the shoulder angle shown as a loose text label without an angle dimension, often placed far from the shoulder, plus diameter labels stacked below without leaders and misplaced L3 labels on four straight cases."
+}

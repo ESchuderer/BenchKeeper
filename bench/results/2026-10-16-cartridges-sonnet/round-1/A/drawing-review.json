@@ -1,0 +1,152 @@
+{
+ "arm": "A",
+ "counts": {
+  "correct": 25,
+  "partly": 0,
+  "wrong": 0
+ },
+ "score": 25.0,
+ "drawings": {
+  "338_lapua_mag": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct",
+    "missing-value note for r1 min not visible in the SVG"
+   ]
+  },
+  "223_rem": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "243_win": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "270_win": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "308_win": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct",
+    "minor: H1, H2, alpha labels crowded over the short neck, legible"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct",
+    "minor: R1 13.35 and P1 11.9 labels nearly touch, no overlap"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct"
+   ]
+  },
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_long_rifle": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "17_hmr": {
+   "verdict": "correct",
+   "issues": [
+    "minor: alpha labelled by a leader to the shoulder (rule 5) instead of an angular dimension with extension lines (line 24); value correct",
+    "minor: P2, H1, H2, G1 dimension lines packed within about 5 mm, labels staggered and legible",
+    "missing-value note for r1 min and r2 not visible in the SVG"
+   ]
+  }
+ },
+ "print": "Print view is black on white with page header, the drawing with every label legible, title block, tables in four columns and a source footer, but the drawing fills only about 40% of the page width instead of full width, and the captured page is landscape-proportioned (A4 portrait not verifiable from the image).",
+ "summary": "All 25 drawings render the right family true to scale (groove, belt, rimmed flange, rimfire half-round, heeled 22 LR) with outside view over a hatched section, fillets, primer pocket and seated bullet; every spot-checked value matches the record. The recurring minor deviation is the shoulder angle alpha given as a leader label, not an angular dimension."
+}

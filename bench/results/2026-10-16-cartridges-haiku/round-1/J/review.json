@@ -1,0 +1,58 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.3424554000000004,
+  "review": {
+    "scores": {
+      "requirements": 3,
+      "correctness": 3,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Most of the brief is met. The start page has the heading, Search, Family, the '<n> cartridges' count and links named exactly after `name` (app.js:40-82, list.jpg). The detail view shows every identity field, water capacity with its source link, Symbol/Value/Unit tables grouped by section, Print and 'All cartridges', and a #/cartridge/<key> address. The SVG has a mm viewBox, a hatched section, a dash-dot centre line, every required dimension and a title block. Partly met or unmet: (1) the α dimension is not drawn at the shoulder. The apex sign is inverted (geometry.js:270 `v.L1 - P2r*…` should be `+`), so on every bottleneck case the arc and the 'α 40°' label float mid-body (detail-308_win.jpg, detail-300_win_mag.jpg, detail-9_3_x_74_r.jpg near the head). (2) The outside view does not hide the seated bullet: the mirrored bullet section is drawn in the upper half (drawing.js:93,339), and the bullet base line at zb is visible inside the case (detail-9_mm_luger.jpg, detail-44_rem_mag.jpg, detail-22_long_rifle.jpg heel). (3) The title block says 'Scale 1:1' (drawing.js:314), but the SVG is scaled to the container on screen and on paper, so the stated scale is wrong. (4) README points to openspec/changes/…, which does not exist.",
+      "correctness": "The outline rules are implemented faithfully. Rim type, chamfer (R1/2 − min(f·tanβ, R1/4)), groove floor and ramp, belt ramp at δ to R3/2 (verified for 300 WM: zRamp 3.24), fillets r1 min and r2, straight cases, ogive radius and centre, quarter ellipse, cones, seating depth and k factors, tn/tb/w and the primer pocket table (geometry.js:114-306). The references show matching proportions: 308 taper and neck, belted head, 9 mm rounded nose, 22 LR half-round rim. Values, tolerances ('39.62 -0.2', 'R 1.4 -0.25') and DMS angles ('10°58'00\"') come out right, and the print fits one A4 page (print-308_win.jpg). Errors: the α arc is at the wrong apex on all bottleneck drawings. The seated bullet and heel are drawn in the outside view. The E1 dimension sits at z = R + e min + 1.5, past the groove (4.27 > E 3.85 on 308), so its arrows land on the body, not the groove floor (drawing.js:190). The lower-half nose omits the meplat face (drawing.js:92). 'Scale 1:1' is false.",
+      "security": "Record text goes in through textContent or setAttribute (app.js:11-24). The one innerHTML (app.js:122) takes an SVG string in which every text and attribute from data passes through escapeXml (drawing.js:20-26,331,351,356), and the id is sanitised (drawing.js:328). There is no eval, fetch or external resource. The test at app.test.js:214 asserts no network use.",
+      "code_quality": "Small, readable IIFE modules: pure geometry and format logic, a DOM helper `h`, and a dual browser/Node export. Naming follows the brief's symbols. Missing values are handled with notes (geometry.js:117-145). Weaknesses: `build` in drawing.js is one ~300-line function, and the apex sign bug sits in a one-liner with no test against S.",
+      "tests": "node:test suites cover formatting, search normalisation, routing, data fidelity against the JSONL, the DOM against the real index.html via jsdom, and the geometry rules with computed expectations (chamfer, groove, belt, rimfire half-round, ogive points on radius ρ, bullet factors per shape, tn/tb/w, pocket). They also check label/label and label/obstacle overlap across all 25 drawings. Gaps: nothing checks the α arc position (it would fail against S), that the outside view hides the seated part, the print layout, or the stated scale.",
+      "ux_design": "The tables are dense and calm with right-aligned tabular numbers (detail-308_win.jpg). In the drawing, labels have a fixed 3.2 mm font, so on small cases they dwarf the part. For 22 LR and 9 mm the title block is larger than the cartridge (detail-22_long_rifle.jpg, detail-9_mm_luger.jpg). Straight cases leave two empty dimension rows. The L3 label is pushed to the left of the head. Groove and hatching detail is barely readable. The misplaced α label confuses. The print is tidy and black on white, but the outline spans only about half the page width. List rows with tolerances wrap 'L3 19.15 -0.25 / mm' (list.jpg).",
+      "accessibility": "The SVG has role=img and aria-label '<name> drawing'. The inputs have <label for>, the count is aria-live, and the tables use thead th scope=col and tbody th scope=row. There are :focus-visible outlines, lang=en, and a nav element. Muted text contrast is adequate. Minor gaps: no focus management on hash route change, and the text alternative is only the name, with no summary of the dimensions.",
+      "simplicity": "No runtime dependencies. About 1000 lines of plain JS and CSS, plus a small data-generation script. jsdom is the only dev dependency. The size fits the task.",
+      "maintainability": "There is a README with open/run/test/build:data steps, a package-lock, engines node >=22, and a regression suite. There is no CI configuration, no .nvmrc or exact runtime pin, no ADRs or docs, and no release or versioning practice beyond 1.0.0. The README points to openspec/changes/cartridge-reference-app/, which is absent (openspec/specs holds only .gitkeep). An undocumented quirk (the setTimeout start for headless Chromium, app.js:213) is explained only in a comment.",
+      "visual_design": "The system font and a muted palette give a consistent, restrained look. Uppercase table captions, thin rules and the header are consistent across pages. The drawing hurts the finish: oversized labels and title block relative to the part, and a floating α glyph mid-body. The print header and identity grid look clean (print-308_win.jpg).",
+      "layout": "The hierarchy is sensible: name, identity, drawing, then three-column table grids and a footer. Large dead areas come from the title block and the empty dimension rows on straight cases (detail-9_mm_luger.jpg, detail-44_rem_mag.jpg). There are no overlaps or clipping. On print, everything fits on one page with spare space at the bottom.",
+      "usability": "Search ignores punctuation and spacing ('7,62 x 51', '762x51'). Filters combine and persist when returning from a detail view (app.test.js:195). There is one click to the detail view and back, Print works, unknown keys show a not-found page with a back link, and deep links work from file://.",
+      "reception": "Reloaders will trust the data presentation: values, tolerances and DMS angles are exact and the tables are complete. Engineers and gunsmiths will immediately notice the shoulder angle drawn in the middle of the body, the bullet base and heel visible through the case wall in the outside view, and a false 'Scale 1:1'. These undermine the drawing, which is the product's centrepiece."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α is not dimensioned at the shoulder: the apex sign is inverted (geometry.js:270), so the arc and label sit mid-body on every bottleneck drawing",
+      "The outside view does not hide the seated bullet or heel: the mirrored bullet section is drawn in the upper half (drawing.js:93,339)",
+      "The title block's scale 'Scale 1:1' is wrong for the screen and the print (drawing.js:314)",
+      "The E1 dimension is not at the groove: it is placed past E, on the body (drawing.js:190)",
+      "The print drawing is not at full width: the outline spans about half the A4 width (print-308_win.jpg)",
+      "The README references a spec folder that is not in the repository"
+    ],
+    "overall": 6,
+    "strengths": [
+      "Faithful implementation of most geometry rules: rim types, chamfer, groove, belt, fillets, the bullet shapes with seating, wall thickness and primer pocket all match the brief and the reference outlines",
+      "Correct, well-structured data presentation: exact values, inline tolerances, DMS angles, symbol mapping, grouped Symbol/Value/Unit tables, and a one-page black-on-white print",
+      "Clean, dependency-free code with safe DOM construction and a meaningful test suite that includes data fidelity and label-collision checks across all 25 drawings"
+    ],
+    "issues": [
+      "The α shoulder-angle arc and label are drawn in the middle of the body, not at the shoulder, on every bottleneck cartridge, because the apex z has the wrong sign (geometry.js:270)",
+      "The outside view shows the seated bullet base and heel through the case, against rule 7, and the title block claims 'Scale 1:1', which is false on screen and in print",
+      "Drawing composition: a fixed 3.2 mm label font and an oversized title block dwarf small cartridges, the E1 dimension is placed off the groove, and empty dimension rows waste space. There is also no CI and the README references a missing spec folder"
+    ],
+    "verdict": "A tidy, safe, well-tested static reference whose data, tables, search and print meet the brief, and most of its drawing geometry is correct. Visible drawing errors keep it from publishing as is: a misplaced shoulder angle on every bottleneck case, the seated bullet showing in the outside view, and a false 1:1 scale."
+  }
+}

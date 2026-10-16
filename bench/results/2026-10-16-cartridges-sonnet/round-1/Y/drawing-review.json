@@ -1,0 +1,121 @@
+{
+ "arm": "Y",
+ "counts": {
+  "correct": 25,
+  "partly": 0,
+  "wrong": 0
+ },
+ "score": 25.0,
+ "drawings": {
+  "223_rem": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "243_win": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "6_5_creedmoor": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "6_5_x_55_se": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "270_win": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "7_x_64": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "308_win": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "30_06_spring": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "8_x_57_is": {
+   "verdict": "correct",
+   "issues": [
+    "alpha arc very small at the short shoulder, arrowheads on the outline"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "7_62_x_39": {
+   "verdict": "correct",
+   "issues": [
+    "alpha arc very small, arrowheads on the outline"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "300_win_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "7_mm_rem_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "9_3_x_74_r": {
+   "verdict": "correct",
+   "issues": [
+    "alpha arc barely visible at the shallow shoulder"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_long_rifle": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "17_hmr": {
+   "verdict": "correct",
+   "issues": [
+    "H2 and G1 dimension arrows nearly coincide at the neck (labels separate)"
+   ]
+  }
+ },
+ "print": "Black on white with name header, info grid, the drawing with all labels legible, grouped cartridge and chamber tables and a source footer with the revised date, but the drawing spans only about half the page width rather than full width.",
+ "summary": "Arm Y renders all 25 cartridges as proper technical drawings with proportions consistent with the records: correct rim families, bottleneck and straight bodies, outside view over hatched section with pocket and seated bullet, and matching dimension values with tolerances. No recurring material error; minor points are tiny alpha arcs on short or shallow shoulders and crowded neck arrows on 17 HMR."
+}

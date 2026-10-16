@@ -1,5 +1,6 @@
 // Benchmark trials for the /bench/ page, read at build time from bench/results/<run>/round-<n>/<arm>/
-// (trial.json, review.json) and the run's manifest.txt. Cost fields are never read (owner decision, #33).
+// (trial.json, review.json, drawing-review.json), the run's manifest.txt and final-score.json (bench/scripts/final-score.mjs).
+// Cost fields are never read (owner decision, #33).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -26,6 +27,18 @@ export function arm(id) {
 }
 
 const json = (f) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null);
+// Drawing review per app (drawing-review.json, one verdict per drawing). Reviewers differed on the shoulder angle drawn as
+// a leader label instead of an angle dimension: a drawing faulted only for that counts as correct in correctAlphaApart.
+// Confirmations some reviewers listed among the issues ("values match record ...") are not faults.
+const ALPHA = /α|alpha|shoulder angle/i, NOTE = /^values? match/i;
+function drawingReview(d) {
+  if (!d?.drawings) return null;
+  const v = Object.values(d.drawings);
+  const faults = (x) => (x.issues ?? []).filter((i) => !NOTE.test(i));
+  const alphaOnly = v.filter((x) => x.verdict === 'partly' && faults(x).length && faults(x).every((i) => ALPHA.test(i))).length;
+  const count = (k) => v.filter((x) => x.verdict === k).length;
+  return { of: v.length, correct: count('correct'), partly: count('partly'), wrong: count('wrong'), correctAlphaApart: count('correct') + alphaOnly, alphaOnly };
+}
 const MODELS = { 'claude-haiku-5-5': 'Haiku 5.5', 'claude-sonnet-5-5': 'Sonnet 5.5', 'claude-opus-5-5': 'Opus 5.5' };
 
 export function loadTrials(results) {
@@ -33,6 +46,8 @@ export function loadTrials(results) {
   for (const run of readdirSync(results).filter((d) => existsSync(join(results, d, 'manifest.txt'))).sort()) {
     const head = readFileSync(join(results, run, 'manifest.txt'), 'utf8').split('\n')[0];
     const meta = Object.fromEntries(head.split(' ').map((kv) => kv.split('=')));
+    // final-score.mjs scores round 1 only.
+    const finals = new Map((json(join(results, run, 'final-score.json'))?.trials ?? []).map((f) => [f.arm, { total: f.total, categories: f.categories }]));
     if (!meta.brief || !meta.model) throw new Error(`${run}/manifest.txt: first line needs brief= and model=`);
     for (const round of readdirSync(join(results, run)).filter((d) => /^round-\d+$/.test(d)).sort()) {
       for (const id of readdirSync(join(results, run, round)).sort()) {
@@ -47,6 +62,7 @@ export function loadTrials(results) {
           featuresOf: Object.keys(t.score?.features || {}).length || null, robustnessOf: Object.keys(t.score?.robustness || {}).length || null,
           minutes: Math.round((t.wall_seconds ?? 0) / 60), overall: r?.overall ?? null,
           protocol: t.method?.protocol ?? null, criteria: Object.keys(r?.scores || {}).length || null,
+          final: (round === 'round-1' && finals.get(id)) || null, mutation: t.score?.mutation?.score ?? null, drawings: drawingReview(json(join(dir, 'drawing-review.json'))),
         });
       }
     }
@@ -77,4 +93,15 @@ export function summarizeRuns(trials, reports = []) {
       }),
     };
   }).sort((a, b) => b.date.localeCompare(a.date) || a.run.localeCompare(b.run));
+}
+
+// Per brief, the trials of all its runs (models) that have a final score, ranked by total, then fewer minutes: the top 10,
+// and plain Claude Code (arm A) of each model with its place when it is not in the top 10.
+export function topByBrief(trials) {
+  return [...new Set(trials.filter((t) => t.final).map((t) => t.brief))].map((brief) => {
+    const ranked = trials.filter((t) => t.brief === brief && t.final).sort((a, b) => b.final.total - a.final.total || a.minutes - b.minutes);
+    const top = ranked.slice(0, 10);
+    const baselines = ranked.filter((t) => t.arm === 'A' && t.runtime === 'Claude Code' && !top.includes(t)).map((t) => ({ ...t, place: ranked.indexOf(t) + 1 }));
+    return { brief, of: ranked.length, top, baselines };
+  });
 }

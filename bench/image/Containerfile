@@ -7,7 +7,10 @@ ENV DISABLE_AUTOUPDATER=1 PATH=/home/node/.local/bin:$PATH
 COPY bench/arms/bk-rules.md bench/arms/superpowers.rules.md bench/arms/ecc.rules.md bench/arms/mattpocock.rules.md bench/arms/mattpocock-agent-skills.md bench/arms/candidate.rules.md bench/arms/opencode-addy-openspec.AGENTS.md bench/image/install-arm.sh /opt/bench/
 COPY skills /opt/bench/skills
 COPY bench/arms/project-setup /opt/bench/project-setup
+COPY bench/arms/bk-v2 /opt/bench/bk-v2
 ARG ARM
+# BenchKeeper layer version: v1 (bench/arms/bk-rules.md, every published run) or v2 (bench/arms/bk-v2: rules and sdlc skill).
+ARG BK=v1
 # BenchKeeper arms: system libraries for the project's Playwright MCP browser (version of @playwright/mcp@0.0.83).
 RUN case "$ARM" in C|D|E|L|M|N|X|Y) npx -y playwright-core@1.64.0-alpha-1790635538000 install-deps chromium && rm -rf /var/lib/apt/lists/* /root/.npm ;; esac
 # Spec Kit arm: Python 3.11 and uv 0.13.1 for specify-cli.
@@ -15,7 +18,7 @@ RUN if [ "$ARM" = P ] || [ "$ARM" = AC ]; then apt-get update && apt-get install
     && curl -sSfL https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin --strip-components=1; fi
 USER node
 WORKDIR /home/node
-RUN /opt/bench/install-arm.sh "$ARM"
+RUN BK="$BK" /opt/bench/install-arm.sh "$ARM"
 # Other arms' rules and skills must not be readable by this arm's agent.
 USER root
 RUN rm -rf /opt/bench

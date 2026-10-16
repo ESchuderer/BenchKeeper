@@ -42,4 +42,6 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 ## Context
 - Read only what the task needs.
 - Send noisy commands (full test suites, builds, long logs) to a subagent when available; return only failures and key lines.
+- Soft context limit, by tier: quick, after the pull request; standard and full, after the plan and after the pull request; any tier, before an unrelated request. Then suggest `/clear`, or `/compact` when the same work continues.
+- Hard context limit: the client compacts by itself at its configured window (`/setting-up-machine` part 7).
 - When compacting, keep the task tier, the issue, branch and pull request numbers, the modified files, and the checks still to run.

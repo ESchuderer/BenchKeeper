@@ -192,7 +192,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="following-dev-workflow sizes each request by tier and change type. Quick: no issue, spec, plan or pre-push review. Standard: no spec, a plan of a few lines. Full: all ten steps. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug. The token and time saving is not measured yet.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. Quick: no issue, spec, plan or pre-push review. Standard: no spec, a plan of a few lines. Full: all ten steps. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug. The token and time saving is not measured yet.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -334,7 +334,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <List spacing="lg" styles={listTop}>
               <Check ok={false} title="Not a build system or framework.">Your project keeps its own toolchain.</Check>
               <Check ok={false} title="Not auto-updating.">Versions change only when /setting-up-machine proposes a bump and you accept it.</Check>
-              <Check ok={false} title="Not autonomous.">Setup applies only the plan you approve; merges and pushes to the default branch need your instruction.</Check>
+              <Check ok={false} title="Not autonomous.">Setup applies only the plan you approve and confirms destructive items again; merges and pushes to the default branch need your instruction.</Check>
             </List>
           </SimpleGrid>
         </Section>

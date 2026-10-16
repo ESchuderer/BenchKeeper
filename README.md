@@ -7,7 +7,7 @@ BenchKeeper sets up Claude Code and Codex with one rules file and four skills. T
 <!-- /generated:description -->
 
 <!-- generated:core -->
-**Built on [agent-skills](https://github.com/addyosmani/agent-skills) by Addy Osmani:** its skills drive each SDLC phase (specify, plan, tests first, build, review, ship); BenchKeeper pins and configures them and sizes each task.
+**Built on [agent-skills](https://github.com/addyosmani/agent-skills) by Addy Osmani:** its skills drive each SDLC phase (specify, plan, tests first, build, review, ship); BenchKeeper pins and configures them and sizes each task to the steps it needs.
 <!-- /generated:core -->
 
 One tool per job, exact versions everywhere. To change a choice, edit [rules/global.md](rules/global.md) or the skills and rerun `/setting-up-machine`.
@@ -91,7 +91,7 @@ The agent, its sign-in, BenchKeeper, the global rules and skills stay on the hos
 - Dependency installs, builds, lint, tests and local MCP/browser tools run through `devcontainer exec --workspace-folder . ...`; file edits and Git stay on the host. If the container fails to start, dependent commands stop; there is no host fallback. Where native chat and extensions execute is not verified.
 - MCP, browser and language-server connections need verified container launchers and paths; a host plugin or binary alone does not run in the container. Unsupported connections are reported as unavailable.
 
-Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli), [VS Code](https://code.visualstudio.com/docs/devcontainers/containers). Mounts are scoped to the project: no host home, engine socket, privileged mode or credential forwarding. VS Code can forward Git credentials and SSH agents by default ([credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)).
+Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli), [VS Code](https://code.visualstudio.com/docs/devcontainers/containers). Setup scopes mounts to the project: no host home, engine socket, privileged mode or credential forwarding. Check the client's defaults: VS Code can forward Git credentials and SSH agents automatically ([credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)).
 
 The devcontainer scopes project commands and their mounts; it does not isolate the agent, which stays a host process under its client permissions ([container security](https://docs.docker.com/engine/security/)).
 

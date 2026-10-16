@@ -4,7 +4,7 @@
     "name": "agent-skills",
     "by": "Addy Osmani",
     "url": "https://github.com/addyosmani/agent-skills",
-    "role": "its skills drive each SDLC phase (specify, plan, tests first, build, review, ship); BenchKeeper pins and configures them and sizes each task"
+    "role": "its skills drive each SDLC phase (specify, plan, tests first, build, review, ship); BenchKeeper pins and configures them and sizes each task to the steps it needs"
   },
   "prerequisites": [
     {

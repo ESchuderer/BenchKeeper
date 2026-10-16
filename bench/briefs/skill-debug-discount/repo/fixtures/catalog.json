@@ -1,0 +1,6 @@
+[
+  { "sku": "MUG", "name": "Mug", "price": 1295 },
+  { "sku": "TEE", "name": "T-shirt", "price": 2450 },
+  { "sku": "CAP", "name": "Cap", "price": 1995 },
+  { "sku": "GIFT", "name": "Gift card", "price": 2500, "noDiscount": true }
+]

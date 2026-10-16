@@ -1,7 +1,7 @@
 // Runs a targeted task's checks (/brief/checks/checks.mjs: an object of id to async check) on /ws, each in its own
 // process on its own copy of /ws, 120 s each; prints {"checks":[{id, ok, detail}]}. A check returns true, false, null
-// (not checkable) or {ok, detail}; a throw or a time-out is ok false. S1-regressions is added to every task: the
-// baseline's test files (/base), copied over the workspace's, pass.
+// (not checkable) or {ok, detail}; a throw or a time-out is ok false. S1-regressions is added to every task (after its
+// own checks): the baseline's test files (/base), copied over the workspace's, pass.
 // Usage (in the container of checks.sh): node /common/run.mjs [id]
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
@@ -25,17 +25,6 @@ function helpers(ws) {
     ws, base: BASE, sh,
     read: (rel, root = ws) => (existsSync(join(root, rel)) ? readFileSync(join(root, rel), 'utf8') : null),
     load: (rel) => import(pathToFileURL(join(ws, rel)).href),
-    // The tests of the repository in `dir` (default ws): [{key, pass}] per test, key = file > nesting > name # occurrence.
-    tests: (dir = ws, files = []) => {
-      const r = spawnSync('node', ['--test', '--test-reporter=/common/reporter.mjs', ...files], { cwd: dir, encoding: 'utf8', timeout: 90000 });
-      const seen = {};
-      const results = (r.stdout || '').split('\n').filter(Boolean).map((l) => JSON.parse(l)).map((t) => {
-        const k = `${t.file ? relative(dir, t.file) : ''}>${t.nesting}>${t.name}`;
-        seen[k] = (seen[k] || 0) + 1;
-        return { key: `${k}#${seen[k]}`, pass: t.pass };
-      });
-      return { code: r.status ?? 1, results };
-    },
     testFiles,
   };
 }
@@ -49,7 +38,9 @@ const builtin = {
     return { ok: r.code === 0, detail: r.code === 0 ? `${files.length} files` : r.out.slice(-400) };
   },
 };
-const checks = async () => ({ ...(await import('/brief/checks/checks.mjs')).default, ...builtin });
+// A task can leave a built-in check out by setting it to null (when another of its checks already covers it).
+const checks = async () => Object.fromEntries(Object.entries({ ...builtin, ...(await import('/brief/checks/checks.mjs')).default })
+  .sort(([a], [b]) => (a in builtin) - (b in builtin)).filter(([, f]) => f));
 
 const id = process.argv[2];
 if (id) {

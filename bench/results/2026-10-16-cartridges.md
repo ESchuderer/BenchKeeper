@@ -44,6 +44,7 @@ Final score out of 100 from six weighted categories (method below). Ranked by to
 ## Key findings
 
 - Final score (Sonnet 5.5): the top 10 spans 81.8 to 84.8 points and both runtimes (OpenCode Q and Z lead). Plain Claude Code (A) is 19th of 29 (78.3, median 79.8). Setups do not group: OpenSpec, ECC, agent-skills, Superpowers and Matt Pocock arms all appear in the top 10.
+- The setup BenchKeeper recommends today (BK v1 + agent-skills + OpenSpec, arm C) is 28th of 29 (64.8). Its unit tests failed in the scorer's coverage run, so its line coverage scores 0 of 10 points (cause unverified).
 - Every reviewed Sonnet app draws proper cartridges of the right family with values that match the records: 25 of 25 correct for all reviewed apps except F (20). The drawings do not separate the setups.
 - Mutation score of the top 10 and plain A: 46.1% (A) to 70.1% (OpenSpec alone, AB). Matt Pocock alone (V) catches 46.6% of mutants, about as many as plain A. The final score does not include it.
 - Documentation on Sonnet scores 0.7 to 6.8 of 10, median 6.2. 10 of 29 apps have no README. The share of documented functions has a median of 14% (2% to 34%).

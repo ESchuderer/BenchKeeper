@@ -10,7 +10,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, and continue without waiting for confirmation.
 
 ## Brevity
-- Short, concise answers. Say only what the reader needs to act.
+- Short answers. Say only what the reader needs to act.
 - No closing recap or offers unless asked. Allowed: the task restatement before work starts, and a closing line on what was skipped or not checked, and any risk.
 - Facts only, in docs, comments, and commit messages too: no evaluative words ("lean", "worth it", "powerful"), no hedging or justifications unless asked (uncertainty goes in a confidence level), no selling.
 

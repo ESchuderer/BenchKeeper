@@ -3,7 +3,7 @@
 # Stryker's command runner reruns the suite per mutant (`npx vitest run` for vitest suites, else the `test:unit` script, else `npm test`): its vitest runner
 # reported mutants as surviving that the suites demonstrably kill. Text literals are not mutated: the score is about
 # behavior, not about whether tests pin every message's wording. No tsconfig rewriting: Stryker 10 calls a TypeScript API
-# that TypeScript 7 removed. `// @ts-nocheck` goes into TypeScript files only: in JavaScript it changes nothing but the bytes, which a test
+# that TypeScript 7 removed. `// @ts-nocheck` goes into TypeScript and Vue files only: in JavaScript it changes nothing but the bytes, which a test
 # comparing a generated file fails on. Tests that run sources in a `vm` context get `process` there (preload below): Stryker's
 # instrumented code reads the active mutant from `process.env`, so without it no mutant switches on and the score reads 0.
 # MUTATION_EXCLUDE: space-separated extra globs not to mutate (generated data files a test compares byte for byte).
@@ -17,7 +17,7 @@ NODE=docker.io/library/node:22.23.3-bookworm@sha256:0e5f906573693feaa1e21057ebdc
 STRYKER=10.0.0
 T=${MUTATION_TIMEOUT:-2700}
 # MUTATION_CPUS: CPU cap for the container and Stryker's test runners (default: no cap, 8 runners), so the host stays usable.
-C=${MUTATION_CPUS:-8}
+C=${MUTATION_CPUS:-8}; C=${C%.*}; [ "${C:-0}" -ge 1 ] 2>/dev/null || C=1  # Stryker needs a whole number of runners
 mkdir -p "$out" && rm -f "$out/mutation.json" "$out/mutation.exit"
 app=$(mktemp -d) && trap 'rm -rf "$app"' EXIT
 trap 'exit 130' INT TERM HUP
@@ -49,7 +49,7 @@ podman run --rm --timeout "$T" ${MUTATION_CPUS:+--cpus "$MUTATION_CPUS"} -e C="$
   "concurrency": $C,
   "tempDirName": "/tmp/stryker-tmp",
   "tsconfigFile": "/nonexistent/tsconfig.json",
-  "disableTypeChecks": "**/*.{ts,tsx,mts,cts}"
+  "disableTypeChecks": "**/*.{ts,tsx,mts,cts,vue}"
 }
 EOF
   npx stryker run /tmp/stryker.config.json || exit 13' > "$out/mutation.log" 2>&1

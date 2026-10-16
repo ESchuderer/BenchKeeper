@@ -46,7 +46,7 @@ for (const [arm, dir, openspec] of [['AD', 'bk-v3', false], ['AE', 'bk-v3-opensp
     const have = listed(arm);
     assert.deepEqual(agentSkills.filter((n) => text.includes(`\`${n}\``) && !have.has(n)), []);
     assert.ok(!/agent-skills/i.test(text) && (openspec || !/openspec/i.test(text)));
-    const names = [...new Set([...text.matchAll(/`([a-z][a-z0-9]*-[a-z0-9-]+|tdd|pr|grilling|research|prototype)`/g)].map((m) => m[1]))]
+    const names = [...new Set([...text.matchAll(/`[/$]?([a-z][a-z0-9]*-[a-z0-9-]+|tdd|pr|grilling|research|prototype)`/g)].map((m) => m[1]))]
       .filter((n) => !/^(ansible-lint|code-review-and-quality)$/.test(n));
     assert.deepEqual(names.filter((n) => !have.has(n)), []);
   });

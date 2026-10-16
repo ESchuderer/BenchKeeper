@@ -10,6 +10,7 @@ Workflow fixes from the benchmark diagnosis of the BenchKeeper layer (cartridges
 - Before done: a new project or app has a README (setup, run, test, configuration), and a change to setup or behavior updates it. Browser and build output (`.playwright-mcp/`, `test-results/`, screenshots) is git-ignored or deleted.
 - Non-interactive runs: a skill's approval gate or a phase boundary is not a stop.
 - Prose semicolons rewritten in `rules/global.md` and the skills (no rule change). `setting-up-machine` names no host path.
+- `rules/global.md` Brevity: "Short answers." `setting-up-machine` part 7 no longer points to an issue.
 
 ## setup-v2.8 (2026-10-16)
 

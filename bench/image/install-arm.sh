@@ -125,6 +125,8 @@ if [ "$bk" != no ]; then
     cp /opt/bench/bk-v3/global.md "$HOME/.claude/rules/00-global.md"
     v3=bk-v3; [ "$spec" = openspec ] && v3=bk-v3-openspec
     cp -r "/opt/bench/$v3/skills/following-dev-workflow" "$HOME/.claude/skills/"
+    # the user-invoked BenchKeeper skills the rules and the workflow skill name, as /setting-up-machine links them on the host
+    cp -r /opt/bench/bk-v3/skills/setting-up-machine /opt/bench/bk-v3/skills/setting-up-projects /opt/bench/bk-v3/skills/maintaining-repos "$HOME/.claude/skills/"
   elif [ "${BK:-v1}" = v2 ]; then
     # v2: the rules and the sdlc skill of setup-v2.2; framework variants of v2 do not exist yet.
     [ "$fw" = as ] || { echo "BK=v2 is defined for the agent-skills arms only (L, C)" >&2; exit 1; }

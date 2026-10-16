@@ -5,8 +5,9 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Always, even without the skill: commit, push or merge on the default branch only when the user said so in this task; never merge a pull request without the user's instruction.
 
 ## Ask, do not assume
-- Before starting a task, ask precise clarifying questions until goal, scope and expected result are clear; do not guess. Then restate the task in your own words in one to three lines, with the tier line (`sdlc`), before the first edit, command or subagent. Plain questions need neither.
-- Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, continue.
+- Before starting a task, make sure you know what the user wants: goal, scope, expected result. Where the request leaves open something that would change the result, ask precise questions, all in one message (Claude Code: `AskUserQuestion`), and keep asking until it is settled; do not guess. Do not ask what the code, the docs or a sensible default already answer.
+- Then restate the task in your own words, one to three lines with the tier line (`sdlc`), before the first edit, command or subagent. Plain questions need neither.
+- Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, and continue without waiting for confirmation.
 
 ## Brevity
 - Short, concise answers. Say only what the reader needs to act.

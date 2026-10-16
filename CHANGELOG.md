@@ -2,6 +2,14 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
 
+## setup-v2.6 (2026-10-16)
+
+Fixes from the skill authoring review (#58, `bench/results/2026-10-16-skill-authoring.md`).
+
+- Skill headings match the new names (`# Setting up the machine` and the others).
+- `setting-up-machine` version bumps: `git grep` outside `bench/` and the changelog, so the Dockerfile and workflow pins are found and the benchmark's pinned images and copies stay; done on a branch as the rules require.
+- `setting-up-machine` part 7 checks `showClearContextOnPlanAccept`, which its install sets.
+
 ## setup-v2.5 (2026-10-16)
 
 Skills checked against Anthropic's skill authoring guide (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices, `evaluations/practices/skill-authoring.md`).

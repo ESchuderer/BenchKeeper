@@ -35,6 +35,10 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 - One user uninstalled it because "a simple ask is taking enormous amount of time".
 - Another removed Superpowers and runs agent-skills plus the Karpathy guidelines.
 
+## Skill authoring check
+
+Rank 4 of 8, review 3.2, static checks 93% (7.0.0): strongest workflows and examples; descriptions leave out the "what" by house rule; two bodies over 500 lines; the brainstorming server loads a remote logo unless a telemetry variable is set. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+
 ## Decision
 
 Not in yet: one measurement (AgentStackBench, Codex, 500 tasks) and four signals on Claude Code agree in direction: cost higher in every with/without test across agents and versions (Codex with 5.0.5: tokens +40%; Claude Code with v6.4.2: cost 1.33x; systematic-debugging on Opus 4.8: cost +40.5% and +80%), except one blogger's 6-task single run (-9%). Quality gains appear in the TDD cases of one plugin-eval suite and in judge scores; pass rate on SWE-bench-family tasks is not significantly different (p about 0.235). Its spec, plan and implement loop overlaps agent-skills. Kept as arm D in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19): BenchKeeper with agent-skills replaced by Superpowers v7.0.0, to compare the agent-skills, Superpowers and ECC stacks directly.

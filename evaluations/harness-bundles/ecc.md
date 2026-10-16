@@ -27,6 +27,10 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 - One user: "very very large and hard to digest".
 - The Skill Leaderboard curator: ECC is not listed there; the curator places it between a skill collection and a broader harness framework and is open to reconsidering (see [sources](../sources.md)).
 
+## Skill authoring check
+
+Rank 7 of 8, review 2.9, static checks 98% (2.2.3, minimal profile): broken script paths, hardcoded `~/.claude/skills` in a project-scoped install, references to 13 skills that are not installed, three bodies over 500 lines. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+
 ## Decision
 
 Not in yet: no outcome measurement in either direction; measured overhead from hooks and listing size. The full plugin crowds other plugins out of the skill listing; a selective install (`manifests/install-profiles.json`: the `minimal` profile has no hooks, so `strategic-compact` loses its hook) or single skills avoid that. Arm E in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) is BenchKeeper with agent-skills replaced by the ECC `minimal` profile, next to the agent-skills (C) and Superpowers (D) stacks.

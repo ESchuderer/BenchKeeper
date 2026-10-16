@@ -4,7 +4,7 @@ description: "Sets the development workflow for any repository change: picks the
 when_to_use: "Fix, add, change, refactor, rename, update, upgrade or remove anything in a repository; compare or evaluate several tools or options; push, open a PR, or merge."
 ---
 
-# SDLC
+# Following the dev workflow
 
 Skills from agent-skills (addyosmani) drive each phase; OpenSpec owns the spec files when the repository has `openspec/`. These rules take precedence over a skill's own triggers, such as a skill asking for a spec or a review on every change. Ponytail `full` applies during the build phases unless the user selects another level.
 
@@ -18,7 +18,7 @@ When the work grows (more than one behavior, several files not counting generate
 
 - Quick (the diff fits in one sentence): branch, edit, verify, commit, draft pull request. No issue, spec, plan, test first or pre-push review. Ponytail's self-check for new non-trivial logic still applies.
 - Standard (one behavior, or a refactor that keeps behavior; approach clear): issue, branch, failing test first where a test suite exists (refactor: the suite passes before and after with tests unchanged), build, verify, review before push, draft pull request. No spec or OpenSpec change; the plan is a few lines in the reply.
-- Full (several behaviors, new capability, uncertain approach, or a risky change): every SDLC step below.
+- Full (several behaviors, new capability, uncertain approach, or a risky change): every phase below (Phases).
 - Research (question, comparison, evaluation or spike without a repository change): no branch or edits; scratch files outside the repository are allowed; edits asked for afterwards get their own tier. One fact: answer directly. Two or more independent items: one subagent per item in parallel (Claude Code: `model: "sonnet"`, `effort: "high"`; Codex: `explorer` subagents). Each prompt states the objective, output format and sources to use; where claims rest on benchmarks, it adds the evidence bar: independent versus vendor-run results; version, harness, model and effort, task count, runs per arm, deltas and p-values; advertised claims next to measured ones; unverified items labeled. Merge the results into one answer with sources.
 
 ## Change types

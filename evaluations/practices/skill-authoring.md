@@ -28,6 +28,10 @@ Post in r/claudeskills (2026-10-16, screenshot supplied by the owner; Reddit can
 | MCP tool names | None used. |
 | Evaluations, model coverage | None for these skills. The benchmark measures the BenchKeeper layer as a whole (`bench/PROTOCOL.md`), not each skill's triggering or effect; trigger evaluations belong to [#36](https://github.com/ESchuderer/BenchKeeper/issues/36). |
 
+## Benchmarked collections
+
+All eight ranked in [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58): static check plus one Opus review per collection.
+
 ## Decision
 
 In: the guide's checklist applies to `skills/`; evaluations for the own skills are open in #36.

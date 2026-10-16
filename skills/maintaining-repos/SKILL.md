@@ -4,7 +4,7 @@ description: "Runs a repository-wide maintenance pass: dead code, unused options
 disable-model-invocation: true
 ---
 
-# Maintain
+# Maintaining repositories
 
 Read only until the findings are approved. Run each part the repository supports:
 

@@ -4,7 +4,7 @@ test('one summary per run: setup, ranked table, report link, no cost figures', a
   await page.goto('./bench/');
   await expect(page.getByRole('heading', { level: 1, name: 'Benchmarks' })).toBeVisible();
   const run = page.locator('section', { has: page.getByRole('heading', { level: 2, name: 'winery-react, Sonnet 5.5' }) });
-  await expect(run).toContainText('protocol 1.9');
+  await expect(run).toContainText('protocol 1.14');
   const table = run.getByRole('region', { name: /Claude Code: ranked arms/ });
   await expect(table.locator('tbody tr')).toHaveCount(22);
   const ratings = await table.locator('tbody tr td:nth-child(6)').allInnerTexts();

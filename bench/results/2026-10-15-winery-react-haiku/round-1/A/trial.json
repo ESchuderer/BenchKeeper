@@ -77,6 +77,9 @@
       "R9": true
     },
     "robustness_passed": 12,
+    "changes": null,
+    "strict": true,
+    "code": null,
     "axe": {
       "start": 0,
       "confirmation": 0,
@@ -91,6 +94,14 @@
     "audit": {
       "high": 0,
       "total": 0
+    },
+    "mutation": {
+      "score": 57.3,
+      "killed": 259,
+      "timeout": 44,
+      "survived": 226,
+      "no_coverage": 0,
+      "mutants": 690
     },
     "hidden_tests": "374dfd34d02f0c2f"
   },
@@ -109,5 +120,14 @@
     "node_version": true,
     "changelog": false,
     "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "374dfd34d02f0c2f",
+    "bk": "v1"
   }
 }

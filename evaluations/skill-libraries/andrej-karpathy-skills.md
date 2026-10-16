@@ -31,7 +31,7 @@ Thread "Karpathy-Inspired Claude Code Guidelines" (r/BestGitHubRepos, about 2026
 
 ## Effect on BenchKeeper
 
-`rules/global.md` was trimmed in setup-v2.3 (`CHANGELOG.md`): lines that repeat Claude Code defaults or other BenchKeeper files were removed. The ask-and-restate rule stays as an owner decision, against the extracted system prompt's default.
+`rules/global.md` was trimmed in setup-v2.3 (`CHANGELOG.md`): lines that repeat Claude Code defaults or other BenchKeeper files were removed. The ask-and-restate rule (owner decision) asks only where an open point would change the result (setup-v2.4), close to the extracted system prompt's "check in only when different readings would lead to materially different work"; the restatement before work has no measurement.
 
 ## Decision
 

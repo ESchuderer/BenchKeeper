@@ -64,11 +64,18 @@ Purpose: show whether every arm installs, passes the delivery audit and builds a
 | AD | Matt Pocock's skills | yes | v3 | none |
 | AE | Matt Pocock's skills | yes | v3 | OpenSpec |
 
-OpenCode arms (owner decision 2026-10-14, details, isolation and the comparison matrix in `bench/SCENARIOS.md`): Q `opencode-openspec-targeted-skills`, R `opencode-superpowers`, S `opencode-openspec-superpowers` (oso 1.1.1), T `opencode-addy`, U `opencode-addy-openspec`, Z Matt Pocock's skills, AA Matt Pocock's skills with OpenSpec, on OpenCode 1.19.0 with an Anthropic API key (OpenCode cannot use the subscription), same model, effort, brief, timeout, follow-up rule, scorer and review as the Claude Code arms. Excluded from new runs since 1.16 (owner decision 2026-10-17). Their recorded results stay in `bench/results` and the reports.
+OpenCode arms (owner decision 2026-10-14, details, isolation and the comparison matrix in `bench/SCENARIOS.md`): Q `opencode-openspec-targeted-skills`, R `opencode-superpowers`, S `opencode-openspec-superpowers` (oso 1.1.1), T `opencode-addy`, U `opencode-addy-openspec`, Z Matt Pocock's skills, AA Matt Pocock's skills with OpenSpec. They ran on OpenCode 1.19.0 with an Anthropic API key (OpenCode cannot use the subscription), with the same model, effort, brief, timeout, follow-up rule, scorer and review as the Claude Code arms. Excluded from new runs since 1.16 (owner decision 2026-10-17). Their recorded results stay in `bench/results` and the reports.
 
 Owner decision 2026-10-14: each skill framework runs alone, with OpenSpec, with the BenchKeeper layer, and with both. C is BenchKeeper as it is today (agent-skills with OpenSpec). O and P are basic checks of a spec tool with Ponytail alone.
 
-BenchKeeper layer v3 (arms AD and AE, from protocol 1.17): the rules of setup-v2.9 (`bench/arms/bk-v3/global.md`) and the `following-dev-workflow` skill for Matt Pocock's skills (`bench/arms/bk-v3/`, no OpenSpec; `bench/arms/bk-v3-openspec/`, OpenSpec owns spec and plan and his execution skills do the rest), Ponytail, find-skills, Playwright MCP with Chromium, the project template; no candidate rules and no old setup skills. BenchKeeper layer v1 (every published run, v2 in `bench/arms/bk-v2/`, the rules and `sdlc` skill of setup-v2.2, built with `--build-arg BK=v2` for the agent-skills arms L and C, not run yet): rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC and Matt Pocock's skills: `bench/arms/superpowers.rules.md`, `ecc.rules.md` and `mattpocock.rules.md`, the same rules with the SDLC and the lines naming agent-skills mapped to the framework's own skills and agents, from `bench/arms/superpowers.md`, `ecc.md` and `mattpocock.md`), the candidate rules `bench/arms/candidate.rules.md`, Ponytail v5.2.0 `full`, find-skills (vercel-labs/skills v1.7.2), BenchKeeper skills `project-setup` and `global-setup`, Playwright MCP 0.0.83 with Chromium inside the container, and a project set up by `/project-setup` (`bench/arms/project-setup/`: `AGENTS.md`, `CLAUDE.md` with `@AGENTS.md`, devcontainer config, the `playwright-best-practices` skill at commit `283d5cb`, the MCP server approved for the project; with OpenSpec, `openspec init --tools claude` and the convention line in `AGENTS.md`).
+BenchKeeper layer versions:
+
+- v1 (every published run):
+  - Rules. agent-skills arms: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`. Superpowers, ECC and Matt Pocock's skills arms: `bench/arms/superpowers.rules.md`, `ecc.rules.md` and `mattpocock.rules.md`, the same rules with the SDLC and the lines naming agent-skills mapped to the framework's own skills and agents (from `bench/arms/superpowers.md`, `ecc.md` and `mattpocock.md`).
+  - The candidate rules `bench/arms/candidate.rules.md`, Ponytail v5.2.0 `full`, find-skills (vercel-labs/skills v1.7.2), the BenchKeeper skills `project-setup` and `global-setup`, Playwright MCP 0.0.83 with Chromium inside the container.
+  - A project set up by `/project-setup` (`bench/arms/project-setup/`): `AGENTS.md`, `CLAUDE.md` with `@AGENTS.md`, devcontainer config, the `playwright-best-practices` skill at commit `283d5cb`, the MCP server approved for the project. With OpenSpec also `openspec init --tools claude` and the convention line in `AGENTS.md`.
+- v2 (`bench/arms/bk-v2/`, not run yet): the rules and `sdlc` skill of setup-v2.2, built with `--build-arg BK=v2` for the agent-skills arms L and C.
+- v3 (arms AD and AE, from protocol 1.17): the rules of setup-v2.9 (`bench/arms/bk-v3/global.md`) and the `following-dev-workflow` skill for Matt Pocock's skills. AD: `bench/arms/bk-v3/`, no OpenSpec. AE: `bench/arms/bk-v3-openspec/`, OpenSpec owns spec and plan and his execution skills do the rest. Both with Ponytail, find-skills, Playwright MCP with Chromium and the project template. No candidate rules and no old setup skills.
 
 Spec tool without the BenchKeeper layer (I, J, K, O, P): the project is only initialised with the tool (`openspec init --tools claude`, or `specify init --here --integration claude --script sh`). Arms with a project start from it as the first commit. The others start from an empty folder.
 
@@ -89,7 +96,7 @@ Built by `bench/image/Containerfile` and `bench/image/install-arm.sh` (one arm t
 - One round of all 24 Claude Code arms (the recorded runs: 29 arms with the OpenCode arms) in an order shuffled with the seed (`bench/run-brief.sh`, order logged in `manifest.txt`). One trial at a time. Timeout 90 minutes per trial, shared by all turns (each turn gets the remaining time). A resumed run never repeats a finished agent run and refuses to continue when an arm image changed.
 - Sandbox: the agent container mounts only its empty workspace and a log directory. `bench/`, the hidden tests and other repositories are never mounted. Network is on (package installs).
 - Credentials: Claude Code arms use the owner's Max subscription through `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`, environment or `~/.config/benchkeeper/oauth-token`). The recorded OpenCode arms used an Anthropic API key (`ANTHROPIC_API_KEY` or `~/.config/benchkeeper/anthropic-api-key`). Each container gets only its runtime's credential, never written to results. After each trial the runner searches the trial directory for the token and stops if it finds it.
-- Follow-up rule: when the agent ends a turn and the app does not run (a `start` script, and `npm install`, `npm run build --if-present` and `npm start` serve the start page within 20 s, checked in the agent's container on a copy of the workspace), or its final message waits for confirmation (last line a question, or a phrase such as "once you confirm" or "shall I continue" in its last five lines), the runner continues the same session with the fixed message "Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval.", at most twice, within the trial's 90 minutes. The number of follow-ups is recorded per trial. Finishing without one is reported separately.
+- Follow-up rule: the runner continues the same session with the fixed message "Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval." when the agent ends a turn and the app does not run, or its final message waits for confirmation. At most twice, within the trial's 90 minutes. The app runs when it has a `start` script and `npm install`, `npm run build --if-present` and `npm start` serve the start page within 20 s (checked in the agent's container on a copy of the workspace). A final message waits when its last line is a question or its last five lines contain a phrase such as "once you confirm" or "shall I continue". The number of follow-ups is recorded per trial. Finishing without one is reported separately.
 - Command: `bench/run-brief.sh winery-react claude-sonnet-5-5 high 1 41` per runner with its arms as the sixth argument (`"<arms>"`), which replaces the default list A to P and V to Y. The default leaves out AB, AC, AD and AE (`"AD AE"` runs layer v3). The recorded runs also ran `claude-haiku-5-5` and the OpenCode arms with the same commands.
 
 ### Checks before a run
@@ -100,10 +107,17 @@ Before each run: every image builds, and an unauthenticated start shows the arm'
 
 Per trial, in a copy of the workspace, in pinned containers:
 - `npm install`, `npm run build --if-present`, `npm start` with `PORT` and a random `STAFF_PASSWORD`;
-- hidden features passed (of 6); robustness tests passed (of 12, `robustness_passed`); mutation score of the agent's own tests (`mutation`: killed and timed-out mutants over all counted mutants, Stryker 10.0.0 command runner rerunning `npx vitest run` or `npm test` per mutant, text literals not mutated, on a copy of the workspace, 45 minutes per app, `MUTATION_CPUS` caps the container's CPUs and Stryker's test runners (default: no CPU cap, 8 runners); `null` with a reason when it cannot run); axe violations (WCAG 2.2 AA tags) on start, form, confirmation and staff pages; Lighthouse performance, accessibility and best practices on the start page; `npm audit` counts; the agent's own `npm test` exit code (in the node base image without browsers);
+- hidden features passed (of 6);
+- robustness tests passed (of 12, `robustness_passed`);
+- mutation score of the agent's own tests (`mutation`): killed and timed-out mutants over all counted mutants. Stryker 10.0.0 command runner rerunning `npx vitest run` or `npm test` per mutant, text literals not mutated, on a copy of the workspace, 45 minutes per app. `MUTATION_CPUS` caps the container's CPUs and Stryker's test runners (default: no CPU cap, 8 runners). `null` with a reason when it cannot run;
+- axe violations (WCAG 2.2 AA tags) on start, form, confirmation and staff pages;
+- Lighthouse performance, accessibility and best practices on the start page;
+- `npm audit` counts;
+- the agent's own `npm test` exit code (in the node base image without browsers);
 - non-blank source and test lines;
 - maintenance facts from the workspace (`maintenance` in `trial.json`): README, README with install and start steps, lockfile, test script, lint or type-check script, CI workflow, pinned Node version, changelog, docs or specs;
-- wall-clock minutes; from the transcript (last result per session, since follow-up turns continue the session and its totals are cumulative): turns, tokens, API-equivalent USD (`total_cost_usd`; not billed), whether the run ended with a question;
+- wall-clock minutes;
+- from the transcript (last result per session, since follow-up turns continue the session and its totals are cumulative): turns, tokens, API-equivalent USD (`total_cost_usd`, not billed), whether the run ended with a question;
 - captured for manual comparison: the built app as delivered (`app.tar.gz`: source and git history, without `node_modules`) and full-page screenshots of the start, form, confirmation and staff pages;
 - workflow trace: Skill and Agent calls, plan or spec files written, tests written and whether before the first source file, whether a review step ran, the last tool call.
 
@@ -117,13 +131,18 @@ Each built app is reviewed blind by Claude Opus 5.5 (effort `high`) with the fix
 
 ### Validity
 
-- Delivery audit (`trial.mjs`): every init event (first turn, follow-ups, resumes after a background agent) lists exactly the arm's plugins, marker skills or agents and connected MCP servers (BenchKeeper layer: `playwright`, others: none), none of another arm's markers, and the session's first turn (`SessionStart:startup`) shows the expected hook output (a follow-up resumes the session, and Superpowers' hook does not fire on resume). Arms without hooks show none. A failed audit invalidates the trial.
+- Delivery audit (`trial.mjs`): every init event (first turn, follow-ups, resumes after a background agent) lists exactly the arm's plugins, marker skills or agents and connected MCP servers (BenchKeeper layer: `playwright`, others: none), and none of another arm's markers. The session's first turn (`SessionStart:startup`) shows the expected hook output (a follow-up resumes the session, and Superpowers' hook does not fire on resume). Arms without hooks show none. A failed audit invalidates the trial.
 - A trial stopped by a usage limit, API overload or an authentication failure is an infrastructure error: rerun once (delete its directory and rerun the command), then listed as excluded.
 - Every trial is reported, including stalls, trials without code and invalid ones.
 
 ### Report
 
-`bench/results/<date>-<brief>-<model>.md`: setup (versions, image IDs, model, effort, seed, order), the data copied by `bench/publish.sh` (manifest, per trial `trial.json`, transcript, `app.tar.gz`, screenshots), the per-arm table from `bench/scripts/summary.mjs` (median and range over the trials of each arm, one trial per arm in the recorded runs, no significance tests), per-trial workflow traces, exclusions, deviations from this protocol, subscription usage read before and after.
+`bench/results/<date>-<brief>-<model>.md`:
+
+- setup (versions, image IDs, model, effort, seed, order);
+- the data copied by `bench/publish.sh` (manifest, per trial `trial.json`, transcript, `app.tar.gz`, screenshots);
+- the per-arm table from `bench/scripts/summary.mjs` (median and range over the trials of each arm, one trial per arm in the recorded runs, no significance tests);
+- per-trial workflow traces, exclusions, deviations from this protocol, subscription usage read before and after.
 
 ### Limitations
 

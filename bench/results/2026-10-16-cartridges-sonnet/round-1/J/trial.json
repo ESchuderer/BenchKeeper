@@ -1,0 +1,136 @@
+{
+  "arm": "J",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 2442,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "superpowers"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 2424839,
+    "result_events": 1,
+    "turns": 103,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 7.518024700000001,
+    "usage": {
+      "input": 232,
+      "cache_creation": 513869,
+      "cache_read": 25511422,
+      "output": 309023,
+      "thinking": 152565
+    }
+  },
+  "workflow": {
+    "tool_calls": 147,
+    "subagent_tool_calls": 20,
+    "skills": [
+      "superpowers:brainstorming",
+      "openspec-apply-change",
+      "superpowers:test-driven-development",
+      "superpowers:requesting-code-review"
+    ],
+    "agents": [
+      "general-purpose"
+    ],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/cartridge-reference-app/proposal.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-catalogue/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-detail/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-drawing/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-drawing/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-drawing/spec.md",
+      "openspec/changes/cartridge-reference-app/specs/print-layout/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/design.md",
+      "/work/openspec/changes/cartridge-reference-app/tasks.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "Bash cd /home/node/.claude/projects/-work/memory && printf -- '- [Chromium in the con"
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 1,
+    "agent_tests": 0,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": false,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 5,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": false,
+    "code": {
+      "source_lines": 1165,
+      "functions": 146,
+      "complexity": 549,
+      "max_complexity": 100,
+      "erosion": 0.302,
+      "duplication": 0,
+      "duplicated_lines": 0,
+      "clones": 0
+    },
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 0.98,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 1367,
+    "test": 1495,
+    "files": 25
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

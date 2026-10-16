@@ -1,0 +1,99 @@
+{
+  "arm": "Q",
+  "runtime": "opencode",
+  "followups": 2,
+  "wall_seconds": 644,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 12
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 16,
+    "cost_usd_api_equivalent": 0.39251914999999993,
+    "usage": {
+      "input": 38,
+      "cache_creation": 179908,
+      "cache_read": 1527049,
+      "output": 30773,
+      "thinking": 97052
+    }
+  },
+  "workflow": {
+    "tool_calls": 21,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/cartridge-reference-app/proposal.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-catalog/spec.md",
+      "/work/openspec/changes/cartridge-reference-app/specs/cartridge-catalog/spec.md",
+      "design.md",
+      "/work/openspec/changes/cartridge-reference-app/design.md"
+    ],
+    "tests_written": false,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash "
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": 3,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": {
+      "source_lines": 30,
+      "functions": 0,
+      "complexity": 0,
+      "max_complexity": 0,
+      "erosion": 0,
+      "duplication": 0,
+      "duplicated_lines": 0,
+      "clones": 0
+    },
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 30,
+    "test": 0,
+    "files": 1
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": false,
+    "test_script": false,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

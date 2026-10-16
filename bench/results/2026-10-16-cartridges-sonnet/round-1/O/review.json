@@ -1,0 +1,56 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.427395,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Nearly the whole brief is met. The list has the heading, exact name links, family and L3, plus a Search field that matches alternative names (format.js:47-51), the Family select, and the '<n> cartridges' text (app.js:20-46, list.jpg). The detail view has every fact, the capacity link, Symbol/Value/Unit tables grouped by section with tolerances merged ('39.62 -0.2', detail-308_win.jpg), the Print button and 'All cartridges'. Hash addresses survive a reload. The drawing is an inline SVG at 1 unit = 1 mm with title '<name> drawing', a dash-dot centre line, a hatched section, every listed dimension including α, and a title block with name, table, revision, 'Dimensions in mm' and the scale (drawing.js:88-177). Notes for missing values are present (geometry.js:135-175). Print is one A4 page (print-308_win.jpg). Partly met: on a phone the drawing fits the width but its labels are about 5 px and unreadable (test-output/phone-detail.png). The scale is only stated 'on A4'. The print 'footer' is just the last paragraph of the content (app.js:90), not a page footer.",
+      "correctness": "The geometry follows the rules closely. Rim type: geometry.js:15-20. Chamfer: :131-133. Rimfire half-round, outermost point at R1/2: :121-128. Groove: :142. Belt ramp at δ: :149-150. Bottleneck through the published points with r1 min and r2 fillets: :168-176. Bullet seating, k and meplat per shape, tangent ogive ρ and centre exactly as specified: :67-84. Heeled bullet with the H2-2·tb heel: :96. Walls tb/tn blended over the shoulder: :198. w and the primer pockets: :186-191. Outlines match the references: 308 and 300 WM shoulders and necks (detail-308_win.jpg vs reference/308_win.png), the 22 LR rounded rim and same-diameter bullet, the 44 Mag SWC cone. Dimension values match the data, and a test checks that each line's length equals its value. Deviations: (1) fillet tangent lengths are capped at 45% of the shorter segment (geometry.js:42), so a large published radius such as 7,62 x 39's r1 min 4.0 is drawn smaller without a note. (2) On the shallow 9,3 x 74 R shoulder, the α arc becomes a near-vertical line crossing the bullet in both halves (detail-9_3_x_74_r.jpg). (3) Diameter extension lines run through the rotated G1 and H2 labels on the right (detail-308_win.jpg); only a halo stroke masks them. (4) A rimmed case without a groove reports 'E, E1, e min not published' as if a value were missing. The print fits one A4 page, and an e2e test checks this for all 25.",
+      "security": "All DOM content is built with createElement and textContent through h() (app.js:8-16). The SVG string escapes every text with esc() (drawing.js:11, 195-223) and is parsed with DOMParser. There is no innerHTML, eval or Function. There are no external requests: an e2e test asserts that no request leaves the origin (delivery.test.js:20-34). The external capacity links use rel=noopener.",
+      "code_quality": "Clear split into format, geometry (pure), drawing (layout and SVG) and app (views and router), each IIFE dual-loadable in Node for tests. Naming follows the brief's symbols. Missing values are handled gracefully with notes, and a not-found view exists. Readability suffers from very dense one-liners (geometry.js:109-115, 190-203; drawing.js:40) and magic layout constants. buildModel is one 150-line function.",
+      "tests": "Strong. There are unit tests for every geometry rule: rim types incl. a synthetic rebated case, chamfer, rimfire half-round, groove points, belt via δ, bottleneck vertices and fillet radii, straight case, bullet s/k/m/ρ for all shapes, heeled heel, walls, w, pockets per primer type, notes for missing values (geometry.test.js). Drawing tests check label set and texts, dimension lengths equal to the values for all 25, label/label and label/outline collisions for all 25, escaping, the title block and scale (drawing.test.js). Format tests cover angles, symbols, units and tolerances. Data equality with the fixture is tested. E2E tests run over file:// and http and cover the list, search, filter, detail facts, reload, contrast in light and dark, 360 px overflow, print styling, label size ≥7 pt and one A4 page for all 25.",
+      "ux_design": "Dense, calm, technical: uppercase small-caps labels, right-aligned tabular numbers, compact three-column table grid, clear Cartridge/Chamber grouping (detail-308_win.jpg). Dark mode is clean (test-output/detail-dark.png) and the print is a tidy one-page sheet (print-308_win.jpg). Weaknesses: the label font is fixed in mm. Short cartridges therefore get huge labels and a title block taking half the figure (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg), while long ones get small labels. On a phone the drawing is unreadable (phone-detail.png).",
+      "accessibility": "The SVG has role=img with a <title> naming '<name> drawing' and a <desc>. Tables have captions, scope=col headers and th scope=row symbols. Search and Family have visible <label for>. The count is aria-live. There is a skip link, h1 focus on route change, and focus-visible outlines. WCAG contrast is tested for light and dark. The desc is generic ('rimless bottleneck case…') and carries no dimensions, though the tables cover them. The phone drawing is too small to read.",
+      "simplicity": "Plain HTML, CSS and JS, about 600 lines of app code, no runtime dependencies, no build step. The only dev dependency is Playwright, and a small Node script regenerates data.js from the fixture. The size fits the problem.",
+      "maintainability": "The README gives setup, test, e2e and data-regeneration commands and a file map, and package-lock.json pins Playwright. However: no CI configuration; no engines field or .nvmrc despite 'Node.js 22'; openspec/ holds only a .gitkeep although the README says it contains the specification and design; no ADRs or versioning/changelog; e2e depends on undocumented home-directory library and font shims (helpers.js:11-19). A stale, git-ignored test-output/ folder was delivered.",
+      "visual_design": "System font, a restrained grey and blue palette, consistent small-caps metadata labels, consistent table styling across pages, a crisp drawing with proper line weights and a halo behind labels (detail-308_win.jpg, detail-300_win_mag.jpg). It looks finished. The drawing's type scale is inconsistent between cartridges: very large on 9 mm and 22 LR, small on 300 WM.",
+      "layout": "The order is sensible: name, facts grid, drawing, then tables, with no clipping or overflow, and the list fits the screen (list.jpg). Small cartridges leave a lot of empty space in the figure, dominated by the title block (detail-9_mm_luger.jpg, detail-44_rem_mag.jpg). On long cases the drawing is a thin band with large margins (detail-308_win.jpg). In print, the drawing at full width and four-column tables fill the page well (print-308_win.jpg).",
+      "usability": "Finding a cartridge is one search keystroke away, filters survive the trip back to the list, the back link and Print are obvious, and addresses can be bookmarked. Bad hashes give a 'Cartridge not found' page. Phone users cannot read drawing labels and cannot zoom the SVG inside the page.",
+      "reception": "Reloaders and gunsmiths would trust it: the values match C.I.P. data, the drawings are true to scale with proper dimensioning, and the one-page A4 print is professional. Disproportionate title blocks on short cartridges and the unreadable phone drawing would be noticed, but most users would come back and recommend it."
+    },
+    "unmet_requirements": [
+      "Drawing on a phone fits the width but its labels are not legible (about 5 px at 360 px width)",
+      "Fillet radii are capped at 45% of the adjacent segment, so a large published r1 min (e.g. 7,62 x 39) is drawn smaller than published without a note",
+      "Scale in the title block is only stated for A4, not for the screen view",
+      "Print 'footer' is the last paragraph of the content, not a page footer"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Geometry implements the brief's rules nearly verbatim (rim types, chamfer, rimfire half-round, groove, belt via δ, fillets, tangent ogive, heeled bullet, walls, w, primer pockets), and the outlines match the OpenBallistics references",
+      "Very thorough tests: per-rule unit tests, label-collision and dimension-length checks over all 25 records, e2e over file:// and http, contrast, phone overflow and a one-A4-page PDF check for every cartridge",
+      "Safe, dependency-free, compact code with clean separation (pure geometry, layout, views), and a clean one-page black-on-white print"
+    ],
+    "issues": [
+      "Drawing text is a fixed size in mm, so short cartridges (9 mm Luger, 22 LR, 44 Mag) get oversized labels and a title block taking half the figure, while on a phone the labels become unreadable",
+      "Small geometry deviations: fillet radii silently capped; on shallow shoulders (9,3 x 74 R) the α arc degenerates to a line through the bullet; diameter extension lines cross the G1/H2 labels",
+      "Maintainability gaps: no CI, no pinned Node version, empty openspec despite the README saying it holds the spec, no ADRs or versioning, undocumented e2e environment shims"
+    ],
+    "verdict": "A careful, faithful implementation: the drawing rules are applied almost exactly, data and formatting match the brief, and the test suite checks nearly every requirement, print included. The label and title-block sizing on short cartridges and on phones, plus the missing CI and specs, keep it just short of publishable as is."
+  }
+}

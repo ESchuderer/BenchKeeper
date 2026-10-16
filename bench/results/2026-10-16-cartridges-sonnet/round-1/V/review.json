@@ -1,0 +1,56 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.4233276,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 3,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Nearly everything in the brief is in place. List with heading, search over alternative names, Family select and \"<n> cartridges\" (app.js:49-77). Detail facts, capacity with source link, grouped Symbol/Value/Unit tables, Print button and \"All cartridges\" link, hash address #/cartridge/<key> (app.js:81-154). Tolerances sit beside their values, never as rows (format.js:44-66). Angles show as 40° or 39°59'49\". Symbol map follows the brief (format.js:7-11). Inline SVG with aria-label \"<name> drawing\", section hatching, dash-dot centre line, title block with name, table, revision, \"Dimensions in mm\" and scale (drawing.js:227-301). Missing values are named under the drawing (app.js:118-120). Partly met: (1) α is a text label with a leader arrow pointing at the shoulder, not an angular dimension with extension lines (drawing.js:194-212; detail-308_win.jpg 'α 40°'). (2) In print the drawing is capped at 105 mm high (styles.css:179), so the outline covers only about a third of the page width, not 'full width' (print-308_win.jpg). (3) The title-block scale is only the A4 print scale; the on-screen drawing is at some other scale.",
+      "correctness": "The geometry follows the rules and is checked against hand-worked values. Rim type thresholds (geometry.js:24-31). Chamfer min(f·tanβ, R1/4). Rimfire half-round. Groove ramp to (P1/2, E). Belt ramp at δ to R3/2, then along the belt to E (geometry.js:46-103). Shoulder through (P2/2, L1)–(H1/2, L2) with r1 min/r2 fillets (geometry.js:133-164). Bullet seating-depth and k factors, tangent-ogive ρ and centre, quarter ellipse, cones (geometry.js:197-259). Heeled 22 LR heel at H2−2·tb. Walls tn/tb, w, pocket sizes (geometry.js:263-286). Outlines match the references in proportion: 308 neck and shoulder, 300 Win. Mag. belt, 9 mm round-nose taper, 22 LR rounded rim and heel. Label values match the data. Print fits one A4 page (print.test.js; print-308_win.jpg). Defects: head-face and L3 extension lines run through the length labels ('L1 39.62 -0.2' and 'L2 43.48 -0.2' on detail-308_win.jpg; 'L3 19.15 -0.25' is crossed twice on detail-9_mm_luger.jpg). α is not drawn as an angle dimension. The diameter extension lines on the right (G1, H2, H1, P2) run over the bullet and neck as near-coincident lines, which makes the outline hard to read.",
+      "security": "All data written through innerHTML is escaped with esc() (app.js:13-15, 43-45, 84-110, 122-131; drawing.js:18-20, 264, 290). A unit test checks escaping (drawing.test.js:56-62). No eval or Function. No external requests: the only external URLs are user-clicked links with rel=noopener noreferrer. The e2e watch() fails on any network request (e2e/helpers.js:14-20).",
+      "code_quality": "Clear split into format, geometry (no DOM), drawing layout/SVG and app/router. Small IIFE modules work both in the browser and under Node require. Names are domain terms (GLOSSARY.md). Minor issues: sectionModel takes unused params (outer, shoulder) and returns inner:null that build() then replaces (geometry.js:263-286). The heeled-bullet guard builds an awkward absent({P1}) (geometry.js:223-226). drawing.layout is a long function (~180 lines) of magic font-size multipliers. esc/has are duplicated between files.",
+      "tests": "Thorough and meaningful. Unit tests check every drawing rule with hand-computed coordinates: rim types at their thresholds, chamfer limit, rimfire half-round, groove, belt, fillet tangent points, ogive circle, ellipse, cones, heel, walls, w, pocket sizes by primer type, and missing-value messages (test/unit/*.js). Drawing tests cover labels, true scale, escaping, title block, and label/outline overlap for all 25 records. Playwright tests cover file:// and http, search, family filter, reload/back, tables, print dialog, a one-page A4 PDF for all 25 in dark mode, ≥6 pt print labels, phone width and dark mode. The one gap: nothing checks extension lines crossing labels, which is visible in the screenshots.",
+      "ux_design": "The facts grid, then drawing, then dense four-column tables make a sound hierarchy for a technical audience, and tabular numbers are right-aligned (detail-308_win.jpg). The drawing itself is poorly balanced: labels are ~5.7 mm high next to a 12 mm-wide case, so the outline is a thin strip and the groove, chamfer, primer pocket and section walls are hard to see. The title block is huge, wider than the cartridge on detail-22_long_rifle.jpg and detail-9_mm_luger.jpg. Extension lines strike through labels. In print, everything fits one page but the drawing is small and the lower half of the page is empty (print-308_win.jpg). Dark mode exists in CSS and is tested, but no screenshot shows it.",
+      "accessibility": "SVG has role=img and an aria-label (drawing.js:264). Tables have captions and th scope=col/row (app.js:106-110). Inputs have real labels. The count is role=status aria-live (app.js:59). There is a skip link, focus moves to h1 on route change (app.js:157-165), :focus-visible outlines, and lang=en. Contrast is good (muted #59616a on #fafaf7). The drawing's text alternative is only its name, though the tables carry the values. The search placeholder is cut off ('Name or alternative r', list.jpg).",
+      "simplicity": "No runtime dependencies and no build step. About 900 lines of app JS, plus one dev dependency (Playwright) for e2e. Node's built-in test runner is used for unit tests. The size fits the problem.",
+      "maintainability": "README covers layout, setup and test commands. GLOSSARY.md documents the domain terms. There are tests on both levels, and a package-lock pins Playwright. Missing: no CI configuration. No ADRs or spec in the delivered repo (the README points to .scratch/cartridge-database/, which is not present). No engines field or .nvmrc for Node 22. No release or versioning notes beyond version 1.0.0. The devDependency uses a caret range.",
+      "visual_design": "The UI chrome is calm and consistent: small uppercase captions, thin rules, restrained blue links, tabular numbers (list.jpg, detail-*.jpg). The drawing clashes with it: oversized monospace labels and a huge bold title block dwarf a thin, small outline, and the hatching is faint at that size. It reads like a prototype, not a finished engineering drawing.",
+      "layout": "No horizontal overflow; e2e tests the phone width (app.test.js:157-176). The tables grid aligns well. Within the drawing, the cartridge takes a small share of the canvas while labels and the title block take most of it. Length labels hang left past the head face. In print, about 45% of the A4 page is left blank below the tables while the drawing is capped small (print-308_win.jpg).",
+      "usability": "Tasks take few steps. Live search over names and alternative names, a family filter, and the filter state is kept when returning (app.test.js:80-89). Bookmarkable addresses, a not-found view, one-click Print. 'Not drawn' notes explain missing values. The count reads '1 cartridges' (unpluralised, though that follows the brief's wording) and the search placeholder is truncated.",
+      "reception": "Reloaders and engineers would trust the data presentation: values exactly as published, tolerances in place, C.I.P. source footer. The drawing, the centrepiece, looks out of proportion, with giant labels, struck-through text, a tiny case and a dominant title block. It compares poorly with the OpenBallistics reference drawings, and that would hurt first impressions and recommendations."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α is a text label with a leader arrow, not an angular dimension line with extension lines (drawing.js:194-212)",
+      "Labels are crossed by extension lines (L1/L2 by the head-face line on 308 Win., L3 twice on 9 mm Luger), which hurts legibility",
+      "Print: the drawing is capped at 105 mm height, so the outline does not span the page width ('drawing at full width' is only partly met)",
+      "Title-block scale is valid only for A4 print, not for the on-screen drawing"
+    ],
+    "overall": 6,
+    "strengths": [
+      "Faithful implementation of every geometry rule (rim types, chamfer, groove, belt, fillets, ogive and ellipse noses, heeled bullet, walls, primer pocket), with missing values named instead of invented",
+      "Very strong test suite: hand-computed unit tests for each rule, plus Playwright checks for file:// and http, one-page A4 PDF for all 25 records, phone width, dark mode and label overlap",
+      "Correct, escaped, dependency-free data presentation: values, tolerances, angles and units exactly as the brief specifies, in clean grouped tables"
+    ],
+    "issues": [
+      "Drawing proportions: labels about 5.7 mm high and an oversized title block dwarf the to-scale cartridge, so the groove, chamfer, pocket and section walls are barely visible, on screen and in print",
+      "Extension lines strike through dimension labels, and α is only a leader label, not a proper angular dimension",
+      "Maintainability gaps: no CI, no ADRs or spec in the repo, no pinned Node version"
+    ],
+    "verdict": "Data handling, geometry rules and tests are excellent, and the app meets almost every functional requirement of the brief. The drawing, the core deliverable, is poorly balanced, with oversized labels, a dominant title block, struck-through text and a non-dimensioned α, so it needs a layout pass before publishing to a technical audience."
+  }
+}

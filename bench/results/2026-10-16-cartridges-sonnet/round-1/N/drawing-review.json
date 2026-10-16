@@ -1,0 +1,188 @@
+{
+ "arm": "N",
+ "counts": {
+  "correct": 23,
+  "partly": 2,
+  "wrong": 0
+ },
+ "score": 24.0,
+ "drawings": {
+  "223_rem": {
+   "verdict": "partly",
+   "issues": [
+    "R 1.14 label placed on the hatched head section and outline (label overlap)",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "243_win": {
+   "verdict": "correct",
+   "issues": [
+    "values R1 12.01, L2 45.83, L3 51.94, alpha 40 deg, G1 6.17 match",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "correct",
+   "issues": [
+    "values R1 11.99, L1 37.84, L6 71.76, alpha 60 deg match; 60 deg shoulder visible",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "correct",
+   "issues": [
+    "values L1 43.49, L2 47.13, alpha 50 35'2\", H1 7.6 match; large r1/r2 roundings drawn",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "270_win": {
+   "verdict": "correct",
+   "issues": [
+    "values L1 49.49, L2 54.77, L3 64.52, alpha 35 deg match",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "correct",
+   "issues": [
+    "values L1 51.5, L2 55.37, alpha 40 25'44\", P2 10.8 match",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "308_win": {
+   "verdict": "correct",
+   "issues": [
+    "values R1 12.01, L1 39.62, L2 43.48, L3 51.18, L6 71.12, alpha 40 deg match",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "correct",
+   "issues": [
+    "values L1 49.49, L2 53.56, L3 63.35, H1 8.63 match",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "correct",
+   "issues": [
+    "values L1 46.2, L2 48.9, alpha 38 12'6\", G1 8.22 match; alpha arrows small",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "correct",
+   "issues": [
+    "values L1 51.79, L2 54.22, alpha 34 56'57\", G1 9.3 match; alpha label crowded by extension lines",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "correct",
+   "issues": [
+    "values L1 30.5, L3 38.7, P2 10.07, alpha 32 46'0\" match; strong body taper and shoulder radii drawn",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "correct",
+   "issues": [
+    "values R1 14.93, L1 54.9, L3 69.2, alpha 39 59'49\" match; no r1 min published, sharp body-side corner",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "correct",
+   "issues": [
+    "belt drawn (groove, delta ramp to R3, belt to E, step to P1); R1 13.51, L1 55.78, L3 66.55, alpha 50 deg match",
+    "R3 not dimensioned (not required)",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "belt drawn; L1 51.82, L2 56.61, L6 83.57, P2 12.47 match",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "correct",
+   "issues": [
+    "rimmed, no groove, 10 58' shoulder; L1 59, L2 61.5, L3 74.7, P2 10.4 match",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)",
+    "alpha label placed inside the outside view below the neck line (no line crossed)"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "correct",
+   "issues": [
+    "rimmed, no groove; L2 55.36, L6 83.6, alpha 40 31'32\", R1 13.32 match",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  },
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": [
+    "tapered straight case with groove, rounded nose, seating 0.4 G1; R1 9.96, E1 8.79, L3 19.15, L6 29.69 match"
+   ]
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": [
+    "rimless straight case with groove and ramp, rounded nose; R1 12.19, E1 10.16, L3 22.81 match",
+    "R label sits between two length dimension lines, its leader crosses the inner one (minor, still legible)"
+   ]
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": [
+    "flat-nose cone with 0.55 G1 meplat; R1 10.77, E1 8.81, L3 21.59, L6 28.83 match"
+   ]
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": [
+    "rimmed straight case, rounded nose; R1 11.18, R 1.5, L3 29.34, L6 39.37 match"
+   ]
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": [
+    "rimmed, semi-wadcutter cone with 0.6 G1 meplat; R1 11.18, L3 32.77, L6 40.39 match",
+    "R label sits between two length dimension lines, its leader crosses the inner one (minor, still legible)"
+   ]
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "rimmed, semi-wadcutter cone; R1 13.06, L3 32.64, L6 40.89, G1 10.97 match",
+    "R label sits between two length dimension lines, its leader crosses the inner one (minor, still legible)"
+   ]
+  },
+  "22_long_rifle": {
+   "verdict": "partly",
+   "issues": [
+    "outside view has no line at the case mouth: case and heeled bullet merge into one outline",
+    "half-round rim, heel at inside diameter in section, solid rimfire head without pocket; R1 7.06, R 1.09, L3 15.57, L6 25.4 match"
+   ]
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": [
+    "half-round rim, straight case, rounded nose; R1 7.47, L3 26.8, L6 34.29, G1 5.7 match",
+    "R label sits between two length dimension lines, its leader crosses the inner one (minor, still legible)"
+   ]
+  },
+  "17_hmr": {
+   "verdict": "correct",
+   "issues": [
+    "bottleneck rimfire, 50 deg shoulder, pointy bullet with meplat; L1 22.2, L2 23.54, L3 27.03 match",
+    "R label sits between two length dimension lines, its leader crosses the inner one (minor, still legible)",
+    "diameter dimensions P1..G1 stacked at the far right; their long extension lines run across the neck and bullet nose (minor)"
+   ]
+  }
+ },
+ "print": "The print view keeps every drawing label legible and the title block, but the drawing fills only about half the page width instead of full width, and the source footer overprints the last table row (delta L).",
+ "summary": "23 of 25 drawings are correct, scaled cartridges with the right family, bullet seating, hatched section and record values; 2 are partly (.223 Rem. R label on the section, 22 Long Rifle outside view without a mouth line). The recurring weakness is layout: diameter dimensions stacked at the far right with long extension lines across the bullet, and the R label crowded between length dimension lines."
+}

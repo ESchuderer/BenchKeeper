@@ -1,0 +1,54 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.4355661999999998,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 3,
+      "simplicity": 5,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Almost every point in the brief is met. List with 'Cartridges' heading, name links, family, L3 and '<n> cartridges' (list.jpg, app.js:34-80). Search covers name and alternative names, and the Family select is there (format.js:118-126). The detail view has the meta list with the water-capacity source link (format.js:92-112), tables grouped by section with Symbol/Value/Unit (app.js:117-143), Print and 'All cartridges', and a hash route that survives reload (app.js:185-197). The SVG is named '<name> drawing' (drawing.js:369-376) and has every required dimension, α, the title block with scale, the hatched section and a dash-dot centre line. Missing values are listed under the drawing (338 Lapua 'r1 min missing'). Print fits one A4 page (print-308_win.jpg). Partly met: (1) labels for short cases get pushed away from their dimension lines. In detail-9_mm_luger.jpg 'L3 19.15 -0.25' sits left of the head, apart from its line, and 'R 1.27' sits under the L3 line. (2) The drawing fits a phone, but there the labels are very small (tests/out/s-mobile.png).",
+      "correctness": "The geometry follows the rules. Rim type is at geometry.js:46-54. Chamfer is min(f·tanβ, R1/4) (136-140). The rimfire half-round has radius min(R/2,(R1-P1)/2) (121-131). Groove and belt ramp use dz=(R3/2-E1/2)/tanδ (151-193). The shoulder is drawn through the published points with r1 min/r2 fillets (230-260). Seating depth and k factors are in the NOSE table (20-25). The tangent ogive uses the stated ρ with its centre on the start radial (301-311). Heeled bullets get case OD outside and case ID inside (329-331). Walls tn/tb blend across the shoulder, w=max(...) and pocket sizes match (349-402). The outlines agree with the reference drawings for 308, 300 WM (belt), 9 mm (taper, groove) and 22 LR (half-round rim, heeled bullet). Label values match the data, tolerances appear in labels ('L2 43.48 -0.2', 'R 1.4 -0.25'), and DMS angles are shown ('α 10°58'0\"'). Weaknesses: the α arc is drawn tiny at the body-side corner in the section half. It is almost invisible on the 9,3x74R shallow shoulder (detail-9_3_x_74_r.jpg). Angle rows show '40°' with unit 'deg', which repeats the unit.",
+      "security": "Every data string that goes into the SVG markup passes through esc() (drawing.js:22-24, 97-98, 350, 376), and the key is sanitised (drawing.js:360). The rest of the DOM is built with createElement/textNode (app.js:12-22). The capacity link only accepts http(s) (app.js:88). A CSP meta tag sets default-src 'none' (index.html:6). There is no eval and no network request; the e2e test checks for requests (app.test.js:49).",
+      "code_quality": "Clear split into data/format/geometry/drawing/app modules. UMD wrappers let Node tests run the real code. The `[z, r]` convention is documented (geometry.js:8-9). Error paths produce notes instead of throwing. Drawbacks: drawing.js has dense one-line logic and many magic offsets (e.g. 182-187, 337-341). The label-placement fallbacks are hard to follow, and the `unplaced` labels are dropped silently at runtime (drawing.js:364, only checked in tests).",
+      "tests": "The unit tests check each geometry rule against hand-computed values: rim types including the rebated boundary, chamfer, groove, belt ramp, rimfire half-round, fillets, every nose shape with seat and k, the ogive radius and centre, heel, walls, w, and pocket sizes (geometry.test.js). They also cover formatting, tolerances, DMS, search and filter (format.test.js), and data sync (data.test.js). Label overlap is checked for all 25 records both in the model and in a real browser (drawing.test.js:89-102, app.test.js:102-112). There are e2e tests for file:// and http, reload, phone width, and the light/dark background. Every record is printed to PDF and asserted to be one A4 page, black on white, with no nav (print.test.js). The tests did not catch the skip-link routing bug or the detached labels.",
+      "ux_design": "The tables are dense and calm, with tabular numbers. Tolerances appear in small muted text, and section headings are compact (detail-308_win.jpg). The print sheet is very good: the meta grid is spread across three columns, the drawing spans the width, the tables are in four columns, and there is a footer (print-308_win.jpg). Dark mode is coherent (tests/out/s-detail-dark.png). Weaknesses: label font size is fixed at 2.4 mm in a viewBox that is scaled to the panel. On small cartridges the labels and title block therefore dwarf the part: in detail-22_long_rifle.jpg and detail-44_rem_mag.jpg the title block is bigger than the cartridge. Label association is ambiguous on 9 mm Luger. On a phone the labels shrink to a few pixels.",
+      "accessibility": "Good: the SVG has role=img with title+desc, named '<name> drawing' (drawing.js:374-376). Tables have th scope=col and aria-labelledby. Search and Family have real labels. The count uses role=status. Focus moves to h1 on route change (app.js:178-181), there is a visible :focus-visible outline, 44 px controls, and muted text contrast is about 6:1. Defect: the skip link href='#main' (index.html:12) fires hashchange, and route() renders 'Cartridge not found' for any unknown hash (app.js:192-196). A keyboard user's first Tab+Enter therefore throws away the page.",
+      "simplicity": "No runtime dependencies and plain script tags. The only dev dependency is Playwright. About 1100 lines of JS fit a drawing engine with label placement. The data.js generator is a small dev script. There is no needless abstraction.",
+      "maintainability": "The README covers use, the layout table, dev commands, how to install Playwright Chromium, and a list of the decisions it made. There is a package-lock, the tests run on the Node test runner, and data.js is checked to match its source. Missing: no CI configuration, no engines field or .nvmrc for Node 22, a caret Playwright range, and no release or changelog approach beyond version 1.0.0. The README points to an 'openspec/' spec folder that holds only .gitkeep, and there are no ADRs.",
+      "visual_design": "The system font with a monospace for symbols, a muted palette, thin rules and uppercase micro-headings make it look like a finished technical reference (detail-300_win_mag.jpg). Line weights in the drawing are differentiated: outline 0.3, dimension lines 0.12. Inconsistency: the drawing's label scale changes from one cartridge to the next. Labels look huge and crude on short cases (detail-9_mm_luger.jpg) compared with rifle cases.",
+      "layout": "The hierarchy is correct: toolbar, title, meta, drawing, then tables grouped as cartridge then chamber, with a source footer. The list is a clean three-column table with right-aligned L3. There is no overflow at 375 px (tested). Weaknesses: the drawing panel on small cartridges spends most of its area on the title block and blank space. The R and L3 labels on the 9 mm Luger are placed where they read as belonging to the wrong lines.",
+      "usability": "Search filters as you type and ignores case and spacing ('7,62x51' works). The family select, the count, and links on names work as expected. The back link and the Print button are prominent. Deep links survive reload. An unknown key shows a clear not-found page with a way back. The drawing on a phone needs zooming to read. The skip link breaks the page.",
+      "reception": "Reloaders and engineers would find the data trustworthy: values are shown as published, tolerances sit next to their values, angles are shown in DMS, the C.I.P. source and revision are given, and missing values are stated openly. The print sheet is the sort they would pin up. The oversized labels and title block on pistol and rimfire drawings, and the detached L3 label on the 9 mm, look less polished next to the OpenBallistics references."
+    },
+    "unmet_requirements": [
+      "Labels sit apart from their dimension lines on short cases: in detail-9_mm_luger.jpg 'L3 19.15 -0.25' is far left of the head and 'R 1.27' sits under the L3 line (only partly meets 'each is labelled with its symbol and value')",
+      "The drawing scales to phone width, but its labels become barely legible there (tests/out/s-mobile.png)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Geometry follows every drawing rule and is backed by unit tests with hand-computed values. Outlines match the reference drawings for the rimless, belted, straight-taper and heeled-rimfire families.",
+      "Printing is exactly one A4 page, black on white, for all 25 records, and a PDF-based e2e test checks it.",
+      "Safe and lean: no dependencies, a CSP, escaped SVG text, and a label-overlap check against all 25 drawings in a real browser."
+    ],
+    "issues": [
+      "The skip link (index.html:12, href='#main') triggers the hash router, which renders 'Cartridge not found' (app.js:192-196). Keyboard users lose the page on their first action.",
+      "The label font is a fixed 2.4 mm in a viewBox scaled to the panel. On short cases the labels and title block are oversized, and the fallback placement separates labels from their lines (9 mm Luger L3/R). On a phone the labels shrink to a few pixels.",
+      "Maintainability gaps: no CI, no Node version pin, a caret Playwright range, and the README points to an openspec spec folder that is empty."
+    ],
+    "verdict": "This is a careful, well-tested build: the geometry is faithful to the rules and the references, values are shown as published, and the print sheet fits one A4 page. Before publishing, fix the skip link that breaks routing and make the drawing labels scale with the part and stay next to their dimension lines."
+  }
+}

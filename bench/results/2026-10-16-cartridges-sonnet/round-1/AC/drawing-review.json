@@ -1,0 +1,147 @@
+{
+ "arm": "AC",
+ "counts": {
+  "correct": 8,
+  "partly": 17,
+  "wrong": 0
+ },
+ "score": 16.5,
+ "drawings": {
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_long_rifle": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "223_rem": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "243_win": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "270_win": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "308_win": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  },
+  "17_hmr": {
+   "verdict": "partly",
+   "issues": [
+    "shoulder angle alpha given only as a leader callout to the shoulder, no angular dimension line with arrowheads and extension lines"
+   ]
+  }
+ },
+ "print": "Header with the name, info grid, the drawing with every label legible in black on white, title block, cartridge and chamber tables and a source footer; the drawing spans only about half the page width instead of full width.",
+ "summary": "All 25 drawings are proper true-to-scale cartridges of the right family with outside view, hatched section, correct bullet seating and dimension values matching the record, without overlapping labels. The recurring error is the shoulder angle on all 17 bottleneck cases, given as a leader callout instead of an angular dimension."
+}

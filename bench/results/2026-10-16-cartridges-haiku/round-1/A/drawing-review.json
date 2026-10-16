@@ -1,0 +1,194 @@
+{
+ "arm": "A",
+ "counts": {
+  "correct": 22,
+  "partly": 3,
+  "wrong": 0
+ },
+ "score": 23.5,
+ "drawings": {
+  "223_rem": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "243_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "270_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "308_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "correct",
+   "issues": [
+    "belt drawn to E 5.59; R3 not dimensioned (not required)",
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "belt drawn to E 5.59",
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "correct",
+   "issues": [
+    "rimmed, no groove with note on missing E, E1 (rule 9)",
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "correct",
+   "issues": [
+    "rimmed, no groove with note on missing E, E1 (rule 9)",
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": [
+    "L3 label sits under its own line, tight against the L6 label",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": [
+    "L3 label sits under its own line, tight against the L6 label",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": [
+    "L3 label sits under its own line, tight against the L6 label",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "38_special": {
+   "verdict": "partly",
+   "issues": [
+    "note 'extractor groove not drawn: E, E1 not published' struck through by the title block frame",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "357_magnum": {
+   "verdict": "partly",
+   "issues": [
+    "note 'extractor groove not drawn: E, E1 not published' struck through by the title block frame",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "44_rem_mag": {
+   "verdict": "partly",
+   "issues": [
+    "note 'extractor groove not drawn: E, E1 not published' struck through by the title block frame",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "22_long_rifle": {
+   "verdict": "correct",
+   "issues": [
+    "heeled bullet shown in section",
+    "L3 label touches the L3 extension line and crowds the L6 label",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": [
+    "half-round rim, no pocket",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  },
+  "17_hmr": {
+   "verdict": "correct",
+   "issues": [
+    "bottleneck rimfire with half-round rim",
+    "alpha labelled by a leader only, no angular dimension arc",
+    "diameter dimensions stacked right of the bullet tip with long extension lines across bullet and outline"
+   ]
+  }
+ },
+ "print": "Print is black on white with the drawing at full width and legible labels, but the source footer is printed mid-page over the chamber Barrel table header.",
+ "summary": "All 25 drawings are true-to-scale cartridges of the right family (rimless, rimmed, belted, rimfire, bottleneck or straight) with outside view, hatched section with primer pocket, brief-conform bullets and values that match the records. Recurring weaknesses are the shoulder angle shown only as a leader label and all diameter dimensions stacked right of the bullet with long extension lines; on three revolver cases the missing-groove note is struck through by the title block frame."
+}

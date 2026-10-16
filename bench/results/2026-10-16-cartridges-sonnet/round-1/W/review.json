@@ -1,0 +1,54 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.8731984000000002,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 5,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Met: the list has the heading, name links, family, L3, a Search field that also matches alternative names, the Family select and the '<n> cartridges' count (app.js:38-57, catalogue.js; list.jpg). The detail view has every listed fact, including water capacity with its note and source link (format.js:63-86), tables grouped by section with Symbol/Value/Unit and tolerances inline ('39.62 -0.2', '1.09 -0.18' in the screenshots), Print and All cartridges, and a hash route that survives a reload (app.js:153-163). The drawing is an inline SVG at 1 unit = 1 mm with the outside view above, a hatched section below, a dash-dot centre line, a title block and notes for missing values (17 HMR, 338 Lapua). Print is one A4 page, black on white, with the footer (print-308_win.jpg). Partly met: α is a leader callout with one arrowhead (layout.js:266-274), not a dimension with extension lines as the brief asks. The README admits the deviation. The print footer is the last line of the content flow, not a page footer.",
+      "correctness": "The geometry follows the rules and the unit tests check them with hand-computed values (geometry.test.mjs): chamfer c=min(f·tanβ,R1/4); rimfire half-round of radius min(R/2,(R1-P1)/2) at R1/2; groove E1/e min/ramp; belt ramp at δ ending at R3/2 then to E (300 WM: zEnd 3.238); shoulder through the published points with tangent fillets clamped and noted; tangent ogive ρ checked (43.8976 for 308); seating, k and meplat per shape and category; heeled 22 LR with the exposed part at H2 and the heel at H2-2tb; tn/tb, w and primer pockets. The outlines match the references in proportion (308, 300 WM belt, 9 mm, 22 LR). Deviations: on straight cases the wall tapers from tb to tn (a documented interpretation); the inner line ignores the fillets; angles show a zero part as '10°58'0\"'. The printed 308 fits one A4 page, and an e2e test prints all 25 to PDF and counts pages.",
+      "security": "All data goes through textContent or setAttribute (app.js:9-18, drawing.js:16-21,105,118). There is no innerHTML, no eval and no fetch. static.test.mjs bans network APIs and remote URLs, and delivery.spec.mjs checks that only file:// or same-origin requests are made. The external source link uses rel=noopener noreferrer.",
+      "code_quality": "Clear modules: format, catalogue, geometry, layout, drawing, app. Geometry and layout are pure and testable, missing values are handled explicitly with notes, and names are good. The 2^n search in placeUpperLabels (layout.js:62-112) is dense, and some lines are very long (app.js:65, drawing.js:66). Overall it is tidy and fits the task.",
+      "tests": "Thorough: unit tests check every geometry rule against hand-computed points, removing each field one at a time to confirm nothing throws or turns into NaN, label collisions on all 25 records with an independent implementation, data sync, formatting and the static no-network lint. The e2e tests cover list and search, routing and reload, file:// and HTTP delivery, real-font label overlap, A4 single-page PDF for all 25 records, print colours, phone width with no horizontal scroll, touch targets, and contrast in light and dark.",
+      "ux_design": "Dense, calm technical presentation: tabular right-aligned numbers, compact section tables (detail-308_win.jpg), and an excellent print page. Weak points: short cartridges sit in a frame at least 96 mm wide, so 9 mm and 22 LR fill about a third of the frame while labels are nearly as tall as the case diameter (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg). The title block is oversized and its text is larger than the dimension labels. Dark mode is not in the screenshots but is tested.",
+      "accessibility": "The SVG has role=img and aria-label '<name> drawing'. Tables use th scope=col/row and value tables are labelled by their h3. Search and Family have real labels, and the count is a role=status live region. Focus moves to h1 on navigation, focus-visible outlines are present, and contrast ≥4.5 and 44 px touch targets are tested (style.spec.mjs). There is no skip link, and the drawing has no longer text description beyond the tables.",
+      "simplicity": "No runtime dependencies and plain classic scripts, about 1000 lines of app code. The dev dependencies are only jsdom and playwright. The data is generated into a script so it works from file://, which is justified in the README.",
+      "maintainability": "The README covers opening the app, the file map, test commands, display conventions and how the drawing rules were read. There is a lockfile, the version is 1.0.0, and a test keeps data.js in sync. Gaps: no CI configuration; no engines field or .nvmrc despite Node 22; the README points to openspec/changes/cartridge-database/design.md, which is not in the repo; and a manual Chromium library workaround is only described in prose (tmp/env.sh holds machine paths, gitignored).",
+      "visual_design": "Consistent restrained palette, uppercase small-caps headings, aligned table cards and a blue dimension colour, all clean and finished. The heavy title block and the large empty frame areas on short cases look a little unbalanced. Print typography is crisp.",
+      "layout": "Heading, facts, drawing and tables appear in the order the brief gives, in a single 64 rem column with a 4-column card grid. Labels have no overlaps or clipping in any screenshot. The facts box pushes the drawing below the fold on a laptop. The drawing frame wastes horizontal space for short cases, and the tables leave ragged empty card space.",
+      "usability": "Instant search with decimal-comma normalisation. The family filter and search are kept when returning, as is the scroll position. The pages are bookmarkable, back and forward work, there is a no-match message and a not-found page, and Print is one click.",
+      "reception": "Reloaders and engineers would trust the precise values, the true-scale drawings that match the C.I.P. outlines, and the clean one-page printout. The undersized drawings of pistol and rimfire cases and the α callout instead of an angular dimension would read as slightly less professional than the OpenBallistics drawings."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α is shown as a leader callout with a single arrowhead, not as an angular dimension with extension lines",
+      "Print footer is placed at the end of the content flow rather than as a page footer (minor)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Drawing geometry implements every rule (chamfer, rimfire half-round, groove, belt, shoulder fillets, tangent ogive, heeled bullet, walls, pocket) and checks it against hand-computed values",
+      "Outstanding test suite: label collisions with real font metrics, single-page A4 PDF for all 25 records, file:// and HTTP delivery, contrast in light and dark, phone width",
+      "Safe, dependency-free plain HTML/CSS/JS with clean value tables and an excellent black-on-white print page"
+    ],
+    "issues": [
+      "Short cartridges (9 mm Luger, 22 LR, 44 Rem. Mag.) are drawn small inside a frame at least 96 mm wide, with labels and an oversized title block that dominate the part",
+      "α is a callout rather than a true angular dimension with extension lines; the inner section line ignores the fillets",
+      "Maintainability gaps: no CI, no pinned Node version, the README references a missing design document, and the Chromium setup is a manual step"
+    ],
+    "verdict": "A careful, well-tested build that meets almost every rule in the brief, with drawings true to scale against the references and a print view that fits one A4 page. Before publishing it needs a better-proportioned drawing frame for short cases, a proper angular dimension for α, and a CI pipeline."
+  }
+}

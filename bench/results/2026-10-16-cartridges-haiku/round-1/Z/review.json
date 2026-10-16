@@ -1,0 +1,58 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.2007948,
+  "review": {
+    "scores": {
+      "requirements": 3,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Most of the brief is met. Start page: heading, name links, family, L3, Search and Family labels, live '<n> cartridges' (list.jpg, app.js:45-94). Detail view: all the facts, water capacity with source link, Symbol/Value/Unit tables grouped by section, Print button, 'All cartridges' link, and a bookmarkable hash route (app.js:155-222). The SVG is 1 unit = 1 mm with an accessible name, an outside view over a hatched section, a dash-dot centre line, and every required dimension. Print is one A4 page (print-308_win.jpg). Unmet or partly met: (1) The title block states 'Scale 1:1 (1 mm = 1 unit)' (drawing.js:307), but the SVG is stretched to 100% width (app.css:90), so neither the screen nor the print is 1:1. The scale shown is wrong. (2) The title-block text is clipped on short cartridges: 'Scale 1:1 (1 mm = 1 uni' in detail-9_mm_luger.jpg and '(1 mm = 1' in detail-22_long_rifle.jpg. The bottom of the frame is cut off in detail-9_3_x_74_r.jpg because the rect ends exactly at the viewBox edge (drawing.js:285-287). (3) The α dimension is not drawn at the shoulder. Its arc sits at half the distance to the cone apex (drawing.js:138-162), inside the neck or bullet, and on 9,3 x 74 R it lands on the bullet nose. Its leader crosses the outline and the L3/L6 lines (detail-308_win.jpg, detail-9_3_x_74_r.jpg). (4) On straight cases the wall is blended from tb to tn over the whole body (geometry.js:359-362) rather than tb along the body as the rule says. (5) Phone use is not shown, and the process artefacts the brief asked for (spec, docs) are absent.",
+      "correctness": "The geometry follows the rules closely. Rim type uses the stated thresholds (geometry.js:38-49). The chamfer uses min(f·tanβ, R1/4) (geometry.js:249-253). The rimfire half-round has radius min(R/2, (R1-P1)/2) with its outermost point at R1/2 (geometry.js:232-242). The groove floor and ramp are correct, and the belt ramp is at δ to the axis up to R3/2, then out to E (geometry.js:268-293). Shoulder corners are filleted with r1 min and r2 (geometry.js:307-308). Seating depth s, k and m follow the table for each nose shape, the tangent-ogive ρ and centre are correct, the rounded nose is a quarter ellipse, and flat and semi-wadcutter noses are cones (geometry.js:140-175). The heeled bullet uses H2 outside and H2-2tb inside (geometry.js:176). tn, tb, w and the primer-pocket table are all correct (geometry.js:52-53, 337-372). Proportions match the references: 308 shoulder and neck, 300 Win. Mag. belt flush with the rim, tapered 9 mm, heeled 22 LR (detail-*.jpg against reference/*.png). Values and tolerances match the data ('L1 39.62 -0.2', 'R 1.4 -0.25'), and angles show as 10°58'00\". Print fits one A4 page. Deductions: the α annotation is misplaced, the stated 1:1 scale is false, and the wall is blended on straight cases.",
+      "security": "All data goes into the DOM through textContent and createElement (app.js:19-33). The only innerHTML is the generated SVG (app.js:127), and every text in it passes escapeXml (drawing.js:318-320, 328-356). There is no eval, Function or fetch, and no external resources. Data is a local script (data/cartridges.js) that works over file://.",
+      "code_quality": "Small modules with clear jobs: format, geometry, drawing, catalog and app. Each uses a UMD wrapper so it runs both in Node and in the browser. Names are clear, missing values are handled explicitly with named messages, and a malformed hash is caught (catalog.js:44-48). Weak points: computeDrawing is about 260 lines with nested closures (drawing.js:46-311). Some hard-coded layout constants (colStart, step = 12, the rowY lanes) give the stacked, far-right diameter columns. There is a trivial valueText wrapper (drawing.js:29-31).",
+      "tests": "There are 38 node:test cases across 4 files (`npm test`). They check rim-type thresholds, chamfer, groove points, belt ramp end and w, rimfire half-round radius, heeled diameter, pocket table, the pointy ρ formula and meplat, pistol rounded s/k/m, missing-value handling, no negative radii, bullet against wall, label collisions for all 25 records, label text with tolerance, tolerance never shown as a row, angle formats, symbols, units, search with '7,62 x 51', family counts, and routes. Not tested: flat and semi-wadcutter bullets, rifle rounded bullets, shoulder fillets, the rebated profile through buildGeometry, title-block fit, the DOM detail view, print and file:// loading.",
+      "ux_design": "The tables are dense, calm and right-aligned with tabular numbers, and the list is clean (list.jpg). The print layout is good: a two-column facts block, the full-width drawing, three columns of tables and a footer (print-308_win.jpg). The drawing is the weak point. The SVG always fills the full width, so label and title-block size depends on cartridge length: small on 308 and huge on 9 mm and 22 LR, where the title block runs past its frame. Diameter dimensions sit in a row of columns to the right of the bullet, joined by long horizontal extension lines that run along the whole case outline. Both references dimension diameters at the feature instead. The α leader comes down from the top through the dimension stack. No dark-mode screenshot, but the CSS variables support it (app.css:20-33).",
+      "accessibility": "The SVG has role=img, aria-label '<name> drawing' and a <title> (drawing.js:327-329). Tables use th scope=col. Search and Family are real labels wrapping their controls. The count is aria-live. There is a :focus-visible outline (app.css:42-45), and lang=en. Muted text #5f6368 on #fbfbf9 meets contrast. The text alternative gives only the name, though the tables carry the values. The group tables have no caption tied to their h3. There is no skip link.",
+      "simplicity": "Plain HTML, CSS and JS, with no runtime or dev dependencies (package.json only runs node --test). About 1100 lines of app code for a fairly involved geometry and label-placement problem, with no needless layers.",
+      "maintainability": "There is no README, no docs, specs or ADRs, no CI configuration, no Node version pin (no engines field, no .nvmrc) and no changelog or release approach. package.json says 1.0.0 and has a single test script. Header comments explain each module, and the unit tests serve as regression coverage. Even so, a new developer would have to work out how to run the app and why the layout and walls are done this way from the code alone.",
+      "visual_design": "System font, a sober palette and consistent spacing make the list and tables look finished (list.jpg, detail-300_win_mag.jpg). Inside the drawing, the monospace label size swings between pages (small in detail-308_win.jpg, oversized in detail-9_mm_luger.jpg and detail-44_rem_mag.jpg). The title block is out of scale with the rest of the page, and its text or frame is clipped on three pages. That makes the drawing look unfinished.",
+      "layout": "Toolbar, then heading and facts, then drawing, then two columns of tables. The order follows the brief and the hierarchy is clear. The tables use their two columns well. Inside the SVG the cartridge takes less than half the width: the rest is the diameter column stack and empty space. The title block overflows in detail-9_mm_luger.jpg and detail-22_long_rifle.jpg and loses its bottom frame in detail-9_3_x_74_r.jpg. On short cartridges the facts plus drawing push the tables well below the first screen.",
+      "usability": "Live search across alternative names (spaces and decimal comma normalised), a family select, a live count, and name links to hash routes that survive a reload. The filter state is kept when going back (app.js:17). A clear Print button and an 'All cartridges' link. Unknown keys get a not-found page with a way back. Few steps for every task. Missing-value notes appear under the drawing when they apply.",
+      "reception": "Reloaders and gunsmiths would trust the tables: complete, exact values with tolerances. The true-to-scale outlines match the OpenBallistics shapes. Engineers would notice the false 'Scale 1:1', the α arc floating inside the neck or on the bullet, the clipped title blocks and the oversized labels on pistol pages. They would likely use it again for the data but think twice before sharing the drawings."
+    },
+    "unmet_requirements": [
+      "The title block's scale is wrong: it states 'Scale 1:1 (1 mm = 1 unit)' (drawing.js:307), but the drawing is stretched to the page width on screen and in print",
+      "Title-block text is clipped on short cartridges (9 mm Luger, 22 Long Rifle), and the bottom of the frame is cut off on 9,3 x 74 R, so it is not fully legible",
+      "The shoulder angle α is not shown at the shoulder: its arc sits inside the neck or bullet (on the bullet nose for 9,3 x 74 R), and its leader and arrows cross the outline",
+      "Straight cases blend the wall from tb to tn over the whole body instead of keeping tb along the body (geometry.js:359-362)",
+      "Phone use is not shown: labels scale with the viewBox, so their size depends on cartridge length",
+      "The brief's process deliverables (spec, documentation) were not delivered; there is no README"
+    ],
+    "overall": 6,
+    "strengths": [
+      "The geometry engine follows the brief's rules faithfully (chamfer, groove, belt ramp at δ, rimfire half-round, filleted shoulder, tangent ogive, heeled bullet, walls, w, primer pocket), and outlines are true to scale against the reference drawings",
+      "Data presentation is exact and dense: values as published, tolerances next to their values, DMS angles, brief symbols and units, all sections in Symbol/Value/Unit tables; the print view fits one A4 page with a source footer",
+      "Safe and lean: no dependencies, DOM-built text, escaped SVG, works over file://, and meaningful unit tests including a label-collision check over all 25 records"
+    ],
+    "issues": [
+      "The drawing layout fails on short cartridges: the SVG always fills the width, so labels and the title block become oversized, and the title-block text overflows its frame (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg); diameter dimensions are stacked in far-right columns joined by long extension lines that run along the whole outline",
+      "Misleading engineering annotation: the title block claims 'Scale 1:1' while the drawing is scaled, and the α arc is drawn inside the neck or bullet rather than at the shoulder (on the bullet nose for 9,3 x 74 R)",
+      "Not maintainable from the repository: no README, docs, ADRs, CI or runtime pin; only a test script in package.json"
+    ],
+    "verdict": "The data handling and the rule-driven geometry are accurate, safe and well tested, and the print view fits one A4 page as asked. The drawing's presentation lets it down: a false 1:1 scale, a misplaced α, clipped and oversized title blocks on short cases, and an empty repository around the code; fix these before publishing to an engineering audience."
+  }
+}

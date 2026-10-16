@@ -4,7 +4,7 @@
 # In the container the installed copy of the skill gets `disable-model-invocation: true`, so the copy that run_eval
 # injects as a uniquely named command competes only with the sibling skills; one worker, so no other injected copy exists.
 # Usage: [RUNS=<runs per query, 3>] [TIMEOUT=<s per query, 90>] bench/scripts/trigger-eval.sh <collection> <model> <effort> [skill...]
-#   e.g. bench/scripts/trigger-eval.sh Ponytail claude-haiku-5-5 high
+#   e.g. bench/scripts/trigger-eval.sh Ponytail claude-sonnet-5-5 high
 # Queries: bench/triggers/<collection>.json (one run_eval eval set per skill). Results: bench/runs/triggers-<collection>-
 # <model>-<effort>-r<runs>-t<timeout>/ (or OUT): <skill>.json (run_eval output), <skill>.log, settings.json, manifest.txt;
 # resumable: skills with a result are skipped, and a resume with other settings is refused.

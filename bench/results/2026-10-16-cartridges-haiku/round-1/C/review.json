@@ -1,0 +1,56 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.296729,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 3,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Met: the start page has the heading, name links, family and L3, plus Search (alternative names), the Family select and the count (app.js:37-60, list.jpg). The detail view has the header fields, the water capacity with its source link and note, the Symbol/Value/Unit tables grouped by section with tolerances inline (format.js:46-70), Print, 'All cartridges', and a bookmarkable #/cartridge/<key> address (app.js:129-147). The drawing is an inline SVG at 1 unit = 1 mm with aria-label '<name> drawing', an outside view above, a hatched section below and a dash-dot centre line. It has every required dimension (308 screenshot shows L1, L2, L3, L6, R1, R, G1, H1, H2, E1, P1, P2 and α 40°), a title block, and a note listing missing values. Print is one A4 page. Partly met: (1) the title block says 'Scale 1:1' (drawing.js:393), but the SVG is width=100% and is never 1:1 on screen or on paper (about 1.4:1 in the A4 print), so the scale shown is false. (2) Legibility at phone width: label height is a fixed 3 mm on viewBoxes up to about 160 mm wide (9,3 x 74 R), which gives about 6 px text at 360 px. (3) countText gives '1 cartridge' instead of the brief's '<n> cartridges' (app.js:19), a small deviation. No unmet data rules.",
+      "correctness": "Geometry follows the rules closely. Rim type (drawing.js:21-27). Chamfer (r = R1/2 - min(f·tanβ, R1/4)) at z = 0 to (R1/2, f) (106-108). Rimfire half-round of radius min(R/2, (R1-P1)/2) (97-104). Groove floor and ramp (115-127). Belt ramp at δ to R3/2, then the belt to E (117-122). Shoulder through (P2/2, L1) and (H1/2, L2) with r1 min/r2 tangent fillets (133-152). Bullet s, k and m per shape; the tangent-ogive ρ matches the brief and closes exactly at L6 (171-211). Heeled exposed diameter H2 and heel H2-2tb. tn and tb, w, and the pocket tables (11-12, 253-261). The α arc is centred on the cone apex S and spans the included angle. 308 Win. and 300 Win. Mag. proportions match the reference drawings (detail-308_win.jpg against reference/308_win.png). Values in tables and labels match the records (4150, 39.62 -0.2, 71°25'59\", 1°45'00\"). Flaws: (1) Heeled 22 LR: tn = 0, so the inner wall blends to zero thickness at the mouth (drawing.js:158), while the heel is at H2/2 - tb. The section shows a wedge-shaped wall and a gap around the heel (detail-22_long_rifle.jpg), which contradicts 'the case's inside diameter'. (2) 'Scale 1:1' is false. (3) Diameter extension lines run from each feature across the whole part to columns past the tip (drawing.js:311-317). E1 and P1 extension lines lie inside or on top of the body outline in both halves (9_mm_luger and 308 screenshots), so it is unclear which line a diameter belongs to. (4) α is silently skipped if S is missing, which would not be reported. The print fits one A4 page (print-308_win.jpg).",
+      "security": "All data put into innerHTML goes through escapeHtml (app.js:22-35, 68-82). SVG text and attributes use svgEscape (drawing.js:70-72, 379-391). The test checks that '40 S.& W.' is escaped (drawing-svg.test.js:27-31). The dt terms in fieldList are constants. There is no eval, no Function and no fetch. The only external URL is the user-clicked source link. There are no CDNs or fonts.",
+      "code_quality": "Small, readable modules: format.js (formatting and tables), drawing.js (model, then render), app.js (routing and views). Pure functions are exported for tests. The drawing model is separate from rendering, and the missing-value collection is consistent. Weaknesses: a global-sharing hack for format.js (drawing.js:3-5), mixed var/const, magic layout offsets (rows at -Rh-4…-19, columns 8 mm apart, bounds y0 fixed), and the label box width is a char-count estimate. The size is appropriate for the task.",
+      "tests": "node:test suites cover the rim types, chamfer, rimfire half-round, groove, belt ramp, fillets and a fillet that does not fit, bullet base, cylinder and meplat for each shape, the heeled bullet, tn and tb, pocket sizes, w, missing values, the α arc span, title block text, escaping, the formatting and units rules, search and family filtering, and the count. A per-record test checks that labels are disjoint from each other and from the outline for all 25 records (drawing-labels.test.js). Gaps: no DOM, routing or print tests; the heeled-wall defect and the long extension lines are not caught; the 'Scale 1:1' assertion locks in a false label.",
+      "ux_design": "The list is dense and calm (list.jpg). The detail header is compact. Problems: on desktop the drawing is a thin strip, while label and title block text are oversized for small cases. For 22 LR and 44 Mag the title block text is larger than the page heading, and empty rows reserved for L1 and L2 leave blank space (detail-22_long_rifle.jpg, detail-44_rem_mag.jpg). Diameters are dimensioned far from their features through long parallel extension lines, which is hard to read and unlike the reference style. On screen the tables are two wide columns, with each symbol far from its value and a lot of whitespace. Print is well organised in four columns, but the th text is larger than the 7 pt data (styles.css:44 against 97). Dark mode exists only in CSS; there is no screenshot of it.",
+      "accessibility": "The SVG has role='img' and aria-label '<name> drawing'. The tables use thead/th. The search input and select are wrapped in labels, there is a role='search' form, lang='en', native links and button, and the default focus ring is kept. Contrast of muted #5d636b on #fbfbf9 is about 6:1. Gaps: there is no long description of the drawing; tables have no caption or scope and are tied to their h3 only by position; the count has no aria-live; focus is not moved to the new heading on hash navigation (app.js:146); and some labels are very small on phones.",
+      "simplicity": "No runtime dependencies, no build step, four scripts and one CSS file, and the drawing logic is about 400 lines. Tests use only the Node built-in runner.",
+      "maintainability": "There is no README, no run or test instructions, no CI configuration, no ADRs, no engines or Node version pin, and no changelog or versioning beyond '1.0.0' in package.json. On the plus side there are OpenSpec specs for the catalogue, the detail view and the drawing, which document behaviour and some decisions (for example the straight-case wall blend and the 88 mm print height cap), and a regression suite exists (`npm test`). A new developer would have to infer how to open and run the app.",
+      "visual_design": "Neutral system font, restrained palette, consistent rules and tabular numbers; it looks tidy (list.jpg, detail-308_win.jpg). The drawing is clean black line work with hatching. The scale of drawing text is inconsistent between cartridges: label and title text are huge on 22 LR and 9 mm Luger and small on 308 and 9,3 x 74 R. The tiny R dimension arrows bunch up at the rim. Table headers are muted grey and small. Overall it is finished but plain.",
+      "layout": "Hierarchy is correct: back link and Print, name, metadata, drawing, then the tables (all detail screenshots). Problems: the drawing occupies little height on wide screens, and straight cases leave unused vertical space above the case. The diameter columns push the drawing width far past the tip. On screen the tables leave large empty gaps where one table in a row is short (Collar beside Case head). Print layout is compact and fits on one page with no clipping (print-308_win.jpg). No label overlaps are visible.",
+      "usability": "Live search with alternative names, a family filter and a count. Names are links. The back link keeps the search and filter state (catalogueState). Addresses are bookmarkable and there is a 'Cartridge not found' page. Print takes one click. Reading a diameter off the drawing requires tracing long extension lines to a column past the tip, and the list has no sorting.",
+      "reception": "Reloaders and engineers will find the data complete and correctly formatted, and the print sheet useful. But a technical audience will notice the false 'Scale 1:1', the zero-thickness mouth on the 22 LR section, and the unusual remote diameter dimensioning, which reduces trust in the drawing as a reference. The look is credible but not polished to drafting standards."
+    },
+    "unmet_requirements": [
+      "Title block scale: shows 'Scale 1:1' although the SVG is scaled to the container width and is never 1:1 on screen or in print",
+      "Heeled case section (22 LR): the case wall blends to zero thickness at the mouth (tn = 0), so the heel at H2 - 2·tb does not match the case inside diameter",
+      "Drawing at phone width: fixed 3 mm labels on viewBoxes up to about 160 mm wide give text of about 6 px, of doubtful legibility",
+      "Count text reads '1 cartridge' for n = 1 instead of '<n> cartridges' (minor deviation)"
+    ],
+    "overall": 6,
+    "strengths": [
+      "The drawing is computed faithfully from the brief's rules (chamfer, groove, belt at δ, fillets, tangent ogive, heel, walls, pocket, α arc about the cone apex) at 1 unit = 1 mm, and 308 Win. and 300 Win. Mag. match the reference proportions",
+      "Data presentation is exact: published numbers, inline tolerances, DMS angles, the required symbols and units, escaped output, and a print sheet that fits one A4 page in black on white",
+      "A lean dependency-free implementation with meaningful node:test coverage of the geometry rules and a label-collision check across all 25 records"
+    ],
+    "issues": [
+      "Drawing readability and drafting quality: diameters are dimensioned in columns past the tip, with extension lines running through or onto the part outline; label and title text are oversized on small cases and small on long ones; empty rows are reserved on straight cases",
+      "Factual drawing errors: 'Scale 1:1' is false, and the 22 LR heeled section draws a case wall tapering to zero at the mouth with a gap around the heel",
+      "Maintainability: no README, run instructions, CI, ADRs or Node version pin; only the OpenSpec specs and the test script document the project"
+    ],
+    "verdict": "A careful, dependency-free implementation that applies the brief's geometry and formatting rules well, has good unit tests, and produces a clean one-page A4 print. Before publishing to a technical audience it needs a truthful scale label, a corrected heeled-case section, diameter dimensions placed next to their features, and basic repository documentation and CI."
+  }
+}

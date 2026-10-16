@@ -1,0 +1,59 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.2309991999999998,
+  "review": {
+    "scores": {
+      "requirements": 3,
+      "correctness": 3,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 3,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Most of the brief is met. The list has the heading, links whose text is exactly the record name, Search over name and alternative names, the Family select and '<n> cartridges' (app.js:20-57, list.test.js:18). The detail view has the meta list, the source link, the drawing, Symbol/Value/Unit tables per section, Print, 'All cartridges' and a bookmarkable #/cartridges/<key> route (app.js:91-153). Partly met or unmet: (1) 'Labels do not overlap' fails: on detail-44_rem_mag.jpg 'H2 11.58' sits on the L3 arrowhead, because arrowheads are not obstacles (drawing.js:196-203). (2) The α dimension has no arrowheads. Its arc nearly coincides with the H1 line (detail-300_win_mag.jpg), and the label is a fixed text below the shoulder (drawing.js:186). (3) The title block says 'Scale 1:1' (drawing.js:233), which is false on screen and in print. (4) Rule 9 is not applied to fillets: 338 Lapua has no r1Min and 17 HMR has no r1Min/r2, yet nothing is reported (geometry.js:219-220; fillet() silently returns the corner). (5) Print: the drawing is capped at max-height 85mm (styles.css:348), so in print-308_win.jpg it fills only about two thirds of the width, not 'full width'. (6) Rule 8: on straight cases the wall blends linearly from tb to tn over the whole body (geometry.js:226) rather than keeping tb along the body.",
+      "correctness": "The rule conversion is correct where tested. Chamfer, groove floor/ramp, the belted ramp at δ to R3/2, the rimfire half-round, the fillets, the seating depths and k factors, the tangent-ogive ρ and centre, the quarter-ellipse and cone noses, and the pocket sizes and w all match the brief (geometry.js:80-237; I checked the ogive endpoint algebra). Outlines and proportions match reference/308_win.png, 300_win_mag.png, 9_mm_luger.png and 22_long_rifle.png. Values come straight from the record via String() with tolerances ('L1 39.62 -0.2') and angles in DMS ('10°58'00\"'). Defects: (1) Heeled 22 LR: tn = 0, so the inner wall tapers to zero at the mouth (geometry.js:226), while the heel is drawn at H2-2tb (geometry.js:129). The section shows a heel that does not meet the wall (detail-22_long_rifle.jpg). (2) The α arc is centred on the cone apex with the radius to the neck corner (drawing.js:95-105), so it runs almost along the H1 line and is unreadable. (3) 'Scale 1:1' is wrong. (4) The H2 label overlaps an arrowhead on 44 Rem. Mag. (5) Fixed 2.2 mm arrowheads swamp small cases: the H2 and G1 arrows overlap each other on 22 LR. The print fits one A4 page (print-308_win.jpg).",
+      "security": "All data reaching innerHTML goes through esc() (app.js:13-14, 51-53, 76, 87, 101-112). SVG text and the aria-label are escaped (drawing.js:18-19, 255, 263), and a test covers '40 S.& W.' (drawing.test.js:57-61). Source URLs are linked only if they match http(s) (app.js:65). There is no eval, no fetch and no external resources (index.html loads only local files; the favicon is data:,).",
+      "code_quality": "There are six small classic scripts in one namespace with clear roles: data, format, list, geometry, drawing, app. Functions are well named (rimTypeOf, fillet, splitAt, bulletSpec, planDrawing, toSvg), and comments state the coordinate conventions (geometry.js:1-2, drawing.js:1-3). The tested geometry model is kept apart from the SVG output. Missing values give a model.ok=false path and notes (app.js:85-87). Weaknesses: planDrawing is a long function of about 130 lines with many magic layout constants. esc() is duplicated in app.js and drawing.js. The label-collision model leaves out the arrowheads.",
+      "tests": "There are node:test suites for format (symbols, units, tolerances, DMS), list (alternative-name search, family counts, combined filters) and geometry: one test per drawing rule (chamfer, groove, belt, rimfire rim, shoulder fillets, pointy ogive ρ, rounded pistol bullet, heeled bullet, walls, w and pocket, missing eMin, monotone outline for all 25). drawing.test.js checks the 308 label texts, published-only dimensions, label overlap across all 25 records, and the SVG title block and accessible name. Gaps: the overlap test leaves out arrowheads, so it passes while 44 Rem. Mag. overlaps. There are no DOM, routing, print, count-text or detail-view tests, no data-integrity test against the brief, and no tests for flat/SWC noses, rimmed or rebated drawing, or straight-case walls.",
+      "ux_design": "The list page is dense and calm, with tabular figures and right-aligned L3 (list.jpg). The detail tables are well grouped, with Cartridge and Chamber side by side. Problems in the drawing: labels are detached from their dimensions. Axial labels sit left of the head. Diameter labels land wherever the search finds space, often inside the part outline ('P1 11.96' and 'H1 8.72' in detail-308_win.jpg; 'G1 9.3' inside the bullet in detail-9_3_x_74_r.jpg) or one lane away ('H2 9.65' on the L6 lane in detail-9_mm_luger.jpg). The title block is drawn in mm units, so on short cartridges its text is about 40 px and the box is larger than the drawing (detail-22_long_rifle.jpg, detail-9_mm_luger.jpg). The α marking is illegible. The print layout is compact and fits one page. Dark mode is defined in CSS but not shown.",
+      "accessibility": "The SVG has role=img and aria-label '<name> drawing' (drawing.js:263). The inputs are wrapped in labels and the form has role=search (app.js:22-26). The count has aria-live=polite. All tables use th scope=col and scope=row (app.js:30, 74-76). The detail meta is a dl. There is :focus-visible styling (styles.css:68-71), lang=en, and adequate contrast (muted #5d636b on #f7f6f2). There is no focus management or skip link on hash navigation, the drawing has no longer text alternative beyond its name, and the tables have no captions linking them to their h3.",
+      "simplicity": "Plain HTML, CSS and JS with no runtime or dev dependencies (package.json has only a test script using node:test). About 900 lines of app code, which fits the geometry and labelling work. There are no frameworks or build step, and file:// works with classic scripts.",
+      "maintainability": "There is no README, docs, ADR or spec. There is no CI configuration. engines is 'node >=22', which is not pinned, and there is no .nvmrc. There is no versioning or release notes beyond version 1.0.0 in package.json. npm test runs the suites and the code comments are helpful, but a newcomer would have to reverse-engineer the drawing conventions and the label placement from code.",
+      "visual_design": "The page has a restrained paper palette, a serif heading, small-caps section headings and tabular numerals (list.jpg, detail-308_win.jpg). The tables look finished. The drawing breaks the consistency: its labels and title-block text scale with the cartridge, so their size changes a lot between cartridges (308 vs 22 LR) and is much larger than the page text. Arrowheads are oversized on small cases. The title block is an empty-looking box wider than the part.",
+      "layout": "On the list page the most important content comes first. On the detail page the meta comes first, then the drawing, then the two-column tables, which is a logical order. The title block takes a band as tall as the drawing and pushes the tables down (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg). Labels crowd the head and neck, and the H2 label overlaps an arrowhead on 44 Rem. Mag. In print the meta goes into four columns and the tables into three on one page (print-308_win.jpg). The drawing there is not full width, and the title block wastes about 30% of the drawing area.",
+      "usability": "Search filters as you type and matches alternative names. The Family select and live count work. Every name is a link and the back link and Print are obvious. Detail URLs survive reload. Mapping a label to its dimension line takes effort because labels are not placed on their lines. The α marking is hard to read. The Print button works and the print stylesheet hides the toolbar.",
+      "reception": "Reloaders and engineers would trust the tables, which are complete, accurate and show tolerances. The drawing looks like an engineering drawing at a glance, but it has visible flaws a gunsmith would notice: labels floating away from or inside the part, an unreadable α, a title block claiming 1:1, oversized type and arrows on small cases, and an overlapping label. Usable as a data reference, but the drawing would not be trusted as is."
+    },
+    "unmet_requirements": [
+      "Labels do not overlap: on 44 Rem. Mag. the 'H2 11.58' label overlaps the L3 arrowhead (arrowheads are not obstacles in drawing.js:196-203)",
+      "Shoulder angle α dimension: no arrowheads, and the arc nearly coincides with the H1 dimension line; the label is placed at a fixed position below the shoulder (drawing.js:95-105, 186)",
+      "Title block scale: says 'Scale 1:1', which is false on screen and in print",
+      "Rule 9: missing r1 min / r2 are not reported (338 Lapua Mag., 17 HMR); fillet() silently draws a sharp corner",
+      "Rule 8: on straight cases the wall blends tb→tn over the whole body; on heeled 22 LR the wall goes to 0 at the mouth and does not meet the seated heel at H2-2tb",
+      "Print: drawing is not full width (max-height 85mm, styles.css:348)",
+      "Partly met: legibility of labels, which are often placed inside the outline or far from their dimension line"
+    ],
+    "overall": 6,
+    "strengths": [
+      "The geometry follows the brief's rules closely (chamfer, groove, belt, rimfire rim, fillets, ogive, seating, pocket, w), and outlines match the OpenBallistics references in proportion",
+      "Complete and faithful data presentation: tolerances next to values, DMS angles, published symbols, grouped Symbol/Value/Unit tables, search by alternative names, bookmarkable routes, one-page A4 print",
+      "Simple and safe: no dependencies, works from file://, every data string escaped, and meaningful node:test suites for the format, filter and geometry rules"
+    ],
+    "issues": [
+      "Drawing annotation quality: labels detached from their dimensions or placed inside the part outline, an unreadable α arc without arrowheads, a label overlapping an arrowhead (44 Rem. Mag.), and oversized fixed-mm arrows and title-block text that swamp small cartridges",
+      "Incorrect or unmet details: a false 'Scale 1:1', wrong section walls on straight and heeled cases (22 LR heel does not meet the wall), missing-value notes not given for absent fillet radii, print drawing not full width",
+      "No README, docs, ADRs or CI and an unpinned Node version, so a newcomer has only code comments to go on; the tests miss DOM, routing and print behaviour, and the overlap test ignores arrowheads"
+    ],
+    "verdict": "The app gets the data, list, routing and most of the geometry rules right with clean, dependency-free code. Its drawing annotation, and the missing project documentation and CI, still fall short of what reloaders and engineers expect from a published reference. It needs a pass on label placement, the α dimension, scale-independent text sizing and the title block, plus a README and CI, before it is published."
+  }
+}

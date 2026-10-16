@@ -1,0 +1,46 @@
+{
+  "totals": {
+    "files": 6,
+    "lines": 1320,
+    "errors": 14,
+    "warnings": 20,
+    "parse_errors": 0
+  },
+  "rules": {
+    "sonarjs/no-clear-text-protocols": 9,
+    "security/detect-object-injection": 20,
+    "no-unused-vars": 1,
+    "sonarjs/no-nested-conditional": 1,
+    "sonarjs/cognitive-complexity": 2,
+    "sonarjs/no-inverted-boolean-check": 1
+  },
+  "lint": {
+    "count": 1,
+    "per_1000_lines": 0.76,
+    "rules": {
+      "no-unused-vars": 1
+    }
+  },
+  "sonar_bugs": {
+    "count": 0,
+    "per_1000_lines": 0,
+    "rules": {}
+  },
+  "sonar_smells": {
+    "count": 4,
+    "per_1000_lines": 3.03,
+    "rules": {
+      "sonarjs/no-nested-conditional": 1,
+      "sonarjs/cognitive-complexity": 2,
+      "sonarjs/no-inverted-boolean-check": 1
+    }
+  },
+  "security": {
+    "count": 29,
+    "per_1000_lines": 21.97,
+    "rules": {
+      "sonarjs/no-clear-text-protocols": 9,
+      "security/detect-object-injection": 20
+    }
+  }
+}

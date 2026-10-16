@@ -1,0 +1,56 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.613414,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Nearly all of the brief is met. The start page has the heading, Search, the Family select with the six options and the '<n> cartridges' count (app.js:43-86; list.jpg). The detail view has the metadata, capacity with source link, Symbol/Value/Unit tables, Print and 'All cartridges', and a hash route that survives reload (app.js:149-163, model.js:101-116). The SVG is inline at 1 unit = 1 mm with aria-label '<name> drawing', a hatched section, a dash-dot centre line, every required dimension and a title block (drawing.js:64-126, layout.js:102-195). Missing values are stated under the drawing (app.js:131-136). Partly met: (1) the shoulder angle α is not dimensioned on the shoulder flanks; it is a separate detail cone placed above the shoulder with a dotted leader (layout.js:199-235; detail-308_win.jpg, detail-9_3_x_74_r.jpg). (2) The printed drawing is not at full width: it is capped at 132 mm high and fills only about 2/3 of the page width (app.css:187; print-308_win.jpg). (3) Drawing labels drop the tolerances ('L1 39.62' rather than '39.62 -0.2'); the tables do show them.",
+      "correctness": "The geometry follows the rules closely. The chamfer is (R1/2−min(f·tanβ,R1/4),0)→(R1/2,f) (geometry.js:120-125). The groove, the δ belt ramp to R3/2 and the rimfire half-round all follow the rules (geometry.js:103-116, 144-169). Shoulder fillets use r1 min and r2; bullet seating and k factors, the tangent ogive (ρ, centre at G1/2−ρ), the quarter ellipse, the cones and the meplat values are right (geometry.js:221-263). The heeled 22 LR uses H2 outside and H2−2tb for the heel (geometry.js:272-283). tn, tb and the pocket tables match rule 8. The outlines agree with the reference proportions: the belt on 300 Win. Mag., the long shallow shoulder on 9,3 x 74 R, the 22 LR half-round rim. Label values match the data, and angles show as 40° or 10°58'0\". Print fits one A4 page and is tested for all 25 records (print.test.mjs:12-24). Deviations: (1) belted w adds E+tb even though the brief gives the belt ramp end + tb (geometry.js:441-443; test locks in 5.59+tb at geometry.test.js:195). (2) w also includes body.z, which the rule does not list. (3) Fillet tangents are capped at half a segment, so a large r1 min such as 3.5 on 6,5 x 55 can be drawn smaller than published, with no note (geometry.js:197-204). (4) α is shown as a symbolic cone, not measured on the drawn shoulder.",
+      "security": "All DOM is built with createElement/createElementNS and textContent (app.js:13-23, drawing.js:13-46); no innerHTML, eval or Function in js/. A CSP meta allows only 'self' (index.html:7). The capacity link is rendered only for http(s) URLs (app.js:25, 93). Data is embedded in js/data.js, so there is no fetch. An e2e test checks that no external requests are made (app.test.mjs:161-174).",
+      "code_quality": "Modules are separated cleanly: format, model, geometry, layout and drawing are pure and work in both Node and the browser, while app.js handles the DOM. Naming is clear and constants are named (geometry.js:10-24, layout.js:12-26). Missing values are handled through notes rather than exceptions. Some functions are dense, for example buildShoulder (geometry.js:172-217) and the alpha placement search (layout.js:251-262), and geometry uses single-letter variables in places. The size fits the task.",
+      "tests": "Unit tests (node:test) cover rim-type thresholds, each head, groove, belt, half-round, fillet, wall, pocket and bullet rule with exact expected values, missing-value notes, and invariants across all 25 records (geometry.test.js). Layout tests check required labels, true-to-scale measures, and no overlap of labels with labels, outline or foreign lines for all 25 records (layout.test.js:71-90). Playwright tests cover file:// and http, search and filter, reload and back, the table formats, real-bbox overlap checks, 1 unit = 1 mm, one A4 page for all 25 records, black-on-white print, label size ≥ 8 pt, phone width, dark mode, no network and the skip link.",
+      "ux_design": "The pages are dense and calm. Metadata sits in a compact dl grid, and the value tables are grouped per section with right-aligned tabular numbers (detail-308_win.jpg). Drawing labels are monospace and do not overlap. Weak points: on screen the drawing is capped at 82vh, so short cartridges look small and the title block dominates, being as wide as or wider than the cartridge (detail-22_long_rifle.jpg, detail-9_mm_luger.jpg). The printed tables are 5.6–6.4 pt, which is hard to read (print-308_win.jpg). No dark-mode screenshot was provided; the CSS defines a dark palette (app.css:21-37).",
+      "accessibility": "The SVG has role=img, aria-label '<name> drawing' and a <desc> listing rim type and missing values (drawing.js:69-80). Tables use th scope=col/row and aria-labelledby (app.js:102-121). Search and Family have real labels, and the count has role=status. There is a skip link, focus moves to the h1 on route change, and :focus-visible outlines are set (app.js:175-203, app.css:54). The muted text #566170 on white has sufficient contrast. Small-caps labels at 0.72rem are small. The drawing's dimension values are available as text only through the tables.",
+      "simplicity": "No runtime dependencies. About 1,100 lines of plain JS across 7 files, which suits the geometry and layout work involved. The dev dependencies are Playwright and @fission-ai/openspec (package.json:15-18); openspec is process tooling the app does not need. The data build step is dev-only and documented.",
+      "maintainability": "The README gives run, test and data-generation steps and a code map (README.md). package-lock.json is present and the regression suites are broad. However, there is no CI configuration, no Node version pin (no engines or .nvmrc), and no release or changelog approach beyond version 1.0.0. The README refers to openspec/changes/cip-cartridge-reference/ and design.md for the drawing assumptions, but only openspec/specs/.gitkeep exists in the delivered repo, so those decisions are not documented there. Playwright needs a manual `npx playwright install chromium`, which the README mentions.",
+      "visual_design": "The look is consistent and restrained: a system sans for the UI, monospace for the drawing, a single blue accent for dimension lines and controls, and cards with thin borders (list.jpg, detail-*.jpg). The drawing looks finished, like an engineering drawing. The title block's very large monospace text (4.2 mm name) is out of proportion with small cases (detail-22_long_rifle.jpg). Print output is clean black on white (print-308_win.jpg).",
+      "layout": "The hierarchy is clear: back link and Print, then the name, metadata, drawing, cartridge values and chamber values. The four-column table grid uses space well, and nothing overlaps or clips in any screenshot. The drawing figure leaves wide empty margins either side because of the height cap (detail-308_win.jpg, detail-44_rem_mag.jpg). In print the drawing does not span the full width, leaving whitespace below the tables (print-308_win.jpg).",
+      "usability": "Search filters as you type and treats comma and point alike (model.js:78-88). Filters are kept when returning from a detail view (app.test.mjs:63-79). Names are direct links, unknown keys show a not-found page with a way back, and Print is one click. Detail addresses are bookmarkable. There is no sorting on the list, which the brief does not require.",
+      "reception": "Reloaders and engineers would likely trust it: values appear exactly as published, the source is cited, the drawings are true to scale and match the references, missing values are stated openly, and it prints as one page. The small screen drawing on short cartridges and the tiny print tables would bother some users, but it looks professional and is worth returning to."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α is shown as a detached detail cone with a leader, not dimensioned on the drawn shoulder (layout.js:199-235)",
+      "Printed drawing is not at full width: the 132 mm height cap leaves it at about 2/3 of the page width (app.css:187, print-308_win.jpg)",
+      "Belted solid-head length w uses E + tb instead of the belt ramp end + tb (geometry.js:441-443)",
+      "Shoulder fillet radii can be drawn smaller than the published r1 min/r2 without a note (geometry.js:197-204)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "The geometry engine follows nearly every drawing rule exactly (chamfer, groove, belt, half-round rim, ogive/ellipse/cone noses, heeled bullet, walls, primer pocket), and outlines match the OpenBallistics references",
+      "A very thorough test suite: per-rule unit tests plus Playwright checks of real label boxes, 1 unit = 1 mm, one A4 page, ≥ 8 pt print labels, file:// and http, and no network, all run across all 25 records",
+      "Safe, dependency-free implementation: textContent/createElementNS only, a CSP, accessible SVG name and description, and semantic tables"
+    ],
+    "issues": [
+      "The shoulder angle α is a symbolic detail cone rather than a dimension on the shoulder, and the printed drawing is height-capped and not at full width",
+      "On screen the 82vh cap makes short cartridges (9 mm, 22 LR) small next to an oversized title block, and the printed tables at about 6 pt are hard to read",
+      "Maintainability gaps: no CI, no Node version pin, and the README points to openspec/design documents that are not in the repo; there are also minor rule deviations (belted w, silently reduced fillet radii)"
+    ],
+    "verdict": "A careful, well-tested build that turns the brief's drawing rules into accurate, true-to-scale, overlap-free drawings, with tables, search and one-page print all working. It is close to publishable, but the symbolic α dimension, the undersized drawings for short cartridges and in print, and the missing CI and design docs keep it from top marks."
+  }
+}

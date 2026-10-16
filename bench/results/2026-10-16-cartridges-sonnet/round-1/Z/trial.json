@@ -1,0 +1,123 @@
+{
+  "arm": "Z",
+  "runtime": "opencode",
+  "followups": 1,
+  "wall_seconds": 2453,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 28
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 3,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 97,
+    "cost_usd_api_equivalent": 5.8228426,
+    "usage": {
+      "input": 228,
+      "cache_creation": 451227,
+      "cache_read": 20785991,
+      "output": 128769,
+      "thinking": 132803
+    }
+  },
+  "workflow": {
+    "tool_calls": 125,
+    "subagent_tool_calls": 15,
+    "skills": [],
+    "agents": [
+      "general",
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "read /tmp/opencode/full.png"
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 0,
+    "agent_tests": 1,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 6,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": true,
+    "code": {
+      "source_lines": 1167,
+      "functions": 193,
+      "complexity": 471,
+      "max_complexity": 19,
+      "erosion": 0.068,
+      "duplication": 0,
+      "duplicated_lines": 0,
+      "clones": 0
+    },
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 0.99,
+      "accessibility": 1,
+      "best-practices": 1
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": {
+      "score": null,
+      "reason": "rerun pending after scorer fixes"
+    },
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 1368,
+    "test": 880,
+    "files": 21
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

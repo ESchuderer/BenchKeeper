@@ -1,0 +1,55 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.3037649999999998,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Almost everything in the brief is met. The start page has the heading, name/family/L3 rows, links whose text is exactly the record name, a labelled Search that ignores spaces and case (catalog.js:6-14; '7,62 x 51' finds 308 Win.), the Family select and '<n> cartridges' (index.html:14-23, list.jpg). The detail view shows metadata in the order the brief gives, water capacity with its source link or 'not published' (app.js:27-45), Symbol/Value/Unit tables grouped by section with tolerances merged into the value (format.js:23-31), Print, 'All cartridges', and a hash route that survives a reload (app.js:63-80). The drawing is an inline SVG at 1 unit = 1 mm with aria-label '<name> drawing', the outside view above, a hatched section below, a dash-dot centre line, all the required dimensions where published (drawing.js:111-181) and a title block (drawing.js:209-223). Print is one A4 page, black on white, with the footer (app.css:101-127, print-308_win.jpg). There are no dependencies, it works from file:// and a static server, and missing values are reported (geometry.js:249, app.js:53). Partly met: the title block gives only the nominal A4 print scale ('Scale 1.89:1 (A4 print)'), so the stated scale does not hold on screen; there is a 10 mm scale bar. The 'Process' requirement cannot be checked from the repository.",
+      "correctness": "The geometry follows the rules closely. Rim-type thresholds: geometry.js:14-19. Chamfer min(f·tanβ, R1/4): :129-132. Rimfire half-round of radius min(R/2,(R1-P1)/2) with its outer point at R1/2: :133-142. Groove floor and straight ramp to (P1/2,E); the belted case ramps at δ to R3/2, follows the belt to E and steps in: :153-162. Body, shoulder through the published points with r1 min/r2 fillets: :174-179. Bullet seating, k values and meplats match the brief exactly: :62-66. The tangent ogive has its centre at G1/2-ρ: :76-83. Heeled heel at H2-2·tb: :72-74. Walls tn/tb with a linear blend on the shoulder: :193-196, :220-228. w and the pocket sizes per primer type: :9, :211. Proportions match the reference drawings: the 308 neck/shoulder/ogive and the 300 WM belt and long body in detail-308_win.jpg and detail-300_win_mag.jpg against reference/308_win.png and 300_win_mag.png; the 9 mm Luger rounded nose and the 22 LR heel in detail-22_long_rifle.jpg. Label values match the data ('L1 39.62 -0.2', 'P2 11.53 -0.2', 'α 10°58'0\"', 'R 1.4 -0.25'). Weaknesses: the α arc marker is drawn with radius 2.4–4.5 mm (drawing.js:164), so on the shallow 9,3 x 74 R shoulder it shrinks to an illegible '+' (detail-9_3_x_74_r.jpg). On heeled cases tn is quietly replaced by tb, and straight cases get a wall taper below the bullet base that the brief does not ask for (geometry.js:196, :219-223). Both are reasonable readings, but neither is documented. The print fits one page (print-308_win.jpg; print.spec.js:19-33 checks this for all 25 records).",
+      "security": "Every interpolation into innerHTML goes through esc() (app.js:6, 14, 22-24, 30, 33-41, 56-59), and SVG text and attributes are escaped too (drawing.js:19, 51, 216-227). There is no eval, Function or remote fetch, and the e2e test checks that only app files are requested (app.spec.js:110-120). One nit: the capacity URL's scheme is not validated (app.js:30), but the data is fixed.",
+      "code_quality": "The code is small and well separated: pure geometry (geometry.js, 252 lines), SVG rendering (drawing.js, 233), formatting, catalog filter and DOM glue, all in UMD modules so Node tests can use them. Names follow the domain (zb, Lb, zc, tn, tb). On the down side, Drawing.draw is one 200-line function. Some lines are very dense: the nested ternary in w at geometry.js:211 and the odd angle guard at :29. A comment at drawing.js:121 admits a layout shortcut that only holds because 'none of the 25 records' triggers it.",
+      "tests": "The tests are meaningful and tied to the brief. Unit tests cover rim types, chamfer/groove points, the belt ramp at δ, the rimfire half-round, the pointy ogive lying on its arc, the seat/k/m factors for the rounded, flat and SWC shapes, the heeled bullet, walls and the blend, pocket sizes, w, and missing-value notes (geometry.test.js). Drawing tests check the required dimension set, two arrowheads plus extension lines per dimension, and label-vs-label and label-vs-segment overlap for all 25 records (drawing.test.js:51-76). E2E tests cover search/filter/count, metadata, reload, malformed routes, tables/symbols/angles, the print call, no external requests, rendered label boxes for all 25, a one-page A4 PDF for all 25, a 360 px phone width and dark mode, all run under both file:// and the server (playwright.config.js:24-27). .last-run.json says 'passed'.",
+      "ux_design": "It reads as a dense engineering sheet. The drawing uses flag labels with leaders on separate tracks, so nothing overlaps in any screenshot. Length dimensions are stacked under the part, numbers in the tables are monospace, and units sit in their own muted column. Weaknesses: the title block is 92 mm wide with large type and visually outweighs small cartridges (detail-22_long_rifle.jpg, detail-9_mm_luger.jpg). The α marker is hard to see. The wrapped 'L3 19.15 / -0.25' label is awkward. In print the tables drop to 6.5 pt while the drawing takes about 60% of the page (print-308_win.jpg). Dark mode exists in CSS but no screenshot shows it.",
+      "accessibility": "The SVG has role=img and aria-label '<name> drawing'. Tables have captions and scoped column and row headers (app.js:22-24). Search and Family are wrapped in labels, the count has role=status, and focus moves to the h1 on route change (app.js:76-79). There is a :focus-visible outline, and muted text #4b5560 on white has about 7:1 contrast. Gaps: the drawing's text alternative is only the name (the tables do carry the values), there is no skip link, and the form submit is blocked inline.",
+      "simplicity": "No runtime dependencies, about 600 lines of app JS plus CSS, and a single dev dependency (Playwright). The amount of code fits the task.",
+      "maintainability": "There is no README with run or setup instructions, no CI configuration and no ADRs or changelog. Version stays at 1.0.0 with no release approach. No engines field or .nvmrc pins Node 22. Installing the Playwright browser is undocumented, and playwright.config.js:9-16 probes a cached Chromium. On the positive side, the openspec specs in app/openspec/specs/*.md document behaviour well, the tests are a strong regression net, package-lock.json pins dependencies, and the npm scripts start/test/test:e2e exist.",
+      "visual_design": "The palette is calm and neutral, with uppercase small-caps headers for meta and table columns, consistent 1 px rules and monospace numbers. The drawing has crisp non-scaling strokes and a light-grey bullet against the hatched case. It looks finished. The drawing labels and title block use a much larger monospace type than the rest of the page, which is a little heavy (detail-308_win.jpg).",
+      "layout": "The order follows the brief: name, then compact meta grid, then drawing, then Cartridge/Chamber table grids, then source. The list is a full-width table with right-aligned L3 (list.jpg). There is no clipping or overlap in any screenshot. The drawing box is capped at 48rem, which leaves wide side margins on desktop and makes short cartridges small (detail-22_long_rifle.jpg). The print layout fits one page with three table columns per group.",
+      "usability": "Search filters as you type and tolerates spaces. The family filter combines with search, and 'All cartridges' brings you back with the filters kept (app.spec.js:93-101). Detail URLs can be bookmarked, unknown keys show 'Cartridge not found', and Print works in one click. There is no sorting, and the count wording '1 cartridges' comes straight from the brief.",
+      "reception": "Reloaders and engineers would trust it: values appear exactly as published, the drawings are true to scale and look like the OpenBallistics references, tolerances are shown and the print sheet is clean. The tiny α marker and the oversized title block are polish issues. The missing README/CI matters to maintainers, not to end users."
+    },
+    "unmet_requirements": [
+      "Title block scale is only the nominal A4 print scale ('Scale x:1 (A4 print)'); on screen the drawing is not at the stated scale (a 10 mm scale bar is given instead)",
+      "α is labelled, but on shallow shoulders (9,3 x 74 R) the angle marker is too small to read",
+      "Process requirement (spec/plan/tests-first workflow) cannot be verified beyond the openspec specs present"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Faithful geometry: every rule (chamfer, groove, belt at δ, rimfire half-round, shoulder fillets, tangent ogive, seating/k/meplat, heeled bullet, walls, pocket, w) is implemented exactly as the brief states, and the outlines match the OpenBallistics references",
+      "Very strong tests: geometry checked rule by rule, label-overlap and one-page A4 PDF checks across all 25 records, run under both file:// and HTTP",
+      "Small, dependency-free code with all record data escaped, a clean pure-geometry/render split, and a dense, precise reference layout on screen and in print"
+    ],
+    "issues": [
+      "No README, no CI pipeline, no pinned Node version and no documented Playwright browser setup, so a new developer has to reverse-engineer how to run and verify the app",
+      "The α angle marker has a fixed small radius and almost disappears on shallow shoulders (detail-9_3_x_74_r.jpg); the oversized title block outweighs small cartridges",
+      "Undocumented interpretations (tn replaced by tb on heeled cases, a wall taper under the bullet on straight cases) and a print scale shown as if it were the drawing's scale"
+    ],
+    "verdict": "This is a precise, well-tested and dependency-free cartridge reference: its drawings follow the brief's rules and match the reference proportions, and it prints cleanly on one A4 page. It is close to publishable; the main gaps are maintainer-facing (no README or CI) plus small drawing-polish issues around the α marker and the title block."
+  }
+}

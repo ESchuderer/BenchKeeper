@@ -1,0 +1,54 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.2349178000000003,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 3,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Start page (index.html:14-27; format.js:52-59) and detail view (format.js:36-50 in the brief's order) are complete. Tables are grouped by section with Symbol/Value/Unit (app.js:16-30); the hash address survives reload (app.js:47-60, e2e.test.js:48-64). The SVG has role=img and the name '<name> drawing' (drawing.js:316). Title block has name, table, revision, 'Dimensions in mm' and scale (drawing.js:297). Section hatched, dash-dot centre line. Print is one A4 page with header, full-width drawing, tables and footer, no nav (print-308_win.jpg). Partly met: the α dimension has no arrowheads or extension lines and its arc spans α/2 while labelled α (drawing.js:281-294); drawing labels are a fixed 3.2 mm, about 9 px at phone width.",
+      "correctness": "Rules implemented as written: rim type (drawing.js:14-18), chamfer with the R1/4 limit (:81), rimfire half-round with its outermost point at R1/2 (:69-77), groove floor and ramp, belt ramp at δ (:95-102), straight vs bottleneck body, r1 min/r2 fillets (:110-121), tb/tn walls blended across the shoulder and head w (:124-135), primer pockets (:6-10), seating s, k, meplat m, tangent ogive ρ and heeled bullet (:138-162). The outside view hides the seated part. Outlines match the 308/300 WM/9 mm/22 LR references in proportion; labels match the data, with angles like 'α 10°58'0\"' (detail-9_3_x_74_r.jpg). Print fits one A4 page (print-308_win.jpg; test e2e.test.js:123). Flaws: the α arc marks α/2 with no arrowheads but is labelled α; diameter extension lines run the whole length beside the outline, and P1's nearly coincides with the body outline (detail-44_rem_mag.jpg, detail-308_win.jpg).",
+      "security": "All data escaped before innerHTML (app.js:3,11,15-31); SVG text and the aria-label escaped (drawing.js:173,206,316). No eval, no external resources; the e2e test asserts only file:/data: requests (e2e.test.js:44).",
+      "code_quality": "Reasonable split into data/format/drawing/app with pure, testable functions. drawing.js is dense: one-letter names (g, b, d, up, dn, f3), lines over 200 characters, the lines.pop() trick to exclude lines from collision checks (:229-233), a 'Scale 0.00:1' placeholder swapped by string replacement (:297,313). deg() is reimplemented inline at :282; esc is duplicated in app.js:3 and drawing.js:173.",
+      "tests": "node:test plus playwright-core. Geometry rule tests: rim types, chamfer limit, groove and belt points, rimfire rim, straight body, missing-value notes, walls/w/pockets, seating/k/m by shape and category, ogive radius, heeled bullet (geometry.test.js). Labels for all 25 records and overlap checks in the model and in Chromium (drawing.test.js:26-58, e2e.test.js:66-96). Formatting and tolerances (format.test.js); file:// and static server, phone width, dark/print colours, one A4 page for all 25 (e2e.test.js). Not covered: hatching, centre line, extension lines, α arc correctness, the spec's 3 mm print label height.",
+      "ux_design": "Dense, well-grouped 4-column tables with tabular numbers; a compact print sheet (print-308_win.jpg). Drawing labels (~28 px) and the title block are oversized against the 15 px page text (detail-308_win.jpg). Small cartridges leave half the drawing empty while the title block spans the width (detail-22_long_rifle.jpg, detail-9_mm_luger.jpg). The long metadata list pushes the drawing below the fold. No label overlaps seen.",
+      "accessibility": "Named SVG role=img; tables with caption and th scope=col/row (app.js:16-19). Labels wrap the inputs, role=search, count as role=status, :focus-visible outline (style.css:22), lang=en, adequate contrast. No longer text description of the drawing; focus is not moved to the new heading on route change.",
+      "simplicity": "No runtime dependencies; four small script files; one dev dependency. Code size fits the problem, though drawing.js packs a lot into terse lines.",
+      "maintainability": "Openspec specs document behaviour (openspec/specs/*), npm test, package-lock.json. No README, no CI config, no ADRs or changelog/versioning, no engines/.nvmrc. The dev dependency is a caret range on an alpha build (package.json:10). The e2e tests need a Chromium install that is not documented; leftover .playwright-mcp artifacts.",
+      "visual_design": "Calm, consistent palette and muted/accent scheme, clean table styling. Drawing typography clashes with the page; the heavy title block dominates small cartridges; the doubled red extension lines along the outline look unfinished (detail-44_rem_mag.jpg).",
+      "layout": "Clear order: heading, attributes, drawing, title block, notes, tables; no clipping or overflow in any screenshot. The drawing sits below a tall attribute list; small cartridges use only half the drawing width (detail-22_long_rifle.jpg); diameter columns spread far to the right of short cases.",
+      "usability": "Live search including alternative names, family select, count, exact-name links, 'All cartridges' link, Print button, bookmarkable #/key addresses, a Not found page with a link back (app.js:55-58); few steps to any task.",
+      "reception": "Faithful data, tolerances and the section view will win trust with reloaders and engineers; the one-page print is useful. The oversized labels, the α/2-vs-α arc and the extension lines along the outline look less polished than OpenBallistics."
+    },
+    "unmet_requirements": [
+      "The shoulder angle α has no dimension arrowheads or extension lines, and its arc spans α/2 against the axis while labelled α (drawing.js:281-294)",
+      "Drawing labels are a fixed 3.2 mm, only about 9 px at phone width, so phone legibility is marginal"
+    ],
+    "overall": 6,
+    "strengths": [
+      "The drawing geometry follows the brief's rules closely (rim types, chamfer, groove/belt, walls, primer pocket, bullet seating and nose shapes, heeled 22 LR), notes missing values instead of inventing numbers, and matches the reference proportions",
+      "Values, symbols, tolerances, D°M'S\" angles and units are shown exactly as published, in captioned Symbol/Value/Unit tables, with all data escaped and no network use",
+      "Broad tests: per-rule geometry unit tests, label-overlap checks for all 25 drawings in the model and in Chromium, a one-A4-page PDF check for all 25, and file:// plus static-server runs"
+    ],
+    "issues": [
+      "No README, CI, ADRs or Node pin; the only dev dependency is a caret range on an alpha build, and the browser tests need a Chromium install that is never documented",
+      "The shoulder angle is drafted incorrectly: the arc marks α/2 with no arrowheads but is labelled α, and the diameter extension lines run the whole length beside the outline (P1's nearly coincides with it)",
+      "Drawing presentation: fixed 3.2 mm labels are oversized on desktop and small on a phone, the title block outweighs small cartridges, and drawing.js is dense and cryptic"
+    ],
+    "verdict": "The app meets nearly all of the brief: the data is faithful, the geometry follows the drawing rules, and the tests are unusually thorough, including one-page print and overlap checks. It needs a README and CI, a correct α dimension and a more balanced drawing (label size, extension lines, title block) before it is ready for reloaders and engineers."
+  }
+}

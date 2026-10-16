@@ -1,0 +1,54 @@
+{
+  "totals": {
+    "files": 10,
+    "lines": 1070,
+    "errors": 22,
+    "warnings": 29,
+    "parse_errors": 0
+  },
+  "rules": {
+    "security/detect-object-injection": 24,
+    "no-unused-vars": 3,
+    "sonarjs/no-clear-text-protocols": 9,
+    "security/detect-non-literal-require": 3,
+    "sonarjs/cognitive-complexity": 3,
+    "sonarjs/no-unenclosed-multiline-block": 2,
+    "sonarjs/no-dead-store": 1,
+    "sonarjs/no-nested-conditional": 2,
+    "sonarjs/no-ignored-exceptions": 2,
+    "security/detect-non-literal-fs-filename": 2
+  },
+  "lint": {
+    "count": 3,
+    "per_1000_lines": 2.8,
+    "rules": {
+      "no-unused-vars": 3
+    }
+  },
+  "sonar_bugs": {
+    "count": 0,
+    "per_1000_lines": 0,
+    "rules": {}
+  },
+  "sonar_smells": {
+    "count": 10,
+    "per_1000_lines": 9.35,
+    "rules": {
+      "sonarjs/cognitive-complexity": 3,
+      "sonarjs/no-unenclosed-multiline-block": 2,
+      "sonarjs/no-dead-store": 1,
+      "sonarjs/no-nested-conditional": 2,
+      "sonarjs/no-ignored-exceptions": 2
+    }
+  },
+  "security": {
+    "count": 38,
+    "per_1000_lines": 35.51,
+    "rules": {
+      "security/detect-object-injection": 24,
+      "sonarjs/no-clear-text-protocols": 9,
+      "security/detect-non-literal-require": 3,
+      "security/detect-non-literal-fs-filename": 2
+    }
+  }
+}

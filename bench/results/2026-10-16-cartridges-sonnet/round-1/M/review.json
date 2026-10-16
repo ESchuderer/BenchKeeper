@@ -1,0 +1,56 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.2263958,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 3,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Met: list with heading, name links, family, L3 with tolerance, Search over name and alternative names (format.js:62-70; '7,62 x 51' and '7.62x51' both work), Family select, '<n> cartridges' (app.js:22-50). Detail view has all meta fields, the capacity source link, Symbol/Value/Unit tables by section, Print, 'All cartridges' and hash routes that survive a reload (app.js:52-127). The drawing is an inline SVG in mm with the head on the left, outside view above, hatched section below, a dash-dot centre line, every required dimension, the 'Not drawn, value not published: r1 min' note, and a title block with name/table/revision/'Dimensions in mm'/scale (drawing.js:243-398). Print is one A4 page, black on white, with a footer (print-308_win.jpg). Partly met: α is a free-floating wedge above the shoulder rather than an angle dimension on the shoulder lines (drawing.js:305-327; detail-308_win.jpg). 'Scales to a phone' works, but labels shrink to about 1–2 mm on screen (app/shots/m-detail.png). Drawing labels leave out tolerances (L1 shows '39.62', not '39.62 -0.2').",
+      "correctness": "I checked the geometry against every rule. Chamfer (0, R1/2−min(f·tanβ, R1/4)) to (f, R1/2) (drawing.js:89-91); rimfire half-round (93-95); groove and the belted ramp at δ to R3/2, belt to E, step in (103-111); body, shoulder with fillets r1 min/r2, neck (128-135); seating s and k per shape and class (63-65); the tangent ogive centre and radius are correct, and the end point lands exactly on m/2; quarter ellipse; heeled bullet re=H2/2, rs=re−tb (67); walls tn/tb; w including the belt ramp end; pocket sizes (5-7, 147-154). Outlines match the reference proportions for 308, 300 WM, 9 mm and 22 LR. Values print as published, angles as 40° and 10°58'0\". Drafting flaws: P1/P2/H1/H2 extension lines start at the body or mouth and run along the whole outline to the ladder, so they lie on the case top (detail-308_win.jpg, detail-300_win_mag.jpg). The E1 extension crosses the rim. The 22 LR 'L3 15.57' label sits left of the head, away from its line (detail-22_long_rifle.jpg).",
+      "security": "The only innerHTML is fig.innerHTML = D.svg(c) (app.js:97). All text in that SVG goes through esc() (drawing.js:348, 365-394) and numbers through f(). Everything else uses textContent or createTextNode (app.js:8-20). There is no eval and no fetch; the capacity URLs are plain anchors only.",
+      "code_quality": "Clear split into data/format/drawing/app, with pure geometry and layout that tests can load in Node. But drawing.js is dense, with one-letter names (g, l, o, b, cc, h, pc, jc) and very long lines. It has dead code: 'void p1; void p2;' (drawing.js:326) with unused p1/p2 (310), and the label() helper takes an unused sym parameter (246). Missing values are handled through has() and listed in miss.",
+      "tests": "node:test suites cover the rim-type thresholds, the 308 profile points, the shoulder slope matching α, fillets, belt ramp, rimfire half-round, seating/k/m per shape, the ogive radius, heeling, walls/w/pocket, a section inside the bore for all 25 records, missing-value reporting, required/optional dimensions, a label-overlap check against lines and outline for every record, the viewBox, SVG escaping, formatting/tolerances/units, and search/filter. There are no DOM, routing, reload or print tests.",
+      "ux_design": "Tables are dense and tidy, with tabular numbers and grouped captions, and print is compact on one page. The drawing is poorly balanced: the cartridge fills about a third of the frame while 3.6 mm labels and an oversized title block take the rest (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg). On a phone the drawing labels are tiny (m-detail.png). Dark mode works (dark.png).",
+      "accessibility": "The SVG has role=img, aria-label '<name> drawing', <title> and <desc> (drawing.js:364-368). Tables have captions and th scope col/row (app.js:84-88). The inputs have <label for> (44-45), the count is aria-live, the search form has role=search, focus moves to h1 on route change (125), focus-visible rings are styled, and html lang=en. Muted text contrast is fine. The desc gives no dimension values, but the tables carry them.",
+      "simplicity": "No runtime or dev dependencies (package.json has only a test script using node:test). About 600 lines of JS for the whole app; the effort is spent on the geometry and layout that matter.",
+      "maintainability": "No README, docs, ADRs or specs. No CI configuration, no engines/Node pin, no versioning beyond 'version 1.0.0'. 'npm test' exists but is undocumented. Leftover agent artifacts (shots/, .playwright-mcp/) ship in the folder, though they are gitignored. The tests are good regression cover for the drawing rules.",
+      "visual_design": "Calm, consistent sans-serif UI with a monospace drawing font, a restrained blue for dimensions and uppercase micro-labels. The drawing frame looks unfinished: the label scale is too large for the part, the title block is heavy, and there is empty space at the top-left and bottom-left (detail-22_long_rifle.jpg, detail-44_rem_mag.jpg).",
+      "layout": "Hierarchy is right: toolbar, name, a metadata grid, then the drawing and a four-column table grid. No overlaps or clipping in any screenshot. Space inside the drawing is wasted, and the diameter ladder plus the long extension lines push the part to the left third. Print puts the drawing first at 190 mm and the tables in four columns, all on one page (print-308_win.jpg).",
+      "usability": "Live search ignores comma, dot and spaces; the family filter works; each name is a direct link; detail URLs can be bookmarked; Print and back links are visible; there is a not-found view for bad keys (app.js:112-124). The search box has no placeholder. The phone drawing is hard to read without zooming.",
+      "reception": "The data presentation and print sheet will feel trustworthy to reloaders and engineers, and the section view with primer pocket and walls adds value. The oversized labels relative to the part and the floating α symbol look less professional than OpenBallistics' own drawings."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α is not dimensioned on the shoulder: a detached wedge symbol floats above it (drawing.js:305-327)",
+      "Drawing labels become about 1–2 mm on a phone screen (m-detail.png): it scales, but legibility is poor",
+      "Extension lines for P1/P2/H1/H2 run along the outline over the full body/neck/bullet (drafting clutter; drawing.js:286)",
+      "Drawing labels omit tolerances (e.g. L1 39.62 shown without -0.2)"
+    ],
+    "overall": 7,
+    "strengths": [
+      "Geometry follows the brief's rules exactly (chamfer, groove, belt ramp at δ, fillets, the tangent ogive whose end point lands exactly on the meplat, heeled bullet, walls, w, primer pocket), and outlines match the reference proportions",
+      "Strong unit tests, including a label/line/outline collision check across all 25 records and missing-value reporting",
+      "Clean, dependency-free app with escaped SVG output, full data tables, bookmarkable routes and a one-page A4 print sheet"
+    ],
+    "issues": [
+      "No README, docs, ADRs, CI or Node version pin: a new developer gets no setup or decision record",
+      "Drawing is badly balanced: labels and title block dwarf the part, extension lines run along the outline, α floats detached, and the 22 LR L3 label sits away from its line; labels are tiny on a phone",
+      "drawing.js is hard to read: one-letter names, long lines, dead code (void p1/p2, unused parameters)"
+    ],
+    "verdict": "The geometry is correct and well tested, the tables are complete, and the print sheet fits A4, so the core is publishable. Before release it needs better drafting balance in the drawing (label scale, extension lines, a real α dimension) and basic project documentation and CI."
+  }
+}

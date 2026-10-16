@@ -1,0 +1,154 @@
+{
+ "arm": "Q",
+ "counts": {
+  "correct": 25,
+  "partly": 0,
+  "wrong": 0
+ },
+ "score": 25.0,
+ "drawings": {
+  "223_rem": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "243_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "270_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "308_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor",
+    "alpha arrow touches the bullet base corner in the section"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor",
+    "missing-value note for r1 min not visible (outside the SVG, if present)"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor"
+   ]
+  },
+  "17_hmr": {
+   "verdict": "correct",
+   "issues": [
+    "alpha is a leader callout (two arrows onto the shoulder line, label below), not an angular dimension with arc and extension lines; value correct, so minor",
+    "missing-value note for r1 min and r2 not visible (outside the SVG, if present)"
+   ]
+  },
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": [
+    "L3 label sits outside its dimension line to the left (legible)"
+   ]
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": []
+  },
+  "22_long_rifle": {
+   "verdict": "correct",
+   "issues": [
+    "no seam line at the mouth (L3) in the outside view; immaterial because G1 = H2 gives the mouth face zero height and the section shows the case end at L3"
+   ]
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": []
+  }
+ },
+ "print": "The capture (1440x1000, not an A4 portrait page, so page format is not judged) shows black-on-white output with a name header, metadata, the drawing with every label legible and its title block, grouped tables, and a C.I.P. TDCC source footer; the drawing spans about 40 percent of the capture width.",
+ "summary": "Arm Q renders proper, to-scale cartridges for all 25 records: right rim family, groove, belt, shoulder radii, bullet shape and seating per the rules, a hatched section with primer pocket and the heeled 22 LR bullet, and spot-checked values (3 or more per drawing) all match the records. The recurring flaw, judged minor, is that the shoulder angle on all 17 bottleneck cases is a leader callout rather than an angular dimension with arc and extension lines."
+}

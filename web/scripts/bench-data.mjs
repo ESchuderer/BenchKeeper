@@ -46,6 +46,7 @@ export function loadTrials(results) {
   for (const run of readdirSync(results).filter((d) => existsSync(join(results, d, 'manifest.txt'))).sort()) {
     const head = readFileSync(join(results, run, 'manifest.txt'), 'utf8').split('\n')[0];
     const meta = Object.fromEntries(head.split(' ').map((kv) => kv.split('=')));
+    // final-score.mjs scores round 1 only.
     const finals = new Map((json(join(results, run, 'final-score.json'))?.trials ?? []).map((f) => [f.arm, { total: f.total, categories: f.categories }]));
     if (!meta.brief || !meta.model) throw new Error(`${run}/manifest.txt: first line needs brief= and model=`);
     for (const round of readdirSync(join(results, run)).filter((d) => /^round-\d+$/.test(d)).sort()) {
@@ -61,7 +62,7 @@ export function loadTrials(results) {
           featuresOf: Object.keys(t.score?.features || {}).length || null, robustnessOf: Object.keys(t.score?.robustness || {}).length || null,
           minutes: Math.round((t.wall_seconds ?? 0) / 60), overall: r?.overall ?? null,
           protocol: t.method?.protocol ?? null, criteria: Object.keys(r?.scores || {}).length || null,
-          final: finals.get(id) ?? null, mutation: t.score?.mutation?.score ?? null, drawings: drawingReview(json(join(dir, 'drawing-review.json'))),
+          final: (round === 'round-1' && finals.get(id)) || null, mutation: t.score?.mutation?.score ?? null, drawings: drawingReview(json(join(dir, 'drawing-review.json'))),
         });
       }
     }

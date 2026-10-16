@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { files } from './erosion.mjs';
 
@@ -43,10 +43,13 @@ export function coverage(dir, timeout = 300_000) {
       instrumented = true;
     }
     // Scripts run through vm or jsdom report a plain path or a bare file name as url; c8 only reads file:// urls.
+    // A bare name not found at the app root maps to the one own file of that name, if there is exactly one.
+    const byName = (n) => { const m = own.filter((f) => basename(f) === n); return m.length === 1 ? join(app, m[0]) : null; };
     for (const f of readdirSync(`${work}/v8`)) {
       const path = join(work, 'v8', f), j = JSON.parse(readFileSync(path, 'utf8'));
       for (const s of j.result) {
-        const abs = s.url.startsWith('/') ? s.url : /^[\w.-]+(\/[\w.-]+)*$/.test(s.url) ? join(app, s.url) : null;
+        let abs = s.url.startsWith('/') ? s.url : /^[\w.-]+(\/[\w.-]+)*$/.test(s.url) ? join(app, s.url) : null;
+        if (abs && !existsSync(abs) && !s.url.includes('/')) abs = byName(s.url);
         if (abs && existsSync(abs)) s.url = pathToFileURL(abs).href;
       }
       writeFileSync(path, JSON.stringify(j));
@@ -55,6 +58,8 @@ export function coverage(dir, timeout = 300_000) {
       ...own.flatMap((f) => ['--include', f])], { cwd: app, encoding: 'utf8' });
     if (rep.status !== 0) return none(`c8 report failed: ${rep.stderr.slice(0, 200)}`);
     const t = JSON.parse(readFileSync(join(work, 'rep/coverage-summary.json'), 'utf8')).total;
+    // A passing suite that covers no own line loaded the sources in a way c8 cannot map (for example vm without a file name).
+    if (t.lines.covered === 0) return none('tests pass, but no own source line maps to coverage (sources loaded without a file name)');
     return { line: t.lines.pct, branch: t.branches.pct, lines: t.lines.total, covered_lines: t.lines.covered, command: `npm ${cmd.join(' ')}`, fails_under_coverage: instrumented, reason: null };
   } catch (e) {
     return none(`error: ${e.message}`);

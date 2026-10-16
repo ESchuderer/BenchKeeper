@@ -1,1 +1,1 @@
-{"line":0,"branch":0,"lines":645,"covered_lines":0,"command":"npm test","reason":null}
+{"line":null,"branch":null,"reason":"tests pass, but no own source line maps to coverage (sources loaded without a file name)"}

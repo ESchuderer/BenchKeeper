@@ -73,7 +73,7 @@ function TopDetail({ t: x }: { t: Top }) {
     <Box component="section" aria-labelledby={`top-${x.brief}`} mb={56}>
       <Title order={2} id={`top-${x.brief}`}>{x.brief}: top 10 of {x.of} apps</Title>
       <Text size="sm" c="dimmed" mt="xs">
-        Final score out of 100 across both models, from six weighted categories: correctness (hidden feature tests, print
+        Final score out of 100 from six weighted categories: correctness (hidden feature tests, print
         check, review), code quality (review, erosion, type errors, Sonar bugs, lint, duplication), tests (line coverage,
         review), security (filtered security findings, review), UX and accessibility (review, axe, Lighthouse, HTML
         validity) and documentation (README coverage and accuracy, code comments, decision records). Totals within about
@@ -127,7 +127,7 @@ export default function BenchSummary({ base, runs, tops, notes }: { base: string
       {runs.map((r, i) => {
         const note = notes.runs[r.run];
         // A brief's top 10 follows the last of its runs.
-        const top = runs[i + 1]?.brief !== r.brief ? tops.find((t) => t.brief === r.brief) : undefined;
+        const top = runs.findLastIndex((x) => x.brief === r.brief) === i ? tops.find((t) => t.brief === r.brief) : undefined;
         const protocol = r.protocols.join(', ') || note?.protocol || 'not recorded';
         return (
           <Fragment key={r.run}>

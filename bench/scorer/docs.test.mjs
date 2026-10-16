@@ -20,6 +20,11 @@ module.exports = { helper };
   assert.deepEqual([r.code_lines, r.comment_lines], [5, 3]);
 });
 
+test('codeDocs: comment lines after a character outside the BMP', () => {
+  const d = codeDocs("const s = '\u{1F600}';\n// note\nf();\n", 'a.js');
+  assert.deepEqual([d.code_lines, d.comment_lines], [2, 1]);
+});
+
 test('readmeAccuracy: npm scripts and paths must exist', () => {
   const dir = mkdtempSync(join(tmpdir(), 'docs-'));
   mkdirSync(join(dir, 'js'));

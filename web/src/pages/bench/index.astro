@@ -7,8 +7,8 @@ import { loadTrials, summarizeRuns, topByBrief } from '../../../scripts/bench-da
 
 // The build runs in web/ (npm run build), next to bench/.
 const results = join(process.cwd(), '..', 'bench', 'results');
-// Runs kept off the site (owner, 2026-10-16). Their data and Markdown report stay in bench/results.
-const offSite = new Set(['2026-10-15-winery-react-haiku']);
+// Runs kept off the site (owner, 2026-10-16: no Haiku). Their data and Markdown report stay in bench/results.
+const offSite = new Set(['2026-10-15-winery-react-haiku', '2026-10-16-cartridges-haiku']);
 const trials = loadTrials(results).filter((t) => !offSite.has(t.run));
 const runs = summarizeRuns(trials, readdirSync(results).filter((f) => f.endsWith('.md')));
 const tops = topByBrief(trials);
@@ -36,13 +36,6 @@ const notes: Notes = {
         '20 of 22 Claude Code apps pass all 6 feature tests (J passes 5, K 2). 6 of 7 OpenCode apps do (AA passes 2).',
         'Claude Code reviews: median 8, range 6 to 8. Plain Claude Code (A) is rated 7, the BenchKeeper layer with agent-skills (L) 8, Ponytail alone (B) 6.',
         'K passes 2 of 6 hidden tests but is rated 8: the review could not check the detail and print rendering, where the hidden tests failed.',
-      ],
-    },
-    '2026-10-16-cartridges-haiku': {
-      findings: [
-        '21 of 22 Claude Code apps pass all 6 feature tests (I passes 5).',
-        'On OpenCode, Q and T delivered no index.html and S asked the user to run a slash command instead of building: 0 of 6 each.',
-        'Claude Code reviews: median 6, range 5 to 7, two points below Sonnet. Plain (A) is rated 7, the BenchKeeper layer (L) 6, Ponytail alone (B) 5.',
       ],
     },
   },

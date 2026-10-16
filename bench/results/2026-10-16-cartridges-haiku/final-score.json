@@ -5298,223 +5298,8 @@
     },
     {
       "model": "haiku",
-      "arm": "L",
-      "total": 60.82,
-      "categories": {
-        "correctness": {
-          "score": 26.25,
-          "max": 35
-        },
-        "code_quality": {
-          "score": 13.27,
-          "max": 20
-        },
-        "tests": {
-          "score": 2.5,
-          "max": 15
-        },
-        "security": {
-          "score": 10,
-          "max": 10
-        },
-        "ux_accessibility": {
-          "score": 8.2,
-          "max": 10
-        },
-        "documentation": {
-          "score": 0.6,
-          "max": 10
-        }
-      },
-      "inputs": {
-        "hidden_features": {
-          "category": "correctness",
-          "weight": 20,
-          "raw": 100,
-          "normalized": 100,
-          "points": 20
-        },
-        "print_pass": {
-          "category": "correctness",
-          "weight": 5,
-          "raw": 0,
-          "normalized": 0,
-          "points": 0
-        },
-        "review_requirements_correctness": {
-          "category": "correctness",
-          "weight": 10,
-          "raw": 3.5,
-          "normalized": 62.5,
-          "points": 6.25
-        },
-        "review_quality": {
-          "category": "code_quality",
-          "weight": 8,
-          "raw": 3.6666666666666665,
-          "normalized": 66.7,
-          "points": 5.33
-        },
-        "erosion": {
-          "category": "code_quality",
-          "weight": 4,
-          "raw": 0.271,
-          "normalized": 54.8,
-          "points": 2.19
-        },
-        "type_errors": {
-          "category": "code_quality",
-          "weight": 2,
-          "raw": 5.1,
-          "normalized": 49,
-          "points": 0.98
-        },
-        "sonar_bugs": {
-          "category": "code_quality",
-          "weight": 2,
-          "raw": 0,
-          "normalized": 100,
-          "points": 2
-        },
-        "lint": {
-          "category": "code_quality",
-          "weight": 2,
-          "raw": 6.2,
-          "normalized": 38,
-          "points": 0.76
-        },
-        "duplication": {
-          "category": "code_quality",
-          "weight": 2,
-          "raw": 0,
-          "normalized": 100,
-          "points": 2
-        },
-        "line_coverage": {
-          "category": "tests",
-          "weight": 10,
-          "raw": 0,
-          "normalized": 0,
-          "points": 0
-        },
-        "review_tests": {
-          "category": "tests",
-          "weight": 5,
-          "raw": 3,
-          "normalized": 50,
-          "points": 2.5
-        },
-        "security_findings": {
-          "category": "security",
-          "weight": 5,
-          "raw": 0,
-          "normalized": 100,
-          "points": 5
-        },
-        "review_security": {
-          "category": "security",
-          "weight": 5,
-          "raw": 5,
-          "normalized": 100,
-          "points": 5
-        },
-        "review_ux": {
-          "category": "ux_accessibility",
-          "weight": 4,
-          "raw": 3.2,
-          "normalized": 55,
-          "points": 2.2
-        },
-        "axe_violations": {
-          "category": "ux_accessibility",
-          "weight": 3,
-          "raw": 0,
-          "normalized": 100,
-          "points": 3
-        },
-        "lighthouse_accessibility": {
-          "category": "ux_accessibility",
-          "weight": 1,
-          "raw": 1,
-          "normalized": 100,
-          "points": 1
-        },
-        "lighthouse_performance": {
-          "category": "ux_accessibility",
-          "weight": 1,
-          "raw": 1,
-          "normalized": 100,
-          "points": 1
-        },
-        "html_errors": {
-          "category": "ux_accessibility",
-          "weight": 1,
-          "raw": 0,
-          "normalized": 100,
-          "points": 1
-        },
-        "readme_coverage": {
-          "category": "documentation",
-          "weight": 2.5,
-          "raw": null,
-          "normalized": 0,
-          "points": 0,
-          "reason": "no README"
-        },
-        "readme_accuracy": {
-          "category": "documentation",
-          "weight": 2.5,
-          "raw": null,
-          "normalized": 0,
-          "points": 0,
-          "reason": "no README"
-        },
-        "doc_functions": {
-          "category": "documentation",
-          "weight": 1,
-          "raw": 14.3,
-          "normalized": 14.3,
-          "points": 0.14
-        },
-        "doc_exports": {
-          "category": "documentation",
-          "weight": 1,
-          "raw": 14.3,
-          "normalized": 14.3,
-          "points": 0.14
-        },
-        "comment_density": {
-          "category": "documentation",
-          "weight": 1,
-          "raw": 3.4,
-          "normalized": 17,
-          "points": 0.17
-        },
-        "decision_records": {
-          "category": "documentation",
-          "weight": 1,
-          "raw": 0,
-          "normalized": 0,
-          "points": 0
-        },
-        "maintenance_flags": {
-          "category": "documentation",
-          "weight": 1,
-          "raw": 14.285714285714286,
-          "normalized": 14.3,
-          "points": 0.14
-        }
-      },
-      "missing": [],
-      "zero_reasons": {
-        "readme_coverage": "no README",
-        "readme_accuracy": "no README"
-      }
-    },
-    {
-      "model": "haiku",
       "arm": "I",
-      "total": 58.75,
+      "total": 66.94,
       "categories": {
         "correctness": {
           "score": 22.92,
@@ -5525,7 +5310,7 @@
           "max": 20
         },
         "tests": {
-          "score": 2.5,
+          "score": 10.68,
           "max": 15
         },
         "security": {
@@ -5608,9 +5393,9 @@
         "line_coverage": {
           "category": "tests",
           "weight": 10,
-          "raw": 0,
-          "normalized": 0,
-          "points": 0
+          "raw": 81.82,
+          "normalized": 81.8,
+          "points": 8.18
         },
         "review_tests": {
           "category": "tests",
@@ -5722,6 +5507,223 @@
       },
       "missing": [],
       "zero_reasons": {
+        "readme_coverage": "no README",
+        "readme_accuracy": "no README"
+      }
+    },
+    {
+      "model": "haiku",
+      "arm": "L",
+      "total": 60.82,
+      "categories": {
+        "correctness": {
+          "score": 26.25,
+          "max": 35
+        },
+        "code_quality": {
+          "score": 13.27,
+          "max": 20
+        },
+        "tests": {
+          "score": 2.5,
+          "max": 15
+        },
+        "security": {
+          "score": 10,
+          "max": 10
+        },
+        "ux_accessibility": {
+          "score": 8.2,
+          "max": 10
+        },
+        "documentation": {
+          "score": 0.6,
+          "max": 10
+        }
+      },
+      "inputs": {
+        "hidden_features": {
+          "category": "correctness",
+          "weight": 20,
+          "raw": 100,
+          "normalized": 100,
+          "points": 20
+        },
+        "print_pass": {
+          "category": "correctness",
+          "weight": 5,
+          "raw": 0,
+          "normalized": 0,
+          "points": 0
+        },
+        "review_requirements_correctness": {
+          "category": "correctness",
+          "weight": 10,
+          "raw": 3.5,
+          "normalized": 62.5,
+          "points": 6.25
+        },
+        "review_quality": {
+          "category": "code_quality",
+          "weight": 8,
+          "raw": 3.6666666666666665,
+          "normalized": 66.7,
+          "points": 5.33
+        },
+        "erosion": {
+          "category": "code_quality",
+          "weight": 4,
+          "raw": 0.271,
+          "normalized": 54.8,
+          "points": 2.19
+        },
+        "type_errors": {
+          "category": "code_quality",
+          "weight": 2,
+          "raw": 5.1,
+          "normalized": 49,
+          "points": 0.98
+        },
+        "sonar_bugs": {
+          "category": "code_quality",
+          "weight": 2,
+          "raw": 0,
+          "normalized": 100,
+          "points": 2
+        },
+        "lint": {
+          "category": "code_quality",
+          "weight": 2,
+          "raw": 6.2,
+          "normalized": 38,
+          "points": 0.76
+        },
+        "duplication": {
+          "category": "code_quality",
+          "weight": 2,
+          "raw": 0,
+          "normalized": 100,
+          "points": 2
+        },
+        "line_coverage": {
+          "category": "tests",
+          "weight": 10,
+          "raw": null,
+          "normalized": 0,
+          "points": 0,
+          "reason": "tests pass, but no own source line maps to coverage (sources loaded without a file name)"
+        },
+        "review_tests": {
+          "category": "tests",
+          "weight": 5,
+          "raw": 3,
+          "normalized": 50,
+          "points": 2.5
+        },
+        "security_findings": {
+          "category": "security",
+          "weight": 5,
+          "raw": 0,
+          "normalized": 100,
+          "points": 5
+        },
+        "review_security": {
+          "category": "security",
+          "weight": 5,
+          "raw": 5,
+          "normalized": 100,
+          "points": 5
+        },
+        "review_ux": {
+          "category": "ux_accessibility",
+          "weight": 4,
+          "raw": 3.2,
+          "normalized": 55,
+          "points": 2.2
+        },
+        "axe_violations": {
+          "category": "ux_accessibility",
+          "weight": 3,
+          "raw": 0,
+          "normalized": 100,
+          "points": 3
+        },
+        "lighthouse_accessibility": {
+          "category": "ux_accessibility",
+          "weight": 1,
+          "raw": 1,
+          "normalized": 100,
+          "points": 1
+        },
+        "lighthouse_performance": {
+          "category": "ux_accessibility",
+          "weight": 1,
+          "raw": 1,
+          "normalized": 100,
+          "points": 1
+        },
+        "html_errors": {
+          "category": "ux_accessibility",
+          "weight": 1,
+          "raw": 0,
+          "normalized": 100,
+          "points": 1
+        },
+        "readme_coverage": {
+          "category": "documentation",
+          "weight": 2.5,
+          "raw": null,
+          "normalized": 0,
+          "points": 0,
+          "reason": "no README"
+        },
+        "readme_accuracy": {
+          "category": "documentation",
+          "weight": 2.5,
+          "raw": null,
+          "normalized": 0,
+          "points": 0,
+          "reason": "no README"
+        },
+        "doc_functions": {
+          "category": "documentation",
+          "weight": 1,
+          "raw": 14.3,
+          "normalized": 14.3,
+          "points": 0.14
+        },
+        "doc_exports": {
+          "category": "documentation",
+          "weight": 1,
+          "raw": 14.3,
+          "normalized": 14.3,
+          "points": 0.14
+        },
+        "comment_density": {
+          "category": "documentation",
+          "weight": 1,
+          "raw": 3.4,
+          "normalized": 17,
+          "points": 0.17
+        },
+        "decision_records": {
+          "category": "documentation",
+          "weight": 1,
+          "raw": 0,
+          "normalized": 0,
+          "points": 0
+        },
+        "maintenance_flags": {
+          "category": "documentation",
+          "weight": 1,
+          "raw": 14.285714285714286,
+          "normalized": 14.3,
+          "points": 0.14
+        }
+      },
+      "missing": [],
+      "zero_reasons": {
+        "line_coverage": "tests pass, but no own source line maps to coverage (sources loaded without a file name)",
         "readme_coverage": "no README",
         "readme_accuracy": "no README"
       }

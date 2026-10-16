@@ -31,6 +31,14 @@ test('coverage sees scripts run through vm with a plain path as filename', () =>
   assert.ok(r.covered_lines >= 3, `covered ${r.covered_lines}`);
 });
 
+test('coverage maps a bare vm file name to the own file of that name in a subfolder', () => {
+  const dir = app("import { test } from 'node:test';\nimport { readFileSync } from 'node:fs';\nimport vm from 'node:vm';\nimport { fileURLToPath } from 'node:url';\n" +
+    "const f = fileURLToPath(new URL('../js/a.js', import.meta.url));\ntest('a', () => { vm.runInThisContext(readFileSync(f, 'utf8').replace('export ', '') + '\\na(1);', { filename: 'a.js' }); });\n");
+  const r = coverage(dir);
+  assert.equal(r.reason, null);
+  assert.ok(r.covered_lines >= 3, `covered ${r.covered_lines}`);
+});
+
 test('coverage counts unloaded own files, null when the tests fail or are missing', () => {
   const ok = coverage(app("import { test } from 'node:test';\nimport { a } from '../js/a.js';\ntest('a', () => { a(1); });\n"));
   assert.equal(ok.reason, null);

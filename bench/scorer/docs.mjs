@@ -97,7 +97,8 @@ export function codeDocs(text, name) {
   const src = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JSX);
   const comments = commentRanges(src, text);
   // Lines: blank out comments; what is left decides code line, else comment line.
-  const masked = [...text];
+  // UTF-16 code units, as the comment ranges are.
+  const masked = text.split('');
   for (const c of comments) for (let i = c.pos; i < c.end; i++) if (masked[i] !== '\n') masked[i] = ' ';
   const orig = text.split('\n'), mk = masked.join('').split('\n');
   let code = 0, comment = 0;

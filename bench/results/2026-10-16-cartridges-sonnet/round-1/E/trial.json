@@ -95,7 +95,14 @@
       "high": 0,
       "total": 0
     },
-    "mutation": null,
+    "mutation": {
+      "score": 52.4,
+      "killed": 709,
+      "timeout": 110,
+      "survived": 745,
+      "no_coverage": 0,
+      "mutants": 1938
+    },
     "hidden_tests": "5c9d25395e3b332c"
   },
   "lines": {

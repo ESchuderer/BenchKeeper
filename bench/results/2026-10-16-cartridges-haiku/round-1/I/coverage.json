@@ -1,1 +1,1 @@
-{"line":0,"branch":0,"lines":963,"covered_lines":0,"command":"npm test","reason":null}
+{"line":81.82,"branch":90.41,"lines":963,"covered_lines":788,"command":"npm test","fails_under_coverage":false,"reason":null}

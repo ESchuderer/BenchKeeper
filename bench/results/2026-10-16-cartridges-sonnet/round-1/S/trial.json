@@ -1,0 +1,116 @@
+{
+  "arm": "S",
+  "runtime": "opencode",
+  "followups": 2,
+  "wall_seconds": 1817,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [
+      "superpowers@git+https://github.com/obra/superpowers.git#v6.1.1"
+    ],
+    "skills": 15
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 2,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 76,
+    "cost_usd_api_equivalent": 5.238303700000001,
+    "usage": {
+      "input": 176,
+      "cache_creation": 622589,
+      "cache_read": 14979392,
+      "output": 96198,
+      "thinking": 122156
+    }
+  },
+  "workflow": {
+    "tool_calls": 92,
+    "subagent_tool_calls": 7,
+    "skills": [
+      "brainstorming",
+      "writing-plans",
+      "test-driven-development"
+    ],
+    "agents": [
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "docs/superpowers/specs/2026-10-15-cip-cartridge-reference-design.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "Bash cd /work && npm install 2>&1 | tail -2 && . /tmp/opencode/env.sh && npm test 2>&"
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 6,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": true,
+    "code": null,
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 0.99,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 2266,
+    "test": 1406,
+    "files": 26
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.8099104000000001,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3,
+      "visual_design": 3,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Nearly everything in the brief is implemented. The start page has the heading, Search, Family select and '<n> cartridges' (app.js:32-94, list.jpg). The detail view shows every fact and the water capacity with its source link (app.js:106-126). Tables have Symbol/Value/Unit columns, and tolerances sit next to their value ('39.62 -0.2' in detail-308_win.jpg). There is a Print button, an 'All cartridges' link and hash routes that survive reload. The SVG is 1 unit = 1 mm, has aria-label '<name> drawing', a hatched section, a dash-dot axis and a title block with name, table, revision, 'Dimensions in mm' and scale (drawing.js, layout.js:390-419). Print fits one A4 page (print-308_win.jpg). Partly met: (1) For straight cases the body wall blends from tb to tn at the bullet base (geometry.js:411-413, README:57), not tb along the body as rule 8 says; the deviation is documented. (2) Diameter dimensions are lines across the part ending at the outline, with no extension lines (layout.js:242-247). (3) Rimmed and revolver cases, which have no groove by design, get the note 'Extractor groove not drawn: E, E1 and e min are not published' (detail-9_3_x_74_r.jpg, detail-44_rem_mag.jpg). Rule 3 treats a case without a groove as a normal geometry, not a missing value.",
+      "correctness": "I traced the geometry against the rules. Chamfer: geometry.js:208-210. Rimfire half-round: :198-204. Groove and belt ramp at delta to R3/2, then to z=E, then in to P1/2: :221-237. Bottleneck through the published points with tangent fillets r1 min and r2: :263-293. Bullet seating and k by shape and category; tangent ogive rho (I checked the algebra), quarter ellipse and cones: :354-377. Heeled seat radius H2/2-tb: :360. Pocket table and w: :132-139, :336-343. Screenshots match the reference outlines and proportions: 308 and 300 Win Mag bottleneck and belt, 9 mm taper and round nose, 22 LR rounded rim and heeled bullet, 44 Mag cone nose, and the long 10°58' shoulder on 9,3x74R. Labels match the data ('L3 51.18', 'α 40°', 'α 10°58'0\"'). Angles are formatted as specified (format.js:46-51). The print fits one A4 page (print.test.js:20-36). Minor issues: the straight-case wall deviation, misleading 'not published' notes, and the L3 label on 22 LR sitting away from its own line (detail-22_long_rifle.jpg).",
+      "security": "Elements are built with createElement and textContent (app.js:15-28). The one innerHTML (app.js:148) takes an SVG string in which every text is escaped (drawing.js:9-15, tested in drawing.test.js:60-67). Capacity URLs are only linked if they match ^https?:// (app.js:119). No eval, no fetch, no external assets; delivery.test.js:26-33 and ui.test.js:102-112 enforce this.",
+      "code_quality": "The modules are small and clear: format, filter, geometry, layout, drawing, app. Each is a UMD-style IIFE, so the same code runs in Node and the browser. Geometry is a pure function, and missing values are handled explicitly through notes. layout.js (474 lines) is dense and heuristic: the iterative viewBox/scale solve and the candidate label placement have many magic factors (1.85*fs, 0.35*fs and so on). These are readable but hard to tune.",
+      "tests": "The tests are extensive and meaningful. Unit tests check rim-type thresholds, chamfer clamping, belt points, rimfire half-round, fillet tangency, ogive end points, seating and k for every shape and category, heeled radii, pocket sizes, w, and the wall and bullet non-overlap across all 25 records (geometry.test.js). Layout tests check every label for collisions with labels, outline, lines, arrowheads and the title block on all 25 records (layout.test.js:72-166). E2E tests cover file:// and http, search by alternative name, the family filter, reload and bookmark, one A4 PDF page for all 25, print visibility and order, dark mode, the phone with labels of at least 10 px, keyboard use and no network requests.",
+      "ux_design": "The information hierarchy is right for the audience: facts, then the drawing, then the dense grouped tables (detail-308_win.jpg). But drawing labels and the title block render at about 28 px monospace on desktop, much larger than the 22 px h1 and the 13 px tables. The title block takes almost as much height as the cartridge. Small cartridges leave large empty areas in the drawing frame (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg). Labels do not overlap. Print is clean, but in its five columns the cartridge and chamber tables are interleaved, with 'Chamber values' starting mid-column (print-308_win.jpg). Dark mode works (test-output detail-phone-dark.png).",
+      "accessibility": "The SVG has role=img with an aria-label and a <title> (drawing.js:76,96). Table headers use scope col/row with captions, inputs have <label for>, and the filter form has role=search. The count has aria-live=polite. There is a skip link, focus goes to the h1 on route change, and :focus-visible outlines are styled (app.css:47). Contrast of the muted text is adequate. Weak points: the drawing's only text alternative is its name, and the column headers are very small (0.75em, muted).",
+      "simplicity": "No runtime dependencies; Playwright is the only dev dependency. About 1,400 lines of app JS is proportionate to a rule-based CAD-style drawing with automatic label placement. The fixed-point iteration over scale and font size in layout.js:356-375 is the most complex part, and it is justified by the A4 and phone legibility requirements.",
+      "maintainability": "The README covers usage, the file map, test commands, Chromium setup and the drawing decisions. package-lock.json pins the dependencies. Gaps: there is no CI configuration. There is no Node version pin (no engines field or .nvmrc), although the brief names Node 22. The README cites openspec/changes/cartridge-database/design.md, but only openspec/specs/.gitkeep is delivered. There is no ADR, changelog or release process beyond version 1.0.0. The Chromium library workaround is a manual step, though it is documented.",
+      "visual_design": "The calm palette, thin rules and tabular numerals look professional in the tables and list (list.jpg). The drawing clashes with the page: large monospace labels and a heavy, oversized title block in a different typeface and scale from the surrounding UI. Label placement is inconsistent: L3 and L6 are centred on 308 but pushed to the left or right on 9 mm and 22 LR. The print sheet looks like a proper technical data sheet.",
+      "layout": "The name, actions and facts come first, then the drawing, then the tables in a responsive grid. Nothing is clipped and labels do not overlap in any screenshot. The drawing frame uses a lot of vertical space for small cartridges. The phone view stacks cleanly with no horizontal scroll (detail-phone-dark.png). On A4 everything fits on one page with the drawing at full width.",
+      "usability": "Tasks take few steps: type to filter (search by alternative name works), click a name, print. The filter state persists when returning from a detail view (browse.test.js:82-90), and unknown addresses show a not-found view with a link back. There is an empty-search message. Primer types appear as raw codes ('lr', 'spm'), and '1 cartridges' is ungrammatical, though it is literal to the brief.",
+      "reception": "Reloaders and engineers would trust the faithful values, true-scale drawings and clean A4 sheet, and would likely reuse the tool. The oversized drawing text and the 'not published' notes on rimmed cases would feel slightly unpolished to a gunsmith."
+    },
+    "unmet_requirements": [
+      "Rule 8 (partly): on straight cases the body wall blends from tb to tn at the bullet base instead of keeping tb along the body (geometry.js:411-413).",
+      "Rule 3/9 (partly): rimmed and revolver cases without a groove get the note 'Extractor groove not drawn ... not published', though rule 3 defines this as a normal case without a groove.",
+      "Dimension lines (partly): diameter dimensions have no extension lines; they run across the part and end at the outline."
+    ],
+    "overall": 8,
+    "strengths": [
+      "The drawing geometry follows the brief's rules closely for every family (belt, rimfire half-round, heeled bullet, tangent ogive, fillets, pocket and solid head). It is true to scale and matches the reference outlines.",
+      "The test suite is strong: geometry for each rule, label collision checks on all 25 records, one-page A4 PDFs for all 25, file:// and http, dark mode, phone legibility, keyboard use and no network requests.",
+      "Clean, safe, dependency-free code. Pure geometry and layout modules are shared by Node and the browser, and all text in the SVG is escaped."
+    ],
+    "issues": [
+      "Visual hierarchy of the drawing: labels and the title block render in a large monospace face, bigger than the page heading. The title block nearly matches the cartridge in height, and small cartridges leave a lot of empty space (detail-308_win.jpg, detail-9_mm_luger.jpg).",
+      "Maintainability gaps: no CI pipeline, no Node version pin, no release process, and the README links a design document (openspec/changes/.../design.md) that is not in the repository.",
+      "Small rule and semantic deviations: the straight-case wall blends to tn instead of keeping tb, rimmed cases get misleading 'not published' groove notes, and some L3/L6 labels sit away from their dimension line (detail-22_long_rifle.jpg)."
+    ],
+    "verdict": "This is a faithful, well-tested and secure implementation of the brief, with true-scale drawings that match the reference outlines and a print sheet that fits one A4 page. It is close to publishable; what holds it back is the oversized drawing typography and a few gaps in documentation and CI, not functional defects."
+  }
+}

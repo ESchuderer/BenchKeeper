@@ -1,0 +1,113 @@
+{
+  "arm": "N",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1481,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 49936,
+    "result_events": 2,
+    "turns": 82,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 3.232121899999999,
+    "usage": {
+      "input": 222,
+      "cache_creation": 528007,
+      "cache_read": 24827010,
+      "output": 313435,
+      "thinking": 215796
+    }
+  },
+  "workflow": {
+    "tool_calls": 125,
+    "subagent_tool_calls": 36,
+    "skills": [],
+    "agents": [
+      "planner",
+      "code-reviewer"
+    ],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "Bash git add package.json js/data.js js/format.js js/list.js js/geometry.js tests/loa"
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 6,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": true,
+    "code": null,
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 1,
+      "best-practices": 1
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 1131,
+    "test": 290,
+    "files": 13
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": false,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": false
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.1297708000000002,
+  "review": {
+    "scores": {
+      "requirements": 3,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 3,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Met: start page with heading, links, family, L3, live Search over names and alternative names (model.js:89-96), Family select, an \"<n> cartridges\" count (app.js:40-70, list.jpg); detail facts, capacity with its source link, tables with Symbol/Value/Unit and tolerances inline (model.js:54-73); Print button and All cartridges link; hash route #/cartridge/<key> that survives a reload; inline SVG with aria-label \"<name> drawing\", true-scale units, section below, dash-dot centre line; one-page A4 print with footer (print-308_win.jpg). Partly met or unmet: (1) α gets only a leader line and label (drawing.js:89-93), not a dimension line with arrowheads and extension lines as required; (2) the printed drawing is not full width: the SVG width is set in mm (drawing.js:119) and only the screen rule stretches it, so in print-308_win.jpg it fills about half the page width; (3) the title block is an HTML strip outside the drawing (app.js:108-114), and \"Scale 1:1, fitted to width\" is wrong on screen, where the drawing is enlarged several times; (4) rule 9's notes are vague (\"beta or f missing\", \"alpha, L1, L2 or P2 missing\") instead of naming the missing value; (5) the twist length u has no unit (model.js:10, u: ''), although lengths are in mm.",
+      "correctness": "Geometry follows the rules closely: rim type by family and R1/P1 (model.js:75-83); chamfer at min(f·tanβ, R1/4) (geometry.js:104-106); groove and belt ramp at δ to the axis, capped at E (geometry.js:116-126); body, shoulder with r1 min and r2 fillets, neck; tangent ogive whose radius and centre end exactly at L6 with meplat m; quarter ellipse, cones, seating depths and k factors per shape and category (geometry.js:59-83, 151-156); heel at H2-2tb; w and primer pocket sizes. Proportions match the references for 308, 300 WM, 9 mm and 22 LR (compare reference/*.png with the detail screenshots). Faults: (1) on straight cases the wall is blended from tb to tn along the whole body (geometry.js:172-173); on 22 LR, where tn = 0, the wall tapers to zero at the mouth while the heel is drawn at H2-2tb, which leaves a gap between heel and case wall (detail-22_long_rifle.jpg). (2) The wall is offset radially, not normal to the surface, so the shoulder wall comes out thinner. (3) u is shown without mm. (4) Some extension lines cross the rim on rimmed cases (P1 on detail-9_3_x_74_r.jpg). Dimension values and tolerances match the data (\"L2 43.48 -0.2\", \"α 10°58'00\"\"). Print fits one A4 page.",
+      "security": "All DOM text is set through textContent (app.js:9-22). The only innerHTML is the generated SVG (app.js:104), where the name and labels go through esc() (drawing.js:8-10) and the rest is numbers. No eval, no fetch, no external scripts or fonts. The data is bundled as a JS file, so file:// works.",
+      "code_quality": "Four small modules with clear responsibilities: model, geometry, drawing, app (about 600 lines). Readable helpers (fillet, radiusAt, nose, hDim/vDim). The drawing has a try/catch fallback (app.js:102-107), and an unknown bullet shape throws a clear error. Downsides: terse names (vs, kk, Gx, H, J, Co, F); the label boxes are collected only for tests and are not used to avoid collisions; beta is used as a raw number instead of going through angleDegrees (geometry.js:104).",
+      "tests": "Three node:test files (test/*.test.js) load the browser scripts through vm. They cover the symbol map, angle formatting, inline tolerances, units, rim type, primer pockets, search including \"7,62 x 51\", outline endpoints and monotonicity, pointy seating and meplat, the heeled flag, the neck wall at the mouth, missing-value notes, the rimfire rim top, the belt ramp cap, and a label-vs-outline and label-vs-label overlap check over all 25 records (drawing.test.js:40-56). Not covered: chamfer/groove/belt coordinates, wall and pocket geometry, other bullet shapes, dimension lines vs labels, list/filter UI, routing, the print layout. The heeled wall bug goes undetected.",
+      "ux_design": "The detail pages read top-down as a reference sheet, and the drawing is legible with monospace labels and white halos. But label size is fixed at 3.4 mm while the SVG is scaled to the page width, so on short cartridges the labels become enormous (detail-22_long_rifle.jpg and detail-9_mm_luger.jpg, about 45 px glyphs) while the 308 drawing is a thin strip. The grid stretches tables to equal height, so rows spread out with large gaps (Collar H1/H2 and Projectile G1/L3 + G in detail-308_win.jpg). Pistol pages show empty Junction cone tables. The title block is a faint strip. The print layout is compact and clean but leaves the drawing small.",
+      "accessibility": "The SVG has role=img and aria-label \"<name> drawing\"; inputs have <label for>; the count has aria-live=polite; tables have a caption and th scope=col; there are a <nav> toolbar and real <button>/<a> elements; :focus-visible outlines are set (styles.css:38-40); the muted text #5d6670 on #fbfaf7 has adequate contrast; color-scheme light dark. The drawing has no longer description beyond its name (the tables cover the values).",
+      "simplicity": "No runtime or dev dependencies (package.json has only a test script). Plain ES5 scripts and one CSS file, a size that fits the problem.",
+      "maintainability": "There is no README, docs, ADRs, spec or CI configuration in app/. Run and test instructions exist only implicitly in package.json (\"node --test\"), which declares engines >=22 (a range, not pinned). There is no release or versioning note beyond version 0.1.0. The tests give some regression coverage, but the drawing rules and decisions (wall blending, label placement, scale) are not documented anywhere.",
+      "visual_design": "The palette is calm, the system sans for UI and monospace for drawing labels work, numbers use tabular figures, and the list page is clean (list.jpg). It is inconsistent across pages: drawing label size varies wildly with cartridge length (the 308 labels are moderate, the 22 LR ones are huge). The stretched table rows and empty tables look unfinished. The title block is low-contrast and does not read as an engineering title block.",
+      "layout": "The structure follows the brief: toolbar, heading, facts, drawing, title block, then tables in a three-column grid. There are no overlaps or clipping in any screenshot. Equal-height grid rows create big blank gaps inside tables. On short cartridges the drawing's left/bottom labels take up a large share of the vertical space (detail-9_mm_luger.jpg spans about 600 px for a 30 mm cartridge). In print the drawing sits centred at roughly half width with whitespace around it (print-308_win.jpg).",
+      "usability": "Live search with alternative names, the family filter and the count work in one step. Each name is a plain link to a bookmarkable hash URL, and \"All cartridges\" and \"Print\" are at the top. An unknown key gets a \"Cartridge not found\" page with a way back. Search and filter state survives going back to the list within the session (state object). There is no sorting, which the brief does not require.",
+      "reception": "Reloaders and engineers will trust the values: published forms, tolerances inline, DMS angles, notes for missing data. The drawing is recognisably correct against the OpenBallistics references. The oversized labels on short cases, the gappy tables and the \"Scale 1:1\" claim on a scaled screen drawing would undercut the professional impression, and the α callout without an angle dimension looks less precise than the reference drawings."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α has only a leader and label, not a dimension line with arrowheads and extension lines (drawing.js:89-93)",
+      "Printed drawing is not at full width: SVG width is set in mm and only screen CSS stretches it (drawing.js:119, styles.css:66; print-308_win.jpg)",
+      "Title block sits outside the drawing, and its scale \"1:1, fitted to width\" is wrong on screen (app.js:108-114)",
+      "Rule 9: notes name groups of possibly missing values rather than the specific missing value (geometry.js:109, 141)",
+      "Twist length u shown without its unit mm (model.js:10)",
+      "Heeled case wall tapers to zero at the mouth instead of keeping the tb wall that the H2-2tb heel implies (geometry.js:172-173; detail-22_long_rifle.jpg)"
+    ],
+    "overall": 6,
+    "strengths": [
+      "Faithful implementation of most geometry rules: the chamfer, groove, belt ramp at δ, fillets, the tangent-ogive maths ending exactly at L6, the seating and k factors, and the primer pocket and head thickness all match the brief, and proportions agree with the reference drawings",
+      "Data shown exactly as published: inline tolerances, DMS angles, brief symbols, units, safe DOM building, no dependencies, and it works from file:// with bookmarkable hash routes",
+      "Meaningful tests, including an automated label-overlap check across all 25 records and checks of the brief's formatting rules"
+    ],
+    "issues": [
+      "Drawing presentation falls short of the brief: no true angle dimension for α, the print drawing is only about half the page width, the title block is outside the drawing, and the \"Scale 1:1\" claim is wrong on screen",
+      "Visual polish: the fixed 3.4 mm label size makes labels huge on short cartridges (9 mm, 22 LR), and grid-stretched tables leave large gaps between rows on every detail page",
+      "No README, docs, ADRs or CI configuration, so maintainability rests on the code alone; data errors such as u without mm and the zero-thickness heeled-case wall at the mouth on 22 LR are not caught by the tests"
+    ],
+    "verdict": "The engine is solid: the case and bullet geometry follows the brief's rules closely, values are rendered exactly as published, and the app is dependency-free, safe and easy to use. Missing drafting details (α dimension, full-width print, title block), uneven label scaling, gappy tables and the absence of any documentation or CI keep it from being ready to publish as is."
+  }
+}

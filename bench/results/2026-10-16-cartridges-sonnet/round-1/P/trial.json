@@ -1,0 +1,129 @@
+{
+  "arm": "P",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 2263,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 91568,
+    "result_events": 5,
+    "turns": 110,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 6.995044600000001,
+    "usage": {
+      "input": 306,
+      "cache_creation": 569004,
+      "cache_read": 24125346,
+      "output": 262876,
+      "thinking": 123282
+    }
+  },
+  "workflow": {
+    "tool_calls": 167,
+    "subagent_tool_calls": 45,
+    "skills": [
+      "speckit-constitution",
+      "speckit-specify",
+      "speckit-plan",
+      "speckit-tasks",
+      "speckit-analyze",
+      "speckit-implement",
+      "code-review",
+      "simplify"
+    ],
+    "agents": [
+      "Explore",
+      "Explore",
+      "Explore",
+      "Explore"
+    ],
+    "plan_or_spec_files": [
+      "/work/.specify/memory/constitution.md",
+      "/work/specs/001-cartridge-reference/spec.md",
+      "plan.md",
+      "/work/specs/001-cartridge-reference/tasks.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "Bash grep -n \"\\[ \\]\" specs/001-cartridge-reference/tasks.md; grep -rn \"http\" index.ht"
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 6,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": true,
+    "code": null,
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 0.99,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 544,
+    "test": 797,
+    "files": 17
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.2671978,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 4,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 4,
+      "layout": 4,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Nearly all of the brief is in place. Start page (list.jpg) has the 'Cartridges' heading, links whose text is the record's name, a Search field that also matches alternative names (catalog.js:11-18), a Family select and the '<n> cartridges' count. The detail view has every metadata field, the water capacity with its source link, Cartridge/Chamber tables with Symbol/Value/Unit columns, tolerances inline ('39.62 -0.2'), angles shown as 71°25'59\", a Print button, an 'All cartridges' link and a bookmarkable hash route (router.js). The drawing has a dash-dot centre line, a hatched section, dimension lines with arrowheads and extension lines, a title block, and notes for missing values. Partly met: (1) The α dimension is an arc with no arrowheads, drawn at the cone apex on the axis (drawing.js:201-221), not at the shoulder. For 9,3 x 74 R the apex is at z≈113, beyond the bullet tip, so the arc and label float far to the right (detail-9_3_x_74_r.jpg). (2) The print drawing is capped at 116 mm high (styles.css:155), so it fills only about 60% of the page width instead of 'full width' (print-308_win.jpg). (3) The title block says 'Scale 1:1' (drawing.js:239), which is not the real scale on screen or on paper. (4) Pistol records show empty 'Junction cone' section rows (detail-9_mm_luger.jpg).",
+      "correctness": "Most rules are implemented and checked against hand-computed values in geometry.test.js: rim type, chamfer with the R1/4 cap, rimfire half-round, groove, belt ramp at δ, fillets, the tangent ogive (the centre and ρ formula are right), the quarter ellipse, the cones, seating depth and k, the heeled bullet, tb and tn, w, and the primer pocket. Outlines and proportions match the reference drawings for 308, 300 WM, 9 mm Luger and 22 LR. One geometry defect: on straight non-heeled cases the inner wall reaches the mouth at H2/2 − tb (geometry.js:379). That is 4.225 mm for 9 mm Luger, smaller than the bullet's G1/2 of 4.515, so the seated bullet in the section cuts about 0.3 mm into the case wall. 44 Rem. Mag. has the same problem: inner radius 5.19 against a bullet radius of 5.485 (detail-9_mm_luger.jpg, detail-44_rem_mag.jpg). The α arc is placed at the cone apex, not at the shoulder. Values, tolerances and angle formats match the data. Every printed cartridge fits one A4 page (print-308_win.jpg, and the e2e test at app.e2e.test.js:174-192).",
+      "security": "Everything except the SVG is built with createElement and text nodes (app.js:17-24). The SVG string goes into innerHTML (app.js:156), but each label, name and note passes through esc() (drawing.js:280-286). There is no eval, and the data is embedded locally (cartridges-data.js). An e2e test confirms the page makes no network requests (app.e2e.test.js:43-48, 66).",
+      "code_quality": "Small, focused modules: format, sections, geometry, drawing, catalog, router and app. Names are clear, and drawing.scene() returns plain data that toSvg() then renders, which makes the layout testable. Weak points: esc() is written twice (app.js:9 and drawing.js:280), and app.js exports its copy without using it. Several layout numbers are hard-coded with no explanation (HEAD_LIMIT = 15, tbHeight). Geometry.build is a single 270-line function.",
+      "tests": "Strong unit tests: each geometry rule is checked against computed values, including the fillet tangents, the ogive circle, the ellipse and the w terms (geometry.test.js). Label overlap is checked against other labels and the outline for all 25 records (drawing.test.js:59-74). Data drift between the JSONL and the generated file is checked (data.test.js). The e2e tests cover search, filter, reload, bookmark, the one-page A4 PDF for all 25 records, no network requests, dark mode and phone width. Gaps: nothing checks that the bullet stays inside the case wall, or that α is placed at the shoulder. Extension lines crossing labels are explicitly left out of the check (drawing.test.js:62-64).",
+      "ux_design": "The list is clean and dense (list.jpg). On detail pages, label size is fixed in mm, so on short cartridges the labels and the title block are huge: about 30 px labels on detail-9_mm_luger.jpg and detail-22_long_rifle.jpg, against about 19 px on 308. The L6 extension line runs through the 'L3 19.15 -0.25' and 'L3 15.57' labels. On screen the value tables are one full-width column, with Unit pushed to the far right, away from Value, and pages run past 2800 px. Print is dense and well organised (print-308_win.jpg).",
+      "accessibility": "The SVG has role=img, aria-label '<name> drawing' and a <title> (drawing.js:303-305). Inputs have proper labels (app.js:55-56), table headers use scope col/row/colgroup, the count is an aria-live region, and :focus-visible is styled. The muted text (#5d6268 on #f7f6f2) is about 5.9:1. Weak points: focus is not moved to main on a route change, even though main has tabindex=-1, and the drawing has no text description beyond its name (the tables do carry the values).",
+      "simplicity": "No runtime dependencies. Plain IIFE scripts make up about 1,000 lines of app code, which suits the task. The only dev dependency is Playwright. A small Node script generates the embedded data file so the app works from file://.",
+      "maintainability": "There is no README, no CI configuration, no docs or ADRs, and openspec/specs holds only a .gitkeep. Nothing written down says the data file must be regenerated with `npm run build:data`, or how to install Playwright browsers for the e2e tests. A lockfile exists, but the Playwright range is ^1.64.1 and the engines field is 'node >=22' with no .nvmrc. Versioning stops at the 1.0.0 in package.json.",
+      "visual_design": "Calm, consistent palette and type, with tabular monospace numbers, uppercase small captions and a muted rule colour (list.jpg, detail-308_win.jpg). The drawing reads as a proper technical drawing in a single dimension colour. Mixed: drawing text is far larger than the page text on small cartridges, and the title block dominates the 9 mm and 22 LR views.",
+      "layout": "Clear order: navigation, title, metadata grid, drawing, then tables. Nothing clips or overflows. The title block sits as a full-width box under the drawing. The screen tables waste horizontal space at 980 px, and the empty 'Junction cone' rows add noise. Print uses a 3-column metadata grid and 4 table columns on one page.",
+      "usability": "The main task (find a cartridge, open it, read or print it) takes few steps. Search filters as you type and matches alternative names. Each detail view has its own reloadable URL, and Back works through the hash. An unknown key falls back to the list, which is graceful but gives no message. The list cannot be sorted.",
+      "reception": "Reloaders and engineers will find it trustworthy: values match the C.I.P. data exactly, the source is credited, and the print sheet is clean. Some drafting quirks would be noticed: the α arc away from the shoulder (and far off the drawing on 9,3 x 74 R), the bullet cutting into the case wall in pistol sections, and 'Scale 1:1'."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α is not dimensioned at the shoulder with arrowheads and extension lines. It is an arc at the cone apex, which for 9,3 x 74 R lies beyond the bullet tip (drawing.js:201-221).",
+      "Section walls: on straight cases the wall at the mouth uses tb rather than tn, so the seated bullet overlaps the case wall in the section (geometry.js:379; 9 mm Luger, 44 Rem. Mag.).",
+      "Print: the drawing is height-limited (116 mm) and not at full page width (styles.css:155).",
+      "Title block scale reads 'Scale 1:1', which is not the real scale on screen or on paper."
+    ],
+    "overall": 7,
+    "strengths": [
+      "Faithful geometry engine: nearly every brief rule is implemented and unit-tested with hand-computed values, and the outlines match the reference drawings.",
+      "Thorough end-to-end checks: all 25 records print to one A4 page, labels never overlap each other or the outline, no network requests, file:// routing and bookmarking work, dark mode and phone width are covered.",
+      "Plain HTML, CSS and JS with no runtime dependencies; the data is rendered safely and shown exactly as published, with tolerances, angles and units."
+    ],
+    "issues": [
+      "Drafting errors in the drawing: the seated bullet cuts into the case wall in straight pistol-case sections, and the α arc sits at the cone apex instead of the shoulder (off past the tip on 9,3 x 74 R).",
+      "No README, CI, docs or ADRs, and openspec/specs is empty: the data-regeneration step and the e2e setup are undocumented.",
+      "Drawing text uses a fixed mm size, so labels and the title block are oversized on short cartridges, extension lines run through some labels, the print drawing is not full width, and the scale is given as 1:1."
+    ],
+    "verdict": "A careful, well-tested static app that meets almost all of the brief: correct data, a rule-based true-scale drawing, and a one-page A4 print. Before publishing to a technical audience it needs fixes to the section wall on straight cases, a proper α dimension at the shoulder, consistent label sizing, and basic project documentation and CI."
+  }
+}

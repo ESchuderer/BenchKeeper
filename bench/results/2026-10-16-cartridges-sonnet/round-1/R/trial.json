@@ -1,0 +1,117 @@
+{
+  "arm": "R",
+  "runtime": "opencode",
+  "followups": 1,
+  "wall_seconds": 2286,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [
+      "file:///home/node/.bench-src/superpowers"
+    ],
+    "skills": 16
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 2,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 78,
+    "cost_usd_api_equivalent": 5.3327848,
+    "usage": {
+      "input": 186,
+      "cache_creation": 415421,
+      "cache_read": 17576103,
+      "output": 106838,
+      "thinking": 146787
+    }
+  },
+  "workflow": {
+    "tool_calls": 107,
+    "subagent_tool_calls": 15,
+    "skills": [
+      "brainstorming",
+      "writing-plans",
+      "test-driven-development",
+      "requesting-code-review"
+    ],
+    "agents": [
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "docs/superpowers/specs/2026-10-15-cip-cartridges-design.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "Bash cd /work && . /tmp/env.sh; timeout 100 npm test 2>&1 | grep -E \"^# (tests|pass|f"
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 6,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": true,
+    "code": null,
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 0.99,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 1314,
+    "test": 673,
+    "files": 16
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

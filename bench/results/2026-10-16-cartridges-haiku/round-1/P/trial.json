@@ -1,0 +1,118 @@
+{
+  "arm": "P",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1854,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 74890,
+    "result_events": 2,
+    "turns": 108,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 2.7151013949999996,
+    "usage": {
+      "input": 246,
+      "cache_creation": 530390,
+      "cache_read": 33905463,
+      "output": 389342,
+      "thinking": 282016
+    }
+  },
+  "workflow": {
+    "tool_calls": 136,
+    "subagent_tool_calls": 15,
+    "skills": [],
+    "agents": [
+      "general-purpose"
+    ],
+    "plan_or_spec_files": [
+      "/work/.specify/memory/constitution.md",
+      "/work/specs/001-cartridge-reference/spec.md",
+      "/work/specs/001-cartridge-reference/plan.md",
+      "/work/specs/001-cartridge-reference/tasks.md",
+      "spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "Bash cd /tmp/verify && export LD_LIBRARY_PATH=/tmp/al2x/al2023/lib FONTCONFIG_FILE=/t"
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 6,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": true,
+    "code": null,
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 1,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 796,
+    "test": 279,
+    "files": 9
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": false,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.2848431999999999,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 3,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 3,
+      "ux_design": 3,
+      "accessibility": 4,
+      "simplicity": 5,
+      "maintainability": 2,
+      "visual_design": 3,
+      "layout": 3,
+      "usability": 4,
+      "reception": 3
+    },
+    "evidence": {
+      "requirements": "Most of the brief is implemented. The list has the heading, search over names and alternative names, the family select and the 'n cartridges' count (app.js:31-72, list.jpg). The detail view has the facts, the capacity with its source link, grouped Symbol/Value/Unit tables with tolerances merged into the value (format.js:97-111), Print, 'All cartridges' and hash routes that survive a reload (app.js:153-163). The drawing has an upper outside view, a lower hatched section, a dash-dot axis, every required dimension (geometry.js:316-350), a title block and the aria-label '<name> drawing'. Partly met: (1) the title block always says 'Scale 1:1' (drawing.js:231), but the SVG is scaled to page width on screen and in print, so the stated scale is false. (2) The shoulder angle is not marked at the shoulder (drawing.js:143-156). (3) The rule that labels must not overlap the outline is broken by the stray angle glyph inside the neck in detail-308_win.jpg and detail-300_win_mag.jpg. (4) Process: openspec/specs contains only a .gitkeep, so no specs were written.",
+      "correctness": "Profile geometry follows the rules. Rim type: geometry.js:32-38. Chamfer with min(f*tan(beta), R1/4): geometry.js:245. The rimfire half-round has its outermost point at R1/2: geometry.js:235-241. Extractor groove, and the belt ramp at delta out to R3/2: geometry.js:255-264. Fillets with r1 min and r2: geometry.js:271. Seating and cylinder factors: geometry.js:41-56. The tangent ogive uses the correct rho and centre and ends exactly at the meplat: geometry.js:133-143. The heeled shank and heel radii are right (geometry.js:278-279), and so are w and the primer pocket table (geometry.js:177-178, 283-288). Outlines match the reference proportions for 308, 300 WM, 9 mm and 22 LR. Dimension values match the data. Defects: (1) the alpha arc is drawn with radius 6 about the cone apex (geometry.js:346-348). For 308 the apex is at z=55.5, so the arc lands inside the neck/bullet (detail-308_win.jpg). For 9,3 x 74 R it floats past the bullet tip (detail-9_3_x_74_r.jpg). (2) 'Scale 1:1' is false. (3) Straight cases blend the wall from tb to tn along the whole body (geometry.js:296), not tb along the body. With tn=0 on 22 LR the wall tapers to a knife edge at the mouth. Angles show as 40 deg or 10 deg 58'00\", tolerances as '39.62 -0.2'. The print fits one A4 page (print-308_win.jpg).",
+      "security": "Every data string goes through escapeHtml before any innerHTML (app.js:61-63, 88, 97-100, 107-109, 137; drawing.js:110, 135, 213, 227-229). There is no eval, Function or setTimeout with a string. There are no fetches, CDNs or web fonts; the data is a static script (data.js). The only external URLs are user-clicked source links with rel=noopener.",
+      "code_quality": "Small IIFE modules with clear roles: data, format, geometry, drawing, app. Names are good and the comments are short and useful. Missing values are reported through geo.missing, and an unknown key gets a 'Not found' view. Weaknesses: has() is duplicated in format.js and geometry.js; there are magic layout constants (title width heuristics at drawing.js:199-202); and the .num right alignment is silently overridden by the more specific .list td/.values td rules (app.css:128-147), so numbers are left-aligned in list.jpg.",
+      "tests": "tests/cip.test.js has 17 node:test cases that load the real browser scripts in a vm (load.js). They cover symbols, units, angle and tolerance formatting, merged Tol rows, rim types, bottleneck/straight/heeled detection, the pocket and w for 223, missing-value reporting, a monotone profile ending at L6, pointy seating and meplat, fillets, label counts, the accessible name and label overlap. Not tested: the chamfer, groove, belt, rimfire rim, rounded/flat/SWC noses, section walls and heel coordinates, the alpha marker position (the bug above slipped through), search and filter, routing, the detail tables and print CSS. The overlap test reuses the renderer's own rects, so it is partly self-referential.",
+      "ux_design": "The tables are dense, calm and well grouped, with two columns on desktop (detail-*.jpg), and the facts block is compact. The drawing is weak: label text is 3.2 user units on 1-2 mm features, so labels are huge next to the cartridge (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg). The diameter labels stack into five tiers, and the title block is an oversized box with 30 px text. On short cartridges the viewBox is widened for the title, so the cartridge fills under half the width and the centre line runs empty across the rest. The print layout is good: header name, full-width drawing, three-column tables, footer (print-308_win.jpg). Dark mode is defined in CSS but has no screenshot.",
+      "accessibility": "The SVG has role=img and aria-label '<name> drawing'. Its detailed text alternative is the value tables. Inputs are wrapped in labels. Tables use th scope=col/row. The count is aria-live. Focus-visible outlines are set, lang=en, and document.title updates per view. Muted text #5b626b on #fbfbf9 has adequate contrast. Gaps: focus is not moved or announced on hash route changes, and the drawing has no longer description.",
+      "simplicity": "Zero runtime dependencies, no build step and plain script tags that work from file://. About 900 lines of JS besides the data, which fits the geometry and label-placement problem. The only tooling is node --test.",
+      "maintainability": "There is no README, docs, ADR or CHANGELOG, and openspec/specs is empty (.gitkeep only). There is no CI configuration and no release or versioning approach beyond version 1.0.0 in package.json. engines is node >=22, not pinned. package.json has an 'npm test' script and there are regression tests, but nothing documents how to run or open the app or why rules were interpreted as they were (for example the straight-case wall blend).",
+      "visual_design": "The page chrome is restrained and consistent: system font, muted uppercase group headings, hairline rules, a teal accent for links and dimensions (list.jpg, detail-*.jpg). The drawing clashes with it: its typography is far larger than the page text, the title block is heavy, and the stray alpha arrow glyph looks like a rendering artefact. Overall it looks only partly finished.",
+      "layout": "The detail hierarchy is right: name, facts, drawing, cartridge tables, chamber tables. There is no clipping or overlap between labels. Space is wasted, though: the drawing area is about 550-600 px tall for a 20 mm pistol case because of tiered labels and a large title block, and short cartridges leave half the drawing width empty (detail-9_mm_luger.jpg, detail-44_rem_mag.jpg). In the two-column table grid, short groups leave large holes (detail-308_win.jpg chamber section). The list page is clean and full-width.",
+      "usability": "Search filters as you type over alternative names, the family select works, and the count updates. Names are links to bookmarkable #/cartridge/<key> addresses. 'All cartridges' and Print are at the top of the detail view. There are no dead ends; an unknown key shows 'Not found' with a back link. Minor: the search does not tolerate '7.62x51' spelling variants, and numbers are left-aligned in the list.",
+      "reception": "Reloaders and engineers would find complete, correctly formatted C.I.P. values and a mostly faithful to-scale profile and section. A misplaced alpha marker, a 'Scale 1:1' claim that is plainly untrue, and oversized cartoonish labels would undermine trust in the drawing for a precision audience."
+    },
+    "unmet_requirements": [
+      "Title block states 'Scale 1:1' while the drawing is scaled to the page width on screen and in print; the stated scale is wrong (drawing.js:231)",
+      "Shoulder angle alpha is not marked at the shoulder: its arc is drawn about the distant cone apex, inside the neck/bullet (308, 300 WM) or past the tip (9,3 x 74 R)",
+      "Labels/annotations must not overlap the outline: the stray alpha arc overlaps the neck and bullet outline in detail-308_win.jpg",
+      "Section walls on straight cases: wall blended from tb to tn along the whole body instead of tb along the body; 22 LR wall tapers to zero at the mouth (geometry.js:296)",
+      "Process: no specs written (openspec/specs is empty) and no documentation"
+    ],
+    "overall": 6,
+    "strengths": [
+      "Faithful rule-based profile geometry across all families (chamfer, groove, belt, rimfire half-round, fillets, tangent ogive, heeled bullet, primer pocket, w), with outlines matching the reference drawings",
+      "Complete and correctly formatted data presentation: merged tolerances, angles in degrees or D-M-S, symbols and units as specified, grouped Symbol/Value/Unit tables, working search, filter and bookmarkable routes",
+      "Dependency-free, file://-safe, consistently escaped vanilla JS with a print stylesheet that fits the 308 Win. detail view on one A4 page"
+    ],
+    "issues": [
+      "Drawing annotation errors that engineers will notice: the shoulder-angle arc is drawn about the far-off cone apex, so it lands inside the neck/bullet or floats past the tip, and the title block's 'Scale 1:1' is false on screen and in print",
+      "Drawing presentation is crude: oversized 3.2-unit labels dwarf the cartridge, many label tiers and a heavy title block, and short cartridges use only half the drawing width",
+      "No README, docs, specs, ADRs or CI; tests skip most drawing rules (groove, belt, noses, walls, alpha placement) and all UI behaviour"
+    ],
+    "verdict": "The app meets nearly all of the brief: the data is correct and well formatted, and the case and bullet geometry follow the rules and match the reference proportions. Still, I would not publish it to a precision audience as is: the misplaced alpha marker and the false 'Scale 1:1' need fixing, the oversized labels and title block need reworking, and the repository needs a README and CI."
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "arm": "C",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1684,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-haiku-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "agent-skills",
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 94774,
+    "result_events": 2,
+    "turns": 82,
+    "sessions": 1,
+    "cost_usd_api_equivalent": 2.1677720099999993,
+    "usage": {
+      "input": 180,
+      "cache_creation": 520318,
+      "cache_read": 22282609,
+      "output": 369778,
+      "thinking": 267902
+    }
+  },
+  "workflow": {
+    "tool_calls": 104,
+    "subagent_tool_calls": 20,
+    "skills": [],
+    "agents": [
+      "agent-skills:code-reviewer"
+    ],
+    "plan_or_spec_files": [
+      "/work/openspec/changes/cartridge-reference/proposal.md",
+      "/work/openspec/changes/cartridge-reference/specs/cartridge-catalogue/spec.md",
+      "/work/openspec/changes/cartridge-reference/specs/cartridge-catalogue/spec.md",
+      "/work/openspec/changes/cartridge-reference/specs/cartridge-detail/spec.md",
+      "/work/openspec/changes/cartridge-reference/specs/cartridge-drawing/spec.md",
+      "/work/openspec/changes/cartridge-reference/design.md",
+      "/work/openspec/changes/cartridge-reference/tasks.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "Bash openspec archive cartridge-reference --yes 2>&1 | tail -15 && ls openspec/specs "
+  },
+  "score": {
+    "install": 0,
+    "build": null,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true
+    },
+    "features_passed": 6,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": true,
+    "code": null,
+    "axe": {
+      "list": 0,
+      "detail-308_win": 0,
+      "detail-300_win_mag": 0,
+      "detail-9_3_x_74_r": 0,
+      "detail-9_mm_luger": 0,
+      "detail-22_long_rifle": 0,
+      "detail-44_rem_mag": 0
+    },
+    "lighthouse": {
+      "performance": 1,
+      "accessibility": 1,
+      "best-practices": 1
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "mutation": null,
+    "hidden_tests": "5c9d25395e3b332c"
+  },
+  "lines": {
+    "source": 715,
+    "test": 317,
+    "files": 12
+  },
+  "maintenance": {
+    "readme": false,
+    "readme_setup": false,
+    "lockfile": false,
+    "test_script": true,
+    "lint_or_typecheck": false,
+    "ci": false,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "5c9d25395e3b332c",
+    "bk": "v1"
+  }
+}

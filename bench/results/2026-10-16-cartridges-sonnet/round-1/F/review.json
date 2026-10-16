@@ -1,0 +1,55 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "8ed29e15f0a6877c34e8b375f4596af260683809c9c8003904cddc66a43bb505",
+  "cost_usd_api_equivalent": 1.5145128,
+  "review": {
+    "scores": {
+      "requirements": 4,
+      "correctness": 4,
+      "security": 5,
+      "code_quality": 4,
+      "tests": 5,
+      "ux_design": 4,
+      "accessibility": 4,
+      "simplicity": 4,
+      "maintainability": 3,
+      "visual_design": 4,
+      "layout": 3,
+      "usability": 4,
+      "reception": 4
+    },
+    "evidence": {
+      "requirements": "Almost everything is met. The list has the heading 'Cartridges', name links, family, L3, the Search and Family controls and '<n> cartridges' (views.js:25-58, list.jpg). Detail metadata, the capacity source link, Symbol/Value/Unit tables, the Print button and the 'All cartridges' link are present (views.js:84-102). Hash routes survive a reload (router.js:8). Tolerances sit inline next to their value, e.g. '39.62 -0.2' (model.js:30-31). It works from file:// with classic scripts and generated data/cartridges.js. Partly met: (1) the shoulder angle α has no dimension with extension lines on the shoulder itself. It is drawn as a separate wedge to the right of the title block (dimensions.js:214-246; detail-308_win.jpg, detail-9_3_x_74_r.jpg). (2) The title block shows the A4 print scale only, not the scale on screen (dimensions.js:267-269; documented in SPEC D6). (3) On belted cases the solid head also takes E+tb into the max, not just the belt ramp end + tb (geometry.js:287-288).",
+      "correctness": "The geometry follows the rules closely and is unit-tested against the formulas. Chamfer with the min(f·tanβ, R1/4) limit, groove, belt ramp at δ to the axis, tangent fillets r1 min/r2, tangent ogive with ρ and its centre, quarter-ellipse round nose, cones for flat and SWC, seating depth s and length factor k by category, heeled heel H2-2tb, wall formulas and primer pockets are all in geometry.js:79-316. The screenshots match the reference outlines in proportion: the 308 groove and shoulder, the 300 WM belt, the 9 mm taper and rounded nose, the 22 LR half-round rim. Label values match the data, e.g. 'L3 51.18', 'α 10°58'0\"'. print-308_win.jpg fits one A4 page, black on white, with the footer. Deviations: α is not drawn at the shoulder. Three choices are documented interpretations rather than stated rules: straight-case walls blend tb→tn up to the bullet base, heeled cases use tn:=tb, and belted w = E+tb.",
+      "security": "All DOM is built with createElement/createElementNS and textContent (views.js:10-23, drawing.js:119-125). A grep for innerHTML, eval, new Function and fetch finds nothing. The only 'http' string is the SVG namespace. No fonts, CDNs or analytics. The external capacity link uses rel=noopener noreferrer.",
+      "code_quality": "Clear split into format, model, filter, router, geometry, dimensions, drawing and views, with pure functions and UMD wrappers so Node can test them. Points are always {r, z}, and rule numbers are cited in comments. Weak spots: buildLayout is a ~200-line function full of magic layout numbers (dimensions.js:88-283). The G1-missing branch in buildCase repeats a long return object (geometry.js:347).",
+      "tests": "Unit tests cover each geometry rule with hand-computed expectations: chamfer cap, rimfire half-round, groove, belt, fillet tangency and radius, ogive ρ, ellipse, seating and k per shape, walls, w, pockets, missing-value notes (geometry.test.js). Invariants run over all 25 records. Label overlap with outline and dimension lines is checked for all 25 (dimensions.test.js:71-100). E2E tests use real getBBox overlap checks, run on both file:// and http, log network requests, check phone width and dark mode, and verify the PDF page count is 1 for all 25 records (print.spec.js:11-18, drawing.spec.js). .last-run.json shows passed.",
+      "ux_design": "Dense, calm, technical: uppercase micro-labels, compact Symbol/Value/Unit tables, tabular numerals, tolerances shown inline in muted text (detail-308_win.jpg). The print is a good one-page sheet. Weak spots: on screen the labels are very large compared with the part. α is separated from the shoulder it measures. The R1/E1/P1 leaders cluster within about 3 mm at the head. The 'R 1.37' label floats under the L1 line. Dark mode exists in CSS but is not shown in the screenshots.",
+      "accessibility": "The SVG has role=img, aria-label '<name> drawing', <title> and <desc> (drawing.js:61-62,112-113). The tables give the full data as text, with th scope=col/row. Search and Family have <label for>. The count is role=status aria-live. Focus moves to h1 on route change (app.js:27-31), and focus-visible outlines are set. Muted grey text keeps adequate contrast. The desc is generic and does not list the drawn dimensions. The h1 has outline:none.",
+      "simplicity": "Zero runtime dependencies. Playwright is the only dev dependency. About 1000 lines of app JS for geometry plus dimensioning is proportionate. The custom label-collision layout is justified by the no-overlap rule.",
+      "maintainability": "The README covers running and testing. SPEC.md records 14 decisions (D1-D14), assumptions and the module layout. There is a lockfile, a data generator, a tiny serve script and a strong regression suite. Missing: any CI pipeline, a Node version pin (no engines field or .nvmrc), and any release or versioning approach beyond '1.0.0'. Playwright is on a caret range. No ADRs beyond the spec table. Regenerating cartridges.js after editing the JSONL is a manual step, though the README documents it.",
+      "visual_design": "A consistent restrained palette: blue dimensions, grey case, brass bullet, a neat hatch. System fonts with tabular numbers and an aligned table grid across all six detail screenshots. Two weak spots: the title-block text is oversized, and its 'Scale … (A4 print)' line is odd on screen.",
+      "layout": "The order is sensible: metadata, then drawing, then grouped tables. But on short cartridges (detail-9_mm_luger.jpg, detail-22_long_rifle.jpg, detail-44_rem_mag.jpg) the drawing fills only the left ~45% of its frame. The title block is roughly twice as wide as the cartridge and dominates the figure. About half the drawing panel is empty, and α sits apart from the part. No clipping or overlaps.",
+      "usability": "Live search with alternative names and whitespace-insensitive matching, a family filter, a result count and an empty-state message. Each cartridge has a bookmarkable hash URL and there is a not-found view with a way back. Print is one click. Missing-value notes appear under the drawing. No sorting, and filter state is lost when you navigate back.",
+      "reception": "Reloaders and engineers would trust the exact published values, inline tolerances, true-to-scale drawings and clean one-page print. The detached α wedge and oversized title block look less like a proper engineering drawing than the OpenBallistics references do."
+    },
+    "unmet_requirements": [
+      "Shoulder angle α is not dimensioned on the shoulder with extension lines; it is a separate wedge next to the title block (dimensions.js:214-246)",
+      "Title block scale refers to the A4 print, not the drawing as shown on screen (dimensions.js:267-269)",
+      "Belted solid head w uses E+tb as well as belt ramp end + tb, which deviates from rule 8's 'belt ramp end + tb on belted cases' (geometry.js:287-288)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Geometry implements the brief's rules faithfully (chamfer, groove, belt, fillets, tangent ogive, seating, heeled bullet, walls, pockets), and the outlines match the reference proportions",
+      "An unusually thorough test suite: per-rule unit tests, invariants over all 25 records, browser getBBox overlap checks, file:// and http runs, and a one-page PDF check for every cartridge",
+      "Clean, dependency-free, injection-safe code that works from file://, with a precise data presentation (inline tolerances, DMS angles, tabular numbers) and a tidy one-page A4 print"
+    ],
+    "issues": [
+      "Shoulder angle α is drawn as a detached wedge beside the title block, not dimensioned on the shoulder",
+      "Drawing composition: the title block is oversized and much of the frame is empty for short cartridges; on-screen labels are disproportionately large and the head-area leaders cluster",
+      "No CI pipeline, no Node version pin and no release/versioning approach"
+    ],
+    "verdict": "This is a careful, well-tested and secure implementation whose computed drawings follow the brief's geometry rules and print cleanly on one A4 page. The detached α dimension, the oversized title block and the missing CI keep it just short of ready to publish as is."
+  }
+}

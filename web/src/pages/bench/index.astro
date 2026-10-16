@@ -7,7 +7,9 @@ import { loadTrials, summarizeRuns } from '../../../scripts/bench-data.mjs';
 
 // The build runs in web/ (npm run build), next to bench/.
 const results = join(process.cwd(), '..', 'bench', 'results');
-const runs = summarizeRuns(loadTrials(results), readdirSync(results).filter((f) => f.endsWith('.md')));
+// Runs kept off the site (owner, 2026-10-16). Their data and Markdown report stay in bench/results.
+const offSite = new Set(['2026-10-15-winery-react-haiku']);
+const runs = summarizeRuns(loadTrials(results), readdirSync(results).filter((f) => f.endsWith('.md'))).filter((r) => !offSite.has(r.run));
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 // Short text from the Markdown reports; tables come from the data. A run without an entry shows its table only.
@@ -15,6 +17,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const notes: Notes = {
   briefs: {
     'winery-react': 'The brief asks for a React app to book wine tastings at a family winery, with a staff page behind a password. Every arm gets the same prompt in an empty workspace.',
+    cartridges: 'The brief asks for a static reference database of 25 C.I.P. cartridges: list, search and family filter, a detail view, a computed 2D drawing with dimensions and a one-page print view.',
   },
   runs: {
     '2026-10-15-winery-react-sonnet': {
@@ -26,14 +29,18 @@ const notes: Notes = {
         'Claude Code reviews use 13 criteria, OpenCode reviews 9. The two sets of ratings are not directly comparable.',
       ],
     },
-    '2026-10-15-winery-react-haiku': {
-      protocol: '1.9',
+    '2026-10-16-cartridges-sonnet': {
       findings: [
-        'All 22 Claude Code apps pass the 6 feature tests. All pass the 12 robustness tests except Superpowers (G) with 10: its rate limit refused the last bookings of the test suite, not a defect in what those two tests check.',
-        'On OpenCode, OpenSpec with Superpowers (oso, S) built the app in a git worktree and never merged it into the project folder: 0 of 6 features, review 3. The other 6 OpenCode apps pass all tests.',
-        'Claude Code reviews: plain (A) is rated 9, Ponytail with OpenSpec (O) and the BenchKeeper layer with Superpowers (M) or ECC (N) 7, all other arms 8.',
-        'The BenchKeeper-layer arms without OpenSpec score lowest on maintainability (3, 2, 2, 2).',
-        'These reviews use the 9 criteria of protocol 1.6 and earlier. The report marks them outdated: they are not comparable with the 13-criteria Sonnet Claude Code ratings.',
+        '20 of 22 Claude Code apps pass all 6 feature tests (J passes 5, K 2). 6 of 7 OpenCode apps do (AA passes 2).',
+        'Claude Code reviews: median 8, range 6 to 8. Plain Claude Code (A) is rated 7, the BenchKeeper layer with agent-skills (L) 8, Ponytail alone (B) 6.',
+        'K passes 2 of 6 hidden tests but is rated 8: the review could not check the detail and print rendering, where the hidden tests failed.',
+      ],
+    },
+    '2026-10-16-cartridges-haiku': {
+      findings: [
+        '21 of 22 Claude Code apps pass all 6 feature tests (I passes 5).',
+        'On OpenCode, Q and T delivered no index.html and S asked the user to run a slash command instead of building: 0 of 6 each.',
+        'Claude Code reviews: median 6, range 5 to 7, two points below Sonnet. Plain (A) is rated 7, the BenchKeeper layer (L) 6, Ponytail alone (B) 5.',
       ],
     },
   },

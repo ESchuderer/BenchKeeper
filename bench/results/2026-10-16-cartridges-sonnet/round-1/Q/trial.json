@@ -89,7 +89,7 @@
     },
     "mutation": {
       "score": null,
-      "reason": "mutation run failed"
+      "reason": "rerun pending after scorer fixes"
     },
     "hidden_tests": "5c9d25395e3b332c"
   },

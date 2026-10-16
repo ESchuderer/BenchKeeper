@@ -137,17 +137,19 @@ Raw values behind the score, plus two measures that are not part of it because t
 
 | Rank | Model | Arm | Features | Print (of 25) | Review criteria (of 65) | Coverage | Type errors | Erosion | Duplication | Lint | Sonar bugs | Security | Axe | README topics | Drawings correct (of 25) | Mutation score |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Sonnet | Q | 100% | 25 | 53 | 80.6% | 12.8 | 0.232 | 0% | 0.8 | 0 | 0 | 0 | 100% | 25 | mutation run failed |
-| 2 | Sonnet | Z | 100% | 25 | 53 | 76.8% | 18 | 0.068 | 0% | 1.5 | 0 | 0.8 | 0 | 100% | 25 | mutation run failed |
-| 3 | Sonnet | V | 100% | 25 | 50 | 79.2% | 8.2 | 0.303 | 0% | 2.1 | 0 | 0 | 0 | 100% | 25 | not measured |
-| 4 | Sonnet | G | 100% | 24 | 54 | 84.4% | 33.5 | 0.469 | 0% | 3.2 | 0 | 0 | 0 | 100% | 25 | 0% |
+| 1 | Sonnet | Q | 100% | 25 | 53 | 80.6% | 12.8 | 0.232 | 0% | 0.8 | 0 | 0 | 0 | 100% | 25 | pending |
+| 2 | Sonnet | Z | 100% | 25 | 53 | 76.8% | 18 | 0.068 | 0% | 1.5 | 0 | 0.8 | 0 | 100% | 25 | pending |
+| 3 | Sonnet | V | 100% | 25 | 50 | 79.2% | 8.2 | 0.303 | 0% | 2.1 | 0 | 0 | 0 | 100% | 25 | pending |
+| 4 | Sonnet | G | 100% | 24 | 54 | 84.4% | 33.5 | 0.469 | 0% | 3.2 | 0 | 0 | 0 | 100% | 25 | pending |
 | 5 | Sonnet | E | 100% | 25 | 50 | 81.6% | 5 | 0.25 | 0% | 1.2 | 0 | 0 | 0 | 83.3% | 25 | 52.4% |
-| 6 | Sonnet | I | 100% | 25 | 51 | 77.1% | 3.2 | 0.306 | 0% | 2.4 | 0 | 1.2 | 0 | 100% | 25 | not measured |
-| 7 | Sonnet | F | 100% | 25 | 52 | 82% | 55.7 | 0.295 | 0% | 1.7 | 0 | 0.8 | 0 | 66.7% | 20 | not measured |
+| 6 | Sonnet | I | 100% | 25 | 51 | 77.1% | 3.2 | 0.306 | 0% | 2.4 | 0 | 1.2 | 0 | 100% | 25 | pending |
+| 7 | Sonnet | F | 100% | 25 | 52 | 82% | 55.7 | 0.295 | 0% | 1.7 | 0 | 0.8 | 0 | 66.7% | 20 | 57.7% |
 | 8 | Sonnet | AB | 100% | 25 | 54 | 78.8% | 18.5 | 0.249 | 0% | 0.7 | 0 | 2.2 | 0 | 100% | 25 | 70.1% |
 | 9 | Sonnet | H | 100% | 25 | 53 | 71.1% | 17.7 | 0.118 | 0% | 2.6 | 0 | 1.3 | 0 | 100% | 25 | 64.6% |
-| 10 | Sonnet | W | 100% | 25 | 55 | 78.6% | 9.3 | 0.362 | 0% | 3.1 | 0 | 2.3 | 0 | 100% | 25 | mutation run failed |
-| 19 (baseline) | Sonnet | A | 100% | 25 | 50 | 63.4% | 13.9 | 0.358 | 0% | 1.9 | 0 | 1.9 | 0 | 100% | 25 | not measured |
+| 10 | Sonnet | W | 100% | 25 | 55 | 78.6% | 9.3 | 0.362 | 0% | 3.1 | 0 | 2.3 | 0 | 100% | 25 | own test fails |
+| 19 (baseline) | Sonnet | A | 100% | 25 | 50 | 63.4% | 13.9 | 0.358 | 0% | 1.9 | 0 | 1.9 | 0 | 100% | 25 | pending |
+
+Mutation score notes. Stryker reruns the app's own unit tests per mutant: `npx vitest run` for vitest suites, else the `test:unit` script, else `npm test`; sources loaded through `vm` get `process` in their context, since Stryker reads the active mutant from `process.env`. Both rules were added during this run: E and F were measured with them, AB and H before (neither has a `test:unit` script or `vm` loading, so neither is affected). Pending: the runs still in the queue, and three earlier results replaced by a rerun with the fixed scorer: Z (its `npm test` also starts browser tests, which the scoring container cannot run), G (0% before: its tests load the sources in a `vm` context without `process`) and Q (a test compares the generated `js/data.js` byte for byte, which the instrumentation changes; rerun with that file not mutated). W: one of its own tests fails before mutation starts.
 
 Drawing review per app (the reviewer's summary):
 

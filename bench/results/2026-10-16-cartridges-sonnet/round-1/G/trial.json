@@ -100,12 +100,8 @@
       "total": 0
     },
     "mutation": {
-      "score": 0,
-      "killed": 0,
-      "timeout": 0,
-      "survived": 2273,
-      "no_coverage": 0,
-      "mutants": 3221
+      "score": null,
+      "reason": "rerun pending after scorer fixes"
     },
     "hidden_tests": "5c9d25395e3b332c"
   },

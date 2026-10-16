@@ -80,7 +80,7 @@ function TopDetail({ t: x }: { t: Top }) {
         2 points are not separable with one trial per arm. Not part of the score, measured for these apps only:
         drawings, of the 25 cartridge drawings how many a Claude Opus 5.5 review found correct (a shoulder angle drawn
         as a label instead of an angle dimension not counted against it), and mutation, the share of mutants the
-        app's own tests catch (Stryker). n/a: not measured or not measurable.
+        app's own tests catch (Stryker). n/a: not measured yet or not measurable.
       </Text>
       <Table.ScrollContainer minWidth={1100} type="native" mt="xs" tabIndex={0} role="region" aria-label={`${x.brief}: top 10 in detail`}>
         <Table striped verticalSpacing={4} fz="sm">

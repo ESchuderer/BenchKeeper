@@ -28,6 +28,25 @@ export function stepsTable(trials) {
     '|---|---|---|---|---|---|', ...rows].join('\n');
 }
 
+// Step briefs (trials with `steps`): one row per arm and step; checks passed of the checkable ones, suite green, first
+// turn waited for the user, follow-ups, minutes, cost and the share of the 5-hour and weekly limits in percentage points.
+export function sessionsTable(trials) {
+  const arms = [...new Set(trials.filter((t) => t.steps).map((t) => t.arm))].sort();
+  const rows = arms.flatMap((arm) => {
+    const ts = trials.filter((t) => t.arm === arm && t.steps && t.audit.ok && !t.outcome.infra_error);
+    const ks = [...new Set(ts.flatMap((t) => t.steps.map((s) => s.k)))].sort((a, b) => a - b);
+    return ks.map((k) => {
+      const ss = ts.map((t) => t.steps.find((s) => s.k === k)).filter(Boolean);
+      const col = (f, d = 1) => range(ss.map(f).map(round(d)));
+      const count = (f) => `${ss.filter(f).length} of ${ss.length}`;
+      const pct = (f) => (s) => (s.usage?.[f] == null ? null : s.usage[f] * 100);
+      return `| ${arm} | ${k} | ${ss.length} | ${col((s) => s.passed, 0)} of ${ss[0]?.total ?? 'n/a'} | ${count((s) => s.suite_ok)} | ${count((s) => s.waited)} | ${col((s) => s.followups, 0)} | ${col((s) => s.minutes)} | ${col((s) => s.cost_usd_api_equivalent, 3)} | ${col(pct('five_hour_share'))} | ${col(pct('weekly_share'))} |`;
+    });
+  });
+  return ['| Arm | Step | Trials reaching it | Checks passed | Suite green | First turn waited | Follow-ups | Minutes | USD (API-equivalent) | 5-hour limit, points | Weekly limit, points |',
+    '|---|---|---|---|---|---|---|---|---|---|---|', ...rows].join('\n');
+}
+
 export function table(trials) {
   const arms = [...new Set(trials.map((t) => t.arm))].sort();
   const rows = arms.map((arm) => {
@@ -45,6 +64,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const trials = readdirSync(dir).filter((d) => d.startsWith('round-')).flatMap((r) => readdirSync(join(dir, r))
     .map((a) => join(dir, r, a, 'trial.json')).filter(existsSync).map((f) => JSON.parse(readFileSync(f, 'utf8'))));
   console.log('Median (min to max) over valid trials; invalid = failed delivery audit or infrastructure error; n/a = not measured (for example the app did not start).\n');
-  console.log(table(trials));
+  // Step briefs score per step, not by the features table.
+  console.log(trials.some((t) => t.steps) ? sessionsTable(trials) : table(trials));
   if (trials.some((t) => t.checkpoints)) console.log(`\n${stepsTable(trials)}`);
 }

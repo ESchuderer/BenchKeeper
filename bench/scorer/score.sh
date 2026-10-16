@@ -9,10 +9,30 @@ PW=mcr.microsoft.com/playwright:v1.64.0-noble@sha256:bc72a8df40831ded821e3cbc79c
 pass=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
 pod=bk-score-$$
 # Remove the scoring pod and temp copies on any exit, including INT, TERM and HUP.
-trap 'podman pod rm -f "$pod" > /dev/null 2>&1; rm -rf "${app:-}" "${hid:-}" "${site:-}"' EXIT
+trap 'podman pod rm -f "$pod" > /dev/null 2>&1; rm -rf "${app:-}" "${hid:-}" "${site:-}" "${cur:-}" "${prev:-}"' EXIT
 trap 'exit 130' INT TERM HUP
 # The built app as delivered (source and git history, without node_modules), for download and manual comparison.
 mkdir -p "$out/screenshots" && tar --exclude=node_modules -czf "$out/app.tar.gz" -C "$ws" .
+# Step briefs (brief.json "steps": "sessions") are scored per step: on the snapshot bench/run-brief.sh saved after step <k>
+# (<out-dir>/../steps/<k>/repo.tar.gz), the step's checks, the repository's suite and, from step 2 on, the cross-step
+# checks against the previous step's snapshot, into steps/<k>/. The hash covers the hidden tests and the checks.
+if [ "$(jq -r '.steps // empty' "$brief/brief.json" 2>/dev/null)" = sessions ]; then
+  (cd "$brief" && find -L hidden checks -type f | sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
+  prev=
+  for k in $(ls "$(dirname "$out")/steps" 2>/dev/null | grep -E '^[0-9]+$' | sort -n); do
+    s=$(dirname "$out")/steps/$k
+    [ -f "$s/repo.tar.gz" ] || continue
+    cur=$(mktemp -d) && tar -xzf "$s/repo.tar.gz" -C "$cur"
+    # A check that fails to start must not leave the results of an earlier scoring (cross.sh appends to checks.json).
+    rm -f "$s/checks.json" "$s/suite.json" "$s/playwright.json" "$s/diff.json"
+    "$brief/checks/step$k.sh" "$cur" "$s" > "$s/checks.log" 2>&1
+    "$brief/checks/suite.sh" "$cur" "$s" > "$s/suite.log" 2>&1
+    [ -z "$prev" ] || "$brief/checks/cross.sh" "$cur" "$s" "$prev" > "$s/cross.log" 2>&1
+    rm -rf "$prev" && prev=$cur
+  done
+  rm -rf "$prev"
+  exit 0
+fi
 app=$(mktemp -d) && cp -a "$ws/." "$app/" && rm -rf "$app/node_modules"
 # Hidden tests next to the scorer dependencies, so ESM imports resolve.
 hid=$(mktemp -d) && cp -rL "$brief/hidden/." "$hid/" && mkdir "$hid/node_modules"

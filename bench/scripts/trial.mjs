@@ -217,6 +217,56 @@ export function checkpoints(dir) {
   return [...ks.map((k) => ({ k, ...score(join(root, String(k))) })), { k: ks.length, ...score(join(dir, 'score')) }];
 }
 
+// Step briefs (brief.json "steps": "sessions"): per step its checks (S<k> and cross-step X<k>, checks.json; ok null when
+// not checkable, left out of the total), the repository's suite (suite.json), minutes, whether the first turn's final
+// message waited, follow-ups, cost and tokens of the step's transcript lines, and the subscription usage before and after.
+// shortcut: cost per step reads Claude Code result events only (OpenCode steps get null), upgrade when an OpenCode arm runs a step brief.
+export function steps(dir) {
+  let ks;
+  try { ks = readdirSync(join(dir, 'steps')).filter((k) => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b); } catch { return null; }
+  if (!ks.length) return null;
+  let lines = [];
+  try { lines = readFileSync(join(dir, 'transcript.jsonl'), 'utf8').split('\n'); } catch { /* no transcript */ }
+  return ks.map((k) => {
+    const d = join(dir, 'steps', String(k));
+    const txt = (f) => { try { return readFileSync(join(d, f), 'utf8').trim(); } catch { return null; } };
+    const json = (f) => { try { return JSON.parse(txt(f)); } catch { return null; } };
+    const num = (f) => (txt(f) ? Number(txt(f)) : null);
+    const checks = json('checks.json')?.checks?.map(({ id, ok }) => ({ id, ok })) ?? null;
+    const suite = json('suite.json');
+    const [from, to] = (txt('lines') || '').split(' ').map(Number);
+    const ev = Number.isInteger(to) ? lines.slice(from, to).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } }) : null;
+    const o = ev && outcome(ev);
+    return {
+      k, checks,
+      passed: checks ? checks.filter((c) => c.ok === true).length : null,
+      total: checks ? checks.filter((c) => c.ok !== null).length : null,
+      suite_ok: suite ? suite.ok === true : null,
+      minutes: num('start') && num('end') ? Math.round((num('end') - num('start')) / 6) / 10 : null,
+      waited: txt('waited') == null ? null : txt('waited') === '1',
+      followups: num('followups'),
+      // The agent asked through the tool for questions (deliberate ambiguity measure, next to `waited`).
+      ask_user_calls: ev ? claudeUses(ev).filter((u) => u.name === 'AskUserQuestion').length : null,
+      cost_usd_api_equivalent: o?.finished ? o.cost_usd_api_equivalent : null,
+      tokens: o?.usage ?? null,
+      usage: usage(txt('usage-before'), txt('usage-after')),
+    };
+  });
+}
+
+// Usage gate readings ("<5h utilization> <5h reset> <7d utilization> <7d reset>", bench/run-brief.sh): the share of each
+// limit a step used, null when a reading failed ("0 0 0 0") or the window reset in between.
+export function usage(before, after) {
+  const parse = (s) => {
+    const [five_hour, five_hour_reset, weekly, weekly_reset] = String(s ?? '').split(' ').map(Number);
+    return five_hour_reset && weekly_reset ? { five_hour, five_hour_reset, weekly, weekly_reset } : null;
+  };
+  const [b, a] = [parse(before), parse(after)];
+  if (!b && !a) return null;
+  const share = (u, r) => (b && a && b[r] === a[r] ? Math.round(1e4 * (a[u] - b[u])) / 1e4 : null);
+  return { before: b, after: a, five_hour_share: share('five_hour', 'five_hour_reset'), weekly_share: share('weekly', 'weekly_reset') };
+}
+
 // The testing method that produced the scores: protocol version (bench/PROTOCOL.md when the trial was scored or
 // re-parsed), hidden tests hash, BenchKeeper layer version (the runner's `bk` file; v1 before it was recorded).
 export function method(dir, protocolFile = new URL('../PROTOCOL.md', import.meta.url)) {
@@ -255,6 +305,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const followups = wall('followups');
   const oc = OPENCODE_ARMS.includes(arm);
   const all = oc ? sessions(join(dir, 'log')) : [];
+  const st = steps(dir);
   const trial = {
     arm, runtime: oc ? 'opencode' : 'claude-code', followups, wall_seconds: wall('end') - wall('start') || null,
     audit: oc ? ocAudit(join(dir, 'log'), arm) : audit(events, arm),
@@ -263,7 +314,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')), maintenance: maintenance(join(dir, 'workspace')),
     condition: existsSync(join(dir, 'condition')) ? readFileSync(join(dir, 'condition'), 'utf8').trim() : 'empty',
     checkpoints: checkpoints(dir),
-    steps_sent: wall('steps'),
+    steps: st,
+    steps_sent: wall('steps') ?? st?.length ?? null,
     method: method(dir),
   };
   // Per-phase and per-subagent measurements, only for trials the runner marked (PHASES=1).

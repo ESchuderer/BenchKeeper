@@ -32,7 +32,7 @@ podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER=
   "testRunner": "command",
   "commandRunner": { "command": "$cmd" },
   "coverageAnalysis": "off",
-  "mutate": ["{src,lib,server,client,app,api,shared,routes}/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}", "*.{js,ts,mjs,cjs,mts,cts}",
+  "mutate": ["{src,lib,server,client,app,api,shared,routes,js}/**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}", "*.{js,ts,mjs,cjs,mts,cts}",
     "!**/*.{test,spec}.*", "!**/{__tests__,test,tests,e2e}/**", "!**/{test-setup,setupTests,setup-tests}.*", "!**/*.config.*", "!**/{dist,build,node_modules,coverage}/**"],
   "mutator": { "excludedMutations": ["StringLiteral"] },
   "reporters": ["json"],

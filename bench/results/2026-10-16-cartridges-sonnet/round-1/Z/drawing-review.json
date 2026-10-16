@@ -1,0 +1,180 @@
+{
+ "arm": "Z",
+ "counts": {
+  "correct": 25,
+  "partly": 0,
+  "wrong": 0
+ },
+ "score": 25.0,
+ "drawings": {
+  "223_rem": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "243_win": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "270_win": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "308_win": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  },
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet"
+   ]
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet"
+   ]
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet"
+   ]
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet"
+   ]
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet"
+   ]
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet"
+   ]
+  },
+  "22_long_rifle": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet"
+   ]
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet"
+   ]
+  },
+  "17_hmr": {
+   "verdict": "correct",
+   "issues": [
+    "minor: extension lines of the right-hand diameter stack run along the outline and through the bullet",
+    "minor: alpha given as a leader note to the shoulder cone with the correct value, not an angular dimension arc; accepted as not material because the value and the feature it refers to are unambiguous"
+   ]
+  }
+ },
+ "print": "Print view is black on white with page header, metadata, legible drawing with title block, all tables and the C.I.P. TDCC source footer, but the drawing fills only about half the page width; one-page A4 portrait fit is not verifiable from this 1440x1000 capture.",
+ "summary": "All 25 drawings are true-to-scale cartridges of the right family with outside view, hatched section, correct bullets and record-matching values. Recurring minor faults: diameter extension lines run through the bullet, and alpha is a leader note, not an angular dimension."
+}

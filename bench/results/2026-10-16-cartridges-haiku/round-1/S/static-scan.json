@@ -1,0 +1,30 @@
+{
+  "totals": {
+    "files": 0,
+    "lines": 0,
+    "errors": 0,
+    "warnings": 0,
+    "parse_errors": 0
+  },
+  "rules": {},
+  "lint": {
+    "count": 0,
+    "per_1000_lines": 0,
+    "rules": {}
+  },
+  "sonar_bugs": {
+    "count": 0,
+    "per_1000_lines": 0,
+    "rules": {}
+  },
+  "sonar_smells": {
+    "count": 0,
+    "per_1000_lines": 0,
+    "rules": {}
+  },
+  "security": {
+    "count": 0,
+    "per_1000_lines": 0,
+    "rules": {}
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "totals": {
+    "files": 6,
+    "lines": 945,
+    "errors": 26,
+    "warnings": 22,
+    "parse_errors": 0
+  },
+  "rules": {
+    "sonarjs/cognitive-complexity": 4,
+    "no-undef": 1,
+    "sonarjs/no-clear-text-protocols": 9,
+    "security/detect-object-injection": 22,
+    "sonarjs/no-nested-conditional": 5,
+    "sonarjs/no-nested-template-literals": 3,
+    "sonarjs/no-inverted-boolean-check": 1,
+    "no-unused-vars": 2,
+    "sonarjs/no-dead-store": 1
+  },
+  "lint": {
+    "count": 3,
+    "per_1000_lines": 3.17,
+    "rules": {
+      "no-undef": 1,
+      "no-unused-vars": 2
+    }
+  },
+  "sonar_bugs": {
+    "count": 0,
+    "per_1000_lines": 0,
+    "rules": {}
+  },
+  "sonar_smells": {
+    "count": 14,
+    "per_1000_lines": 14.81,
+    "rules": {
+      "sonarjs/cognitive-complexity": 4,
+      "sonarjs/no-nested-conditional": 5,
+      "sonarjs/no-nested-template-literals": 3,
+      "sonarjs/no-inverted-boolean-check": 1,
+      "sonarjs/no-dead-store": 1
+    }
+  },
+  "security": {
+    "count": 31,
+    "per_1000_lines": 32.8,
+    "rules": {
+      "sonarjs/no-clear-text-protocols": 9,
+      "security/detect-object-injection": 22
+    }
+  }
+}

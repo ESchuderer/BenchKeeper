@@ -49,11 +49,62 @@ export type Run = {
   run: string; brief: string; model: string; effort: string; k: string; date: string; report: string | null; protocols: string[];
   featuresOf: number | null; robustnessOf: number | null;
   groups: { runtime: string; criteria: number[]; rows: Row[] }[];
+  top: Detail[]; baseline: Detail | null;
+};
+export type Detail = Row & {
+  runtime: string; criteria: number | null; criteriaSum: number | null; erosion: number | null; duplication: number | null; mutation: number | null;
+  drawings: { of: number; correctAlphaApart: number; alphaOnly: number } | null;
+  scan: { lines: number | null; lint: number; bugs: number; smells: number; security: number } | null;
 };
 export type Notes = { briefs: Record<string, string>; runs: Record<string, { protocol?: string; findings: string[] }>; reports: { file: string; title: string; summary: string }[] };
 
 const plain = (setup: string) => (setup === 'plain' ? 'no add-ons' : setup.replace(/^BK\b/, 'BenchKeeper layer'));
 const score = (n: number | null, of: number | null) => (n == null || of == null ? 'n/a' : `${n}/${of}`);
+const pct = (v: number | null) => (v == null ? 'n/a' : `${v}%`);
+
+// The top 10 of a run in detail, plain Claude Code appended as the baseline (bench-data.mjs, summarizeRuns).
+function TopDetail({ r }: { r: Run }) {
+  if (!r.top.length) return null;
+  const rows = [...r.top.map((t, i) => ({ t, rank: String(i + 1) })), ...(r.baseline ? [{ t: r.baseline, rank: 'baseline' }] : [])];
+  return (
+    <Box mt="lg">
+      <Title order={3} fz="lg">Top 10 in detail</Title>
+      <Text size="sm" c="dimmed">
+        Apps that pass every feature test, ranked by the sum of the review criteria (1 to 5 each), then fewer Sonar
+        bugs, fewer security findings, lower erosion, lower duplication and fewer minutes. Drawings: of the 25 cartridge drawings, how many a second Claude Opus 5.5
+        review found correct (a shoulder angle drawn as a label instead of an angle dimension not counted against it).
+        Mutation: share of mutants the app's own tests catch (Stryker). Erosion: share of code complexity in functions
+        above complexity 10. Duplication: duplicated lines. Lint, Sonar smells and security: findings of one shared
+        ESLint configuration with the SonarJS and security rules, security without two rules that flag ordinary lookups
+        and namespace URLs. n/a: not measured.
+      </Text>
+      <Table.ScrollContainer minWidth={1100} type="native" mt="xs" tabIndex={0} role="region" aria-label={`${r.brief}, ${r.model}: top 10 in detail`}>
+        <Table striped verticalSpacing={4} fz="sm">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Rank</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Runtime</Table.Th><Table.Th>Setup</Table.Th>
+              <Table.Th>Review criteria</Table.Th><Table.Th>Overall</Table.Th><Table.Th>Drawings</Table.Th><Table.Th>Mutation</Table.Th>
+              <Table.Th>Erosion</Table.Th><Table.Th>Duplication</Table.Th><Table.Th>Lint</Table.Th><Table.Th>Sonar bugs</Table.Th>
+              <Table.Th>Sonar smells</Table.Th><Table.Th>Security</Table.Th><Table.Th>Minutes</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {rows.map(({ t, rank }) => (
+              <Table.Tr key={t.key}>
+                <Table.Td>{rank}</Table.Td><Table.Td>{t.arm}</Table.Td><Table.Td>{t.runtime}</Table.Td><Table.Td>{plain(t.setup)}</Table.Td>
+                <Table.Td>{score(t.criteriaSum, t.criteria == null ? null : t.criteria * 5)}</Table.Td><Table.Td>{t.overall ?? 'n/a'}</Table.Td>
+                <Table.Td>{t.drawings ? `${t.drawings.correctAlphaApart}/${t.drawings.of}` : 'n/a'}</Table.Td><Table.Td>{pct(t.mutation)}</Table.Td>
+                <Table.Td>{t.erosion ?? 'n/a'}</Table.Td><Table.Td>{pct(t.duplication)}</Table.Td>
+                <Table.Td>{t.scan?.lint ?? 'n/a'}</Table.Td><Table.Td>{t.scan?.bugs ?? 'n/a'}</Table.Td>
+                <Table.Td>{t.scan?.smells ?? 'n/a'}</Table.Td><Table.Td>{t.scan?.security ?? 'n/a'}</Table.Td><Table.Td>{t.minutes}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
+    </Box>
+  );
+}
 
 export default function BenchSummary({ base, runs, notes }: { base: string; runs: Run[]; notes: Notes }) {
   return (
@@ -108,6 +159,7 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
                 </Table.ScrollContainer>
               </Box>
             ))}
+            <TopDetail r={r} />
             {note?.findings.length ? (
               <>
                 <Title order={3} fz="lg" mt="lg">Key findings</Title>

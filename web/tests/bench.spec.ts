@@ -20,6 +20,15 @@ test('the main page links to the benchmark summary', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Benchmarks' })).toBeVisible();
 });
 
+for (const [name, width] of [['phone', 375], ['desktop', 1280]]) {
+  test(`the header Benchmark button opens the summary at ${name} width`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('./');
+    await page.getByRole('banner').getByRole('link', { name: 'Benchmark', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Benchmarks' })).toBeVisible();
+  });
+}
+
 test('no horizontal page scroll at phone width', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto('./bench/');

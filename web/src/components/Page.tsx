@@ -3,7 +3,7 @@ import {
   Paper, Progress, SimpleGrid, Stack, Table, Text, ThemeIcon, Timeline, Title, createTheme,
 } from '@mantine/core';
 import {
-  IconArrowDown, IconArrowRight, IconBrandGithub, IconBrowser, IconCircleCheck,
+  IconArrowDown, IconArrowRight, IconBrandGithub, IconBrowser, IconChartBar, IconCircleCheck,
   IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
   IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun, IconTool,
 } from '@tabler/icons-react';
@@ -135,9 +135,10 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               {[['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Rules'], ['cost', 'Cost'], ['not', 'What it is not'], ['tools', 'Tools'], ['prereq', 'Setup']].map(([id, l]) => (
                 <Anchor key={id} href={`#${id}`} c="dimmed" size="sm" underline="never">{l}</Anchor>
               ))}
-              <Anchor href={`${base}/bench/`} c="dimmed" size="sm" underline="never">Benchmark</Anchor>
             </Group>
             <Group gap="xs" wrap="nowrap">
+              <Button component="a" href={`${base}/bench/`} variant="default" size="xs" leftSection={<IconChartBar size={16} />} visibleFrom="sm">Benchmark</Button>
+              <ActionIcon component="a" href={`${base}/bench/`} variant="default" size={30} aria-label="Benchmark" hiddenFrom="sm"><IconChartBar size={16} /></ActionIcon>
               <Button component="a" href={REPO} variant="default" size="xs" leftSection={<IconBrandGithub size={16} />} visibleFrom="sm">GitHub</Button>
               <ActionIcon component="a" href={REPO} variant="default" size={30} aria-label="GitHub" hiddenFrom="sm"><IconBrandGithub size={16} /></ActionIcon>
               <ActionIcon data-theme-toggle variant="default" size={30} aria-label="Toggle light and dark theme">

@@ -35,6 +35,7 @@ export function loadTrials(results) {
   for (const run of readdirSync(results).filter((d) => existsSync(join(results, d, 'manifest.txt'))).sort()) {
     const head = readFileSync(join(results, run, 'manifest.txt'), 'utf8').split('\n')[0];
     const meta = Object.fromEntries(head.split(' ').map((kv) => kv.split('=')));
+    if (!meta.brief || !meta.model) throw new Error(`${run}/manifest.txt: first line needs brief= and model=`);
     for (const round of readdirSync(join(results, run)).filter((d) => /^round-\d+$/.test(d)).sort()) {
       for (const id of readdirSync(join(results, run, round)).sort()) {
         const dir = join(results, run, round, id);

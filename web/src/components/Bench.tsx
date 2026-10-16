@@ -158,7 +158,7 @@ export default function Bench({ base, brief, trials }: { base: string; brief: Br
                   <Table.Tr key={t.key} data-trial-row {...attrs(t, i)}>
                     <Table.Td><Anchor href={`#${slug(t.key)}`} fw={700}>{t.arm}</Anchor></Table.Td>
                     <Table.Td>{t.setup}</Table.Td><Table.Td>{t.runtime}</Table.Td><Table.Td>{t.model}</Table.Td>
-                    <Table.Td>{t.features ?? 'n/a'}/6</Table.Td>
+                    <Table.Td>{t.features == null ? 'n/a' : `${t.features}/6`}</Table.Td>
                     <Table.Td>{t.robustness == null ? 'n/a' : `${t.robustness}/12`}</Table.Td>
                     <Table.Td>{t.overall ?? 'n/a'}</Table.Td><Table.Td>{t.followups}</Table.Td><Table.Td>{t.minutes}</Table.Td>
                     <Table.Td>{yesNo(t.testsFirst)}</Table.Td><Table.Td>{yesNo(t.reviewStep)}</Table.Td>
@@ -183,7 +183,7 @@ export default function Bench({ base, brief, trials }: { base: string; brief: Br
                 </Group>
                 <Text size="sm" c="dimmed">{t.runtime}, {t.model}</Text>
                 <Text size="sm" mt="xs">
-                  Features {t.features ?? 'n/a'}/6, robustness {t.robustness == null ? 'n/a' : `${t.robustness}/12`}, follow-ups {t.followups}, {t.minutes} minutes,
+                  Features {t.features == null ? 'n/a' : `${t.features}/6`}, robustness {t.robustness == null ? 'n/a' : `${t.robustness}/12`}, follow-ups {t.followups}, {t.minutes} minutes,
                   tests first {yesNo(t.testsFirst)}, review step {yesNo(t.reviewStep)}
                 </Text>
                 {t.shots.length > 0 && (

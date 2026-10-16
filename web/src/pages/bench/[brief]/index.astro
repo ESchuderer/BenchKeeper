@@ -49,9 +49,13 @@ const trials = await Promise.all(all.map(async (t) => ({
         });
         count.textContent = n + ' of ' + rows.length + ' trials';
         var s = params.toString();
-        history.replaceState(null, '', s ? '?' + s : location.pathname + location.hash);
+        history.replaceState(null, '', (s ? '?' + s : location.pathname) + location.hash);
       }
-      new URLSearchParams(location.search).forEach(function (v, k) { if (form.elements[k]) form.elements[k].value = v; });
+      // Only values the form offers; an unknown one would leave a select blank.
+      new URLSearchParams(location.search).forEach(function (v, k) {
+        var el = form.elements[k];
+        if (el && (el.tagName !== 'SELECT' || Array.prototype.some.call(el.options, function (o) { return o.value === v; }))) el.value = v;
+      });
       form.hidden = false;
       form.addEventListener('input', apply);
       form.addEventListener('change', apply);
@@ -64,8 +68,10 @@ const trials = await Promise.all(all.map(async (t) => ({
           document.querySelectorAll('th[aria-sort]').forEach(function (h) { h.removeAttribute('aria-sort'); });
           th.setAttribute('aria-sort', dir);
           rows.sort(function (a, c) {
-            var d = Number(a.getAttribute('data-' + k)) - Number(c.getAttribute('data-' + k));
-            return (dir === 'ascending' ? d : -d) || Number(a.getAttribute('data-order')) - Number(c.getAttribute('data-order'));
+            // -1 marks a missing value: last in both directions.
+            var x = Number(a.getAttribute('data-' + k)), y = Number(c.getAttribute('data-' + k));
+            var d = x < 0 || y < 0 ? (x < 0) - (y < 0) : (dir === 'ascending' ? x - y : y - x);
+            return d || Number(a.getAttribute('data-order')) - Number(c.getAttribute('data-order'));
           });
           rows.forEach(function (r) { tbody.appendChild(r); grid.appendChild(cards[r.getAttribute('data-key')]); });
         });

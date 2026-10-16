@@ -38,7 +38,7 @@ The agent SHALL load the `sdlc` skill before any edit in a repository, before cr
 
 ### Requirement: Permission rules
 
-In Claude Code, native permission rules installed by `global-setup` SHALL ask before skipping git hooks and before destructive or shared-history git and GitHub actions (force push, branch deletion, pushes that name `main` or `master`, hard reset, `git clean`, rebase, history rewrite, pull request merge, repository or release deletion), and for force push, hard reset, `git clean` and branch deletion also through `git -C <path>`. These limits SHALL use no hooks; what a rule cannot see SHALL stay a prose rule, and `global-setup` SHALL list it as not covered.
+In Claude Code, native ask rules installed by `global-setup` SHALL prompt before skipping git hooks and before destructive or shared-history git and GitHub actions, including `git -C <path>` forms of the most destructive ones. These limits SHALL use no hooks; what a rule cannot see SHALL stay a prose rule and be listed in `global-setup` as not covered.
 
 #### Scenario: Force push through git -C
 

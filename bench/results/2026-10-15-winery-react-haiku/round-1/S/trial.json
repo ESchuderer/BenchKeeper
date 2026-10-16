@@ -55,11 +55,18 @@
     "features_passed": 0,
     "robustness": null,
     "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
     "axe": null,
     "lighthouse": null,
     "audit": {
       "high": 0,
       "total": 0
+    },
+    "mutation": {
+      "score": null,
+      "reason": "npm install failed"
     },
     "hidden_tests": "374dfd34d02f0c2f"
   },
@@ -78,5 +85,14 @@
     "node_version": false,
     "changelog": false,
     "docs": true
+  },
+  "condition": "empty",
+  "checkpoints": null,
+  "steps": null,
+  "steps_sent": null,
+  "method": {
+    "protocol": "1.14",
+    "hidden_tests": "374dfd34d02f0c2f",
+    "bk": "v1"
   }
 }

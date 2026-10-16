@@ -86,11 +86,13 @@ test('score counts a skipped feature as failed and needs all four axe pages', as
   const { score } = await import('./trial.mjs');
   const dir = mkdtempSync('/tmp/score-');
   const spec = (title, status) => ({ title, ok: true, tests: [{ results: [{ status }] }] });
-  writeFileSync(`${dir}/acceptance.json`, JSON.stringify({ suites: [{ specs: [spec('F1 a', 'passed'), spec('F2 b', 'failed'), spec('F3 c', 'skipped')] }] }));
+  writeFileSync(`${dir}/acceptance.json`, JSON.stringify({ suites: [{ specs: [spec('F1 a', 'passed'), spec('F2 b', 'failed'), spec('F3 c', 'skipped'), spec('R1 d', 'passed'), spec('R2 e', 'failed')] }] }));
   writeFileSync(`${dir}/axe.json`, JSON.stringify({ start: [], form: [] }));
   const s = score(dir);
   assert.equal(s.features_passed, 1);
   assert.deepEqual(s.features, { F1: true, F2: false, F3: false });
+  assert.deepEqual(s.robustness, { R1: true, R2: false });
+  assert.equal(s.robustness_passed, 1);
   assert.equal(s.axe, null);
   assert.equal(s.lighthouse, null);
 });

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds a targeted task's baseline in <out-dir>, offline: the fixture <brief>/repo/ as commit "chore: baseline", then
-# each overlay <brief>/commits/<n>/ (in order) as a commit with the message of <brief>/commits/<n>.msg; fixed author and
-# dates, branch main, no remote. Stops when the head is not <brief>/baseline.sha (the checks rely on that commit).
+# each overlay <brief>/commits/<n>/ (in order) as a commit with the message of <brief>/commits/<n>.msg; then the
+# annotated tags of <brief>/tags (lines "<commit number, baseline 1> <tag>", message = tag); fixed author and dates,
+# branch main, no remote. Stops when the head is not <brief>/baseline.sha (the checks rely on that commit).
 # Usage: bench/briefs/skill-common/prepare.sh <brief-dir> <out-dir>
 set -eu
 brief=$(realpath "$1"); out=$(realpath -m "$2"); mkdir -p "$out"
@@ -18,5 +19,8 @@ head=$(podman run --rm --network none --userns=keep-id -e HOME=/tmp -v "$out":/w
   for c in $(ls /brief/commits 2>/dev/null | grep -E "^[0-9]+$" | sort -n); do
     n=$((n + 1)); cp -a "/brief/commits/$c/." . && commit "$n" "/brief/commits/$c.msg"
   done
+  [ ! -f /brief/tags ] || while read -r k tag; do
+    git -c tag.gpgsign=false tag -a "$tag" -m "$tag" "$(git rev-list --reverse HEAD | sed -n "${k}p")"
+  done < /brief/tags
   git rev-parse HEAD')
 [ "$head" = "$(cat "$brief/baseline.sha" 2>/dev/null)" ] || { echo "prepare: baseline commit $head is not $brief/baseline.sha" >&2; exit 1; }

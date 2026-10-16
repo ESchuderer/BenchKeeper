@@ -54,7 +54,9 @@ Confidence in the cost figures: medium. Not reconciled against the Anthropic Con
 
 Trials: USD 43.79 API-equivalent (21 trials; K without cost). Reviews: USD 9.54 billed. W was rerun under protocol v1.8 (the first trial, 0/6 after it stopped to wait for confirmation, is kept in `limited/W-v1.7`).
 
-## Claude Code, Haiku 5.5 (9 review criteria)
+## Claude Code, Haiku 5.5 (9 review criteria, outdated)
+
+Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not comparable with the 13-criteria ratings. Kept as reference until these apps are reviewed again with 13 criteria.
 
 | Arm | Setup | Features | Robustness | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Tests first | Review |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -83,7 +85,9 @@ Trials: USD 43.79 API-equivalent (21 trials; K without cost). Reviews: USD 9.54 
 
 Trials: USD 33.24 API-equivalent.
 
-## OpenCode, Haiku 5.5 and Sonnet 5.5 (9 review criteria)
+## OpenCode, Haiku 5.5 and Sonnet 5.5 (9 review criteria, outdated)
+
+Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not comparable with the 13-criteria ratings. Kept as reference until these apps are reviewed again with 13 criteria.
 
 | Arm | Setup | Features | Robustness | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Tests first | Review |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|

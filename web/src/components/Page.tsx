@@ -109,9 +109,9 @@ const checks: [ReactNode, string, ReactNode][] = [
 
 const quickstart: [string, string, string][] = [
   ['Clone BenchKeeper and open it in your agent', 'git clone https://github.com/ESchuderer/BenchKeeper.git && cd BenchKeeper && claude', 'Codex: run codex instead of claude.'],
-  ['Set up the machine', '/global-setup', 'Codex: $global-setup. Pick your agents, review the plan, approve.'],
+  ['Set up the machine', '/setting-up-machine', 'Codex: $setting-up-machine. Pick your agents, review the plan, approve.'],
   ['Restart the agents', '', 'Codex: run /hooks and trust the plugin hooks.'],
-  ['Set up each repository', '/project-setup', 'Codex: $project-setup. Run it in the repository root, then commit the result.'],
+  ['Set up each repository', '/setting-up-projects', 'Codex: $setting-up-projects. Run it in the repository root, then commit the result.'],
 ];
 
 const listTop = { root: { paddingInlineStart: 0 }, itemWrapper: { alignItems: 'flex-start' }, itemIcon: { marginTop: 1 } };
@@ -172,24 +172,24 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and four skills. The setup skills install, check and clean the tools each agent uses; the workflow skill holds the SDLC. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select.<br /><br />It is opinionated: one SDLC sized to each change, one tool per job, exact versions everywhere. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/global-setup</Code>.</>}>
+        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and four skills. The setup skills install, check and clean the tools each agent uses; the workflow skill holds the SDLC. Claude Code and Codex are independently optional: setup detects installed agents and configures only the ones you select.<br /><br />It is opinionated: one SDLC sized to each change, one tool per job, exact versions everywhere. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/setting-up-machine</Code>.</>}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} scope="Global, both agents">
               What applies in every session: ask instead of assuming, sources for claims, scope, safety, devcontainer use, and when to load the SDLC skill.
             </FeatureCard>
-            <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/global-setup</Code>} scope="Once per machine">
+            <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/setting-up-machine</Code>} scope="Once per machine">
               Checks 10 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals and version bumps. Applies only what you approve.
             </FeatureCard>
-            <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/project-setup</Code>} scope="Once per repository">
+            <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/setting-up-projects</Code>} scope="Once per repository">
               Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config. Shows one plan first and applies only what you approve.
             </FeatureCard>
-            <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">sdlc</Code>} scope="Before repository work, both agents">
+            <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} scope="Before repository work, both agents">
               Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded on demand, so it costs context only when used.
             </FeatureCard>
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="A full agentic SDLC (issue, spec, plan, tests first, review) fits features and risky changes, not every change. The sdlc skill sizes each request by tier and change type first, so small changes spend fewer tokens and less time; that saving is not measured yet. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and keep the plan to a few lines; full changes run all ten steps; research with several items fans out to parallel subagents without edits. Each change type adds its own check before done, such as terraform plan for infrastructure or a reproducer test for a bug. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="A full agentic SDLC (issue, spec, plan, tests first, review) fits features and risky changes, not every change. The following-dev-workflow skill sizes each request by tier and change type first, so small changes spend fewer tokens and less time; that saving is not measured yet. Quick changes skip the issue, spec, plan and pre-push review; standard changes skip the spec and keep the plan to a few lines; full changes run all ten steps; research with several items fans out to parallel subagents without edits. Each change type adds its own check before done, such as terraform plan for infrastructure or a reproducer test for a bug. agent-skills supplies the skill for each phase, Ponytail keeps the implementation small, and OpenSpec holds the spec files when the repository uses one.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -215,7 +215,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
               <Stack gap={10} className="host-list">
-                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, global-setup, project-setup', 'OpenSpec CLI', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
+                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, setting-up-machine, setting-up-projects', 'OpenSpec CLI', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -275,7 +275,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="quality" title="How it raises quality" intro={<>Each item is a rule from <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor> (every session) or the <Anchor href={`${REPO}/blob/main/skills/sdlc/SKILL.md`}>sdlc skill</Anchor> (before repository work).</>}>
+        <Section id="quality" title="How it raises quality" intro={<>Each item is a rule from <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor> (every session) or the <Anchor href={`${REPO}/blob/main/skills/following-dev-workflow/SKILL.md`}>following-dev-workflow skill</Anchor> (before repository work).</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48}>
             <List spacing="lg" styles={listTop}>
               <Check ok title="Ask, do not assume.">Ambiguous requests stop for precise questions instead of a guess.</Check>
@@ -287,7 +287,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Check ok title="Review before push.">A correctness review runs on the commits, and a security review on risky changes; findings wait for your decision.</Check>
               <Check ok title="Sources and confidence.">External claims carry an official URL; uncertain topics state a confidence level.</Check>
               <Check ok title="Reproducible tools.">Exact versions for every install and container image.</Check>
-              <Check ok title="Cleanup on request.">The Maintain pass (/maintain) finds dead code, stale shortcuts, vulnerable dependencies, docs drift and unused skills.</Check>
+              <Check ok title="Cleanup on request.">The Maintain pass (/maintaining-repos) finds dead code, stale shortcuts, vulnerable dependencies, docs drift and unused skills.</Check>
             </List>
           </SimpleGrid>
         </Section>
@@ -338,7 +338,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <List size="sm" mt="sm" spacing={6}>
                 <List.Item>Every install command pins an exact version.</List.Item>
                 <List.Item>Project commands run in the same devcontainer from Claude Code, Codex, VS Code and Orca.</List.Item>
-                <List.Item>One repository rebuilds a machine with <Code>/global-setup</Code>; a fresh clone restores its skills with <Code>/project-setup</Code>.</List.Item>
+                <List.Item>One repository rebuilds a machine with <Code>/setting-up-machine</Code>; a fresh clone restores its skills with <Code>/setting-up-projects</Code>.</List.Item>
               </List>
             </Card>
           </SimpleGrid>
@@ -353,7 +353,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </List>
             <List spacing="lg" styles={listTop}>
               <Check ok={false} title="Not a build system or framework.">Your project keeps its own toolchain.</Check>
-              <Check ok={false} title="Not auto-updating.">Versions change only when /global-setup proposes a bump and you accept it.</Check>
+              <Check ok={false} title="Not auto-updating.">Versions change only when /setting-up-machine proposes a bump and you accept it.</Check>
               <Check ok={false} title="Not autonomous on your machine or repository.">Setup applies only the plan you approve and confirms destructive items again; merges and pushes to the default branch need your instruction.</Check>
             </List>
           </SimpleGrid>

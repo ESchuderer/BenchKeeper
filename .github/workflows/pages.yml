@@ -30,6 +30,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: node scripts/readme.mjs --check
+      - run: node --test scripts/*.test.mjs
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm test

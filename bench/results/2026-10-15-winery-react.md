@@ -1,10 +1,10 @@
 # React winery brief: Claude Code and OpenCode on Haiku 5.5 and Sonnet 5.5
 
-Runs 2026-10-14 to 2026-10-16, protocol `bench/PROTOCOL.md` v1.9. All 58 trials scored with the same hidden tests (`374dfd34d02f0c2f`: 6 feature tests, 12 robustness tests); agent runs unchanged by rescoring. One trial per arm and model; descriptive only. Results page with screenshots: https://claude.ai/artifact/E4fVUmc4WnofiUD8BoirLz (private to the owner).
+Runs 2026-10-14 to 2026-10-16, protocol `bench/PROTOCOL.md` v1.9. All 58 trials scored with the same hidden tests (`374dfd34d02f0c2f`: 6 feature tests, 12 robustness tests). Agent runs unchanged by rescoring. One trial per arm and model, descriptive only.
 
 ## Winners
 
-- Best Claude Code app by review: AB (OpenSpec), rated 9 of 10, criteria sum 62 of 65; the next best sum is 59.
+- Best Claude Code app by review: AB (OpenSpec), rated 9 of 10, criteria sum 62 of 65. The next best sum is 59.
 - Best mutation score (own tests catching mutants): K (ECC + OpenSpec) 94%, then H (ECC) 89.7%.
 - Plain Claude Code (A): rated 8, criteria sum 57 (rank 10 of 22), mutation 62.8%.
 - The hidden tests do not separate the arms: every Sonnet Claude Code app passes all 6 feature and 12 robustness tests.
@@ -28,19 +28,19 @@ Ranked by the sum of the 13 review criteria (1 to 5 each, at most 65), then the 
 
 ## Key findings (one trial each)
 
-- Hidden tests: all 22 Sonnet and 22 Haiku Claude Code apps and 13 of 14 OpenCode apps pass all 6 features; robustness see above.
-- Maintainability is the weakest review criterion in every group (mostly 2 or 3; no app has CI). On both models the BenchKeeper-layer arms without OpenSpec score lowest (Haiku L M N X: 3, 2, 2, 2; Sonnet: 2, 2, 2, 3). Candidate cause: BenchKeeper's scope rule ("no unrequested ... extra files") and Ponytail's least-code rule.
-- Sonnet overall ratings: OpenSpec alone (AB) 9; B (Ponytail) and L (BK + agent-skills) 7; all others 8. Haiku: A (plain) 9; O, M, N 7; others 8.
-- Sonnet took 14 minutes per Claude Code trial on average, Haiku 18; Sonnet cost more in 15 of 21 pairs with a cost.
+- Hidden tests: all 22 Sonnet and 22 Haiku Claude Code apps and 13 of 14 OpenCode apps pass all 6 features. Robustness: see above.
+- Maintainability is the weakest review criterion in every group (mostly 2 or 3, no app has CI). On both models the BenchKeeper-layer arms without OpenSpec score lowest (Haiku L M N X: 3, 2, 2, 2; Sonnet: 2, 2, 2, 3). Candidate cause: BenchKeeper's scope rule ("no unrequested ... extra files") and Ponytail's least-code rule.
+- Sonnet overall ratings: 9 for OpenSpec alone (AB), 7 for B (Ponytail) and L (BK + agent-skills), 8 for all others. Haiku: 9 for A (plain), 7 for O, M and N, 8 for the others.
+- Sonnet took 14 minutes per Claude Code trial on average, Haiku 18. Sonnet cost more in 15 of 21 pairs with a cost.
 - Ponytail lowered the cost in every baseline pair on Haiku (B vs A, O vs AB, P vs AC) and on Sonnet (B vs A, O vs AB, P vs AC).
-- Stops before the app was finished: Haiku D, E, J stopped after the specification (follow-up because the app did not run); Sonnet W stopped after its first task group to wait for confirmation while its skeleton app already ran, so v1.7 gave no follow-up (0 of 6); under v1.8 the rerun got one follow-up and reached 6 of 6.
-- Sonnet K's agent ended its own Claude Code process with a shell loop over `/proc` (exit 143); its app passes 6 of 6 and 12 of 12, but cost and turns were not recorded.
-- OpenCode with oso on Haiku (S) built the app in a git worktree and never merged it into the project folder: 0 of 6, review 3; a second run by another session (kept in `limited/S-rerun-1429` of the run, not published) also reached 0 of 6. On Sonnet the same arm merged and reached 9.
+- Stops before the app was finished: Haiku D, E, J stopped after the specification (follow-up because the app did not run). Sonnet W stopped after its first task group to wait for confirmation while its skeleton app already ran, so v1.7 gave no follow-up (0 of 6). Under v1.8 the rerun got one follow-up and reached 6 of 6.
+- Sonnet K's agent ended its own Claude Code process with a shell loop over `/proc` (exit 143). Its app passes 6 of 6 and 12 of 12, but cost and turns were not recorded.
+- OpenCode with oso on Haiku (S) built the app in a git worktree and never merged it into the project folder: 0 of 6, review 3. A second run by another session (kept in `limited/S-rerun-1429` of the run, not published) also reached 0 of 6. On Sonnet the same arm merged and reached 9.
 - On OpenCode, Sonnet reviewed at least as high as Haiku in every arm.
 
 ## Mutation score
 
-Share of mutants of the agent's own source that its own tests detect; 55 of 58 trials measured (unmeasured: Haiku J, Haiku S, Sonnet Z, see Setup). One trial per arm and model: descriptive only.
+Share of mutants of the agent's own source that its own tests detect. 55 of 58 trials measured (unmeasured: Haiku J, Haiku S, Sonnet Z, see Setup). One trial per arm and model: descriptive only.
 
 | Group | Trials | Median | Range |
 |---|---|---|---|
@@ -64,7 +64,7 @@ Top 10 trials:
 | 9 | Sonnet 5.5 | Claude Code | H | ECC | 89.7% |
 | 10 | Sonnet 5.5 | OpenCode | S | OpenSpec + Superpowers (oso) | 88.6% |
 
-For comparison: plain Claude Code (A) 57.3% on Haiku and 62.8% on Sonnet; Ponytail alone (B) 45.6% and 74.1%; the BenchKeeper layer with agent-skills (L) 35.4% and 31.4%. Lowest: Sonnet OpenCode AA 26.6%, Sonnet N 29.2%, Sonnet C 30.5%. All 55 measured trials passed 6 of 6 features, so the score separates arms the hidden tests do not.
+For comparison: plain Claude Code (A) 57.3% on Haiku and 62.8% on Sonnet, Ponytail alone (B) 45.6% and 74.1%, the BenchKeeper layer with agent-skills (L) 35.4% and 31.4%. Lowest: Sonnet OpenCode AA 26.6%, Sonnet N 29.2%, Sonnet C 30.5%. All 55 measured trials passed 6 of 6 features, so the score separates arms the hidden tests do not.
 
 ## Robustness tests
 
@@ -76,7 +76,7 @@ For comparison: plain Claude Code (A) 57.3% on Haiku and 62.8% on Sonnet; Ponyta
 
 ## Claude Code, Sonnet 5.5 (13 review criteria)
 
-Testing method: agent runs under protocol 1.9; scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 13 review criteria, BenchKeeper layer v1.
+Testing method: agent runs under protocol 1.9, scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 13 review criteria, BenchKeeper layer v1.
 
 | Arm | Setup | Features | Robustness | Mutation | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Visual | Layout | Usability | Reception | Tests first | Review |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -103,11 +103,11 @@ Testing method: agent runs under protocol 1.9; scored and parsed under protocol 
 | E | BK + ECC + OpenSpec | 6/6 | 12/12 | 31% | 0 | 10 | 2.7 | 8 | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 5 | 3 | 4 | 5 | 4 | 4 | yes | yes |
 | Y | BK + Matt Pocock + OpenSpec | 6/6 | 12/12 | 35.6% | 0 | 7 | 1.1 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 3 | 4 | 4 | 4 | 4 | no | yes |
 
-Trials: USD 43.79 API-equivalent (21 trials; K without cost). Reviews: USD 9.54 billed. W was rerun under protocol v1.8 (the first trial, 0/6 after it stopped to wait for confirmation, is kept in `limited/W-v1.7`).
+Trials: USD 43.79 API-equivalent (21 trials, K without cost). Reviews: USD 9.54 billed. W was rerun under protocol v1.8 (the first trial, 0/6 after it stopped to wait for confirmation, is kept in `limited/W-v1.7`).
 
-## Claude Code, Haiku 5.5 (9 review criteria, outdated; Haiku is dropped from the benchmarks)
+## Claude Code, Haiku 5.5 (9 review criteria, outdated: Haiku is dropped from the benchmarks)
 
-Testing method: agent runs under protocol 1.9; scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
+Testing method: agent runs under protocol 1.9, scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
 
 Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not comparable with the 13-criteria ratings. Kept as reference until these apps are reviewed again with 13 criteria.
 
@@ -138,9 +138,9 @@ Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not com
 
 Trials: USD 33.24 API-equivalent.
 
-## OpenCode, Haiku 5.5 and Sonnet 5.5 (9 review criteria, outdated; OpenCode is dropped from future runs)
+## OpenCode, Haiku 5.5 and Sonnet 5.5 (9 review criteria, outdated: OpenCode is dropped from future runs)
 
-Testing method: agent runs under protocol 1.9; scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
+Testing method: agent runs under protocol 1.9, scored and parsed under protocol 1.14 (mutation score from 1.10), hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
 
 Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not comparable with the 13-criteria ratings. Kept as reference until these apps are reviewed again with 13 criteria.
 
@@ -161,9 +161,9 @@ Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not com
 | Z | Matt Pocock (Sonnet) | 6/6 | 12/12 | unmeasured | 0 | 22 | 2.83 | 8 | 5 | 5 | 4 | 5 | 5 | 5 | 4 | 5 | 2 | no | yes |
 | AA | Matt Pocock + OpenSpec (Sonnet) | 6/6 | 12/12 | 26.6% | 0 | 25 | 2.1 | 8 | 5 | 5 | 4 | 5 | 5 | 4 | 4 | 5 | 3 | no | yes |
 
-Trials: USD 26.94 over the main sessions; reviews of the 36 Haiku and OpenCode apps: USD 18.87 billed.
+Trials: USD 26.94 over the main sessions. Reviews of the 36 Haiku and OpenCode apps: USD 18.87 billed.
 
-Caveat: the OpenCode USD, tokens, tool uses and phases cover only the main session of each trial. The runner exported root sessions only (`opencode session list` does not list subagent sessions; fixed after this run), and 11 of 14 trials started 1 or 2 subagents through the task tool (all except Q and T on Haiku and U on Sonnet), whose cost is missing. Estimated USD 3 more in total (about 0.80 Haiku, 2.20 Sonnet; unverified, from each main session's cost per active minute times the subagent minutes recorded in its task calls). All subagents were read-only reviews or design checks; features, reviews and wall minutes are unaffected. No rerun (owner decision).
+Caveat: the OpenCode USD, tokens, tool uses and phases cover only the main session of each trial. The runner exported root sessions only (`opencode session list` does not list subagent sessions, fixed after this run), and 11 of 14 trials started 1 or 2 subagents through the task tool (all except Q and T on Haiku and U on Sonnet), whose cost is missing. Estimated USD 3 more in total (about 0.80 Haiku, 2.20 Sonnet), unverified: each main session's cost per active minute times the subagent minutes recorded in its task calls. All subagents were read-only reviews or design checks. Features, reviews and wall minutes are unaffected. No rerun (owner decision).
 
 ## Method
 
@@ -176,7 +176,7 @@ Caveat: the OpenCode USD, tokens, tool uses and phases cover only the main sessi
 | Mutation score | share of mutants of the agent's own source that its own tests detect (killed or timed out), Stryker 10.0.0 command runner, `bench/scorer/mutation.sh`, rescored 2026-10-16 with agent runs unchanged; unmeasured: Haiku J (only time-outs), Haiku S (npm install failed), Sonnet Z (its own Playwright suite fails in the dry run); Sonnet AB first failed on a TypeScript 7 tsconfig rewrite and was rescored with the workaround |
 | Seed, order | 41; Claude Code arms in three parallel runners plus single-arm reruns; order, image IDs and account switch in the run manifests |
 
-Review column: a review skill, a review agent type, or a subagent whose task description names a review (parser fixed during the run; all `trial.json` files re-parsed).
+Review column: a review skill, a review agent type, or a subagent whose task description names a review (parser fixed during the run, all `trial.json` files re-parsed).
 
 ### How costs were recorded
 

@@ -1,0 +1,137 @@
+{
+  "arm": "AA",
+  "runtime": "opencode",
+  "followups": 0,
+  "wall_seconds": 1480,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "runtime": "opencode",
+    "plugins": [],
+    "skills": 34
+  },
+  "outcome": {
+    "finished": true,
+    "runtime": "opencode",
+    "sessions": 1,
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "turns": 80,
+    "cost_usd_api_equivalent": 2.099962099999999,
+    "usage": {
+      "input": 162,
+      "cache_creation": 163039,
+      "cache_read": 8609006,
+      "output": 61459,
+      "thinking": 21655
+    }
+  },
+  "workflow": {
+    "tool_calls": 90,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [
+      "general",
+      "general"
+    ],
+    "plan_or_spec_files": [
+      "openspec/changes/add-tasting-booking/proposal.md",
+      "specs/tasting-booking/spec.md",
+      "design.md",
+      "spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": true,
+    "last_tool": "Bash cd /work && source /tmp/opencode/env.sh && npm run test:e2e 2>&1 | grep -E \"pass"
+  },
+  "score": {
+    "install": 0,
+    "build": 0,
+    "acceptance_run": 0,
+    "agent_tests": 0,
+    "features": {
+      "F1": true,
+      "F2": true,
+      "F3": true,
+      "F4": true,
+      "F5": true,
+      "F6": true
+    },
+    "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R11": true,
+      "R12": true,
+      "R9": true
+    },
+    "robustness_passed": 12,
+    "axe": {
+      "start": 1,
+      "confirmation": 1,
+      "form": 1,
+      "staff": 1
+    },
+    "lighthouse": {
+      "performance": 0.98,
+      "accessibility": 0.94,
+      "best-practices": 0.96
+    },
+    "audit": {
+      "high": 0,
+      "total": 0
+    },
+    "hidden_tests": "374dfd34d02f0c2f"
+  },
+  "lines": {
+    "source": 1382,
+    "test": 564,
+    "files": 31
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": false,
+    "node_version": true,
+    "changelog": false,
+    "docs": true
+  },
+  "phases": {
+    "phases": {
+      "build": {
+        "calls": 44,
+        "minutes": 10.5,
+        "usd": 1.1
+      },
+      "spec": {
+        "calls": 5,
+        "minutes": 1.1,
+        "usd": 0.151
+      },
+      "test": {
+        "calls": 5,
+        "minutes": 1.9,
+        "usd": 0.22
+      },
+      "verify": {
+        "calls": 26,
+        "minutes": 10.9,
+        "usd": 0.629
+      }
+    },
+    "subagents": {},
+    "method": "reported"
+  }
+}

@@ -22,10 +22,10 @@ export function table(trials) {
     const ts = trials.filter((t) => t.arm === arm);
     const valid = ts.filter((t) => t.audit.ok && !t.outcome.infra_error);
     const col = (f, d = 1) => range(valid.map(f).map(round(d)));
-    return `| ${arm} | ${ts.length} | ${ts.length - valid.length} | ${col((t) => t.score.features_passed)} | ${col((t) => t.followups)} | ${col((t) => (t.score.lighthouse?.performance == null ? null : t.score.lighthouse.performance * 100))} | ${col((t) => (t.score.axe ? Object.values(t.score.axe).reduce((a, b) => a + b, 0) : null))} | ${valid.filter((t) => t.workflow.tests_written).length} | ${valid.filter((t) => t.workflow.review).length} | ${col((t) => t.lines.source)} | ${col((t) => t.wall_seconds / 60)} | ${col((t) => t.outcome.cost_usd_api_equivalent, 3)} |`;
+    return `| ${arm} | ${ts.length} | ${ts.length - valid.length} | ${col((t) => t.score.features_passed)} | ${col((t) => t.score.robustness_passed)} | ${col((t) => t.followups)} | ${col((t) => (t.score.lighthouse?.performance == null ? null : t.score.lighthouse.performance * 100))} | ${col((t) => (t.score.axe ? Object.values(t.score.axe).reduce((a, b) => a + b, 0) : null))} | ${valid.filter((t) => t.workflow.tests_written).length} | ${valid.filter((t) => t.workflow.review).length} | ${col((t) => t.lines.source)} | ${col((t) => t.wall_seconds / 60)} | ${col((t) => t.outcome.cost_usd_api_equivalent, 3)} |`;
   });
-  return ['| Arm | Trials | Invalid | Features (of 6) | Follow-ups | Lighthouse perf | axe violations | Tests written | Review ran | Source lines | Minutes | USD (API-equivalent) |',
-    '|---|---|---|---|---|---|---|---|---|---|---|---|', ...rows].join('\n');
+  return ['| Arm | Trials | Invalid | Features (of 6) | Robustness (of 12) | Follow-ups | Lighthouse perf | axe violations | Tests written | Review ran | Source lines | Minutes | USD (API-equivalent) |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|---|', ...rows].join('\n');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -70,6 +70,21 @@
       "F6": true
     },
     "features_passed": 6,
+    "robustness": {
+      "R2": true,
+      "R3": true,
+      "R4": true,
+      "R5": true,
+      "R6": true,
+      "R10": true,
+      "R1": true,
+      "R7": true,
+      "R8": true,
+      "R11": true,
+      "R12": true,
+      "R9": true
+    },
+    "robustness_passed": 12,
     "axe": {
       "start": 1,
       "confirmation": 1,
@@ -85,7 +100,7 @@
       "high": 0,
       "total": 0
     },
-    "hidden_tests": "0c89d28500b65ba5"
+    "hidden_tests": "374dfd34d02f0c2f"
   },
   "lines": {
     "source": 735,

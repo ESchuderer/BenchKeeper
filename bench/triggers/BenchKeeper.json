@@ -1,0 +1,20 @@
+{
+  "following-dev-workflow": [
+    {"query": "fix the crash in the config loader when ~/.apprc is missing (src/config/load.ts around line 40), new users hit it on first run", "should_trigger": true},
+    {"query": "open a github issue for the flaky test in tests/e2e/checkout.spec.ts, it fails about 1 in 10 on CI with a timeout on the payment iframe", "should_trigger": true},
+    {"query": "export feature is done, push my branch and open a PR", "should_trigger": true},
+    {"query": "compare vitest, jest and node:test for our monorepo: speed, ESM support, watch mode. which one should we move to?", "should_trigger": true},
+    {"query": "rename the userSvc module to accounts everywhere in the repo, imports and tests included", "should_trigger": true},
+    {"query": "upgrade next from 14.2 to 15 in web/ and fix whatever breaks. we have about 40 pages, some still on the pages router, and the build currently passes on CI so I'd like it to stay that way", "should_trigger": true},
+    {"query": "CI is green on #57, merge it", "should_trigger": true},
+    {"query": "add rate limiting to POST /api/login, 5 attempts per minute per IP, return 429", "should_trigger": true},
+    {"query": "how should I word the commit message for a change that fixes the null check in parseConfig and also renames a helper? conventional commits, just give me the message", "should_trigger": false, "near_miss_of": "agent-skills/git-workflow-and-versioning"},
+    {"query": "should the next release be 2.4.0 or 3.0.0? we removed a deprecated CLI flag, nothing else breaks. just tell me", "should_trigger": false, "near_miss_of": "agent-skills/git-workflow-and-versioning"},
+    {"query": "here's the spec for notifications (docs/specs/notifications.md). break it into ordered tasks with acceptance criteria, answer in chat, no code or edits yet", "should_trigger": false, "near_miss_of": "agent-skills/planning-and-task-breakdown"},
+    {"query": "draft a PRD for the team calendar feature in chat: objectives, scope, non-goals. implementation comes later, nothing goes in the repo yet", "should_trigger": false, "near_miss_of": "agent-skills/spec-driven-development"},
+    {"query": "review the diff in PR #61 for correctness, readability and security, report only", "should_trigger": false, "near_miss_of": "agent-skills/code-review-and-quality"},
+    {"query": "what does git push --force-with-lease do differently from --force?", "should_trigger": false},
+    {"query": "list the open issues labeled bug in this repo", "should_trigger": false},
+    {"query": "summarize what PR #57 changed, I missed the standup", "should_trigger": false}
+  ]
+}

@@ -101,10 +101,10 @@ function StepList({ from, className }: { from: number; className?: string }) {
 
 
 const checks: [ReactNode, string, ReactNode][] = [
-  [<IconTestPipe size={18} />, 'Tests', <>Tests first where a suite exists; Verify runs build, types, lint and tests.</>],
-  [<IconShieldLock size={18} />, 'Security', <><Code>security-and-hardening</Code> for input, auth, data and dependencies; secrets are never printed or committed; Maintain audits dependencies.</>],
-  [<IconGauge size={18} />, 'Performance', <><Code>performance-optimization</Code> when performance requirements exist; <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
-  [<IconAccessible size={18} />, 'UI and accessibility', <>UI changes are checked in a real browser through Playwright MCP; <Code>frontend-ui-engineering</Code> covers WCAG when building interfaces.</>],
+  [<IconTestPipe size={18} />, 'Tests', <>Tests first where a suite exists. Verify runs build, types, lint and tests.</>],
+  [<IconShieldLock size={18} />, 'Security', <><Code>security-and-hardening</Code> for input, auth, data and dependencies. Secrets are never printed or committed. Maintain audits dependencies.</>],
+  [<IconGauge size={18} />, 'Performance', <><Code>performance-optimization</Code> when performance requirements exist. <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
+  [<IconAccessible size={18} />, 'UI and accessibility', <>UI changes are checked in a browser through Playwright MCP. <Code>frontend-ui-engineering</Code> covers WCAG when building interfaces.</>],
 ];
 
 const quickstart: [string, string, string][] = [
@@ -173,16 +173,16 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and four skills. Claude Code and Codex are each optional; setup configures only the agents you select. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/setting-up-machine</Code>.</>}>
+        <Section id="what" title="What it is" intro={<>A Git repository with one rules file and four skills. Claude Code and Codex are each optional. Setup configures only the agents you select. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/setting-up-machine</Code>.</>}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} scope="Global, both agents">
-              Applies in every session: ask instead of assuming, sources for claims, scope, safety, devcontainer use, when to load the workflow skill.
+              Applies in every session: when to load the workflow skill, ask instead of assuming, brevity, structure, sources for claims, punctuation, scope, devcontainer use, safety, context.
             </FeatureCard>
             <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/setting-up-machine</Code>} scope="Once per machine">
-              Checks 10 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals, version bumps. Applies only what you approve.
+              Checks 9 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals, version bumps. Applies only what you approve.
             </FeatureCard>
             <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/setting-up-projects</Code>} scope="Once per repository">
-              Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config. Same plan and approval as the machine setup; on a fresh clone it restores the skills.
+              Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config. Same plan and approval as the machine setup. On a fresh clone it restores the skills.
             </FeatureCard>
             <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} scope="Before repository work, both agents">
               Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded only when needed.
@@ -193,7 +193,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. Quick: no issue, spec, plan or pre-push review. Standard: no spec, a plan of a few lines. Full: all ten steps. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug. The token and time saving is not measured yet.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. Quick: no issue, spec, plan or pre-push review. Standard: no spec, a plan of a few lines. Full: all ten steps. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug. Token and time use: one trial per arm in the benchmark, descriptive only.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -239,38 +239,38 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </Paper>
           </Box>
           <Alert mt="xl" variant="light" color="yellow" className="warn" icon={<IconAlertTriangle size={20} />} title="Not full isolation">
-            <Text size="sm">The agent runs on the host with its client permissions; the devcontainer only scopes project commands. Options for stronger isolation, not part of BenchKeeper:</Text>
+            <Text size="sm">The agent runs on the host with its client permissions. The devcontainer only scopes project commands. Options for stronger isolation, not part of BenchKeeper:</Text>
             <List size="sm" mt="xs" spacing={4}>
-              <List.Item><b>Shared VM</b>: agents and all projects in one VM; protects the host, not projects from each other.</List.Item>
+              <List.Item><b>Shared VM</b>: agents and all projects in one VM, which protects the host, not projects from each other.</List.Item>
               <List.Item><b>VM per project</b>: projects isolated from each other.</List.Item>
-              <List.Item><b>VM per branch or worktree</b>: parallel agent runs isolated from each other; one VM per run.</List.Item>
+              <List.Item><b>VM per branch or worktree</b>: parallel agent runs isolated from each other, one VM per run.</List.Item>
               <List.Item><b>MicroVMs</b> (<Anchor href="https://firecracker-microvm.github.io/">Firecracker</Anchor>, <Anchor href="https://katacontainers.io/">Kata Containers</Anchor>): lightweight VMs per project or task.</List.Item>
-              <List.Item><b>Rootless engine</b> (<Anchor href="https://docs.docker.com/engine/security/rootless/">rootless Docker</Anchor>, <Anchor href="https://podman.io/">Podman</Anchor>): container root is not host root; the agent still runs on the host.</List.Item>
+              <List.Item><b>Rootless engine</b> (<Anchor href="https://docs.docker.com/engine/security/rootless/">rootless Docker</Anchor>, <Anchor href="https://podman.io/">Podman</Anchor>): container root is not host root. The agent still runs on the host.</List.Item>
             </List>
           </Alert>
         </Section>
 
-        <Section id="parts" title="What each part gives you" intro="Each is a separate upstream project, pinned to an exact version and configured for the selected agents.">
+        <Section id="parts" title="What each part gives you" intro="Each is a separate upstream project, configured for the selected agents. CLIs and MCP servers are pinned to an exact version, plugins install at their latest release.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconListCheck size={20} />} title="agent-skills" href="https://github.com/addyosmani/agent-skills" scope="Global, both agents"
-              gives="Engineering steps sized to the change: spec before code for full changes, tests first, review before merge.">
-              Skills for spec, planning, TDD, debugging, code review, security, performance and shipping; the agent loads the one each phase needs.
+              gives="Steps per task tier: spec before code for full changes, tests first, review before merge.">
+              Skills for spec, planning, TDD, debugging, code review, security, performance and shipping. The agent loads the one each phase needs.
             </FeatureCard>
             <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, both agents"
-              gives="Less code to review and maintain; measurements under Cost.">
+              gives="Fewer lines of code in every source that measured them. Cost results differ by setup, see Cost and quality.">
               Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
             </FeatureCard>
             <FeatureCard icon={<IconFileDescription size={20} />} title="OpenSpec" href="https://github.com/Fission-AI/OpenSpec" scope="CLI global, wired per repository"
-              gives="Requirements live in the repository, reviewed in the same pull request as the code; the next session reads them.">
+              gives="Requirements as files in the repository, reviewed in the same pull request as the code and readable by later sessions.">
               One change folder per change (proposal, spec deltas, tasks), merged into living specs on archive.
             </FeatureCard>
             <FeatureCard icon={<IconBrowser size={20} />} title="Playwright MCP" href="https://github.com/microsoft/playwright-mcp" scope="Per repository, browser in the container"
-              gives="UI changes are checked in a real browser before the agent reports them done.">
+              gives="UI changes are checked in a browser before the agent reports them done.">
               Browser control over MCP: open pages, click, fill forms, read console and network, take screenshots.
             </FeatureCard>
             <FeatureCard icon={<IconContainer size={20} />} title="Dev Containers" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="CLI on host, config per repository"
-              gives="The same toolchain on every machine and client; installs, builds and tests run as a non-root user, off the host.">
-              A standard <Code>devcontainer.json</Code> per repository, shared by the CLI, VS Code and Orca terminals; project commands run through <Code>devcontainer exec</Code>.
+              gives="One toolchain definition per repository for every machine and client. Installs, builds and tests run as a non-root user in the container, not on the host.">
+              A standard <Code>devcontainer.json</Code> per repository, shared by the CLI, VS Code and Orca terminals. Project commands run through <Code>devcontainer exec</Code>.
             </FeatureCard>
             <FeatureCard icon={<IconSearch size={20} />} title="Stack skills" scope="Per repository"
               gives="Framework-specific knowledge where agent-skills is generic.">
@@ -292,7 +292,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="Cost and quality" intro={<>Ponytail: fewer lines of code in every measurement; cost -10.3% in JetBrains' test, +0.7% to +53% in other setups (different injection methods and models). Curated skills raised the pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>; not measured for agent-skills. Fewer rounds of fixes from the checks and the spec: not measured. Vendor figures are not measurements of your repositories. BenchKeeper's own paired benchmark: <Anchor href={`${base}/bench/`}>benchmark summary</Anchor>, full results in the reports. Every component evaluated: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="Cost and quality" intro={<>Ponytail: fewer lines of code in every measurement, cost -10.3% in JetBrains' test and +0.7% to +55% in other setups (different injection methods and models). Curated skills raised the pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>, not measured for agent-skills. Fewer rounds of fixes from the checks and the spec: not measured. Vendor figures are not measurements of your repositories. BenchKeeper's own benchmark (one trial per arm, descriptive): <Anchor href={`${base}/bench/`}>benchmark summary</Anchor>, full results in the reports. Components evaluated, included or not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>
@@ -330,19 +330,19 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <List spacing="lg" styles={listTop}>
               <Check ok={false} title="Not an agent.">It configures Claude Code and Codex and does not install their CLIs.</Check>
               <Check ok={false} title="Not a sandbox.">The agent stays a host process under its client permissions.</Check>
-              <Check ok={false} title="Not a hosted service.">Files in a Git repository; no server, no account.</Check>
+              <Check ok={false} title="Not a hosted service.">Files in a Git repository, no server, no account.</Check>
             </List>
             <List spacing="lg" styles={listTop}>
               <Check ok={false} title="Not a build system or framework.">Your project keeps its own toolchain.</Check>
-              <Check ok={false} title="Not auto-updating.">Versions change only when /setting-up-machine proposes a bump and you accept it.</Check>
-              <Check ok={false} title="Not autonomous.">Setup applies only the plan you approve and confirms destructive items again; merges and pushes to the default branch need your instruction.</Check>
+              <Check ok={false} title="Not auto-updating.">CLI and MCP versions change only when /setting-up-machine proposes a bump and you accept it. Plugins update with the marketplace commands.</Check>
+              <Check ok={false} title="Not autonomous.">Setup applies only the plan you approve and confirms destructive items again. Merges and pushes to the default branch need your instruction.</Check>
             </List>
           </SimpleGrid>
         </Section>
 
-        <Section id="tools" title="Recommended tools" intro="Optional, not installed by BenchKeeper; each works with the agents and rules set up here.">
+        <Section id="tools" title="Recommended tools" intro="Optional, not installed by BenchKeeper. Each works with the agents and rules set up here.">
           <Text fw={700} mb="xs">Parallel agents: pick one</Text>
-          <Text size="sm" c="dimmed" mb="md" maw={760}>Orca, Nimbalyst and cmux each manage several agent sessions side by side; running two duplicates the sessions and worktrees they track for the same repositories.</Text>
+          <Text size="sm" c="dimmed" mb="md" maw={760}>Orca, Nimbalyst and cmux each manage several agent sessions side by side. Running two duplicates the sessions and worktrees they track for the same repositories.</Text>
           <SimpleGrid cols={{ base: 1, md: 3 }}>
             {facts.parallelTools.map((t) => (
               <ToolCard key={t.name} icon={toolIcons[t.icon]} name={t.name} href={t.url} platforms={t.platforms} points={t.points} when={t.when} />

@@ -1,23 +1,29 @@
 # Evaluations
 
-Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs), Skill authoring check, Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-16 (each file names its date).
+Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-16 (each file names its date).
 
 ## Rules
 
 - Search the [sources to follow](evaluations/studies.md#sources-to-follow) and arXiv first, then GitHub issues, Hacker News, forums and blogs (user reports checked 2026-10-13; mostly one repository and 1 to 4 runs per arm). Reddit cannot be fetched (access refused); thread text supplied by the owner is labeled as such.
 - Record per result: version, harness, model and effort, task count, runs per arm, deltas and p-values where given. "Independent" means not run by the tool's own project; vendor-run and competitor-run results are labeled, kept apart from independent ones, and do not decide alone. Advertised figures stand next to measured ones; claims not checked are labeled unverified.
 - A paired design with about 50 tasks or more and a significance test or interval is a measurement; single runs, a handful of tasks or judge-only scores are signals. Results from another setup (agent, model family, component version, injection method) are context, not a decision.
-- A decision changes when two or more independent measurements, or one measurement and consistent signals across setups, agree in direction on the target setup. One contradicting measurement marks the entry "evidence mixed" and queues a retest in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19). A new major version marks earlier results stale until re-measured.
+- A decision changes when two or more independent measurements, or one measurement and consistent signals across setups, agree in direction on the target setup. One contradicting measurement marks the entry "evidence mixed" and queues a retest in a benchmark issue. A new major version marks earlier results stale until re-measured.
 - Cost counts per completed task; lower tokens with lower correctness or robustness is a regression.
-- When a component is added, removed or changed, or new evidence appears: update its file, its row below, and #19 when it changes what #19 measures.
+- When a component is added, removed or changed, or new evidence appears: update its file, its row below, and the open benchmark issue when it changes what that issue measures.
 
 ## Overview
+
+### BenchKeeper
+
+| Component | Decision | Summary |
+|---|---|---|
+| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms L, M, N, X, C, D, E, Y, one trial per arm and model: [winery-react](bench/results/2026-10-15-winery-react.md), [cartridges](bench/results/2026-10-16-cartridges.md) |
 
 ### Behavior modes
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Ponytail](evaluations/behavior-modes/ponytail.md) | In; evidence mixed, retest in #19 | lines down in every source that measured them; cost -10.3% (JetBrains) to +53% elsewhere |
+| [Ponytail](evaluations/behavior-modes/ponytail.md) | In, evidence mixed (arm B, k=1) | lines down in every source that measured them, cost -10.3% (JetBrains) to +55% elsewhere |
 | [caveman](evaluations/behavior-modes/caveman.md) | Not in, never part of BenchKeeper | advertised -65%, measured -8.5% output tokens, score p=0.82 (JetBrains); cost not reduced in 3 sources |
 
 ### Skill libraries
@@ -34,7 +40,7 @@ Components considered for BenchKeeper, the evidence for each, and whether each i
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (arm D in #19) | cost higher in every test but one 6-task run (1.33x on v6.4.2); pass rate n.s. (p about 0.235) |
+| [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (arms G, J, M, D, k=1) | cost higher in every test but one 6-task run (1.33x on v6.4.2); pass rate n.s. (p about 0.235) |
 | [OpenSpec](evaluations/workflow-frameworks/openspec.md) | In, unmeasured | no study with a no-spec baseline; owns spec files per change |
 | [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no agent-skills baseline; overlaps agent-skills |
 | [GSD](evaluations/workflow-frameworks/gsd.md) | Not in | one task: about 1.2M tokens vs 200K vanilla, outputs indistinguishable |
@@ -44,7 +50,7 @@ Components considered for BenchKeeper, the evidence for each, and whether each i
 
 | Component | Decision | Summary |
 |---|---|---|
-| [ECC](evaluations/harness-bundles/ecc.md) | Not in yet (arm E in #19, minimal profile) | no outcome measurement; hook overhead and listing size reported |
+| [ECC](evaluations/harness-bundles/ecc.md) | Not in yet (arms H, K, N, E, minimal profile, k=1) | no outcome measurement; hook overhead and listing size reported |
 | [ruflo](evaluations/harness-bundles/ruflo.md) | Not in | no evidence; no method published for advertised figures |
 
 ### Agent harnesses

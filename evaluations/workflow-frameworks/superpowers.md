@@ -1,6 +1,6 @@
 # Superpowers
 
-[Repository](https://github.com/obra/superpowers), Category: workflow frameworks, Checked 2026-10-16, Decision: Not in yet (arm D in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19))
+[Repository](https://github.com/obra/superpowers), Category: workflow frameworks, Checked 2026-10-16, Decision: Not in yet (arms G, J, M, D in the recorded runs, see Benchmark)
 
 ## Advertised
 
@@ -32,12 +32,16 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 - One user uninstalled it because "a simple ask is taking enormous amount of time".
 - Another removed Superpowers and runs agent-skills plus the Karpathy guidelines.
 
+## Benchmark
+
+Arms: G (Superpowers alone), J (with OpenSpec), M (with the BenchKeeper layer), D (with both). OpenCode arms: R, and S (oso with OpenSpec). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+
 ## Skill authoring check
 
-Rank 4 of 8, review 3.2, static checks 93% (7.0.0): strongest workflows and examples; descriptions leave out the "what" by house rule; two bodies over 500 lines; the brainstorming server loads a remote logo unless a telemetry variable is set. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+Rank 4 of 8, review 3.2, static checks 93% (7.0.0), workflows 5 and examples 5, the highest of the 8 collections in both areas. Descriptions leave out the "what" by house rule. Two bodies over 500 lines. The brainstorming server loads a remote logo unless a telemetry variable is set. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
 
 ## Decision
 
-Not in yet: one measurement (AgentStackBench, Codex, 500 tasks) and four signals on Claude Code agree in direction: cost higher in every with/without test across agents and versions (Codex with 5.0.5: tokens +40%; Claude Code with v6.4.2: cost 1.33x; systematic-debugging on Opus 4.8: cost +40.5% and +80%), except one blogger's 6-task single run (-9%). Quality gains appear in the TDD cases of one plugin-eval suite and in judge scores; pass rate on SWE-bench-family tasks is not significantly different (p about 0.235). Its spec, plan and implement loop overlaps agent-skills. Kept as arm D in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19): BenchKeeper with agent-skills replaced by Superpowers v7.0.0, to compare the agent-skills, Superpowers and ECC stacks directly.
+Not in yet: one measurement (AgentStackBench, Codex, 500 tasks) and four signals on Claude Code agree in direction: cost higher in every with/without test across agents and versions (Codex with 5.0.5: tokens +40%; Claude Code with v6.4.2: cost 1.33x; systematic-debugging on Opus 4.8: cost +40.5% and +80%), except one blogger's 6-task single run (-9%). Quality gains appear in the TDD cases of one plugin-eval suite and in judge scores; pass rate on SWE-bench-family tasks is not significantly different (p about 0.235). Its spec, plan and implement loop overlaps agent-skills. Arm D of the recorded runs is BenchKeeper with agent-skills replaced by Superpowers v7.0.0, next to the agent-skills (C) and ECC (E) stacks (see Benchmark).
 
 [All evaluations](../../EVALUATIONS.md)

@@ -9,7 +9,7 @@
 ## Independent evidence
 
 - None controlled.
-- v1.3.1: 27 shipped skills, no hooks.
+- v1.3.1: 37 SKILL.md files, 27 of them in the plugin manifest and listed by Claude Code, no hooks.
 
 ## User reports
 
@@ -20,9 +20,13 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 - One user moved to agent-skills for team work and keeps Matt's for brainstorming.
 - Another uses only those Matt and Anthropic skills that agent-skills lacks (grill-me, handoff, prototype, teach, writing-for-agents).
 
+## Benchmark
+
+Arms: V (Matt Pocock's skills alone), W (with OpenSpec), X (with the BenchKeeper layer), Y (with both). OpenCode arms: Z, AA. Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+
 ## Skill authoring check
 
-Rank 3 of 8, review 3.4, static checks 99% (1.3.1): short bodies, strong examples; `block-dangerous-git.sh` allows every command when `jq` is missing; two names contain "claude"; no evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+Rank 3 of 8, review 3.4, static checks 99% (1.3.1), conciseness 4, examples 5. `block-dangerous-git.sh` allows every command when `jq` is missing. Two names contain "claude". No evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
 
 ## Decision
 

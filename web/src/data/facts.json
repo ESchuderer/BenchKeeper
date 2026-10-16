@@ -1,10 +1,10 @@
 {
-  "description": "BenchKeeper sets up Claude Code and Codex with one rules file and four skills. The setup skills install and check rules, skills and tools at pinned versions, per machine and per repository; the following-dev-workflow skill sizes each request, so small changes skip the steps they do not need.",
+  "description": "BenchKeeper sets up Claude Code and Codex with one rules file and four skills. The setup skills install and check rules, skills and tools, per machine and per repository: CLIs and MCP servers at pinned versions, plugins at their latest release. The following-dev-workflow skill sizes each request, so small changes skip the steps they do not need.",
   "core": {
     "name": "agent-skills",
     "by": "Addy Osmani",
     "url": "https://github.com/addyosmani/agent-skills",
-    "role": "its skills drive each SDLC phase (specify, plan, tests first, build, review, ship); BenchKeeper pins and configures them and sizes each task to the steps it needs"
+    "role": "its skills drive each SDLC phase (specify, plan, tests first, build, review, ship). BenchKeeper configures them and sizes each task to the steps it needs"
   },
   "prerequisites": [
     {
@@ -60,7 +60,7 @@
       "platforms": "macOS, Windows, Linux",
       "icon": "stack",
       "points": [
-        "one git worktree per agent; the same prompt across several agents to compare results",
+        "one git worktree per agent and the same prompt across several agents to compare results",
         "terminal splits, SSH remote worktrees, mobile companion app",
         "`/setting-up-machine` offers its `orca-cli` and `orchestration` skills after asking"
       ],
@@ -85,7 +85,7 @@
       "icon": "terminal",
       "points": [
         "Ghostty-based terminal with vertical tabs",
-        "notifications when an agent needs input; sidebar with branch, PR status and ports",
+        "notifications when an agent needs input and a sidebar with branch, PR status and ports",
         "browser pane inside the terminal"
       ],
       "when": "you are on macOS and want a terminal without a separate app"
@@ -97,14 +97,14 @@
     "summary": "A self-hosted agent server with a web UI that runs work without you at the terminal.",
     "points": [
       "Each conversation can run in its own Docker container (`OH_CONVERSATION_RUNTIME=docker`), an isolation option BenchKeeper does not provide.",
-      "Runs its own agent or hosts Claude Code, Codex and Gemini CLI; works with any LLM.",
+      "Runs its own agent or hosts Claude Code, Codex and Gemini CLI. Works with any LLM.",
       "Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks.",
       "Without a sandbox, the local agent has full access to your filesystem.",
       "Unverified: whether agents inside its containers load the BenchKeeper rules and skills, which are installed on the host."
     ]
   },
   "sdlc": {
-    "requirements": "Requests come from you, GitHub issues, Jira, Linear and other trackers, bug reports, reviews and Maintain findings; only GitHub issues are automated.",
+    "requirements": "Requests come from you, GitHub issues, Jira, Linear and other trackers, bug reports, reviews and Maintain findings. Only GitHub issues are automated.",
     "phases": [
       {
         "name": "Define",
@@ -148,14 +148,14 @@
         "phase": "define",
         "sub": "type/issue-slug",
         "tip": "Creates <type>/<issue>-<slug> from the default branch.",
-        "text": "`<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue; no work on the default branch unless you say so."
+        "text": "`<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue. No work on the default branch unless you say so."
       },
       {
         "name": "Specify",
         "phase": "define",
         "sub": "OpenSpec",
         "tip": "Full tier: writes the spec as an OpenSpec change or in plan mode, with deployment, storage, module boundaries and core types.",
-        "text": "Full tier: `spec-driven-development`, as an OpenSpec change when the repository has one. It records deployment target, data storage, module boundaries and core types; a skeleton comes first only on request or in a repository without structure."
+        "text": "Full tier: `spec-driven-development`, as an OpenSpec change when the repository has one. It records deployment target, data storage, module boundaries and core types. A skeleton comes first only on request or in a repository without structure."
       },
       {
         "name": "Plan",
@@ -175,8 +175,8 @@
         "name": "Verify",
         "phase": "build",
         "sub": "build, lint, tests, browser",
-        "tip": "Runs build, types, lint and tests in the devcontainer; checks UI changes in a browser.",
-        "text": "Build, types, lint and tests inside the devcontainer; UI changes in a browser through Playwright MCP."
+        "tip": "Runs build, types, lint and tests in the devcontainer and checks UI changes in a browser.",
+        "text": "Build, types, lint and tests inside the devcontainer. UI changes in a browser through Playwright MCP."
       },
       {
         "name": "Review",
@@ -192,7 +192,7 @@
         "sub": "draft PR, checks, ready",
         "human": "you merge",
         "tip": "Opens a draft pull request, waits for checks, marks it ready. You merge.",
-        "text": "Draft pull request with `Closes #n` when an issue exists and the key decisions; wait for checks, mark ready. Merge only on your instruction."
+        "text": "Draft pull request with `Closes #n` when an issue exists and the key decisions. Wait for checks, mark ready. Merge only on your instruction."
       },
       {
         "name": "Maintain",

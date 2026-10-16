@@ -1,6 +1,6 @@
 # ECC (formerly everything-claude-code)
 
-[Repository](https://github.com/affaan-m/ECC), Category: harness bundles, Checked 2026-10-16, Decision: Not in yet (arm E in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19), minimal profile)
+[Repository](https://github.com/affaan-m/ECC), Category: harness bundles, Checked 2026-10-16, Decision: Not in yet (arms H, K, N, E with the minimal profile in the recorded runs, see Benchmark)
 
 ## Advertised
 
@@ -11,7 +11,7 @@
 - None for the bundle.
 - One third party, two packs ported to another platform, 6 paired tasks (`tdd-workflow`) and 3 (`security-reviewer`), runs not stated: `tdd-workflow` quality +0.20 (scale not given), +21 s and +74k tokens per task; `security-reviewer` 0.00 ([discussion #2504](https://github.com/affaan-m/ECC/discussions/2504#discussioncomment-17852942)).
 - v2.2.3 static count: 293 skills, 94 commands, 68 agents, about 124 KB of descriptions; 3 node processes per tool call, synchronous typecheck on Stop.
-- v2.2.3: `minimal` has 47 workflow-quality skills, 68 agents, 94 commands, no hooks (`manifests/install-profiles.json`).
+- v2.2.3: `minimal` has 47 workflow-quality skills (`manifests/install-modules.json`), 68 agents, 94 commands, no hooks (`manifests/install-profiles.json`). The installed arm image has 48 SKILL.md files: the 47 and `unified-memory`.
 - A code-reading analysis from 2026-02-22 counted 44 skills (see [studies and sources](../studies.md#not-sources-of-evidence)).
 
 ## User reports
@@ -27,12 +27,16 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 - One user: "very very large and hard to digest".
 - The Skill Leaderboard curator: ECC is not listed there; the curator places it between a skill collection and a broader harness framework and is open to reconsidering (see [studies and sources](../studies.md#not-sources-of-evidence)).
 
+## Benchmark
+
+Arms: H (ECC `minimal` alone), K (with OpenSpec), N (with the BenchKeeper layer), E (with both). No OpenCode arm. Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+
 ## Skill authoring check
 
 Rank 7 of 8, review 2.9, static checks 98% (2.2.3, minimal profile): broken script paths, hardcoded `~/.claude/skills` in a project-scoped install, references to 13 skills that are not installed, three bodies over 500 lines. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
 
 ## Decision
 
-Not in yet: no outcome measurement in either direction; measured overhead from hooks and listing size. The full plugin crowds other plugins out of the skill listing; a selective install (`manifests/install-profiles.json`: the `minimal` profile has no hooks, so `strategic-compact` loses its hook) or single skills avoid that. Arm E in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19) is BenchKeeper with agent-skills replaced by the ECC `minimal` profile, next to the agent-skills (C) and Superpowers (D) stacks.
+Not in yet: no outcome measurement in either direction; measured overhead from hooks and listing size. The full plugin crowds other plugins out of the skill listing; a selective install (`manifests/install-profiles.json`: the `minimal` profile has no hooks, so `strategic-compact` loses its hook) or single skills avoid that. Arm E of the recorded runs is BenchKeeper with agent-skills replaced by the ECC `minimal` profile, next to the agent-skills (C) and Superpowers (D) stacks (see Benchmark).
 
 [All evaluations](../../EVALUATIONS.md)

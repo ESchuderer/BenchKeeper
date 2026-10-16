@@ -24,7 +24,7 @@ BenchKeeper skills, checked 2026-10-16:
 | Point | `following-dev-workflow`, `setting-up-machine`, `setting-up-projects`, `maintaining-repos` (before setup-v2.5: `sdlc`, `global-setup`, `project-setup`, `maintain`) |
 |---|---|
 | Name format | Valid; the patterns were mixed (acronym, two noun phrases, one verb); renamed to gerunds (setup-v2.5, owner decision). The benchmark image installs pinned copies under the old names (`bench/arms/bk-skills/`). |
-| Description | 250 to 406 characters, what and when in each; rewritten in third person (setup-v2.5). |
+| Description | 257 to 415 characters, what and when in each; rewritten in third person (setup-v2.5). |
 | Body size, references | 14 to 156 lines; no nested reference files. |
 | Time-sensitive text | One dated install count in `project-setup` removed (setup-v2.5). |
 | MCP tool names | None used. |

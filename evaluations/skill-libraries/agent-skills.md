@@ -22,9 +22,13 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 - One user moved from mattpocock/skills to agent-skills for team work ("more rigorous and covers more bases"), keeps Matt's for brainstorming, and cites agent-skills' evals (see Advertised).
 - Another runs agent-skills fully plus the Karpathy guidelines, and only those Matt and Anthropic skills that agent-skills lacks (grill-me, handoff, prototype, teach, writing-for-agents), after removing Superpowers.
 
+## Benchmark
+
+Arms: F (agent-skills alone), I (with OpenSpec), L (with the BenchKeeper layer), C (with both). OpenCode arms: T, U, and Q (selected skills with OpenSpec). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+
 ## Skill authoring check
 
-Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with per-skill evaluations (results on Opus only); long bodies teach what Claude knows; 24 links leave the skill folder. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with per-skill evaluations (results on Opus only). Conciseness 2: long bodies explain what Claude already knows. 24 links leave the skill folder. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
 
 ## Decision
 

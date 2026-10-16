@@ -83,4 +83,4 @@ Claude Code best practices applied (#37, https://code.claude.com/docs/en/best-pr
 
 ## setup-v1.0
 
-State on `main` at `b113b75` (2026-10-16): one rules file with the full SDLC, task tiers and change types; `global-setup` and `project-setup`; Ponytail `full`, addy agent-skills, OpenSpec, Playwright MCP in the dev container. Measured by the paired benchmark (#29, #31).
+State on `main` at `b113b75` (2026-10-16): one rules file with the full SDLC, task tiers and change types; `global-setup` and `project-setup`; Ponytail `full`, addy agent-skills, OpenSpec, Playwright MCP in the dev container. Measured by the benchmark (#29, #31).

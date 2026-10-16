@@ -1,5 +1,5 @@
 // Benchmark trials for the /bench/ page, read at build time from bench/results/<run>/round-<n>/<arm>/
-// (trial.json, review.json, screenshots/) and the run's manifest.txt. Cost fields are never read (owner decision, #33).
+// (trial.json, review.json) and the run's manifest.txt. Cost fields are never read (owner decision, #33).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -25,8 +25,6 @@ export function arm(id) {
   return { framework, spec: a.spec || 'none', bk: Boolean(a.bk), ponytail: Boolean(a.ponytail || a.bk), setup: a.label || parts.join(' + ') || 'plain' };
 }
 
-// The site never shows an em dash (rules/global.md); recorded review text may contain one.
-const clean = (s) => String(s ?? '').replace(/\s*\u2014\s*/g, ', ');
 const json = (f) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null);
 const MODELS = { 'claude-haiku-5-5': 'Haiku 5.5', 'claude-sonnet-5-5': 'Sonnet 5.5', 'claude-opus-5-5': 'Opus 5.5' };
 
@@ -42,18 +40,13 @@ export function loadTrials(results) {
         const t = json(join(dir, 'trial.json'));
         if (!t) continue;
         const r = json(join(dir, 'review.json'))?.review;
-        const shots = existsSync(join(dir, 'screenshots')) ? readdirSync(join(dir, 'screenshots')).filter((f) => f.endsWith('.jpg')).sort() : [];
         trials.push({
-          key: `${run}/${round}/${id}`, run, brief: meta.brief, model: MODELS[meta.model] || meta.model, effort: meta.effort,
-          runtime: t.runtime === 'opencode' ? 'OpenCode' : 'Claude Code', arm: id, ...arm(id),
+          key: `${run}/${round}/${id}`, run, brief: meta.brief, model: MODELS[meta.model] || meta.model, effort: meta.effort, k: meta.k,
+          runtime: t.runtime === 'opencode' ? 'OpenCode' : 'Claude Code', arm: id, setup: arm(id).setup,
           features: t.score?.features_passed ?? null, robustness: t.score?.robustness_passed ?? null,
-          followups: t.followups ?? 0, minutes: Math.round((t.wall_seconds ?? 0) / 60),
-          testsFirst: Boolean(t.workflow?.tests_first), reviewStep: Boolean(t.workflow?.review),
-          overall: r?.overall ?? null,
-          method: { protocol: t.method?.protocol ?? null, tests: t.score?.hidden_tests ?? null, criteria: Object.keys(r?.scores || {}).length || null, bk: t.method?.bk ?? 'v1' },
-          scores: Object.fromEntries(Object.entries(r?.scores || {}).map(([k, v]) => [k, typeof v === 'object' ? v.score : v])),
-          verdict: clean(r?.verdict), strengths: (r?.strengths || []).map(clean), issues: (r?.issues || []).map(clean),
-          screenshots: shots.map((f) => ({ page: f.replace(/\.jpg$/, ''), file: `${run}/${round}/${id}/screenshots/${f}` })),
+          featuresOf: Object.keys(t.score?.features || {}).length || null, robustnessOf: Object.keys(t.score?.robustness || {}).length || null,
+          minutes: Math.round((t.wall_seconds ?? 0) / 60), overall: r?.overall ?? null,
+          protocol: t.method?.protocol ?? null, criteria: Object.keys(r?.scores || {}).length || null,
         });
       }
     }
@@ -61,22 +54,27 @@ export function loadTrials(results) {
   return trials;
 }
 
-export const methodLabel = (m = {}) => [m.protocol ? `protocol ${m.protocol}` : 'protocol not recorded', m.tests && `hidden tests ${m.tests}`, m.criteria && `${m.criteria} review criteria`, `BenchKeeper layer ${m.bk || 'v1'}`].filter(Boolean).join(', ');
+// Missing values sort last; ties keep the arm order.
+const desc = (a, b) => (b ?? -1) - (a ?? -1);
+const rankOrder = (a, b) => desc(a.overall, b.overall) || desc(a.features, b.features) || desc(a.robustness, b.robustness) || a.minutes - b.minutes;
 
-// One entry per brief that has trials: its first paragraph, counts, runtimes, models, run dates, testing methods with
-// their trial counts and the report file; newest run first.
-export function summarizeBriefs(trials, briefsDir, resultsDir) {
-  return [...new Set(trials.map((t) => t.brief))].map((id) => {
-    const ts = trials.filter((t) => t.brief === id);
-    const file = join(briefsDir, id, 'brief.md');
-    const summary = existsSync(file) ? clean(readFileSync(file, 'utf8').split(/\n\s*\n/)[0].trim()) : '';
-    const dates = [...new Set(ts.map((t) => t.run.slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
-    const reports = existsSync(resultsDir) ? readdirSync(resultsDir).filter((f) => f.endsWith(`-${id}.md`)).sort() : [];
-    const methods = Object.entries(ts.reduce((n, t) => ({ ...n, [methodLabel(t.method)]: (n[methodLabel(t.method)] || 0) + 1 }), {}))
-      .map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+// One entry per run (brief and model), newest first: setup facts, the report file, and per runtime the trials ranked by
+// review overall, then features, robustness and fewer minutes. Runtimes are kept apart: their reviews may use other criteria.
+export function summarizeRuns(trials, reports = []) {
+  return [...new Set(trials.map((t) => t.run))].map((run) => {
+    const ts = trials.filter((t) => t.run === run), [t0] = ts;
+    const report = reports.includes(`${run}.md`) ? `${run}.md` : reports.filter((f) => f.endsWith(`-${t0.brief}.md`)).sort().at(-1) ?? null;
     return {
-      id, summary, trials: ts.length, arms: new Set(ts.map((t) => t.arm)).size,
-      runtimes: [...new Set(ts.map((t) => t.runtime))].sort(), models: [...new Set(ts.map((t) => t.model))].sort(), dates, methods, reports,
+      run, brief: t0.brief, model: t0.model, effort: t0.effort, k: t0.k, date: run.slice(0, 10), report,
+      // Test totals of the run: an app that did not start records no tests.
+      featuresOf: Math.max(0, ...ts.map((t) => t.featuresOf ?? 0)) || null, robustnessOf: Math.max(0, ...ts.map((t) => t.robustnessOf ?? 0)) || null,
+      protocols: [...new Set(ts.map((t) => t.protocol).filter(Boolean))].sort(),
+      groups: [...new Set(ts.map((t) => t.runtime))].sort().map((runtime) => {
+        const rows = ts.filter((t) => t.runtime === runtime).sort(rankOrder);
+        // Equal scores share a rank; minutes only order the rows.
+        rows.forEach((t, i) => { const p = rows[i - 1]; t.rank = p && p.overall === t.overall && p.features === t.features && p.robustness === t.robustness ? p.rank : i + 1; });
+        return { runtime, criteria: [...new Set(rows.map((t) => t.criteria).filter(Boolean))].sort((a, b) => a - b), rows };
+      }),
     };
-  }).sort((a, b) => (b.dates.at(-1) || '').localeCompare(a.dates.at(-1) || '') || a.id.localeCompare(b.id));
+  }).sort((a, b) => b.date.localeCompare(a.date) || a.run.localeCompare(b.run));
 }

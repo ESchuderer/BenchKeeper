@@ -1,15 +1,49 @@
 ---
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import BenchLayout from '../../layouts/BenchLayout.astro';
-import { BenchIndex } from '../../components/Bench';
-import { loadTrials, summarizeBriefs } from '../../../scripts/bench-data.mjs';
+import BenchSummary, { type Notes } from '../../components/Bench';
+import { loadTrials, summarizeRuns } from '../../../scripts/bench-data.mjs';
 
 // The build runs in web/ (npm run build), next to bench/.
-const bench = join(process.cwd(), '..', 'bench');
-const briefs = summarizeBriefs(loadTrials(join(bench, 'results')), join(bench, 'briefs'), join(bench, 'results'));
+const results = join(process.cwd(), '..', 'bench', 'results');
+const runs = summarizeRuns(loadTrials(results), readdirSync(results).filter((f) => f.endsWith('.md')));
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+// Short text from the Markdown reports; tables come from the data. A run without an entry shows its table only.
+// The protocol is a fallback for trials scored before trial.json recorded it (protocol 1.10).
+const notes: Notes = {
+  briefs: {
+    'winery-react': 'The brief asks for a React app to book wine tastings at a family winery, with a staff page behind a password. Every arm gets the same prompt in an empty workspace.',
+  },
+  runs: {
+    '2026-10-15-winery-react-sonnet': {
+      protocol: '1.9',
+      findings: [
+        'All 22 Claude Code apps and all 7 OpenCode apps pass the 6 feature tests and the 12 robustness tests. The hidden tests do not separate the arms on this brief.',
+        'Claude Code reviews: OpenSpec alone (AB) is rated 9, Ponytail (B) and the BenchKeeper layer with agent-skills (L) 7, all other arms 8.',
+        'Maintainability is the weakest review criterion, mostly 2 or 3. No app has CI. The BenchKeeper-layer arms without OpenSpec score lowest on it (2, 2, 2, 3).',
+        'Claude Code reviews use 13 criteria, OpenCode reviews 9. The two sets of ratings are not directly comparable.',
+      ],
+    },
+    '2026-10-15-winery-react-haiku': {
+      protocol: '1.9',
+      findings: [
+        'All 22 Claude Code apps pass the 6 feature tests. All pass the 12 robustness tests except Superpowers (G) with 10: its rate limit refused the last bookings of the test suite, not a defect in what those two tests check.',
+        'On OpenCode, OpenSpec with Superpowers (oso, S) built the app in a git worktree and never merged it into the project folder: 0 of 6 features, review 3. The other 6 OpenCode apps pass all tests.',
+        'Claude Code reviews: plain (A) is rated 9, Ponytail with OpenSpec (O) and the BenchKeeper layer with Superpowers (M) or ECC (N) 7, all other arms 8.',
+        'The BenchKeeper-layer arms without OpenSpec score lowest on maintainability (3, 2, 2, 2).',
+        'These reviews use the 9 criteria of protocol 1.6 and earlier. The report marks them outdated: they are not comparable with the 13-criteria Sonnet Claude Code ratings.',
+      ],
+    },
+  },
+  reports: [
+    { file: '2026-10-16-skills-inventory.md', title: 'Skills inventory and usage', summary: 'The skills each framework adds, their size in tokens, and which of them the agents called in the 58 winery-react trials.' },
+    { file: '2026-10-16-skill-authoring.md', title: 'Skill authoring check', summary: "The benchmarked skill collections checked against Anthropic's skill authoring guide: a static check and one review per collection, ranked." },
+  ],
+};
 ---
-<BenchLayout title="Benchmark database, BenchKeeper"
-  description="BenchKeeper benchmark briefs: each brief's trials with hidden test scores, blind review ratings and screenshots per arm, runtime and model.">
-  <BenchIndex base={base} briefs={briefs} />
+<BenchLayout title="Benchmarks, BenchKeeper"
+  description="BenchKeeper benchmark summary: per published run the setup, the arms ranked by review, hidden test scores and minutes, key findings and a link to the full report.">
+  <BenchSummary base={base} runs={runs} notes={notes} />
 </BenchLayout>

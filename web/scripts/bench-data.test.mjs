@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { arm, loadTrials, summarizeBriefs } from './bench-data.mjs';
+import { arm, loadTrials, summarizeRuns } from './bench-data.mjs';
 
 test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with Ponytail', () => {
   assert.deepEqual(arm('A'), { framework: 'none', spec: 'none', bk: false, ponytail: false, setup: 'plain' });
@@ -13,45 +13,44 @@ test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with
   assert.throws(() => arm('ZZ'));
 });
 
-test('trials: one per arm directory, model from the manifest, review scores, no cost, no em dash', () => {
+test('trials: one per arm directory, model, effort and k from the manifest, review overall and criteria, no cost', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-'));
   const t = join(root, 'run-1', 'round-1', 'B');
-  mkdirSync(join(t, 'screenshots'), { recursive: true });
+  mkdirSync(t, { recursive: true });
   writeFileSync(join(root, 'run-1', 'manifest.txt'), 'brief=winery-react model=claude-sonnet-5-5 effort=high k=1 seed=41\nimage B x\n');
   writeFileSync(join(t, 'trial.json'), JSON.stringify({
     arm: 'B', runtime: 'claude-code', followups: 1, wall_seconds: 610, outcome: { cost_usd_api_equivalent: 1.23 },
-    score: { features_passed: 6, robustness_passed: 12 }, workflow: { tests_first: true, review: false },
+    score: { features: { F1: true, F2: false }, features_passed: 1, robustness: null, robustness_passed: null }, method: { protocol: '1.10' },
   }));
-  writeFileSync(join(t, 'review.json'), JSON.stringify({ cost_usd_api_equivalent: 0.4, review: {
-    overall: 8, scores: { requirements: 5, tests: { score: 4 } }, verdict: 'Ships \u2014 mostly.', strengths: ['a'], issues: [],
-  } }));
-  writeFileSync(join(t, 'screenshots', 'start.jpg'), '');
+  writeFileSync(join(t, 'review.json'), JSON.stringify({ cost_usd_api_equivalent: 0.4, review: { overall: 8, scores: { requirements: 5, tests: { score: 4 } } } }));
   mkdirSync(join(root, 'run-1', 'round-1', 'C'));
   const [x, ...rest] = loadTrials(root);
   assert.equal(rest.length, 0);
-  assert.equal(x.model, 'Sonnet 5.5');
-  assert.equal(x.brief, 'winery-react');
-  assert.equal(x.minutes, 10);
-  assert.deepEqual(x.scores, { requirements: 5, tests: 4 });
-  assert.equal(x.verdict, 'Ships, mostly.');
-  assert.deepEqual(x.method, { protocol: null, tests: null, criteria: 2, bk: 'v1' });
-  assert.deepEqual(x.screenshots, [{ page: 'start', file: 'run-1/round-1/B/screenshots/start.jpg' }]);
+  assert.deepEqual(x, {
+    key: 'run-1/round-1/B', run: 'run-1', brief: 'winery-react', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime: 'Claude Code', arm: 'B',
+    setup: 'Ponytail', features: 1, robustness: null, featuresOf: 2, robustnessOf: null, minutes: 10, overall: 8, protocol: '1.10', criteria: 2,
+  });
   assert.doesNotMatch(JSON.stringify(x), /cost|1\.23|0\.4/);
 });
 
-test('briefs: one entry per brief with trials, first paragraph, counts, dates, report', () => {
-  const root = mkdtempSync(join(tmpdir(), 'briefs-'));
-  mkdirSync(join(root, 'briefs', 'b1'), { recursive: true });
-  writeFileSync(join(root, 'briefs', 'b1', 'brief.md'), 'Build a small app \u2014 quickly.\nSecond line.\n\nDetails.\n');
-  mkdirSync(join(root, 'results'));
-  writeFileSync(join(root, 'results', '2026-10-15-b1.md'), '# report');
-  const m9 = { protocol: '1.9', tests: 'abc', criteria: 9, bk: 'v1' }, m13 = { ...m9, criteria: 13 };
-  const t = (arm, model, run, method, brief = 'b1') => ({ brief, arm, model, runtime: 'Claude Code', run, method });
-  const [b, old, ...rest] = summarizeBriefs([t('A', 'Haiku 5.5', '2026-10-15-b1-haiku', m9), t('A', 'Sonnet 5.5', '2026-10-16-b1-sonnet', m13), t('B', 'Sonnet 5.5', '2026-10-16-b1-sonnet', m13),
-    t('A', 'Haiku 5.5', '2026-10-01-a0-haiku', m9, 'a0')], join(root, 'briefs'), join(root, 'results'));
+test('runs: newest first, report file, runtimes apart, ranked with shared ranks and missing values last', () => {
+  const t = (run, arm, runtime, overall, features, robustness, minutes, criteria = 13) => ({
+    run, brief: 'b1', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime, arm, overall, features, robustness, minutes, protocol: null, criteria,
+    featuresOf: features ? 6 : null, robustnessOf: robustness ? 12 : null,
+  });
+  const [b, a, ...rest] = summarizeRuns([
+    t('2026-10-15-b1-haiku', 'A', 'Claude Code', 8, 6, 12, 5),
+    t('2026-10-16-b1-sonnet', 'A', 'Claude Code', 8, 6, 12, 9), t('2026-10-16-b1-sonnet', 'B', 'Claude Code', 9, 6, 12, 20),
+    t('2026-10-16-b1-sonnet', 'C', 'Claude Code', 8, 6, 12, 4), t('2026-10-16-b1-sonnet', 'D', 'Claude Code', null, 0, null, 3),
+    t('2026-10-16-b1-sonnet', 'Q', 'OpenCode', 7, 6, 12, 30, 9),
+  ], ['2026-10-14-b1.md', '2026-10-15-b1.md', '2026-10-16-other.md']);
   assert.equal(rest.length, 0);
-  assert.equal(old.id, 'a0', 'the older brief comes last');
-  assert.deepEqual(b, { id: 'b1', summary: 'Build a small app, quickly.\nSecond line.', trials: 3, arms: 2, runtimes: ['Claude Code'], models: ['Haiku 5.5', 'Sonnet 5.5'], dates: ['2026-10-15', '2026-10-16'],
-    methods: [{ label: 'protocol 1.9, hidden tests abc, 13 review criteria, BenchKeeper layer v1', count: 2 }, { label: 'protocol 1.9, hidden tests abc, 9 review criteria, BenchKeeper layer v1', count: 1 }],
-    reports: ['2026-10-15-b1.md'] });
+  assert.equal(a.run, '2026-10-15-b1-haiku');
+  assert.deepEqual({ ...b, groups: undefined }, {
+    run: '2026-10-16-b1-sonnet', brief: 'b1', model: 'Sonnet 5.5', effort: 'high', k: '1', date: '2026-10-16', report: '2026-10-15-b1.md', featuresOf: 6, robustnessOf: 12, protocols: [], groups: undefined,
+  });
+  const [cc, oc] = b.groups;
+  assert.deepEqual([cc.runtime, oc.runtime, cc.criteria, oc.criteria], ['Claude Code', 'OpenCode', [13], [9]]);
+  assert.deepEqual(cc.rows.map((r) => `${r.arm}${r.rank}`), ['B1', 'C2', 'A2', 'D4']);
+  assert.equal(summarizeRuns([t('2026-10-16-b1-sonnet', 'A', 'Claude Code', 8, 6, 12, 1)], ['2026-10-16-b1-sonnet.md', '2026-10-15-b1.md'])[0].report, '2026-10-16-b1-sonnet.md');
 });

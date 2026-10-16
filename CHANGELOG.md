@@ -6,11 +6,11 @@ Versions of the BenchKeeper setup (rules, skills, permission rules, recommended 
 
 Claude Code best practices applied (#37, https://code.claude.com/docs/en/best-practices).
 
-- `rules/global.md`: always-on core only (651 words, was 2,140); it loads the new `sdlc` skill before any edit in a repository and before research with several items. Hard limits (default branch, merges) stay in the core.
+- `rules/global.md`: always-on core only (about 670 words, was 2,140); it loads the new `sdlc` skill before any edit in a repository, before issues, pushes and pull requests, and before research with several items. Hard limits (default branch, merges) stay in the core.
 - `skills/sdlc`: task tiers, change types, issue, branch and pull request flow, SDLC phases, research flow (moved from the rules).
 - `skills/maintain`: the Maintain pass, user-invoked only, with `/doctor prompt-audit` and `/skill-doctor`.
-- Permission rules (Claude Code, `global-setup` part 11, native rules, no hooks): deny skipping git hooks (`--no-verify`, `commit -n`); ask before force pushes, remote and local branch deletion, pushes to `main` or `master`, hard resets, `git clean`, rebases, history rewrites, `gh pr merge`, `gh repo delete`, `gh release delete`. Em dashes, emojis and commits on the default branch stay prose rules.
-- `global-setup` and `project-setup`: `disable-model-invocation: true` (they never start on their own; the rules tell the agent to ask the user to run them); `global-setup` links the new skills and checks `CLAUDE_CODE_DISABLE_ADVISOR_TOOL`.
+- Permission rules (Claude Code, `global-setup` part 11, native ask rules, no hooks): ask before skipping git hooks (`--no-verify`, `commit -n`), force pushes, remote and local branch deletion, pushes to `main` or `master`, hard resets, `git clean`, rebases, history rewrites, `gh pr merge`, `gh repo delete`, `gh release delete`. Em dashes, emojis and commits on the default branch stay prose rules.
+- `global-setup`, `project-setup` and `maintain` never start on their own (`disable-model-invocation` for Claude Code, `agents/openai.yaml` for Codex); the rules tell the agent to ask the user to run them; `global-setup` links the new skills and checks `CLAUDE_CODE_DISABLE_ADVISOR_TOOL`.
 - Contradictions resolved: closing line on skipped or unchecked items allowed under Brevity; quick tier keeps Ponytail's self-check.
 - Removed: the `/clear` suggestion (shown by Claude Code), the Ponytail `full` default line (set by its config), restated skill triggers, the repeated host and container split.
 - Compaction instruction added.

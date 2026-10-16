@@ -185,7 +185,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded on demand, so it costs context only when used.
             </FeatureCard>
             <FeatureCard icon={<IconShieldLock size={20} />} title={<Code fz="sm">Permission rules</Code>} scope="Global, Claude Code">
-              Deny skipping git hooks; ask before force pushes, branch deletion, pushes to main, hard resets, rebases, history rewrites and merges. Native rules, no hooks.
+              Ask before skipping git hooks, force pushes, branch deletion, pushes to main, hard resets, rebases, history rewrites and merges. Native rules, no hooks.
             </FeatureCard>
           </SimpleGrid>
         </Section>
@@ -282,7 +282,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Check ok title="Ask, do not assume.">Ambiguous requests stop for precise questions instead of a guess.</Check>
               <Check ok title="Spec before code.">Non-trivial changes get a written spec and a task list.</Check>
               <Check ok title="Tests first">where the repository has a test suite; non-trivial logic leaves a test.</Check>
-              <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions or disabled lint rules unless you ask; --no-verify is denied.</Check>
+              <Check ok title="Checks are never weakened.">No skipped tests, loosened assertions, disabled lint rules or --no-verify unless you ask; Claude Code asks before --no-verify.</Check>
             </List>
             <List spacing="lg" styles={listTop}>
               <Check ok title="Review before push.">A correctness review runs on the commits; findings wait for your decision.</Check>

@@ -4,6 +4,7 @@ import {
 } from '@mantine/core';
 import { IconArrowLeft, IconBrandGithub, IconMoon, IconSun } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
+import { methodLabel } from '../../scripts/bench-data.mjs';
 
 const theme = createTheme({
   primaryColor: 'teal',
@@ -27,6 +28,7 @@ export type Trial = {
   key: string; brief: string; model: string; runtime: string; arm: string; setup: string; framework: string; spec: string;
   bk: boolean; ponytail: boolean; features: number | null; robustness: number | null; followups: number; minutes: number;
   testsFirst: boolean; reviewStep: boolean; overall: number | null; scores: Record<string, number>; verdict: string;
+  method: { protocol: string | null; tests: string | null; criteria: number | null; bk: string };
   strengths: string[]; issues: string[]; shots: Shot[];
 };
 
@@ -79,7 +81,15 @@ export function BenchShell({ base, children }: { base: string; children: ReactNo
 
 const METHOD = 'Each trial is one app built from the brief by one arm, runtime and model, scored by hidden tests (6 features, 12 robustness checks) and reviewed blind by Claude Opus 5.5 (overall 1 to 10, criteria 1 to 5). One trial per arm and model, so differences are descriptive, not significant.';
 
-export type Brief = { id: string; summary: string; trials: number; arms: number; runtimes: string[]; models: string[]; dates: string[]; reports: string[] };
+export type Brief = { id: string; summary: string; trials: number; arms: number; runtimes: string[]; models: string[]; dates: string[]; methods: { label: string; count: number }[]; reports: string[] };
+
+function Methods({ brief }: { brief: Brief }) {
+  return (
+    <Text size="sm" c="dimmed" mt="xs">
+      Testing method: {brief.methods.map((m, i) => <span key={m.label}>{i > 0 && '; '}{m.label}{brief.methods.length > 1 && ` (${m.count} trials)`}</span>)}
+    </Text>
+  );
+}
 
 export function BenchIndex({ base, briefs }: { base: string; briefs: Brief[] }) {
   return (
@@ -100,6 +110,7 @@ export function BenchIndex({ base, briefs }: { base: string; briefs: Brief[] }) 
             <Text size="sm" c="dimmed" mt="sm">
               {b.trials} trials, {b.arms} arms; {b.runtimes.join(' and ')}; {b.models.join(' and ')}; run {b.dates.join(', ')}
             </Text>
+            <Methods brief={b} />
           </Card>
         ))}
       </SimpleGrid>
@@ -125,6 +136,7 @@ export default function Bench({ base, brief, trials }: { base: string; brief: Br
               {METHOD} BK is the BenchKeeper layer, which includes Ponytail. Brief: <Anchor href={`${REPO}/blob/main/bench/briefs/${brief.id}/brief.md`}>brief.md</Anchor>
               {brief.reports.map((r) => <span key={r}>; report: <Anchor href={`${REPO}/blob/main/bench/results/${r}`}>{r}</Anchor></span>)}.
             </Text>
+            <Methods brief={brief} />
           </Stack>
 
           <form data-filters hidden className="filters" aria-label="Filter trials">
@@ -196,6 +208,7 @@ export default function Bench({ base, brief, trials }: { base: string; brief: Br
                   </SimpleGrid>
                 )}
                 {t.verdict && <Text size="sm" mt="sm">{t.verdict}</Text>}
+                <Text size="xs" c="dimmed" mt="xs">Testing method: {methodLabel(t.method)}</Text>
                 <details className="more">
                   <summary>Ratings, strengths and issues</summary>
                   <Table fz="xs" mt="xs" verticalSpacing={2}>

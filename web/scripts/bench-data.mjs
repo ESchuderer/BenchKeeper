@@ -50,6 +50,7 @@ export function loadTrials(results) {
           followups: t.followups ?? 0, minutes: Math.round((t.wall_seconds ?? 0) / 60),
           testsFirst: Boolean(t.workflow?.tests_first), reviewStep: Boolean(t.workflow?.review),
           overall: r?.overall ?? null,
+          method: { protocol: t.method?.protocol ?? null, tests: t.score?.hidden_tests?.slice(0, 8) ?? null, criteria: Object.keys(r?.scores || {}).length || null, bk: t.method?.bk ?? 'v1' },
           scores: Object.fromEntries(Object.entries(r?.scores || {}).map(([k, v]) => [k, typeof v === 'object' ? v.score : v])),
           verdict: clean(r?.verdict), strengths: (r?.strengths || []).map(clean), issues: (r?.issues || []).map(clean),
           screenshots: shots.map((f) => ({ page: f.replace(/\.jpg$/, ''), file: `${run}/${round}/${id}/screenshots/${f}` })),
@@ -60,17 +61,22 @@ export function loadTrials(results) {
   return trials;
 }
 
-// One entry per brief that has trials: its first paragraph, counts, runtimes, models, run dates and the report file.
+export const methodLabel = (m = {}) => [m.protocol ? `protocol ${m.protocol}` : 'protocol not recorded', m.tests && `hidden tests ${m.tests}`, m.criteria && `${m.criteria} review criteria`, `BenchKeeper layer ${m.bk || 'v1'}`].filter(Boolean).join(', ');
+
+// One entry per brief that has trials: its first paragraph, counts, runtimes, models, run dates, testing methods with
+// their trial counts and the report file; newest run first.
 export function summarizeBriefs(trials, briefsDir, resultsDir) {
-  return [...new Set(trials.map((t) => t.brief))].sort().map((id) => {
+  return [...new Set(trials.map((t) => t.brief))].map((id) => {
     const ts = trials.filter((t) => t.brief === id);
     const file = join(briefsDir, id, 'brief.md');
     const summary = existsSync(file) ? clean(readFileSync(file, 'utf8').split(/\n\s*\n/)[0].trim()) : '';
     const dates = [...new Set(ts.map((t) => t.run.slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
     const reports = existsSync(resultsDir) ? readdirSync(resultsDir).filter((f) => f.endsWith(`-${id}.md`)).sort() : [];
+    const methods = Object.entries(ts.reduce((n, t) => ({ ...n, [methodLabel(t.method)]: (n[methodLabel(t.method)] || 0) + 1 }), {}))
+      .map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
     return {
       id, summary, trials: ts.length, arms: new Set(ts.map((t) => t.arm)).size,
-      runtimes: [...new Set(ts.map((t) => t.runtime))].sort(), models: [...new Set(ts.map((t) => t.model))].sort(), dates, reports,
+      runtimes: [...new Set(ts.map((t) => t.runtime))].sort(), models: [...new Set(ts.map((t) => t.model))].sort(), dates, methods, reports,
     };
-  });
+  }).sort((a, b) => (b.dates.at(-1) || '').localeCompare(a.dates.at(-1) || '') || a.id.localeCompare(b.id));
 }

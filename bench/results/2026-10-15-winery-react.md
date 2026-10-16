@@ -27,6 +27,8 @@ Confidence in the cost figures: medium. Not reconciled against the Anthropic Con
 
 ## Claude Code, Sonnet 5.5 (13 review criteria)
 
+Testing method: protocol 1.9, hidden tests `374dfd34d02f0c2f`, 13 review criteria, BenchKeeper layer v1.
+
 | Arm | Setup | Features | Robustness | Follow-ups | Minutes | USD | Overall | Req. | Correct. | Security | Code | Tests | UX | A11y | Simple | Maint. | Visual | Layout | Usability | Reception | Tests first | Review |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | A | plain | 6/6 | 12/12 | 0 | 7 | 0.92 | 8 | 5 | 5 | 5 | 4 | 5 | 4 | 4 | 5 | 3 | 5 | 4 | 4 | 4 | yes | yes |
@@ -55,6 +57,8 @@ Confidence in the cost figures: medium. Not reconciled against the Anthropic Con
 Trials: USD 43.79 API-equivalent (21 trials; K without cost). Reviews: USD 9.54 billed. W was rerun under protocol v1.8 (the first trial, 0/6 after it stopped to wait for confirmation, is kept in `limited/W-v1.7`).
 
 ## Claude Code, Haiku 5.5 (9 review criteria, outdated)
+
+Testing method: protocol 1.9, hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
 
 Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not comparable with the 13-criteria ratings. Kept as reference until these apps are reviewed again with 13 criteria.
 
@@ -86,6 +90,8 @@ Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not com
 Trials: USD 33.24 API-equivalent.
 
 ## OpenCode, Haiku 5.5 and Sonnet 5.5 (9 review criteria, outdated)
+
+Testing method: protocol 1.9, hidden tests `374dfd34d02f0c2f`, 9 review criteria, BenchKeeper layer v1.
 
 Outdated: rated with the 9 review criteria of protocol v1.6 and earlier, not comparable with the 13-criteria ratings. Kept as reference until these apps are reviewed again with 13 criteria.
 

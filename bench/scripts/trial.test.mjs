@@ -194,6 +194,19 @@ test('phases: an OpenCode subagent session takes the phase of the task call that
   assert.equal(p.subagents.reviewer.usd, 2);
 });
 
+test('method: protocol version, hidden tests hash, BenchKeeper layer version', async () => {
+  const { mkdirSync, mkdtempSync, writeFileSync } = await import('node:fs');
+  const { method } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/method-');
+  writeFileSync(`${dir}/PROTOCOL.md`, '# Benchmark protocol\n\nVersion 1.10, 2026-10-16 (1.10: x)\n');
+  assert.deepEqual(method(dir, `${dir}/PROTOCOL.md`), { protocol: '1.10', hidden_tests: null, bk: 'v1' });
+  mkdirSync(`${dir}/score`);
+  writeFileSync(`${dir}/score/hidden.sha256`, 'abc123\n');
+  writeFileSync(`${dir}/bk`, 'v2\n');
+  assert.deepEqual(method(dir, `${dir}/PROTOCOL.md`), { protocol: '1.10', hidden_tests: 'abc123', bk: 'v2' });
+  assert.match(method(dir).protocol, /^\d+\.\d+$/);
+});
+
 test('mutation score: detected over counted mutants, or null with a reason', async () => {
   const { mkdtempSync, writeFileSync } = await import('node:fs');
   const { mutation } = await import('./trial.mjs');

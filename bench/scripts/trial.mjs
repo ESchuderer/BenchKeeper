@@ -191,6 +191,17 @@ export function score(dir) {
 }
 const AXE_PAGES = ['start', 'confirmation', 'form', 'staff'];
 
+// The testing method that produced the scores: protocol version (bench/PROTOCOL.md when the trial was scored or
+// re-parsed), hidden tests hash, BenchKeeper layer version (the runner's `bk` file; v1 before it was recorded).
+export function method(dir, protocolFile = new URL('../PROTOCOL.md', import.meta.url)) {
+  const read = (f) => { try { return readFileSync(f, 'utf8'); } catch { return null; } };
+  return {
+    protocol: /^Version (\d+\.\d+)/m.exec(read(protocolFile) || '')?.[1] || null,
+    hidden_tests: read(join(dir, 'score', 'hidden.sha256'))?.trim() || null,
+    bk: read(join(dir, 'bk'))?.trim() || 'v1',
+  };
+}
+
 // Mutation score of the agent's own tests (bench/scorer/mutation.sh): killed and timed-out mutants count as detected,
 // Stryker's convention; compile and runtime errors and ignored mutants are left out. Unmeasured: score null and a reason.
 const MUTATION_REASONS = { 10: 'npm install failed', 11: 'no test script', 12: 'mutation tool install failed', 13: 'mutation run failed', 124: 'time limit', 137: 'time limit' };
@@ -220,6 +231,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     outcome: oc ? ocOutcome(events, all) : outcome(events),
     workflow: oc ? workflow(events, ocUses(events, all)) : workflow(events),
     score: score(join(dir, 'score')), lines: lines(join(dir, 'workspace')), maintenance: maintenance(join(dir, 'workspace')),
+    method: method(dir),
   };
   // Per-phase and per-subagent measurements, only for trials the runner marked (PHASES=1).
   if (existsSync(join(dir, 'log', 'phases'))) trial.phases = oc ? opencodePhases(all) : claudePhases(events, trial.outcome.cost_usd_api_equivalent || 0);

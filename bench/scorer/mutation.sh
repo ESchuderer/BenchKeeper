@@ -2,7 +2,8 @@
 # Mutation score of a built app's own tests: Stryker (pinned) on a copy of the workspace, which is never changed.
 # Stryker's command runner reruns the suite per mutant (`npx vitest run` for vitest suites, else `npm test`): its vitest runner
 # reported mutants as surviving that the suites demonstrably kill. Text literals are not mutated: the score is about
-# behavior, not about whether tests pin every message's wording.
+# behavior, not about whether tests pin every message's wording. No tsconfig rewriting: Stryker 10 calls a TypeScript API
+# that TypeScript 7 removed.
 # Usage: bench/scorer/mutation.sh <workspace> <out-dir>   writes mutation.json (Stryker report), mutation.exit, mutation.log
 # Exit codes in mutation.exit: 0 report written, 10 npm install failed, 11 no test script, 12 Stryker install failed,
 # 13 Stryker failed (for example the tests fail before mutation), 124 or 137 time limit (MUTATION_TIMEOUT, default 2700 s).
@@ -37,7 +38,8 @@ podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER=
   "reporters": ["json"],
   "jsonReporter": { "fileName": "/out/mutation.json" },
   "concurrency": 8,
-  "tempDirName": "/tmp/stryker-tmp"
+  "tempDirName": "/tmp/stryker-tmp",
+  "tsconfigFile": "/nonexistent/tsconfig.json"
 }
 EOF
   npx stryker run /tmp/stryker.config.json || exit 13' > "$out/mutation.log" 2>&1

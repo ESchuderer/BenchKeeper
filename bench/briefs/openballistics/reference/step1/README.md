@@ -64,4 +64,4 @@ of the neighbouring records, name the source (C.I.P. sheet, manufacturer data) i
 
 ## License
 
-[MIT](LICENSE). Third-party resources: [THIRD-PARTY.md](THIRD-PARTY.md).
+MIT (`LICENSE`). Third-party resources: `THIRD-PARTY.md`.

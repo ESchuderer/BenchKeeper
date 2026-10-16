@@ -135,6 +135,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               {[['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Quality'], ['cost', 'Cost'], ['not', 'What it is not'], ['tools', 'Tools'], ['prereq', 'Setup']].map(([id, l]) => (
                 <Anchor key={id} href={`#${id}`} c="dimmed" size="sm" underline="never">{l}</Anchor>
               ))}
+              <Anchor href={`${base}/bench/`} c="dimmed" size="sm" underline="never">Benchmark</Anchor>
             </Group>
             <Group gap="xs" wrap="nowrap">
               <Button component="a" href={REPO} variant="default" size="xs" leftSection={<IconBrandGithub size={16} />} visibleFrom="sm">GitHub</Button>
@@ -290,7 +291,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="Cost and quality" intro={<>Ponytail has several independent measurements: fewer lines of code in all of them, cost -10.3% in JetBrains' test and between +0.7% and +53% in other setups (different injection methods and models); BenchKeeper's own paired test is planned. The checks before done and the spec in the repository aim at fewer rounds of fixes; that is not measured. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="Cost and quality" intro={<>Ponytail has several independent measurements: fewer lines of code in all of them, cost -10.3% in JetBrains' test and between +0.7% and +53% in other setups (different injection methods and models); BenchKeeper's own paired benchmark, every trial with scores, ratings and screenshots: <Anchor href={`${base}/bench/`}>benchmark database</Anchor>. The checks before done and the spec in the repository aim at fewer rounds of fixes; that is not measured. Vendor figures are not measurements of your repositories. Every component evaluated, what is in and what is not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>

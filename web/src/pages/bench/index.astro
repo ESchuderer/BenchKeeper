@@ -1,0 +1,15 @@
+---
+import { join } from 'node:path';
+import BenchLayout from '../../layouts/BenchLayout.astro';
+import { BenchIndex } from '../../components/Bench';
+import { loadTrials, summarizeBriefs } from '../../../scripts/bench-data.mjs';
+
+// The build runs in web/ (npm run build), next to bench/.
+const bench = join(process.cwd(), '..', 'bench');
+const briefs = summarizeBriefs(loadTrials(join(bench, 'results')), join(bench, 'briefs'), join(bench, 'results'));
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+<BenchLayout title="Benchmark database, BenchKeeper" path="/bench/"
+  description="BenchKeeper benchmark briefs: each brief's trials with hidden test scores, blind review ratings and screenshots per arm, runtime and model.">
+  <BenchIndex base={base} briefs={briefs} />
+</BenchLayout>

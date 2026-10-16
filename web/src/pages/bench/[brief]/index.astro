@@ -1,0 +1,76 @@
+---
+import { join } from 'node:path';
+import { getImage } from 'astro:assets';
+import BenchLayout from '../../../layouts/BenchLayout.astro';
+import Bench from '../../../components/Bench';
+import { loadTrials, summarizeBriefs } from '../../../../scripts/bench-data.mjs';
+
+// The build runs in web/ (npm run build), next to bench/; getStaticPaths cannot use the page's other constants.
+export function getStaticPaths() {
+  const bench = join(process.cwd(), '..', 'bench');
+  const all = loadTrials(join(bench, 'results'));
+  return summarizeBriefs(all, join(bench, 'briefs'), join(bench, 'results'))
+    .map((brief) => ({ params: { brief: brief.id }, props: { brief, all: all.filter((t) => t.brief === brief.id) } }));
+}
+const { brief, all } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+// Screenshots go through Astro's image service: a thumbnail and a full-size WebP per page.
+const images = import.meta.glob<{ default: ImageMetadata }>('../../../../../bench/results/*/round-*/*/screenshots/*.jpg', { eager: true });
+const byFile = Object.fromEntries(Object.entries(images).map(([k, v]) => [k.split('bench/results/')[1], v.default]));
+const trials = await Promise.all(all.map(async (t) => ({
+  ...t,
+  shots: await Promise.all(t.screenshots.filter((s) => byFile[s.file]).map(async (s) => {
+    const src = byFile[s.file];
+    const thumb = await getImage({ src, width: 320, format: 'webp', quality: 70 });
+    const full = await getImage({ src, width: 1280, format: 'webp', quality: 80 });
+    return { page: s.page, thumb: thumb.src, width: 320, height: Math.round((320 * src.height) / src.width), full: full.src };
+  })),
+})));
+---
+<BenchLayout title={`Brief ${brief.id}, benchmark database, BenchKeeper`} path={`/bench/${brief.id}/`}
+  description={`BenchKeeper benchmark trials for the brief ${brief.id}: hidden test scores, blind review ratings and screenshots per arm, runtime and model.`}>
+  <Bench base={base} brief={brief} trials={trials} />
+  <script is:inline slot="script">
+    (function () {
+      // Filters, search and sorting; without JavaScript the full table and all cards show.
+      var form = document.querySelector('[data-filters]'), count = form.querySelector('[data-count]');
+      var tbody = document.querySelector('[data-rows]'), grid = document.querySelector('[data-cards]');
+      var rows = Array.prototype.slice.call(tbody.querySelectorAll('[data-trial-row]'));
+      var cards = {}; grid.querySelectorAll('[data-card]').forEach(function (c) { cards[c.getAttribute('data-card')] = c; });
+      var fields = ['runtime', 'model', 'framework', 'spec', 'bk', 'ponytail'];
+      function apply() {
+        var q = form.elements.q.value.trim().toLowerCase(), params = new URLSearchParams(), n = 0;
+        fields.forEach(function (f) { if (form.elements[f].value) params.set(f, form.elements[f].value); });
+        if (q) params.set('q', q);
+        rows.forEach(function (r) {
+          var ok = fields.every(function (f) { var v = form.elements[f].value; return !v || r.getAttribute('data-' + f) === v; })
+            && (!q || r.getAttribute('data-text').indexOf(q) >= 0);
+          r.hidden = !ok; cards[r.getAttribute('data-key')].hidden = !ok; if (ok) n++;
+        });
+        count.textContent = n + ' of ' + rows.length + ' trials';
+        var s = params.toString();
+        history.replaceState(null, '', s ? '?' + s : location.pathname + location.hash);
+      }
+      new URLSearchParams(location.search).forEach(function (v, k) { if (form.elements[k]) form.elements[k].value = v; });
+      form.hidden = false;
+      form.addEventListener('input', apply);
+      form.addEventListener('change', apply);
+      form.addEventListener('submit', function (e) { e.preventDefault(); });
+      form.addEventListener('reset', function () { setTimeout(apply); });
+      document.querySelectorAll('[data-sort]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var k = b.getAttribute('data-sort'), th = b.closest('th');
+          var dir = th.getAttribute('aria-sort') === 'descending' ? 'ascending' : 'descending';
+          document.querySelectorAll('th[aria-sort]').forEach(function (h) { h.removeAttribute('aria-sort'); });
+          th.setAttribute('aria-sort', dir);
+          rows.sort(function (a, c) {
+            var d = Number(a.getAttribute('data-' + k)) - Number(c.getAttribute('data-' + k));
+            return (dir === 'ascending' ? d : -d) || Number(a.getAttribute('data-order')) - Number(c.getAttribute('data-order'));
+          });
+          rows.forEach(function (r) { tbody.appendChild(r); grid.appendChild(cards[r.getAttribute('data-key')]); });
+        });
+      });
+      apply();
+    })();
+  </script>
+</BenchLayout>

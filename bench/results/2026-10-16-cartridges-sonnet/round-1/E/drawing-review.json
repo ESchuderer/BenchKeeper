@@ -1,0 +1,183 @@
+{
+ "arm": "E",
+ "counts": {
+  "correct": 25,
+  "partly": 0,
+  "wrong": 0
+ },
+ "score": 25.0,
+ "drawings": {
+  "223_rem": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked P2 9, L2 39.55, E1 8.43, alpha 46 deg: match"
+   ]
+  },
+  "243_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked P1 11.96, H1 7.01, L6 68.83: match"
+   ]
+  },
+  "6_5_creedmoor": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked P2 11.74, L1 37.84, alpha 60 deg: match; 60 deg shoulder drawn steep"
+   ]
+  },
+  "6_5_x_55_se": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked R 1.5, L2 47.13, alpha 50 35 2: match"
+   ]
+  },
+  "270_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked H2 7.82, L3 64.52, alpha 35: match"
+   ]
+  },
+  "7_x_64": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked P2 10.8, L2 55.37, alpha 40 25 44: match"
+   ]
+  },
+  "308_win": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked P1 11.96, L1 39.62, L6 71.12: match; seating at 1.0 G1 (base near L2)"
+   ]
+  },
+  "30_06_spring": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked H1 8.63, L2 53.56, R 1.24: match"
+   ]
+  },
+  "8_x_57_is": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked P2 10.95, G1 8.22, alpha 38 12 6: match"
+   ]
+  },
+  "9_3_x_62": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked P1 12.1, R1 11.95, L1 51.79: match; rimless with P1 > R1 drawn as published"
+   ]
+  },
+  "7_62_x_39": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked P2 10.07, E1 9.56, L3 38.7: match; strong body taper visible"
+   ]
+  },
+  "338_lapua_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "spot-checked R1 14.93, H2 9.41, alpha 39 59 49: match"
+   ]
+  },
+  "300_win_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "belt to E 5.59 drawn after groove, steps in to P1; R3 not dimensioned (not required)",
+    "spot-checked R1 13.51, P2 12.42, L2 59.85: match"
+   ]
+  },
+  "7_mm_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "belt drawn after groove and ramp; spot-checked P2 12.47, H1 8, L6 83.57: match"
+   ]
+  },
+  "9_3_x_74_r": {
+   "verdict": "correct",
+   "issues": [
+    "alpha glyph for the 10 58 0 shoulder is very narrow and sits close to the outline",
+    "rimmed head, no groove, square rim with chamfer; spot-checked R1 13.35, P2 10.4, L3 74.7: match"
+   ]
+  },
+  "7_x_65_r": {
+   "verdict": "correct",
+   "issues": [
+    "alpha marked by a free-standing angle glyph beside the shoulder, not between extended shoulder lines",
+    "rimmed head without groove; spot-checked R1 13.32, L2 55.36, alpha 40 31 32: match"
+   ]
+  },
+  "9_mm_luger": {
+   "verdict": "correct",
+   "issues": [
+    "spot-checked P1 9.93, G1 9.03, L6 29.69: match; rounded nose, seating 0.4 G1"
+   ]
+  },
+  "45_auto": {
+   "verdict": "correct",
+   "issues": [
+    "spot-checked R1 12.19, E1 10.16, L3 22.81: match; long groove ramp for E 4.11"
+   ]
+  },
+  "40_s_w": {
+   "verdict": "correct",
+   "issues": [
+    "spot-checked H2 10.74, G1 10.17, L6 28.83: match; flat cone nose"
+   ]
+  },
+  "38_special": {
+   "verdict": "correct",
+   "issues": [
+    "spot-checked R1 11.18, H2 9.63, L3 29.34: match; rimmed, no groove; inner wall tapers from tb to tn along the whole case"
+   ]
+  },
+  "357_magnum": {
+   "verdict": "correct",
+   "issues": [
+    "spot-checked R 1.52, L3 32.77, L6 40.39: match; semi-wadcutter cone, seating 0.6 G1"
+   ]
+  },
+  "44_rem_mag": {
+   "verdict": "correct",
+   "issues": [
+    "spot-checked R1 13.06, G1 10.97, L3 32.64: match; semi-wadcutter cone"
+   ]
+  },
+  "22_long_rifle": {
+   "verdict": "correct",
+   "issues": [
+    "heeled bullet: exposed part at case OD, seated heel at inner diameter; half-round rimfire rim",
+    "L3 and L6 labels sit below their dimension lines (L3 label between L3 and L6 lines)",
+    "spot-checked R1 7.06, P1 5.74, L3 15.57: match"
+   ]
+  },
+  "22_win_mag_r_f": {
+   "verdict": "correct",
+   "issues": [
+    "half-round rimfire rim, no pocket; spot-checked R1 7.47, G1 5.7, L3 26.8: match"
+   ]
+  },
+  "17_hmr": {
+   "verdict": "correct",
+   "issues": [
+    "bottleneck rimfire with half-round rim; H1, H2 and G1 dimension lines close together but legible",
+    "spot-checked L1 22.2, L2 23.54, alpha 50: match"
+   ]
+  }
+ },
+ "print": "Print view has the page header, data rows, the drawing with title block and all labels legible, the tables and a source footer, but the drawing covers about half the page width rather than full width and the table text is very small.",
+ "summary": "All 25 drawings render proper cartridges true to the brief: correct rim family (rimless, rimmed, belted, rimfire half-round), bottleneck or straight outline, outside view over a hatched section with primer pocket, seated bullet of the requested shape, and every required dimension with values that match the records. The only recurring shortfall is cosmetic: alpha is marked with a small free-standing angle glyph beside the shoulder instead of between extended shoulder lines, and r1/r2 rounding and wall hatching are too small to see at this scale."
+}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { arm, loadTrials, summarizeRuns } from './bench-data.mjs';
+import { arm, loadTrials, summarizeRuns, topByBrief } from './bench-data.mjs';
 
 test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with Ponytail', () => {
   assert.deepEqual(arm('A'), { framework: 'none', spec: 'none', bk: false, ponytail: false, setup: 'plain' });
@@ -29,27 +29,24 @@ test('trials: one per arm directory, model, effort and k from the manifest, revi
   assert.deepEqual(x, {
     key: 'run-1/round-1/B', run: 'run-1', brief: 'winery-react', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime: 'Claude Code', arm: 'B',
     setup: 'Ponytail', features: 1, robustness: null, featuresOf: 2, robustnessOf: null, minutes: 10, overall: 8, protocol: '1.10', criteria: 2,
-    criteriaSum: 9, erosion: null, duplication: null, mutation: null, drawings: null, scan: null,
+    final: null, mutation: null, drawings: null,
   });
   assert.doesNotMatch(JSON.stringify(x), /cost|1\.23|0\.4/);
 });
 
-test('trials: code metrics, mutation score and the drawing review, a drawing faulted only for the alpha label counted apart', () => {
+test('trials: final score, mutation score and the drawing review, a drawing faulted only for the alpha label counted apart', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-'));
   const t = join(root, 'run-1', 'round-1', 'W');
   mkdirSync(t, { recursive: true });
   writeFileSync(join(root, 'run-1', 'manifest.txt'), 'brief=cartridges model=claude-sonnet-5-5 effort=high k=1 seed=41\n');
   writeFileSync(join(t, 'trial.json'), JSON.stringify({ arm: 'W', runtime: 'claude-code', wall_seconds: 60,
-    score: { features: { C1: true }, features_passed: 1, code: { erosion: 0.36, duplication: 0 }, mutation: { score: 71.5 } } }));
+    score: { features: { C1: true }, features_passed: 1, mutation: { score: 71.5 } } }));
+  writeFileSync(join(root, 'run-1', 'final-score.json'), JSON.stringify({ trials: [{ arm: 'W', total: 80.5, categories: { tests: { score: 12, max: 15 } }, inputs: {} }] }));
   writeFileSync(join(t, 'drawing-review.json'), JSON.stringify({ counts: { correct: 1, partly: 2, wrong: 0 }, drawings: {
-    a: { verdict: 'correct', issues: [] }, b: { verdict: 'partly', issues: ['shoulder angle α is a leader callout, not an angular dimension'] },
+    a: { verdict: 'correct', issues: [] }, b: { verdict: 'partly', issues: ['shoulder angle α is a leader callout, not an angular dimension', 'values match record (L1 36.52)'] },
     c: { verdict: 'partly', issues: ['R label overlaps the section'] } } }));
-  writeFileSync(join(t, 'static-scan.json'), JSON.stringify({ totals: { lines: 1000 }, lint: { count: 2 }, sonar_bugs: { count: 1 }, sonar_smells: { count: 7 },
-    security: { count: 40, rules: { 'security/detect-object-injection': 30, 'sonarjs/no-clear-text-protocols': 6, 'security/detect-eval-with-expression': 4 } } }));
   const [x] = loadTrials(root);
-  assert.deepEqual([x.erosion, x.duplication, x.mutation], [0.36, 0, 71.5]);
-  // Security without the two rules that flag ordinary lookups and namespace URLs (2026-10-16 scan: 1,892 of 1,923 findings).
-  assert.deepEqual(x.scan, { lines: 1000, lint: 2, bugs: 1, smells: 7, security: 4 });
+  assert.deepEqual([x.final, x.mutation], [{ total: 80.5, categories: { tests: { score: 12, max: 15 } } }, 71.5]);
   assert.deepEqual(x.drawings, { of: 3, correct: 1, partly: 2, wrong: 0, correctAlphaApart: 2, alphaOnly: 1 });
 });
 
@@ -66,8 +63,8 @@ test('runs: newest first, report file, runtimes apart, ranked with shared ranks 
   ], ['2026-10-14-b1.md', '2026-10-15-b1.md', '2026-10-16-other.md']);
   assert.equal(rest.length, 0);
   assert.equal(a.run, '2026-10-15-b1-haiku');
-  assert.deepEqual({ ...b, groups: undefined, top: undefined, baseline: undefined }, {
-    run: '2026-10-16-b1-sonnet', brief: 'b1', model: 'Sonnet 5.5', effort: 'high', k: '1', date: '2026-10-16', report: '2026-10-15-b1.md', featuresOf: 6, robustnessOf: 12, protocols: [], groups: undefined, top: undefined, baseline: undefined,
+  assert.deepEqual({ ...b, groups: undefined }, {
+    run: '2026-10-16-b1-sonnet', brief: 'b1', model: 'Sonnet 5.5', effort: 'high', k: '1', date: '2026-10-16', report: '2026-10-15-b1.md', featuresOf: 6, robustnessOf: 12, protocols: [], groups: undefined,
   });
   const [cc, oc] = b.groups;
   assert.deepEqual([cc.runtime, oc.runtime, cc.criteria, oc.criteria], ['Claude Code', 'OpenCode', [13], [9]]);
@@ -77,15 +74,14 @@ test('runs: newest first, report file, runtimes apart, ranked with shared ranks 
   assert.equal(summarizeRuns([t('2026-10-16-b1-sonnet', 'A', 'Claude Code', 8, 6, 12, 1)], ['2026-10-15-xb1.md'])[0].report, null);
 });
 
-test('top 10: all features passed, then criteria sum, lower erosion, lower duplication, fewer minutes; plain Claude Code as baseline', () => {
-  const t = (arm, criteriaSum, features, erosion, minutes, security = 0) => ({ run: 'r1', brief: 'b', model: 'Sonnet 5.5', runtime: 'Claude Code', arm, setup: arm,
-    features, featuresOf: 6, criteriaSum, erosion, duplication: 0, minutes, overall: 8, robustness: null, robustnessOf: null, criteria: 13,
-    scan: { lines: 1000, lint: 0, bugs: 0, smells: 0, security } });
-  // Sonar bugs and security findings break ties before erosion: F has the lower erosion but more security findings than D.
-  const ts = [t('B', 50, 6, 0.3, 9), t('C', 55, 5, 0.1, 9), t('D', 52, 6, 0.4, 9), t('F', 52, 6, 0.1, 9, 2), t('E', 52, 6, 0.2, 30), t('A', 48, 6, 0.5, 5)];
-  for (let i = 0; i < 9; i++) ts.push(t(`X${i}`, 51, 6, 0.3, 10 + i));
-  const [r] = summarizeRuns(ts);
-  assert.deepEqual(r.top.map((x) => x.arm), ['E', 'D', 'F', 'X0', 'X1', 'X2', 'X3', 'X4', 'X5', 'X6']);
-  assert.equal(r.baseline.arm, 'A');
-  assert.equal(r.top.includes(r.baseline), false);
+test('top 10 per brief across models: final score, then fewer minutes; plain Claude Code of each model with its place as baseline', () => {
+  const t = (model, arm, total, minutes, brief = 'b') => ({ run: `r-${model}`, brief, model, runtime: 'Claude Code', arm, minutes, final: total == null ? null : { total, categories: {} } });
+  const ts = [t('Haiku', 'A', 90, 5), t('Sonnet', 'A', 40, 5), t('Sonnet', 'B', 80, 9), t('Sonnet', 'C', 80, 4), t('Haiku', 'N', null, 1), t('Sonnet', 'A', 99, 1, 'other')];
+  for (let i = 0; i < 9; i++) ts.push(t('Sonnet', `X${i}`, 70 - i, 10));
+  const [b, other, ...rest] = topByBrief(ts);
+  assert.equal(rest.length, 0);
+  assert.equal(b.of, 13);
+  assert.deepEqual(b.top.map((x) => `${x.model} ${x.arm}`), ['Haiku A', 'Sonnet C', 'Sonnet B', ...[0, 1, 2, 3, 4, 5, 6].map((i) => `Sonnet X${i}`)]);
+  assert.deepEqual(b.baselines.map((x) => `${x.model} ${x.arm} ${x.place}`), ['Sonnet A 13']);
+  assert.deepEqual([other.top.length, other.baselines.length], [1, 0]);
 });

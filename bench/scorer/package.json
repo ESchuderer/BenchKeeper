@@ -5,6 +5,8 @@
   "dependencies": {
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.64.0",
+    "@types/node": "22.20.5",
+    "c8": "12.0.0",
     "jscpd": "5.4.0",
     "lighthouse": "13.5.0",
     "typescript": "6.0.3",

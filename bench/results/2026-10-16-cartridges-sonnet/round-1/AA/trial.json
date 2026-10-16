@@ -63,7 +63,16 @@
     "robustness_passed": null,
     "changes": null,
     "strict": false,
-    "code": null,
+    "code": {
+      "source_lines": 967,
+      "functions": 114,
+      "complexity": 354,
+      "max_complexity": 57,
+      "erosion": 0.28,
+      "duplication": 0,
+      "duplicated_lines": 0,
+      "clones": 0
+    },
     "axe": null,
     "lighthouse": {
       "performance": 0.99,

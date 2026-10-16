@@ -1,5 +1,6 @@
 // Benchmark trials for the /bench/ page, read at build time from bench/results/<run>/round-<n>/<arm>/
-// (trial.json, review.json) and the run's manifest.txt. Cost fields are never read (owner decision, #33).
+// (trial.json, review.json, drawing-review.json), the run's manifest.txt and final-score.json (bench/scripts/final-score.mjs).
+// Cost fields are never read (owner decision, #33).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -26,22 +27,15 @@ export function arm(id) {
 }
 
 const json = (f) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null);
-const num = (v) => (typeof v === 'number' ? v : typeof v?.score === 'number' ? v.score : null);
 // Drawing review per app (drawing-review.json, one verdict per drawing). Reviewers differed on the shoulder angle drawn as
 // a leader label instead of an angle dimension: a drawing faulted only for that counts as correct in correctAlphaApart.
-const ALPHA = /α|alpha|shoulder angle/i;
-// Static scan (bench/scorer/static-scan.sh): security without two rules that flag ordinary map lookups and the SVG
-// namespace URL (1,892 of 1,923 findings in the 2026-10-16 cartridges scan).
-const NOISE = ['security/detect-object-injection', 'sonarjs/no-clear-text-protocols'];
-function staticScan(s) {
-  if (!s?.security) return null;
-  const noise = NOISE.reduce((a, k) => a + (s.security.rules?.[k] ?? 0), 0);
-  return { lines: s.totals?.lines ?? null, lint: s.lint.count, bugs: s.sonar_bugs.count, smells: s.sonar_smells.count, security: s.security.count - noise };
-}
+// Confirmations some reviewers listed among the issues ("values match record ...") are not faults.
+const ALPHA = /α|alpha|shoulder angle/i, NOTE = /^values? match/i;
 function drawingReview(d) {
   if (!d?.drawings) return null;
   const v = Object.values(d.drawings);
-  const alphaOnly = v.filter((x) => x.verdict === 'partly' && x.issues?.length && x.issues.every((i) => ALPHA.test(i))).length;
+  const faults = (x) => (x.issues ?? []).filter((i) => !NOTE.test(i));
+  const alphaOnly = v.filter((x) => x.verdict === 'partly' && faults(x).length && faults(x).every((i) => ALPHA.test(i))).length;
   const count = (k) => v.filter((x) => x.verdict === k).length;
   return { of: v.length, correct: count('correct'), partly: count('partly'), wrong: count('wrong'), correctAlphaApart: count('correct') + alphaOnly, alphaOnly };
 }
@@ -52,6 +46,7 @@ export function loadTrials(results) {
   for (const run of readdirSync(results).filter((d) => existsSync(join(results, d, 'manifest.txt'))).sort()) {
     const head = readFileSync(join(results, run, 'manifest.txt'), 'utf8').split('\n')[0];
     const meta = Object.fromEntries(head.split(' ').map((kv) => kv.split('=')));
+    const finals = new Map((json(join(results, run, 'final-score.json'))?.trials ?? []).map((f) => [f.arm, { total: f.total, categories: f.categories }]));
     if (!meta.brief || !meta.model) throw new Error(`${run}/manifest.txt: first line needs brief= and model=`);
     for (const round of readdirSync(join(results, run)).filter((d) => /^round-\d+$/.test(d)).sort()) {
       for (const id of readdirSync(join(results, run, round)).sort()) {
@@ -66,9 +61,7 @@ export function loadTrials(results) {
           featuresOf: Object.keys(t.score?.features || {}).length || null, robustnessOf: Object.keys(t.score?.robustness || {}).length || null,
           minutes: Math.round((t.wall_seconds ?? 0) / 60), overall: r?.overall ?? null,
           protocol: t.method?.protocol ?? null, criteria: Object.keys(r?.scores || {}).length || null,
-          criteriaSum: r?.scores ? Object.values(r.scores).reduce((a, v) => a + (num(v) ?? 0), 0) : null,
-          erosion: t.score?.code?.erosion ?? null, duplication: t.score?.code?.duplication ?? null, mutation: t.score?.mutation?.score ?? null,
-          drawings: drawingReview(json(join(dir, 'drawing-review.json'))), scan: staticScan(json(join(dir, 'static-scan.json'))),
+          final: finals.get(id) ?? null, mutation: t.score?.mutation?.score ?? null, drawings: drawingReview(json(join(dir, 'drawing-review.json'))),
         });
       }
     }
@@ -79,12 +72,6 @@ export function loadTrials(results) {
 // Missing values sort last; equal scores are ordered by fewer minutes.
 const desc = (a, b) => (b ?? -1) - (a ?? -1);
 const rankOrder = (a, b) => desc(a.overall, b.overall) || desc(a.features, b.features) || desc(a.robustness, b.robustness) || a.minutes - b.minutes;
-
-// Top 10 of a run: every feature test passed, then the review criteria sum, fewer Sonar bugs, fewer security findings,
-// lower erosion, lower duplication, fewer minutes.
-const up = (a, b) => (a ?? Infinity) - (b ?? Infinity);
-const topOrder = (a, b) => desc(a.criteriaSum, b.criteriaSum) || up(a.scan?.bugs, b.scan?.bugs) || up(a.scan?.security, b.scan?.security)
-  || up(a.erosion, b.erosion) || up(a.duplication, b.duplication) || a.minutes - b.minutes;
 
 // One entry per run (brief and model), newest first: setup facts, the report file, and per runtime the trials ranked by
 // review overall, then features, robustness and fewer minutes. Runtimes are kept apart: their reviews may use other criteria.
@@ -97,13 +84,6 @@ export function summarizeRuns(trials, reports = []) {
       // Test totals of the run: an app that did not start records no tests.
       featuresOf: Math.max(0, ...ts.map((t) => t.featuresOf ?? 0)) || null, robustnessOf: Math.max(0, ...ts.map((t) => t.robustnessOf ?? 0)) || null,
       protocols: [...new Set(ts.map((t) => t.protocol).filter(Boolean))].sort(),
-      ...(() => {
-        const of = Math.max(0, ...ts.map((t) => t.featuresOf ?? 0));
-        const top = ts.filter((t) => of && t.features === of && t.criteriaSum != null).sort(topOrder).slice(0, 10);
-        // Plain Claude Code (arm A) as the baseline when it is not in the top 10.
-        const a = ts.find((t) => t.arm === 'A' && t.runtime === 'Claude Code');
-        return { top, baseline: a && !top.includes(a) ? a : null };
-      })(),
       groups: [...new Set(ts.map((t) => t.runtime))].sort().map((runtime) => {
         const rows = ts.filter((t) => t.runtime === runtime).sort(rankOrder);
         // Equal scores share a rank; minutes only order the rows.
@@ -112,4 +92,15 @@ export function summarizeRuns(trials, reports = []) {
       }),
     };
   }).sort((a, b) => b.date.localeCompare(a.date) || a.run.localeCompare(b.run));
+}
+
+// Per brief, the trials of all its runs (models) that have a final score, ranked by total, then fewer minutes: the top 10,
+// and plain Claude Code (arm A) of each model with its place when it is not in the top 10.
+export function topByBrief(trials) {
+  return [...new Set(trials.filter((t) => t.final).map((t) => t.brief))].map((brief) => {
+    const ranked = trials.filter((t) => t.brief === brief && t.final).sort((a, b) => b.final.total - a.final.total || a.minutes - b.minutes);
+    const top = ranked.slice(0, 10);
+    const baselines = ranked.filter((t) => t.arm === 'A' && t.runtime === 'Claude Code' && !top.includes(t)).map((t) => ({ ...t, place: ranked.indexOf(t) + 1 }));
+    return { brief, of: ranked.length, top, baselines };
+  });
 }

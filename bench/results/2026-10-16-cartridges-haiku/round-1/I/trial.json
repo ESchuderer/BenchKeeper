@@ -60,7 +60,16 @@
     "robustness_passed": null,
     "changes": null,
     "strict": false,
-    "code": null,
+    "code": {
+      "source_lines": 866,
+      "functions": 83,
+      "complexity": 223,
+      "max_complexity": 48,
+      "erosion": 0.215,
+      "duplication": 0,
+      "duplicated_lines": 0,
+      "clones": 0
+    },
     "axe": {
       "list": 0,
       "detail-308_win": 0,

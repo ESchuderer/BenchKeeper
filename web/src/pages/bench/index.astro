@@ -3,13 +3,15 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import BenchLayout from '../../layouts/BenchLayout.astro';
 import BenchSummary, { type Notes } from '../../components/Bench';
-import { loadTrials, summarizeRuns } from '../../../scripts/bench-data.mjs';
+import { loadTrials, summarizeRuns, topByBrief } from '../../../scripts/bench-data.mjs';
 
 // The build runs in web/ (npm run build), next to bench/.
 const results = join(process.cwd(), '..', 'bench', 'results');
 // Runs kept off the site (owner, 2026-10-16). Their data and Markdown report stay in bench/results.
 const offSite = new Set(['2026-10-15-winery-react-haiku']);
-const runs = summarizeRuns(loadTrials(results), readdirSync(results).filter((f) => f.endsWith('.md'))).filter((r) => !offSite.has(r.run));
+const trials = loadTrials(results).filter((t) => !offSite.has(t.run));
+const runs = summarizeRuns(trials, readdirSync(results).filter((f) => f.endsWith('.md')));
+const tops = topByBrief(trials);
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 // Short text from the Markdown reports; tables come from the data. A run without an entry shows its table only.
@@ -52,5 +54,5 @@ const notes: Notes = {
 ---
 <BenchLayout title="Benchmarks, BenchKeeper"
   description="BenchKeeper benchmark summary: per published run the setup, the arms ranked by review, hidden test scores and minutes, key findings and a link to the full report.">
-  <BenchSummary base={base} runs={runs} notes={notes} />
+  <BenchSummary base={base} runs={runs} tops={tops} notes={notes} />
 </BenchLayout>

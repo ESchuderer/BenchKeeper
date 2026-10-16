@@ -81,7 +81,16 @@
     "robustness_passed": null,
     "changes": null,
     "strict": true,
-    "code": null,
+    "code": {
+      "source_lines": 1186,
+      "functions": 141,
+      "complexity": 464,
+      "max_complexity": 48,
+      "erosion": 0.362,
+      "duplication": 0,
+      "duplicated_lines": 0,
+      "clones": 0
+    },
     "axe": {
       "list": 0,
       "detail-308_win": 0,
@@ -100,7 +109,10 @@
       "high": 0,
       "total": 0
     },
-    "mutation": null,
+    "mutation": {
+      "score": null,
+      "reason": "mutation run failed"
+    },
     "hidden_tests": "5c9d25395e3b332c"
   },
   "lines": {

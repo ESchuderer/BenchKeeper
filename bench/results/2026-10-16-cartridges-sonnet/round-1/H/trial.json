@@ -65,7 +65,16 @@
     "robustness_passed": null,
     "changes": null,
     "strict": true,
-    "code": null,
+    "code": {
+      "source_lines": 1359,
+      "functions": 162,
+      "complexity": 458,
+      "max_complexity": 16,
+      "erosion": 0.118,
+      "duplication": 0,
+      "duplicated_lines": 0,
+      "clones": 0
+    },
     "axe": {
       "list": 0,
       "detail-308_win": 0,
@@ -84,7 +93,14 @@
       "high": 4,
       "total": 4
     },
-    "mutation": null,
+    "mutation": {
+      "score": 64.6,
+      "killed": 1755,
+      "timeout": 11,
+      "survived": 968,
+      "no_coverage": 0,
+      "mutants": 3704
+    },
     "hidden_tests": "5c9d25395e3b332c"
   },
   "lines": {

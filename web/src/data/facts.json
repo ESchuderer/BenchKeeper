@@ -192,7 +192,7 @@
         "name": "Maintain",
         "phase": "maintain",
         "sub": "findings: new requests",
-        "tip": "On request (/maintain); the agent suggests it after a milestone: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
+        "tip": "On request (/maintain); the agent suggests it after a milestone or a large merge: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
         "text": "On request (`/maintain`); the agent suggests it after a milestone or a large merge: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene. Findings become new requests."
       }
     ]

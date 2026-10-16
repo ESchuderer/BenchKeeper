@@ -55,7 +55,7 @@ export type Detail = Row & {
   final: { total: number; categories: Record<string, { score: number; max: number }> };
 };
 export type Top = { brief: string; of: number; top: Detail[]; baselines: (Detail & { place: number })[] };
-export type Notes = { briefs: Record<string, string>; runs: Record<string, { protocol?: string; findings: string[] }>; reports: { file: string; title: string; summary: string }[] };
+export type Notes = { briefs: Record<string, string>; runs: Record<string, { findings: string[] }>; reports: { file: string; title: string; summary: string }[] };
 
 const plain = (setup: string) => (setup === 'plain' ? 'no add-ons' : setup.replace(/^BK\b/, 'BenchKeeper layer'));
 const score = (n: number | null, of: number | null) => (n == null || of == null ? 'n/a' : `${n}/${of}`);
@@ -125,7 +125,7 @@ export default function BenchSummary({ base, runs, tops, notes }: { base: string
         const note = notes.runs[r.run];
         // A brief's top 10 opens the first of its runs.
         const top = runs.findIndex((x) => x.brief === r.brief) === i ? tops.find((t) => t.brief === r.brief) : undefined;
-        const protocol = r.protocols.join(', ') || note?.protocol || 'not recorded';
+        const protocol = r.protocols.join(', ') || 'not recorded';
         return (
           <Box component="section" key={r.run} aria-labelledby={`run-${r.run}`} mb={56}>
               <Title order={2} id={`run-${r.run}`}>{r.brief}, {r.model}</Title>

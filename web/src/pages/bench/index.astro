@@ -15,7 +15,6 @@ const tops = topByBrief(trials);
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 // Short text from the Markdown reports; tables come from the data. A run without an entry shows its table only.
-// The protocol is a fallback for trials scored before trial.json recorded it (protocol 1.10).
 const notes: Notes = {
   briefs: {
     'winery-react': 'The brief asks for a React app to book wine tastings at a family winery, with a staff page behind a password. Every arm gets the same prompt in an empty workspace.',
@@ -23,7 +22,6 @@ const notes: Notes = {
   },
   runs: {
     '2026-10-15-winery-react-sonnet': {
-      protocol: '1.9',
       findings: [
         'Claude Code reviews: OpenSpec alone (AB) is rated 9, Ponytail (B) and the BenchKeeper layer with agent-skills (L) 7, all other arms 8.',
         'All 22 Claude Code apps and all 7 OpenCode apps pass the 6 feature tests and the 12 robustness tests. The hidden tests do not separate the arms on this brief.',

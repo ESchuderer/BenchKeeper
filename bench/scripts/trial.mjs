@@ -209,11 +209,14 @@ export function mutation(dir) {
   let rc = null;
   try { rc = Number(readFileSync(join(dir, 'mutation.exit'), 'utf8')); } catch { return null; }
   if (rc !== 0) return { score: null, reason: MUTATION_REASONS[rc] || `exit ${rc}` };
-  const r = JSON.parse(readFileSync(join(dir, 'mutation.json'), 'utf8'));
+  let r;
+  try { r = JSON.parse(readFileSync(join(dir, 'mutation.json'), 'utf8')); } catch { return { score: null, reason: 'unreadable report' }; }
   const n = { killed: 0, timeout: 0, survived: 0, no_coverage: 0, mutants: 0 };
   const key = { Killed: 'killed', Timeout: 'timeout', Survived: 'survived', NoCoverage: 'no_coverage' };
   for (const f of Object.values(r.files || {})) for (const m of f.mutants || []) { n.mutants++; if (key[m.status]) n[key[m.status]]++; }
   const counted = n.killed + n.timeout + n.survived + n.no_coverage;
+  // No mutant killed by a failing test, only time-outs: the suite did not run under the tool (seen with TypeScript 7).
+  if (!n.killed && n.timeout) return { score: null, ...n, reason: 'only time-outs' };
   return { score: counted ? Math.round(1000 * (n.killed + n.timeout) / counted) / 10 : null, ...n, ...(counted ? {} : { reason: 'no mutants' }) };
 }
 const collect = (o) => [...(o.specs || []), ...(o.suites || []).flatMap(collect)];

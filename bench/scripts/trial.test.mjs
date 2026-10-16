@@ -218,4 +218,8 @@ test('mutation score: detected over counted mutants, or null with a reason', asy
   const m = (status) => ({ status });
   writeFileSync(`${dir}/mutation.json`, JSON.stringify({ files: { 'a.js': { mutants: [m('Killed'), m('Killed'), m('Timeout'), m('Survived')] }, 'b.js': { mutants: [m('NoCoverage'), m('Ignored'), m('CompileError')] } } }));
   assert.deepEqual(mutation(dir), { score: 60, killed: 2, timeout: 1, survived: 1, no_coverage: 1, mutants: 7 });
+  writeFileSync(`${dir}/mutation.json`, JSON.stringify({ files: { 'a.js': { mutants: [m('Timeout'), m('Timeout'), m('Survived')] } } }));
+  assert.equal(mutation(dir).reason, 'only time-outs');
+  writeFileSync(`${dir}/mutation.json`, '{"files": {');
+  assert.deepEqual(mutation(dir), { score: null, reason: 'unreadable report' });
 });

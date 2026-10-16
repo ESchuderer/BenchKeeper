@@ -50,7 +50,7 @@ export function loadTrials(results) {
           followups: t.followups ?? 0, minutes: Math.round((t.wall_seconds ?? 0) / 60),
           testsFirst: Boolean(t.workflow?.tests_first), reviewStep: Boolean(t.workflow?.review),
           overall: r?.overall ?? null,
-          method: { protocol: t.method?.protocol ?? null, tests: t.score?.hidden_tests?.slice(0, 8) ?? null, criteria: Object.keys(r?.scores || {}).length || null, bk: t.method?.bk ?? 'v1' },
+          method: { protocol: t.method?.protocol ?? null, tests: t.score?.hidden_tests ?? null, criteria: Object.keys(r?.scores || {}).length || null, bk: t.method?.bk ?? 'v1' },
           scores: Object.fromEntries(Object.entries(r?.scores || {}).map(([k, v]) => [k, typeof v === 'object' ? v.score : v])),
           verdict: clean(r?.verdict), strengths: (r?.strengths || []).map(clean), issues: (r?.issues || []).map(clean),
           screenshots: shots.map((f) => ({ page: f.replace(/\.jpg$/, ''), file: `${run}/${round}/${id}/screenshots/${f}` })),

@@ -4,7 +4,7 @@ description: "Sets up or updates a repository's development container and agent 
 disable-model-invocation: true
 ---
 
-# Project setup
+# Setting up projects
 
 Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, or `openspec/`, every step compares the current state with what it would create and proposes only the differences.
 

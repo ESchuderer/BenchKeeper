@@ -4,7 +4,7 @@ description: "Checks, installs, and cleans the machine-wide agent setup for Clau
 disable-model-invocation: true
 ---
 
-# Global setup
+# Setting up the machine
 
 Brings the machine to the state below: required parts present, optional parts installed only when requested. `$B` is this skill's repository (`$B/skills/setting-up-machine/`; normally `/mnt/data/Projects/benchkeeper`).
 
@@ -36,7 +36,7 @@ Needs `npm` with prefix `~/.local`, `jq`, `curl` for applicable steps. Missing: 
 
 This skill sets up the host (agents, authentication, global rules, skills); `setting-up-projects` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials; rootless engines, VMs and microVMs are not required. Check part 9 before project setup.
 
-Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`). Add available bumps to the plan (package, pinned, latest). For each accepted bump, edit the pin everywhere it appears in `$B` (`grep -rn '<pkg>@' $B --include='*.md'`), then install it through its part. The pins change only here, at install time, where the new version is tested.
+Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`). Add available bumps to the plan (package, pinned, latest). For each accepted bump, edit the pin everywhere it appears in `$B` (`git -C $B grep -n '<pkg>@' -- ':!bench' ':!CHANGELOG.md'`, which also finds the Dockerfile and workflow pins (versions written as JSON values, such as the site's `web/package.json`, are bumped by Dependabot); the benchmark's pinned images and copies and the history stay), on a branch as `rules/global.md` requires, then install it through its part. The pins change only here, at install time, where the new version is tested.
 
 ## Parts
 
@@ -95,7 +95,7 @@ for s in setting-up-machine setting-up-projects following-dev-workflow maintaini
 ```
 
 ### 7. Settings and telemetry
-Check: `~/.claude/settings.json` has `advisorModel` `opus`, `remoteControlAtStartup` true, `attribution` `{"commit":"Assisted-by: generative AI","pr":"Created with the assistance of generative AI.","sessionUrl":false}` (neutral AI disclosure, no model name, no claude.ai session link), `env.DISABLE_ERROR_REPORTING` `1`, `env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` `1`; `~/.codex/config.toml` has `[analytics]` `enabled = false` and `[feedback]` `enabled = false` (Codex has no attribution setting). [Claude attribution settings](https://code.claude.com/docs/en/settings-reference#attribution), [Codex config](https://developers.openai.com/codex/config-reference)
+Check: `~/.claude/settings.json` has `advisorModel` `opus`, `remoteControlAtStartup` true, `showClearContextOnPlanAccept` true, `attribution` `{"commit":"Assisted-by: generative AI","pr":"Created with the assistance of generative AI.","sessionUrl":false}` (neutral AI disclosure, no model name, no claude.ai session link), `env.DISABLE_ERROR_REPORTING` `1`, `env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` `1`; `~/.codex/config.toml` has `[analytics]` `enabled = false` and `[feedback]` `enabled = false` (Codex has no attribution setting). [Claude attribution settings](https://code.claude.com/docs/en/settings-reference#attribution), [Codex config](https://developers.openai.com/codex/config-reference)
 Install:
 Claude Code only:
 ```sh

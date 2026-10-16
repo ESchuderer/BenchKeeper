@@ -22,6 +22,10 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 - One user moved from mattpocock/skills to agent-skills for team work ("more rigorous and covers more bases"), keeps Matt's for brainstorming, and cites agent-skills' evals (see Vendor evidence).
 - Another runs agent-skills fully plus the Karpathy guidelines, and only those Matt and Anthropic skills that agent-skills lacks (grill-me, handoff, prototype, teach, writing-for-agents), after removing Superpowers.
 
+## Skill authoring check
+
+Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with per-skill evaluations (results on Opus only); long bodies teach what Claude knows; 24 links leave the skill folder. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+
 ## Decision
 
 In, unmeasured. The global rules load skills by description, not through `using-agent-skills`.

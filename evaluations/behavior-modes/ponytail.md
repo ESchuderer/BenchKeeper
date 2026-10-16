@@ -20,6 +20,10 @@
 
 Contradictions: JetBrains reports cost -10.3% (SkillsBench, Sonnet 5, rules injected); the other sources report +0.7% to +53%. Injection method (hook, CLAUDE.md, system prompt), model and task type differ. Line and output-token reductions agree across the sources that measured them. Deepusleepy reports a robustness loss; JetBrains did not measure robustness.
 
+## Skill authoring check
+
+Rank 1 of 8, review 3.9, static checks 97% (5.2.0): tight core skill; a SubagentStart hook injects it into every subagent; `ponytail-review` and `ponytail-audit` nearly identical; no evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+
 ## Decision
 
 In; evidence mixed, retest in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19): line reductions are consistent across sources; cost direction depends on the setup; #19 measures it in BenchKeeper's own setup.

@@ -1,0 +1,1342 @@
+[
+  {
+    "collection": "agent-skills",
+    "skills": [
+      {
+        "dir": "api-and-interface-design",
+        "name": "api-and-interface-design",
+        "desc_chars": 251,
+        "body_lines": 363,
+        "failed": [],
+        "path": "skills/api-and-interface-design/SKILL.md"
+      },
+      {
+        "dir": "browser-testing-with-devtools",
+        "name": "browser-testing-with-devtools",
+        "desc_chars": 326,
+        "body_lines": 313,
+        "failed": [],
+        "path": "skills/browser-testing-with-devtools/SKILL.md"
+      },
+      {
+        "dir": "ci-cd-and-automation",
+        "name": "ci-cd-and-automation",
+        "desc_chars": 207,
+        "body_lines": 386,
+        "failed": [],
+        "path": "skills/ci-cd-and-automation/SKILL.md"
+      },
+      {
+        "dir": "code-review-and-quality",
+        "name": "code-review-and-quality",
+        "desc_chars": 325,
+        "body_lines": 394,
+        "failed": [],
+        "path": "skills/code-review-and-quality/SKILL.md"
+      },
+      {
+        "dir": "code-simplification",
+        "name": "code-simplification",
+        "desc_chars": 244,
+        "body_lines": 327,
+        "failed": [],
+        "path": "skills/code-simplification/SKILL.md"
+      },
+      {
+        "dir": "constraint-driven-development",
+        "name": "constraint-driven-development",
+        "desc_chars": 880,
+        "body_lines": 307,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/constraint-driven-development/SKILL.md"
+      },
+      {
+        "dir": "context-engineering",
+        "name": "context-engineering",
+        "desc_chars": 198,
+        "body_lines": 349,
+        "failed": [],
+        "path": "skills/context-engineering/SKILL.md"
+      },
+      {
+        "dir": "debugging-and-error-recovery",
+        "name": "debugging-and-error-recovery",
+        "desc_chars": 323,
+        "body_lines": 296,
+        "failed": [],
+        "path": "skills/debugging-and-error-recovery/SKILL.md"
+      },
+      {
+        "dir": "deprecation-and-migration",
+        "name": "deprecation-and-migration",
+        "desc_chars": 334,
+        "body_lines": 243,
+        "failed": [],
+        "path": "skills/deprecation-and-migration/SKILL.md"
+      },
+      {
+        "dir": "documentation-and-adrs",
+        "name": "documentation-and-adrs",
+        "desc_chars": 290,
+        "body_lines": 293,
+        "failed": [],
+        "path": "skills/documentation-and-adrs/SKILL.md"
+      },
+      {
+        "dir": "doubt-driven-development",
+        "name": "doubt-driven-development",
+        "desc_chars": 487,
+        "body_lines": 239,
+        "failed": [],
+        "path": "skills/doubt-driven-development/SKILL.md"
+      },
+      {
+        "dir": "frontend-ui-engineering",
+        "name": "frontend-ui-engineering",
+        "desc_chars": 306,
+        "body_lines": 336,
+        "failed": [],
+        "path": "skills/frontend-ui-engineering/SKILL.md"
+      },
+      {
+        "dir": "git-workflow-and-versioning",
+        "name": "git-workflow-and-versioning",
+        "desc_chars": 424,
+        "body_lines": 351,
+        "failed": [],
+        "path": "skills/git-workflow-and-versioning/SKILL.md"
+      },
+      {
+        "dir": "idea-refine",
+        "name": "idea-refine",
+        "desc_chars": 335,
+        "body_lines": 189,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/idea-refine/SKILL.md"
+      },
+      {
+        "dir": "incremental-implementation",
+        "name": "incremental-implementation",
+        "desc_chars": 343,
+        "body_lines": 245,
+        "failed": [],
+        "path": "skills/incremental-implementation/SKILL.md"
+      },
+      {
+        "dir": "interview-me",
+        "name": "interview-me",
+        "desc_chars": 485,
+        "body_lines": 231,
+        "failed": [],
+        "path": "skills/interview-me/SKILL.md"
+      },
+      {
+        "dir": "observability-and-instrumentation",
+        "name": "observability-and-instrumentation",
+        "desc_chars": 307,
+        "body_lines": 234,
+        "failed": [],
+        "path": "skills/observability-and-instrumentation/SKILL.md"
+      },
+      {
+        "dir": "performance-optimization",
+        "name": "performance-optimization",
+        "desc_chars": 295,
+        "body_lines": 263,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/performance-optimization/SKILL.md"
+      },
+      {
+        "dir": "planning-and-task-breakdown",
+        "name": "planning-and-task-breakdown",
+        "desc_chars": 237,
+        "body_lines": 253,
+        "failed": [],
+        "path": "skills/planning-and-task-breakdown/SKILL.md"
+      },
+      {
+        "dir": "security-and-hardening",
+        "name": "security-and-hardening",
+        "desc_chars": 581,
+        "body_lines": 212,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/security-and-hardening/SKILL.md"
+      },
+      {
+        "dir": "shipping-and-launch",
+        "name": "shipping-and-launch",
+        "desc_chars": 271,
+        "body_lines": 332,
+        "failed": [],
+        "path": "skills/shipping-and-launch/SKILL.md"
+      },
+      {
+        "dir": "source-driven-development",
+        "name": "source-driven-development",
+        "desc_chars": 308,
+        "body_lines": 212,
+        "failed": [],
+        "path": "skills/source-driven-development/SKILL.md"
+      },
+      {
+        "dir": "spec-driven-development",
+        "name": "spec-driven-development",
+        "desc_chars": 431,
+        "body_lines": 255,
+        "failed": [],
+        "path": "skills/spec-driven-development/SKILL.md"
+      },
+      {
+        "dir": "test-driven-development",
+        "name": "test-driven-development",
+        "desc_chars": 424,
+        "body_lines": 394,
+        "failed": [],
+        "path": "skills/test-driven-development/SKILL.md"
+      },
+      {
+        "dir": "using-agent-skills",
+        "name": "using-agent-skills",
+        "desc_chars": 238,
+        "body_lines": 188,
+        "failed": [],
+        "path": "skills/using-agent-skills/SKILL.md"
+      }
+    ],
+    "naming": "gerund 4 of 25",
+    "evals": true
+  },
+  {
+    "collection": "Superpowers",
+    "skills": [
+      {
+        "dir": "brainstorming",
+        "name": "brainstorming",
+        "desc_chars": 213,
+        "body_lines": 221,
+        "failed": [
+          "desc-third-person",
+          "ref-toc"
+        ],
+        "path": "skills/brainstorming/SKILL.md"
+      },
+      {
+        "dir": "diagnosing-superpowers",
+        "name": "diagnosing-superpowers",
+        "desc_chars": 375,
+        "body_lines": 116,
+        "failed": [],
+        "path": "skills/diagnosing-superpowers/SKILL.md"
+      },
+      {
+        "dir": "dispatching-parallel-agents",
+        "name": "dispatching-parallel-agents",
+        "desc_chars": 106,
+        "body_lines": 163,
+        "failed": [],
+        "path": "skills/dispatching-parallel-agents/SKILL.md"
+      },
+      {
+        "dir": "executing-plans",
+        "name": "executing-plans",
+        "desc_chars": 170,
+        "body_lines": 369,
+        "failed": [],
+        "path": "skills/executing-plans/SKILL.md"
+      },
+      {
+        "dir": "finishing-a-development-branch",
+        "name": "finishing-a-development-branch",
+        "desc_chars": 101,
+        "body_lines": 221,
+        "failed": [],
+        "path": "skills/finishing-a-development-branch/SKILL.md"
+      },
+      {
+        "dir": "receiving-code-review",
+        "name": "receiving-code-review",
+        "desc_chars": 234,
+        "body_lines": 201,
+        "failed": [],
+        "path": "skills/receiving-code-review/SKILL.md"
+      },
+      {
+        "dir": "requesting-code-review",
+        "name": "requesting-code-review",
+        "desc_chars": 107,
+        "body_lines": 91,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/requesting-code-review/SKILL.md"
+      },
+      {
+        "dir": "subagent-driven-development",
+        "name": "subagent-driven-development",
+        "desc_chars": 85,
+        "body_lines": 564,
+        "failed": [
+          "body-lines",
+          "ref-toc"
+        ],
+        "path": "skills/subagent-driven-development/SKILL.md"
+      },
+      {
+        "dir": "systematic-debugging",
+        "name": "systematic-debugging",
+        "desc_chars": 91,
+        "body_lines": 279,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/systematic-debugging/SKILL.md"
+      },
+      {
+        "dir": "test-driven-development",
+        "name": "test-driven-development",
+        "desc_chars": 79,
+        "body_lines": 326,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/test-driven-development/SKILL.md"
+      },
+      {
+        "dir": "using-git-worktrees",
+        "name": "using-git-worktrees",
+        "desc_chars": 196,
+        "body_lines": 163,
+        "failed": [],
+        "path": "skills/using-git-worktrees/SKILL.md"
+      },
+      {
+        "dir": "using-superpowers",
+        "name": "using-superpowers",
+        "desc_chars": 154,
+        "body_lines": 61,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/using-superpowers/SKILL.md"
+      },
+      {
+        "dir": "verification-before-completion",
+        "name": "verification-before-completion",
+        "desc_chars": 225,
+        "body_lines": 116,
+        "failed": [],
+        "path": "skills/verification-before-completion/SKILL.md"
+      },
+      {
+        "dir": "writing-plans",
+        "name": "writing-plans",
+        "desc_chars": 84,
+        "body_lines": 200,
+        "failed": [],
+        "path": "skills/writing-plans/SKILL.md"
+      },
+      {
+        "dir": "writing-skills",
+        "name": "writing-skills",
+        "desc_chars": 97,
+        "body_lines": 677,
+        "failed": [
+          "body-lines",
+          "ref-toc",
+          "dated-text"
+        ],
+        "path": "skills/writing-skills/SKILL.md"
+      }
+    ],
+    "naming": "gerund 11 of 15",
+    "evals": false
+  },
+  {
+    "collection": "ECC",
+    "skills": [
+      {
+        "dir": "agent-introspection-debugging",
+        "name": "agent-introspection-debugging",
+        "desc_chars": 215,
+        "body_lines": 148,
+        "failed": [],
+        "path": "agent-introspection-debugging/SKILL.md"
+      },
+      {
+        "dir": "agent-self-evaluation",
+        "name": "agent-self-evaluation",
+        "desc_chars": 261,
+        "body_lines": 177,
+        "failed": [],
+        "path": "agent-self-evaluation/SKILL.md"
+      },
+      {
+        "dir": "agent-sort",
+        "name": "agent-sort",
+        "desc_chars": 286,
+        "body_lines": 210,
+        "failed": [],
+        "path": "agent-sort/SKILL.md"
+      },
+      {
+        "dir": "ai-regression-testing",
+        "name": "ai-regression-testing",
+        "desc_chars": 342,
+        "body_lines": 380,
+        "failed": [],
+        "path": "ai-regression-testing/SKILL.md"
+      },
+      {
+        "dir": "architecture-decision-records",
+        "name": "architecture-decision-records",
+        "desc_chars": 318,
+        "body_lines": 174,
+        "failed": [],
+        "path": "architecture-decision-records/SKILL.md"
+      },
+      {
+        "dir": "browser-qa",
+        "name": "browser-qa",
+        "desc_chars": 499,
+        "body_lines": 99,
+        "failed": [],
+        "path": "browser-qa/SKILL.md"
+      },
+      {
+        "dir": "ck",
+        "name": "ck",
+        "desc_chars": 426,
+        "body_lines": 139,
+        "failed": [],
+        "path": "ck/SKILL.md"
+      },
+      {
+        "dir": "click-path-audit",
+        "name": "click-path-audit",
+        "desc_chars": 359,
+        "body_lines": 239,
+        "failed": [],
+        "path": "click-path-audit/SKILL.md"
+      },
+      {
+        "dir": "code-tour",
+        "name": "code-tour",
+        "desc_chars": 349,
+        "body_lines": 248,
+        "failed": [],
+        "path": "code-tour/SKILL.md"
+      },
+      {
+        "dir": "codebase-onboarding",
+        "name": "codebase-onboarding",
+        "desc_chars": 239,
+        "body_lines": 228,
+        "failed": [],
+        "path": "codebase-onboarding/SKILL.md"
+      },
+      {
+        "dir": "codehealth-mcp",
+        "name": "codehealth-mcp",
+        "desc_chars": 237,
+        "body_lines": 161,
+        "failed": [],
+        "path": "codehealth-mcp/SKILL.md"
+      },
+      {
+        "dir": "config-gc",
+        "name": "config-gc",
+        "desc_chars": 412,
+        "body_lines": 114,
+        "failed": [],
+        "path": "config-gc/SKILL.md"
+      },
+      {
+        "dir": "configure-ecc",
+        "name": "configure-ecc",
+        "desc_chars": 448,
+        "body_lines": 200,
+        "failed": [],
+        "path": "configure-ecc/SKILL.md"
+      },
+      {
+        "dir": "context-budget",
+        "name": "context-budget",
+        "desc_chars": 321,
+        "body_lines": 180,
+        "failed": [],
+        "path": "context-budget/SKILL.md"
+      },
+      {
+        "dir": "continuous-learning-v2",
+        "name": "continuous-learning-v2",
+        "desc_chars": 350,
+        "body_lines": 370,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "continuous-learning-v2/SKILL.md"
+      },
+      {
+        "dir": "continuous-learning",
+        "name": "continuous-learning",
+        "desc_chars": 302,
+        "body_lines": 126,
+        "failed": [
+          "dated-text"
+        ],
+        "path": "continuous-learning/SKILL.md"
+      },
+      {
+        "dir": "council-multi-model",
+        "name": "council-multi-model",
+        "desc_chars": 415,
+        "body_lines": 161,
+        "failed": [],
+        "path": "council-multi-model/SKILL.md"
+      },
+      {
+        "dir": "council",
+        "name": "council",
+        "desc_chars": 174,
+        "body_lines": 198,
+        "failed": [],
+        "path": "council/SKILL.md"
+      },
+      {
+        "dir": "delivery-gate",
+        "name": "delivery-gate",
+        "desc_chars": 398,
+        "body_lines": 119,
+        "failed": [],
+        "path": "delivery-gate/SKILL.md"
+      },
+      {
+        "dir": "dev-team",
+        "name": "dev-team",
+        "desc_chars": 314,
+        "body_lines": 196,
+        "failed": [],
+        "path": "dev-team/SKILL.md"
+      },
+      {
+        "dir": "e2e-testing",
+        "name": "e2e-testing",
+        "desc_chars": 226,
+        "body_lines": 321,
+        "failed": [],
+        "path": "e2e-testing/SKILL.md"
+      },
+      {
+        "dir": "ecc-guide",
+        "name": "ecc-guide",
+        "desc_chars": 288,
+        "body_lines": 184,
+        "failed": [],
+        "path": "ecc-guide/SKILL.md"
+      },
+      {
+        "dir": "ecc-recipes",
+        "name": "ecc-recipes",
+        "desc_chars": 448,
+        "body_lines": 141,
+        "failed": [],
+        "path": "ecc-recipes/SKILL.md"
+      },
+      {
+        "dir": "error-handling",
+        "name": "error-handling",
+        "desc_chars": 288,
+        "body_lines": 371,
+        "failed": [],
+        "path": "error-handling/SKILL.md"
+      },
+      {
+        "dir": "eval-harness",
+        "name": "eval-harness",
+        "desc_chars": 397,
+        "body_lines": 298,
+        "failed": [],
+        "path": "eval-harness/SKILL.md"
+      },
+      {
+        "dir": "git-workflow",
+        "name": "git-workflow",
+        "desc_chars": 419,
+        "body_lines": 710,
+        "failed": [
+          "body-lines"
+        ],
+        "path": "git-workflow/SKILL.md"
+      },
+      {
+        "dir": "growth-log",
+        "name": "growth-log",
+        "desc_chars": 423,
+        "body_lines": 121,
+        "failed": [],
+        "path": "growth-log/SKILL.md"
+      },
+      {
+        "dir": "hookify-rules",
+        "name": "hookify-rules",
+        "desc_chars": 359,
+        "body_lines": 124,
+        "failed": [],
+        "path": "hookify-rules/SKILL.md"
+      },
+      {
+        "dir": "inherit-legacy-style",
+        "name": "inherit-legacy-style",
+        "desc_chars": 378,
+        "body_lines": 150,
+        "failed": [],
+        "path": "inherit-legacy-style/SKILL.md"
+      },
+      {
+        "dir": "intent-driven-development",
+        "name": "intent-driven-development",
+        "desc_chars": 565,
+        "body_lines": 356,
+        "failed": [],
+        "path": "intent-driven-development/SKILL.md"
+      },
+      {
+        "dir": "iterative-retrieval",
+        "name": "iterative-retrieval",
+        "desc_chars": 183,
+        "body_lines": 206,
+        "failed": [],
+        "path": "iterative-retrieval/SKILL.md"
+      },
+      {
+        "dir": "living-docs-governance",
+        "name": "living-docs-governance",
+        "desc_chars": 478,
+        "body_lines": 131,
+        "failed": [],
+        "path": "living-docs-governance/SKILL.md"
+      },
+      {
+        "dir": "loop-design-check",
+        "name": "loop-design-check",
+        "desc_chars": 432,
+        "body_lines": 137,
+        "failed": [],
+        "path": "loop-design-check/SKILL.md"
+      },
+      {
+        "dir": "plan-canvas",
+        "name": "plan-canvas",
+        "desc_chars": 276,
+        "body_lines": 191,
+        "failed": [],
+        "path": "plan-canvas/SKILL.md"
+      },
+      {
+        "dir": "plankton-code-quality",
+        "name": "plankton-code-quality",
+        "desc_chars": 218,
+        "body_lines": 322,
+        "failed": [
+          "dated-text"
+        ],
+        "path": "plankton-code-quality/SKILL.md"
+      },
+      {
+        "dir": "product-lens",
+        "name": "product-lens",
+        "desc_chars": 438,
+        "body_lines": 87,
+        "failed": [],
+        "path": "product-lens/SKILL.md"
+      },
+      {
+        "dir": "production-audit",
+        "name": "production-audit",
+        "desc_chars": 295,
+        "body_lines": 201,
+        "failed": [],
+        "path": "production-audit/SKILL.md"
+      },
+      {
+        "dir": "repo-scan",
+        "name": "repo-scan",
+        "desc_chars": 239,
+        "body_lines": 164,
+        "failed": [],
+        "path": "repo-scan/SKILL.md"
+      },
+      {
+        "dir": "rules-distill",
+        "name": "rules-distill",
+        "desc_chars": 213,
+        "body_lines": 259,
+        "failed": [],
+        "path": "rules-distill/SKILL.md"
+      },
+      {
+        "dir": "santa-method",
+        "name": "santa-method",
+        "desc_chars": 323,
+        "body_lines": 301,
+        "failed": [],
+        "path": "santa-method/SKILL.md"
+      },
+      {
+        "dir": "skill-comply",
+        "name": "skill-comply",
+        "desc_chars": 371,
+        "body_lines": 52,
+        "failed": [],
+        "path": "skill-comply/SKILL.md"
+      },
+      {
+        "dir": "skill-scout",
+        "name": "skill-scout",
+        "desc_chars": 174,
+        "body_lines": 135,
+        "failed": [],
+        "path": "skill-scout/SKILL.md"
+      },
+      {
+        "dir": "skill-stocktake",
+        "name": "skill-stocktake",
+        "desc_chars": 167,
+        "body_lines": 189,
+        "failed": [],
+        "path": "skill-stocktake/SKILL.md"
+      },
+      {
+        "dir": "strategic-compact",
+        "name": "strategic-compact",
+        "desc_chars": 232,
+        "body_lines": 150,
+        "failed": [],
+        "path": "strategic-compact/SKILL.md"
+      },
+      {
+        "dir": "tdd-workflow",
+        "name": "tdd-workflow",
+        "desc_chars": 292,
+        "body_lines": 576,
+        "failed": [
+          "body-lines"
+        ],
+        "path": "tdd-workflow/SKILL.md"
+      },
+      {
+        "dir": "unified-memory",
+        "name": "unified-memory",
+        "desc_chars": 272,
+        "body_lines": 193,
+        "failed": [
+          "mcp-qualified"
+        ],
+        "path": "unified-memory/SKILL.md"
+      },
+      {
+        "dir": "verification-loop",
+        "name": "verification-loop",
+        "desc_chars": 306,
+        "body_lines": 122,
+        "failed": [],
+        "path": "verification-loop/SKILL.md"
+      },
+      {
+        "dir": "windows-desktop-e2e",
+        "name": "windows-desktop-e2e",
+        "desc_chars": 210,
+        "body_lines": 882,
+        "failed": [
+          "body-lines",
+          "windows-paths"
+        ],
+        "path": "windows-desktop-e2e/SKILL.md"
+      }
+    ],
+    "naming": "gerund 1 of 48",
+    "evals": false
+  },
+  {
+    "collection": "Matt-Pocock",
+    "skills": [
+      {
+        "dir": "ask-matt",
+        "name": "ask-matt",
+        "desc_chars": 83,
+        "body_lines": 90,
+        "failed": [],
+        "path": "skills/engineering/ask-matt/SKILL.md"
+      },
+      {
+        "dir": "code-review",
+        "name": "code-review",
+        "desc_chars": 419,
+        "body_lines": 83,
+        "failed": [],
+        "path": "skills/engineering/code-review/SKILL.md"
+      },
+      {
+        "dir": "codebase-design",
+        "name": "codebase-design",
+        "desc_chars": 265,
+        "body_lines": 110,
+        "failed": [],
+        "path": "skills/engineering/codebase-design/SKILL.md"
+      },
+      {
+        "dir": "diagnosing-bugs",
+        "name": "diagnosing-bugs",
+        "desc_chars": 156,
+        "body_lines": 134,
+        "failed": [],
+        "path": "skills/engineering/diagnosing-bugs/SKILL.md"
+      },
+      {
+        "dir": "domain-modeling",
+        "name": "domain-modeling",
+        "desc_chars": 151,
+        "body_lines": 70,
+        "failed": [],
+        "path": "skills/engineering/domain-modeling/SKILL.md"
+      },
+      {
+        "dir": "grill-with-docs",
+        "name": "grill-with-docs",
+        "desc_chars": 106,
+        "body_lines": 2,
+        "failed": [],
+        "path": "skills/engineering/grill-with-docs/SKILL.md"
+      },
+      {
+        "dir": "implement-spec",
+        "name": "implement-spec",
+        "desc_chars": 57,
+        "body_lines": 35,
+        "failed": [],
+        "path": "skills/engineering/implement-spec/SKILL.md"
+      },
+      {
+        "dir": "implement",
+        "name": "implement",
+        "desc_chars": 60,
+        "body_lines": 10,
+        "failed": [],
+        "path": "skills/engineering/implement/SKILL.md"
+      },
+      {
+        "dir": "improve-codebase-architecture",
+        "name": "improve-codebase-architecture",
+        "desc_chars": 125,
+        "body_lines": 66,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/engineering/improve-codebase-architecture/SKILL.md"
+      },
+      {
+        "dir": "pr",
+        "name": "pr",
+        "desc_chars": 27,
+        "body_lines": 160,
+        "failed": [],
+        "path": "skills/engineering/pr/SKILL.md"
+      },
+      {
+        "dir": "prototype",
+        "name": "prototype",
+        "desc_chars": 179,
+        "body_lines": 22,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/engineering/prototype/SKILL.md"
+      },
+      {
+        "dir": "research",
+        "name": "research",
+        "desc_chars": 238,
+        "body_lines": 8,
+        "failed": [],
+        "path": "skills/engineering/research/SKILL.md"
+      },
+      {
+        "dir": "retro",
+        "name": "retro",
+        "desc_chars": 44,
+        "body_lines": 39,
+        "failed": [],
+        "path": "skills/engineering/retro/SKILL.md"
+      },
+      {
+        "dir": "setup-matt-pocock-skills",
+        "name": "setup-matt-pocock-skills",
+        "desc_chars": 180,
+        "body_lines": 111,
+        "failed": [],
+        "path": "skills/engineering/setup-matt-pocock-skills/SKILL.md"
+      },
+      {
+        "dir": "tdd",
+        "name": "tdd",
+        "desc_chars": 149,
+        "body_lines": 34,
+        "failed": [],
+        "path": "skills/engineering/tdd/SKILL.md"
+      },
+      {
+        "dir": "to-spec",
+        "name": "to-spec",
+        "desc_chars": 149,
+        "body_lines": 70,
+        "failed": [],
+        "path": "skills/engineering/to-spec/SKILL.md"
+      },
+      {
+        "dir": "to-tickets",
+        "name": "to-tickets",
+        "desc_chars": 247,
+        "body_lines": 100,
+        "failed": [],
+        "path": "skills/engineering/to-tickets/SKILL.md"
+      },
+      {
+        "dir": "triage",
+        "name": "triage",
+        "desc_chars": 136,
+        "body_lines": 107,
+        "failed": [
+          "ref-toc"
+        ],
+        "path": "skills/engineering/triage/SKILL.md"
+      },
+      {
+        "dir": "wayfinder",
+        "name": "wayfinder",
+        "desc_chars": 197,
+        "body_lines": 123,
+        "failed": [],
+        "path": "skills/engineering/wayfinder/SKILL.md"
+      },
+      {
+        "dir": "wizard",
+        "name": "wizard",
+        "desc_chars": 313,
+        "body_lines": 40,
+        "failed": [],
+        "path": "skills/engineering/wizard/SKILL.md"
+      },
+      {
+        "dir": "claude-handoff",
+        "name": "claude-handoff",
+        "desc_chars": 97,
+        "body_lines": 12,
+        "failed": [
+          "name-valid"
+        ],
+        "path": "skills/in-progress/claude-handoff/SKILL.md"
+      },
+      {
+        "dir": "loop-me",
+        "name": "loop-me",
+        "desc_chars": 78,
+        "body_lines": 26,
+        "failed": [],
+        "path": "skills/in-progress/loop-me/SKILL.md"
+      },
+      {
+        "dir": "setup-ts-deep-modules",
+        "name": "setup-ts-deep-modules",
+        "desc_chars": 185,
+        "body_lines": 97,
+        "failed": [],
+        "path": "skills/in-progress/setup-ts-deep-modules/SKILL.md"
+      },
+      {
+        "dir": "writing-beats",
+        "name": "writing-beats",
+        "desc_chars": 111,
+        "body_lines": 62,
+        "failed": [],
+        "path": "skills/in-progress/writing-beats/SKILL.md"
+      },
+      {
+        "dir": "writing-fragments",
+        "name": "writing-fragments",
+        "desc_chars": 55,
+        "body_lines": 74,
+        "failed": [],
+        "path": "skills/in-progress/writing-fragments/SKILL.md"
+      },
+      {
+        "dir": "writing-shape",
+        "name": "writing-shape",
+        "desc_chars": 77,
+        "body_lines": 74,
+        "failed": [],
+        "path": "skills/in-progress/writing-shape/SKILL.md"
+      },
+      {
+        "dir": "git-guardrails-claude-code",
+        "name": "git-guardrails-claude-code",
+        "desc_chars": 243,
+        "body_lines": 91,
+        "failed": [
+          "name-valid"
+        ],
+        "path": "skills/misc/git-guardrails-claude-code/SKILL.md"
+      },
+      {
+        "dir": "migrate-to-shoehorn",
+        "name": "migrate-to-shoehorn",
+        "desc_chars": 168,
+        "body_lines": 114,
+        "failed": [],
+        "path": "skills/misc/migrate-to-shoehorn/SKILL.md"
+      },
+      {
+        "dir": "scaffold-exercises",
+        "name": "scaffold-exercises",
+        "desc_chars": 204,
+        "body_lines": 102,
+        "failed": [],
+        "path": "skills/misc/scaffold-exercises/SKILL.md"
+      },
+      {
+        "dir": "setup-pre-commit",
+        "name": "setup-pre-commit",
+        "desc_chars": 238,
+        "body_lines": 87,
+        "failed": [],
+        "path": "skills/misc/setup-pre-commit/SKILL.md"
+      },
+      {
+        "dir": "grill-me",
+        "name": "grill-me",
+        "desc_chars": 51,
+        "body_lines": 2,
+        "failed": [],
+        "path": "skills/productivity/grill-me/SKILL.md"
+      },
+      {
+        "dir": "grilling",
+        "name": "grilling",
+        "desc_chars": 152,
+        "body_lines": 24,
+        "failed": [],
+        "path": "skills/productivity/grilling/SKILL.md"
+      },
+      {
+        "dir": "handoff",
+        "name": "handoff",
+        "desc_chars": 86,
+        "body_lines": 10,
+        "failed": [],
+        "path": "skills/productivity/handoff/SKILL.md"
+      },
+      {
+        "dir": "teach",
+        "name": "teach",
+        "desc_chars": 61,
+        "body_lines": 134,
+        "failed": [],
+        "path": "skills/productivity/teach/SKILL.md"
+      },
+      {
+        "dir": "to-questionnaire",
+        "name": "to-questionnaire",
+        "desc_chars": 88,
+        "body_lines": 49,
+        "failed": [],
+        "path": "skills/productivity/to-questionnaire/SKILL.md"
+      },
+      {
+        "dir": "wait-what",
+        "name": "wait-what",
+        "desc_chars": 50,
+        "body_lines": 2,
+        "failed": [],
+        "path": "skills/productivity/wait-what/SKILL.md"
+      },
+      {
+        "dir": "writing-for-agents",
+        "name": "writing-for-agents",
+        "desc_chars": 103,
+        "body_lines": 77,
+        "failed": [],
+        "path": "skills/productivity/writing-for-agents/SKILL.md"
+      }
+    ],
+    "naming": "gerund 6 of 37",
+    "evals": false
+  },
+  {
+    "collection": "Ponytail",
+    "skills": [
+      {
+        "dir": "ponytail-audit",
+        "name": "ponytail-audit",
+        "desc_chars": 346,
+        "body_lines": 94,
+        "failed": [],
+        "path": "skills/ponytail-audit/SKILL.md"
+      },
+      {
+        "dir": "ponytail-debt",
+        "name": "ponytail-debt",
+        "desc_chars": 201,
+        "body_lines": 38,
+        "failed": [],
+        "path": "skills/ponytail-debt/SKILL.md"
+      },
+      {
+        "dir": "ponytail-gain",
+        "name": "ponytail-gain",
+        "desc_chars": 160,
+        "body_lines": 46,
+        "failed": [
+          "dated-text"
+        ],
+        "path": "skills/ponytail-gain/SKILL.md"
+      },
+      {
+        "dir": "ponytail-help",
+        "name": "ponytail-help",
+        "desc_chars": 141,
+        "body_lines": 64,
+        "failed": [
+          "windows-paths"
+        ],
+        "path": "skills/ponytail-help/SKILL.md"
+      },
+      {
+        "dir": "ponytail-review",
+        "name": "ponytail-review",
+        "desc_chars": 370,
+        "body_lines": 92,
+        "failed": [],
+        "path": "skills/ponytail-review/SKILL.md"
+      },
+      {
+        "dir": "ponytail",
+        "name": "ponytail",
+        "desc_chars": 366,
+        "body_lines": 41,
+        "failed": [],
+        "path": "skills/ponytail/SKILL.md"
+      }
+    ],
+    "naming": "gerund 0 of 6",
+    "evals": false
+  },
+  {
+    "collection": "OpenSpec",
+    "skills": [
+      {
+        "dir": "openspec-apply-change",
+        "name": "openspec-apply-change",
+        "desc_chars": 220,
+        "body_lines": 195,
+        "failed": [],
+        "path": "openspec-apply-change/SKILL.md"
+      },
+      {
+        "dir": "openspec-archive-change",
+        "name": "openspec-archive-change",
+        "desc_chars": 222,
+        "body_lines": 210,
+        "failed": [],
+        "path": "openspec-archive-change/SKILL.md"
+      },
+      {
+        "dir": "openspec-explore",
+        "name": "openspec-explore",
+        "desc_chars": 308,
+        "body_lines": 343,
+        "failed": [],
+        "path": "openspec-explore/SKILL.md"
+      },
+      {
+        "dir": "openspec-propose",
+        "name": "openspec-propose",
+        "desc_chars": 289,
+        "body_lines": 163,
+        "failed": [],
+        "path": "openspec-propose/SKILL.md"
+      },
+      {
+        "dir": "openspec-sync-specs",
+        "name": "openspec-sync-specs",
+        "desc_chars": 222,
+        "body_lines": 279,
+        "failed": [],
+        "path": "openspec-sync-specs/SKILL.md"
+      },
+      {
+        "dir": "openspec-update-change",
+        "name": "openspec-update-change",
+        "desc_chars": 433,
+        "body_lines": 98,
+        "failed": [],
+        "path": "openspec-update-change/SKILL.md"
+      }
+    ],
+    "naming": "gerund 0 of 6",
+    "evals": false
+  },
+  {
+    "collection": "Spec-Kit",
+    "skills": [
+      {
+        "dir": "speckit-analyze",
+        "name": "speckit-analyze",
+        "desc_chars": 134,
+        "body_lines": 251,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-analyze/SKILL.md"
+      },
+      {
+        "dir": "speckit-checklist",
+        "name": "speckit-checklist",
+        "desc_chars": 79,
+        "body_lines": 375,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-checklist/SKILL.md"
+      },
+      {
+        "dir": "speckit-clarify",
+        "name": "speckit-clarify",
+        "desc_chars": 156,
+        "body_lines": 283,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-clarify/SKILL.md"
+      },
+      {
+        "dir": "speckit-constitution",
+        "name": "speckit-constitution",
+        "desc_chars": 88,
+        "body_lines": 171,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-constitution/SKILL.md"
+      },
+      {
+        "dir": "speckit-converge",
+        "name": "speckit-converge",
+        "desc_chars": 166,
+        "body_lines": 275,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-converge/SKILL.md"
+      },
+      {
+        "dir": "speckit-implement",
+        "name": "speckit-implement",
+        "desc_chars": 89,
+        "body_lines": 218,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-implement/SKILL.md"
+      },
+      {
+        "dir": "speckit-plan",
+        "name": "speckit-plan",
+        "desc_chars": 98,
+        "body_lines": 158,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-plan/SKILL.md"
+      },
+      {
+        "dir": "speckit-specify",
+        "name": "speckit-specify",
+        "desc_chars": 87,
+        "body_lines": 337,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-specify/SKILL.md"
+      },
+      {
+        "dir": "speckit-tasks",
+        "name": "speckit-tasks",
+        "desc_chars": 104,
+        "body_lines": 207,
+        "failed": [
+          "desc-when"
+        ],
+        "path": "speckit-tasks/SKILL.md"
+      },
+      {
+        "dir": "speckit-taskstoissues",
+        "name": "speckit-taskstoissues",
+        "desc_chars": 137,
+        "body_lines": 109,
+        "failed": [
+          "desc-when",
+          "mcp-qualified"
+        ],
+        "path": "speckit-taskstoissues/SKILL.md"
+      }
+    ],
+    "naming": "gerund 0 of 10",
+    "evals": false
+  },
+  {
+    "collection": "BenchKeeper",
+    "skills": [
+      {
+        "dir": "following-dev-workflow",
+        "name": "following-dev-workflow",
+        "desc_chars": 415,
+        "body_lines": 72,
+        "failed": [],
+        "path": "following-dev-workflow/SKILL.md"
+      },
+      {
+        "dir": "maintaining-repos",
+        "name": "maintaining-repos",
+        "desc_chars": 257,
+        "body_lines": 13,
+        "failed": [],
+        "path": "maintaining-repos/SKILL.md"
+      },
+      {
+        "dir": "setting-up-machine",
+        "name": "setting-up-machine",
+        "desc_chars": 350,
+        "body_lines": 156,
+        "failed": [],
+        "path": "setting-up-machine/SKILL.md"
+      },
+      {
+        "dir": "setting-up-projects",
+        "name": "setting-up-projects",
+        "desc_chars": 289,
+        "body_lines": 87,
+        "failed": [],
+        "path": "setting-up-projects/SKILL.md"
+      }
+    ],
+    "naming": "gerund 4 of 4",
+    "evals": false
+  }
+]

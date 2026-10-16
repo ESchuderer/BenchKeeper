@@ -2,9 +2,11 @@
 # Blind review of one built app by a pinned model with a fixed prompt (bench/review/app-review.md) and schema.
 # Runs headless in the stock arm-A image (no rules or plugins), read-only, tools limited to reading.
 # Usage: bench/review/review.sh <brief-dir> <trial-dir> [model] [effort]   writes <trial-dir>/review.json
+# A brief may bring its own prompt (<brief-dir>/review.md) and reference images (<brief-dir>/review-refs/, as reference/).
 set -eu
 here=$(dirname "$(realpath "$0")"); brief=$(realpath "$1"); t=$(realpath "$2")
 model=${3:-claude-opus-5-5}; effort=${4:-high}
+prompt=$brief/review.md; [ -f "$prompt" ] || prompt=$here/app-review.md
 # REVIEW_AUTH=api bills the review to the API key (ANTHROPIC_API_KEY or ~/.config/benchkeeper/anthropic-api-key);
 # otherwise the subscription token.
 if [ "${REVIEW_AUTH:-}" = api ]; then
@@ -32,9 +34,10 @@ podman run --rm --userns=keep-id -v "$t/score/app.tar.gz":/in.tar.gz:ro,Z -v "$w
     ! -path "./openspec/config.yaml" ! -path "./openspec/schemas/*" ! -name "oso-change-registry.json" \
     -exec cp --parents {} /app/ \;'
 cp "$brief/brief.md" "$w/"
+[ ! -d "$brief/review-refs" ] || cp -r "$brief/review-refs" "$w/reference"
 cp "$t/score/screenshots/"*.jpg "$w/screenshots/" 2>/dev/null || true
 podman run --rm --userns=keep-id -e HOME=/home/node -e "$cred" -v "$w":/review:ro,Z -w /review "$img" \
-  claude -p "$(cat "$here/app-review.md")" --model "$model" --effort "$effort" --output-format json \
+  claude -p "$(cat "$prompt")" --model "$model" --effort "$effort" --output-format json \
   --json-schema "$(cat "$here/schema.json")" --allowed-tools Read Glob Grep --disallowed-tools Bash Edit Write WebFetch WebSearch \
   > "$w/out.json"
 jq --arg m "$model" --arg e "$effort" --arg i "$img" '{model: $m, effort: $e, image: $i, cost_usd_api_equivalent: .total_cost_usd, review: .structured_output}' "$w/out.json" > "$w/review.json"

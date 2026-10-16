@@ -9,7 +9,7 @@ PW=mcr.microsoft.com/playwright:v1.64.0-noble@sha256:bc72a8df40831ded821e3cbc79c
 pass=$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
 pod=bk-score-$$
 # Remove the scoring pod and temp copies on any exit, including INT, TERM and HUP.
-trap 'podman pod rm -f "$pod" > /dev/null 2>&1; rm -rf "${app:-}" "${hid:-}"' EXIT
+trap 'podman pod rm -f "$pod" > /dev/null 2>&1; rm -rf "${app:-}" "${hid:-}" "${site:-}"' EXIT
 trap 'exit 130' INT TERM HUP
 # The built app as delivered (source and git history, without node_modules), for download and manual comparison.
 mkdir -p "$out/screenshots" && tar --exclude=node_modules -czf "$out/app.tar.gz" -C "$ws" .
@@ -22,9 +22,23 @@ hid=$(mktemp -d) && cp -rL "$brief/hidden/." "$hid/" && mkdir "$hid/node_modules
 step() { name=$1; T=$2; shift 2; "$@" > "$out/$name.log" 2>&1; echo $? > "$out/$name.exit"; }
 node_run() { podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -v "$app":/app:Z -w /app "$NODE" "$@"; }
 
-step install 600 node_run npm install --no-audit --no-fund
-step build 600 node_run npm run build --if-present
-step audit 120 node_run npm audit --json --loglevel=silent
+# Per-brief settings (brief.json, optional): "serve": "static" serves the files instead of running npm start.
+serve=$(jq -r '.serve // "npm"' "$brief/brief.json" 2>/dev/null || echo npm)
+[ ! -f "$brief/brief.json" ] || cp "$brief/brief.json" "$out/brief.json"
+
+if [ "$serve" = static ]; then
+  # The app as delivered, served and opened without node_modules: the install below is only for the agent's own tests
+  # and the audit.
+  site=$(mktemp -d) && cp -a "$app/." "$site/"
+  if [ -f "$app/package.json" ]; then
+    step install 600 node_run npm install --no-audit --no-fund
+    step audit 120 node_run npm audit --json --loglevel=silent
+  fi
+else
+  step install 600 node_run npm install --no-audit --no-fund
+  step build 600 node_run npm run build --if-present
+  step audit 120 node_run npm audit --json --loglevel=silent
+fi
 # Code metrics of the agent's own source: complexity and erosion (erosion.mjs), duplicated lines (jscpd, 50 tokens or more).
 metrics() {
   podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -v "$app":/app:ro,Z -v "$here":/s:ro,Z -v "$out":/out:Z -w /s "$NODE" sh -c '
@@ -34,10 +48,19 @@ metrics() {
 step metrics 300 metrics
 
 podman pod create --userns=keep-id --name "$pod" >/dev/null
-podman run -d --pod "$pod" --name "$pod-app" -e HOME=/tmp -e PORT=3000 -e STAFF_PASSWORD="$pass" \
-  -v "$app":/app:Z -w /app "$NODE" npm start > /dev/null
+if [ "$serve" = static ]; then
+  # Shared label (z): the app container and the test container mount the same copy at once, both read-only.
+  podman run -d --pod "$pod" --name "$pod-app" -e HOME=/tmp -e PORT=3000 \
+    -v "$site":/app:ro,z -v "$here/static.mjs":/static.mjs:ro,Z "$NODE" node /static.mjs /app > /dev/null
+  appmount="-v $site:/app:ro,z -e APP_DIR=/app"
+else
+  podman run -d --pod "$pod" --name "$pod-app" -e HOME=/tmp -e PORT=3000 -e STAFF_PASSWORD="$pass" \
+    -v "$app":/app:Z -w /app "$NODE" npm start > /dev/null
+  appmount=
+fi
 tests() {
-  podman run --rm --timeout "$T" --pod "$pod" -e HOME=/tmp -e PORT=3000 -e STAFF_PASSWORD="$pass" \
+  # shellcheck disable=SC2086 # $appmount holds several flags
+  podman run --rm --timeout "$T" --pod "$pod" -e HOME=/tmp -e PORT=3000 -e STAFF_PASSWORD="$pass" $appmount \
     -e PW_OUT=/out/acceptance.json -e AXE_OUT=/out/axe.json -e SHOT_DIR=/out/screenshots -e HIDDEN_FILES="${HIDDEN_FILES:-}" \
     -v "$hid":/w:Z -v "$here/node_modules":/w/node_modules:ro,Z -v "$out":/out:Z -w /w "$PW" sh -c '
     for i in $(seq 60); do node -e "fetch(\"http://localhost:3000/\").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" && break; sleep 2; done
@@ -55,6 +78,7 @@ podman pod rm -f "$pod" > /dev/null
 if jq -er '.scripts.test // empty' "$app/package.json" 2>/dev/null | grep -qv 'no test specified'; then
   step agent-tests 600 node_run npm test
 fi
-rm -rf "$app" "$hid"
-# Mutation score of the agent's own tests (bench/scorer/mutation.sh, on its own copy of the workspace).
-"$here/mutation.sh" "$ws" "$out"
+rm -rf "$app" "$hid" "${site:-}"
+# Mutation score of the agent's own tests (bench/scorer/mutation.sh, on its own copy of the workspace); MUTATION=0 skips it
+# (iterative briefs: only the last step gets it).
+[ "${MUTATION:-1}" = 0 ] || "$here/mutation.sh" "$ws" "$out"

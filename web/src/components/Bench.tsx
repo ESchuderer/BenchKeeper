@@ -79,8 +79,6 @@ export function BenchShell({ base, children }: { base: string; children: ReactNo
   );
 }
 
-const METHOD = 'Each trial is one app built from the brief by one arm, runtime and model, scored by hidden tests (6 features, 12 robustness checks) and reviewed blind by Claude Opus 5.5 (overall 1 to 10, criteria 1 to 5). One trial per arm and model, so differences are descriptive, not significant.';
-
 export type Brief = { id: string; summary: string; trials: number; arms: number; runtimes: string[]; models: string[]; dates: string[]; methods: { label: string; count: number }[]; reports: string[] };
 
 function Methods({ brief }: { brief: Brief }) {
@@ -98,7 +96,7 @@ export function BenchIndex({ base, briefs }: { base: string; briefs: Brief[] }) 
         <Anchor href={`${base}/`} size="sm" underline="hover"><Group gap={4} component="span"><IconArrowLeft size={14} />Back to BenchKeeper</Group></Anchor>
         <Title order={1} fz={{ base: 32, md: 44 }}>Benchmark database</Title>
         <Text c="dimmed" size="lg">
-          {METHOD} Method: <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>; results and costs: <Anchor href={`${REPO}/tree/main/bench/results`}>bench/results</Anchor>.
+          Method: <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>; results and costs: <Anchor href={`${REPO}/tree/main/bench/results`}>bench/results</Anchor>.
         </Text>
       </Stack>
       <Title order={2} mb="md">Briefs</Title>
@@ -133,7 +131,7 @@ export default function Bench({ base, brief, trials }: { base: string; brief: Br
             <Title order={1} fz={{ base: 32, md: 44 }}>Brief {brief.id}</Title>
             <Text size="lg">{brief.summary}</Text>
             <Text c="dimmed">
-              {METHOD} BK is the BenchKeeper layer, which includes Ponytail. Brief: <Anchor href={`${REPO}/blob/main/bench/briefs/${brief.id}/brief.md`}>brief.md</Anchor>
+              BK is the BenchKeeper layer, which includes Ponytail. Brief: <Anchor href={`${REPO}/blob/main/bench/briefs/${brief.id}/brief.md`}>brief.md</Anchor>
               {brief.reports.map((r) => <span key={r}>; report: <Anchor href={`${REPO}/blob/main/bench/results/${r}`}>{r}</Anchor></span>)}.
             </Text>
             <Methods brief={brief} />

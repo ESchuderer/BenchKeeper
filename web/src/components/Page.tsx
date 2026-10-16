@@ -159,6 +159,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                   <span className="grad">BenchKeeper</span>
                 </Title>
                 <Text size="xl" maw={560}>{facts.description}</Text>
+                <Text size="lg" maw={560}><Text span fw={700}>Built on <Anchor href={facts.core.url}>{facts.core.name}</Anchor> by {facts.core.by}:</Text> {facts.core.role}.</Text>
                 <Group mt="sm">
                   <Button component="a" href="#prereq" size="md">Get started</Button>
                   <Button component="a" href="#sdlc" size="md" variant="default">See the SDLC</Button>

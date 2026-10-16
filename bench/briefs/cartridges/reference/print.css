@@ -1,0 +1,13 @@
+@page { size: A4 portrait; margin: 10mm; }
+.screen-only { display: none !important; }
+:root { --fg: #000; --bg: #fff; --muted: #000; --line: #999; --ink: #000; }
+body { font-size: 6pt; line-height: 1.2; max-width: none; padding: 0; }
+h1 { font-size: 12pt; margin: 0 0 1mm; }
+dl { display: grid; grid-template-columns: repeat(6, auto); gap: 0 2mm; margin: 0; }
+dd { margin: 0; }
+figure { margin: 1mm 0; }
+svg.drawing { max-height: 85mm; }
+.tables { columns: 4; column-gap: 3mm; }
+th, td { padding: 0 1mm; }
+table { margin-bottom: 1mm; }
+caption { text-align: left; font-weight: bold; }

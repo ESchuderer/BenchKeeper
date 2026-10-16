@@ -57,8 +57,9 @@ function auditInit(init, events, arm) {
   const expected = [...want.skills, ...(want.agents || [])];
   for (const m of expected) if (!listed.has(m)) problems.push(`missing ${m}`);
   for (const m of MARKERS) if (!expected.includes(m) && listed.has(m)) problems.push(`unexpected ${m}`);
-  const mcp = (init.mcp_servers || []).map((s) => `${s.name}:${s.status}`).sort();
-  if (mcp.join() !== (want.mcp || []).map((n) => `${n}:connected`).join()) problems.push(`mcp ${mcp.join(',') || 'none'}`);
+  // A configured server may still be starting when a follow-up turn begins: pending counts like connected.
+  const mcp = (init.mcp_servers || []).map((s) => `${s.name}:${s.status === 'pending' ? 'connected' : s.status}`).sort();
+  if (mcp.join() !== (want.mcp || []).map((n) => `${n}:connected`).join()) problems.push(`mcp ${(init.mcp_servers || []).map((s) => `${s.name}:${s.status}`).sort().join(',') || 'none'}`);
   if (!want.hooks.length && hookOut.trim()) problems.push('unexpected SessionStart output');
   return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins };
 }
@@ -174,10 +175,13 @@ export function score(dir) {
   const lh = read('lighthouse.json');
   const axe = read('axe.json');
   const vulns = read('audit.log')?.metadata?.vulnerabilities;
+  // The brief's pages when the scorer copied its settings (brief.json), the winery pages otherwise.
+  const pages = read('brief.json')?.axe_pages ?? AXE_PAGES;
   return {
     install: exit('install'), build: exit('build'), acceptance_run: exit('acceptance'), agent_tests: exit('agent-tests'),
-    features: Object.fromEntries(specs.filter((s) => s.title.startsWith('F')).map((s) => [s.title.split(' ')[0], s.ok])),
-    features_passed: specs.filter((s) => s.title.startsWith('F') && s.ok).length,
+    // Features: every test that is not a robustness (R) or step (S) test (winery F1 to F6, cartridges C1 to C6).
+    features: Object.fromEntries(specs.filter(isFeature).map((s) => [s.title.split(' ')[0], s.ok])),
+    features_passed: specs.filter((s) => isFeature(s) && s.ok).length,
     // Robustness tests (protocol v1.7) are scored apart from the features; null for trials scored before them.
     robustness: specs.some((s) => s.title.startsWith('R')) ? Object.fromEntries(specs.filter((s) => s.title.startsWith('R')).map((s) => [s.title.split(' ')[0], s.ok])) : null,
     robustness_passed: specs.some((s) => s.title.startsWith('R')) ? specs.filter((s) => s.title.startsWith('R') && s.ok).length : null,
@@ -185,8 +189,8 @@ export function score(dir) {
     changes: specs.some((s) => /^S\d/.test(s.title)) ? Object.fromEntries(specs.filter((s) => /^S\d/.test(s.title)).map((s) => [s.title.split(' ')[0], s.ok])) : null,
     strict: specs.length ? specs.every((s) => s.ok) : null,
     code: code(dir),
-    // Violations per page; null unless all four pages were scanned, so a broken app does not score fewer violations.
-    axe: axe && AXE_PAGES.every((k) => axe[k]) ? Object.fromEntries(AXE_PAGES.map((k) => [k, axe[k].length])) : null,
+    // Violations per page; null unless all pages were scanned, so a broken app does not score fewer violations.
+    axe: axe && pages.every((k) => axe[k]) ? Object.fromEntries(pages.map((k) => [k, axe[k].length])) : null,
     lighthouse: lh?.categories ? Object.fromEntries(Object.entries(lh.categories).map(([k, v]) => [k, v.score])) : null,
     audit: vulns ? { high: vulns.high + vulns.critical, total: vulns.total } : null,
     mutation: mutation(dir),
@@ -240,6 +244,7 @@ export function mutation(dir) {
   return { score: counted ? Math.round(1000 * (n.killed + n.timeout) / counted) / 10 : null, ...n, ...(counted ? {} : { reason: 'no mutants' }) };
 }
 const collect = (o) => [...(o.specs || []), ...(o.suites || []).flatMap(collect)];
+const isFeature = (s) => !/^[RS]\d/.test(s.title);
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [dir, arm] = process.argv.slice(2);

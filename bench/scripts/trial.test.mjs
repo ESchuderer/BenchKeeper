@@ -97,6 +97,17 @@ test('score counts a skipped feature as failed and needs all four axe pages', as
   assert.equal(s.lighthouse, null);
 });
 
+test('score takes the axe pages from the brief settings when the scorer copied them', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { score } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/score-');
+  writeFileSync(`${dir}/brief.json`, JSON.stringify({ axe_pages: ['list', 'detail-a'] }));
+  writeFileSync(`${dir}/axe.json`, JSON.stringify({ list: [{ id: 'x' }], 'detail-a': [] }));
+  assert.deepEqual(score(dir).axe, { list: 1, 'detail-a': 0 });
+  writeFileSync(`${dir}/axe.json`, JSON.stringify({ list: [] }));
+  assert.equal(score(dir).axe, null);
+});
+
 test('audit and summary tolerate missing fields', async () => {
   const { table } = await import('./summary.mjs');
   assert.equal(audit([{ type: 'system', subtype: 'init' }], 'A').ok, true);
@@ -253,4 +264,14 @@ test('mutation score: detected over counted mutants, or null with a reason', asy
   assert.equal(mutation(dir).reason, 'only time-outs');
   writeFileSync(`${dir}/mutation.json`, '{"files": {');
   assert.deepEqual(mutation(dir), { score: null, reason: 'unreadable report' });
+});
+
+test('audit: a configured MCP server still pending at a follow-up turn counts as connected, a failed one does not', async () => {
+  const { readFileSync } = await import('node:fs');
+  const events = readFileSync(new URL('./fixtures/init-L.jsonl', import.meta.url), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  const init = events.find((e) => e.subtype === 'init');
+  const turn = (status) => ({ ...init, mcp_servers: [{ name: 'playwright', status }] });
+  assert.equal(audit(events, 'L').ok, true);
+  assert.equal(audit([...events, turn('pending')], 'L').ok, true);
+  assert.deepEqual(audit([...events, turn('failed')], 'L').problems, ['mcp playwright:failed']);
 });

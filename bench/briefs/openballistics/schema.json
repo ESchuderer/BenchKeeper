@@ -1,0 +1,149 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scores",
+    "evidence",
+    "unmet_requirements",
+    "overall",
+    "strengths",
+    "issues",
+    "verdict"
+  ],
+  "properties": {
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "s1_ci",
+        "s1_readme",
+        "s1_release",
+        "s2_requirements",
+        "s2_correctness",
+        "s2_fit",
+        "s2_tests",
+        "s3_fixes",
+        "cross_step"
+      ],
+      "properties": {
+        "s1_ci": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "s1_readme": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "s1_release": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "s2_requirements": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "s2_correctness": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "s2_fit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "s2_tests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "s3_fixes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "cross_step": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "s1_ci",
+        "s1_readme",
+        "s1_release",
+        "s2_requirements",
+        "s2_correctness",
+        "s2_fit",
+        "s2_tests",
+        "s3_fixes",
+        "cross_step"
+      ],
+      "properties": {
+        "s1_ci": {
+          "type": "string"
+        },
+        "s1_readme": {
+          "type": "string"
+        },
+        "s1_release": {
+          "type": "string"
+        },
+        "s2_requirements": {
+          "type": "string"
+        },
+        "s2_correctness": {
+          "type": "string"
+        },
+        "s2_fit": {
+          "type": "string"
+        },
+        "s2_tests": {
+          "type": "string"
+        },
+        "s3_fixes": {
+          "type": "string"
+        },
+        "cross_step": {
+          "type": "string"
+        }
+      }
+    },
+    "unmet_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "overall": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+    },
+    "strengths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3
+    },
+    "verdict": {
+      "type": "string"
+    }
+  }
+}

@@ -276,3 +276,42 @@ test('audit: a configured MCP server still pending at a follow-up turn counts as
   assert.deepEqual(audit([...events, turn('failed')], 'L').problems, ['mcp playwright:failed']);
   assert.deepEqual(audit(events.map((e) => (e.subtype === 'init' ? turn('pending') : e)), 'L').problems, ['mcp playwright never connected']);
 });
+
+test('steps: checks, suite, minutes, waited, cost from the step\'s transcript lines, usage shares', async () => {
+  const { mkdirSync, mkdtempSync, writeFileSync } = await import('node:fs');
+  const { steps } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/steps-');
+  assert.equal(steps(dir), null);
+  const res = (s, cost) => JSON.stringify({ type: 'result', session_id: s, total_cost_usd: cost, modelUsage: { m: { outputTokens: 10 } } });
+  const ask = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'AskUserQuestion', input: {} }] } });
+  writeFileSync(`${dir}/transcript.jsonl`, [ask, res('a', 0.5), 'not json', res('b', 0.25), res('b', 0.75)].join('\n') + '\n');
+  const step = (k, files) => { mkdirSync(`${dir}/steps/${k}`, { recursive: true }); for (const [f, t] of Object.entries(files)) writeFileSync(`${dir}/steps/${k}/${f}`, t); };
+  step(1, { start: '1000\n', end: '1600\n', waited: '1\n', followups: '1\n', lines: '0 2\n', 'usage-before': '0.1 5000 0.2 9000\n', 'usage-after': '0.25 5000 0.21 9000\n',
+    'checks.json': JSON.stringify({ checks: [{ id: 'S1-a', ok: true, detail: 'x' }, { id: 'S1-b', ok: false }] }), 'suite.json': '{"ok":true,"exit":0}' });
+  step(2, { start: '2000', end: '2090', waited: '0', followups: '0', lines: '2 5', 'usage-before': '0.25 5000 0.21 9000', 'usage-after': '0.05 6000 0.22 9000',
+    'checks.json': JSON.stringify({ checks: [{ id: 'S2-a', ok: true }, { id: 'X2-ci', ok: null }] }), 'suite.json': '{"ok":false,"exit":1}' });
+  step(3, {});
+  const s = steps(dir);
+  assert.deepEqual(s[0], { k: 1, checks: [{ id: 'S1-a', ok: true }, { id: 'S1-b', ok: false }], passed: 1, total: 2, suite_ok: true, minutes: 10, waited: true, followups: 1, ask_user_calls: 1,
+    cost_usd_api_equivalent: 0.5, tokens: { input: 0, cache_creation: 0, cache_read: 0, output: 10, thinking: 0 },
+    usage: { before: { five_hour: 0.1, five_hour_reset: 5000, weekly: 0.2, weekly_reset: 9000 }, after: { five_hour: 0.25, five_hour_reset: 5000, weekly: 0.21, weekly_reset: 9000 }, five_hour_share: 0.15, weekly_share: 0.01 } });
+  assert.deepEqual([s[1].passed, s[1].total, s[1].suite_ok, s[1].minutes, s[1].waited, s[1].ask_user_calls, s[1].cost_usd_api_equivalent], [1, 1, false, 1.5, false, 0, 0.75]);
+  // The 5-hour window reset between the readings.
+  assert.deepEqual([s[1].usage.five_hour_share, s[1].usage.weekly_share], [null, 0.01]);
+  assert.deepEqual(s[2], { k: 3, checks: null, passed: null, total: null, suite_ok: null, minutes: null, waited: null, followups: null, ask_user_calls: null, cost_usd_api_equivalent: null, tokens: null, usage: null });
+});
+
+test('usage: a failed reading gives no share', async () => {
+  const { usage } = await import('./trial.mjs');
+  assert.equal(usage(null, null), null);
+  assert.deepEqual(usage('0 0 0 0', '0.3 5000 0.4 9000'), { before: null, after: { five_hour: 0.3, five_hour_reset: 5000, weekly: 0.4, weekly_reset: 9000 }, five_hour_share: null, weekly_share: null });
+});
+
+test('sessions table: one row per arm and step, and the main table is replaced for step briefs', async () => {
+  const { sessionsTable } = await import('./summary.mjs');
+  const st = (k, passed, suite, waited, usd) => ({ k, passed, total: 3, suite_ok: suite, waited, followups: waited ? 1 : 0, minutes: 10, cost_usd_api_equivalent: usd, usage: { five_hour_share: 0.05, weekly_share: null } });
+  const t = (s) => ({ arm: 'L', audit: { ok: true }, outcome: {}, steps: s });
+  const out = sessionsTable([t([st(1, 3, true, true, 1), st(2, 2, true, false, 2)]), t([st(1, 1, false, false, 3)])]);
+  assert.match(out, /\| L \| 1 \| 2 \| 2 \(1 to 3\) of 3 \| 1 of 2 \| 1 of 2 \| 0\.5 \(0 to 1\) \| 10 \(10 to 10\) \| 2 \(1 to 3\) \| 5 \(5 to 5\) \| n\/a \|/);
+  assert.match(out, /\| L \| 2 \| 1 \| 2 \(2 to 2\) of 3 \| 1 of 1 \|/);
+});

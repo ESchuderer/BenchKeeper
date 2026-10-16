@@ -17,6 +17,8 @@ conf=$bench/briefs/$brief/brief.json
 FOLLOWUP=$(jq -r '.followup // empty' "$conf" 2>/dev/null || true)
 : "${FOLLOWUP:=Continue until the brief is fully implemented and npm start runs the app. Do not wait for approval.}"
 serve=$(jq -r '.serve // "npm"' "$conf" 2>/dev/null || echo npm)
+# "steps": "sessions": the brief is steps/<k>.md on the baseline repository of its prepare.sh, one session per step.
+steps=$(jq -r '.steps // empty' "$conf" 2>/dev/null || true)
 # Final-message phrases that wait for the user (follow-up rule, protocol v1.8); `bench/scripts/waits.test.sh` checks them.
 WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when'
 # Reads a final message on stdin; true when its last non-empty line ends with "?" or its last 5 lines match WAITS.
@@ -38,6 +40,12 @@ OC_ENV="-e OPENCODE_DISABLE_CLAUDE_CODE=1 -e OPENCODE_DISABLE_EXTERNAL_SKILLS=1 
 # SCAFFOLD=1: the trial starts from the brief's skeleton workspace (bench/briefs/<brief>/scaffold/), a run of its own.
 runs=$bench/runs/$brief-$model-$effort-seed$seed$([ "${SCAFFOLD:-}" != 1 ] || echo -scaffold)
 mkdir -p "$runs"
+# Step briefs: the baseline repository is built once per run, so every trial starts from the same commit.
+if [ "$steps" = sessions ] && [ ! -d "$runs/baseline" ]; then
+  rm -rf "$runs/baseline.tmp" && "$bench/briefs/$brief/prepare.sh" "$runs/baseline.tmp" && mv "$runs/baseline.tmp" "$runs/baseline"
+fi
+# The workspace without dependencies, with its git history (step briefs: before the first step and after each step).
+snap() { tar --exclude=node_modules -czf "$1" -C "$t/workspace" .; }
 
 # SKIP_BUILD=1 uses the existing images (for parallel runners after one build).
 [ "${SKIP_BUILD:-}" = 1 ] || for arm in $arms; do
@@ -47,6 +55,7 @@ done
   echo "brief=$brief model=$model effort=$effort k=$k seed=$seed timeout=${TIMEOUT}s"
   echo "benchkeeper=$(git -C "$repo" rev-parse HEAD) dirty=$(git -C "$repo" status --porcelain | wc -l)"
   echo "host=$(uname -srm) cpu=$(nproc) mem=$(free -g | awk '/Mem/{print $2}')G $(podman --version)"
+  [ "$steps" != sessions ] || echo "baseline $(git -C "$runs/baseline" rev-parse HEAD)"
 } >> "$runs/manifest.txt"
 # A resumed run must use the same images as its first trials.
 for arm in $arms; do
@@ -112,15 +121,18 @@ for r in $(seq "$k"); do
     [ "${PHASES:-}" != 1 ] || touch "$t/log/phases"
     echo "${BK:-v1}" > "$t/bk"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
-    # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first.
+    [ "$steps" != sessions ] || { cp -a "$runs/baseline/." "$t/workspace/" && echo baseline > "$t/condition"; }
+    # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first;
+    # on a step brief's baseline only the template files the repository does not have, as a commit after the baseline.
     podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
-      sh -c '[ ! -d ~/project-template ] || [ -z "$(ls -A ~/project-template)" ] || { cp -a ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && { git diff --cached --quiet || git commit -qm "chore: project setup"; }; }' \
+      sh -c '[ ! -d ~/project-template ] || [ -z "$(ls -A ~/project-template)" ] || { cp -an ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && { git diff --cached --quiet || git commit -qm "chore: project setup"; }; }' \
       || { echo "project setup for arm $arm failed" >&2; exit 1; }
     if [ "${SCAFFOLD:-}" = 1 ]; then
       cp -a "$bench/briefs/$brief/scaffold/." "$t/workspace/" && echo scaffold > "$t/condition"
       podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
         sh -c '[ ! -d .git ] || { git add -A && git commit -qm "chore: scaffold"; }' || { echo "scaffold for arm $arm failed" >&2; exit 1; }
     fi
+    [ "$steps" != sessions ] || snap "$t/base.tar.gz"
     start=$(date +%s) && echo "$start" > "$t/start"
     # The container lives for the whole trial, so follow-up turns continue the same session; removed on any exit.
     c=bk-$$-r$r-$arm
@@ -146,12 +158,12 @@ for r in $(seq "$k"); do
       fi
       wait $!
     }
-    turn "$(cat "$bench/briefs/$brief/brief.md")"; rc=$?
     # Follow-up rule: while the agent stops without a running app, or with a final message that waits for confirmation,
     # the same fixed message, at most twice. Running means: a start script, and `npm install`, `npm run build --if-present`
     # and `npm start` serve the start page within 20 s, checked on a copy so the workspace keeps only what the agent wrote;
     # for a static brief, index.html loads from file:// without page errors (Chromium in the Playwright image, on a copy).
     runs_app() {
+      [ "$serve" != none ] || return 0
       if [ "$serve" = static ]; then
         cpy=$(mktemp -d) && tar -C "$t/workspace" --exclude=./node_modules --exclude=./.git -cf - . | tar -C "$cpy" -xf -
         # Shared label (z) on the scorer files: parallel runners mount them at the same time.
@@ -167,15 +179,40 @@ for r in $(seq "$k"); do
         kill -TERM -- -$p 2> /dev/null; sleep 1; kill -KILL -- -$p 2> /dev/null; exit $ok'
     }
     # The agent's final message waits for the user: its last line is a question, or its last lines ask for confirmation.
+    # From transcript line $from on (the current step's lines; unset: the whole transcript).
     waits() {
-      jq -Rrn '[inputs | fromjson? | if .type == "result" then .result elif .type == "text" then .part.text else empty end] | last // ""' \
-        "$t/transcript.jsonl" 2> /dev/null | waiting
+      tail -n +"$((${from:-0} + 1))" "$t/transcript.jsonl" | jq -Rrn '[inputs | fromjson? | if .type == "result" then .result elif .type == "text" then .part.text else empty end] | last // ""' \
+        2> /dev/null | waiting
     }
     n=0
+    if [ "$steps" = sessions ]; then
+      # Step briefs (steps/<k>.md): each step in a new session on the same workspace, the follow-up rule within that
+      # session. Per step in steps/<k>/: start and end, the usage reading before and after (Claude Code arms), whether the
+      # first turn's final message waited, follow-ups, the step's transcript lines, and the snapshot that the scorer checks.
+      touch "$t/transcript.jsonl"
+      for f in $(ls "$bench/briefs/$brief/steps/" | grep -E '^[0-9]+\.md$' | sort -n); do
+        [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] || break
+        s=$t/steps/${f%.md} && mkdir -p "$s"
+        [ "$rt" != claude ] || usage > "$s/usage-before"
+        a=$(wc -l < "$t/transcript.jsonl") && from=$a && date +%s > "$s/start"
+        turn "$(cat "$bench/briefs/$brief/steps/$f")"; rc=$?
+        if waits; then echo 1; else echo 0; fi > "$s/waited"
+        m=0
+        while [ "$m" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && { ! runs_app || waits; }; do
+          m=$((m + 1)); n=$((n + 1))
+          turn "$FOLLOWUP" --continue; rc=$?
+        done
+        date +%s > "$s/end" && echo "$m" > "$s/followups" && echo "$a $(wc -l < "$t/transcript.jsonl")" > "$s/lines"
+        [ "$rt" != claude ] || usage > "$s/usage-after"
+        snap "$s/repo.tar.gz"
+      done
+    else
+    turn "$(cat "$bench/briefs/$brief/brief.md")"; rc=$?
     while [ "$n" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && { ! runs_app || waits; }; do
       n=$((n + 1))
       turn "$FOLLOWUP" --continue; rc=$?
     done
+    fi
     # Iterative briefs (bench/briefs/<brief>/changes/<k>.md): score the step just finished with the hidden tests of all
     # steps so far (checkpoints/<k>/), then send the next change request in the same session, with the same follow-up
     # rule. The last step is scored like any trial (score/, every hidden test).
@@ -216,14 +253,16 @@ for r in $(seq "$k"); do
       'find /w -name .git -type d -prune | while read -r g; do git -c safe.directory="*" --git-dir="$g" cat-file --batch-all-objects --batch || exit 1; done' > "$objs" \
       || { echo "git object scan failed for $t" >&2; rm -f "$objs"; exit 1; }
     secret=${CLAUDE_CODE_OAUTH_TOKEN:-}; [ "$rt" != opencode ] || secret=$ANTHROPIC_API_KEY
-    { grep -rqF -- "$secret" "$t" || grep -aqF -- "$secret" "$objs"; } \
+    # The step briefs' snapshots are gzip: a token deleted before the end can survive only there.
+    zipped() { for f in "$t"/base.tar.gz "$t"/steps/*/repo.tar.gz; do [ -f "$f" ] && zcat "$f" | grep -aqF -- "$secret" && return 0; done; return 1; }
+    { grep -rqF -- "$secret" "$t" || grep -aqF -- "$secret" "$objs" || zipped; } \
       && { echo "token found in $t: remove it before publishing" >&2; rm -f "$objs"; exit 1; }
     rm -f "$objs"
     rm -rf "$t/score"
     "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/score" > "$t/log/score.log" 2>&1
     set -e
     podman run --rm --userns=keep-id -e HOME=/tmp -v "$repo":/repo:ro,Z -v "$t":/t:Z -w /repo "$NODE" node bench/scripts/trial.mjs /t "$arm"
-    echo "$(date -Is) round $r arm $arm done: $(jq -c '{audit: .audit.ok, features: .score.features_passed, cost: .outcome.cost_usd_api_equivalent}' "$t/trial.json")" | tee -a "$runs/manifest.txt"
+    echo "$(date -Is) round $r arm $arm done: $(jq -c '{audit: .audit.ok, features: .score.features_passed, checks: [.steps[]?.passed], cost: .outcome.cost_usd_api_equivalent}' "$t/trial.json")" | tee -a "$runs/manifest.txt"
     rm -f "$c"
   done
 done

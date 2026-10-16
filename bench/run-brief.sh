@@ -90,6 +90,7 @@ for r in $(seq "$k"); do
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
     # PHASES=1: per-phase and per-subagent measurements for this trial (bench/scripts/phases.mjs).
     [ "${PHASES:-}" != 1 ] || touch "$t/log/phases"
+    echo "${BK:-v1}" > "$t/bk"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
     # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first.
     podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \

@@ -3,7 +3,8 @@
 # Stryker's command runner reruns the suite per mutant (`npx vitest run` for vitest suites, else the `test:unit` script, else `npm test`): its vitest runner
 # reported mutants as surviving that the suites demonstrably kill. Text literals are not mutated: the score is about
 # behavior, not about whether tests pin every message's wording. No tsconfig rewriting: Stryker 10 calls a TypeScript API
-# that TypeScript 7 removed. Tests that run sources in a `vm` context get `process` there (preload below): Stryker's
+# that TypeScript 7 removed. `// @ts-nocheck` goes into TypeScript files only: in JavaScript it changes nothing but the bytes, which a test
+# comparing a generated file fails on. Tests that run sources in a `vm` context get `process` there (preload below): Stryker's
 # instrumented code reads the active mutant from `process.env`, so without it no mutant switches on and the score reads 0.
 # MUTATION_EXCLUDE: space-separated extra globs not to mutate (generated data files a test compares byte for byte).
 # Usage: bench/scorer/mutation.sh <workspace> <out-dir>   writes mutation.json (Stryker report), mutation.exit, mutation.log
@@ -28,7 +29,7 @@ podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER=
   elif has "p.scripts && p.scripts[\"test:unit\"]"; then cmd="npm run test:unit"
   elif has "p.scripts && p.scripts.test && !/no test specified/.test(p.scripts.test)"; then cmd="npm test"
   else exit 11; fi
-  extra=""; for g in $MUTATION_EXCLUDE; do extra="$extra, \"!$g\""; done
+  set -f; extra=""; for g in $MUTATION_EXCLUDE; do extra="$extra, \"!$g\""; done; set +f
   printf "%s\n" "const vm = require(\"node:vm\"), create = vm.createContext;" \
     "vm.createContext = (ctx = {}, ...rest) => { if (!(\"process\" in ctx)) ctx.process = process; return create(ctx, ...rest); };" > /tmp/vm-process.cjs
   npm install --no-save --no-audit --no-fund @stryker-mutator/core@$STRYKER > /dev/null 2>&1 || exit 12
@@ -45,7 +46,8 @@ podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER=
   "jsonReporter": { "fileName": "/out/mutation.json" },
   "concurrency": 8,
   "tempDirName": "/tmp/stryker-tmp",
-  "tsconfigFile": "/nonexistent/tsconfig.json"
+  "tsconfigFile": "/nonexistent/tsconfig.json",
+  "disableTypeChecks": "**/*.{ts,tsx,mts,cts}"
 }
 EOF
   npx stryker run /tmp/stryker.config.json || exit 13' > "$out/mutation.log" 2>&1

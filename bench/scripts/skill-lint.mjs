@@ -1,7 +1,8 @@
 // Static checks of skill collections against Anthropic's skill authoring guide (#58,
 // https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices).
 // Usage: node bench/scripts/skill-lint.mjs [--md] <collection>=<dir> ...   prints JSON, or a Markdown summary with --md.
-// Each SKILL.md under <dir> is one skill (copies for other agents under `.openclaw/` and `node_modules/` are skipped).
+// Each SKILL.md under <dir> is one skill (copies for other agents under `.openclaw/`, `.opencode/`, `.codex/`, and
+// `node_modules/` are skipped).
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -16,10 +17,11 @@ const FIRST_PERSON = /^\s*(I|I'm|I'll|You|We)\b|\bI (can|will)\b|\byou can use t
 const WHEN = /\b(use|used|invoke|invoked|trigger|triggers|run|load|apply)\b[^.]{0,60}\b(when|whenever|before|after|if|for|on|during)\b|\bwhen (the user|you|working|asked|a|an|the)\b/i;
 
 function walk(dir, out = []) {
-  for (const n of readdirSync(dir)) {
-    if (n === 'node_modules' || n === '.openclaw' || n === '.git') continue;
-    const p = join(dir, n);
-    if (statSync(p).isDirectory()) walk(p, out); else out.push(p);
+  // Symlinks are skipped: a link into the image's filesystem dangles here, and one to a parent would loop.
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isSymbolicLink() || ['node_modules', '.git', '.openclaw', '.opencode', '.codex'].includes(e.name)) continue;
+    const p = join(dir, e.name);
+    if (e.isDirectory()) walk(p, out); else if (e.isFile()) out.push(p);
   }
   return out;
 }
@@ -33,20 +35,21 @@ export function frontMatter(text) {
     const kv = /^([A-Za-z_-]+):\s*(.*)$/.exec(ls[i]); if (!kv) continue;
     let v = kv[2].trim();
     if (/^[>|][-+]?$/.test(v)) { const block = []; while (i + 1 < ls.length && /^(\s+|$)/.test(ls[i + 1])) block.push(ls[++i].trim()); v = block.join(v[0] === '>' ? ' ' : '\n').trim(); }
-    else v = v.replace(/^(["'])([\s\S]*)\1$/, '$2');
+    else { while (i + 1 < ls.length && /^\s+\S/.test(ls[i + 1])) v += ` ${ls[++i].trim()}`; v = v.replace(/^(["'])([\s\S]*)\1$/, '$2'); }
     fields[kv[1]] = v;
   }
   return { fields, body: m[2] };
 }
 
 const localLinks = (text, from) => [...text.matchAll(/\]\(([^)#\s]+\.md)(#[^)]*)?\)/g)].map((x) => x[1])
-  .filter((l) => !/^[a-z]+:/i.test(l)).map((l) => resolve(dirname(from), l)).filter((p) => existsSync(p));
+  .filter((l) => !/^[a-z]+:/i.test(l)).map((l) => resolve(dirname(from), l)).filter((p) => existsSync(p) && statSync(p).isFile());
 const hasToc = (text) => { const head = text.split('\n').slice(0, 40).join('\n');
   return /^#+\s*(contents|table of contents)\b/im.test(head) || (head.match(/^\s*[-*] \[[^\]]+\]\(#/gm) || []).length >= 3; };
 
 export function lintSkill(file) {
   const text = readFileSync(file, 'utf8'); const dir = dirname(file);
-  const { fields, body } = frontMatter(text);
+  const { fields, body: raw } = frontMatter(text);
+  const body = raw.replace(/\n+$/, '');
   const name = fields.name || dir.split('/').pop(); const desc = fields.description || '';
   const refs = walk(dir).filter((p) => p.endsWith('.md') && p !== file);
   const failed = [];
@@ -54,9 +57,12 @@ export function lintSkill(file) {
   if (!desc || desc.length > 1024) failed.push('desc-length');
   if (/<[A-Za-z/][^>]*>/.test(desc)) failed.push('desc-xml');
   if (FIRST_PERSON.test(desc)) failed.push('desc-third-person');
-  if (!WHEN.test(desc)) failed.push('desc-when');
+  // A skill only the user invokes is never picked by its description, so it needs no trigger clause.
+  if (fields['disable-model-invocation'] !== 'true' && !WHEN.test(desc)) failed.push('desc-when');
   if (body.split('\n').length > 500) failed.push('body-lines');
-  if (localLinks(body, file).some((r) => localLinks(readFileSync(r, 'utf8'), r).length)) failed.push('nested-refs');
+  // Nested: a reference that sends the reader to a further file SKILL.md does not link itself.
+  const direct = new Set([file, ...localLinks(body, file)]);
+  if ([...direct].slice(1).some((r) => localLinks(readFileSync(r, 'utf8'), r).some((n) => !direct.has(n)))) failed.push('nested-refs');
   if (refs.some((r) => { const t = readFileSync(r, 'utf8'); return t.split('\n').length > 100 && !hasToc(t); })) failed.push('ref-toc');
   // Dates inside fenced code are sample data, not time-sensitive instructions.
   if (DATED.test(body.replace(/^```[\s\S]*?^```/gm, ''))) failed.push('dated-text');

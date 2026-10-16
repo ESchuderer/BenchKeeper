@@ -16,13 +16,15 @@ test('a skill that follows the guide passes every check; the collection ships ev
   const root = mkdtempSync(join(tmpdir(), 'lint-good-'));
   skill(root, 'processing-pdfs', 'name: processing-pdfs\ndescription: "Extracts text from PDF files. Use when the user mentions PDFs."',
     'See [the guide](reference/guide.md).', { 'reference/guide.md': lines(120, '## Contents\n- Setup\n- Usage') });
-  skill(root, 'analyzing-data', 'name: analyzing-data\ndescription: Analyzes CSV files. Use when working with tabular data.', 'Short body.\n```js\nnew Date("2025-01-01");\n```');
+  skill(root, 'analyzing-data', 'name: analyzing-data\ndescription: Analyzes CSV files.\n  Use when working with tabular data.', 'Short body.\n```js\nnew Date("2025-01-01");\n```');
+  skill(root, 'running-tasks', 'name: running-tasks\ndisable-model-invocation: true\ndescription: Runs the task list.',
+    'See [a](a.md) and [b](b.md).', { 'a.md': 'Back to [SKILL.md](SKILL.md), see [b](b.md).', 'b.md': 'x' });
   mkdirSync(join(root, 'evals')); writeFileSync(join(root, 'evals', 'evals.json'), '[]');
   const c = lintCollection('good', root);
-  assert.equal(c.skills.length, 2);
+  assert.equal(c.skills.length, 3);
   for (const s of c.skills) assert.deepEqual(s.failed, [], `${s.name}: ${s.failed}`);
   assert.equal(c.evals, true);
-  assert.equal(c.naming, 'gerund 2 of 2');
+  assert.equal(c.naming, 'gerund 3 of 3');
 });
 
 test('each guide violation fails exactly its check', () => {

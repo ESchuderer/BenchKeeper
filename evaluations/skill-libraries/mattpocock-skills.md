@@ -20,6 +20,10 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 - One user moved to agent-skills for team work and keeps Matt's for brainstorming.
 - Another uses only those Matt and Anthropic skills that agent-skills lacks (grill-me, handoff, prototype, teach, writing-for-agents).
 
+## Skill authoring check
+
+Rank 3 of 8, review 3.4, static checks 99% (1.3.1): short bodies, strong examples; `block-dangerous-git.sh` allows every command when `jq` is missing; two names contain "claude"; no evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+
 ## Decision
 
 Not in: overlaps agent-skills (tdd, code-review, to-spec, to-tickets, diagnosing-bugs, grill-me); no evidence either way.

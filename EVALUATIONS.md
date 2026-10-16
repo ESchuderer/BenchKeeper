@@ -85,7 +85,7 @@ Components considered for BenchKeeper, the evidence found for each, and whether 
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Skill authoring guide (Anthropic)](evaluations/practices/skill-authoring.md) | In | BenchKeeper skills checked 2026-10-16: gerund names, third-person descriptions, no dated text; own skills have no evaluations yet (#36) |
+| [Skill authoring guide (Anthropic)](evaluations/practices/skill-authoring.md) | In | all 8 benchmarked collections ranked 2026-10-16 (#58, `bench/results/2026-10-16-skill-authoring.md`): Ponytail 3.9 first, Spec Kit 2.8 last; only agent-skills ships evaluations |
 | [Project summary and layout in AGENTS.md](evaluations/practices/agents-md-overviews.md) | Not in | context files raised cost over 20%, no success gain, arXiv 2602.11988 |
 
 Also checked, no evidence found (independent or vendor), no file: BMAD Method (qualitative session log only, [bmad_benchmarking](https://github.com/addi-katzav/bmad_benchmarking)), gstack, oh-my-claudecode, SuperClaude, compound-engineering, wshobson/agents (one judge-only test without baseline, [#632](https://github.com/wshobson/agents/issues/632)), Taskmaster AI, Anthropic feature-dev and code-review plugins, last30days-skill, Agent-Reach (credential and supply chain issues: [#412](https://github.com/Panniantong/Agent-Reach/issues/412), [#547](https://github.com/Panniantong/Agent-Reach/issues/547)).

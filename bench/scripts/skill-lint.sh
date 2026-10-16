@@ -9,8 +9,9 @@ NODE=docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869
 mkdir -p "$out"
 for arm in B F G H V AB AC; do
   mkdir -p "$x/$arm"
-  podman run --rm "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sh -c 'cd "$HOME" && find .claude project-template/.claude -name SKILL.md 2>/dev/null \
-    | xargs -r -n1 dirname | sort -u | tar -c --exclude="*/node_modules/*" -T -' | tar -x -C "$x/$arm"
+  # Whole plugin folders, so evaluations and shared references next to `skills/` count; the template's `.specify/` too.
+  podman run --rm "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sh -c 'cd "$HOME" && ls -d .claude/plugins/cache .claude/skills project-template/.claude \
+    project-template/.specify 2>/dev/null | tar -c --exclude="*/node_modules/*" --exclude="*/.git/*" -T -' | tar -x -C "$x/$arm"
 done
 cp -r "$repo/skills" "$x/BK"
 set -- agent-skills=/x/F/.claude/plugins/cache/addy-agent-skills/agent-skills/0.6.13 \

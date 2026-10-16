@@ -8,7 +8,7 @@
 
 ## Independent evidence
 
-- [Repowise](https://repowise.dev/blog/comparisons/serena-vs-graphify-vs-codegraph-vs-repowise) (competitor-run; Codex, gpt-5.6-sol, 43 Django questions; Serena 1.6.2.dev0, codegraph 1.5.0, graphify 0.9.31): output tokens Serena -14.8% (p<0.0001), codegraph -24.4% (p<0.0001), graphify -8.9% (p=0.003); accuracy not measured.
+- [Repowise](https://repowise.dev/blog/comparisons/serena-vs-graphify-vs-codegraph-vs-repowise) (competitor-run; Codex, gpt-5.6-sol, 43 Django questions; codegraph 1.5.0): output tokens -24.4% (p<0.0001); same run: Serena -14.8%, graphify -8.9%; accuracy not measured.
 - [samchon](https://dev.to/samchon/i-made-ts-compiler-graph-mcp-10x-fewer-tokens-in-claude-code-1aea) (competitor-run, ships @ttsc/graph; Claude Code and Codex, 4 models, 8 repositories): +22 to +27% tokens versus no MCP on zod; worst cells codegraph +47%, Serena +93%.
 - Metrics differ: Repowise counts output tokens, samchon total tokens.
 - Research systems with a built-in code graph report gains ([LocAgent](https://arxiv.org/abs/2503.09089): +12% issue resolution at Pass@10; [RepoGraph](https://arxiv.org/abs/2410.14684)), but they change the agent itself; neither tests an add-on MCP tool.

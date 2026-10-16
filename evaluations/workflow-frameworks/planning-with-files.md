@@ -5,9 +5,6 @@
 ## Advertised
 
 - 96.7% eval pass, resume in 5.0 vs 13.3 turns.
-
-## Vendor evidence
-
 - Vendor only: 96.7% is format compliance; in its outcome runs every arm, including no planning, passed 77/77 ([evals](https://github.com/OthmanAdi/planning-with-files/blob/master/docs/evals.md)).
 
 ## Decision

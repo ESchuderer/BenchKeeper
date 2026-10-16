@@ -1,6 +1,6 @@
 # mattpocock/skills
 
-[Repository](https://github.com/mattpocock/skills), Category: skill libraries, Checked 2026-10-14, Decision: Not in
+[Repository](https://github.com/mattpocock/skills), Category: skill libraries, Checked 2026-10-16, Decision: Not in
 
 ## Advertised
 

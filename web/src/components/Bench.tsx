@@ -1,10 +1,6 @@
-import {
-  ActionIcon, Anchor, Badge, Box, Button, Card, Container, Group, MantineProvider, NativeSelect, SimpleGrid, Stack, Table, Text,
-  TextInput, Title, createTheme,
-} from '@mantine/core';
+import { ActionIcon, Anchor, Box, Button, Container, Group, MantineProvider, Stack, Table, Text, Title, createTheme } from '@mantine/core';
 import { IconArrowLeft, IconBrandGithub, IconMoon, IconSun } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
-import { methodLabel } from '../../scripts/bench-data.mjs';
 
 const theme = createTheme({
   primaryColor: 'teal',
@@ -16,37 +12,6 @@ const theme = createTheme({
 });
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
-const CRITERIA: [string, string][] = [
-  ['requirements', 'Requirements'], ['correctness', 'Correctness'], ['security', 'Security'], ['code_quality', 'Code quality'],
-  ['tests', 'Tests'], ['ux_design', 'UX and design'], ['accessibility', 'Accessibility'], ['simplicity', 'Simplicity'],
-  ['maintainability', 'Maintainability'], ['visual_design', 'Visual design'], ['layout', 'Layout'], ['usability', 'Usability'], ['reception', 'Reception'],
-];
-const PAGES: Record<string, string> = { start: 'Start page', form: 'Booking form', confirmation: 'Confirmation', staff: 'Staff page' };
-
-export type Shot = { page: string; thumb: string; width: number; height: number; full: string };
-export type Trial = {
-  key: string; brief: string; model: string; runtime: string; arm: string; setup: string; framework: string; spec: string;
-  bk: boolean; ponytail: boolean; features: number | null; robustness: number | null; followups: number; minutes: number;
-  testsFirst: boolean; reviewStep: boolean; overall: number | null; scores: Record<string, number>; verdict: string;
-  method: { protocol: string | null; tests: string | null; criteria: number | null; bk: string };
-  strengths: string[]; issues: string[]; shots: Shot[];
-};
-
-const slug = (k: string) => `trial-${k.replace(/[^a-zA-Z0-9]+/g, '-')}`;
-const yesNo = (b: boolean) => (b ? 'yes' : 'no');
-const values = (ts: Trial[], f: (t: Trial) => string) => [...new Set(ts.map(f))].sort();
-
-function Filter({ name, label, options }: { name: string; label: string; options: string[] }) {
-  return <NativeSelect name={name} label={label} data={[{ value: '', label: 'All' }, ...options]} size="sm" />;
-}
-
-function SortHead({ k, children }: { k: string; children: string }) {
-  return (
-    <Table.Th>
-      <button type="button" className="sort" data-sort={k}>{children}</button>
-    </Table.Th>
-  );
-}
 
 export function BenchShell({ base, children }: { base: string; children: ReactNode }) {
   return (
@@ -79,149 +44,92 @@ export function BenchShell({ base, children }: { base: string; children: ReactNo
   );
 }
 
-export type Brief = { id: string; summary: string; trials: number; arms: number; runtimes: string[]; models: string[]; dates: string[]; methods: { label: string; count: number }[]; reports: string[] };
+export type Row = { key: string; arm: string; setup: string; rank: number; features: number | null; robustness: number | null; overall: number | null; minutes: number };
+export type Run = {
+  run: string; brief: string; model: string; effort: string; k: string; date: string; report: string | null; protocols: string[];
+  featuresOf: number | null; robustnessOf: number | null;
+  groups: { runtime: string; criteria: number[]; rows: Row[] }[];
+};
+export type Notes = { briefs: Record<string, string>; runs: Record<string, { protocol?: string; findings: string[] }>; reports: { file: string; title: string; summary: string }[] };
 
-function Methods({ brief }: { brief: Brief }) {
-  return (
-    <Text size="sm" c="dimmed" mt="xs">
-      Testing method: {brief.methods.map((m, i) => <span key={m.label}>{i > 0 && '; '}{m.label}{brief.methods.length > 1 && ` (${m.count} trials)`}</span>)}
-    </Text>
-  );
-}
+const plain = (setup: string) => (setup === 'plain' ? 'no add-ons' : setup.replace(/^BK\b/, 'BenchKeeper layer'));
+const score = (n: number | null, of: number | null) => (n == null || of == null ? 'n/a' : `${n}/${of}`);
 
-export function BenchIndex({ base, briefs }: { base: string; briefs: Brief[] }) {
+export default function BenchSummary({ base, runs, notes }: { base: string; runs: Run[]; notes: Notes }) {
   return (
     <BenchShell base={base}>
       <Stack gap="xs" maw={820} mb="xl">
         <Anchor href={`${base}/`} size="sm" underline="hover"><Group gap={4} component="span"><IconArrowLeft size={14} />Back to BenchKeeper</Group></Anchor>
-        <Title order={1} fz={{ base: 32, md: 44 }}>Benchmark database</Title>
+        <Title order={1} fz={{ base: 32, md: 44 }}>Benchmarks</Title>
         <Text c="dimmed" size="lg">
-          Method: <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>; results and costs: <Anchor href={`${REPO}/tree/main/bench/results`}>bench/results</Anchor>.
+          A summary of each published run. Full results, per-trial data and method: the linked Markdown reports and
+          the <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>.
+        </Text>
+        <Text c="dimmed">
+          Features and robustness are hidden tests passed; review is a blind rating from 1 to 10 by Claude Opus 5.5.
+          Ranked by review, then features, robustness and fewer minutes. The BenchKeeper layer includes Ponytail.
         </Text>
       </Stack>
-      <Title order={2} mb="md">Briefs</Title>
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-        {briefs.map((b) => (
-          <Card key={b.id} withBorder padding="lg" className="lift linked">
-            <Anchor href={`${base}/bench/${b.id}/`} fw={700} fz="lg" className="stretched" underline="hover">{b.id}</Anchor>
-            <Text size="sm" mt="xs">{b.summary}</Text>
-            <Text size="sm" c="dimmed" mt="sm">
-              {b.trials} trials, {b.arms} arms; {b.runtimes.join(' and ')}; {b.models.join(' and ')}; run {b.dates.join(', ')}
+
+      {runs.map((r) => {
+        const note = notes.runs[r.run];
+        const protocol = r.protocols.join(', ') || note?.protocol || 'not recorded';
+        return (
+          <Box component="section" key={r.run} aria-labelledby={`run-${r.run}`} mb={56}>
+            <Title order={2} id={`run-${r.run}`}>{r.brief}, {r.model}</Title>
+            {notes.briefs[r.brief] && <Text mt="xs">{notes.briefs[r.brief]}</Text>}
+            <Text size="sm" c="dimmed" mt="xs">
+              Model {r.model}, effort {r.effort}, k = {r.k} (trials per arm), protocol {protocol}, run {r.date}.
             </Text>
-            <Methods brief={b} />
-          </Card>
-        ))}
-      </SimpleGrid>
-    </BenchShell>
-  );
-}
-
-export default function Bench({ base, brief, trials }: { base: string; brief: Brief; trials: Trial[] }) {
-  const attrs = (t: Trial, i: number) => ({
-    'data-runtime': t.runtime, 'data-model': t.model, 'data-framework': t.framework, 'data-spec': t.spec,
-    'data-bk': yesNo(t.bk), 'data-ponytail': yesNo(t.ponytail), 'data-key': t.key,
-    'data-text': [t.arm, t.setup, t.framework, t.spec, t.model, t.runtime, t.verdict].join(' ').toLowerCase(),
-    'data-order': i, 'data-features': t.features ?? -1, 'data-robustness': t.robustness ?? -1, 'data-overall': t.overall ?? -1,
-    'data-followups': t.followups, 'data-minutes': t.minutes,
-  });
-  return (
-    <BenchShell base={base}>
-          <Stack gap="xs" maw={820} mb="xl">
-            <Anchor href={`${base}/bench/`} size="sm" underline="hover"><Group gap={4} component="span"><IconArrowLeft size={14} />All briefs</Group></Anchor>
-            <Title order={1} fz={{ base: 32, md: 44 }}>Brief {brief.id}</Title>
-            <Text size="lg">{brief.summary}</Text>
-            <Text c="dimmed">
-              BK is the BenchKeeper layer, which includes Ponytail. Brief: <Anchor href={`${REPO}/blob/main/bench/briefs/${brief.id}/brief.md`}>brief.md</Anchor>
-              {brief.reports.map((r) => <span key={r}>; report: <Anchor href={`${REPO}/blob/main/bench/results/${r}`}>{r}</Anchor></span>)}.
-            </Text>
-            <Methods brief={brief} />
-          </Stack>
-
-          <form data-filters hidden className="filters" aria-label="Filter trials">
-            <SimpleGrid cols={{ base: 2, sm: 4, lg: 7 }} spacing="sm">
-              <Filter name="runtime" label="Runtime" options={values(trials, (t) => t.runtime)} />
-              <Filter name="model" label="Model" options={values(trials, (t) => t.model)} />
-              <Filter name="framework" label="Framework" options={values(trials, (t) => t.framework)} />
-              <Filter name="spec" label="Spec tool" options={values(trials, (t) => t.spec)} />
-              <Filter name="bk" label="BK layer" options={['yes', 'no']} />
-              <Filter name="ponytail" label="Ponytail" options={['yes', 'no']} />
-              <TextInput name="q" type="search" label="Search" size="sm" />
-            </SimpleGrid>
-            <Group mt="sm" gap="sm">
-              <Button type="reset" variant="default" size="xs">Reset</Button>
-              <Text size="sm" c="dimmed" data-count aria-live="polite">{trials.length} trials</Text>
-            </Group>
-          </form>
-
-          <Table.ScrollContainer minWidth={1100} mt="lg">
-            <Table striped highlightOnHover verticalSpacing="xs" fz="sm">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Arm</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Runtime</Table.Th><Table.Th>Model</Table.Th>
-                  <SortHead k="features">Features</SortHead><SortHead k="robustness">Robustness</SortHead><SortHead k="overall">Review</SortHead>
-                  <SortHead k="followups">Follow-ups</SortHead><SortHead k="minutes">Minutes</SortHead>
-                  <Table.Th>Tests first</Table.Th><Table.Th>Review step</Table.Th><Table.Th>Start page</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody data-rows>
-                {trials.map((t, i) => (
-                  <Table.Tr key={t.key} data-trial-row {...attrs(t, i)}>
-                    <Table.Td><Anchor href={`#${slug(t.key)}`} fw={700}>{t.arm}</Anchor></Table.Td>
-                    <Table.Td>{t.setup}</Table.Td><Table.Td>{t.runtime}</Table.Td><Table.Td>{t.model}</Table.Td>
-                    <Table.Td>{t.features == null ? 'n/a' : `${t.features}/6`}</Table.Td>
-                    <Table.Td>{t.robustness == null ? 'n/a' : `${t.robustness}/12`}</Table.Td>
-                    <Table.Td>{t.overall ?? 'n/a'}</Table.Td><Table.Td>{t.followups}</Table.Td><Table.Td>{t.minutes}</Table.Td>
-                    <Table.Td>{yesNo(t.testsFirst)}</Table.Td><Table.Td>{yesNo(t.reviewStep)}</Table.Td>
-                    <Table.Td>
-                      {t.shots[0] ? (
-                        <a href={t.shots[0].full}><img src={t.shots[0].thumb} alt={`Start page, arm ${t.arm}, ${t.runtime}, ${t.model}`} width={96} height={Math.round(96 * t.shots[0].height / t.shots[0].width)} className="thumb" loading="lazy" /></a>
-                      ) : 'none'}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-
-          <Title order={2} mt={56} mb="md">Trials</Title>
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" data-cards>
-            {trials.map((t) => (
-              <Card key={t.key} withBorder padding="lg" id={slug(t.key)} data-card={t.key}>
-                <Group justify="space-between" align="flex-start" wrap="nowrap">
-                  <Title order={3} fz="lg">Arm {t.arm}: {t.setup}</Title>
-                  <Badge variant="filled" size="lg" style={{ flexShrink: 0 }}>{t.overall ?? 'n/a'}/10</Badge>
-                </Group>
-                <Text size="sm" c="dimmed">{t.runtime}, {t.model}</Text>
-                <Text size="sm" mt="xs">
-                  Features {t.features == null ? 'n/a' : `${t.features}/6`}, robustness {t.robustness == null ? 'n/a' : `${t.robustness}/12`}, follow-ups {t.followups}, {t.minutes} minutes,
-                  tests first {yesNo(t.testsFirst)}, review step {yesNo(t.reviewStep)}
+            {r.groups.map((g) => (
+              <Box key={g.runtime} mt="lg">
+                <Title order={3} fz="lg">{g.runtime}</Title>
+                <Text size="sm" c="dimmed">
+                  {g.rows.length} arms; review with {g.criteria.join(' or ') || 'no'} criteria.
                 </Text>
-                {t.shots.length > 0 && (
-                  <SimpleGrid cols={4} spacing={6} mt="sm">
-                    {t.shots.map((s) => (
-                      <a key={s.page} href={s.full}>
-                        <img src={s.thumb} alt={`${PAGES[s.page] || s.page}, arm ${t.arm}, ${t.runtime}, ${t.model}`} width={s.width} height={s.height} className="thumb" loading="lazy" />
-                      </a>
-                    ))}
-                  </SimpleGrid>
-                )}
-                {t.verdict && <Text size="sm" mt="sm">{t.verdict}</Text>}
-                <Text size="xs" c="dimmed" mt="xs">Testing method: {methodLabel(t.method)}</Text>
-                <details className="more">
-                  <summary>Ratings, strengths and issues</summary>
-                  <Table fz="xs" mt="xs" verticalSpacing={2}>
+                <Table.ScrollContainer minWidth={640} type="native" mt="xs" tabIndex={0} role="region" aria-label={`${r.brief}, ${r.model}, ${g.runtime}: ranked arms`}>
+                  <Table striped verticalSpacing={4} fz="sm">
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Rank</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Features</Table.Th>
+                        <Table.Th>Robustness</Table.Th><Table.Th>Review</Table.Th><Table.Th>Minutes</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
                     <Table.Tbody>
-                      {CRITERIA.filter(([k]) => k in t.scores).map(([k, l]) => (
-                        <Table.Tr key={k}><Table.Td>{l}</Table.Td><Table.Td>{t.scores[k]}/5</Table.Td></Table.Tr>
+                      {g.rows.map((t) => (
+                        <Table.Tr key={t.key}>
+                          <Table.Td>{t.rank}</Table.Td><Table.Td>{t.arm}</Table.Td><Table.Td>{plain(t.setup)}</Table.Td>
+                          <Table.Td>{score(t.features, r.featuresOf)}</Table.Td><Table.Td>{score(t.robustness, r.robustnessOf)}</Table.Td>
+                          <Table.Td>{t.overall ?? 'n/a'}</Table.Td><Table.Td>{t.minutes}</Table.Td>
+                        </Table.Tr>
                       ))}
                     </Table.Tbody>
                   </Table>
-                  {t.strengths.length > 0 && (<><Text size="sm" fw={700} mt="sm">Strengths</Text><ul className="list">{t.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></>)}
-                  {t.issues.length > 0 && (<><Text size="sm" fw={700} mt="sm">Issues</Text><ul className="list">{t.issues.map((s, i) => <li key={i}>{s}</li>)}</ul></>)}
-                </details>
-              </Card>
+                </Table.ScrollContainer>
+              </Box>
             ))}
-          </SimpleGrid>
+            {note?.findings.length ? (
+              <>
+                <Title order={3} fz="lg" mt="lg">Key findings</Title>
+                <ul className="list">{note.findings.map((f) => <li key={f}>{f}</li>)}</ul>
+              </>
+            ) : null}
+            {r.report && (
+              <Text mt="md">Full report: <Anchor href={`${REPO}/blob/main/bench/results/${r.report}`}>{r.report}</Anchor></Text>
+            )}
+          </Box>
+        );
+      })}
+
+      <Title order={2} mb="md">Other reports</Title>
+      <Stack gap="md" maw={820}>
+        {notes.reports.map((x) => (
+          <div key={x.file}>
+            <Anchor href={`${REPO}/blob/main/bench/results/${x.file}`} fw={700}>{x.title}</Anchor>
+            <Text size="sm" mt={4}>{x.summary}</Text>
+          </div>
+        ))}
+      </Stack>
     </BenchShell>
   );
 }

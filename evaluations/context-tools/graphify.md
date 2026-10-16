@@ -8,7 +8,7 @@
 
 ## Independent evidence
 
-- [Repowise](https://repowise.dev/blog/comparisons/serena-vs-graphify-vs-codegraph-vs-repowise) (competitor-run; Codex, gpt-5.6-sol, 43 Django questions; Serena 1.6.2.dev0, codegraph 1.5.0, graphify 0.9.31): output tokens Serena -14.8% (p<0.0001), codegraph -24.4% (p<0.0001), graphify -8.9% (p=0.003); accuracy not measured.
+- [Repowise](https://repowise.dev/blog/comparisons/serena-vs-graphify-vs-codegraph-vs-repowise) (competitor-run; Codex, gpt-5.6-sol, 43 Django questions; graphify 0.9.31): output tokens -8.9% (p=0.003); same run: Serena -14.8%, codegraph -24.4%; accuracy not measured.
 
 ## User reports
 

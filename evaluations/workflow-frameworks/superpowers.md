@@ -1,12 +1,13 @@
 # Superpowers
 
-[Repository](https://github.com/obra/superpowers), Category: workflow frameworks, Checked 2026-10-14, Decision: Not in yet (arm D in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19))
+[Repository](https://github.com/obra/superpowers), Category: workflow frameworks, Checked 2026-10-16, Decision: Not in yet (arm D in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19))
 
 ## Advertised
 
 - v6 [release](https://github.com/obra/superpowers/releases/tag/v6.0.0): "roughly twice as fast", "almost 50% fewer tokens"; author evals, baseline not named.
 - v6 [blog](https://blog.fsck.com/2026/06/15/Superpowers-6/): "up to 50% faster", "up to 60% cheaper"; baseline not named.
 - v7 makes no token or time claim.
+- The maintainer's eval lab measures workflow compliance, not task outcomes ([superpowers-evals](https://github.com/prime-radiant-inc/superpowers-evals)).
 
 ## Independent evidence
 
@@ -20,10 +21,6 @@
 - [skill-receipts audit #5](https://github.com/sjh9714/skill-receipts/blob/main/docs/audits/superpowers-debugging-620.md) (version comparison, v6.2.0 vs v6.1.1): cost -7.9% (CI -12.4 to +1.7), accuracy 20/20 both.
 - One blogger, 6 tasks, 1 run: cost -9% ([mejba.me](https://www.mejba.me/blog/superpowers-plugin-claude-code-review)).
 - One web-app task, 1 run per arm, author-judged: Superpowers about 250K tokens and 60 min, vanilla Claude Code about 200K and 20 min ([Chase AI](https://www.chaseai.io/blog/gsd-vs-superpowers-vs-claude-code); see [GSD](gsd.md)).
-
-## Vendor evidence
-
-- The maintainer's eval lab measures workflow compliance, not task outcomes ([superpowers-evals](https://github.com/prime-radiant-inc/superpowers-evals)).
 
 ## User reports
 

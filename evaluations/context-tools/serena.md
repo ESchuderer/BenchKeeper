@@ -9,7 +9,7 @@
 ## Independent evidence
 
 - Run by the author of a competing tool (Claude Code, Opus 4.7, runs not stated): quality 83.4% vs 84.2% without, tokens 14,800 vs 12,716, time 191 vs 185 s ([dev.to](https://dev.to/luuuc/how-do-you-benchmark-an-mcp-server-you-built-2e8j)).
-- [Repowise](https://repowise.dev/blog/comparisons/serena-vs-graphify-vs-codegraph-vs-repowise) (competitor-run; Codex, gpt-5.6-sol, 43 Django questions; Serena 1.6.2.dev0, codegraph 1.5.0, graphify 0.9.31): output tokens Serena -14.8% (p<0.0001), codegraph -24.4% (p<0.0001), graphify -8.9% (p=0.003); accuracy not measured.
+- [Repowise](https://repowise.dev/blog/comparisons/serena-vs-graphify-vs-codegraph-vs-repowise) (competitor-run; Codex, gpt-5.6-sol, 43 Django questions; Serena 1.6.2.dev0): output tokens -14.8% (p<0.0001); same run: codegraph -24.4%, graphify -8.9%; accuracy not measured.
 - [samchon](https://dev.to/samchon/i-made-ts-compiler-graph-mcp-10x-fewer-tokens-in-claude-code-1aea) (competitor-run, ships @ttsc/graph; Claude Code and Codex, 4 models, 8 repositories): +22 to +27% tokens versus no MCP on zod; worst cells codegraph +47%, Serena +93%; Serena median 0 to 1 MCP calls.
 - Metrics differ: Repowise counts output tokens, samchon total tokens.
 

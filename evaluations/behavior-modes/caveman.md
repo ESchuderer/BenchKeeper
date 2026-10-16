@@ -1,6 +1,6 @@
 # caveman
 
-[Repository](https://github.com/JuliusBrussee/caveman), Category: behavior modes, Checked 2026-10-14, Decision: Not in, never part of BenchKeeper
+[Repository](https://github.com/JuliusBrussee/caveman), Category: behavior modes, Checked 2026-10-16, Decision: Not in, never part of BenchKeeper
 
 ## Advertised
 

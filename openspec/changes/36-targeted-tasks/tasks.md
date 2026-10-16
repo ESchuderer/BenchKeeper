@@ -5,7 +5,7 @@
 - [x] 1.1 Shared harness `bench/briefs/skill-common/` (baseline, check runner, suite, validator library)
 - [x] 1.2 Plan, specify, develop: `skill-plan-ttl`, `skill-specify-monthly`, `skill-develop-duration`
 - [x] 1.3 Test, debug, review, ship: `skill-test-shipping`, `skill-debug-discount`, `skill-review-download`, `skill-ship-release`
-- [x] 1.4 Every `validate.sh` passes; reference scored with a project template overlaid (arms C, AA)
+- [x] 1.4 Every `validate.sh` passes; every reference scored with the project template of arms C and AA committed on top
 - [x] 1.5 Toggle design (`design.md`), `bench/PROTOCOL.md` 1.14
 
 ## 2. Toggle (later change, after the owner's answers)

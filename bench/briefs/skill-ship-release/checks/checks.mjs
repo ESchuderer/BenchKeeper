@@ -3,7 +3,7 @@
 // take the version from package.json, so a consistent release with another version fails only S1-version.
 import assert from 'node:assert/strict';
 
-const LINKS = 'https://github.com/example/unitconv';
+const LINKS = 'https://git.example.com/unitconv';
 const pkg = (t) => JSON.parse(t.read('package.json'));
 const git = (t, args) => t.sh(`git -c safe.directory='*' ${args}`);
 

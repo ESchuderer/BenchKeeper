@@ -32,7 +32,7 @@ All notable changes to this project are documented in this file. The format is b
 
 - `--precision` option of the command line tool.
 
-[Unreleased]: https://github.com/example/unitconv/compare/v2.0.0...HEAD
-[2.0.0]: https://github.com/example/unitconv/compare/v1.2.0...v2.0.0
-[1.2.0]: https://github.com/example/unitconv/compare/v1.1.0...v1.2.0
-[1.1.0]: https://github.com/example/unitconv/releases/tag/v1.1.0
+[Unreleased]: https://git.example.com/unitconv/compare/v2.0.0...HEAD
+[2.0.0]: https://git.example.com/unitconv/compare/v1.2.0...v2.0.0
+[1.2.0]: https://git.example.com/unitconv/compare/v1.1.0...v1.2.0
+[1.1.0]: https://git.example.com/unitconv/releases/tag/v1.1.0

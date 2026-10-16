@@ -2,10 +2,12 @@
 import { test, expect } from '@playwright/test';
 import { book, confirmed, field, seatsLeft, signIn, submit } from './helpers.mjs';
 
-// The booking reference: a token of the confirmation that the staff list also shows next to the booking's email.
+// The booking reference: a token of the confirmation that the staff list also shows in the booking's row (the deepest
+// element with the email and a Cancel button, as in F6).
 async function reference(page, email, confirmation) {
   await signIn(page);
-  const row = (await page.locator('body *').filter({ hasText: email }).last().innerText()).trim();
+  const cancel = page.getByRole('button', { name: 'Cancel' });
+  const row = (await page.locator('body *').filter({ hasText: email }).filter({ has: cancel }).last().innerText()).trim();
   const tokens = row.split(/[\s,;:()|]+/).map((t) => t.replace(/[.#]+$/, '').replace(/^#/, ''))
     .filter((t) => t.length >= 4 && /\d/.test(t) && !t.includes('@') && confirmation.includes(t));
   expect(tokens.length, `a reference shared by the confirmation and the staff row: ${row}`).toBeGreaterThan(0);

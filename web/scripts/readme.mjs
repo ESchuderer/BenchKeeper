@@ -13,6 +13,7 @@ const link = (name, url) => `[${cell(name)}](${url.replace(/\|/g, '%7C')})`;
 
 const blocks = {
   description: [facts.description],
+  core: [`**Built on [${facts.core.name}](${facts.core.url}) by ${facts.core.by}:** ${facts.core.role}.`],
   prerequisites: [
     '| Tool | Needed for |',
     '|---|---|',

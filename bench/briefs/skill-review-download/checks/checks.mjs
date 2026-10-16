@@ -39,7 +39,12 @@ export default {
   },
   'S1-missing': async (t) => {
     const get = await serve(t);
-    for (const p of ['/files/nope.txt', '/files/sub', '/files/']) assert.equal((await get(p)).status, 404, p);
+    assert.equal((await get('/files/nope.txt')).status, 404, 'missing file');
+    // A directory is no attachment: any client error (404, 400, 403, ...).
+    for (const p of ['/files/sub', '/files/']) {
+      const { status } = await get(p);
+      assert.ok(status >= 400 && status < 500, `${p}: status ${status}`);
+    }
     await alive(get);
     return true;
   },

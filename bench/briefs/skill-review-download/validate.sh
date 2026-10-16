@@ -14,3 +14,5 @@ m prefix-check S1-traversal
 m no-stat S1-missing
 m no-decode-guard S1-encoding
 m health-changed S1-regressions
+# Another valid fix (variants/directory-403/: 403 for a directory) passes.
+case_ directory-403 "" "cp -a /brief/variants/directory-403/. ."

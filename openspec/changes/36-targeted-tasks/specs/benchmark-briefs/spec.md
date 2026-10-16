@@ -7,11 +7,11 @@ The benchmark SHALL have at least one targeted task for each phase (plan, specif
 #### Scenario: Offline scoring
 
 - **WHEN** a targeted task's checks score a workspace
-- **THEN** every check runs in a container without network and writes `ok` true, false or null
+- **THEN** every check runs in a container without network, without the task's references and mutants mounted, and writes `ok` true, false or null
 
 ### Requirement: Targeted task checks validated
 
-Each targeted task's `validate.sh` SHALL show that the baseline fails the task's checks, the reference passes every check and the repository's suite, and each mutant of the reference fails exactly the checks it names.
+Each targeted task's `validate.sh` SHALL show that the baseline fails the task's checks, the reference and each listed alternative valid solution pass every check, the reference passes the repository's suite, and each mutant fails exactly the checks it names.
 
 #### Scenario: Validation
 

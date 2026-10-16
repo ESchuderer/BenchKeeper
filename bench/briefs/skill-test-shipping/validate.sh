@@ -28,3 +28,5 @@ case_ no-zero-weight S1-kill-zero-weight "R $t '  assert.throws(() => cost({ wei
 ' ''"
 case_ red-tests "S1-green,$all" "R $t 'assert.equal(cost({ weight: 1000 }), 490);' 'assert.equal(cost({ weight: 1000 }), 491);'"
 case_ src-edited S1-src-unchanged "R src/shipping.js 'const STEP = 500;' 'const STEP = 500; // grams'"
+# Tests that hang when the source changes (mutants/hang-on-mutant/) are no kill: the time limit fails every kill check.
+case_ hang-on-mutant "$all" "cp -a /brief/mutants/hang-on-mutant/. ."

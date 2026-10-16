@@ -5,13 +5,14 @@
 - [x] 1.1 Shared harness `bench/briefs/skill-common/` (baseline, check runner, suite, validator library)
 - [x] 1.2 Plan, specify, develop: `skill-plan-ttl`, `skill-specify-monthly`, `skill-develop-duration`
 - [x] 1.3 Test, debug, review, ship: `skill-test-shipping`, `skill-debug-discount`, `skill-review-download`, `skill-ship-release`
-- [x] 1.4 Every `validate.sh` passes; every reference scored with the project template of arms C and AA committed on top
-- [x] 1.5 Toggle design (`design.md`), `bench/PROTOCOL.md` 1.14
+- [x] 1.4 Every `validate.sh` passes, valid variants included; every reference scored with the project template of arms C and AA committed on top
+- [x] 1.5 Review fixes: hidden files on stdin, not mounted; debug checks through public entry points on baseline fixtures; time limits are no kills; content-based changelog and version checks
+- [x] 1.6 Toggle design (`design.md`), `bench/PROTOCOL.md` 1.14
 
 ## 2. Toggle (later change, after the owner's answers)
 
 - [ ] 2.1 `<arm>~<skill>` in `bench/run-brief.sh`: base image, removal in the container and before the project setup commit, `without` file
-- [ ] 2.2 Audit in `bench/scripts/trial.mjs`: the removed skill absent, the other markers present (with tests)
+- [ ] 2.2 Audit in `bench/scripts/trial.mjs`: the removed skill absent from `skills`, `slash_commands`, `agents` (with or without plugin prefix) and from files under `$HOME/.claude` and the project; the other markers present (with tests)
 - [ ] 2.3 Skill list per task in `brief.json`, confirmed by the owner
 
 ## 3. Runs (later, need the subscription)

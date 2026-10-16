@@ -1,8 +1,11 @@
-// Runs a targeted task's checks (/brief/checks/checks.mjs: an object of id to async check) on /ws, each in its own
-// process on its own copy of /ws, 120 s each; prints {"checks":[{id, ok, detail}]}. A check returns true, false, null
-// (not checkable) or {ok, detail}; a throw or a time-out is ok false. S1-regressions is added to every task (after its
-// own checks): the baseline's test files (/base), copied over the workspace's, pass.
-// Usage (in the container of checks.sh): node /common/run.mjs [id]
+// Runs a targeted task's checks (/checks.mjs: an object of id to async check) on /ws, each in its own process on its own
+// copy of /ws, 120 s each; prints {"checks":[{id, ok, detail}]}. A check returns true, false, null (not checkable) or
+// {ok, detail}; a throw or a time-out is ok false. S1-regressions is added to every task (after its own checks): the
+// baseline's test files (/base), copied over the workspace's, pass.
+// Hidden files the checks write into the workspace (checks/mutants/) are not mounted: checks.sh sends them on stdin as
+// JSON, and each check's process gets them on its stdin (`t.hidden`), so the agent's code finds them on disk only where
+// a check puts them. The baseline (/base) is mounted: it is the repository the agent started from.
+// Usage (in the container of checks.sh): node /common/run.mjs [id] < hidden.json
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -17,12 +20,15 @@ const testFiles = (root, dir = root) => readdirSync(dir, { withFileTypes: true }
 
 // Helpers for a check, on its own copy `ws` of the workspace.
 function helpers(ws) {
-  const sh = (cmd, cwd = ws) => {
-    const r = spawnSync('sh', ['-c', cmd], { cwd, encoding: 'utf8', timeout: 90000 });
-    return { code: r.status ?? 1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+  // timedOut: stopped at the time limit (code is then 1, so a caller that counts a failure must check it).
+  const sh = (cmd, cwd = ws, timeout = 90000) => {
+    const r = spawnSync('sh', ['-c', cmd], { cwd, encoding: 'utf8', timeout, killSignal: 'SIGKILL' });
+    return { code: r.status ?? 1, timedOut: r.error?.code === 'ETIMEDOUT', out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
   };
   return {
-    ws, base: BASE, sh,
+    ws, base: BASE, sh, hidden,
+    // Tests node --test finds in `dir`, counted from its TAP summary (the reporter fixed here, not the repository's).
+    countTests: (dir = ws) => Number(/^# tests (\d+)$/m.exec(sh('node --test --test-reporter=tap', dir).out)?.[1] ?? 0),
     read: (rel, root = ws) => (existsSync(join(root, rel)) ? readFileSync(join(root, rel), 'utf8') : null),
     load: (rel) => import(pathToFileURL(join(ws, rel)).href),
     testFiles,
@@ -39,10 +45,11 @@ const builtin = {
   },
 };
 // A task can leave a built-in check out by setting it to null (when another of its checks already covers it).
-const checks = async () => Object.fromEntries(Object.entries({ ...builtin, ...(await import('/brief/checks/checks.mjs')).default })
+const checks = async () => Object.fromEntries(Object.entries({ ...builtin, ...(await import('/checks.mjs')).default })
   .sort(([a], [b]) => (a in builtin) - (b in builtin)).filter(([, f]) => f));
 
 const id = process.argv[2];
+const hidden = JSON.parse(readFileSync(0, 'utf8') || '{}');
 if (id) {
   const ws = mkdtempSync('/tmp/ws-');
   cpSync('/ws', ws, { recursive: true });
@@ -54,7 +61,7 @@ if (id) {
 } else {
   const out = [];
   for (const c of Object.keys(await checks())) {
-    const r = spawnSync(process.execPath, [new URL(import.meta.url).pathname, c], { encoding: 'utf8', timeout: 120000 });
+    const r = spawnSync(process.execPath, [new URL(import.meta.url).pathname, c], { input: JSON.stringify(hidden), encoding: 'utf8', timeout: 120000, killSignal: 'SIGKILL' });
     let o;
     try { o = JSON.parse(r.stdout.trim().split('\n').pop()); } catch { o = { ok: false, detail: (r.error ? `${r.error.code}` : `exit ${r.status}: `) + (r.stderr || '').slice(-400) }; }
     out.push({ id: c, ...o });

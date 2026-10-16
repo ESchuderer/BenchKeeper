@@ -22,4 +22,7 @@ case_ tests-packed S1-package "R package.json '  \"files\": [
   ],
 ' ''"
 case_ lightweight-tag S1-tag "git tag -d v2.0.0 > /dev/null && git tag v2.0.0"
+# Other valid releases (variants/<name>/, copied over the reference) pass.
+case_ version-from-package "" "cp -a /brief/variants/version-from-package/. ."
+case_ changelog-reworded "" "cp -a /brief/variants/changelog-reworded/. ."
 case_ convert-broken S1-regressions "R src/index.js '(v * 9) / 5 + 32' '(v * 9) / 5 + 31'"

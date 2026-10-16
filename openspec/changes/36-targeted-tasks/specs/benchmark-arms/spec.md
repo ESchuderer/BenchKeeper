@@ -2,7 +2,7 @@
 
 ### Requirement: Arm without one skill
 
-The runner SHALL accept an arm `<arm>~<skill>` that runs on `<arm>`'s image with that one skill removed in the trial's container before the first turn, and the delivery audit SHALL fail the trial when the skill is still listed or another expected skill is missing.
+The runner SHALL accept an arm `<arm>~<skill>` that runs on `<arm>`'s image with every copy of that skill removed before the first turn, and the audit SHALL fail the trial when the skill, with or without plugin prefix, is still in the init event's skills, slash commands or agents, or in a file under `$HOME/.claude` or the project.
 
 #### Scenario: Skill removed
 

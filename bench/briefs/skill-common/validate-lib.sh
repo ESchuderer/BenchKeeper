@@ -1,3 +1,4 @@
+# shellcheck shell=sh disable=SC2154 # here and tmp are set by the sourcing validate.sh
 # Sourced by bench/briefs/<task>/validate.sh, which sets `here` (the task) and `tmp` (scratch dir). Builds the reference
 # (baseline from prepare.sh, the reference/ overlay committed by reference.sh or one commit) and runs cases: a copy of
 # the reference (or the baseline) changed by a command in the node container, scored by checks/step1.sh, must fail

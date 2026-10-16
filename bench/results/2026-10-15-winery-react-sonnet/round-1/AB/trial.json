@@ -103,8 +103,12 @@
       "total": 0
     },
     "mutation": {
-      "score": null,
-      "reason": "mutation run failed"
+      "score": 69.3,
+      "killed": 515,
+      "timeout": 64,
+      "survived": 256,
+      "no_coverage": 0,
+      "mutants": 1089
     },
     "hidden_tests": "374dfd34d02f0c2f"
   },

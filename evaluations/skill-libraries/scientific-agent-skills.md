@@ -13,6 +13,6 @@
 
 ## Decision
 
-Not global: `project-setup` step 4 vets single skills for science repositories.
+Not global: `setting-up-projects` step 4 vets single skills for science repositories.
 
 [All evaluations](../../EVALUATIONS.md)

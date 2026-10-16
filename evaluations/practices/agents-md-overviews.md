@@ -13,6 +13,6 @@ Category: practices, Checked 2026-10-14, Decision: Not in
 
 ## Decision
 
-`project-setup` writes commands, host and container rules, and non-default conventions only.
+`setting-up-projects` writes commands, host and container rules, and non-default conventions only.
 
 [All evaluations](../../EVALUATIONS.md)

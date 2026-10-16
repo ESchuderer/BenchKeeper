@@ -1,12 +1,12 @@
 A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here wins.
 
 ## Workflow
-- Load the `sdlc` skill and follow it before any edit in a repository, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items. It sets the task tier and its steps (issue, branch, tests, review, pull request). Plain questions need neither.
+- Load the `following-dev-workflow` skill and follow it before any edit in a repository, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items. It sets the task tier and its steps (issue, branch, tests, review, pull request). Plain questions need neither.
 - Always, even without the skill: commit, push or merge on the default branch only when the user said so in this task; never merge a pull request without the user's instruction.
 
 ## Ask, do not assume
 - Before starting a task, make sure you know what the user wants: goal, scope, expected result. Where the request leaves open something that would change the result, ask precise questions, all in one message (Claude Code: `AskUserQuestion`), and keep asking until it is settled; do not guess. Do not ask what the code, the docs or a sensible default already answer.
-- Then restate the task in your own words, one to three lines with the tier line (`sdlc`), before the first edit, command or subagent. Plain questions need neither.
+- Then restate the task in your own words, one to three lines with the tier line (`following-dev-workflow`), before the first edit, command or subagent. Plain questions need neither.
 - Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, and continue without waiting for confirmation.
 
 ## Brevity
@@ -32,8 +32,8 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 
 ## Development environment
 - Agents run on the host; project dependency installs, builds, lint, tests, and local MCP/browser tools run in the project's devcontainer (`devcontainer exec --workspace-folder <project> ...`). Host file inspection and editing, Git, `gh`, container configuration and bootstrap, container lifecycle commands, and machine setup the user asked for stay on the host.
-- No devcontainer: ask the user to run `/project-setup` (Codex: `$project-setup`); if the container cannot start, report the failure instead of running development commands on the host.
-- `/global-setup` and `/project-setup` (Codex: `$global-setup`, `$project-setup`) never start on their own (they install software and change settings): when one is needed, ask the user to run it.
+- No devcontainer: ask the user to run `/setting-up-projects` (Codex: `$setting-up-projects`); if the container cannot start, report the failure instead of running development commands on the host.
+- `/setting-up-machine` and `/setting-up-projects` (Codex: `$setting-up-machine`, `$setting-up-projects`) never start on their own (they install software and change settings): when one is needed, ask the user to run it.
 
 ## Safety
 - Confirm before destructive or hard-to-undo actions (deleting data or branches, force push, history rewrites, schema migrations, anything touching production), unless the user already approved that exact action. A worktree or local branch created for the current task and not pushed may be discarded without asking.

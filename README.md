@@ -3,7 +3,7 @@
 # BenchKeeper
 
 <!-- generated:description -->
-BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the sdlc skill sizes each request first and small changes skip the steps they do not need.
+BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the following-dev-workflow skill sizes each request first and small changes skip the steps they do not need.
 <!-- /generated:description -->
 
 <!-- generated:core -->
@@ -12,7 +12,7 @@ BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Code
 
 Global agent setup for Claude Code and Codex: rules, four skills, rebuild steps.
 
-Opinionated: one SDLC sized to each change, one tool per job, exact versions everywhere. To change a choice, edit [rules/global.md](rules/global.md) or the skills and rerun `/global-setup`.
+Opinionated: one SDLC sized to each change, one tool per job, exact versions everywhere. To change a choice, edit [rules/global.md](rules/global.md) or the skills and rerun `/setting-up-machine`.
 
 Site: [eschuderer.github.io/BenchKeeper](https://eschuderer.github.io/BenchKeeper/)
 
@@ -23,10 +23,10 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 | Path | What | Linked as |
 |---|---|---|
 | [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink); copy in `~/.codex/AGENTS.md` |
-| [skills/global-setup](skills/global-setup/SKILL.md) | install, check, and clean the global setup (all commands) | `~/.claude/skills/`, `~/.agents/skills/`, and in this repo |
-| [skills/project-setup](skills/project-setup/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, OpenSpec | `~/.claude/skills/`, `~/.agents/skills/` |
-| [skills/sdlc](skills/sdlc/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request); loaded before repository work | `~/.claude/skills/`, `~/.agents/skills/` |
-| [skills/maintain](skills/maintain/SKILL.md) | the Maintain pass, on request (`/maintain`) | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/setting-up-machine](skills/setting-up-machine/SKILL.md) | install, check, and clean the global setup (all commands) | `~/.claude/skills/`, `~/.agents/skills/`, and in this repo |
+| [skills/setting-up-projects](skills/setting-up-projects/SKILL.md) | set up or update one repo: AGENTS.md, stack skills, OpenSpec | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/following-dev-workflow](skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request); loaded before repository work | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/maintaining-repos](skills/maintaining-repos/SKILL.md) | the Maintain pass, on request (`/maintaining-repos`) | `~/.claude/skills/`, `~/.agents/skills/` |
 | [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 
@@ -39,11 +39,11 @@ Claude Code and Codex are independently optional. Setup detects installed agents
 | [agent-skills](https://github.com/addyosmani/agent-skills) | global, Claude + Codex | workflow: spec, plan, TDD, review, ship |
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | CLI global, wired per repo | spec files (owns the artifacts; agent-skills drives the process, [#166](https://github.com/addyosmani/agent-skills/issues/166)) |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
-| [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `project-setup` |
+| [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
 
 Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/`, `.claude/skills/`, `skills-lock.json`, `openspec/`, `.mcp.json`, `.codex/config.toml`.
 
-Ponytail and agent-skills remain separate plugins. The [sdlc skill](skills/sdlc/SKILL.md) integrates them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
+Ponytail and agent-skills remain separate plugins. The [following-dev-workflow skill](skills/following-dev-workflow/SKILL.md) integrates them: agent-skills drives the workflow; Ponytail `full` guides implementation within agreed scope, architecture, and required checks. Integration changes live here, not in installed plugin files. Select another Ponytail mode when needed.
 
 Every component evaluated, what is in and what is not, with the research behind each decision: [EVALUATIONS.md](EVALUATIONS.md).
 
@@ -79,16 +79,16 @@ Not installed by BenchKeeper; see each official page. Tables marked as generated
 
 1. Install the [prerequisites](#prerequisites): at least one agent you use, plus the tools for the steps you apply. npm uses prefix `~/.local`, no sudo.
 2. Clone to `/mnt/data/Projects/benchkeeper`, open it in Claude Code or Codex.
-3. Run `/global-setup` (Codex: `$global-setup`). Confirm which installed agents you use. It checks applicable parts without changing anything, shows one plan (installs, changes, removals, version bumps) with destructive items marked, and applies only what you approve; destructive items are confirmed again right before they run. Cleanup stays within that scope. All commands are in [skills/global-setup/SKILL.md](skills/global-setup/SKILL.md).
+3. Run `/setting-up-machine` (Codex: `$setting-up-machine`). Confirm which installed agents you use. It checks applicable parts without changing anything, shows one plan (installs, changes, removals, version bumps) with destructive items marked, and applies only what you approve; destructive items are confirmed again right before they run. Cleanup stays within that scope. All commands are in [skills/setting-up-machine/SKILL.md](skills/setting-up-machine/SKILL.md).
 4. Restart selected agents; if Codex is selected, run `/hooks` and trust the plugin hooks.
 
-Rerun `/global-setup` after editing `rules/global.md` (Codex gets a copy, not a link).
+Rerun `/setting-up-machine` after editing `rules/global.md` (Codex gets a copy, not a link).
 
 ## Per repo
 
-Run `/project-setup` (Codex: `$project-setup`). Confirm the agents used for this project. New repo: sets up. Existing setup: updates and cleans selected integrations. Both show one plan first and apply only what you approve; destructive items are confirmed again. Commit the result. Fresh clone: use `project-setup` to restore skills for selected agents from their recorded sources.
+Run `/setting-up-projects` (Codex: `$setting-up-projects`). Confirm the agents used for this project. New repo: sets up. Existing setup: updates and cleans selected integrations. Both show one plan first and apply only what you approve; destructive items are confirmed again. Commit the result. Fresh clone: use `setting-up-projects` to restore skills for selected agents from their recorded sources.
 
-Agents run on the host and use standard devcontainers for project commands. `global-setup` configures host agent tooling, checks host Docker, and installs the pinned Dev Containers CLI; `project-setup` creates or updates the repository's container and project toolchain. Agent authentication, BenchKeeper, global rules, and skills stay on the host. Rootless engines, VMs, and microVMs are not required.
+Agents run on the host and use standard devcontainers for project commands. `setting-up-machine` configures host agent tooling, checks host Docker, and installs the pinned Dev Containers CLI; `setting-up-projects` creates or updates the repository's container and project toolchain. Agent authentication, BenchKeeper, global rules, and skills stay on the host. Rootless engines, VMs, and microVMs are not required.
 
 - CLI or an Orca worktree terminal: start the container with `devcontainer up --workspace-folder .`, then launch `claude` or `codex` on the host.
 - VS Code may attach to the same container for project terminals, builds, and debugging. Keep the agent in a host terminal.
@@ -102,8 +102,8 @@ The agent remains a host process with access governed by its client permissions.
 ## Update
 
 - Plugins: run `claude plugin marketplace update` only for selected Claude Code, `codex plugin marketplace update` only for selected Codex (not pinned).
-- CLIs and MCPs: `/global-setup` compares the pinned versions with the latest releases and proposes bumps before installing.
-- Repo skills: use `project-setup` to update selected skills and agent placements.
+- CLIs and MCPs: `/setting-up-machine` compares the pinned versions with the latest releases and proposes bumps before installing.
+- Repo skills: use `setting-up-projects` to update selected skills and agent placements.
 
 ## Recommended tools (optional)
 
@@ -114,12 +114,12 @@ Not installed by BenchKeeper. Each one works with the agents and rules set up he
 <!-- generated:tools -->
 | Tool | Platforms | Gives you | Choose it when |
 |---|---|---|---|
-| [Orca](https://github.com/stablyai/orca) | macOS, Windows, Linux | one git worktree per agent; the same prompt across several agents to compare results; terminal splits, SSH remote worktrees, mobile companion app; `/global-setup` offers its `orca-cli` and `orchestration` skills, only after asking | you want terminal-centered parallel agents with worktrees, remote machines or mobile access |
+| [Orca](https://github.com/stablyai/orca) | macOS, Windows, Linux | one git worktree per agent; the same prompt across several agents to compare results; terminal splits, SSH remote worktrees, mobile companion app; `/setting-up-machine` offers its `orca-cli` and `orchestration` skills, only after asking | you want terminal-centered parallel agents with worktrees, remote machines or mobile access |
 | [Nimbalyst](https://github.com/Nimbalyst/nimbalyst) | macOS, Windows, Linux | parallel sessions on a kanban board, one-click worktree per session; every agent edit arrives as a diff you approve or reject; visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app | you want to review each change visually and work on docs, mockups and tasks next to the agents |
 | [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs; notifications when an agent needs input; sidebar with branch, PR status and ports; browser pane inside the terminal | you are on macOS and want a terminal-first workflow without a separate app layer |
 <!-- /generated:tools -->
 
-Orca only: `/global-setup` asks before installing the optional `orca-cli` and `orchestration` skills for selected agents. Declining skips them without failing setup; existing Orca skills and hooks are kept. See [setup part 10](skills/global-setup/SKILL.md#10-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
+Orca only: `/setting-up-machine` asks before installing the optional `orca-cli` and `orchestration` skills for selected agents. Declining skips them without failing setup; existing Orca skills and hooks are kept. See [setup part 10](skills/setting-up-machine/SKILL.md#10-orca-skills-optional-ask) and [Orca's skill installation instructions](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx).
 
 <!-- generated:openhands -->
 **Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A different role from the three above: a self-hosted agent server with a web UI that runs work without you at the terminal.

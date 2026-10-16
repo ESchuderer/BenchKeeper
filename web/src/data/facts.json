@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the sdlc skill sizes each request first and small changes skip the steps they do not need.",
+  "description": "BenchKeeper keeps your AI coding agents' workbench in order: Claude Code or Codex runs its skills to install and check rules, skills and tools at pinned versions, machine-wide and per repository. A full agentic SDLC fits features and risky changes, not every change, so the following-dev-workflow skill sizes each request first and small changes skip the steps they do not need.",
   "core": {
     "name": "agent-skills",
     "by": "Addy Osmani",
@@ -62,7 +62,7 @@
       "points": [
         "one git worktree per agent; the same prompt across several agents to compare results",
         "terminal splits, SSH remote worktrees, mobile companion app",
-        "`/global-setup` offers its `orca-cli` and `orchestration` skills, only after asking"
+        "`/setting-up-machine` offers its `orca-cli` and `orchestration` skills, only after asking"
       ],
       "when": "you want terminal-centered parallel agents with worktrees, remote machines or mobile access"
     },
@@ -198,8 +198,8 @@
         "name": "Maintain",
         "phase": "maintain",
         "sub": "findings: new requests",
-        "tip": "On request (/maintain); the agent suggests it after a milestone or a large merge: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
-        "text": "On request (`/maintain`); the agent suggests it after a milestone or a large merge: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene. Findings become new requests."
+        "tip": "On request (/maintaining-repos); the agent suggests it after a milestone or a large merge: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
+        "text": "On request (`/maintaining-repos`); the agent suggests it after a milestone or a large merge: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene. Findings become new requests."
       }
     ]
   }

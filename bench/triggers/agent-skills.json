@@ -1,0 +1,1797 @@
+{
+  "api-and-interface-design": [
+    {
+      "query": "we're adding a public REST API for our invoicing service (Express + Postgres). customers need to list, create and void invoices. can you design the endpoints, status codes, pagination and error format before i write any handlers?",
+      "should_trigger": true
+    },
+    {
+      "query": "Design the GraphQL schema for the new comments feature in apps/web: threads, replies, reactions. It has to play well with Apollo Client caching and support cursor pagination.",
+      "should_trigger": true
+    },
+    {
+      "query": "the billing module and the notifications module keep importing each other's internals. i want a clean interface between them, what should the contract look like? TS monorepo, packages/billing and packages/notifications",
+      "should_trigger": true
+    },
+    {
+      "query": "We have v1 of /api/orders used by 3 mobile app versions in the wild. I need to add a 'fulfillment' object to the response and change 'status' from a free string to an enum. How do I evolve this without breaking old clients?",
+      "should_trigger": true
+    },
+    {
+      "query": "define the typescript types for the contract between our Next.js frontend and the FastAPI backend for the search page. right now everything is `any` and the backend renames fields whenever it wants",
+      "should_trigger": true
+    },
+    {
+      "query": "I'm writing a small Go library for rate limiting that 4 other teams will import. Help me decide the public surface: constructor options, what to export, how errors are returned.",
+      "should_trigger": true
+    },
+    {
+      "query": "should PATCH /users/:id accept partial JSON or JSON Patch? and on validation failure do we return 400 or 422? want one consistent convention for the whole API before we add 30 more endpoints",
+      "should_trigger": true
+    },
+    {
+      "query": "use the api-and-interface-design skill for this: webhook payloads for our Stripe-like event system, including versioning, idempotency keys and retry semantics",
+      "should_trigger": true
+    },
+    {
+      "query": "We're shutting down the v1 /api/orders endpoints next quarter. About 40 customers still call them. Plan the sunset: deprecation headers, comms, migration path to v2, and when we can actually delete the code.",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/deprecation-and-migration"
+    },
+    {
+      "query": "audit POST /api/upload in src/routes/upload.ts, it takes a multipart file plus a filename from the user and writes it to disk. worried about path traversal and file type checks",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/security-and-hardening"
+    },
+    {
+      "query": "we decided to go with gRPC instead of REST for internal service-to-service calls after a long debate. write this up as an ADR in docs/adr/ so new folks know why",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "GET /api/products takes 2.3s at p95, the handler runs a separate query per product to fetch its category. fix it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "what's the officially recommended way to write route handlers in the Next.js 15 app router? check the docs before you write the handler for /api/health",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/source-driven-development"
+    },
+    {
+      "query": "curl -X POST localhost:8080/api/v2/orders -d '{\"sku\":\"A1\"}' returns 415 Unsupported Media Type, what am I doing wrong",
+      "should_trigger": false
+    },
+    {
+      "query": "generate a typed client from our existing openapi.yaml with openapi-typescript and wire it into src/lib/api.ts, replacing the hand-written fetch calls",
+      "should_trigger": false
+    },
+    {
+      "query": "explain the difference between REST and GraphQL for a blog post I'm writing for non-engineers, keep it under 300 words",
+      "should_trigger": false
+    }
+  ],
+  "browser-testing-with-devtools": [
+    {
+      "query": "the checkout button on localhost:3000/cart does nothing when clicked, no error in the terminal. can you open it in the browser and check the console and network tab?",
+      "should_trigger": true
+    },
+    {
+      "query": "verify the new modal in src/components/ShareDialog.tsx actually renders correctly in a real browser, I only checked it in storybook",
+      "should_trigger": true
+    },
+    {
+      "query": "our LCP on the landing page jumped to 4s after the hero image change. profile it in chrome and tell me what's blocking render",
+      "should_trigger": true
+    },
+    {
+      "query": "the React app shows a blank white screen in the production build but works in dev. inspect the DOM and console on http://localhost:4173",
+      "should_trigger": true
+    },
+    {
+      "query": "check which network requests fire when I submit the signup form at /signup, i think we're calling /api/session twice",
+      "should_trigger": true
+    },
+    {
+      "query": "can you look at the page in chrome devtools and tell me why the sidebar overlaps the main content at 768px width? css is in styles/layout.css",
+      "should_trigger": true
+    },
+    {
+      "query": "after logging in the dashboard flickers and some widgets spin forever. capture console errors and failed requests on localhost:5173/dashboard",
+      "should_trigger": true
+    },
+    {
+      "query": "I fixed the dark mode toggle in ThemeSwitch.vue, can you confirm in a live browser that the class on <html> actually flips and localStorage gets set",
+      "should_trigger": true
+    },
+    {
+      "query": "build a responsive pricing page component with three tiers in React + Tailwind, accessible, matching our existing Card component",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/frontend-ui-engineering"
+    },
+    {
+      "query": "our Postgres query for the analytics dashboard takes 8 seconds, EXPLAIN ANALYZE output is below, help me speed it up",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "write unit tests with vitest for the formatPrice util in src/utils/price.ts, it should handle negative values and multiple currencies",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/test-driven-development"
+    },
+    {
+      "query": "npm run build fails with \"Module not found: Can't resolve './theme'\" after I moved files into src/ui/. what broke?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "set up Playwright e2e tests to run in GitHub Actions on every PR with headless chromium, and upload the trace on failure",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/ci-cd-and-automation"
+    },
+    {
+      "query": "what's the difference between the Network and Performance panels in Chrome DevTools? writing onboarding notes for our juniors",
+      "should_trigger": false
+    },
+    {
+      "query": "how do I add the chrome-devtools MCP server to claude code? what goes in .mcp.json",
+      "should_trigger": false
+    },
+    {
+      "query": "the jest test for <Header /> fails with 'ReferenceError: document is not defined', I think it's the test environment setting",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    }
+  ],
+  "ci-cd-and-automation": [
+    {
+      "query": "set up GitHub Actions for this repo: lint, typecheck and vitest on every PR, cache node_modules, node 22",
+      "should_trigger": true
+    },
+    {
+      "query": "our gitlab pipeline takes 25 minutes, mostly because every job reinstalls deps from scratch. restructure .gitlab-ci.yml with caching and parallel stages",
+      "should_trigger": true
+    },
+    {
+      "query": "add a quality gate so PRs can't merge if coverage drops below 80% or eslint reports errors",
+      "should_trigger": true
+    },
+    {
+      "query": "we deploy by sshing into the box and running git pull. I want automatic deploys to staging whenever main is updated, with the docker image pushed to GHCR first",
+      "should_trigger": true
+    },
+    {
+      "query": "Configure pytest to run in CircleCI with a postgres service container, the tests need DATABASE_URL set",
+      "should_trigger": true
+    },
+    {
+      "query": "how should we do blue-green deploys for our ECS service? right now .github/workflows/deploy.yml just updates the task definition in place and we get a few seconds of 502s",
+      "should_trigger": true
+    },
+    {
+      "query": "add a matrix build so the library is tested on python 3.10 through 3.13, on both windows and ubuntu runners",
+      "should_trigger": true
+    },
+    {
+      "query": "can you make the release workflow publish to npm automatically when I push a tag like v1.4.0",
+      "should_trigger": true
+    },
+    {
+      "query": "we're launching the new billing system to all customers on Monday. what needs to be in place beforehand, rollback plan, monitoring, the works?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/shipping-and-launch"
+    },
+    {
+      "query": "the CI job 'test' fails only on GitHub Actions with ECONNREFUSED 127.0.0.1:5432 but passes locally. logs below, what's going on",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "what semver bump should this be? we removed the deprecated `legacyMode` option from the config and added a new `strict` flag. also write the CHANGELOG entry",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+    },
+    {
+      "query": "I keep seeing agents add eslint-disable comments just to get the lint step green. I want our quality bar written down and enforced so this stops",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/constraint-driven-development"
+    },
+    {
+      "query": "npm audit in our pipeline shows 14 high vulnerabilities, help me triage which ones actually matter for us",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/security-and-hardening"
+    },
+    {
+      "query": "explain what `needs:` does in a github actions workflow vs `if: always()`, I don't get when the second job runs",
+      "should_trigger": false
+    },
+    {
+      "query": "write a Makefile with targets for format, lint and test so I can run them locally the same way every time",
+      "should_trigger": false
+    },
+    {
+      "query": "docker build is slow locally, 6 minutes every time I change one line in src/. can you reorder the Dockerfile layers",
+      "should_trigger": false
+    }
+  ],
+  "code-review-and-quality": [
+    {
+      "query": "review my PR #412 before I merge it, it adds the refund flow in services/payments/",
+      "should_trigger": true
+    },
+    {
+      "query": "can you look over this diff? mainly curious if anything is wrong or missing\n\n--- a/src/cart.ts\n+++ b/src/cart.ts\n@@ -10,7 +10,7 @@\n-  if (items.length > 0) {\n+  if (items.length >= 0) {\n     total = items.reduce((s, i) => s + i.price * i.qty, 0)",
+      "should_trigger": true
+    },
+    {
+      "query": "another agent wrote src/sync/worker.ts overnight. I don't trust it yet. go through it for correctness, readability and architecture before it lands in main",
+      "should_trigger": true
+    },
+    {
+      "query": "give me a thorough code review of the changes on branch feat/csv-export vs main",
+      "should_trigger": true
+    },
+    {
+      "query": "is this ready to merge? the change touches the auth middleware and the user model, see git diff main...HEAD",
+      "should_trigger": true
+    },
+    {
+      "query": "I wrote this quickly last night, please critique it honestly before I push:\n\ndef load(p):\n    f = open(p)\n    data = json.loads(f.read())\n    return [d for d in data if d['active'] == True]",
+      "should_trigger": true
+    },
+    {
+      "query": "do a review pass on the last 3 commits: error handling, naming, test coverage and anything that smells",
+      "should_trigger": true
+    },
+    {
+      "query": "a colleague asked me to review her pull request https://github.com/acme/api/pull/88 and I don't know that part of the code. help me assess it and write useful review comments",
+      "should_trigger": true
+    },
+    {
+      "query": "src/reports/build.ts works fine but it's 600 lines of nested ifs and nobody wants to touch it. clean it up without changing behavior",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-simplification"
+    },
+    {
+      "query": "check our login flow (routes/auth.js) against the OWASP top ten, especially session fixation and brute force",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/security-and-hardening"
+    },
+    {
+      "query": "my working tree has changes for three unrelated things, split them into clean atomic commits before I open the PR",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+    },
+    {
+      "query": "profile the /search endpoint, p95 is 1.8s and the flamegraph says most time is in JSON serialization",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "the code I merged yesterday broke the nightly export job: TypeError: Cannot read properties of undefined (reading 'rows') at export.ts:88",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "the reviewer on my PR wants me to rename handleData to parseInvoiceRows and extract the retry loop into a helper. apply both changes",
+      "should_trigger": false
+    },
+    {
+      "query": "write a generic code review checklist for our team wiki, markdown, one page max",
+      "should_trigger": false
+    },
+    {
+      "query": "before you apply this migration that drops the legacy_orders table in prod, I want every assumption you're making cross-examined",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/doubt-driven-development"
+    }
+  ],
+  "code-simplification": [
+    {
+      "query": "src/reports/build.ts works fine but it's 600 lines of nested ifs and nobody wants to touch it. clean it up without changing behavior",
+      "should_trigger": true
+    },
+    {
+      "query": "this function has 5 boolean params and a flag argument that switches between two totally different behaviors. make it readable, tests in tests/pricing.test.ts must still pass",
+      "should_trigger": true
+    },
+    {
+      "query": "refactor utils/date.js, there are 4 near-identical helpers that only differ in the format string",
+      "should_trigger": true
+    },
+    {
+      "query": "we've piled up cruft in the OrderService class over 3 years: dead branches, wrappers that just forward calls, a factory used once. simplify it",
+      "should_trigger": true
+    },
+    {
+      "query": "can you make this more readable? same behavior please\n\nfunction g(a){return a?a.b?a.b.c?a.b.c:null:null:null}",
+      "should_trigger": true
+    },
+    {
+      "query": "the redux slice for the cart has gotten really hard to follow, reducers copy copies of copies. tidy it up so a new hire can read it, no functional changes",
+      "should_trigger": true
+    },
+    {
+      "query": "too much indirection in pkg/handler: interface -> adapter -> impl, and every interface has exactly one implementation. flatten it",
+      "should_trigger": true
+    },
+    {
+      "query": "this python script grew from 50 to 400 lines. it works, but every change takes me an hour to make. reduce the complexity",
+      "should_trigger": true
+    },
+    {
+      "query": "review PR #233, it's mostly a refactor of the checkout module, tell me if anything is wrong before I merge",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-review-and-quality"
+    },
+    {
+      "query": "rewrite this loop to be faster, it processes 2M rows and takes 40s: for row in rows: df = df.append(row)",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "remove the old v1 PaymentGateway class and move all 14 callers over to PaymentClientV2",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/deprecation-and-migration"
+    },
+    {
+      "query": "users of our SDK complain the Client constructor takes 11 positional args. redesign its public interface for the next major",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "change calculateShipping in src/shipping.ts so orders over $100 ship free",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/test-driven-development"
+    },
+    {
+      "query": "an agent keeps writing 300-line PRs for 10-line fixes that nobody can review. I want a written rule and something that enforces it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/constraint-driven-development"
+    },
+    {
+      "query": "rename the variable `d` to `deliveryDate` everywhere in src/orders/, it's just a rename, used in about 30 places",
+      "should_trigger": false
+    },
+    {
+      "query": "prettier keeps formatting my files differently than my teammate's. how do I make it consistent across the repo?",
+      "should_trigger": false
+    }
+  ],
+  "constraint-driven-development": [
+    {
+      "query": "set up constraints for this repo, we've never written down our standards",
+      "should_trigger": true
+    },
+    {
+      "query": "every time I ask the agent to fix the build it sprinkles @ts-ignore around. I want it to stop quietly lowering the bar",
+      "should_trigger": true
+    },
+    {
+      "query": "we care about accessibility (WCAG AA) and bundle size for the storefront. make those enforced constraints, not just wishes in a doc",
+      "should_trigger": true
+    },
+    {
+      "query": "what coverage threshold should we even use? I have no idea what number is sane for a 40k line django app",
+      "should_trigger": true
+    },
+    {
+      "query": "noticed the last agent PR changed `it(` to `it.skip(` in 3 test files and deleted an assertion in cart.test.ts. how do I stop this from happening again",
+      "should_trigger": true
+    },
+    {
+      "query": "define our quality standards: lint, types, test coverage, a perf budget for LCP. write them down somewhere agents will actually respect",
+      "should_trigger": true
+    },
+    {
+      "query": "the agent keeps writing way more code than anyone will read, 800 line diffs for small features. we need a quality contract",
+      "should_trigger": true
+    },
+    {
+      "query": "check this diff for any weakened checks: new eslint-disable lines, lowered thresholds in jest.config.js, stubs that just throw 'not implemented'",
+      "should_trigger": true
+    },
+    {
+      "query": "add a GitHub Actions job that fails the PR if coverage is below 85%, we already agreed on that number last week",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/ci-cd-and-automation"
+    },
+    {
+      "query": "write a CLAUDE.md for this repo describing the build commands, folder layout and code style",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/context-engineering"
+    },
+    {
+      "query": "review PR #91 before merge, it's the new invoice export",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-review-and-quality"
+    },
+    {
+      "query": "LCP on /products is 3.8s on mobile, get it under 2.5s",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "make the signup form WCAG AA compliant: labels, focus order, error announcements for screen readers",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/frontend-ui-engineering"
+    },
+    {
+      "query": "eslint flags no-unused-vars on a variable I clearly use inside a JSX template, is my config wrong?",
+      "should_trigger": false
+    },
+    {
+      "query": "what is the difference between statement and branch coverage in istanbul reports?",
+      "should_trigger": false
+    },
+    {
+      "query": "set up eslint with the typescript-eslint strict preset and prettier for this new vite project",
+      "should_trigger": false
+    }
+  ],
+  "context-engineering": [
+    {
+      "query": "write a CLAUDE.md for this repo describing the build commands, folder layout and code style",
+      "should_trigger": true
+    },
+    {
+      "query": "your answers have gotten worse over the last hour, you keep forgetting we use pnpm and suggesting npm. what's going on with your context and how do we fix it",
+      "should_trigger": true
+    },
+    {
+      "query": "switching from the auth refactor to a totally unrelated bug in the CSV importer now. what should we drop and what should you load first?",
+      "should_trigger": true
+    },
+    {
+      "query": "set up AGENTS.md and .cursor/rules so agents in this monorepo know packages/legacy is off limits and every package uses vitest",
+      "should_trigger": true
+    },
+    {
+      "query": "the agent keeps hallucinating functions that don't exist in our internal SDK. how should I feed it the right context? the real docs are in docs/sdk/",
+      "should_trigger": true
+    },
+    {
+      "query": "our CLAUDE.md is 900 lines and I think it's hurting more than helping. restructure it",
+      "should_trigger": true
+    },
+    {
+      "query": "new session. before we touch anything, figure out what context you need about this Rails app and load only that, I don't want you reading the whole repo",
+      "should_trigger": true
+    },
+    {
+      "query": "long conversation, quality is degrading, you just suggested a fix we rejected 20 minutes ago. help me reset context without losing the decisions we made",
+      "should_trigger": true
+    },
+    {
+      "query": "which of your skills should I use for adding a feature flag to the checkout flow? not sure where to start",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/using-agent-skills"
+    },
+    {
+      "query": "document why we chose SQLite over Postgres for the desktop app so future engineers understand it, ADR format",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "set up constraints for this repo, we've never written down our standards",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/constraint-driven-development"
+    },
+    {
+      "query": "starting a new project: a CLI that syncs Notion pages to markdown. nothing written down yet, help me figure out what it should do",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/spec-driven-development"
+    },
+    {
+      "query": "add a README section explaining how to run the project locally with docker compose",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "my React context provider re-renders every consumer whenever the theme changes, how do I avoid that",
+      "should_trigger": false
+    },
+    {
+      "query": "my .env isn't being picked up by vite, import.meta.env.VITE_API_URL is undefined in the browser",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "how big is the context window for the model you're running on, and does a 150k token prompt fit?",
+      "should_trigger": false
+    }
+  ],
+  "debugging-and-error-recovery": [
+    {
+      "query": "npm run build fails with \"Module not found: Can't resolve './theme'\" after I moved files into src/ui/. what broke?",
+      "should_trigger": true
+    },
+    {
+      "query": "the CI job 'test' fails only on GitHub Actions with ECONNREFUSED 127.0.0.1:5432 but passes locally. logs below, what's going on",
+      "should_trigger": true
+    },
+    {
+      "query": "this worked yesterday and now the app crashes on startup: TypeError: Cannot read properties of undefined (reading 'map') at Dashboard.tsx:42. nobody touched that file",
+      "should_trigger": true
+    },
+    {
+      "query": "the nightly export job broke after yesterday's merge: KeyError: 'customer_id' in jobs/export.py line 88",
+      "should_trigger": true
+    },
+    {
+      "query": "pytest: 12 tests in tests/test_billing.py started failing after upgrading pydantic to v2, errors mention model_config",
+      "should_trigger": true
+    },
+    {
+      "query": "users say the 'remember me' checkbox doesn't keep them logged in anymore, even though the cookie looks set. no errors anywhere. figure out why",
+      "should_trigger": true
+    },
+    {
+      "query": "cargo build gives error[E0502]: cannot borrow `self.entries` as mutable in src/cache.rs and I've been guessing fixes for an hour, help me find the actual cause",
+      "should_trigger": true
+    },
+    {
+      "query": "the cron job runs twice every night at 02:00 instead of once, but only on the prod server. what's going on",
+      "should_trigger": true
+    },
+    {
+      "query": "bug report JIRA-3321: discount codes are applied twice when the cart has a gift card. it's in applyDiscounts in cart/pricing.ts. fix it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/test-driven-development"
+    },
+    {
+      "query": "add tests for parseDuration in src/time.ts, it handles '1h30m' style strings",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/test-driven-development"
+    },
+    {
+      "query": "the checkout button on localhost:3000/cart does nothing when clicked, no error in the terminal. can you open it in the browser and check the console and network tab?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+    },
+    {
+      "query": "prod issue: some orders silently get stuck in 'pending' and we have no logs that tell us why. add the instrumentation we need to see it next time",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/observability-and-instrumentation"
+    },
+    {
+      "query": "the /reports page went from 300ms to 3s after the last release, profiler output attached",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "what does rust's error E0502 mean in general? just explain the concept, no code changes",
+      "should_trigger": false
+    },
+    {
+      "query": "write an on-call runbook: what to check, in order, when the payments webhook starts failing",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "set up sentry in our next.js app so we get error reports from real users",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/observability-and-instrumentation"
+    }
+  ],
+  "deprecation-and-migration": [
+    {
+      "query": "We're shutting down the v1 /api/orders endpoints next quarter. About 40 customers still call them. Plan the sunset: deprecation headers, comms, migration path to v2, and when we can actually delete the code.",
+      "should_trigger": true
+    },
+    {
+      "query": "remove the old v1 PaymentGateway class and move all 14 callers over to PaymentClientV2",
+      "should_trigger": true
+    },
+    {
+      "query": "need to rename users.fullname to users.display_name in postgres without downtime, the app runs on 6 pods with rolling updates",
+      "should_trigger": true
+    },
+    {
+      "query": "we want to drop the legacy_events table (800GB) but a couple of reporting jobs might still read it. how do we do this safely",
+      "should_trigger": true
+    },
+    {
+      "query": "should we keep our homegrown ORM or move to Prisma? it's used in ~200 files and exactly one person understands it",
+      "should_trigger": true
+    },
+    {
+      "query": "migrate our users from Firebase Auth to Auth0 without forcing everyone to reset their passwords",
+      "should_trigger": true
+    },
+    {
+      "query": "mark the `formatCurrency` export in @acme/utils as deprecated, point people to Intl.NumberFormat, and plan its removal in the next major",
+      "should_trigger": true
+    },
+    {
+      "query": "we have three different feature-flag libraries in the codebase. consolidate on LaunchDarkly and get rid of the other two",
+      "should_trigger": true
+    },
+    {
+      "query": "Design the v2 /api/orders endpoints: pagination, filtering, error format. v1 stays as it is for now",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "what semver bump is it if we remove a function we deprecated two releases ago from our public package? and write the changelog line",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+    },
+    {
+      "query": "we've piled up cruft in the OrderService class over 3 years: dead branches, wrappers that just forward calls, a factory used once. simplify it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-simplification"
+    },
+    {
+      "query": "launching the new search page to all users Thursday, what needs to be in place before we ship",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/shipping-and-launch"
+    },
+    {
+      "query": "write an ADR recording our decision to sunset the mobile web app in favor of the native apps, the decision is already made",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "implement the new checkout tax calculation behind a feature flag `tax_v2`, it touches the cart, invoice and api layers",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/incremental-implementation"
+    },
+    {
+      "query": "write the alembic migration that adds a nullable `timezone` column to the accounts table",
+      "should_trigger": false
+    },
+    {
+      "query": "in semver terms, what's the difference between deprecating an API and removing it? one paragraph for our contributing guide",
+      "should_trigger": false
+    }
+  ],
+  "documentation-and-adrs": [
+    {
+      "query": "we decided to go with gRPC instead of REST for internal service-to-service calls after a long debate. write this up as an ADR in docs/adr/ so new folks know why",
+      "should_trigger": true
+    },
+    {
+      "query": "document why we chose SQLite over Postgres for the desktop app so future engineers understand it",
+      "should_trigger": true
+    },
+    {
+      "query": "I just changed the public signature of `createClient` in our SDK (added a required `region` option). update the docs and anything else that has to reflect it",
+      "should_trigger": true
+    },
+    {
+      "query": "we shipped the new bulk import feature today. write the docs for it: how it works, limits, the CSV format",
+      "should_trigger": true
+    },
+    {
+      "query": "the retry logic in queue/consumer.ts looks weird but it's deliberate (Kafka rebalance bug). record the reasoning somewhere so nobody 'fixes' it later",
+      "should_trigger": true
+    },
+    {
+      "query": "new engineers and agents keep asking how our multi-tenant isolation works. write something in docs/ that explains it once",
+      "should_trigger": true
+    },
+    {
+      "query": "can you write up the decision we made in this thread about using event sourcing for the ledger, including the alternatives we rejected",
+      "should_trigger": true
+    },
+    {
+      "query": "add docs/architecture.md describing the main modules, the data flow and the reasons behind the module boundaries",
+      "should_trigger": true
+    },
+    {
+      "query": "our CLAUDE.md is 900 lines and agents ignore half of it. trim it down to what actually helps them",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/context-engineering"
+    },
+    {
+      "query": "design the REST endpoints for the bulk import feature before we build it: upload, status polling, error report",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "write the CHANGELOG entry for release 2.4.0 and tag it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+    },
+    {
+      "query": "write a PRD for the bulk import feature: objectives, scope, non-goals. nothing is built yet",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/spec-driven-development"
+    },
+    {
+      "query": "we're torn between event sourcing and plain CRUD for the ledger. help me explore options before we decide anything",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/idea-refine"
+    },
+    {
+      "query": "fix the typos in README.md, a contributor flagged 'recieve' and 'seperate' in the install section",
+      "should_trigger": false
+    },
+    {
+      "query": "explain how our auth middleware works, I'm new here: src/middleware/auth.ts",
+      "should_trigger": false
+    },
+    {
+      "query": "generate typedoc html from our ts sources and publish it to github pages",
+      "should_trigger": false
+    }
+  ],
+  "doubt-driven-development": [
+    {
+      "query": "before you apply this migration that drops the legacy_orders table in prod, I want every assumption you're making cross-examined",
+      "should_trigger": true
+    },
+    {
+      "query": "we're rewriting the JWT validation in auth/middleware.go. this is production auth, I want each decision reviewed adversarially before we move on",
+      "should_trigger": true
+    },
+    {
+      "query": "I'm new to this codebase (a 10 year old Perl billing system) and need to change how proration works. don't trust your first read, verify every conclusion before acting on it",
+      "should_trigger": true
+    },
+    {
+      "query": "here's our plan to move session storage from redis to dynamodb with zero downtime. poke holes in it, what failure modes are we missing?",
+      "should_trigger": true
+    },
+    {
+      "query": "correctness matters way more than speed on this one: the loan interest calculation in finance/interest.ts. challenge each step of your reasoning as you go",
+      "should_trigger": true
+    },
+    {
+      "query": "you said confidently that the race condition is fixed. I want that claim attacked by a fresh pair of eyes before I believe it",
+      "should_trigger": true
+    },
+    {
+      "query": "the script deletes the old S3 buckets after copying them, which is irreversible. assume you're wrong and check the logic from scratch before it runs",
+      "should_trigger": true
+    },
+    {
+      "query": "implementing the permission check for the admin-only endpoints. cross-examine every assumption about who can reach these routes before you call it done",
+      "should_trigger": true
+    },
+    {
+      "query": "I have a rough idea for a habit-tracking app for ADHD folks. help me ideate and sharpen it into something concrete",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/idea-refine"
+    },
+    {
+      "query": "grill me on what I actually want from this internal dashboard before you build anything",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/interview-me"
+    },
+    {
+      "query": "audit the login handler in routes/auth.js for OWASP top ten issues",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/security-and-hardening"
+    },
+    {
+      "query": "review PR #77 before merge, it's the new rate limiter in middleware/limit.ts",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-review-and-quality"
+    },
+    {
+      "query": "need to rename users.fullname to users.display_name in postgres without downtime, the app runs on 6 pods with rolling updates",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/deprecation-and-migration"
+    },
+    {
+      "query": "verify against the official Next.js docs that this is the right way to set cookies in a server action before you write it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/source-driven-development"
+    },
+    {
+      "query": "is 'doubt-driven development' an established methodology or a recent coinage? curious where the term comes from",
+      "should_trigger": false
+    },
+    {
+      "query": "add a comment above the retry loop in worker.py explaining why it's capped at 3 attempts",
+      "should_trigger": false
+    }
+  ],
+  "frontend-ui-engineering": [
+    {
+      "query": "build a responsive pricing page component with three tiers in React + Tailwind, accessible, matching our existing Card component",
+      "should_trigger": true
+    },
+    {
+      "query": "make the signup form WCAG AA compliant: labels, focus order, error announcements for screen readers",
+      "should_trigger": true
+    },
+    {
+      "query": "the settings page looks very AI generated, generic gradients and cards everywhere. make it look like a real product, we use shadcn/ui",
+      "should_trigger": true
+    },
+    {
+      "query": "add a data table to /admin/users with sorting, filtering and pagination, Vue 3 + Pinia for state",
+      "should_trigger": true
+    },
+    {
+      "query": "convert this static HTML mockup (design/onboarding.html) into Svelte components with proper state for the 4-step wizard",
+      "should_trigger": true
+    },
+    {
+      "query": "the mobile layout of the dashboard is broken below 400px, cards overflow and the nav covers content. fix the layout",
+      "should_trigger": true
+    },
+    {
+      "query": "where should the cart state live? right now it's prop drilled through 6 components in the Next app",
+      "should_trigger": true
+    },
+    {
+      "query": "create a reusable Modal component with a focus trap, escape to close and the right aria attributes",
+      "should_trigger": true
+    },
+    {
+      "query": "I fixed the dark mode toggle in ThemeSwitch.vue, can you confirm in a live browser that the class on <html> actually flips and localStorage gets set",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+    },
+    {
+      "query": "our LCP on the landing page is 4.2s and CLS 0.3, get Core Web Vitals into the green",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "define the typescript types for the contract between our Next.js frontend and the FastAPI backend for the search page. right now everything is `any` and the backend renames fields whenever it wants",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "Checkout.tsx is 900 lines and works, but it's unreadable. split it up without changing any behavior",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-simplification"
+    },
+    {
+      "query": "add tests for the useDebounce hook in src/hooks/useDebounce.ts, including the cancel on unmount case",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/test-driven-development"
+    },
+    {
+      "query": "tailwind classes aren't applied to components in packages/ui, I think the content paths in tailwind.config.js are wrong",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "react or svelte for a new side project in 2026? just want your opinion, not building anything yet",
+      "should_trigger": false
+    },
+    {
+      "query": "generate an svg favicon of a coffee cup for our site",
+      "should_trigger": false
+    }
+  ],
+  "git-workflow-and-versioning": [
+    {
+      "query": "my working tree has changes for three unrelated things, split them into clean atomic commits before I open the PR",
+      "should_trigger": true
+    },
+    {
+      "query": "I'm getting merge conflicts rebasing feat/search onto main in package-lock.json and src/api/client.ts. help me resolve them properly",
+      "should_trigger": true
+    },
+    {
+      "query": "what semver bump should this be? we removed the deprecated `legacyMode` option from the config and added a new `strict` flag. also write the CHANGELOG entry",
+      "should_trigger": true
+    },
+    {
+      "query": "cut release 3.2.0: bump the version, update the changelog, tag and push",
+      "should_trigger": true
+    },
+    {
+      "query": "how should we organize branches when two of us and an agent are all working on the same repo in parallel? we keep stepping on each other",
+      "should_trigger": true
+    },
+    {
+      "query": "commit what I've got with a decent message and open a PR against develop",
+      "should_trigger": true
+    },
+    {
+      "query": "I accidentally committed to main locally (3 commits, not pushed yet). move them to a new branch and reset main",
+      "should_trigger": true
+    },
+    {
+      "query": "about to start the order-service refactor. before I write code, how should I branch and commit this so it's easy to review and revert?",
+      "should_trigger": true
+    },
+    {
+      "query": "git bisect says commit a1b2c3 broke the login page. now figure out why that change breaks it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "can you make the release workflow publish to npm automatically when I push a tag like v1.4.0",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/ci-cd-and-automation"
+    },
+    {
+      "query": "implement the CSV export feature from task 3 in docs/plan.md, it touches the API, a worker and the UI",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/incremental-implementation"
+    },
+    {
+      "query": "fix the off-by-one in paginate() in src/lib/paginate.ts, page 2 repeats the last item of page 1",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/test-driven-development"
+    },
+    {
+      "query": "write an ADR recording why we're adopting trunk-based development, the team agreed on it yesterday",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "review my PR #412 before I merge it, it adds the refund flow in services/payments/",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-review-and-quality"
+    },
+    {
+      "query": "what does git rebase --onto actually do? explain with a small example, I'm not running anything",
+      "should_trigger": false
+    },
+    {
+      "query": "set my git user.email for this repo only to my work address",
+      "should_trigger": false
+    }
+  ],
+  "idea-refine": [
+    {
+      "query": "I have a rough idea for a habit-tracking app for ADHD folks. help me ideate and sharpen it into something concrete",
+      "should_trigger": true
+    },
+    {
+      "query": "refine this idea: a CLI that watches your git history and suggests when to split a PR",
+      "should_trigger": true
+    },
+    {
+      "query": "stress-test my plan: we want to monetize our open source library by selling a hosted version. what's weak about it?",
+      "should_trigger": true
+    },
+    {
+      "query": "we're torn between event sourcing and plain CRUD for the ledger. help me explore options before we decide anything",
+      "should_trigger": true
+    },
+    {
+      "query": "half-baked thought: what if our internal docs site could answer questions from the codebase? not sure what it should even be yet",
+      "should_trigger": true
+    },
+    {
+      "query": "brainstorm 10 different approaches to reducing churn in our onboarding flow, then help me narrow it down to the best two",
+      "should_trigger": true
+    },
+    {
+      "query": "I want to build something with the Strava API for my running club but the idea is still fuzzy. help me shape it",
+      "should_trigger": true
+    },
+    {
+      "query": "before I commit to rewriting our mobile app in Flutter, poke at the assumptions behind the idea and lay out some alternatives",
+      "should_trigger": true
+    },
+    {
+      "query": "build me an analytics dashboard. that's all I've got, my manager asked for one",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/interview-me"
+    },
+    {
+      "query": "interview me about what I want from the new onboarding flow, one question at a time",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/interview-me"
+    },
+    {
+      "query": "you said confidently that the race condition is fixed. I want that claim attacked by a fresh pair of eyes before I believe it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/doubt-driven-development"
+    },
+    {
+      "query": "we've settled on the idea: a Slack bot that posts daily standup summaries. now write the spec before any code",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/spec-driven-development"
+    },
+    {
+      "query": "here's the approved spec in docs/specs/standup-bot.md, break it into ordered tasks with estimates",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+    },
+    {
+      "query": "the habit tracker is built and tested. what do we need in place before launching it to production on Monday?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/shipping-and-launch"
+    },
+    {
+      "query": "what's the difference between divergent and convergent thinking? need one slide for a workshop",
+      "should_trigger": false
+    },
+    {
+      "query": "write the product announcement blog post for the habit tracker we launched last week, friendly tone, 400 words",
+      "should_trigger": false
+    }
+  ],
+  "incremental-implementation": [
+    {
+      "query": "implement the CSV export feature from task 3 in docs/plan.md, it touches the API, a worker and the UI",
+      "should_trigger": true
+    },
+    {
+      "query": "pick up the next unchecked task in tasks.md and implement it",
+      "should_trigger": true
+    },
+    {
+      "query": "implement the new checkout tax calculation behind a feature flag `tax_v2`, it touches the cart, invoice and api layers",
+      "should_trigger": true
+    },
+    {
+      "query": "add multi-currency support to the invoicing module, models, services, templates and tests all need changes. don't dump 2000 lines on me at once",
+      "should_trigger": true
+    },
+    {
+      "query": "this feature feels too big to land in one go: real-time collaboration on notes (websocket server, client sync, conflict UI). how do we get it in step by step",
+      "should_trigger": true
+    },
+    {
+      "query": "add soft delete to Projects: migration, model scope, API changes, and the trash view in the UI",
+      "should_trigger": true
+    },
+    {
+      "query": "go ahead and build the notification preferences page we planned, backend endpoints first, then the frontend",
+      "should_trigger": true
+    },
+    {
+      "query": "continue with the plan, task 4 of 9 is next (rate limiting middleware + config + docs)",
+      "should_trigger": true
+    },
+    {
+      "query": "the spec in docs/specs/standup-bot.md is approved. break it into ordered tasks with estimates, don't write code yet",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+    },
+    {
+      "query": "we want real-time collaboration on notes but nothing's defined yet: who can edit, conflicts, offline. write the spec first",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/spec-driven-development"
+    },
+    {
+      "query": "split my uncommitted changes into atomic commits, there's a refactor and a feature mixed together in the same files",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+    },
+    {
+      "query": "change calculateShipping in src/shipping.ts so orders over $100 ship free",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/test-driven-development"
+    },
+    {
+      "query": "we want to roll the tax_v2 flag out to 5%, then 50%, then 100% of customers. what's the launch checklist and the rollback plan",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/shipping-and-launch"
+    },
+    {
+      "query": "design the websocket message protocol between client and server for collaborative notes: message types, versioning, acks",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "fix the typo in the button label on /settings, it says 'Sumbit'",
+      "should_trigger": false
+    },
+    {
+      "query": "what's the difference between feature flags and long-lived feature branches? quick answer",
+      "should_trigger": false
+    }
+  ],
+  "interview-me": [
+    {
+      "query": "build me an analytics dashboard. that's all I've got, my manager asked for one",
+      "should_trigger": true
+    },
+    {
+      "query": "interview me about what I want from the new onboarding flow, one question at a time",
+      "should_trigger": true
+    },
+    {
+      "query": "grill me on this: I think we need a mobile app",
+      "should_trigger": true
+    },
+    {
+      "query": "are we sure? I said I want a microservices rewrite but honestly I'm not sure that's what I actually need",
+      "should_trigger": true
+    },
+    {
+      "query": "make me a CRM",
+      "should_trigger": true
+    },
+    {
+      "query": "stress-test my thinking on why I want AI features in our todo app. ask me questions until you understand what I really want",
+      "should_trigger": true
+    },
+    {
+      "query": "I want a tool for my team. something to help with code reviews I think? not sure, work out with me what I actually need before writing anything",
+      "should_trigger": true
+    },
+    {
+      "query": "build a scheduling system for our clinic",
+      "should_trigger": true
+    },
+    {
+      "query": "refine this idea: a CLI that watches your git history and suggests when to split a PR, and give me a few variations of it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/idea-refine"
+    },
+    {
+      "query": "I know exactly what I want: a CLI that converts CSV to parquet, flags --schema and --compression, streaming for large files. write the spec",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/spec-driven-development"
+    },
+    {
+      "query": "you said confidently that the race condition is fixed. I want that claim attacked by a fresh pair of eyes before I believe it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/doubt-driven-development"
+    },
+    {
+      "query": "requirements are clear (see docs/requirements.md), break the work into tasks",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+    },
+    {
+      "query": "brainstorm 10 different approaches to reducing churn in our onboarding flow, then help me narrow it down to the best two",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/idea-refine"
+    },
+    {
+      "query": "build me a login page with email and password using React and our existing Form components, validation with zod, errors inline under each field",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/frontend-ui-engineering"
+    },
+    {
+      "query": "write interview questions for hiring a senior backend engineer, focused on distributed systems",
+      "should_trigger": false
+    },
+    {
+      "query": "what questions should I ask the client in tomorrow's kickoff for their e-commerce rebuild? just give me a list",
+      "should_trigger": false
+    }
+  ],
+  "observability-and-instrumentation": [
+    {
+      "query": "prod issue: some orders silently get stuck in 'pending' and we have no logs that tell us why. add the instrumentation we need to see it next time",
+      "should_trigger": true
+    },
+    {
+      "query": "add structured logging with request ids to our express app, right now it's console.log everywhere",
+      "should_trigger": true
+    },
+    {
+      "query": "set up OpenTelemetry tracing across the api gateway, orders service and payment service so we can see where latency comes from",
+      "should_trigger": true
+    },
+    {
+      "query": "we're shipping the new recommendation engine to prod next week. how will we know it's actually working? add whatever metrics we need",
+      "should_trigger": true
+    },
+    {
+      "query": "add Prometheus metrics for queue depth and job duration in workers/, and an alert when depth stays above 1000 for 5 minutes",
+      "should_trigger": true
+    },
+    {
+      "query": "set up sentry in our next.js app so we get error reports from real users",
+      "should_trigger": true
+    },
+    {
+      "query": "customers report intermittent 502s but our logs show nothing useful. what should we log or measure so we can diagnose it",
+      "should_trigger": true
+    },
+    {
+      "query": "what should alerting look like for the checkout service? right now we get paged for everything or nothing",
+      "should_trigger": true
+    },
+    {
+      "query": "the cron job runs twice every night at 02:00 instead of once, but only on the prod server. what's going on",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "we're launching the new billing system to all customers on Monday. what needs to be in place beforehand, rollback plan, monitoring, the works?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/shipping-and-launch"
+    },
+    {
+      "query": "the trace shows 80% of request time is the ORM doing N+1 queries on /orders, fix it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "add a deploy step to the pipeline that pushes the docker image and updates the k8s deployment",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/ci-cd-and-automation"
+    },
+    {
+      "query": "after logging in the dashboard flickers and some widgets spin forever. capture console errors and failed requests on localhost:5173/dashboard",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+    },
+    {
+      "query": "why does python's logging print every message twice when I call basicConfig in two modules?",
+      "should_trigger": false
+    },
+    {
+      "query": "my grafana dashboard JSON broke after I edited it by hand, every panel says 'datasource not found'",
+      "should_trigger": false
+    },
+    {
+      "query": "explain the difference between metrics, logs and traces for a non-technical PM, two paragraphs",
+      "should_trigger": false
+    }
+  ],
+  "performance-optimization": [
+    {
+      "query": "GET /api/products takes 2.3s at p95, the handler runs a separate query per product to fetch its category. fix it",
+      "should_trigger": true
+    },
+    {
+      "query": "our LCP on the landing page is 4.2s and CLS 0.3, get Core Web Vitals into the green",
+      "should_trigger": true
+    },
+    {
+      "query": "the /reports page went from 300ms to 3s after the last release, profiler output attached",
+      "should_trigger": true
+    },
+    {
+      "query": "rewrite this loop to be faster, it processes 2M rows and takes 40s: for row in rows: df = df.append(row)",
+      "should_trigger": true
+    },
+    {
+      "query": "our Postgres query for the analytics dashboard takes 8 seconds, EXPLAIN ANALYZE output is below, help me speed it up",
+      "should_trigger": true
+    },
+    {
+      "query": "the SLA says search must answer under 200ms p99 at 500 rps. we're at 900ms. where do we start",
+      "should_trigger": true
+    },
+    {
+      "query": "the trace shows 80% of request time is the ORM doing N+1 queries on /orders, fix it",
+      "should_trigger": true
+    },
+    {
+      "query": "bundle is 4MB and the app takes forever to become interactive on mid-range android phones",
+      "should_trigger": true
+    },
+    {
+      "query": "set up OpenTelemetry tracing across the api gateway, orders service and payment service so we can see where latency comes from",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/observability-and-instrumentation"
+    },
+    {
+      "query": "capture the console errors and failed network requests on localhost:3000/checkout in a real browser",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+    },
+    {
+      "query": "the app freezes completely when I open the settings modal, I have to kill the tab. no error in the console. it started after yesterday's merge",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "we've piled up cruft in the OrderService class over 3 years: dead branches, wrappers that just forward calls, a factory used once. simplify it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-simplification"
+    },
+    {
+      "query": "add pagination to GET /api/products, what should the cursor format and response envelope look like?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "load test results look fine, now what do we need in place before going live Friday",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/shipping-and-launch"
+    },
+    {
+      "query": "what's the big O of python's list.insert(0, x)? quick answer",
+      "should_trigger": false
+    },
+    {
+      "query": "explain what CLS means and how the browser measures it, it's for a slide",
+      "should_trigger": false
+    }
+  ],
+  "planning-and-task-breakdown": [
+    {
+      "query": "here's the approved spec in docs/specs/standup-bot.md, break it into ordered tasks with estimates",
+      "should_trigger": true
+    },
+    {
+      "query": "requirements are clear (see docs/requirements.md), break the work into tasks",
+      "should_trigger": true
+    },
+    {
+      "query": "how long would adding SSO (SAML + OIDC) to our app take? I need a rough scope for the roadmap meeting on Thursday",
+      "should_trigger": true
+    },
+    {
+      "query": "moving to the new design system feels too big to even start, it's 140 screens. how do we chunk it up",
+      "should_trigger": true
+    },
+    {
+      "query": "we have 3 devs and 2 agents next sprint and the spec for multi-tenant support is done. which tasks can run in parallel and what depends on what?",
+      "should_trigger": true
+    },
+    {
+      "query": "turn the PRD in notion-export/payments-prd.md into a task list with acceptance criteria for each item",
+      "should_trigger": true
+    },
+    {
+      "query": "plan out the implementation of offline mode, the spec is in specs/offline.md. don't write code yet",
+      "should_trigger": true
+    },
+    {
+      "query": "write tasks.md for the CSV import feature from these requirements: upload, validate rows, preview, commit, error report",
+      "should_trigger": true
+    },
+    {
+      "query": "starting a new project: a CLI that syncs Notion pages to markdown. nothing written down yet, help me figure out what it should do",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/spec-driven-development"
+    },
+    {
+      "query": "pick up the next unchecked task in tasks.md and implement it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/incremental-implementation"
+    },
+    {
+      "query": "I have a rough idea for a habit-tracking app for ADHD folks. help me ideate and sharpen it into something concrete",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/idea-refine"
+    },
+    {
+      "query": "how should we organize branches when two of us and an agent are all working on the same repo in parallel? we keep stepping on each other",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+    },
+    {
+      "query": "make me a CRM",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/interview-me"
+    },
+    {
+      "query": "what's left before we can ship offline mode to production? need a pre-launch checklist",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/shipping-and-launch"
+    },
+    {
+      "query": "add a due_date column to the tasks table in our Rails todo app and show it in the task list view",
+      "should_trigger": false
+    },
+    {
+      "query": "turn this markdown checklist into GitHub issues with the gh cli, one issue per line",
+      "should_trigger": false
+    }
+  ],
+  "security-and-hardening": [
+    {
+      "query": "audit POST /api/upload in src/routes/upload.ts, it takes a multipart file plus a filename from the user and writes it to disk. worried about path traversal and file type checks",
+      "should_trigger": true
+    },
+    {
+      "query": "check our login flow (routes/auth.js) against the OWASP top ten, especially session fixation and brute force",
+      "should_trigger": true
+    },
+    {
+      "query": "npm audit in our pipeline shows 14 high vulnerabilities, help me triage which ones actually matter for us",
+      "should_trigger": true
+    },
+    {
+      "query": "we're integrating a webhook from Shopify. how do we make sure the requests are genuine and can't be replayed",
+      "should_trigger": true
+    },
+    {
+      "query": "we store date of birth and home addresses for EU customers. what do we need for GDPR: retention, deletion requests, encryption at rest?",
+      "should_trigger": true
+    },
+    {
+      "query": "is it safe to add `left-pad-ng` as a dependency? 12 weekly downloads, first published last week. assess the supply chain risk",
+      "should_trigger": true
+    },
+    {
+      "query": "the search box builds SQL by string concatenation: \"SELECT * FROM products WHERE name LIKE '%\" + q + \"%'\". fix it properly",
+      "should_trigger": true
+    },
+    {
+      "query": "implementing password reset tokens in our Django app, how do we generate, store and expire them safely",
+      "should_trigger": true
+    },
+    {
+      "query": "we're rewriting the JWT validation in auth/middleware.go. this is production auth, I want each decision reviewed adversarially before we move on",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/doubt-driven-development"
+    },
+    {
+      "query": "review my PR #412 before I merge it, it adds the refund flow in services/payments/",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-review-and-quality"
+    },
+    {
+      "query": "add a GitHub Actions step that runs npm audit on every PR and fails the build on critical findings",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/ci-cd-and-automation"
+    },
+    {
+      "query": "login returns 401 for every user since this morning, even with correct passwords. nothing was deployed. find out why",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "the billing module and the notifications module keep importing each other's internals. i want a clean interface between them, what should the contract look like? TS monorepo, packages/billing and packages/notifications",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "how do I generate an SSH key for github on my mac",
+      "should_trigger": false
+    },
+    {
+      "query": "what's the difference between hashing and encryption? explaining it to a junior dev",
+      "should_trigger": false
+    },
+    {
+      "query": "CORS error 'No Access-Control-Allow-Origin header' when the frontend on localhost:5173 calls the API on localhost:8000",
+      "should_trigger": false
+    }
+  ],
+  "shipping-and-launch": [
+    {
+      "query": "we're launching the new billing system to all customers on Monday. what needs to be in place beforehand, rollback plan, monitoring, the works?",
+      "should_trigger": true
+    },
+    {
+      "query": "launching the new search page to all users Thursday, what needs to be in place before we ship",
+      "should_trigger": true
+    },
+    {
+      "query": "we want to roll the tax_v2 flag out to 5%, then 50%, then 100% of customers. what's the launch checklist and the rollback plan",
+      "should_trigger": true
+    },
+    {
+      "query": "load test results look fine, now what do we need in place before going live Friday",
+      "should_trigger": true
+    },
+    {
+      "query": "what's left before we can ship offline mode to production? need a pre-launch checklist",
+      "should_trigger": true
+    },
+    {
+      "query": "first production deploy of our SaaS ever, we've only run it on staging so far. what are we forgetting?",
+      "should_trigger": true
+    },
+    {
+      "query": "if the v3 deploy goes bad on Black Friday how do we roll back fast? the release includes a DB migration",
+      "should_trigger": true
+    },
+    {
+      "query": "are we ready to flip DNS from the old servers to the new k8s cluster tonight? go through what should be verified first",
+      "should_trigger": true
+    },
+    {
+      "query": "we deploy by sshing into the box and running git pull. I want automatic deploys to staging whenever main is updated, with the docker image pushed to GHCR first",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/ci-cd-and-automation"
+    },
+    {
+      "query": "add Prometheus metrics for queue depth and job duration in workers/, and an alert when depth stays above 1000 for 5 minutes",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/observability-and-instrumentation"
+    },
+    {
+      "query": "cut release 3.2.0: bump the version, update the changelog, tag and push",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/git-workflow-and-versioning"
+    },
+    {
+      "query": "we shipped the new bulk import feature today. write the docs for it: how it works, limits, the CSV format",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "we want to drop the legacy_events table (800GB) but a couple of reporting jobs might still read it. how do we do this safely",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/deprecation-and-migration"
+    },
+    {
+      "query": "the production deploy failed, every pod is in ImagePullBackOff. what's wrong",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "write the launch announcement email to customers about the new billing system, short and friendly",
+      "should_trigger": false
+    },
+    {
+      "query": "how do I deploy a static site to Netlify from the command line?",
+      "should_trigger": false
+    }
+  ],
+  "source-driven-development": [
+    {
+      "query": "verify against the official Next.js docs that this is the right way to set cookies in a server action before you write it",
+      "should_trigger": true
+    },
+    {
+      "query": "what's the officially recommended way to write route handlers in the Next.js 15 app router? check the docs before you write the handler for /api/health",
+      "should_trigger": true
+    },
+    {
+      "query": "I don't trust tutorials for this: set up SvelteKit form actions with progressive enhancement exactly the way the official docs describe, and cite them",
+      "should_trigger": true
+    },
+    {
+      "query": "your last answer used the old getServerSideProps pattern. redo the data fetching for app/ based on the current docs, with links",
+      "should_trigger": true
+    },
+    {
+      "query": "write the Terraform for an AWS ALB with an HTTPS listener, grounded in the current provider docs, I keep getting outdated examples from blogs",
+      "should_trigger": true
+    },
+    {
+      "query": "we're on Django 5.1. implement async views for the reports endpoint and link the docs for every non-obvious decision",
+      "should_trigger": true
+    },
+    {
+      "query": "set up TanStack Query v5 in our React app. the API changed a lot from v4, so check the official docs instead of going from memory",
+      "should_trigger": true
+    },
+    {
+      "query": "before implementing the Stripe PaymentIntent flow, confirm the approach against Stripe's official API reference",
+      "should_trigger": true
+    },
+    {
+      "query": "we're adding a public REST API for our invoicing service (Express + Postgres). customers need to list, create and void invoices. can you design the endpoints, status codes, pagination and error format before i write any handlers?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "after upgrading to Next 15 the build fails with 'cookies() should be awaited before using its value'. what broke?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "should we keep our homegrown ORM or move to Prisma? it's used in ~200 files and exactly one person understands it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/deprecation-and-migration"
+    },
+    {
+      "query": "build a responsive navbar component in React + Tailwind with a mobile menu and keyboard support",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/frontend-ui-engineering"
+    },
+    {
+      "query": "add tests for the Stripe webhook handler in src/webhooks/stripe.ts, cover the signature failure path",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/test-driven-development"
+    },
+    {
+      "query": "write an ADR recording why we picked TanStack Query over SWR, we decided last sprint",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "summarize the React 19 changelog for our team newsletter, five bullet points",
+      "should_trigger": false
+    },
+    {
+      "query": "find the official docs page for postgres JSONB operators and send me the link",
+      "should_trigger": false
+    }
+  ],
+  "spec-driven-development": [
+    {
+      "query": "starting a new project: a CLI that syncs Notion pages to markdown. nothing written down yet, help me figure out what it should do",
+      "should_trigger": true
+    },
+    {
+      "query": "we've settled on the idea: a Slack bot that posts daily standup summaries. now write the spec before any code",
+      "should_trigger": true
+    },
+    {
+      "query": "write a PRD for the bulk import feature: objectives, scope, non-goals. nothing is built yet",
+      "should_trigger": true
+    },
+    {
+      "query": "we want real-time collaboration on notes but nothing's defined yet: who can edit, conflicts, offline. write the spec first",
+      "should_trigger": true
+    },
+    {
+      "query": "I know exactly what I want: a CLI that converts CSV to parquet, flags --schema and --compression, streaming for large files. write the spec",
+      "should_trigger": true
+    },
+    {
+      "query": "the requirement 'customers can manage their subscription' covers billing, plan changes, invoices and cancellation. split it into modules before we specify each one",
+      "should_trigger": true
+    },
+    {
+      "query": "before anyone writes code for the referral program, draft the requirements doc: who's eligible, rewards, fraud limits, acceptance criteria",
+      "should_trigger": true
+    },
+    {
+      "query": "let's do this spec-driven: a webhook retry service with exponential backoff and a dead-letter queue, no spec exists yet",
+      "should_trigger": true
+    },
+    {
+      "query": "the spec in specs/offline.md is approved. break it into ordered tasks",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+    },
+    {
+      "query": "brainstorm 10 different approaches to reducing churn in our onboarding flow, then help me narrow it down to the best two",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/idea-refine"
+    },
+    {
+      "query": "grill me on this: I think we need a mobile app",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/interview-me"
+    },
+    {
+      "query": "implement task 2 from specs/standup-bot/tasks.md, it spans the slack client, the scheduler and the db layer",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/incremental-implementation"
+    },
+    {
+      "query": "we decided to go with gRPC instead of REST for internal service-to-service calls after a long debate. write this up as an ADR in docs/adr/ so new folks know why",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/documentation-and-adrs"
+    },
+    {
+      "query": "the webhook retry spec is approved. design the HTTP endpoints and the error format for it",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/api-and-interface-design"
+    },
+    {
+      "query": "what's the difference between a PRD and a technical design doc? quick answer for a new PM",
+      "should_trigger": false
+    },
+    {
+      "query": "fix the formatting of the tables in docs/spec.md, the columns don't line up in the github preview",
+      "should_trigger": false
+    }
+  ],
+  "test-driven-development": [
+    {
+      "query": "add tests for parseDuration in src/time.ts, it handles '1h30m' style strings",
+      "should_trigger": true
+    },
+    {
+      "query": "change calculateShipping in src/shipping.ts so orders over $100 ship free",
+      "should_trigger": true
+    },
+    {
+      "query": "bug report JIRA-3321: discount codes are applied twice when the cart has a gift card. it's in applyDiscounts in cart/pricing.ts. fix it",
+      "should_trigger": true
+    },
+    {
+      "query": "implement slugify(title) in lib/text.ts: lowercase, ascii only, dashes between words, max 60 chars",
+      "should_trigger": true
+    },
+    {
+      "query": "can you fix this? it returns the wrong week number for some dates\n\ndef iso_week(d):\n    return d.isocalendar()[1] - 1",
+      "should_trigger": true
+    },
+    {
+      "query": "I need proof that the retry logic in http/retry.go actually backs off exponentially, it has never been tested",
+      "should_trigger": true
+    },
+    {
+      "query": "fix the off-by-one in paginate() in src/lib/paginate.ts, page 2 repeats the last item of page 1",
+      "should_trigger": true
+    },
+    {
+      "query": "we're about to modify the tax rounding in invoice.py. zero tests and it's money, so let's go red-green-refactor",
+      "should_trigger": true
+    },
+    {
+      "query": "pytest: 12 tests in tests/test_billing.py started failing after upgrading pydantic to v2, errors mention model_config",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "the CI job 'test' fails only on GitHub Actions with ECONNREFUSED 127.0.0.1:5432 but passes locally. logs below, what's going on",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "Configure pytest to run in CircleCI with a postgres service container, the tests need DATABASE_URL set",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/ci-cd-and-automation"
+    },
+    {
+      "query": "I fixed the dark mode toggle in ThemeSwitch.vue, can you confirm in a live browser that the class on <html> actually flips and localStorage gets set",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/browser-testing-with-devtools"
+    },
+    {
+      "query": "noticed the last agent PR changed `it(` to `it.skip(` in 3 test files and deleted an assertion in cart.test.ts. how do I stop this from happening again",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/constraint-driven-development"
+    },
+    {
+      "query": "refactor utils/date.js, there are 4 near-identical helpers that only differ in the format string",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/code-simplification"
+    },
+    {
+      "query": "what's the difference between a mock, a stub and a fake? explain with jest examples",
+      "should_trigger": false
+    },
+    {
+      "query": "jest --coverage output in the terminal is hard to read, how do I get an html report instead?",
+      "should_trigger": false
+    }
+  ],
+  "using-agent-skills": [
+    {
+      "query": "which of your skills should I use for adding a feature flag to the checkout flow? not sure where to start",
+      "should_trigger": true
+    },
+    {
+      "query": "new session. what skills do you have, and which ones apply to fixing our flaky e2e suite?",
+      "should_trigger": true
+    },
+    {
+      "query": "I have a vague feature idea, a bug backlog and a release next week. what workflow should we follow, which skills in what order?",
+      "should_trigger": true
+    },
+    {
+      "query": "starting a session on this repo. before anything else, figure out which skill or workflow fits each item on my list: 1) slow search query 2) new export endpoint 3) changelog for 2.1",
+      "should_trigger": true
+    },
+    {
+      "query": "how do the skills in this setup work, do you pick them automatically or do I have to ask for them?",
+      "should_trigger": true
+    },
+    {
+      "query": "not sure if this needs a spec, a plan or just code: adding dark mode to the settings page. pick the right workflow first",
+      "should_trigger": true
+    },
+    {
+      "query": "which of the installed skills would you apply for a production auth change, and in what order?",
+      "should_trigger": true
+    },
+    {
+      "query": "use using-agent-skills to decide how to approach migrating our cron jobs to Temporal",
+      "should_trigger": true
+    },
+    {
+      "query": "write a CLAUDE.md for this repo describing the build commands, folder layout and code style",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/context-engineering"
+    },
+    {
+      "query": "long conversation, quality is degrading, you just suggested a fix we rejected 20 minutes ago. help me reset context without losing the decisions we made",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/context-engineering"
+    },
+    {
+      "query": "starting a new project: a CLI that syncs Notion pages to markdown. nothing written down yet, help me figure out what it should do",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/spec-driven-development"
+    },
+    {
+      "query": "new session: the build is broken since this morning, tsc says TS2307: Cannot find module '@acme/core'",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/debugging-and-error-recovery"
+    },
+    {
+      "query": "requirements are clear (see docs/requirements.md), break the work into tasks",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/planning-and-task-breakdown"
+    },
+    {
+      "query": "write a new SKILL.md for our team's release process so agents follow it",
+      "should_trigger": false,
+      "near_miss_of": "Superpowers/writing-skills"
+    },
+    {
+      "query": "how do I install a skill from a github repo into claude code?",
+      "should_trigger": false
+    },
+    {
+      "query": "what's the difference between a skill and a slash command in Claude Code?",
+      "should_trigger": false
+    }
+  ]
+}

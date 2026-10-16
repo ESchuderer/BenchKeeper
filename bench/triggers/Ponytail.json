@@ -1,0 +1,432 @@
+{
+  "ponytail": [
+    {
+      "query": "add a retry to the fetchInvoices call in src/billing/client.ts, it times out maybe once a day against the stripe api. dont build a whole retry framework, just the simplest thing that works",
+      "should_trigger": true
+    },
+    {
+      "query": "you over-engineered that last change: a strategy pattern plus a factory for two CSV export formats? redo src/export/ smaller, a single function with an if is fine",
+      "should_trigger": true
+    },
+    {
+      "query": "I need a --dry-run flag for scripts/migrate_users.py so it prints what it would change instead of writing to postgres",
+      "should_trigger": true
+    },
+    {
+      "query": "yagni check before I start: ticket PLAT-2291 says add a plugin system for notification channels, but we only have email and slack. implement what we actually need in services/notify/",
+      "should_trigger": true
+    },
+    {
+      "query": "switch ponytail to ultra for the rest of this session and then fix the off-by-one in paginate() in lib/pagination.js, page 1 skips the first item",
+      "should_trigger": true
+    },
+    {
+      "query": "should I pull in lodash just for debounce in our React search box (src/components/SearchBar.tsx)? if not, write it",
+      "should_trigger": true
+    },
+    {
+      "query": "refactor the useCart hook in web/src/hooks/useCart.ts, it has 4 useEffects that all sync localStorage and its getting hard to follow",
+      "should_trigger": true
+    },
+    {
+      "query": "this branch adds 600 lines for one feature flag toggle, way too much. rewrite the flag check in api/flags.go so it is like 20 lines and still reads the env override",
+      "should_trigger": true
+    },
+    {
+      "query": "audit the whole monorepo for dead code and tell me what I can delete, don't change anything yet",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-audit"
+    },
+    {
+      "query": "review the last commit on feature/oauth-refresh before I push it, is the token refresh logic right?",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-review"
+    },
+    {
+      "query": "list the shortcuts ponytail left in this repo so we can plan the cleanup sprint",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-debt"
+    },
+    {
+      "query": "how much does ponytail actually save in tokens and lines of code? my lead wants numbers before we roll it out to the team",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-gain"
+    },
+    {
+      "query": "what's the difference between ponytail lite and ultra, and which commands come with it?",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-help"
+    },
+    {
+      "query": "for my team talk on friday, explain in two sentences each what a code smell, a refactor and a rewrite are, no code involved",
+      "should_trigger": false
+    },
+    {
+      "query": "what does lazy loading in Hibernate actually do under the hood and why do I get LazyInitializationException outside a transaction? just explain, I'll fix it myself",
+      "should_trigger": false
+    },
+    {
+      "query": "summarize what changed between React 18 and React 19 for useEffect cleanup timing, I just want to understand it, not change any code",
+      "should_trigger": false
+    }
+  ],
+  "ponytail-review": [
+    {
+      "query": "review my staged changes before I commit, I touched the session cache in src/auth/session.ts and the middleware that reads it",
+      "should_trigger": true
+    },
+    {
+      "query": "can you do a code review of PR #212? it adds bulk import for contacts, worried it falls over with 50k rows",
+      "should_trigger": true
+    },
+    {
+      "query": "look at HEAD~1..HEAD, I rewrote the date parsing in utils/dates.py and want to know if I broke timezone handling for any callers",
+      "should_trigger": true
+    },
+    {
+      "query": "is this over-engineered? the feature/report-builder branch adds a generic pipeline abstraction for what's basically two SQL queries",
+      "should_trigger": true
+    },
+    {
+      "query": "use ponytail-review on my diff against main",
+      "should_trigger": true
+    },
+    {
+      "query": "before I merge feature/rate-limit can you go over the diff, is the redis counter safe when 3 api pods hit it at the same time",
+      "should_trigger": true
+    },
+    {
+      "query": "my coworker's PR https://github.com/acme/shop-api/pull/488 changes how refunds are written to the ledger table, check it for data loss and missing tests",
+      "should_trigger": true
+    },
+    {
+      "query": "go over my uncommitted work in web/src/checkout/, is every line actually needed or did I leave junk in",
+      "should_trigger": true
+    },
+    {
+      "query": "we inherited this django repo from an agency, audit the entire codebase and rank whats most likely to break in prod",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-audit"
+    },
+    {
+      "query": "find bloat across the whole repo, which modules can I delete or merge?",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-audit"
+    },
+    {
+      "query": "I got 14 review comments on PR #301 from our staff engineer and some seem wrong (he wants a mutex around a single-threaded loop). help me work through which ones to actually apply",
+      "should_trigger": false,
+      "near_miss_of": "Superpowers/receiving-code-review"
+    },
+    {
+      "query": "write the PR description for my branch feature/csv-export, it closes #77 and adds streaming export for large reports",
+      "should_trigger": false,
+      "near_miss_of": "Matt-Pocock/pr"
+    },
+    {
+      "query": "list every shortcut: comment in the repo with the upgrade trigger it names",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-debt"
+    },
+    {
+      "query": "I'm about to write the retry logic in src/jobs/sync.ts, keep it minimal, no framework, just exponential backoff with 3 tries",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail"
+    },
+    {
+      "query": "what does git diff main...HEAD show that git diff main..HEAD doesn't? the three dots always confuse me",
+      "should_trigger": false
+    },
+    {
+      "query": "set up branch protection on main so every PR needs one approving review and green CI before merge, we use github",
+      "should_trigger": false
+    }
+  ],
+  "ponytail-audit": [
+    {
+      "query": "we inherited this django repo from an agency, audit the entire codebase and rank whats most likely to break in prod",
+      "should_trigger": true
+    },
+    {
+      "query": "find bloat across the whole repo, which modules can I delete or merge?",
+      "should_trigger": true
+    },
+    {
+      "query": "what can I delete in this repo? its 4 years old and nobody knows what half of lib/ does anymore",
+      "should_trigger": true
+    },
+    {
+      "query": "review the whole repo before we open source it next month: security holes, untested risky bits, anything that would embarrass us",
+      "should_trigger": true
+    },
+    {
+      "query": "run /ponytail-audit on the monorepo, packages/* included",
+      "should_trigger": true
+    },
+    {
+      "query": "first week at the new job. give me a ranked list of the riskiest problems in this go service, explained so I can bring them to standup, but don't change any files",
+      "should_trigger": true
+    },
+    {
+      "query": "our node backend gets slow at around 200 rps. go through the entire codebase and tell me which paths won't hold up under load and what's untested",
+      "should_trigger": true
+    },
+    {
+      "query": "which parts of this codebase should be split or merged? services/ has 30 tiny packages and utils/ is 4000 lines",
+      "should_trigger": true
+    },
+    {
+      "query": "can you do a code review of PR #212? it adds bulk import for contacts, worried it falls over with 50k rows",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-review"
+    },
+    {
+      "query": "go over my uncommitted work in web/src/checkout/, is every line actually needed or did I leave junk in",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-review"
+    },
+    {
+      "query": "list the shortcuts ponytail left in this repo so we can plan the cleanup sprint",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-debt"
+    },
+    {
+      "query": "npm audit shows 3 high severity advisories in package-lock.json, triage them and tell me which actually affect us",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/security-and-hardening"
+    },
+    {
+      "query": "audit my ~/.claude setup, I have way too many skills and some MCP servers I never use",
+      "should_trigger": false,
+      "near_miss_of": "ECC/config-gc"
+    },
+    {
+      "query": "delete the unused legacyExport function from src/export.ts and its test, I already checked nothing calls it",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail"
+    },
+    {
+      "query": "whats the git command to list files in this repo that nobody has touched in 2 years?",
+      "should_trigger": false
+    },
+    {
+      "query": "we launch next tuesday. what has to be in place before we ship: rollback plan, monitoring, feature flags?",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/shipping-and-launch"
+    }
+  ],
+  "ponytail-debt": [
+    {
+      "query": "list the shortcuts ponytail left in this repo so we can plan the cleanup sprint",
+      "should_trigger": true
+    },
+    {
+      "query": "what did ponytail defer over the last month? I want a ledger before Q3 planning",
+      "should_trigger": true
+    },
+    {
+      "query": "grep every `shortcut:` comment and show me what limit each one names and when to upgrade",
+      "should_trigger": true
+    },
+    {
+      "query": "use ponytail-debt for packages/api only",
+      "should_trigger": true
+    },
+    {
+      "query": "we've been shipping fast with lots of 'good enough for now' hacks marked in comments. give me the debt ledger so none of them quietly becomes permanent",
+      "should_trigger": true
+    },
+    {
+      "query": "before we scale to the EU region, which of our deliberate simplifications (the ones marked shortcut: in the code) hit their ceiling first?",
+      "should_trigger": true
+    },
+    {
+      "query": "older code still has notes like `// ponytail: in-memory only, move to redis at 2 instances`. collect those plus the newer shortcut ones into one list",
+      "should_trigger": true
+    },
+    {
+      "query": "show me the tech debt we took on on purpose, the comments that name a ceiling and an upgrade path, grouped by file",
+      "should_trigger": true
+    },
+    {
+      "query": "list the keyboard shortcuts defined in src/editor/keymap.ts and check none of them conflict with browser defaults",
+      "should_trigger": false
+    },
+    {
+      "query": "audit the whole codebase for tech debt and rank what to fix first",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-audit"
+    },
+    {
+      "query": "how much does ponytail save on average? I need the benchmark numbers",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-gain"
+    },
+    {
+      "query": "how do I use ponytail, which commands are there?",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-help"
+    },
+    {
+      "query": "add a shortcut: comment to the in-memory rate limiter I just wrote in api/limit.go saying it breaks past one instance",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail"
+    },
+    {
+      "query": "review the last commit, I added two shortcut: markers in the cache layer and want to know if those shortcuts are actually safe",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-review"
+    },
+    {
+      "query": "whats the vscode shortcut to open a definition in the split to the side?",
+      "should_trigger": false
+    },
+    {
+      "query": "sonarqube says 43 days of technical debt on the payments service. how does sonar even compute that number?",
+      "should_trigger": false
+    }
+  ],
+  "ponytail-gain": [
+    {
+      "query": "how much does ponytail actually save in tokens and lines of code? my lead wants numbers before we roll it out to the team",
+      "should_trigger": true
+    },
+    {
+      "query": "show me ponytail's benchmark results for cost and speed",
+      "should_trigger": true
+    },
+    {
+      "query": "is ponytail measurably better or just vibes? I need the measured impact for a slide",
+      "should_trigger": true
+    },
+    {
+      "query": "show me the ponytail gain numbers, cost only",
+      "should_trigger": true
+    },
+    {
+      "query": "does the lazy senior dev mode actually make runs cheaper or faster, or just make replies shorter? show me the measured numbers",
+      "should_trigger": true
+    },
+    {
+      "query": "ponytail impact on code size vs a plain claude run, what did the benchmark find",
+      "should_trigger": true
+    },
+    {
+      "query": "my manager asked if the smallest-change plugin we installed has any data behind it. pull up its measured savings",
+      "should_trigger": true
+    },
+    {
+      "query": "on average how much less code does ponytail write? and does it cost less per task?",
+      "should_trigger": true
+    },
+    {
+      "query": "what's the difference between ponytail lite and ultra, and which commands come with it?",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-help"
+    },
+    {
+      "query": "list the shortcuts ponytail left in this repo so we can plan the cleanup sprint",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-debt"
+    },
+    {
+      "query": "benchmark the old vs new JSON parser in src/parse/ with hyperfine and tell me which one is faster on the 200MB fixture",
+      "should_trigger": false,
+      "near_miss_of": "agent-skills/performance-optimization"
+    },
+    {
+      "query": "make src/report/aggregate.ts smaller and faster, it builds three intermediate arrays just to sum two columns",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail"
+    },
+    {
+      "query": "audit the repo and tell me how many lines we could delete",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-audit"
+    },
+    {
+      "query": "our claude code bill went up this month. I have the usage export in ~/Downloads/usage-sept.csv, sum the cost per day and show the top 5 days",
+      "should_trigger": false
+    },
+    {
+      "query": "how much bundle size would we save if we dropped moment.js for date-fns in the web app? measure it",
+      "should_trigger": false
+    },
+    {
+      "query": "explain how SWE-bench scores are measured and why vendor-reported numbers differ from independent ones",
+      "should_trigger": false
+    }
+  ],
+  "ponytail-help": [
+    {
+      "query": "what's the difference between ponytail lite and ultra, and which commands come with it?",
+      "should_trigger": true
+    },
+    {
+      "query": "just installed the ponytail plugin, how do I use it? is there anything I have to turn on",
+      "should_trigger": true
+    },
+    {
+      "query": "ponytail help: what levels and commands are there again?",
+      "should_trigger": true
+    },
+    {
+      "query": "which ponytail skills are there besides the review one? give me the quick reference",
+      "should_trigger": true
+    },
+    {
+      "query": "how do I turn this lazy mode off again, and what was the command to switch levels?",
+      "should_trigger": true
+    },
+    {
+      "query": "the session says 'PONYTAIL MODE ACTIVE, level: full'. what does full mean and what would ultra do differently?",
+      "should_trigger": true
+    },
+    {
+      "query": "cheat sheet for the ponytail slash commands pls",
+      "should_trigger": true
+    },
+    {
+      "query": "is there a ponytail command for the deferred stuff or do I have to grep for it myself? what commands does it have",
+      "should_trigger": true
+    },
+    {
+      "query": "switch ponytail to ultra for the rest of this session and then fix the off-by-one in paginate() in lib/pagination.js, page 1 skips the first item",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail"
+    },
+    {
+      "query": "how much does ponytail actually save in tokens and lines of code? my lead wants numbers before we roll it out to the team",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-gain"
+    },
+    {
+      "query": "list the shortcuts ponytail left in this repo so we can plan the cleanup sprint",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-debt"
+    },
+    {
+      "query": "run /ponytail-audit on the monorepo, packages/* included",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-audit"
+    },
+    {
+      "query": "is this over-engineered? the feature/report-builder branch adds a generic pipeline abstraction for what's basically two SQL queries",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail-review"
+    },
+    {
+      "query": "write the --help output for our CLI in cmd/root.go, list the subcommands and their flags",
+      "should_trigger": false,
+      "near_miss_of": "Ponytail/ponytail"
+    },
+    {
+      "query": "how do I make a custom slash command in claude code that runs our lint script?",
+      "should_trigger": false
+    },
+    {
+      "query": "quick reference for git rebase --onto with one example, I always forget the argument order",
+      "should_trigger": false
+    }
+  ]
+}

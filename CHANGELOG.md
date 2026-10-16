@@ -2,6 +2,17 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
 
+## setup-v2.2 (2026-10-16)
+
+Decisions before Build, discard and restart, review input, documentation, opt-in checks (#46).
+
+- `sdlc` Specify (full tier): records deployment target, data storage, module boundaries, core types and interfaces; a skeleton first only on request or in a repository without structure.
+- `sdlc` Build: work that drifts from the plan or spec is discarded and restarted in a fresh context with the cause added to the plan, instead of patched.
+- `sdlc` review and pull requests: the pre-push reviewer gets the diff and the plan or spec summary; the pull request lists the key decisions.
+- `rules/global.md` Scope: documentation the task needs is in scope (README for a new project or app, updated with setup or behavior changes).
+- `sdlc` opt-in for hard tasks, only on the user's explicit request: best-of-N in 2 or 3 worktrees, mutation testing on changed files.
+- Benchmark: `bench/arms/bk-v2/` pins these rules and the `sdlc` skill as BenchKeeper layer v2 (`BK=v2` build argument, agent-skills arms); published runs used v1.
+
 ## setup-v2.1 (2026-10-16)
 
 CI, permission rules removed (#39).

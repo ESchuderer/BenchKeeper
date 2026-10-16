@@ -148,8 +148,8 @@
         "name": "Specify",
         "phase": "define",
         "sub": "OpenSpec",
-        "tip": "Full tier: writes the spec as an OpenSpec change, or uses plan mode.",
-        "text": "Full tier: `spec-driven-development`, written as an OpenSpec change when the repository has one."
+        "tip": "Full tier: writes the spec as an OpenSpec change, or uses plan mode, with the decisions not left to the agent: deployment, storage, module boundaries, core types.",
+        "text": "Full tier: `spec-driven-development`, written as an OpenSpec change when the repository has one; it records deployment target, data storage, module boundaries and core types, with a skeleton first on request or in a repository without structure."
       },
       {
         "name": "Plan",
@@ -163,7 +163,7 @@
         "phase": "build",
         "sub": "small slices, tests first",
         "tip": "Implements task by task, tests first, the smallest complete change.",
-        "text": "`incremental-implementation`, tests first where a test suite exists, Ponytail `full` for the smallest complete change."
+        "text": "`incremental-implementation`, tests first where a test suite exists, Ponytail `full` for the smallest complete change; work that drifts from the plan is discarded and restarted with the cause added to the plan."
       },
       {
         "name": "Verify",
@@ -178,7 +178,7 @@
         "sub": "code review before push",
         "human": "findings stop push",
         "tip": "Standard and full tiers, and risky quick changes: reviews the commits for correctness before push. Findings wait for you.",
-        "text": "Standard and full tiers, and risky quick changes: correctness review of the commits before `git push`, plus `security-review` for risky changes; findings stop the push until you decide."
+        "text": "Standard and full tiers, and risky quick changes: correctness review of the commits before `git push`, with the diff and the plan, plus `security-review` for risky changes; findings stop the push until you decide."
       },
       {
         "name": "Ship",
@@ -186,7 +186,7 @@
         "sub": "draft PR, checks, ready",
         "human": "you merge",
         "tip": "Opens a draft pull request, waits for checks, marks it ready. You merge.",
-        "text": "Draft pull request, with `Closes #n` when an issue exists; wait for checks, mark ready. Merge only on your instruction."
+        "text": "Draft pull request, with `Closes #n` when an issue exists and the key decisions; wait for checks, mark ready. Merge only on your instruction."
       },
       {
         "name": "Maintain",

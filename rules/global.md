@@ -29,7 +29,7 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Never output the em dash (U+2014), emojis, or emoticons (smileys made of punctuation) in answers, code, comments, commit messages, docs, UI copy, or designs. Use a comma, colon, period, or parentheses instead.
 
 ## Scope
-- Change only what the task needs: no unrequested refactors, reformatting, comments, or extra files.
+- Change only what the task needs: no unrequested refactors, reformatting, comments, or extra files. Documentation the task needs is in scope: a new project or app gets a README with setup, run, test and configuration, and a change to setup or behavior updates it.
 - Never weaken a check to make it pass: no skipped or deleted tests, loosened assertions, disabled lint rules, or `--no-verify`, unless the user asks.
 - Ponytail (`full`) guides implementation choices within the agreed scope; project instructions, clarification, architecture boundaries, and required checks take precedence.
 

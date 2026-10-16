@@ -2,7 +2,7 @@
 
 ### Requirement: Tier selection
 
-The agent SHALL load the `sdlc` skill before any edit in a repository, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items; plain questions SHALL need neither. Following `sdlc`, the agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. An explicit tier from the user SHALL win; for a risky change the agent SHALL name the full tier and ask, and the user's answer SHALL decide. A project default tier SHALL apply when no other tier clearly matches. Tier steps, escalation, the research flow, change types, request handling and risky changes SHALL be defined in `sdlc`; the always-on rules SHALL keep only the trigger and the limits that hold without it (no commit, push or merge on the default branch and no pull request merge without the user's instruction). The Maintain pass SHALL run only when the user invokes it.
+The agent SHALL assign each request that leads to an edit or a subagent to one tier (quick, standard, full, research) and state it in one line before the first edit or subagent. An explicit tier from the user SHALL win; for a risky change the agent SHALL name the full tier and ask, and the user's answer SHALL decide. A project default tier SHALL apply when no other tier clearly matches.
 
 #### Scenario: Small UI change
 
@@ -35,6 +35,34 @@ The agent SHALL load the `sdlc` skill before any edit in a repository, before cr
 - **THEN** the agent loads `sdlc` and runs one subagent per tool
 
 ## ADDED Requirements
+
+### Requirement: Skill loading
+
+The agent SHALL load the `sdlc` skill before any edit in a repository, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items; plain questions SHALL need neither.
+
+#### Scenario: Push without an edit
+
+- **WHEN** the user asks to push the current branch and open a pull request
+- **THEN** the agent loads `sdlc` first and runs its pre-push review
+
+#### Scenario: Question
+
+- **WHEN** the user asks what a function does
+- **THEN** the agent answers without loading `sdlc`
+
+### Requirement: Workflow location
+
+Tier steps, escalation, the research flow, change types, request handling and risky changes SHALL be defined in `sdlc`. The always-on rules SHALL keep only the trigger and the limits that hold without it: no commit, push or merge on the default branch and no pull request merge without the user's instruction. The Maintain pass SHALL run only when the user invokes it.
+
+#### Scenario: Skill not loaded
+
+- **WHEN** the agent has not loaded `sdlc` and is about to push to the default branch
+- **THEN** it does so only on the user's instruction
+
+#### Scenario: Maintain
+
+- **WHEN** a milestone is merged
+- **THEN** the agent suggests `/maintain` and does not run it
 
 ### Requirement: Permission rules
 

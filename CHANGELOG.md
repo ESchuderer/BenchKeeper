@@ -2,7 +2,7 @@
 
 Versions of the BenchKeeper setup (rules, skills, permission rules, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes; minor: additions and fixes.
 
-## setup-v2.0 (unreleased)
+## setup-v2.0 (2026-10-16)
 
 Claude Code best practices applied (#37, https://code.claude.com/docs/en/best-practices).
 

@@ -210,10 +210,10 @@ test('checkpoints: one score per change step plus the final one, strict over eve
   };
   assert.equal(checkpoints(dir), null);
   write(`${dir}/checkpoints/0`, [spec('F1 a', 'passed')], 0.1);
-  write(`${dir}/checkpoints/1`, [spec('F1 a', 'failed'), spec('C1 b', 'passed')], 0.2);
-  write(`${dir}/score`, [spec('F1 a', 'passed'), spec('C1 b', 'passed'), spec('C2 c', 'passed')]);
+  write(`${dir}/checkpoints/1`, [spec('F1 a', 'failed'), spec('S1 b', 'passed')], 0.2);
+  write(`${dir}/score`, [spec('F1 a', 'passed'), spec('S1 b', 'passed'), spec('S2 c', 'passed')]);
   const c = checkpoints(dir);
-  assert.deepEqual(c.map((x) => [x.k, x.strict, x.changes]), [[0, true, null], [1, false, { C1: true }], [2, true, { C1: true, C2: true }]]);
+  assert.deepEqual(c.map((x) => [x.k, x.strict, x.changes]), [[0, true, null], [1, false, { S1: true }], [2, true, { S1: true, S2: true }]]);
   assert.deepEqual(code(`${dir}/checkpoints/1`), { source_lines: 100, functions: 10, complexity: 30, max_complexity: 12, erosion: 0.2, duplication: 12.3, duplicated_lines: 12, clones: 2 });
   assert.equal(c[2].code, null);
 });

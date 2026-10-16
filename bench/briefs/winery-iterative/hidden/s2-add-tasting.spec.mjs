@@ -1,8 +1,8 @@
-// Checkpoint 2 (changes/2.md): staff add a tasting that appears on the start page and can be booked.
+// Step 2 (changes/2.md): staff add a tasting that appears on the start page and can be booked.
 import { test, expect } from '@playwright/test';
 import { book, confirmed, field, seatsLeft, signIn, submit } from './helpers.mjs';
 
-test('C2 staff add a tasting that guests can book', async ({ page }) => {
+test('S2 staff add a tasting that guests can book', async ({ page }) => {
   await signIn(page);
   await field(page, 'Title').fill('Autumn Sparkling');
   const when = field(page, 'Date and time');

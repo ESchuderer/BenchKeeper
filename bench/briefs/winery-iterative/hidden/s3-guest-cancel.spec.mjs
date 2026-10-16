@@ -1,4 +1,4 @@
-// Checkpoint 3 (changes/3.md): guests cancel with the reference and email; a wrong email cancels nothing.
+// Step 3 (changes/3.md): guests cancel with the reference and email; a wrong email cancels nothing.
 import { test, expect } from '@playwright/test';
 import { book, confirmed, field, seatsLeft, signIn, submit } from './helpers.mjs';
 
@@ -19,7 +19,7 @@ async function cancel(page, ref, email) {
   await submit(page, page.getByRole('button', { name: 'Cancel booking' }));
 }
 
-test('C3 guests cancel their own booking; a wrong email cancels nothing', async ({ page }) => {
+test('S3 guests cancel their own booking; a wrong email cancels nothing', async ({ page }) => {
   const before = await seatsLeft(page, 'Riesling Evening');
   expect(await book(page, 'Riesling Evening', 1, 'c3@example.org')).toBe(true);
   await expect(confirmed(page)).toBeVisible();

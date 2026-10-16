@@ -181,8 +181,8 @@ export function score(dir) {
     // Robustness tests (protocol v1.7) are scored apart from the features; null for trials scored before them.
     robustness: specs.some((s) => s.title.startsWith('R')) ? Object.fromEntries(specs.filter((s) => s.title.startsWith('R')).map((s) => [s.title.split(' ')[0], s.ok])) : null,
     robustness_passed: specs.some((s) => s.title.startsWith('R')) ? specs.filter((s) => s.title.startsWith('R') && s.ok).length : null,
-    // Iterative briefs: one test per change request (titles C1, C2, ...); strict means every test that ran passed.
-    changes: specs.some((s) => /^C\d/.test(s.title)) ? Object.fromEntries(specs.filter((s) => /^C\d/.test(s.title)).map((s) => [s.title.split(' ')[0], s.ok])) : null,
+    // Iterative briefs: one test per change request (titles S1, S2, ...); strict means every test that ran passed.
+    changes: specs.some((s) => /^S\d/.test(s.title)) ? Object.fromEntries(specs.filter((s) => /^S\d/.test(s.title)).map((s) => [s.title.split(' ')[0], s.ok])) : null,
     strict: specs.length ? specs.every((s) => s.ok) : null,
     code: code(dir),
     // Violations per page; null unless all four pages were scanned, so a broken app does not score fewer violations.

@@ -1,9 +1,9 @@
-// Checkpoint 4 (changes/4.md): staff export bookings as CSV; without a session the export holds no bookings.
+// Step 4 (changes/4.md): staff export bookings as CSV; without a session the export holds no bookings.
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { book, confirmed, signIn } from './helpers.mjs';
 
-test('C4 staff export bookings as CSV, not without a session', async ({ page, request }) => {
+test('S4 staff export bookings as CSV, not without a session', async ({ page, request }) => {
   expect(await book(page, 'Riesling Evening', 1, 'c4@example.org')).toBe(true);
   await expect(confirmed(page)).toBeVisible();
   await signIn(page);

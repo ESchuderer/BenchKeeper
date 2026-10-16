@@ -149,7 +149,7 @@ for r in $(seq "$k"); do
     # Iterative briefs (bench/briefs/<brief>/changes/<k>.md): score the step just finished with the hidden tests of all
     # steps so far (checkpoints/<k>/), then send the next change request in the same session, with the same follow-up
     # rule. The last step is scored like any trial (score/, every hidden test).
-    upto() { (cd "$bench/briefs/$brief/hidden" && i=1 && f=acceptance.spec.mjs && while [ "$i" -le "$1" ]; do f="$f $(ls c$i-*.spec.mjs)"; i=$((i + 1)); done && echo "$f"); }
+    upto() { (cd "$bench/briefs/$brief/hidden" && i=1 && f=acceptance.spec.mjs && while [ "$i" -le "$1" ]; do f="$f $(ls s$i-*.spec.mjs)"; i=$((i + 1)); done && echo "$f"); }
     k=0
     for ch in $(ls "$bench/briefs/$brief/changes/" 2>/dev/null | grep -E '^[0-9]+\.md$' | sort -n); do
       HIDDEN_FILES=$(upto "$k") "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/checkpoints/$k" > "$t/log/score-$k.log" 2>&1

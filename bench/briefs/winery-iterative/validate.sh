@@ -15,7 +15,7 @@ run() { # <name> <expected failing tests> <sed script or empty> [files, default 
   got=$(result "$tmp/$1-out"); [ "$got" = "$2" ] && echo "$1: ok (failing: ${got:-none})" || { echo "$1: expected '$2', got '$got'"; exit 1; }
 }
 run reference "" ""
-run discount-off C1 's/(guests >= 6 ? 0.9 : 1)/1/' "server.mjs src/main.jsx"
-run tasting-not-added C2 's/^  tastings.push(t);$//'
-run cancel-email-unchecked C3 's/b.ref === ref \&\& b.email.toLowerCase() === email/b.ref === ref/'
-run export-open C4 "s/^  if (!staff(req)) return res.status(401).send('Sign in first.');$//"
+run discount-off S1 's/(guests >= 6 ? 0.9 : 1)/1/' "server.mjs src/main.jsx"
+run tasting-not-added S2 's/^  tastings.push(t);$//'
+run cancel-email-unchecked S3 's/b.ref === ref \&\& b.email.toLowerCase() === email/b.ref === ref/'
+run export-open S4 "s/^  if (!staff(req)) return res.status(401).send('Sign in first.');$//"

@@ -28,8 +28,10 @@ Comparison matrix of the arms in `bench/PROTOCOL.md` (v1.1). Every arm gets the 
 | Y | Matt Pocock's skills | yes | yes | OpenSpec | Matt Pocock's skills phases, OpenSpec specs |
 | AB | none | no | no | OpenSpec | OpenSpec |
 | AC | none | no | no | Spec Kit | Spec Kit |
+| AD | Matt Pocock's skills | yes | v3 | none | BenchKeeper rules and `following-dev-workflow` (setup-v2.9), phases mapped to Matt Pocock's skills |
+| AE | Matt Pocock's skills | yes | v3 | OpenSpec | as AD, OpenSpec owns spec and plan, Matt Pocock's execution skills |
 
-BenchKeeper layer: rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC, Matt Pocock's skills: `bench/arms/superpowers.rules.md`, `ecc.rules.md`, `mattpocock.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves.
+BenchKeeper layer: rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC, Matt Pocock's skills: `bench/arms/superpowers.rules.md`, `ecc.rules.md`, `mattpocock.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves. Layer v3 (AD, AE): the rules and `following-dev-workflow` of setup-v2.9 (`bench/arms/bk-v3*`) instead of the pinned rules, candidate rules and old setup skills.
 
 ## OpenCode arms (OpenCode 1.19.0, Anthropic API key)
 

@@ -58,7 +58,7 @@ mv ~/.codex/AGENTS.md.new ~/.codex/AGENTS.md
 Check: `openspec --version`; `openspec config list` shows delivery skills and telemetry false.
 Install:
 ```sh
-npm i -g @fission-ai/openspec@1.14.1
+npm i -g @fission-ai/openspec@1.14.2
 openspec config set delivery skills && openspec config set telemetry.enabled false
 ```
 

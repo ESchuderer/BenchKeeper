@@ -34,7 +34,7 @@ In commands below, replace `<agent-flags>` with the selected agents' flags and `
 
 Needs `npm` with prefix `~/.local`, `jq`, `curl` for applicable steps. Missing: stop and tell the user. `gh` missing or `gh auth status` failing: warn that the issue and pull request flow in the `sdlc` skill falls back to local branches, and continue.
 
-This skill sets up the host (agents, authentication, global rules, skills, permission rules); `project-setup` owns container toolchains and project-local MCP/browser launchers (the split is in `rules/global.md`, Development environment). Check part 9 before project setup.
+This skill sets up the host (agents, authentication, global rules, skills, permission rules); `project-setup` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials; rootless engines, VMs and microVMs are not required. Check part 9 before project setup.
 
 Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`). Add available bumps to the plan (package, pinned, latest). For each accepted bump, edit the pin everywhere it appears in `$B` (`grep -rn '<pkg>@' $B --include='*.md'`), then install it through its part. The pins change only here, at install time, where the new version is tested.
 
@@ -137,21 +137,24 @@ DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/stablyai/orca -s orche
 Check the skill files again after installation. The Orca application and CLI are installed separately; skill installation alone does not verify a working Orca runtime.
 
 ### 11. Permission rules (Claude Code)
-Skip this part unless Claude Code is selected. Native [permission rules](https://code.claude.com/docs/en/permissions), no hooks: deny rules block in every mode; ask rules show the normal permission prompt, in auto mode too ([permission modes](https://code.claude.com/docs/en/permission-modes)). Codex keeps these limits as prose in its rules copy.
-Check: `~/.claude/settings.json` `permissions.deny` contains every rule of `DENY` and `permissions.ask` every rule of `ASK` in the install block.
+Skip this part unless Claude Code is selected. Native [permission rules](https://code.claude.com/docs/en/permissions), no hooks. Ask rules show the normal permission prompt, in auto mode too ([permission modes](https://code.claude.com/docs/en/permission-modes)); in headless runs they are refused. All are ask rules, so the user can still approve an action they asked for. Codex keeps these limits as prose in its rules copy.
+Check: `~/.claude/settings.json` `permissions.ask` contains every rule of the install block.
 Install (merges; existing rules stay, in their order):
 ```sh
 f=~/.claude/settings.json
-jq --argjson deny '["Bash(git *--no-verify*)","Bash(git *commit -n*)","Bash(git *commit * -n*)"]' --argjson ask '["Bash(git *push *--force*)","Bash(git *push -f*)","Bash(git *push * -f*)","Bash(git *push * +*)","Bash(git *push *--delete*)","Bash(git *push -d*)","Bash(git *push * -d*)","Bash(git *push * :**)","Bash(git *push * main*)","Bash(git *push * master*)","Bash(git *push *:main*)","Bash(git *push *:master*)","Bash(git *reset *--hard*)","Bash(git *clean *)","Bash(git *rebase)","Bash(git *rebase *)","Bash(git *filter-branch*)","Bash(git *filter-repo*)","Bash(git *branch -d*)","Bash(git *branch -D*)","Bash(git *branch --delete*)","Bash(git *branch * -d*)","Bash(git *branch * -D*)","Bash(git *branch * --delete*)","Bash(gh pr merge*)","Bash(gh repo delete*)","Bash(gh release delete*)"]' '
+jq --argjson ask '["Bash(git push --force*)", "Bash(git push * --force*)", "Bash(git push -f*)", "Bash(git push * -f*)", "Bash(git push --mirror*)", "Bash(git push * --mirror*)", "Bash(git push --delete*)", "Bash(git push * --delete*)", "Bash(git push -d*)", "Bash(git push * -d*)", "Bash(git push --prune*)", "Bash(git push * --prune*)", "Bash(git push --no-verify*)", "Bash(git push * --no-verify*)", "Bash(git push * +*)", "Bash(git push * :**)", "Bash(git push * main)", "Bash(git push * main *)", "Bash(git push *:main)", "Bash(git push *:main *)", "Bash(git push *refs/heads/main*)", "Bash(git push * master)", "Bash(git push * master *)", "Bash(git push *:master)", "Bash(git push *:master *)", "Bash(git push *refs/heads/master*)", "Bash(git reset --hard*)", "Bash(git reset * --hard*)", "Bash(git clean *)", "Bash(git rebase)", "Bash(git rebase *)", "Bash(git filter-branch*)", "Bash(git filter-repo*)", "Bash(git branch -d*)", "Bash(git branch * -d*)", "Bash(git branch -D*)", "Bash(git branch * -D*)", "Bash(git branch --delete*)", "Bash(git branch * --delete*)", "Bash(git commit -n*)", "Bash(git commit * -n*)", "Bash(git commit --no-verify*)", "Bash(git commit * --no-verify*)", "Bash(git merge *--no-verify*)", "Bash(git -c core.hooksPath*)", "Bash(git -C * push --force*)", "Bash(git -C * push * --force*)", "Bash(git -C * push -f*)", "Bash(git -C * push * -f*)", "Bash(git -C * reset --hard*)", "Bash(git -C * clean *)", "Bash(git -C * branch -D*)", "Bash(gh pr merge*)", "Bash(gh repo delete*)", "Bash(gh release delete*)"]' '
   def merge($new): reduce $new[] as $x (.; if index([$x]) then . else . + [$x] end);
-  .permissions.deny = ((.permissions.deny // []) | merge($deny))
-  | .permissions.ask = ((.permissions.ask // []) | merge($ask))' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  .permissions.ask = ((.permissions.ask // []) | merge($ask))' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 ```
-What they do:
-- Deny: skipping git hooks (`--no-verify`, `git commit -n`).
-- Ask: force push (`--force`, `-f`, `+<branch>`), deleting a remote branch (`--delete`, `-d`, `:<branch>`), pushing to `main` or `master`, `git reset --hard`, `git clean`, `git rebase`, history rewrites (`filter-branch`, `filter-repo`), deleting a local branch, `gh pr merge`, `gh repo delete`, `gh release delete`. `git *` also matches global options such as `git -C <path>`.
-- Pattern note: a rule ending in `:*` is read as the old trailing-wildcard form and loses its colon, so the refspec-deletion rule ends in `:**`.
-- Not covered: commits on the default branch and pushes that name no branch (`git push` on `main`); the rules (`rules/global.md`, `sdlc`) cover them as instructions.
+What they do: ask before
+- force pushes (`--force`, `--force-with-lease`, `-f`, `+<branch>`, `--mirror`) and remote branch deletion (`--delete`, `-d`, `:<branch>`, `--prune`);
+- pushes that name `main` or `master` (`main`, `<ref>:main`, `refs/heads/main`);
+- `git reset --hard`, `git clean`, `git rebase`, `git filter-branch`, `git filter-repo`, local branch deletion (`-d`, `-D`, `--delete`);
+- skipping git hooks (`--no-verify`, `git commit -n`, `git -c core.hooksPath`);
+- `gh pr merge`, `gh repo delete`, `gh release delete`;
+- force push, hard reset, `git clean` and branch deletion through `git -C <path>`.
+
+Each rule starts with the command (`git push`, `git reset`, ...), so words in commit messages or searches do not match. A rule ending in `:*` is read as the old trailing-wildcard form and loses its colon, so the refspec-deletion rule ends in `:**`. Not covered: commits on the default branch, pushes that name no branch, combined short flags (`-uf`), abbreviated long options (`--forc`), and other global options before the subcommand; the rules (`rules/global.md`, `sdlc`) cover them as instructions. Pattern check: `openspec/changes/37-best-practices/permission-probe.md`.
 
 ## Extras (clean)
 

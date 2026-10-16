@@ -1,6 +1,6 @@
 #!/bin/sh
 # Scores one trial's workspace against a brief's hidden tests. Runs on the host with podman; the workspace is copied, never changed.
-# Usage: bench/scorer/score.sh <brief-dir> <workspace> <out-dir>
+# Usage: bench/scorer/score.sh <brief-dir> <workspace> <out-dir>   HIDDEN_FILES: only these test files (iterative briefs)
 set -u
 brief=$(realpath "$1"); ws=$(realpath "$2"); out=$(realpath -m "$3")
 here=$(dirname "$(realpath "$0")")
@@ -15,9 +15,9 @@ trap 'exit 130' INT TERM HUP
 mkdir -p "$out/screenshots" && tar --exclude=node_modules -czf "$out/app.tar.gz" -C "$ws" .
 app=$(mktemp -d) && cp -a "$ws/." "$app/" && rm -rf "$app/node_modules"
 # Hidden tests next to the scorer dependencies, so ESM imports resolve.
-hid=$(mktemp -d) && cp -r "$brief/hidden/." "$hid/" && mkdir "$hid/node_modules"
+hid=$(mktemp -d) && cp -rL "$brief/hidden/." "$hid/" && mkdir "$hid/node_modules"
 # Which version of the hidden tests scored this trial.
-(cd "$brief/hidden/" && find . -type f | sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
+(cd "$brief/hidden/" && find -L . -type f | sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
 # step <name> <seconds> <command...>: log and exit code per step; podman --timeout stops the container itself.
 step() { name=$1; T=$2; shift 2; "$@" > "$out/$name.log" 2>&1; echo $? > "$out/$name.exit"; }
 node_run() { podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -v "$app":/app:Z -w /app "$NODE" "$@"; }
@@ -25,20 +25,27 @@ node_run() { podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=
 step install 600 node_run npm install --no-audit --no-fund
 step build 600 node_run npm run build --if-present
 step audit 120 node_run npm audit --json --loglevel=silent
+# Code metrics of the agent's own source: complexity and erosion (erosion.mjs), duplicated lines (jscpd, 50 tokens or more).
+metrics() {
+  podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -v "$app":/app:ro,Z -v "$here":/s:ro,Z -v "$out":/out:Z -w /s "$NODE" sh -c '
+    node erosion.mjs /app > /out/erosion.json && node node_modules/jscpd/run-jscpd.js --silent --reporters json --output /out/jscpd \
+      --min-tokens 50 --format javascript,jsx,typescript,tsx --ignore "**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/*.test.*,**/*.spec.*,**/tests/**,**/test/**,**/e2e/**,**/*.config.*" /app'
+}
+step metrics 300 metrics
 
 podman pod create --userns=keep-id --name "$pod" >/dev/null
 podman run -d --pod "$pod" --name "$pod-app" -e HOME=/tmp -e PORT=3000 -e STAFF_PASSWORD="$pass" \
   -v "$app":/app:Z -w /app "$NODE" npm start > /dev/null
 tests() {
   podman run --rm --timeout "$T" --pod "$pod" -e HOME=/tmp -e PORT=3000 -e STAFF_PASSWORD="$pass" \
-    -e PW_OUT=/out/acceptance.json -e AXE_OUT=/out/axe.json -e SHOT_DIR=/out/screenshots \
+    -e PW_OUT=/out/acceptance.json -e AXE_OUT=/out/axe.json -e SHOT_DIR=/out/screenshots -e HIDDEN_FILES="${HIDDEN_FILES:-}" \
     -v "$hid":/w:Z -v "$here/node_modules":/w/node_modules:ro,Z -v "$out":/out:Z -w /w "$PW" sh -c '
     for i in $(seq 60); do node -e "fetch(\"http://localhost:3000/\").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" && break; sleep 2; done
     node -e "fetch(\"http://localhost:3000/\").then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" || { echo app did not start; exit 3; }
     CHROME_PATH=$(node -e "console.log(require(\"playwright-core\").chromium.executablePath())") \
       npx lighthouse http://localhost:3000/ --quiet --output=json --output-path=/out/lighthouse.json \
       --only-categories=performance,accessibility,best-practices --chrome-flags="--headless=new --no-sandbox"
-    npx playwright test -c playwright.config.mjs'
+    npx playwright test -c playwright.config.mjs $HIDDEN_FILES'
 }
 step acceptance 900 tests
 podman logs "$pod-app" > "$out/start.log" 2>&1

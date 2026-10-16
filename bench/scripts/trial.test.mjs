@@ -193,3 +193,34 @@ test('phases: an OpenCode subagent session takes the phase of the task call that
   assert.equal(p.phases.verify.usd, 1);
   assert.equal(p.subagents.reviewer.usd, 2);
 });
+
+test('checkpoints: one score per change step plus the final one, strict over every test that ran, code metrics', async () => {
+  const { mkdirSync, mkdtempSync, writeFileSync } = await import('node:fs');
+  const { checkpoints, code } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/checkpoints-');
+  const spec = (title, status) => ({ title, ok: true, tests: [{ results: [{ status }] }] });
+  const write = (d, specs, erosion) => {
+    mkdirSync(d, { recursive: true });
+    writeFileSync(`${d}/acceptance.json`, JSON.stringify({ suites: [{ specs }] }));
+    if (erosion != null) {
+      writeFileSync(`${d}/erosion.json`, JSON.stringify({ source_lines: 100, functions: 10, complexity: 30, max_complexity: 12, erosion }));
+      mkdirSync(`${d}/jscpd`);
+      writeFileSync(`${d}/jscpd/jscpd-report.json`, JSON.stringify({ statistics: { total: { percentage: 12.345, duplicatedLines: 12, clones: 2 } } }));
+    }
+  };
+  assert.equal(checkpoints(dir), null);
+  write(`${dir}/checkpoints/0`, [spec('F1 a', 'passed')], 0.1);
+  write(`${dir}/checkpoints/1`, [spec('F1 a', 'failed'), spec('C1 b', 'passed')], 0.2);
+  write(`${dir}/score`, [spec('F1 a', 'passed'), spec('C1 b', 'passed'), spec('C2 c', 'passed')]);
+  const c = checkpoints(dir);
+  assert.deepEqual(c.map((x) => [x.k, x.strict, x.changes]), [[0, true, null], [1, false, { C1: true }], [2, true, { C1: true, C2: true }]]);
+  assert.deepEqual(code(`${dir}/checkpoints/1`), { source_lines: 100, functions: 10, complexity: 30, max_complexity: 12, erosion: 0.2, duplication: 12.3, duplicated_lines: 12, clones: 2 });
+  assert.equal(c[2].code, null);
+});
+
+test('steps table: strict steps and last-step code metrics per arm', async () => {
+  const { stepsTable } = await import('./summary.mjs');
+  const cp = (strict, erosion) => ({ strict, code: { erosion, duplication: 5, source_lines: 300 } });
+  const t = (checkpoints) => ({ arm: 'A', audit: { ok: true }, outcome: {}, checkpoints });
+  assert.match(stepsTable([t([cp(true, 0.1), cp(false, 0.2)]), t([cp(true, 0.1), cp(true, 0.4)])]), /\| A \| 2 \| 1\.5 \(1 to 2\) of 2 \| 0\.3 \(0\.2 to 0\.4\) \| 5 \(5 to 5\) \| 300 \(300 to 300\) \|/);
+});

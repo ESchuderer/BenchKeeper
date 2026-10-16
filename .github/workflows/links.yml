@@ -28,6 +28,8 @@ jobs:
       - run: node --test .github/scripts/github-links.test.mjs
       - run: node --test bench/scripts/*.test.mjs
       - run: sh bench/scripts/waits.test.sh
+      - run: npm ci --prefix bench/scorer --ignore-scripts --no-audit --no-fund
+      - run: node --test bench/scorer/*.test.mjs
       - run: node bench/scripts/arm-rules.mjs --check
       - run: git ls-files -z '*.md' | xargs -0 node .github/scripts/github-links.mjs
         env:

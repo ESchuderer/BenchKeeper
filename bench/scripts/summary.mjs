@@ -12,9 +12,21 @@ const median = (xs) => {
 };
 const range = (xs) => {
   const s = xs.filter(Number.isFinite);
-  return s.length ? `${median(s)} (${Math.min(...s)} to ${Math.max(...s)})` : 'n/a';
+  return s.length ? `${Math.round(median(s) * 1e6) / 1e6} (${Math.min(...s)} to ${Math.max(...s)})` : 'n/a';
 };
 const round = (d) => (x) => (Number.isFinite(x) ? Math.round(x * 10 ** d) / 10 ** d : null);
+
+// Iterative briefs: steps passed strictly, erosion and duplication at the last step, per arm.
+export function stepsTable(trials) {
+  const arms = [...new Set(trials.filter((t) => t.checkpoints).map((t) => t.arm))].sort();
+  const rows = arms.map((arm) => {
+    const ts = trials.filter((t) => t.arm === arm && t.checkpoints && t.audit.ok && !t.outcome.infra_error);
+    const col = (f, d = 1) => range(ts.map(f).map(round(d)));
+    return `| ${arm} | ${ts.length} | ${col((t) => t.checkpoints.filter((c) => c.strict).length)} of ${ts[0]?.checkpoints.length ?? 'n/a'} | ${col((t) => t.checkpoints.at(-1).code?.erosion, 3)} | ${col((t) => t.checkpoints.at(-1).code?.duplication)} | ${col((t) => t.checkpoints.at(-1).code?.source_lines, 0)} |`;
+  });
+  return ['| Arm | Valid trials | Steps passed strictly | Erosion (last step) | Duplication % (last step) | Source lines (last step) |',
+    '|---|---|---|---|---|---|', ...rows].join('\n');
+}
 
 export function table(trials) {
   const arms = [...new Set(trials.map((t) => t.arm))].sort();
@@ -34,4 +46,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     .map((a) => join(dir, r, a, 'trial.json')).filter(existsSync).map((f) => JSON.parse(readFileSync(f, 'utf8'))));
   console.log('Median (min to max) over valid trials; invalid = failed delivery audit or infrastructure error; n/a = not measured (for example the app did not start).\n');
   console.log(table(trials));
+  if (trials.some((t) => t.checkpoints)) console.log(`\n${stepsTable(trials)}`);
 }

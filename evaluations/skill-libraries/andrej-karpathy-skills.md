@@ -2,9 +2,9 @@
 
 [Repository](https://github.com/multica-ai/andrej-karpathy-skills), Category: skill libraries, Checked 2026-10-16, Decision: Not in
 
-One `CLAUDE.md` (also a skill and a plugin) with four principles derived from [Andrej Karpathy's post](https://x.com/karpathy/status/2015883857489522876) (2026-01-26) on LLM coding pitfalls: think before coding (state assumptions, ask, surface tradeoffs), simplicity, surgical changes, goal-driven execution. 220,232 stars, last commit 2026-04-20 (`2c60614`), no releases; no LICENSE file, MIT is declared only in `skills/karpathy-guidelines/SKILL.md` and `.claude-plugin/plugin.json` (GitHub API, 2026-10-16).
-
 ## Advertised
+
+One `CLAUDE.md` (also a skill and a plugin) with four principles derived from [Andrej Karpathy's post](https://x.com/karpathy/status/2015883857489522876) (2026-01-26) on LLM coding pitfalls: think before coding (state assumptions, ask, surface tradeoffs), simplicity, surgical changes, goal-driven execution. 220,232 stars, last commit 2026-04-20 (`2c60614`), no releases; no LICENSE file, MIT is declared only in `skills/karpathy-guidelines/SKILL.md` and `.claude-plugin/plugin.json` (GitHub API, 2026-10-16).
 
 - "reducing costly mistakes on non-trivial work"; the repository publishes no benchmark.
 - Blogs claim mistakes falling from 41% to 3% and accuracy rising from 65 to 70% to 91 to 94% (for example [AI Builder Club](https://www.aibuilderclub.com/blog/karpathy-claude-md-rules)); no method published, unverified.
@@ -29,12 +29,10 @@ Thread "Karpathy-Inspired Claude Code Guidelines" (r/BestGitHubRepos, about 2026
 | These rules are baked into the system prompt; .md files cannot lift a smaller model to a larger one | Partly true (medium) | Claude Code's system prompt is not published (the [system prompts page](https://platform.claude.com/docs/en/release-notes/system-prompts) covers the Claude apps only). An extracted copy (third party, [Piebald-AI](https://github.com/Piebald-AI/claude-code-system-prompts), v2.1.300, unverified) has simplicity and scope rules ("Don't add features, refactor, or introduce abstractions beyond what the task requires") but tells the model to check in only when readings lead to materially different work, the opposite of "ask when uncertain". The model-tier claim has no direct test. |
 | Frontier Claude models already do all of this | Unverified, leaning false for scope (low) | No independent measurement on Opus 5 or 5.5, Sonnet 5.5 or Fable. Anthropic's guides say Opus 5 "can also expand the scope of a task" ([Opus 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5)) and Sonnet 5.5 "tends to add tests, documentation, and small supporting files" ([Sonnet 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5)) (vendor, no numbers). |
 
-## Effect on BenchKeeper
-
-`rules/global.md` was trimmed in setup-v2.3 (`CHANGELOG.md`): lines that repeat Claude Code defaults or other BenchKeeper files were removed. The ask-and-restate rule (owner decision) asks only where an open point would change the result (setup-v2.4), close to the extracted system prompt's "check in only when different readings would lead to materially different work"; the restatement before work has no measurement.
-
 ## Decision
 
 Not in: four principles that overlap Ponytail, the Claude Code system prompt and `rules/global.md`; measured cost +6.6% to +11.5% with accuracy unchanged.
+
+Effect on BenchKeeper: `rules/global.md` was trimmed in setup-v2.3 (`CHANGELOG.md`): lines that repeat Claude Code defaults or other BenchKeeper files were removed. The ask-and-restate rule (owner decision) asks only where an open point would change the result (setup-v2.4), close to the extracted system prompt's "check in only when different readings would lead to materially different work"; the restatement before work has no measurement.
 
 [All evaluations](../../EVALUATIONS.md)

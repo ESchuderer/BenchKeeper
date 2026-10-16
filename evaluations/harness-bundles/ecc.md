@@ -1,6 +1,6 @@
 # ECC (formerly everything-claude-code)
 
-[Repository](https://github.com/affaan-m/ECC), Category: harness bundles, Checked 2026-10-14, Decision: Not in yet (arm E in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19), minimal profile)
+[Repository](https://github.com/affaan-m/ECC), Category: harness bundles, Checked 2026-10-16, Decision: Not in yet (arm E in [#19](https://github.com/ESchuderer/BenchKeeper/issues/19), minimal profile)
 
 ## Advertised
 
@@ -12,7 +12,7 @@
 - One third party, two packs ported to another platform, 6 paired tasks (`tdd-workflow`) and 3 (`security-reviewer`), runs not stated: `tdd-workflow` quality +0.20 (scale not given), +21 s and +74k tokens per task; `security-reviewer` 0.00 ([discussion #2504](https://github.com/affaan-m/ECC/discussions/2504#discussioncomment-17852942)).
 - v2.2.3 static count: 293 skills, 94 commands, 68 agents, about 124 KB of descriptions; 3 node processes per tool call, synchronous typecheck on Stop.
 - v2.2.3: `minimal` has 47 workflow-quality skills, 68 agents, 94 commands, no hooks (`manifests/install-profiles.json`).
-- A code-reading analysis from 2026-02-22 counted 44 skills (see [sources](../sources.md)).
+- A code-reading analysis from 2026-02-22 counted 44 skills (see [studies and sources](../studies.md#not-sources-of-evidence)).
 
 ## User reports
 
@@ -25,7 +25,7 @@ Overhead reports, no outcome measurements.
 
 Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text supplied by the owner; URL not recorded). Opinions, no measurements.
 - One user: "very very large and hard to digest".
-- The Skill Leaderboard curator: ECC is not listed there; the curator places it between a skill collection and a broader harness framework and is open to reconsidering (see [sources](../sources.md)).
+- The Skill Leaderboard curator: ECC is not listed there; the curator places it between a skill collection and a broader harness framework and is open to reconsidering (see [studies and sources](../studies.md#not-sources-of-evidence)).
 
 ## Skill authoring check
 

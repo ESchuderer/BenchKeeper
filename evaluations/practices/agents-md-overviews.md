@@ -1,6 +1,6 @@
 # Project summary and layout in generated AGENTS.md
 
-Category: practices, Checked 2026-10-14, Decision: Not in
+Category: practices, Checked 2026-10-16, Decision: Not in
 
 ## Advertised
 
@@ -13,6 +13,6 @@ Category: practices, Checked 2026-10-14, Decision: Not in
 
 ## Decision
 
-`setting-up-projects` writes commands, host and container rules, and non-default conventions only.
+Not in: `setting-up-projects` writes commands, host and container rules, and non-default conventions only.
 
 [All evaluations](../../EVALUATIONS.md)

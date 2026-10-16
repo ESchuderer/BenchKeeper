@@ -1,4 +1,4 @@
-// Writes the rules of arms D and E: rules/global.md with the sections and lines that name agent-skills replaced by
+// Writes the framework variants of the BenchKeeper rules: bench/arms/bk-rules.md (the pinned rules) with the sections and lines that name agent-skills replaced by
 // the framework's own flow, from bench/arms/<framework>.md (`<!-- section: Heading -->` blocks, `<!-- replace: from ==> to -->` lines).
 // Usage: node bench/scripts/arm-rules.mjs [--check]   (--check fails when bench/arms/<framework>.rules.md is out of date)
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -31,7 +31,7 @@ export function variant(rules, spec) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = new URL('../../', import.meta.url);
-  const rules = readFileSync(new URL('rules/global.md', root), 'utf8');
+  const rules = readFileSync(new URL('bench/arms/bk-rules.md', root), 'utf8');
   for (const fw of FRAMEWORKS) {
     const out = variant(rules, readFileSync(new URL(`bench/arms/${fw}.md`, root), 'utf8'));
     const target = new URL(`bench/arms/${fw}.rules.md`, root);

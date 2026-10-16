@@ -23,7 +23,7 @@ Comparison matrix of the arms in `bench/PROTOCOL.md` (v1.1). Every arm gets the 
 | O | none | yes | no | OpenSpec | OpenSpec |
 | P | none | yes | no | Spec Kit v1.2.0 | Spec Kit |
 
-BenchKeeper layer: rules (agent-skills: `rules/global.md`; Superpowers, ECC: `bench/arms/superpowers.rules.md`, `ecc.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves.
+BenchKeeper layer: rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC: `bench/arms/superpowers.rules.md`, `ecc.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves.
 
 ## OpenCode arms (OpenCode 1.19.0, Anthropic API key)
 

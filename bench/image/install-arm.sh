@@ -7,7 +7,7 @@
 #   L agent-skills + BK        M Superpowers + BK         N ECC + BK
 #   C agent-skills + BK + OpenSpec   D Superpowers + BK + OpenSpec   E ECC + BK + OpenSpec
 #   O Ponytail + OpenSpec      P Ponytail + Spec Kit      AB OpenSpec alone      AC Spec Kit alone
-# BenchKeeper layer (BK): rules (agent-skills: rules/global.md; Superpowers, ECC: its variant with the framework's own
+# BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
 set -eu
@@ -116,7 +116,7 @@ fi
 
 t=$HOME/project-template
 if [ "$bk" = yes ]; then
-  case $fw in as) rules=global.md ;; sp) rules=superpowers.rules.md ;; ecc) rules=ecc.rules.md ;; mp) rules=mattpocock.rules.md ;; esac
+  case $fw in as) rules=bk-rules.md ;; sp) rules=superpowers.rules.md ;; ecc) rules=ecc.rules.md ;; mp) rules=mattpocock.rules.md ;; esac
   cp "/opt/bench/$rules" "$HOME/.claude/rules/00-global.md"
   cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md"
   clone vercel-labs/skills v1.7.2 && cp -r "$src/vercel-labs-skills/skills/find-skills" "$HOME/.claude/skills/"

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { FRAMEWORKS, variant } from './arm-rules.mjs';
 
 const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
-const rules = read('rules/global.md');
+const rules = read('bench/arms/bk-rules.md');
 const agentSkills = JSON.parse(read('bench/arms/agent-skills-names.json'));
 // Skills and agents each arm's image lists (recorded init events), plus names that are not skills.
 const listed = (arm) => {

@@ -15,7 +15,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree; file 
 - Every install command pins an exact version (`pkg@x.y.z`); `/global-setup` bumps them at install time.
 - SKILL.md front matter: `description` in double quotes (it contains colons).
 - After editing `rules/global.md` or `skills/`, ask the user to run `/global-setup` (Codex: `$global-setup`; it never starts on its own).
-- After editing `rules/global.md`, also regenerate the rules of the benchmark arms: `devcontainer exec --docker-path podman --workspace-folder . node bench/scripts/arm-rules.mjs` (CI checks that `bench/arms/*.rules.md` are current; the framework flows are in `bench/arms/*.md`).
+- The benchmark's BenchKeeper layer uses pinned rules, `bench/arms/bk-rules.md` (`rules/global.md` at `7e17860`, used by every published run); edits to `rules/global.md` do not reach it. After editing `bk-rules.md` or `bench/arms/<framework>.md`, run `devcontainer exec --docker-path podman --workspace-folder . node bench/scripts/arm-rules.mjs` (CI checks the variants are current).
 - Setup versions: `CHANGELOG.md` and tags `setup-v<major>.<minor>`; a change to `rules/` or `skills/` adds a changelog entry.
 - Description, SDLC steps, prerequisites and recommended tools: edit `web/src/data/facts.json`, then run `devcontainer exec --docker-path podman --workspace-folder . node web/scripts/readme.mjs`; never edit the generated README blocks by hand.
 - `rules/global.md` is symlinked to `~/.claude/rules` and copied to `~/.codex/AGENTS.md`.

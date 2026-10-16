@@ -38,7 +38,7 @@ Ranked by the sum of the 13 review criteria (1 to 5 each, at most 65), then the 
 - OpenCode with oso on Haiku (S) built the app in a git worktree and never merged it into the project folder: 0 of 6, review 3; a second run by another session (kept in `limited/S-rerun-1429` of the run, not published) also reached 0 of 6. On Sonnet the same arm merged and reached 9.
 - On OpenCode, Sonnet reviewed at least as high as Haiku in every arm.
 
-## Mutation score (#44)
+## Mutation score
 
 Share of mutants of the agent's own source that its own tests detect; 55 of 58 trials measured (unmeasured: Haiku J, Haiku S, Sonnet Z, see Setup). One trial per arm and model: descriptive only.
 
@@ -66,7 +66,7 @@ Top 10 trials:
 
 For comparison: plain Claude Code (A) 57.3% on Haiku and 62.8% on Sonnet; Ponytail alone (B) 45.6% and 74.1%; the BenchKeeper layer with agent-skills (L) 35.4% and 31.4%. Lowest: Sonnet OpenCode AA 26.6%, Sonnet N 29.2%, Sonnet C 30.5%. All 55 measured trials passed 6 of 6 features, so the score separates arms the hidden tests do not.
 
-## Robustness tests (#27)
+## Robustness tests
 
 12 tests from the brief's sentences (`bench/PROTOCOL.md`): simultaneous bookings for the last seats (R1), invalid guests 0, 9, 2.5 (R2 to R4), empty name and email (R5, R6), booking data without sign-in including API responses (R7), HTML in names (R8), invalid guests sent without the form, with a valid replay as control (R9), a name of only spaces (R10), accents and other scripts (R11), cancelling without a session (R12).
 
@@ -173,7 +173,7 @@ Caveat: the OpenCode USD, tokens, tool uses and phases cover only the main sessi
 | Claude Code arms | 22 (A, B, C to P, V to Y, AB, AC), Claude Code 2.1.299, effort `high`; Haiku: the owner's Max subscription; Sonnet: 11 arms on the Max subscription (B C D E G I J K O X Y AB, until its weekly limit), 11 on the owner's Team seat (A F H L M N P V W AC) |
 | OpenCode arms | 7 (Q to U, Z, AA), OpenCode 1.19.0, `claude-haiku-5-5` and `claude-sonnet-5-5`, variant `high`, Anthropic API key |
 | Review | blind, `claude-opus-5-5`, effort `high`, `bench/review/`, billed to the API key. Haiku and OpenCode apps: 9 criteria; Sonnet Claude Code apps: 13 criteria (adds visual design, layout, usability, reception; protocol v1.7). The two sets of ratings are not directly comparable. |
-| Mutation score | share of mutants of the agent's own source that its own tests detect (killed or timed out), Stryker 10.0.0 command runner, `bench/scorer/mutation.sh`, rescored 2026-10-16 with agent runs unchanged (#44); unmeasured: Haiku J (only time-outs), Haiku S (npm install failed), Sonnet Z (its own Playwright suite fails in the dry run); Sonnet AB first failed on a TypeScript 7 tsconfig rewrite and was rescored with the workaround |
+| Mutation score | share of mutants of the agent's own source that its own tests detect (killed or timed out), Stryker 10.0.0 command runner, `bench/scorer/mutation.sh`, rescored 2026-10-16 with agent runs unchanged; unmeasured: Haiku J (only time-outs), Haiku S (npm install failed), Sonnet Z (its own Playwright suite fails in the dry run); Sonnet AB first failed on a TypeScript 7 tsconfig rewrite and was rescored with the workaround |
 | Seed, order | 41; Claude Code arms in three parallel runners plus single-arm reruns; order, image IDs and account switch in the run manifests |
 
 Review column: a review skill, a review agent type, or a subagent whose task description names a review (parser fixed during the run; all `trial.json` files re-parsed).

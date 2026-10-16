@@ -28,7 +28,7 @@ Arms: F (agent-skills alone), I (with OpenSpec), L (with the BenchKeeper layer),
 
 ## Skill authoring check
 
-Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with per-skill evaluations (results on Opus only). Conciseness 2: long bodies explain what Claude already knows. 24 links leave the skill folder. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with per-skill evaluations (results on Opus only). Conciseness 2: long bodies explain what Claude already knows. 24 links leave the skill folder. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md).
 
 ## Decision
 

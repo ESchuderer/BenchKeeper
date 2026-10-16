@@ -26,7 +26,7 @@ Arms: V (Matt Pocock's skills alone), W (with OpenSpec), X (with the BenchKeeper
 
 ## Skill authoring check
 
-Rank 3 of 8, review 3.4, static checks 99% (1.3.1), conciseness 4, examples 5. `block-dangerous-git.sh` allows every command when `jq` is missing. Two names contain "claude". No evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+Rank 3 of 8, review 3.4, static checks 99% (1.3.1), conciseness 4, examples 5. `block-dangerous-git.sh` allows every command when `jq` is missing. Two names contain "claude". No evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md).
 
 ## Decision
 

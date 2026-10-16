@@ -1,6 +1,6 @@
 // Benchmark trials for the /bench/ page, read at build time from bench/results/<run>/round-<n>/<arm>/
 // (trial.json, review.json, drawing-review.json), the run's manifest.txt and final-score.json (bench/scripts/final-score.mjs).
-// Cost fields are never read (owner decision, #33).
+// Cost fields are never read (owner decision).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

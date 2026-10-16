@@ -30,7 +30,7 @@ BenchKeeper skills, checked 2026-10-16:
 | MCP tool names | None used. |
 | Evaluations, model coverage | None for these skills. The benchmark measures the BenchKeeper layer as a whole (`bench/PROTOCOL.md`), not each skill's triggering or effect. Trigger evaluations were dropped (protocol 1.17). The targeted tasks in `bench/PROTOCOL.md` (not run yet) rate each skill's effect on one task per phase. |
 
-Benchmarked collections: all eight ranked in [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58): static check plus one Opus review per collection.
+Benchmarked collections: all eight ranked in [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md): static check plus one Opus review per collection.
 
 ## Decision
 

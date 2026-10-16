@@ -24,7 +24,7 @@ Arms: B (Ponytail alone), O and P (with OpenSpec or Spec Kit), and every BenchKe
 
 ## Skill authoring check
 
-Rank 1 of 8, review 3.9, static checks 97% (5.2.0), conciseness 4, structure 4. A SubagentStart hook injects the core skill into every subagent. `ponytail-review` and `ponytail-audit` are nearly identical. No evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+Rank 1 of 8, review 3.9, static checks 97% (5.2.0), conciseness 4, structure 4. A SubagentStart hook injects the core skill into every subagent. `ponytail-review` and `ponytail-audit` are nearly identical. No evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md).
 
 ## Decision
 

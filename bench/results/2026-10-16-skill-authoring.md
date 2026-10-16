@@ -1,4 +1,4 @@
-# Skill authoring check of the benchmarked collections (#58)
+# Skill authoring check of the benchmarked collections
 
 Checked 2026-10-16 against Anthropic's [skill authoring guide](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) (summary: [evaluations/practices/skill-authoring.md](../../evaluations/practices/skill-authoring.md)). Two parts per collection:
 
@@ -9,7 +9,7 @@ Checked 2026-10-16 against Anthropic's [skill authoring guide](https://platform.
 
 By the review's overall score (mean of the applicable areas); ties broken by shipped evaluations, then the static pass rate.
 
-| Rank | Collection | Version | Skills | Review overall | Static checks passed | Evaluations shipped | Fired in trials (#36) |
+| Rank | Collection | Version | Skills | Review overall | Static checks passed | Evaluations shipped | Fired in trials |
 |---|---|---|---|---|---|---|---|
 | 1 | Ponytail | 5.2.0 | 6 | 3.9 | 97% | no | 1 of 6 |
 | 2 | agent-skills | 0.6.13 | 25 | 3.4 | 99% | yes (`evals/cases/<skill>.json`, results on Opus only) | 11 of 25 |

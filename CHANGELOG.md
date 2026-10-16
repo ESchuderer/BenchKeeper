@@ -25,7 +25,7 @@ Context limits (owner request).
 
 - `following-dev-workflow` Task tiers: soft context limit by tier (quick: `/clear` after the pull request; standard and full: `/compact` after the plan, `/clear` after the pull request), suggested by the agent.
 - `rules/global.md` Context: one line, suggest `/clear` before an unrelated request. The client compacts by itself at its window (hard limit).
-- `setting-up-machine` part 7: `autoCompactWindow` (default 400000 tokens, the user's value kept). Its effect on usage is measured in #66.
+- `setting-up-machine` part 7: `autoCompactWindow` (default 400000 tokens, the user's value kept). Its effect on usage is not measured yet (planned: 400000 against the default, paired, k of at least 3).
 
 ## setup-v2.6 (2026-10-16)
 
@@ -60,7 +60,7 @@ Task restatement (owner request). Rules trimmed to what the model does not do by
 
 ## setup-v2.2 (2026-10-16)
 
-Decisions before Build, discard and restart, review input, documentation, opt-in checks (#46).
+Decisions before Build, discard and restart, review input, documentation, opt-in checks.
 
 - `sdlc` Specify (full tier): records deployment target, data storage, module boundaries, core types and interfaces where they apply, asking the user where the request leaves one open. A skeleton first only on request or in a repository without structure.
 - `sdlc` Build: work that drifts materially from the plan or spec (a different design or scope) is discarded and restarted in a fresh context (a new subagent or session) with the cause added to the plan, instead of patched. `rules/global.md` Safety: a worktree or local branch created for the current task and not pushed may be discarded without asking.
@@ -71,7 +71,7 @@ Decisions before Build, discard and restart, review input, documentation, opt-in
 
 ## setup-v2.1 (2026-10-16)
 
-CI, permission rules removed (#39).
+CI, permission rules removed.
 
 - Custom permission rules removed (`global-setup` part 11, owner decision): Claude Code's own permission modes and the auto-mode classifier decide. The safety limits stay as prose in `rules/global.md` and `sdlc`.
 - `sdlc`: risky changes run `security-review` (Claude Code: reviews the diff between the branch and `origin`'s default branch, https://code.claude.com/docs/en/commands) before push, next to `code-review`.
@@ -92,4 +92,4 @@ Claude Code best practices applied (#37, https://code.claude.com/docs/en/best-pr
 
 ## setup-v1.0
 
-State on `main` at `b113b75` (2026-10-16): one rules file with the full SDLC, task tiers and change types; `global-setup` and `project-setup`; Ponytail `full`, addy agent-skills, OpenSpec, Playwright MCP in the dev container. Measured by the benchmark (#29, #31).
+State on `main` at `b113b75` (2026-10-16): one rules file with the full SDLC, task tiers and change types; `global-setup` and `project-setup`; Ponytail `full`, addy agent-skills, OpenSpec, Playwright MCP in the dev container. Measured by the benchmark.

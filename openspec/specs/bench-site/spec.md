@@ -1,7 +1,8 @@
 # bench-site Specification
 
 ## Purpose
-TBD - created by archiving change 33-bench-database. Update Purpose after archive.
+
+Show every published benchmark trial on the Pages site, one page per brief, with its scores, review ratings and screenshots, generated from `bench/results/` and without cost figures.
 
 ## Requirements
 

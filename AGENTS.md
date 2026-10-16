@@ -5,7 +5,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree; file 
 ## Checks
 - Links: CI (`.github/workflows/links.yml`): lychee for all hosts except github.com, which `.github/scripts/github-links.mjs` checks through the GitHub API (test: `devcontainer exec --docker-path podman --workspace-folder . node --test .github/scripts/github-links.test.mjs`)
 - Site: CI (`.github/workflows/pages.yml`): README sync, build, axe in light and dark, lychee on the built HTML; deploys to GitHub Pages from `main`
-- Site locally: `devcontainer exec --docker-path podman --workspace-folder . sh -lc 'cd web && npm ci && npm run build && npm test'`; preview on port 4321 under `/BenchKeeper/` (`npm run preview`)
+- Site locally: `devcontainer exec --docker-path podman --workspace-folder . sh -lc 'cd web && npm ci && npm run build && npm test'`; preview (`npm run preview`) under `/BenchKeeper/` on a free host port: `podman port $(podman ps -q --filter label=devcontainer.local_folder="$PWD") 4321`
 
 ## Conventions
 - `rules/global.md` applies here: no em dash, no emojis, facts only.

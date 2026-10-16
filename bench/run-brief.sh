@@ -167,7 +167,7 @@ for r in $(seq "$k"); do
     upto() { (cd "$bench/briefs/$brief/hidden" && i=1 && f=acceptance.spec.mjs && while [ "$i" -le "$1" ]; do f="$f $(ls s$i-*.spec.mjs)"; i=$((i + 1)); done && echo "$f"); }
     k=0
     for ch in $(ls "$bench/briefs/$brief/changes/" 2>/dev/null | grep -E '^[0-9]+\.md$' | sort -n); do
-      HIDDEN_FILES=$(upto "$k") "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/checkpoints/$k" > "$t/log/score-$k.log" 2>&1
+      MUTATION=0 HIDDEN_FILES=$(upto "$k") "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/checkpoints/$k" > "$t/log/score-$k.log" 2>&1
       k=$((k + 1))
       [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] || break
       turn "$(cat "$bench/briefs/$brief/changes/$ch")" --continue; rc=$?

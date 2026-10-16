@@ -79,5 +79,6 @@ if jq -er '.scripts.test // empty' "$app/package.json" 2>/dev/null | grep -qv 'n
   step agent-tests 600 node_run npm test
 fi
 rm -rf "$app" "$hid" "${site:-}"
-# Mutation score of the agent's own tests (bench/scorer/mutation.sh, on its own copy of the workspace).
-"$here/mutation.sh" "$ws" "$out"
+# Mutation score of the agent's own tests (bench/scorer/mutation.sh, on its own copy of the workspace); MUTATION=0 skips it
+# (iterative briefs: only the last step gets it).
+[ "${MUTATION:-1}" = 0 ] || "$here/mutation.sh" "$ws" "$out"

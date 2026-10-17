@@ -22,7 +22,9 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arms: V (Matt Pocock's skills alone), W (with OpenSpec), X (with the BenchKeeper layer), Y (with both), AD and AE (with BenchKeeper layer v3, without and with OpenSpec, not run yet). OpenCode arms: Z, AA. Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arms: V (Matt Pocock's skills alone), W (with OpenSpec), X (with the BenchKeeper layer), Y (with both), AD and AE (with BenchKeeper layer v3, without and with OpenSpec). OpenCode arms: Z, AA. Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+
+Brownfield run on Sonnet 5.5, Claude Code, k = 3 ([openballistics](../../bench/results/2026-10-17-openballistics.md)): median brownfield score V 82.9, AD 85.2, AE 82.9, against plain Claude Code (A) 85.7. No layer arm met the win rule (median at least 3 above the best of V, AB and A, ahead in 2 of 3 rounds). AD had the lowest median minutes (7.6 against 11.1 to 12.8) and cost. AE stopped after the OpenSpec proposal in one round.
 
 ## Skill authoring check
 

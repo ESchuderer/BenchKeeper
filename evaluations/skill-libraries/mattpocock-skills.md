@@ -1,6 +1,6 @@
 # mattpocock/skills
 
-[Repository](https://github.com/mattpocock/skills), Category: skill libraries, Checked 2026-10-16, Decision: Not in
+[Repository](https://github.com/mattpocock/skills), Category: skill libraries, Checked 2026-10-17, Decision: In (setup-v3.0)
 
 ## Advertised
 
@@ -32,6 +32,12 @@ Rank 3 of 8, review 3.4, static checks 99% (1.3.1), conciseness 4, examples 5. `
 
 ## Decision
 
-Not in: overlaps agent-skills (tdd, code-review, to-spec, to-tickets, diagnosing-bugs, grill-me). No evidence either way.
+In (setup-v3.0, 2026-10-17): drives each phase of the workflow, with the BenchKeeper layer picking the tier and Ponytail `full`. Evidence, all signals (one brief per run, one trial or k = 3), no measurement:
+- Cartridges, Sonnet 5.5, one trial per arm ([report](../../bench/results/2026-10-16-cartridges.md)): Matt Pocock's skills alone (V) were the best Claude Code app, final score 84.0, rank 3 of 29. agent-skills alone (F) ranked 7th, plain Claude Code (A) 19th. With the BenchKeeper layer v1, Matt Pocock's skills (X) ranked 20th and agent-skills (L) 13th.
+- Openballistics brownfield, k = 3 ([report](../../bench/results/2026-10-17-openballistics.md)): no setup separated on score (medians 82.9 to 85.7, spread within one arm up to 7 points). The BenchKeeper layer v3 with these skills (AD), the fastest arm that finished every step, was faster in every round than every round of A, OpenSpec alone and V (median 8 minutes against 11 to 13, rank test p of about 0.005 one-sided, unadjusted).
+- Research ([studies](../studies.md)): focused skills with few modules beat large bundles (SkillsBench), and single coding skills rarely move pass rates. These skills are small and composable, and the user starts the long flows (`/to-spec`, `/to-tickets`, `/implement`) instead of the agent.
+- Skill authoring check: rank 3 of 8, conciseness 4 (agent-skills: rank 2, conciseness 2).
+
+Limits: no run shows higher quality than plain Claude Code. In the brownfield run, V, AD and AE left GitHub Actions unpinned in every round. The SkillsBench run (plain, these skills with Ponytail, the BenchKeeper layer with both) tests the quality question on 86 tasks.
 
 [All evaluations](../../EVALUATIONS.md)

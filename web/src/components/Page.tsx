@@ -4,7 +4,7 @@ import {
 } from '@mantine/core';
 import {
   IconArrowDown, IconArrowRight, IconBrowser, IconCircleCheck,
-  IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconTool,
+  IconCircleX, IconContainer, IconFeather, IconFileText, IconListCheck, IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconTool,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
@@ -101,16 +101,16 @@ function StepList({ from, className }: { from: number; className?: string }) {
 
 
 const checks: [ReactNode, string, ReactNode][] = [
-  [<IconTestPipe size={18} />, 'Tests', <>Tests first where a suite exists.</>],
-  [<IconShieldLock size={18} />, 'Security', <><Code>security-and-hardening</Code> for input, auth, data and dependencies. Secrets are never printed or committed. Maintain audits dependencies.</>],
-  [<IconGauge size={18} />, 'Performance', <><Code>performance-optimization</Code> when performance requirements exist. <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
-  [<IconAccessible size={18} />, 'UI and accessibility', <><Code>frontend-ui-engineering</Code> covers WCAG when building interfaces.</>],
+  [<IconTestPipe size={18} />, 'Tests', <>The existing tests for the touched code first, then <Code>tdd</Code> at the agreed seams.</>],
+  [<IconShieldLock size={18} />, 'Security', <>Auth, permissions, secrets and input validation: <Code>security-review</Code> and tests for denied paths. Secrets are never printed or committed. Maintain audits dependencies.</>],
+  [<IconGauge size={18} />, 'Performance', <>A benchmark before and after on the same machine. <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
+  [<IconAccessible size={18} />, 'UI and accessibility', <>End-to-end and accessibility tests, plus a browser check through Playwright MCP.</>],
 ];
 
 const quickstart: [string, string, string][] = [
   ['Clone BenchKeeper and open it in your agent', 'git clone https://github.com/ESchuderer/BenchKeeper.git && cd BenchKeeper && claude', 'Codex: run codex instead of claude.'],
   ['Set up the machine', '/setting-up-machine', 'Codex: $setting-up-machine. Pick your agents, review the plan, approve.'],
-  ['Restart the agents', '', 'Codex: run /hooks and trust the plugin hooks.'],
+  ['Restart the agents', '', 'New sessions load the global rules and setup skills.'],
   ['Set up each repository', '/setting-up-projects', 'Codex: $setting-up-projects. Run it in the repository root, then commit the result.'],
 ];
 
@@ -153,13 +153,13 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               Applies in every session: when to load the workflow skill, ask instead of assuming, brevity, structure, sources for claims, punctuation, scope, devcontainer use, safety, context.
             </FeatureCard>
             <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/setting-up-machine</Code>} scope="Once per machine">
-              Checks 9 parts plus one optional part without changing anything, then shows one plan: installs, changes, removals, version bumps.
+              Checks 6 parts plus one optional part (rules, setup skills, settings, devcontainer tooling) without changing anything, then shows one plan: installs, changes, removals, version bumps.
             </FeatureCard>
             <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/setting-up-projects</Code>} scope="Once per repository">
-              Devcontainer, <Code>AGENTS.md</Code>, stack skills, spec tool, dead config, with one plan first. On a fresh clone it restores the skills.
+              Devcontainer, <Code>AGENTS.md</Code>, stack skills, the workflow (following-dev-workflow, Matt Pocock's skills, Ponytail, his repository setup), dead config, with one plan first. On a fresh clone it restores the skills.
             </FeatureCard>
-            <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} scope="Before repository work, both agents">
-              Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded only when needed.
+            <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} scope="Per repository, both agents">
+              Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded before repository work where the repository has it.
             </FeatureCard>
             <FeatureCard icon={<IconTool size={20} />} title={<Code fz="sm">/maintaining-repos</Code>} scope="On request, per repository">
               The Maintain pass: dead code, shortcut debt, dependency audit, docs drift, unused skills. Findings become new requests.
@@ -177,7 +177,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <StepList from={5} />
           </SimpleGrid>
           <Text fw={700} mt={48} mb="xs">Checks built into the loop</Text>
-          <Text size="sm" c="dimmed" mb="md" maw={760}>The matching agent-skills skill loads by its description in any phase where a change needs it.</Text>
+          <Text size="sm" c="dimmed" mb="md" maw={760}>Each change type in the following-dev-workflow skill adds its check before the change is reported done.</Text>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
             {checks.map(([icon, title, text]) => (
               <Stack key={title as string} gap={6}>
@@ -193,7 +193,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
               <Stack gap={10} className="host-list">
-                {['Claude Code or Codex, sign-in and permissions', 'Global rules and skills: agent-skills, Ponytail, the four BenchKeeper skills', 'OpenSpec CLI', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
+                {['Claude Code or Codex, sign-in and permissions', 'Global rules, the setup skills and settings', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -226,17 +226,13 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="parts" title="What each part gives you" intro="Each is a separate upstream project, configured for the selected agents.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-            <FeatureCard icon={<IconListCheck size={20} />} title="agent-skills" href="https://github.com/addyosmani/agent-skills" scope="Global, both agents"
-              gives="Steps per task tier: spec before code for full changes, tests first, review before merge.">
-              Skills for spec, planning, TDD, debugging, code review, security, performance and shipping. The agent loads the one each phase needs.
+            <FeatureCard icon={<IconListCheck size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Per repository, both agents"
+              gives="Steps per task tier: open questions settled before code for full changes, tests first, review before push.">
+              Skills for grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull requests and session handoff. Per repository they read the issue tracker and domain docs from <Code>docs/agents/</Code>.
             </FeatureCard>
-            <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, both agents"
+            <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Per repository, both agents"
               gives="Fewer lines of code in every source that measured them. Cost varies by setup.">
               Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
-            </FeatureCard>
-            <FeatureCard icon={<IconFileDescription size={20} />} title="OpenSpec" href="https://github.com/Fission-AI/OpenSpec" scope="CLI global, wired per repository"
-              gives="Requirements as files in the repository, reviewed in the same pull request as the code and readable by later sessions.">
-              One change folder per change (proposal, spec deltas, tasks), merged into living specs on archive.
             </FeatureCard>
             <FeatureCard icon={<IconBrowser size={20} />} title="Playwright MCP" href="https://github.com/microsoft/playwright-mcp" scope="Per repository, browser in the container"
               gives="A browser the agent controls from the container.">
@@ -247,7 +243,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               A standard <Code>devcontainer.json</Code> per repository, shared by the CLI, VS Code and Orca terminals. Project commands run through <Code>devcontainer exec</Code>.
             </FeatureCard>
             <FeatureCard icon={<IconSearch size={20} />} title="Stack skills" scope="Per repository"
-              gives="Framework-specific knowledge where agent-skills is generic.">
+              gives="Framework-specific knowledge where Matt Pocock's skills are generic.">
               <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor> picks at most two vetted skills per technology.
             </FeatureCard>
           </SimpleGrid>
@@ -266,16 +262,16 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="cost" title="Cost and quality" intro={<>Ponytail: fewer lines of code in every measurement. Cost -10.3% in JetBrains' test (card below), +0.7% to +55% in four other independent tests (different injection methods and models). BenchKeeper's own cost measurements are in the benchmark reports. Curated skills raised the pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>, not measured for agent-skills. Fewer rounds of fixes from the checks and the spec: not measured. Components evaluated, included or not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
+        <Section id="cost" title="Cost and quality" intro={<>Ponytail: fewer lines of code in every measurement. Cost -10.3% in JetBrains' test (card below), +0.7% to +55% in four other independent tests (different injection methods and models). BenchKeeper's own cost measurements are in the benchmark reports. Curated skills raised the pass rate by 16.6 points on <Anchor href="https://arxiv.org/abs/2602.12670">SkillsBench</Anchor>. Fewer rounds of fixes from the checks and the spec: not measured. Components evaluated, included or not: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>.</>}>
           <SimpleGrid cols={{ base: 1, md: 3 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconGauge size={18} /></ThemeIcon><Text fw={700}>BenchKeeper, own benchmark</Text></Group>
               <Text size="sm" c="dimmed" mt="sm">Cartridges brief, Claude Sonnet 5.5, one trial per arm, final score out of 100. 29 arms (Claude Code and OpenCode).</Text>
               <SimpleGrid cols={2} mt="md" spacing="xs">
-                <Stat value="5th" label="of 29: best BenchKeeper layer arm (E, with ECC and OpenSpec)" />
-                <Stat value="19th" label="of 29: plain Claude Code" />
+                <Stat value="3rd" label="of 29: Matt Pocock's skills alone (V), highest-ranked Claude Code app" />
+                <Stat value="28th" label="of 29: agent-skills + OpenSpec + BenchKeeper layer v1 (C)" />
               </SimpleGrid>
-              <Text size="sm" c="dimmed" mt="md">The published layer v1 (the SDLC in the rules file, no workflow skill) does not beat several frameworks without it. Layer v3 (arms AD and AE) is being benchmarked.</Text>
+              <Text size="sm" c="dimmed" mt="md">Openballistics brownfield brief, three rounds per arm: no setup separates on score (medians 82.9 to 85.7). BenchKeeper layer v3 with Matt Pocock's skills (AD) takes a median of 7.6 minutes, the other setups 11.1 to 12.8.</Text>
               <Text size="xs" c="dimmed" mt="md">Source: <Anchor href={`${base}/bench/`}>benchmark summary</Anchor>, <Anchor href={`${REPO}/tree/main/bench/results`}>reports</Anchor>.</Text>
             </Card>
             <Card withBorder padding="lg">
@@ -318,7 +314,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </List>
             <List spacing="lg" styles={listTop}>
               <Check ok={false} title="Not a build system or framework.">Your project keeps its own toolchain.</Check>
-              <Check ok={false} title="Not auto-updating.">CLI and MCP versions change only when /setting-up-machine proposes a bump and you accept it. Plugins update with the marketplace commands.</Check>
+              <Check ok={false} title="Not auto-updating.">CLI and MCP versions change only when /setting-up-machine proposes a bump and you accept it. Workflow plugin tags change only when /setting-up-projects proposes a bump.</Check>
               <Check ok={false} title="Not autonomous.">Setup applies only the plan you approve and confirms destructive items again. Merges and pushes to the default branch need your instruction.</Check>
             </List>
           </SimpleGrid>
@@ -383,8 +379,8 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Table withTableBorder verticalSpacing="sm" horizontalSpacing="md">
               <Table.Thead><Table.Tr><Table.Th>Scope</Table.Th><Table.Th>Files</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
-                <Table.Tr><Table.Td>Machine</Table.Td><Table.Td><Code>~/.claude/rules/00-global.md</Code> (symlink), <Code>~/.codex/AGENTS.md</Code> (copy), <Code>~/.claude/skills/</Code>, <Code>~/.agents/skills/</Code>, agent plugins and settings</Table.Td></Table.Tr>
-                <Table.Tr><Table.Td>Repository, committed</Table.Td><Table.Td><Code>.devcontainer/</Code>, <Code>AGENTS.md</Code>, <Code>CLAUDE.md</Code>, <Code>.agents/skills/</Code>, <Code>.claude/skills/</Code>, <Code>skills-lock.json</Code>, <Code>openspec/</Code>, <Code>.mcp.json</Code>, <Code>.codex/config.toml</Code></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td>Machine</Table.Td><Table.Td><Code>~/.claude/rules/00-global.md</Code> (symlink), <Code>~/.codex/AGENTS.md</Code> (copy), <Code>~/.claude/skills/</Code> and <Code>~/.agents/skills/</Code> (setup skills, find-skills), settings</Table.Td></Table.Tr>
+                <Table.Tr><Table.Td>Repository, committed</Table.Td><Table.Td><Code>.devcontainer/</Code>, <Code>AGENTS.md</Code>, <Code>CLAUDE.md</Code>, <Code>.agents/skills/</Code>, <Code>.claude/skills/</Code> (following-dev-workflow, stack skills), <Code>.claude/settings.json</Code> (plugins), <Code>skills-lock.json</Code>, <Code>docs/agents/</Code>, <Code>.mcp.json</Code>, <Code>.codex/config.toml</Code></Table.Td></Table.Tr>
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>

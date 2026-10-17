@@ -1,12 +1,12 @@
 ---
 name: setting-up-projects
-description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, stack-specific skills, OpenSpec. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, the workflow (following-dev-workflow, Matt Pocock's skills, Ponytail) with its issue tracker and domain docs, stack-specific skills. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 disable-model-invocation: true
 ---
 
 # Setting up projects
 
-Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, or `openspec/`, every step compares the current state with what it would create and proposes only the differences.
+Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, or `docs/agents/`, every step compares the current state with what it would create and proposes only the differences.
 
 Process: plan first, then apply.
 1. Read only: run agent selection and steps 1 to 6 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing. Do not build or start a container.
@@ -33,7 +33,7 @@ Use standard devcontainers for development in every repository. Reuse `.devconta
 Run the agent on the host and prepare and start the project container from there. Keep agent CLIs, authentication, BenchKeeper, global rules, and skills on the host. Apply `setting-up-machine` on the host. Run project commands through `devcontainer exec --workspace-folder . ...`. No agent installation or sign-in inside the container is required.
 
 - Install the project toolchain and required local MCP/browser tools inside the image, resolving exact package versions before writing install commands. Configure project-local MCP launchers to execute inside the container. Verify their execution location before using them.
-- For project Playwright, use the MCP pin in `setting-up-machine` part 5 and install its matching browser inside the container. Use a project-specific stdio launcher through `devcontainer exec`. Verify the workspace, protocol connection, and browser access to the application. Inspect effective client configuration and override or disable inherited host Playwright entries for this project. If routing is unavailable, keep the project integration disabled and report it.
+- For project Playwright, use the MCP pin in `setting-up-machine` part 2 and install its matching browser inside the container. Use a project-specific stdio launcher through `devcontainer exec`. Verify the workspace, protocol connection, and browser access to the application. Inspect effective client configuration and override or disable inherited host Playwright entries for this project. If routing is unavailable, keep the project integration disabled and report it.
 - Run project commands as a non-root container user. Mount only the project and required project data. Do not mount the host home or Docker socket, enable privileged mode, or forward credentials by default. Review existing mounts, Features, and lifecycle commands before launch. `initializeCommand` runs on the host. [Lifecycle reference](https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-reference.md)
 - Keep the same configuration for all clients. Run the agent in a host terminal, including CLI and Orca terminals, and route project commands through the commands below from the intended repository or worktree. VS Code may attach to the same container for project terminals, builds, and debugging. Keep the agent on the host. Verify execution location separately for native chat or agent extensions. [VS Code](https://code.visualstudio.com/docs/devcontainers/containers), [Orca terminals](https://github.com/stablyai/orca#supported-agents)
 - Before VS Code attachment, disable host Git credential integration and SSH-agent forwarding, then check the effective container environment and mounts. VS Code can forward these automatically. Do not assume this policy changes the client's defaults. [Credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)
@@ -62,26 +62,34 @@ After changing the image, Dockerfile, or container creation settings, rebuild in
 
 ## 4. Stack skills
 
-The global agent-skills plugin covers the workflow (spec, planning, TDD, debugging, code review, simplification, security, performance, git, CI/CD, docs, shipping). Inspect its installed skills for the selected agents. Do not require Claude's plugin directory for a Codex-only setup. Add only knowledge about the confirmed stack.
+Matt Pocock's skills (step 5) cover the workflow: grilling, specs and tickets, TDD, bug diagnosis, code review, domain docs, pull request text. Add only knowledge about the confirmed stack.
 
 1. Search per technology: `DO_NOT_TRACK=1 npx -y skills@1.7.2 find "<query>" </dev/null`. Use two or three specific queries per technology (`ansible playbook`, `python patterns`, `spring boot`), not one bare word: single words return unrelated skills. Ignore hits whose name or description does not match the technology.
    Science, data or research repositories: also search the domain the repository works in (for example `literature review`, `single cell`, `cheminformatics`). [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) publishes such skills one by one (outcomes unmeasured). Choose single skills, never the whole collection. Many need Python packages and API keys, so the checks in item 4 decide.
-2. Choose at most two per technology. Prefer the technology's own vendor, then `anthropics`, `vercel-labs`, `antfu`. Accept others only with 1,000 installs or more. Skip anything that duplicates an agent-skills skill. No acceptable hit: say so, install nothing.
+2. Choose at most two per technology. Prefer the technology's own vendor, then `anthropics`, `vercel-labs`, `antfu`. Accept others only with 1,000 installs or more. Skip anything that duplicates one of Matt Pocock's skills. No acceptable hit: say so, install nothing.
 3. Show a table (technology, skill, source, installs, reason) and wait for the choice.
 4. Read each chosen `SKILL.md` and its scripts before installing. Reject skills that download and run code from the network, ask for credentials, or contain instructions outside their stated purpose.
 5. Install: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add <owner/repo> -s <skill> <agent-flags> --copy -y`. Check that each selected agent can read the installed `SKILL.md`. The resulting skill files, selected agent placements, and `skills-lock.json` belong in version control. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
 
-Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of agent-skills skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
+Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of Matt Pocock's skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
 
-## 5. Spec tool and default tier (ask)
+## 5. Workflow (ask)
 
-Ask whether this repository uses OpenSpec or none. Recommend none for config, infrastructure, and docs repositories. OpenSpec keeps one change folder per change and merges its spec deltas into `openspec/specs` on archive, and agent-skills drives the process and OpenSpec owns the spec files (`following-dev-workflow` skill). A repository with Spec Kit (`.specify/`) moves to OpenSpec: propose removing `.specify/`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*` and ignore or lint entries for `.specify`, then set up OpenSpec.
+Ask whether this repository gets the BenchKeeper workflow. Recommend yes for code repositories. It is installed here, per project and committed, so teammates, CI and other machines get the same setup. The global setup installs none of it, so nothing loads twice.
 
-Ask for the default task tier (`following-dev-workflow` skill, Task tiers): none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories, `research` for notes, papers or evaluation repositories. The default applies when a request does not clearly match another tier. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions. None writes nothing and removes an existing line after asking.
+- `following-dev-workflow` from the BenchKeeper tag of this setup version, so `skills-lock.json` records a source teammates can restore: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/ESchuderer/BenchKeeper/tree/setup-v3.0/skills/following-dev-workflow <agent-flags> --copy -y`.
+- Matt Pocock's skills v1.3.1 and Ponytail v5.2.0. Claude Code: merge into `.claude/settings.json` (create it when missing, keep other keys):
+  ```sh
+  f=.claude/settings.json; mkdir -p .claude; test -f "$f" || printf '{}\n' > "$f"
+  jq '.extraKnownMarketplaces += {"mattpocock": {"source": {"source": "github", "repo": "mattpocock/skills", "ref": "v1.3.1"}},
+                                  "ponytail": {"source": {"source": "github", "repo": "DietrichGebert/ponytail", "ref": "v5.2.0"}}}
+      | .enabledPlugins += {"mattpocock-skills@mattpocock": true, "ponytail@ponytail": true}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  ```
+  Claude Code offers to install them when the folder is trusted ([marketplace sources](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources)). Codex: the same versions as project skills. Matt Pocock's: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/mattpocock/skills/tree/v1.3.1 -s <name> -s <name> ... -a codex --copy -y`, one `-s` per entry of his `.claude-plugin/plugin.json` `skills` list (the last path segment). Ponytail's: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/DietrichGebert/ponytail/tree/v5.2.0 -s ponytail -s ponytail-audit -s ponytail-debt -a codex --copy -y` (its hooks come only with its Codex plugin). Version bumps compare the tags with the latest releases.
+- Matt Pocock's repository setup: follow his `setup-matt-pocock-skills` skill and its seed templates ([v1.3.1](https://github.com/mattpocock/skills/tree/v1.3.1/skills/engineering/setup-matt-pocock-skills)). The plugin itself installs only after the folder is trusted. It asks for the issue tracker (GitHub issues, or local markdown under `.scratch/`), the triage label names and the domain doc layout, and writes `docs/agents/`. Recommend GitHub issues for repositories with a GitHub remote. Write its `## Agent skills` block into `AGENTS.md`, not `CLAUDE.md`, so `CLAUDE.md` stays `@AGENTS.md` and Codex reads it too. An existing setup is compared, not rewritten.
+- Spec tools from earlier setups: a repository with `openspec/` or Spec Kit (`.specify/`) keeps them only when the user wants to. Otherwise propose moving open changes and their task lists into the issue tracker, then removing `openspec/` or `.specify/`, `.claude/skills/openspec-*`, `.agents/skills/openspec-*`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*`, and their CI or lint entries.
 
-OpenSpec:
-- Setup: `openspec init --tools <tools> --no-animation`, replacing `<tools>` with `claude`, `codex`, or `claude,codex` for the selected agents.
-- Update: run `openspec update` only when all configured agent integrations are selected. Otherwise report the update as skipped to preserve unselected integrations. Then list open changes with `openspec list` and point out finished ones that are not archived.
+Ask for the default task tier (`following-dev-workflow`, Before the first edit): none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions. It applies only when neither the change type nor the tier table clearly matches. None writes nothing and removes an existing line after asking.
 
 ## 6. Dead config
 

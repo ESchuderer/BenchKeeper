@@ -22,7 +22,8 @@ if [ -d /opt/bk/npm/@fission-ai ]; then
   printf '#!/bin/sh\nexec /opt/bk/node /opt/bk/npm/@fission-ai/openspec/bin/openspec.js "$@"\n' > ~/.local/bin/openspec
   chmod +x ~/.local/bin/openspec
 fi
-[ ! -d /opt/bk/project ] || cp -rn /opt/bk/project/. .
+# no-clobber: files the task already has stay as they are
+[ ! -d /opt/bk/project ] || cp -rn /opt/bk/project/. . 2>/dev/null || true
 """
 
 

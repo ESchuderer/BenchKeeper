@@ -1,6 +1,6 @@
 # agent-skills
 
-[Repository](https://github.com/addyosmani/agent-skills), Category: skill libraries, Checked 2026-10-16, Decision: In, unmeasured
+[Repository](https://github.com/addyosmani/agent-skills), Category: skill libraries, Checked 2026-10-17, Decision: Out (setup-v3.0)
 
 ## Advertised
 
@@ -32,6 +32,6 @@ Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with pe
 
 ## Decision
 
-In, unmeasured. The global rules load skills by description, not through `using-agent-skills`.
+Out (setup-v3.0, 2026-10-17): replaced by [Matt Pocock's skills](mattpocock-skills.md), which cover the same phases (spec, TDD, debugging, review). One collection per phase keeps one owner per step. Own runs: on cartridges, agent-skills alone (F) ranked 7th of 29, below Matt Pocock's skills alone (V, 3rd). The setup BenchKeeper recommended until setup-v2.9 (BenchKeeper layer v1, agent-skills and OpenSpec, arm C) ranked 28th (its unit tests failed in the coverage run, cause unverified). Signals only: one trial per arm. `setting-up-machine` lists it as an extra to remove.
 
 [All evaluations](../../EVALUATIONS.md)

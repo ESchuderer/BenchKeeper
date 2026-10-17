@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { FRAMEWORKS, variant } from './arm-rules.mjs';
 
 const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
@@ -39,15 +39,18 @@ test('fails when a replaced section or line is missing', () => {
   assert.throws(() => variant('## Scope\n- x\n', '<!-- replace: nope ==> y -->'), /text not found/);
 });
 
-// Layer v3 (arm AD): pinned copies of the current rules and the workflow skill for Matt Pocock's skills.
-for (const [arm, dir, openspec] of [['AD', 'bk-v3', false], ['AE', 'bk-v3-openspec', true]]) {
+// Layers v3 (arms AD, AE) and v4 (arm AG): pinned copies of the rules and the workflow skill for Matt Pocock's skills.
+for (const [arm, dir, openspec] of [['AD', 'bk-v3', false], ['AE', 'bk-v3-openspec', true], ['AG', 'bk-v4', false]]) {
   test(`${dir}: no agent-skills name${openspec ? '' : ' or OpenSpec'}, every named skill exists in arm ${arm}`, () => {
-    const text = read('bench/arms/bk-v3/global.md') + read(`bench/arms/${dir}/skills/following-dev-workflow/SKILL.md`);
+    const skill = `bench/arms/${dir}/skills/following-dev-workflow`;
+    const text = read(`bench/arms/${dir.replace('-openspec', '')}/global.md`) + read(`${skill}/SKILL.md`)
+      + (existsSync(new URL(`../../${skill}/full-tier.md`, import.meta.url)) ? read(`${skill}/full-tier.md`) : '');
     const have = listed(arm);
     assert.deepEqual(agentSkills.filter((n) => text.includes(`\`${n}\``) && !have.has(n)), []);
     assert.ok(!/agent-skills/i.test(text) && (openspec || !/openspec/i.test(text)));
-    const names = [...new Set([...text.matchAll(/`[/$]?([a-z][a-z0-9]*-[a-z0-9-]+|tdd|pr|grilling|research|prototype)`/g)].map((m) => m[1]))]
-      .filter((n) => !/^(ansible-lint|code-review-and-quality)$/.test(n));
+    // plugin skills may carry their namespace (`mattpocock-skills:code-review`); security-review is built into Claude Code
+    const names = [...new Set([...text.matchAll(/`[/$]?(?:[a-z-]+:)?([a-z][a-z0-9]*-[a-z0-9-]+|tdd|pr|grilling|research|prototype)`/g)].map((m) => m[1]))]
+      .filter((n) => !/^(ansible-lint|code-review-and-quality|security-review)$/.test(n));
     assert.deepEqual(names.filter((n) => !have.has(n)), []);
   });
 }

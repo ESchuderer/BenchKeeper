@@ -2,6 +2,18 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v3.0 (2026-10-17)
+
+Recommended stack: Matt Pocock's skills with Ponytail and the BenchKeeper workflow skill, without agent-skills and OpenSpec, installed per project. Evidence: `evaluations/skill-libraries/mattpocock-skills.md` (own cartridges and brownfield runs, signals only).
+
+- Install split: the machine gets only the basic global rules, the setup skills and settings (`setting-up-machine`). The workflow (`following-dev-workflow`, Matt Pocock's skills v1.3.1, Ponytail v5.2.0) is installed per project and committed (`setting-up-projects` step 5: project skills, and plugins pinned to tags in `.claude/settings.json`), so nothing loads twice and teammates get the same setup. `rules/global.md` loads the workflow skill only where a repository has it.
+- `following-dev-workflow` rewritten as a tier pre-filter. Quick: branch, edit, verify, commit, draft pull request. Standard: the existing tests covering the touched code (TDAD, arXiv 2603.17973), `tdd`, `mattpocock-skills:code-review`. Full (`full-tier.md`, loaded only then): Matt Pocock's flow (`grilling`, `/to-spec` and `/to-tickets` when the user runs them, `tdd`, `code-review`, `pr`). Kept: change types and their checks, issues, branches, pull requests, Verify, the pre-push correctness review (Claude Code's built-in `code-review`) and the security review for risky changes (`security-review`), which Matt Pocock's `code-review` does not cover.
+- The change type sets the tier before the tier table. `Default tier:` applies only when neither matches. Unfinished work at the end of a session goes into an issue or pull request comment, with `/handoff` suggested. Conflicts with Matt Pocock's skills settled: `grilling` asks without its emoji markers, `research` saves outside the repository unless asked.
+- `setting-up-machine`: parts are rules (1), Playwright MCP (2), skills (3, no global `following-dev-workflow`), settings (4), advisor (5), devcontainer (6), Orca (7). Global Ponytail, agent-skills, OpenSpec and a global workflow link are extras to remove, after the repositories in use have their project install.
+- `setting-up-projects` step 5 writes Matt Pocock's repository setup (`docs/agents/`, the `## Agent skills` block in `AGENTS.md`) and proposes moving existing `openspec/` or `.specify/` work into the issue tracker.
+- `maintaining-repos` names no agent-skills skill. Docs drift includes `GLOSSARY.md` and ADRs.
+- Upgrade order: `/setting-up-projects` in each repository that should keep the workflow, then `/setting-up-machine`, which removes the global workflow parts.
+
 ## setup-v2.9 (2026-10-17)
 
 Workflow fixes from the benchmark diagnosis of the BenchKeeper layer (cartridges and winery, Sonnet 5.5): layer apps lacked a README, checked the UI by screenshots instead of tests, and left browser output in the repository.

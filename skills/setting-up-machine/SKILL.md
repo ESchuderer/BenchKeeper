@@ -1,6 +1,6 @@
 ---
 name: setting-up-machine
-description: "Checks, installs, and cleans the machine-wide agent setup for Claude Code and Codex: devcontainer tooling, global rules, workflow skills, Ponytail (full), addy agent-skills, OpenSpec, Playwright MCP, telemetry. Use on a new machine, after editing the global rules or skills, to update the pinned tool versions, or to verify or clean the global setup."
+description: "Checks, installs, and cleans the machine-wide agent setup for Claude Code and Codex: the basic global rules, the BenchKeeper setup skills, settings and telemetry, devcontainer tooling. The workflow (Matt Pocock's skills, Ponytail, following-dev-workflow) is installed per project by setting-up-projects. Use on a new machine, after editing the global rules or skills, to update the pinned tool versions, or to verify or clean the global setup."
 disable-model-invocation: true
 ---
 
@@ -34,7 +34,7 @@ In commands below, replace `<agent-flags>` with the selected agents' flags and `
 
 Needs `npm` with prefix `~/.local`, `jq`, `curl` for applicable steps. Missing: stop and tell the user. `gh` missing or `gh auth status` failing: warn that the issue and pull request flow in the `following-dev-workflow` skill falls back to local branches, and continue.
 
-This skill sets up the host (agents, authentication, global rules, skills). `setting-up-projects` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials. Rootless engines, VMs and microVMs are not required. Check part 9 before project setup.
+This skill sets up the host (agents, authentication, global rules, skills). `setting-up-projects` owns container toolchains and project-local MCP/browser launchers. Do not require agent installation or sign-in inside the container, or mount host agent homes or credentials. Rootless engines, VMs and microVMs are not required. Check part 6 before project setup.
 
 Versions: before the checks, compare every pinned version in this file with the latest release (`npm view <pkg> version`). Add available bumps to the plan (package, pinned, latest). For each accepted bump, edit the pin everywhere it appears in `$B` (`git -C $B grep -n '<pkg>@' -- ':!bench' ':!CHANGELOG.md'`, which also finds the Dockerfile and workflow pins (versions written as JSON values, such as the site's `web/package.json`, are bumped by Dependabot); the benchmark's pinned images and copies and the history stay), on a branch as `rules/global.md` requires, then install it through its part. The pins change only here, at install time, where the new version is tested.
 
@@ -54,47 +54,19 @@ diff ~/.codex/AGENTS.md ~/.codex/AGENTS.md.new
 mv ~/.codex/AGENTS.md.new ~/.codex/AGENTS.md
 ```
 
-### 2. OpenSpec
-Check: `openspec --version`. `openspec config list` shows delivery skills and telemetry false.
-Install:
-```sh
-npm i -g @fission-ai/openspec@1.14.2
-openspec config set delivery skills && openspec config set telemetry.enabled false
-```
-
-### 3. Ponytail, level full
-Check: `ponytail@ponytail` enabled in each selected agent's plugin list. `~/.config/ponytail/config.json` has `"defaultMode": "full"`. `PONYTAIL_DEFAULT_MODE` is unset or `full` (it overrides the file, [upstream configuration](https://github.com/DietrichGebert/ponytail/blob/main/INSTALL.md#settings)). Keep Ponytail and agent-skills. Their integration lives in `$B/skills/following-dev-workflow/SKILL.md`, not in installed plugin files.
-Install:
-```sh
-claude plugin marketplace add DietrichGebert/ponytail && claude plugin install ponytail@ponytail
-codex plugin marketplace add DietrichGebert/ponytail && codex plugin add ponytail@ponytail
-mkdir -p ~/.config/ponytail
-f=~/.config/ponytail/config.json
-test -f "$f" || printf '{}\n' > "$f"
-jq '.defaultMode = "full"' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-```
-
-### 4. addy agent-skills
-Check: `agent-skills@addy-agent-skills` enabled in `claude plugin list`. `agent-skills@agent-skills` installed and enabled in `codex plugin list` (not the `openai-curated-remote` copy, which would duplicate every skill).
-Install:
-```sh
-claude plugin marketplace add https://github.com/addyosmani/agent-skills.git && claude plugin install agent-skills@addy-agent-skills
-codex plugin marketplace add addyosmani/agent-skills && codex plugin add agent-skills@agent-skills
-```
-
-### 5. Playwright MCP
+### 2. Playwright MCP
 Check: project Playwright runs inside its devcontainer. A host `npx` registration or host browser cache does not verify that connection. `setting-up-projects` installs `@playwright/mcp@0.0.83` and its matching Chromium inside the container, configures the project connection, and tests browser access to the project application. Report existing host Playwright registrations for migration. Keep them disabled for container projects until the replacement is verified.
 
-### 6. Skills
-Check: each selected agent's skill directory links `setting-up-projects`, `setting-up-machine`, `following-dev-workflow` and `maintaining-repos` into `$B/skills/`, and has a readable `find-skills/SKILL.md`. `rules/global.md` loads `following-dev-workflow` before every repository edit, so a missing `following-dev-workflow` link is a failure.
+### 3. Skills
+Check: each selected agent's skill directory links `setting-up-projects`, `setting-up-machine` and `maintaining-repos` into `$B/skills/`, and has a readable `find-skills/SKILL.md`. `following-dev-workflow` is not linked here: `setting-up-projects` installs it per project, and a global copy would load twice.
 Install:
 ```sh
 DO_NOT_TRACK=1 npx -y skills@1.7.2 add vercel-labs/skills -s find-skills -g <agent-flags> --copy -y
 mkdir -p <skill-dir>
-for s in setting-up-machine setting-up-projects following-dev-workflow maintaining-repos; do ln -sfn $B/skills/$s <skill-dir>/$s; done
+for s in setting-up-machine setting-up-projects maintaining-repos; do ln -sfn $B/skills/$s <skill-dir>/$s; done
 ```
 
-### 7. Settings and telemetry
+### 4. Settings and telemetry
 Check: `~/.claude/settings.json` has `advisorModel` `opus`, `remoteControlAtStartup` true, `showClearContextOnPlanAccept` true, `autoCompactWindow` set (hard context limit: Claude Code compacts at this many tokens; 100000 to 1000000, default here 400000, a value the user chose stays; [model configuration](https://code.claude.com/docs/en/model-config)), `attribution` `{"commit":"Assisted-by: generative AI","pr":"Created with the assistance of generative AI.","sessionUrl":false}` (neutral AI disclosure, no model name, no claude.ai session link), `env.DISABLE_ERROR_REPORTING` `1`, `env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` `1`. `~/.codex/config.toml` has `[analytics]` `enabled = false` and `[feedback]` `enabled = false` (Codex has no attribution setting). [Claude attribution settings](https://code.claude.com/docs/en/settings-reference#attribution), [Codex config](https://developers.openai.com/codex/config-reference)
 Install:
 Claude Code only:
@@ -110,12 +82,12 @@ grep -q '^\[analytics\]' ~/.codex/config.toml || printf '\n[analytics]\nenabled 
 grep -q '^\[feedback\]' ~/.codex/config.toml || printf '\n[feedback]\nenabled = false\n' >> ~/.codex/config.toml
 ```
 
-### 8. Advisor and Remote Control not disabled
+### 5. Advisor and Remote Control not disabled
 Skip this part unless Claude Code is selected.
 Check: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_GROWTHBOOK`, `CLAUDE_CODE_DISABLE_ADVISOR_TOOL` are set nowhere: settings `env`, current environment, `~/.config/fish/`, `~/.bashrc`, `~/.zshrc`, `~/.profile`, `/etc/environment`. The first four disable feature-flag fetching and with it the advisor and `/skill-doctor`. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` and `DISABLE_GROWTHBOOK` also Remote Control ([env-vars](https://code.claude.com/docs/en/env-vars)). The last disables the advisor directly. A `DO_NOT_TRACK=1` prefix on a single command (as in the skills CLI lines) is fine.
 Fix: remove the line after asking (`/etc/environment`: give the user the command).
 
-### 9. Devcontainer tooling (host)
+### 6. Devcontainer tooling (host)
 Check: `docker info` can reach a Docker Engine. `devcontainer --version` is `0.89.0`. A `docker` command alone does not prove the engine is available. Report a Podman compatibility command as a different runtime. Do not replace it or change its mode automatically. If VS Code is used, `code --list-extensions --show-versions` includes `ms-vscode-remote.remote-containers`.
 
 Install the [Dev Containers CLI](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli):
@@ -124,7 +96,7 @@ npm i -g @devcontainers/cli@0.89.0
 ```
 If Docker is missing or inaccessible, report the failure and give the platform's [Docker installation](https://docs.docker.com/engine/install/) or daemon-start instructions. Never run sudo. If the VS Code extension is missing, resolve and pin its exact version before installing it. `setting-up-projects` owns each repository's configuration and launch checks. Do not report the development environment as ready until a container starts and its project checks run inside it.
 
-### 10. Orca skills (optional, ask)
+### 7. Orca skills (optional, ask)
 Check: `orca-cli/SKILL.md` and `orchestration/SKILL.md` are readable through each selected agent's skill directory. Keep existing installations. Missing optional skills are not a setup failure.
 
 If either skill is missing for a selected agent, ask whether to install the optional Orca skills (`orca-cli` and `orchestration`), naming only the selected agents. Install only after an explicit yes. A no or no answer means skip. Do not remove existing Orca skills or hooks.
@@ -140,10 +112,11 @@ Check the skill files again after installation. The Orca application and CLI are
 
 List in the plan, as destructive, items belonging to selected agents that are not a part above. Do not classify an unselected agent or its tools as extras. Preserve shared files and tools still used by any unselected agent.
 
-- Plugins and marketplaces other than `ponytail`, `addy-agent-skills` (Codex: `agent-skills`), `claude-plugins-official`: `claude plugin uninstall`, `claude plugin marketplace remove`, `codex plugin remove`, `codex plugin marketplace remove`.
+- Plugins and marketplaces other than `claude-plugins-official`, `mattpocock` and `ponytail` (repositories declare those two per project): `claude plugin uninstall`, `claude plugin marketplace remove`, `codex plugin remove`, `codex plugin marketplace remove`.
 - User MCP servers other than `playwright`: `claude mcp remove --scope user`, `codex mcp remove`.
+- Global workflow parts from before setup-v3.0, now per project: user-scope Ponytail and Matt Pocock plugins (`claude plugin uninstall --scope user ponytail@ponytail`, `claude plugin uninstall --scope user mattpocock-skills@mattpocock`, `codex plugin remove ponytail@ponytail`; keep their marketplaces while a repository declares them, since removing a marketplace uninstalls its plugins), agent-skills (`claude plugin uninstall agent-skills@addy-agent-skills`, `codex plugin remove agent-skills@agent-skills`, their marketplaces), OpenSpec (`npm rm -g @fission-ai/openspec`), a global `following-dev-workflow` link. Ask whether the repositories in use have their project install (`setting-up-projects`) before removing: until then they lose the workflow. Repositories keep their `openspec/` folders until `setting-up-projects` runs there.
 - Links from before setup-v2.5 (`sdlc`, `maintain`, `global-setup`, `project-setup`) that point into `$B/skills/`: delete the symlink.
-- Global skills other than parts 6 and 10: `npx -y skills@1.7.2 remove -g <name> <agent-flags>`, or delete only the selected agent's symlink.
+- Global skills other than parts 3 and 7: `npx -y skills@1.7.2 remove -g <name> <agent-flags>`, or delete only the selected agent's symlink.
 - Hooks in `~/.claude/settings.json` and `~/.codex/hooks.json`.
 - RTK, no longer part of this setup: `rtk init -g --uninstall` (Claude Code), `rtk init -g --codex --uninstall` (Codex), then the `rtk` binary, `~/.claude/RTK.md`, the `@RTK.md` line in `~/.claude/CLAUDE.md`, `~/.codex/RTK.md`.
 - codegraph, no longer part of this setup: `npm rm -g @colbymchenry/codegraph`.
@@ -158,4 +131,4 @@ Kept unless the user says otherwise: Orca (`~/.orca`, its hooks, skills `orca-cl
 
 ## Report
 
-List selected agents and skipped agents. Table of parts 1 to 9 (ok, fixed, failing, or skipped), optional part 10 (kept, installed, skipped, or failed), extras removed or kept. Report the container runtime and CLI separately from project container readiness. Then: restart only selected agents on the host; if Codex is selected, run `/hooks` and trust new plugin hooks; in new sessions check Ponytail reports `full`; if Claude Code is selected, check agent-skills commands (`/spec`, `/plan`), the advisor, and Remote Control.
+List selected agents and skipped agents. Table of parts 1 to 6 (ok, fixed, failing, or skipped), optional part 7 (kept, installed, skipped, or failed), extras removed or kept. Report the container runtime and CLI separately from project container readiness. Then: restart only selected agents on the host. If Claude Code is selected, check the advisor and Remote Control in a new session. The workflow is checked per project (`setting-up-projects`).

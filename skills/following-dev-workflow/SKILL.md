@@ -1,79 +1,72 @@
 ---
 name: following-dev-workflow
-description: "Sets the development workflow for any repository change: picks the task tier (quick, standard, full, research) and its steps: GitHub issue, branch, tests first, OpenSpec spec, review before push, draft pull request. Use before the first edit in a repository, before creating or editing a GitHub issue, before research with two or more independent items, before pushing, and before opening or merging a pull request."
+description: "Sets how much process a repository change gets: picks the task tier (quick, standard, full, research) and hands each phase to Matt Pocock's skills (grilling, tdd, code-review, pr), adding the issue, branch, review, check and pull request rules his skills leave open. Use before the first edit in a repository, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items."
 when_to_use: "Fix, add, change, refactor, rename, update, upgrade or remove anything in a repository; compare or evaluate several tools or options; push, open a PR, or merge."
 ---
 
 # Following the dev workflow
 
-Skills from agent-skills (addyosmani) drive each phase. OpenSpec owns the spec files when the repository has `openspec/`. These rules take precedence over a skill's own triggers, such as a skill asking for a spec or a review on every change. Ponytail `full` applies during the build phases unless the user selects another level.
+Matt Pocock's skills do the work of each phase. This skill picks the tier, which decides how much of his flow a task gets, and adds the repository rules his skills leave open. It takes precedence over a skill's own triggers. User-invoked skills are written `/name` (Claude Code), `$name` in Codex. Matt Pocock's skills are `mattpocock-skills:<name>` in Claude Code and `<name>` in Codex.
 
-## Task tiers
+## Before the first edit
 
-State the tier in one line (`Tier: quick`) before the first edit or subagent. A question answered without either needs no tier line. The user's explicit tier wins. A `Default tier:` line in `AGENTS.md` applies when the request does not clearly match another tier. Several requests in one prompt: tier each. On a shared branch the highest tier applies. Follow-ups on an open pull request keep its tier unless the work grows.
+- Read `AGENTS.md`, the issue if one is given (`gh issue view <n>`), and the code the change touches.
+- State the tier in one line (`Tier: quick`) before the first edit, command or subagent. A question answered without either needs no tier line. The user's explicit tier wins. Otherwise the change type (Change types) sets the tier, and changes not listed there use the Tiers table. A `Default tier:` line in `AGENTS.md` applies only when neither clearly matches. Several requests in one prompt: tier each. On a shared branch the highest tier applies. Follow-ups on an open pull request keep its tier unless the work grows.
+- Standard and full use Matt Pocock's repository setup (`docs/agents/issue-tracker.md`). Missing: ask the user to run `/setting-up-projects`. Non-interactive runs: state that it is missing and leave out `mattpocock-skills:code-review`.
 
-Risky means a change to authentication, permissions, secrets or input validation, to production data, deploy or production configuration, or an irreversible action. For a risky change, name the full tier and ask. The answer decides, but a risky change always gets the pre-push review.
+## Tiers
 
-When the work grows (more than one behavior, several files not counting generated ones such as lockfiles, code not yet read, an uncertain approach, or a risky change), move to the tier it now fits, say so, and run that tier's skipped steps (issue, spec, plan) before the next edit. Work beyond one session: split it into issues first, each with its own tier.
+| Tier | When | Steps |
+|---|---|---|
+| Quick | the diff fits in one sentence | branch, edit, verify, commit, draft pull request. No issue, plan, test first or review. Ponytail's self-check for new non-trivial logic still applies |
+| Standard | one behavior, or a refactor that keeps behavior, approach clear | issue, branch, the existing tests covering the touched code, then `tdd` (refactor: the suite passes before and after with tests unchanged), verify, `mattpocock-skills:code-review` against the default branch with the issue as the spec, draft pull request. The plan is a few lines in the reply and names the test seams, which then count as agreed |
+| Full | several behaviors, a new capability, an uncertain approach, or a risky change | read [full-tier.md](full-tier.md) |
+| Research | a question, comparison, evaluation or spike without a repository change | no branch or edits, scratch files outside the repository. Edits asked for afterwards get their own tier. One fact: answer directly. Two or more independent items: one subagent per item in parallel (Claude Code: `model: "sonnet"`, `effort: "high"`; Codex: `explorer` subagents), then one merged answer with sources |
 
-- Quick (the diff fits in one sentence): branch, edit, verify, commit, draft pull request. No issue, spec, plan, test first or pre-push review. Ponytail's self-check for new non-trivial logic still applies.
-- Standard (one behavior, or a refactor that keeps behavior; approach clear): issue, branch, failing test first where a test suite exists (refactor: the suite passes before and after with tests unchanged), build, verify, review before push, draft pull request. No spec or OpenSpec change. The plan is a few lines in the reply.
-- Full (several behaviors, new capability, uncertain approach, or a risky change): every phase below (Phases).
-- Context: quick, suggest `/clear` after the pull request; standard and full, suggest `/compact` after the plan (keeping the tier, issue, branch, files and checks) and `/clear` after the pull request.
-- Research (question, comparison, evaluation or spike without a repository change): no branch or edits. Scratch files outside the repository are allowed. Edits asked for afterwards get their own tier. One fact: answer directly. Two or more independent items: one subagent per item in parallel (Claude Code: `model: "sonnet"`, `effort: "high"`; Codex: `explorer` subagents). Each prompt states the objective, output format and sources to use. Where claims rest on benchmarks, it adds the evidence bar: independent versus vendor-run results; version, harness, model and effort, task count, runs per arm, deltas and p-values; advertised claims next to measured ones; unverified items labeled. Merge the results into one answer with sources.
+- Risky: a change to authentication, permissions, secrets or input validation, to production data, deploy or production configuration, or an irreversible action. Name the full tier and ask. The answer decides, but a risky change always gets the security review before push.
+- The work grows (more than one behavior, code not yet read, an uncertain approach, or a risky change): say so, move to the tier it fits, and run that tier's skipped steps before the next edit. Work beyond one session: full tier.
+- Research prompts state the objective, output format and sources. Where claims rest on benchmarks, they add the evidence bar: independent versus vendor-run, version, harness, model and effort, task count, runs per arm, deltas and p-values, advertised claims next to measured ones, unverified items labeled.
+- Other skills, in any tier when the task matches: `diagnosing-bugs` for a bug with an unknown cause, `prototype` for a design question that needs running code, `codebase-design` where the structure needs it. `research` saves its findings outside the repository unless the user asks for a file in it.
+- Non-interactive runs (headless, CI): a skill's approval gate, a question to the user or a phase boundary is not a stop. State the assumption in one line and continue. An issue plan counts as approved: create the issue and say so in one line.
+- Standard and full: suggest `/compact` after the plan. Unfinished work at the end of a session: post the state and the next step as a comment on the issue or pull request, and suggest `/handoff` for the next session.
 
 ## Change types
 
-Default tier and the check before reporting done, in addition to Verify below. Run the checks the repository has. Never run commands that change shared or production systems as a check: no `terraform apply`, `kubectl apply`, `helm upgrade`, or migrations against shared or production databases.
+The change type sets the tier and the check before reporting done, in addition to Verify. Run the checks the repository has. Never run commands that change shared or production systems as a check (`terraform apply`, `kubectl apply`, `helm upgrade`, migrations against shared or production databases).
 
 | Change | Tier | Check before done |
 |---|---|---|
 | Docs, typo | quick | docs build, link check |
-| Config value | quick; full (risky) for production, deploy or security config | tests, schema or lint |
+| Config value | quick. Full (risky) for production, deploy or security config | tests, schema or lint |
 | Log line | quick. Standard when it logs request or user data | no secrets or personal data logged |
-| Tests only | quick | new tests pass. No production code in the diff |
+| Tests only | quick | new tests pass, no production code in the diff |
 | Dependency patch or minor | quick | full test suite, package audit |
-| UI tweak | quick | browser check. Screenshot baselines updated only for intended changes |
+| UI tweak | quick | browser check, screenshot baselines updated only for intended changes |
 | UI behavior in an existing flow | standard. Full for a new page or flow | end-to-end and accessibility tests |
 | Bug, known cause | standard | failing reproducer test first |
-| Bug, unknown cause | standard. Move up once the cause shows more | investigate first (`debugging-and-error-recovery`) with a reproducer test on the branch |
+| Bug, unknown cause | standard. Move up once the cause shows more | `diagnosing-bugs`, reproducer test on the branch |
 | Refactor | standard within one module. Full across modules | suite passes before and after, tests unchanged |
-| Dependency major or security advisory (route by advisory, not version; not risky unless it changes auth or secrets handling) | standard | changelog read, full suite, package audit |
+| Dependency major or security advisory (route by the advisory, not the version) | standard | changelog read, full suite, package audit |
 | CI workflow | standard. Full (risky) for deploy steps | `actionlint` |
 | Metrics, alerts | standard | no secrets or personal data |
 | Feature | full | tests, types, lint, build |
 | Infrastructure as code | full | Terraform/OpenTofu `fmt -check`, `validate`, `plan`; Ansible `ansible-lint`, `--check --diff`; Kubernetes `kubeconform`, `kubectl diff`; Helm `helm lint`, `helm template` |
-| Schema migration | full | expand and contract. Migrate a throwaway database |
+| Schema migration | full | expand and contract, migrate a throwaway database |
 | Production data fix | full | dry run on a copy. The user runs it |
-| Auth, permissions, secrets, input validation | full | `security-and-hardening` while building, `security-review` before push (Claude Code), tests for denied paths |
+| Auth, permissions, secrets, input validation | full | security review, tests for denied paths |
 | Performance | full | benchmark before and after on the same machine |
 
 ## Issues, branches and pull requests
 
-- Default flow in a GitHub repository: issue, branch, commits, pull request (`git-workflow-and-versioning`). The quick tier skips the issue. Pushing feature branches and opening pull requests need no extra confirmation. Creating or editing a GitHub issue needs confirmation: present the plan (title, goal, acceptance criteria, tasks) first and create it only after the user approves. Merging, pushing to the default branch and skipping the flow need the user's instruction.
-- Before the first file edit, check the current branch. On the default branch (`gh repo view --json defaultBranchRef`), create `<type>/<issue>-<slug>` (for example `fix/42-null-config`), or `<type>/<slug>` when the change has no issue. On another branch or worktree, keep it.
-- Commits: atomic, message `<type>: <summary>` (Conventional Commits).
-- Pull requests: open as draft (`gh pr create --draft`), body contains `Closes #<issue>` when an issue exists and lists the key decisions when the change made any (structure, storage, deployment, rejected options). Mark ready (`gh pr ready`) after checks pass. Review comments and failing checks: new commits on the same branch, no force push or rebase unless the user asks.
-- No GitHub remote or `gh auth status` fails: local branch only, skip issue and pull request, run the review below before reporting done (standard, full), say so in one line.
-- Before `git push` or opening a pull request that contains code or risky changes, review the commits being pushed for correctness bugs (Claude Code: `code-review`, otherwise `code-review-and-quality`), giving the reviewer the diff, the code it touches and the plan or spec summary. For a risky change, also run `security-review` (Claude Code). If either finds issues, report them and wait for the user before pushing. Skip when only docs change or the tier is quick, unless the change is risky.
-- OpenSpec (repository has `openspec/`, full tier): after the issue step, create the branch, then write the OpenSpec change there (`openspec-propose`, change name `<issue>-<slug>` or `<slug>`, issue linked in `proposal.md`). Commit it with the code. Run `openspec-archive-change` on the branch before the pull request is merged, never on the default branch.
+- Flow in a GitHub repository: issue, branch, commits, pull request. Quick skips the issue. Creating or editing a GitHub issue needs the user's approval of its plan (title, goal, acceptance criteria, tasks). If the user declines, continue without one. Pushing a feature branch and opening a pull request need no approval. Merging, pushing to the default branch and skipping the flow need the user's instruction.
+- Before the first edit, check the branch. On the default branch, create `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue. On another branch or worktree, keep it.
+- Commits: atomic, `<type>: <summary>` (Conventional Commits).
+- Before pushing code (standard, full) or a risky change: review the commits for correctness bugs (Claude Code: the built-in `code-review`; Codex: a correctness pass), giving the reviewer the diff, the code it touches and the plan. Risky changes also get a security review (Claude Code: `security-review`; Codex: a pass over authentication, permissions, secrets and input handling). Fix findings within the task's scope. Report the others and wait for the user. Docs-only changes skip this unless risky.
+- Pull requests: draft first (`gh pr create --draft`), body from `pr` with `Closes #<issue>` when an issue exists and the key decisions (structure, storage, deployment, rejected options). After pushing, wait for the checks (`gh pr checks --watch`) and mark ready (`gh pr ready`) when they pass. Review comments and failing checks: new commits on the same branch, no force push or rebase unless the user asks.
+- No GitHub remote or `gh auth status` fails: local branch only, no issue or pull request, the pre-push review before reporting done (standard, full), say so in one line.
 
-## Phases
+## Verify
 
-- Understand: `AGENTS.md`, the issue if one is given (`gh issue view <n>`), and the code the change touches, before any edit.
-- Track (standard, full): without an issue, present the plan and create one after approval (above). If the user declines, continue without one. Then branch (above).
-- Conditional skills: load one when the task matches its description, in any phase (for example `interview-me`, `debugging-and-error-recovery`, `security-and-hardening`). The tiers, the phases, OpenSpec, and the issue and pull request flow here take precedence.
-- Non-interactive runs (headless, CI): a skill's approval gate or a phase boundary is not a stop. State the assumption in one line and continue to the next phase.
-- Specify (full): `spec-driven-development`. With `openspec/`: write the result as an OpenSpec change (`openspec-propose`), not a separate spec file. Without it: plan mode. Record, where they apply, the decisions an agent does not take on its own: deployment target, data storage, module boundaries, core types and interfaces. Ask the user where the request leaves one open (non-interactive runs: state the assumption). Write a skeleton first (folders, interfaces or signatures, a short note per module on its boundary) only when the user asks for it or the repository has no structure yet.
-- Plan (full): `planning-and-task-breakdown`. With OpenSpec the tasks live in the change's `tasks.md`.
-- Build: `incremental-implementation`, tests first where the repository has a test suite (`test-driven-development`; standard, full). With OpenSpec through `openspec-apply-change`. Assess simplicity within `code-review-and-quality`. Use `code-simplification` where needed within scope. When the work drifts materially from the plan or spec (a different design or scope), or a result cannot be explained against them, discard the worktree or local branch created for this task and not yet pushed, add the cause to the plan, and restart in a fresh context (a new subagent, or ask the user to start a new session), instead of patching. A pushed branch is deleted only after the user's confirmation.
-- Verify: the project's own build, types, lint and tests before reporting done, not repeated re-reading of finished work; UI changes in a browser (Playwright MCP) in addition to tests the project's test command runs for the UI logic, never instead of them. Before done: a new project or app has a README (setup, run, test, configuration), and a change to setup or behavior updates it. Browser and build output (`.playwright-mcp/`, `test-results/`, screenshots) is git-ignored or deleted. Report failures as they are. Show the evidence (command and result).
-- Review and ship: code review before push (above); push the branch and open a draft pull request (above); wait for checks (`gh pr checks --watch`, `ci-cd-and-automation`), report failures as they are, mark ready when they pass; `openspec-archive-change` on the branch (above). Merge only on the user's instruction.
-- Maintain: after a milestone or a large merge, suggest that the user runs `/maintaining-repos` (Codex: `$maintaining-repos`).
+Before reporting done: the project's own build, types, lint and tests. UI changes also in a browser (Playwright MCP), next to the UI tests, never instead of them. Browser and build output (`.playwright-mcp/`, `test-results/`, screenshots) is git-ignored or deleted. Report failures as they are, with the command and its result.
 
-## Opt-in for hard tasks
-
-Only when the user explicitly asks for them.
-
-- Best-of-N: run the same task in 2 or 3 worktrees in parallel, pick the result by its tests first and then by review, and continue with the chosen one. The others are discarded.
-- Mutation testing on the changed files, where the repository has a mutation testing tool (for example Stryker or mutmut): report the surviving mutants and add tests for the behavior they reveal.
+After a milestone or about every 10 merged pull requests, suggest `/maintaining-repos`.

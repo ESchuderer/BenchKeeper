@@ -28,7 +28,7 @@ export const notes: Notes = {
     '2026-10-16-cartridges-sonnet': {
       findings: [
         'The BenchKeeper layer arms (v1: the SDLC in the rules file, no workflow skill) do not lead. The best is E (BK + ECC + OpenSpec), 5th of 29. BK + agent-skills (L) is 13th, BK + Matt Pocock (X) 20th.',
-        'The setup BenchKeeper recommends today (BK v1 + agent-skills + OpenSpec, C) is 28th of 29 (64.8). Its unit tests failed in the scorer\'s coverage run, so its coverage scores 0 of 10 points (cause unverified).',
+        'The setup BenchKeeper recommended until setup-v2.9 (BK v1 + agent-skills + OpenSpec, C) is 28th of 29 (64.8). Its unit tests failed in the scorer\'s coverage run, so its coverage scores 0 of 10 points (cause unverified).',
         '26 of 29 apps pass all 6 feature tests (J passes 5, K and AA 2). Every reviewed app draws proper cartridges with values that match the records.',
         'K passes 2 of 6 hidden tests but is rated 8: the review could not check the detail and print rendering, where the hidden tests failed.',
       ],

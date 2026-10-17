@@ -11,5 +11,5 @@ export PODMAN_COMPOSE_PROVIDER=$c/bin/docker-compose-linux-x86_64 PODMAN_COMPOSE
 export PYTHONPATH=$(dirname "$(realpath "$0")")  # bk_agent.py
 export DOCKER_HOST=unix://${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/podman/podman.sock
 [ -S "${DOCKER_HOST#unix://}" ] || { echo "podman socket missing: systemctl --user start podman.socket" >&2; exit 1; }
-[ "$1" = run ] && { shift; set -- run -e podman --cpus limit --override-cpus 4 --override-memory-mb 8192 -n 1 "$@"; }
+[ "${1:-}" = run ] && { shift; set -- run -e podman --cpus limit --override-cpus 4 --override-memory-mb 8192 -n 1 "$@"; }
 exec nice -n 10 "$c/harbor-0.24.0/bin/harbor" "$@"  # run-arm.sh starts it in its own systemd unit

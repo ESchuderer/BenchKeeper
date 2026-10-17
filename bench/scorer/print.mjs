@@ -48,8 +48,9 @@ async function drawing(page, name) {
 }
 
 export async function measurePrint(dir, names, detailOut) {
-  const server = await serve(dir);
+  // browser first: a failed launch must not leave the server open (node --test would never exit)
   const browser = await chromium.launch();
+  const server = await serve(dir);
   const results = [];
   try {
     const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });

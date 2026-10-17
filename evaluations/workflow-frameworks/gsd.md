@@ -8,7 +8,7 @@
 
 ## Independent evidence
 
-- One web-app task, 1 run per arm, author-judged: about 1.2M tokens and 105 min against about 200K and 20 min for vanilla Claude Code, Superpowers about 250K and 60 min; outputs judged indistinguishable ([Chase AI](https://www.chaseai.io/blog/gsd-vs-superpowers-vs-claude-code)).
+- One web-app task, 1 run per arm, author-judged: about 1.2M tokens and 105 min against about 200K and 20 min for vanilla Claude Code, Superpowers about 250K and 60 min. Outputs judged indistinguishable ([Chase AI](https://www.chaseai.io/blog/gsd-vs-superpowers-vs-claude-code)).
 
 ## Decision
 

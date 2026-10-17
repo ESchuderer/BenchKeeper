@@ -1,6 +1,6 @@
 // Benchmark trials for the /bench/ page, read at build time from bench/results/<run>/round-<n>/<arm>/
 // (trial.json, review.json, drawing-review.json), the run's manifest.txt and final-score.json (bench/scripts/final-score.mjs).
-// Cost fields are never read (owner decision, #33).
+// Cost fields are never read (owner decision).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -14,6 +14,7 @@ const ARMS = {
   L: { fw: 'F', bk: true }, M: { fw: 'G', bk: true }, N: { fw: 'H', bk: true }, X: { fw: 'V', bk: true },
   C: { fw: 'F', bk: true, spec: 'OpenSpec' }, D: { fw: 'G', bk: true, spec: 'OpenSpec' },
   E: { fw: 'H', bk: true, spec: 'OpenSpec' }, Y: { fw: 'V', bk: true, spec: 'OpenSpec' },
+  AD: { fw: 'V', bk: true, label: 'BK v3 + Matt Pocock' }, AE: { fw: 'V', bk: true, spec: 'OpenSpec', label: 'BK v3 + Matt Pocock + OpenSpec' },
   Q: { framework: 'targeted agent-skills', spec: 'OpenSpec' }, R: { fw: 'G' }, S: { fw: 'G', spec: 'OpenSpec', label: 'OpenSpec + Superpowers (oso)' },
   T: { fw: 'F' }, U: { fw: 'F', spec: 'OpenSpec' }, Z: { fw: 'V' }, AA: { fw: 'V', spec: 'OpenSpec' },
 };

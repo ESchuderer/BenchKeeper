@@ -10,6 +10,9 @@ test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with
   assert.equal(arm('O').setup, 'Ponytail + OpenSpec');
   assert.deepEqual(arm('E'), { framework: 'ECC', spec: 'OpenSpec', bk: true, ponytail: true, setup: 'BK + ECC + OpenSpec' });
   assert.equal(arm('S').setup, 'OpenSpec + Superpowers (oso)');
+  assert.equal(arm('AD').setup, 'BK v3 + Matt Pocock');
+  assert.equal(arm('AE').setup, 'BK v3 + Matt Pocock + OpenSpec');
+  assert.notEqual(arm('AD').setup, arm('X').setup);
   assert.throws(() => arm('ZZ'));
 });
 

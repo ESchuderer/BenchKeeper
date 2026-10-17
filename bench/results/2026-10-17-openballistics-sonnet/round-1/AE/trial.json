@@ -1,0 +1,311 @@
+{
+  "arm": "AE",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 465,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "mattpocock-skills",
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 99182,
+    "result_events": 3,
+    "turns": 81,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 1.7695049000000003,
+    "usage": {
+      "input": 162,
+      "cache_creation": 189299,
+      "cache_read": 4836849,
+      "output": 52830,
+      "thinking": 16300
+    }
+  },
+  "workflow": {
+    "tool_calls": 87,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "following-dev-workflow",
+      "following-dev-workflow",
+      "following-dev-workflow"
+    ],
+    "agents": [],
+    "tiers": [
+      "standard"
+    ],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash for p in /proc/[0-9]*; do if tr '\\0' ' ' < $p/cmdline 2>/dev/null | grep -q \"vit"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "a6d1d4e1139bb268"
+  },
+  "lines": {
+    "source": 10846,
+    "test": 2427,
+    "files": 119
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": false,
+    "test_script": false,
+    "lint_or_typecheck": false,
+    "ci": true,
+    "node_version": false,
+    "changelog": true,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-actionlint",
+          "ok": true
+        },
+        {
+          "id": "S1-ci-checks",
+          "ok": true
+        },
+        {
+          "id": "S1-npm-scripts",
+          "ok": true
+        },
+        {
+          "id": "S1-sha-pins",
+          "ok": false
+        },
+        {
+          "id": "S1-permissions",
+          "ok": false
+        },
+        {
+          "id": "S1-no-prt",
+          "ok": true
+        },
+        {
+          "id": "S1-secrets",
+          "ok": true
+        },
+        {
+          "id": "S1-pages-trigger",
+          "ok": false
+        },
+        {
+          "id": "S1-release",
+          "ok": true
+        },
+        {
+          "id": "S1-changelog",
+          "ok": true
+        },
+        {
+          "id": "S1-dependency-updates",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-sections",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-commands",
+          "ok": true
+        },
+        {
+          "id": "S1-commits",
+          "ok": true
+        }
+      ],
+      "passed": 11,
+      "total": 14,
+      "suite_ok": true,
+      "minutes": 2.1,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.45694979999999996,
+      "tokens": {
+        "input": 48,
+        "cache_creation": 47665,
+        "cache_read": 1014038,
+        "output": 16479,
+        "thinking": 5567
+      },
+      "usage": null
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-build",
+          "ok": true
+        },
+        {
+          "id": "S2-route",
+          "ok": true
+        },
+        {
+          "id": "S2-delta",
+          "ok": true
+        },
+        {
+          "id": "S2-overlay",
+          "ok": true
+        },
+        {
+          "id": "S2-units",
+          "ok": true
+        },
+        {
+          "id": "S2-link",
+          "ok": true
+        },
+        {
+          "id": "S2-reuse",
+          "ok": true
+        },
+        {
+          "id": "X2-ci",
+          "ok": true
+        },
+        {
+          "id": "X2-changelog",
+          "ok": true
+        },
+        {
+          "id": "X2-version",
+          "ok": true
+        }
+      ],
+      "passed": 10,
+      "total": 10,
+      "suite_ok": true,
+      "minutes": 3.5,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.9588753000000003,
+      "tokens": {
+        "input": 72,
+        "cache_creation": 100245,
+        "cache_read": 2929113,
+        "output": 26484,
+        "thinking": 8502
+      },
+      "usage": null
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-bug",
+          "ok": true
+        },
+        {
+          "id": "S3-style",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "X3-ci",
+          "ok": true
+        },
+        {
+          "id": "X3-changelog",
+          "ok": true
+        },
+        {
+          "id": "X3-version",
+          "ok": true
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "suite_ok": true,
+      "minutes": 1.7,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.35367980000000004,
+      "tokens": {
+        "input": 42,
+        "cache_creation": 41389,
+        "cache_read": 893698,
+        "output": 9867,
+        "thinking": 2231
+      },
+      "usage": null
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.17",
+    "hidden_tests": "a6d1d4e1139bb268",
+    "bk": "v3"
+  },
+  "phases": {
+    "phases": {
+      "explore": {
+        "calls": 2,
+        "minutes": 0.1,
+        "usd": 0.051
+      },
+      "verify": {
+        "calls": 36,
+        "minutes": 2.7,
+        "usd": 0.715
+      },
+      "build": {
+        "calls": 31,
+        "minutes": 3.4,
+        "usd": 0.689
+      },
+      "spec": {
+        "calls": 10,
+        "minutes": 1,
+        "usd": 0.256
+      },
+      "test": {
+        "calls": 2,
+        "minutes": 0.3,
+        "usd": 0.059
+      }
+    },
+    "subagents": {},
+    "method": "estimate"
+  }
+}

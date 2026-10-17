@@ -1,0 +1,47 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "1a1be5611e2e80242a506a005f783449e57455958fcaed9e0a27bb168e3e3e33",
+  "cost_usd_api_equivalent": 0.9278396000000001,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 4,
+      "s2_requirements": 5,
+      "s2_correctness": 3,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 5,
+      "cross_step": 4
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs `npm ci`, `npm test`, `npm run build` in site/ on pull_request (scripts exist in site/package.json: pretest→prepare-data, test, build with svelte-check), plus actionlint via docker; top-level `permissions: contents: read`; no secrets beyond github.token; no pull_request_target. pages.yml builds on push to main, deploy job alone gets pages/id-token write, and PAGES_BASE matches vite.config.ts:11. Failures: every action is tag-pinned, not SHA-pinned (`actions/checkout@v7`, `setup-node@v7`, `configure-pages@v6`, `upload-pages-artifact@v5`, `deploy-pages@v5`; step1.patch 55-56, 104-129, 154, 174), and actionlint uses an image tag rather than a digest. pages.yml also has `workflow_dispatch:` (step1.patch 84), so the workflow can be dispatched from any branch; nothing in it restricts the deploy to main. Nothing was run or published.",
+      "s1_readme": "README (step1.patch 289-361) covers requirements (Node 22), install (`cd site && npm ci`), develop (`npm run dev`), test, build/preview, the other scripts (index, fieldsets, prepare-data, sample-bullets; all exist in site/package.json), data contribution through the issue templates (data.yml, bullet.yml, site-feedback.yml exist) and PRs, CI/deploy, and the MIT license with a LICENSE link. Its claim that generated JSON is git-ignored matches site/.gitignore.",
+      "s1_release": "CONTRIBUTING.md says the version lives in site/package.json and the lock file (already 0.1.0), gives a SemVer mapping for the data, a 4-step release (changelog rename, `npm version --no-git-tag-version`, `chore(release)` commit, tag push) and release.yml, which checks tag = package version, tag on main and a changelog section, then publishes notes from CHANGELOG. CHANGELOG states Keep a Changelog 1.1.0 and has [Unreleased]. dependabot.yml covers npm in /site and github-actions, with build/ci prefixes. Conventional Commits are stated. All 7 commits conform, but 43b029f `build(deps): update npm packages and actions with Dependabot` only adds config. Its type and summary describe an update that did not happen. Keep a Changelog link references are missing.",
+      "s2_requirements": "Route `#/compare/<a>/<b>` is parsed in router.ts and wired in App.svelte (it survives a reload because parse runs on location.hash). Each outline is one `<path>`, both share one viewport, and the SVG has role=img and aria-label `Profiles of {a} and {b}`. The table has the caption `Dimensions (mm)/(in)`, headers Symbol/name A/name B/Difference, symbols from FIELD_LABELS, Tol and FIELD_UNITS fields excluded, cartridge part only, and Difference = B − A. Units follow unitSystem(): formatValue for metric, displayNumber(…,'in') for imperial. Cartridge.svelte has a `Compare with` NativeSelect of the other entries by name and a `Compare` button that sets href.compare(key, other). German strings are added and shot cartridges are excluded from drawing. A changelog entry and a commit are present.",
+      "s2_correctness": "Outlines use caseOuterProfile(adaptMetallic(...)) mirrored by fullSectionPath in one viewportFor([pa,pb]), so the scale, axis and head face (z=0) are common. Values and ordering are right, and the shotshell, unknown-key and missing-geometry cases are handled. However, the metric difference is `formatValue(row.b - row.a)` (compare.ts:171 / step3 132-134). That writes binary float noise: on the step's own example L1 55.78−39.62 gives `16.160000000000004`, and the agent's test even asserts `String(13.03 - 12.01)` (= `1.0199999999999996`) as the expected text (compare.test.ts:103). Most metric Difference cells for 308 Win./300 Win. Mag. are affected. Imperial is clean because displayNumber applies toPrecision(12).",
+      "s2_fit": "Reuses lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, formatValue, PX_PER_MM), lib/geom (viewportFor, fullSectionPath), lib/shapes2d (adaptMetallic, caseOuterProfile), site units.ts/units.svelte, PageHeader, Label/NativeSelect/ShadcnButton, and the existing router/App chunk pattern. It updates SiteNavigation and metadata to match. Small duplication: `groupsOf` in compare.ts re-implements orderedGroups from site/src/lib/fields.ts. Styling is inline Tailwind with a `var(--link, #1d4ed8)` fallback, unlike GroupTable's scoped CSS. The change touches only what it needs.",
+      "s2_tests": "compare.test.ts follows the repo's Vitest setup, with real records via @lib/testing/fixtures and site/src/lib/*.test.ts placement. It covers row selection (tolerances, angles, pressures and chamber excluded; dedup; shared only), metric and imperial formatting with sign, head faces level and the shotshell null case. router.test.ts covers parse/href round-trips and malformed hashes. Gaps: the metric difference test cements the float-noise output, the 'one scale' check is weak (it only compares max y), and the Cartridge select/button and the accessible names are untested, though the repo has no component-test infrastructure.",
+      "s3_fixes": "Bug: dimensionRows takes the union of groups and fields (`{ ...right, ...left }`), keeps rows where either value is a number, and formatDimension leaves the missing cell and Difference empty (step3.patch 101-135). Tests check `delta L` (A only) and `R3` (B only) on 308/300 WM. Style: `text-right` is added to the three numeric th and td (step3.patch 207-222), matching GroupTable's right-aligned tables. Incidental changes are only consequential: the function rename and the lede/noShared strings in both languages. No regressions seen.",
+      "cross_step": "Step 2 adds an `[Unreleased] / Added` changelog line and step 3 amends it. No version bump is needed because the stated strategy bumps at release time. Commits e3d427f `feat:` and 3810bc3 `fix:` follow Conventional Commits, though the step-3 commit's message omits the alignment change it also contains. The code looks type-safe for svelte-check and the tests are consistent, so CI's npm test/build would likely pass (not run)."
+    },
+    "unmet_requirements": [
+      "Step 1 (criterion): actions are pinned to version tags, not full commit SHAs",
+      "Step 1: pages.yml can also be started by workflow_dispatch from any branch, not only from main or tags",
+      "Step 2 (correctness): metric Difference cells show floating-point noise (e.g. 16.160000000000004 for L1 on 308 Win./300 Win. Mag.)"
+    ],
+    "overall": 7,
+    "strengths": [
+      "The compare view meets every requirement in step 2 as written and reuses lib/shapes2d, lib/geom and lib/core plus the site's router/chunk, units and UI components, with English and German strings.",
+      "Coherent release setup: version in site/package.json, a tag-triggered release.yml that checks the tag, branch and changelog section, Keep a Changelog, Dependabot, and Conventional Commits that later steps follow.",
+      "Step 3 fixes both review points cleanly, with targeted tests for one-sided dimensions and empty cells, and right-alignment matching GroupTable."
+    ],
+    "issues": [
+      "Metric differences are written as raw float subtraction via formatValue(b - a), which shows values like 16.160000000000004 on the canonical 308 Win./300 Win. Mag. page; the test asserts the noisy string instead of catching it.",
+      "No workflow pins actions to commit SHAs (actions/*@vN, actionlint by image tag).",
+      "pages.yml allows workflow_dispatch from any branch; also, commit 43b029f is labelled `build(deps): update npm packages…` although it only adds Dependabot config."
+    ],
+    "verdict": "The work is well-structured: the README, release process and changelog are solid, and the compare feature meets the step texts and reuses the repository's modules, with step 3 fixed cleanly. It is not mergeable as is: metric differences display floating-point noise, and the workflows do not pin actions to SHAs and allow a Pages deploy from any branch through workflow_dispatch."
+  }
+}

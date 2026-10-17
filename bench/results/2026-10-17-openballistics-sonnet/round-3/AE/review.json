@@ -1,0 +1,55 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "1a1be5611e2e80242a506a005f783449e57455958fcaed9e0a27bb168e3e3e33",
+  "cost_usd_api_equivalent": 0.2622518,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 4,
+      "s1_release": 4,
+      "s2_requirements": 1,
+      "s2_correctness": 1,
+      "s2_fit": 1,
+      "s2_tests": 1,
+      "s3_fixes": 1,
+      "cross_step": 1
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs on pull_request (plus workflow_dispatch), does `npm ci`, `npm test`, `npm run build` in site/; all of these exist in site/package.json (test, pretest, build), and site/ is the only package.json. Top-level `permissions: contents: read`. No pull_request_target, no secrets besides github.token. pages.yml triggers on push to main and workflow_dispatch only. It sets workflow-level contents: read, and only the deploy job gets pages: write and id-token: write. PAGES_BASE matches the existing site/vite.config.ts:11. release.yml uses contents: write, which is justified for `gh release create`. Nothing was run or published. Main defect: every action uses a moving tag instead of a full commit SHA (actions/checkout@v4, actions/setup-node@v4, upload-pages-artifact@v3, deploy-pages@v4 in ci.yml:55-56, pages.yml:98-123, release.yml:148-149).",
+      "s1_readme": "README (step1.patch 278-334) covers the layout, requirements, install (`cd site && npm ci`), develop/test/build/preview, data contribution steps, issue templates (they exist in .github/ISSUE_TEMPLATE/), releases and the license (LICENSE and THIRD-PARTY.md exist). Every npm script it lists exists in site/package.json (dev, test, build, preview, prepare-data, index, fieldsets, sample-bullets), and PAGES_BASE is real. Minor: it says the repo has `.devcontainer/devcontainer.json`, but no such file is present in app/.",
+      "s1_release": "Consistent strategy. The version lives in site/package.json, and package-lock.json carries 0.1.0 too. Releases are tag-triggered: release.yml checks the tag against the version and extracts the matching CHANGELOG section. CONTRIBUTING.md gives the release steps (`npm version X.Y.Z --no-git-tag-version`, chore(release) commit, tag). It states Keep a Changelog 1.1.0 and SemVer, and CHANGELOG.md has an [Unreleased] section. Dependabot is configured for npm in /site and for github-actions. The convention is Conventional Commits, and all 5 commits in commits.txt follow it. Small inconsistencies: the type table puts dependencies under `build`, but Dependabot is set to `chore(deps)`. The commit `build(deps): update npm packages and actions with Dependabot` only adds config and updates no packages.",
+      "s2_requirements": "diff/step2.patch is empty and commits.txt has no step-2 commit. app/site/src has no compare route, no `Compare with` select and no compare table (grep for 'compare' finds only unrelated comments in Cartridge.svelte:55,890). Every requirement is unmet: route, overlaid SVG, table, units, entry point, German texts, tests.",
+      "s2_correctness": "Nothing was implemented (empty step2.patch), so there are no values, differences, units or profiles to judge.",
+      "s2_fit": "No code was added in step 2 (empty step2.patch), so nothing reuses lib/shapes2d, lib/render2d or lib/core.",
+      "s2_tests": "No tests were added; step2.patch is empty.",
+      "s3_fixes": "diff/step3.patch is empty. Neither the missing one-sided dimensions bug nor the right-alignment point was addressed, and the compare view they refer to does not exist.",
+      "cross_step": "Steps 2 and 3 produced no changes, no CHANGELOG entry, no version change and no commits (commits.txt has only the five step-1 commits). The process set up in step 1 was never followed."
+    },
+    "unmet_requirements": [
+      "Step 1: actions are not pinned to full commit SHAs (all use @v3/@v4 tags)",
+      "Step 2: no #/compare/<a>/<b> route",
+      "Step 2: no overlaid SVG of both case outer profiles with role img and the accessible name",
+      "Step 2: no dimensions table with Symbol/A/B/Difference columns and Dimensions (mm)/(in) caption",
+      "Step 2: no unit-preference handling (formatValue / displayNumber)",
+      "Step 2: no 'Compare with' select and 'Compare' button on the detail page",
+      "Step 2: no German texts",
+      "Step 2: no tests, changelog entry or commit",
+      "Step 3: one-sided dimensions not listed with empty cells",
+      "Step 3: numeric columns and their headers not right-aligned",
+      "Step 3: no changelog entry or commit"
+    ],
+    "overall": 2,
+    "strengths": [
+      "CI and Pages workflows run the repository's real scripts (npm ci/test/build in site/) with least-privilege permissions, and Pages deploys only from main with job-scoped pages/id-token rights",
+      "Coherent release strategy: version in site/package.json, a tag-triggered release that checks the tag against the version and takes its notes from CHANGELOG, and documented Keep a Changelog and SemVer rules",
+      "The README is accurate for contributors: every npm command it shows exists, and the data contribution and license sections point to real files"
+    ],
+    "issues": [
+      "Step 2 (the compare view feature) was not implemented at all: step2.patch is empty and there is no route, SVG, table, selector, i18n text or test",
+      "Step 3 review fixes were not made (empty step3.patch), and there is no changelog entry or commit for steps 2 and 3",
+      "GitHub Actions are referenced by moving major tags (@v4/@v3) rather than full commit SHAs; minor doc inconsistencies (a .devcontainer that is absent, build vs chore(deps) for dependency commits)"
+    ],
+    "verdict": "Step 1 is solid repository setup with real checks, least permissions and a consistent tag-based release process, though the actions are not SHA-pinned. Steps 2 and 3 produced no changes at all, so the requested feature and review fixes are entirely missing and the work cannot be merged as a delivery of the task."
+  }
+}

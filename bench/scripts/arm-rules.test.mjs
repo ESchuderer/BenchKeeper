@@ -38,3 +38,16 @@ test('fails when a replaced section or line is missing', () => {
   assert.throws(() => variant('## Scope\n- x\n', '<!-- section: SDLC -->\n## SDLC\n- y\n'), /sections not found/);
   assert.throws(() => variant('## Scope\n- x\n', '<!-- replace: nope ==> y -->'), /text not found/);
 });
+
+// Layer v3 (arm AD): pinned copies of the current rules and the workflow skill for Matt Pocock's skills.
+for (const [arm, dir, openspec] of [['AD', 'bk-v3', false], ['AE', 'bk-v3-openspec', true]]) {
+  test(`${dir}: no agent-skills name${openspec ? '' : ' or OpenSpec'}, every named skill exists in arm ${arm}`, () => {
+    const text = read('bench/arms/bk-v3/global.md') + read(`bench/arms/${dir}/skills/following-dev-workflow/SKILL.md`);
+    const have = listed(arm);
+    assert.deepEqual(agentSkills.filter((n) => text.includes(`\`${n}\``) && !have.has(n)), []);
+    assert.ok(!/agent-skills/i.test(text) && (openspec || !/openspec/i.test(text)));
+    const names = [...new Set([...text.matchAll(/`[/$]?([a-z][a-z0-9]*-[a-z0-9-]+|tdd|pr|grilling|research|prototype)`/g)].map((m) => m[1]))]
+      .filter((n) => !/^(ansible-lint|code-review-and-quality)$/.test(n));
+    assert.deepEqual(names.filter((n) => !have.has(n)), []);
+  });
+}

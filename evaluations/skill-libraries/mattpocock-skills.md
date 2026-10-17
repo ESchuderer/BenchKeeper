@@ -4,28 +4,34 @@
 
 ## Advertised
 
-- Shared language means fewer thinking tokens; red-green gives "far better code" (no numbers).
+- Shared language means fewer thinking tokens. Red-green gives "far better code" (no numbers).
 
 ## Independent evidence
 
 - None controlled.
-- v1.3.1: 27 shipped skills, no hooks.
+- v1.3.1: 37 SKILL.md files, 27 of them in the plugin manifest and listed by Claude Code, no hooks.
 
 ## User reports
 
 - One issue asks whether `/implement` and `/tdd` cost more tokens (no numbers) ([#894](https://github.com/mattpocock/skills/issues/894)).
 - A team with unpublished data attributes 37.6% of false greens (tests pass, behavior broken) across its skill sample to untested edge cases (unverified) ([#1074](https://github.com/mattpocock/skills/issues/1074)).
 
-Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text supplied by the owner; URL not recorded). Opinions, no measurements.
+Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text supplied by the owner, URL not recorded). Opinions, no measurements.
 - One user moved to agent-skills for team work and keeps Matt's for brainstorming.
 - Another uses only those Matt and Anthropic skills that agent-skills lacks (grill-me, handoff, prototype, teach, writing-for-agents).
 
+## Benchmark
+
+Arms: V (Matt Pocock's skills alone), W (with OpenSpec), X (with the BenchKeeper layer), Y (with both), AD and AE (with BenchKeeper layer v3, without and with OpenSpec). OpenCode arms: Z, AA. Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+
+Brownfield run on Sonnet 5.5, Claude Code, k = 3 ([openballistics](../../bench/results/2026-10-17-openballistics.md)): median brownfield score V 82.9, AD 85.2, AE 82.9, against plain Claude Code (A) 85.7. No layer arm met the win rule (median at least 3 above the best of V, AB and A, ahead in 2 of 3 rounds). AD had the lowest median minutes (7.6 against 11.1 to 12.8) and cost. AE stopped after the OpenSpec proposal in one round.
+
 ## Skill authoring check
 
-Rank 3 of 8, review 3.4, static checks 99% (1.3.1): short bodies, strong examples; `block-dangerous-git.sh` allows every command when `jq` is missing; two names contain "claude"; no evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md) (#58).
+Rank 3 of 8, review 3.4, static checks 99% (1.3.1), conciseness 4, examples 5. `block-dangerous-git.sh` allows every command when `jq` is missing. Two names contain "claude". No evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md).
 
 ## Decision
 
-Not in: overlaps agent-skills (tdd, code-review, to-spec, to-tickets, diagnosing-bugs, grill-me); no evidence either way.
+Not in: overlaps agent-skills (tdd, code-review, to-spec, to-tickets, diagnosing-bugs, grill-me). No evidence either way.
 
 [All evaluations](../../EVALUATIONS.md)

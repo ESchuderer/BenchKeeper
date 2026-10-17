@@ -3,7 +3,8 @@
 # Stryker's command runner reruns the suite per mutant (`npx vitest run` for vitest suites, else the `test:unit` script, else `npm test`): its vitest runner
 # reported mutants as surviving that the suites demonstrably kill. Text literals are not mutated: the score is about
 # behavior, not about whether tests pin every message's wording. No tsconfig rewriting: Stryker 10 calls a TypeScript API
-# that TypeScript 7 removed. Tests that run sources in a `vm` context get `process` there (preload below): Stryker's
+# that TypeScript 7 removed. `// @ts-nocheck` goes into TypeScript and Vue files only: in JavaScript it changes nothing but the bytes, which a test
+# comparing a generated file fails on. Tests that run sources in a `vm` context get `process` there (preload below): Stryker's
 # instrumented code reads the active mutant from `process.env`, so without it no mutant switches on and the score reads 0.
 # MUTATION_EXCLUDE: space-separated extra globs not to mutate (generated data files a test compares byte for byte).
 # Usage: bench/scorer/mutation.sh <workspace> <out-dir>   writes mutation.json (Stryker report), mutation.exit, mutation.log
@@ -15,11 +16,13 @@ ws=$(realpath "$1"); out=$(realpath -m "$2")
 NODE=docker.io/library/node:22.23.3-bookworm@sha256:0e5f906573693feaa1e21057ebdcfdb5bd5021f050b2dc7c9deceb629c7da2a8
 STRYKER=10.0.0
 T=${MUTATION_TIMEOUT:-2700}
+# MUTATION_CPUS: CPU cap for the container and Stryker's test runners (default: no cap, 8 runners), so the host stays usable.
+C=${MUTATION_CPUS:-8}; C=${C%.*}; [ "${C:-0}" -ge 1 ] 2>/dev/null || C=1  # Stryker needs a whole number of runners
 mkdir -p "$out" && rm -f "$out/mutation.json" "$out/mutation.exit"
 app=$(mktemp -d) && trap 'rm -rf "$app"' EXIT
 trap 'exit 130' INT TERM HUP
 cp -a "$ws/." "$app/" && rm -rf "$app/node_modules" "$app/reports" "$app/.stryker-tmp"
-podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER="$STRYKER" -e MUTATION_EXCLUDE="${MUTATION_EXCLUDE:-}" \
+podman run --rm --timeout "$T" ${MUTATION_CPUS:+--cpus "$MUTATION_CPUS"} -e C="$C" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER="$STRYKER" -e MUTATION_EXCLUDE="${MUTATION_EXCLUDE:-}" \
   -v "$app":/app:Z -v "$out":/out:Z -w /app "$NODE" sh -c '
   npm install --no-audit --no-fund > /dev/null 2>&1 || exit 10
   has() { node -e "const p = require(\"./package.json\"); process.exit($1 ? 0 : 1)"; }
@@ -28,7 +31,7 @@ podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER=
   elif has "p.scripts && p.scripts[\"test:unit\"]"; then cmd="npm run test:unit"
   elif has "p.scripts && p.scripts.test && !/no test specified/.test(p.scripts.test)"; then cmd="npm test"
   else exit 11; fi
-  extra=""; for g in $MUTATION_EXCLUDE; do extra="$extra, \"!$g\""; done
+  set -f; extra=""; for g in $MUTATION_EXCLUDE; do extra="$extra, \"!$g\""; done; set +f
   printf "%s\n" "const vm = require(\"node:vm\"), create = vm.createContext;" \
     "vm.createContext = (ctx = {}, ...rest) => { if (!(\"process\" in ctx)) ctx.process = process; return create(ctx, ...rest); };" > /tmp/vm-process.cjs
   npm install --no-save --no-audit --no-fund @stryker-mutator/core@$STRYKER > /dev/null 2>&1 || exit 12
@@ -43,9 +46,10 @@ podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -e STRYKER=
   "mutator": { "excludedMutations": ["StringLiteral"] },
   "reporters": ["json"],
   "jsonReporter": { "fileName": "/out/mutation.json" },
-  "concurrency": 8,
+  "concurrency": $C,
   "tempDirName": "/tmp/stryker-tmp",
-  "tsconfigFile": "/nonexistent/tsconfig.json"
+  "tsconfigFile": "/nonexistent/tsconfig.json",
+  "disableTypeChecks": "**/*.{ts,tsx,mts,cts,vue}"
 }
 EOF
   npx stryker run /tmp/stryker.config.json || exit 13' > "$out/mutation.log" 2>&1

@@ -1,0 +1,45 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "1a1be5611e2e80242a506a005f783449e57455958fcaed9e0a27bb168e3e3e33",
+  "cost_usd_api_equivalent": 0.9621544,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 5,
+      "s2_requirements": 5,
+      "s2_correctness": 5,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 5,
+      "cross_step": 5
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs on pull_request with `npm ci`, `npm test` (pretest=prepare-data) and `npm run build` (prepare-data + svelte-check + vite build), all real scripts in site/package.json. Top-level `permissions: contents: read`. Pages and release jobs raise permissions only per job (pages: write/id-token: write; contents: write). Only github.token is used, there is no pull_request_target, and nothing was run or published. However, no action is pinned to a commit SHA: actions/checkout@v4, setup-node@v4, configure-pages@v5, upload-pages-artifact@v3, deploy-pages@v4 (step1.patch lines 51-52, 91-97, 104, 119, 150). pages.yml also has `workflow_dispatch`, which can be started on any branch, so restricting Pages to main relies on the github-pages environment's branch rule rather than the workflow. PAGES_BASE is wired correctly to vite.config.ts `base`.",
+      "s1_readme": "README (step1.patch 293-380) covers requirements (Node 22), install (`npm ci`), develop (`npm run dev`), test (`npm test`), build/preview (`npm run build`, `npm run preview`, PAGES_BASE), the CI table, data contribution (issue templates, editing data/ JSON, citing the source), the commit convention, versions/changelog and the license (MIT, THIRD-PARTY.md). Every command exists in site/package.json, and the referenced files (LICENSE, THIRD-PARTY.md, .github/ISSUE_TEMPLATE) exist.",
+      "s1_release": "There is one consistent strategy. The version lives only in site/package.json, with a SemVer bump table applied to data plus site (CONTRIBUTING.md). A release means bumping, moving Unreleased to `## [X.Y.Z] - date`, committing `chore(release): vX.Y.Z` and pushing a vX.Y.Z tag. release.yml checks that the tag matches package.json, that the tagged commit is on main and that a changelog section exists, then creates the release with the data tarball. The changelog states the Keep a Changelog 1.1.0 format. Dependabot covers npm in /site (grouped) and github-actions, weekly. Conventional Commits 1.0.0 with a `data` type is stated, and all 8 commits in commits.txt follow it.",
+      "s2_requirements": "Route `#/compare/<a>/<b>` is parsed with decoding and fallback (router.ts:34-42), and href.compare is added, so the URL survives a reload. The SVG has role=img and aria-label `Profiles of {a} and {b}` from the record names, with one `<path>` per outline from caseOuterProfile on a shared viewport (compare.ts compareSvg; Compare.svelte). The `<caption>` reads `Dimensions (mm|in)`, the headers are Symbol / name A / name B / Difference, symbols come from FIELD_LABELS, and the difference is B minus A. Units follow unitSystem(): formatValue for metric, displayNumber(…, 'in') for imperial. CompareWith.svelte adds a select labelled `Compare with` listing the other cartridges by name and a `Compare` button that goes to href.compare(key, target). German strings are added. Changelog entry and conventional commit are present. Shot cartridges return null and show a message.",
+      "s2_correctness": "dimensions() keeps numbers in record.cartridge groups that are not `*Tol` and not in FIELD_UNITS, so angles, pressures, M and Q are excluded and Fe and deltaL are included, matching the spec. Metric values are formatValue(Number(v.toPrecision(12))), which leaves C.I.P. values unchanged and removes float noise from subtraction (L1 difference '16.16', checked in the test). Imperial values and differences both go through displayNumber. Both profiles share one viewportFor/scale and fullSectionPath, so the head faces (z=0) sit on the same y and one axis; the test checks that both outlines have the same lowest y. No incorrect values found.",
+      "s2_fit": "Reuses lib/shapes2d (adaptMetallic, caseOuterProfile), lib/geom (viewportFor, fullSectionPath, fmt), lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, formatValue), site units.ts/units.svelte.ts, data.ts load/byKey, and the shadcn Button/Label/NativeSelect plus $props.id() already used elsewhere. It follows the lazy route chunk pattern in App.svelte, metadata.ts and SiteNavigation, with small, focused edits. One duplication: compare.ts:212 re-implements the known-then-sorted group ordering of `orderedGroups` in site/src/lib/fields.ts instead of calling it. The router's header comment listing the routes was not updated.",
+      "s2_tests": "compare.test.ts follows the repository's Vitest setup and uses the @lib/testing/fixtures CARTRIDGES path with real 308_win/300_win_mag records. It checks FIELD_LABELS symbols, exclusion of Tol/angle/pressure fields, metric formatValue and B−A, imperial displayNumber, exclusion of chamber values, the overlay (two outlines, same head-face y, B larger) and the shot-cartridge null. router.test.ts adds round-trip and malformed-hash cases. Not covered: the accessible name, caption, column headers and the Compare with control, though the repository has no component-test setup.",
+      "s3_fixes": "Bug: compareRows now builds the field order from a union of both records' groups (step3.patch compare.ts union()) and leaves A/B and Difference empty where a value is missing. The new test asserts `delta L` (A only) and `R3` (B only) rows with empty cells, in metric and imperial. The chamber-only test was adjusted to match the new behaviour. Style: the two cartridge columns, Difference and their headers already carried `text-right` from step 2 (Compare.svelte th/td classes; Tailwind utilities layer, @source './' covers routes), so they are right-aligned and no change was needed; the step 3 commit and changelog do not mention this point. Changes are limited to compare.ts, its test, the lede strings and the changelog wording.",
+      "cross_step": "Steps 2 and 3 add or update a line under `## [Unreleased]` / Added, as CONTRIBUTING requires. No version bump is consistent with the stated strategy, which bumps only at release time. Commits `feat: compare two cartridges…` and `fix: list dimensions…` follow Conventional Commits. The new code uses existing typed APIs and the en/de dictionaries are typed Record<keyof typeof en>, so svelte-check and the tests are likely to pass (not executed). Step 2 also has a separate `docs: add spec and ticket for the compare view` commit whose files are not in the patches."
+    },
+    "unmet_requirements": [
+      "Step 1: the GitHub Actions in ci.yml, pages.yml and release.yml are pinned to version tags (@v4/@v5/@v3), not full commit SHAs."
+    ],
+    "overall": 8,
+    "strengths": [
+      "The compare view meets every step 2 requirement and reuses lib/shapes2d, lib/geom, lib/core and the site's unit, data and UI modules instead of reimplementing them.",
+      "Step 1's release process is coherent and enforced: the version lives only in site/package.json, the tag workflow checks the package version, main ancestry and the changelog section, and the changelog, Dependabot and Conventional Commits are stated and followed.",
+      "The step 3 bug fix is small, correct and pinned by tests using the exact delta L / R3 example from the review, in metric and imperial."
+    ],
+    "issues": [
+      "None of the workflow actions is pinned to a full commit SHA (actions/checkout@v4, setup-node@v4, configure-pages@v5, upload-pages-artifact@v3, deploy-pages@v4).",
+      "pages.yml accepts workflow_dispatch from any branch, so 'deploy only from main' depends on the github-pages environment rule, not the workflow.",
+      "compare.ts:212 duplicates the group ordering of orderedGroups (site/src/lib/fields.ts). The view's accessible name, caption, headers and Compare with control have no tests."
+    ],
+    "verdict": "The repository setup, the compare feature and the review fix are correct, consistent with each other and follow the conventions step 1 set up; the feature meets every stated requirement and reuses the shared libraries. Before merging, the workflow actions need to be pinned to commit SHAs, and the Pages manual trigger should be limited to main."
+  }
+}

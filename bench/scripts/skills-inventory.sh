@@ -1,5 +1,5 @@
 #!/bin/sh
-# Skill files of each framework arm image, for the skills inventory (#36): name, description and size of every SKILL.md
+# Skill files of each framework arm image, for the skills inventory: name, description and size of every SKILL.md
 # under ~/.claude and the project template (not the source clones). Usage: bench/scripts/skills-inventory.sh > <out.json>
 set -eu
 printf '{'

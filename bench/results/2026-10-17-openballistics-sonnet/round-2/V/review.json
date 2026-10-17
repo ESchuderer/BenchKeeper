@@ -1,0 +1,46 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "1a1be5611e2e80242a506a005f783449e57455958fcaed9e0a27bb168e3e3e33",
+  "cost_usd_api_equivalent": 1.0696604,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 4,
+      "s2_requirements": 5,
+      "s2_correctness": 5,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 4,
+      "cross_step": 4
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs `npm ci`, `npm test` and `npm run build` in site/; these scripts exist in site/package.json:12-16, and vite.config.ts:11 reads PAGES_BASE. It triggers on `pull_request` (not `_target`) with `permissions: contents: read` and `persist-credentials: false`. pages.yml deploys on push to main (plus workflow_dispatch); only its deploy job has pages: write and id-token: write. pr-title.yml passes the title through env. Nothing was run or pushed. Against the criterion: every action is pinned to a mutable major tag, not a full commit SHA (step1.patch:126,130,198,211,229,253,300,314, e.g. `actions/checkout@v7`, `googleapis/release-please-action@v5`). release.yml:303 uses an optional extra secret, `secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN`. workflow_dispatch on pages.yml can be started from a non-main ref, so 'only from main' depends on the github-pages environment protection.",
+      "s1_readme": "README (step1.patch:512-603) covers install (`cd site && npm ci`, Node 22 via .node-version), develop (`npm run dev`, `npm run prepare-data`), test (`npm test`, `npx vitest run targets`), build (`npm run build`, `npm run preview`, PAGES_BASE), contributing data (record paths, sources, checks), commits/releases and license (MIT, THIRD-PARTY.md). Every script shown exists in site/package.json, and the generated paths match site/.gitignore.",
+      "s1_release": "There is one strategy, release-please with release-type simple. The version is kept in version.txt and .release-please-manifest.json (0.1.0), and extra-files bump site/package.json and package-lock. CONTRIBUTING.md describes SemVer meaning, the release PR flow, the tag vX.Y.Z and the data archive. The CHANGELOG format is stated in both CHANGELOG.md and CONTRIBUTING. Dependabot covers npm in /site and github-actions, with `build`/`ci` prefixes that match the convention. The convention (Conventional Commits, type table, check-title.sh) is stated, and all 9 commits in commits.txt follow it. Small inconsistency: the hand-written `## 0.1.0` entry (step1.patch:360) does not match the stated `## [X.Y.Z](compare link) (YYYY-MM-DD)` heading format.",
+      "s2_requirements": "Route: `#/compare/<a>/<b>` is parsed in router.ts (step2.patch:500-511) and loaded by App.svelte, so it opens directly and survives a reload. SVG: role=img, aria-label `t('compare.profiles')` = 'Profiles of {a} and {b}', one `<path>` per outline, shot cartridges handled with a message. Table: `<caption>` 'Dimensions ({unit})', headers Symbol / A name / B name / Difference, symbols from FIELD_LABELS, cartridge part only, FIELD_UNITS fields and Tol fields excluded, B−A. Units follow unitSystem() and use formatValue/displayNumber. Detail page: a Label 'Compare with' with a NativeSelect of the other cartridges sorted by name, and a 'Compare' submit button that opens href.compare(key, other). German strings are given for all keys. Tests and a feat(site) commit are present. Every requirement is met.",
+      "s2_correctness": "dimensionsOf (step2.patch:264-282) reads only number fields of non-array cartridge groups and skips toleranceFor/FIELD_UNITS fields. overlayOf runs caseOuterProfile(adaptMetallic(record)) for both, uses one viewportFor([first, second], {scale}) on a common axis, and both profiles start at z=0, so the head faces coincide at the viewport's zMin. Tests check this on 308 Win./9 mm Luger and every drawable record. The imperial difference is converted from the mm difference with displayNumber, so float noise is avoided. The metric difference uses displayNumber(…,'mm') (12 significant digits) rather than formatValue, which is a reasonable reading of 'written the same way'. Unknown keys and undrawable records get messages.",
+      "s2_fit": "It reuses caseOuterProfile/adaptMetallic (lib/shapes2d), viewportFor/fullSectionPath (lib/geom), FIELD_LABELS/FIELD_UNITS/orderedFields/toleranceFor/formatValue/GROUP_ORDER (lib/core), displayNumber/defaultUnit, and the site's PageHeader, PageLoadError, NativeSelect, Label and Button. Logic sits in a framework-free site/src/lib/compare.ts next to the other route modules. One duplication: the group ordering at compare.ts:266-268 (GROUP_ORDER known groups plus sorted rest) re-implements orderedGroups in site/src/lib/fields.ts:19-27. It touches only the files it needs (App, router, metadata, nav active state, Cartridge, i18n).",
+      "s2_tests": "compare.test.ts runs real records through Vitest, matching the repo's lib-level test setup. It covers symbol labelling, exclusion of unit and Tol fields across every record, shot groups, exact metric values and B−A (e min, L3, P1, G1, the reversed order), imperial conversion via displayNumber, overlay bounds, the common axis, level head faces, equal scale (length ratio ≈ L3 ratio) and failure reasons. router.test.ts covers parse/href round-trips and malformed URLs. Not covered: the accessible names, column headers and the 'Compare with' select markup. The repo has no component-test setup, so this is understandable but leaves part of the requirements untested.",
+      "s3_fixes": "Bug: compareDimensions now lists the union of symbols, with A-only and B-only cells empty and an empty Difference (step3.patch:112-131). B-only symbols are inserted after their B predecessor. New tests check 308 Win. `delta L` and 300 Win. Mag. `R3`. The lede and noCommon strings were updated in EN and DE because the old wording would now be false, which is acceptable. Style: a rule `:is(th, td):not(:first-child) { text-align: right }` was added (Compare.svelte:114). However, step 2 already put Tailwind `text-right` utilities on those headers and cells (step2.patch:687-698), and utilities outrank the `legacy` layer (shadcn.css:1). The new rule is therefore redundant: the root cause was neither investigated nor removed, and the code now has two mechanisms for the same alignment.",
+      "cross_step": "The feature and fixes are committed as feat(site), style(site) and fix(site), all valid titles under check-title.sh. Under the release-please strategy, CHANGELOG.md and the version are generated from commits, so not editing them by hand is consistent with step 1. Tests were updated alongside the code, and the new types/routes are threaded through metadata's Record<Route['view']>, so the CI checks would plausibly pass. Minor: the visible right-alignment change was typed `style`, which CONTRIBUTING.md:431 defines as changes that alter neither behaviour nor data, so it is hidden from the changelog."
+    },
+    "unmet_requirements": [
+      "Step 1 CI criterion: actions are pinned to major-version tags rather than full commit SHAs (all workflows)",
+      "Step 1 CI criterion: release.yml can use a secret other than GITHUB_TOKEN (RELEASE_PLEASE_TOKEN)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "The compare feature meets every step 2 requirement and reuses the real geometry pipeline (caseOuterProfile, viewportFor, fullSectionPath) and lib/core field metadata. Its tests run against the real 308 Win./300 Win. Mag. data.",
+      "One coherent release-please strategy: version files, SemVer meaning, changelog format, a Dependabot prefix aligned with the convention, and a PR-title check script. All commits follow it.",
+      "Accurate contributor README: every command exists. The CI workflows are safe: pull_request only, read-only token, no credentials persisted, the title passed through env."
+    ],
+    "issues": [
+      "None of the GitHub Actions are pinned to commit SHAs (e.g. actions/checkout@v7, release-please-action@v5), and release.yml accepts an optional RELEASE_PLEASE_TOKEN secret beyond GITHUB_TOKEN.",
+      "Step 3's alignment fix adds a CSS rule that duplicates Tailwind `text-right` classes already on the same cells since step 2. The cause of the reported misalignment was not investigated, and the change is committed as `style`, which hides it from the changelog under the repo's own convention.",
+      "compare.ts dimensionsOf re-implements the group ordering of site/src/lib/fields.ts orderedGroups instead of calling it. The hand-written 0.1.0 CHANGELOG heading does not match the stated entry format."
+    ],
+    "verdict": "Solid work: the compare view is correct, complete, well tested and built on the repository's existing modules, and the release and contribution setup is coherent and consistently followed. The main blockers are unpinned action versions plus an extra optional secret in the workflows, and a step 3 style fix that layers a redundant rule over classes already present."
+  }
+}

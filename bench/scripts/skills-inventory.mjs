@@ -1,4 +1,4 @@
-// Skills inventory (#36): the skills each framework adds (the arm's init skills minus the plain arm's), with phase, size
+// Skills inventory: the skills each framework adds (the arm's init skills minus the plain arm's), with phase, size
 // and description from the installed SKILL.md, and in how many saved trials each skill fired (workflow.skills).
 // Usage: node bench/scripts/skills-inventory.mjs <skill-files.json from skills-inventory.sh> <results-dir>   prints Markdown
 import { existsSync, readdirSync, readFileSync } from 'node:fs';

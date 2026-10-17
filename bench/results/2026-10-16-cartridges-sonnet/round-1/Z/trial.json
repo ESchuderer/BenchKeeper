@@ -90,8 +90,12 @@
       "total": 0
     },
     "mutation": {
-      "score": null,
-      "reason": "rerun pending after scorer fixes"
+      "score": 52.1,
+      "killed": 1004,
+      "timeout": 35,
+      "survived": 955,
+      "no_coverage": 0,
+      "mutants": 2528
     },
     "hidden_tests": "5c9d25395e3b332c"
   },
@@ -116,7 +120,7 @@
   "steps": null,
   "steps_sent": null,
   "method": {
-    "protocol": "1.14",
+    "protocol": "1.15",
     "hidden_tests": "5c9d25395e3b332c",
     "bk": "v1"
   }

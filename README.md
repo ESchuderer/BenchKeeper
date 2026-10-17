@@ -54,7 +54,7 @@ Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcont
 
 ## Update
 
-- Workflow plugins and repository skills: pinned to tags per repository. `/setting-up-projects` compares the tags with the latest releases, proposes bumps and updates the skills.
+- Workflow plugins: Matt Pocock's skills and Ponytail come from their own marketplaces and update with them. Repository stack skills are pinned in `skills-lock.json`, and `/setting-up-projects` proposes their updates.
 - CLIs and MCPs: `/setting-up-machine` compares the pins with the latest releases and proposes bumps.
 
 ## Benchmarks
@@ -67,8 +67,8 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 |---|---|---|
 | [rules/global.md](rules/global.md) | global rules | `~/.claude/rules/00-global.md` (symlink), copy in `~/.codex/AGENTS.md` |
 | [skills/setting-up-machine](skills/setting-up-machine/SKILL.md) | check, install, update and clean the global setup: rules, setup skills, settings | `~/.claude/skills/`, `~/.agents/skills/` |
-| [skills/setting-up-projects](skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, stack skills, the workflow (following-dev-workflow, Matt Pocock's skills, Ponytail, `docs/agents/`), dead config | `~/.claude/skills/`, `~/.agents/skills/` |
-| [skills/following-dev-workflow](skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request), loaded before repository work | per project: `.claude/skills/`, `.agents/skills/` (copy) |
+| [skills/setting-up-projects](skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, stack skills, Matt Pocock's repository setup (`docs/agents/`, Codex install), default tier, dead config | `~/.claude/skills/`, `~/.agents/skills/` |
+| [skills/following-dev-workflow](skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request), loaded before repository work | `~/.claude/skills/`, `~/.agents/skills/` (link) |
 | [skills/maintaining-repos](skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code, debt, dependency audit, docs drift, unused skills | `~/.claude/skills/`, `~/.agents/skills/` |
 | [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
@@ -78,15 +78,15 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 | Component | Scope | Purpose |
 |---|---|---|
 | [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | agents run on the host, project commands run inside the container |
-| [Ponytail](https://github.com/DietrichGebert/ponytail), v5.2.0, level `full` | per project, Claude + Codex | implementation simplicity within the phases of Matt Pocock's skills |
+| [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity within the phases of Matt Pocock's skills |
 | [Matt Pocock's skills](https://github.com/mattpocock/skills), his install | Claude Code: global plugin from the official marketplace, which pins a commit of his repository. Codex: per project | workflow: grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull request, handoff. Per repo it reads the issue tracker, triage labels and domain docs from `docs/agents/` |
-| [following-dev-workflow](skills/following-dev-workflow/SKILL.md) | per project, Claude + Codex | task tier pre-filter (quick, standard, full, research), pre-push correctness review, security review for risky changes |
+| [following-dev-workflow](skills/following-dev-workflow/SKILL.md) | global, Claude + Codex | task tier pre-filter (quick, standard, full, research), pre-push correctness review, security review for risky changes |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
 
-Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (following-dev-workflow, stack skills, Codex copies of Matt Pocock's skills and Ponytail), `skills-lock.json`, `.claude/settings.json` (Ponytail as a plugin pinned to its tag), `docs/agents/` (from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`.
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (stack skills, Codex copies of Matt Pocock's skills), `skills-lock.json`, `docs/agents/` (from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`.
 
-Global (per machine): the rules, Matt Pocock's Claude Code plugin (as he installs it), the setup skills (setting-up-machine, setting-up-projects, maintaining-repos), find-skills, settings. Nothing is installed at both levels.
+Global (per machine): the rules, Matt Pocock's Claude Code plugin (as he installs it), Ponytail, following-dev-workflow, the setup skills (setting-up-machine, setting-up-projects, maintaining-repos), find-skills, settings. Nothing is installed at both levels.
 
 The [following-dev-workflow skill](skills/following-dev-workflow/SKILL.md) combines Ponytail and Matt Pocock's skills. The integration lives here, not in the installed plugin files. Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
 
@@ -96,7 +96,7 @@ The [following-dev-workflow skill](skills/following-dev-workflow/SKILL.md) combi
 - Time: less time per task with the BenchKeeper workflow.
 - Cost: lower with Ponytail.
 - Skills by level: small composable skills. The big flow runs only for big work, small tiers load targeted skills.
-- Same setup everywhere: the same pinned setup in every project, for teammates and CI.
+- Same setup everywhere: one machine install covers every repository. Each repository adds only its tracker, docs and stack.
 
 For details, check the full data: [EVALUATIONS.md](https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md) (Dev Containers and find-skills have no evaluation file), [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/).
 

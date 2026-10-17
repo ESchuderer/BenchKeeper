@@ -2,6 +2,16 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v3.4 (2026-10-17)
+
+One level for the workflow: Matt Pocock's skills are global (his install), so the parts that shape them are global too. Otherwise his skills run without the tier filter in every repository that `setting-up-projects` has not touched.
+
+- `setting-up-machine`: part 3 installs Ponytail (level `full`) as its install guide gives it, and part 5 links `following-dev-workflow` with the setup skills. Parts renumbered (Playwright MCP 4 to Orca 9).
+- `setting-up-projects` step 5 keeps only what is repository-specific: Matt Pocock's repository setup (`/setup-matt-pocock-skills`), his Codex install, the default tier. It removes the project copies of setup-v3.0 to v3.3 (the workflow skill in the repository's skill folders, Ponytail and Matt Pocock entries in `.claude/settings.json`) after asking.
+- `rules/global.md` loads `following-dev-workflow` before every repository edit again.
+- Behavior inside a task is unchanged, so the SkillsBench arm AH (setup-v3.3) also stands for this version.
+- Upgrade: `/setting-up-machine`, then `/setting-up-projects` in each repository that has project copies.
+
 ## setup-v3.3 (2026-10-17)
 
 Matt Pocock's skills installed the way he documents it ([installation](https://github.com/mattpocock/skills#installation-30-second-setup)), with the BenchKeeper additions on top. His skills have no tiers, change-type checks, issue, branch or pull request rules, security review or Ponytail, so `following-dev-workflow` and Ponytail stay.

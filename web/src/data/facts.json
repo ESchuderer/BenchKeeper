@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper sets up Claude Code and Codex with one rules file and four skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The setup skills install and check rules, skills and tools, per machine and per repository: CLIs, MCP servers and workflow plugins at pinned versions. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.",
+  "description": "BenchKeeper sets up Claude Code and Codex with one rules file and four skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The setup skills install and check rules, skills and tools, per machine and per repository: CLIs, MCP servers and CLIs and MCP servers at pinned versions, Matt Pocock's skills and Ponytail from their marketplaces. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.",
   "core": {
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
@@ -149,7 +149,7 @@
         "phase": "build",
         "sub": "branch, tests, tdd",
         "tip": "Every tier: a branch off the default branch. Runs the existing tests for the touched code, then builds with tdd at the agreed seams.",
-        "text": "Every tier: `<type>/<issue>-<slug>`, never on the default branch unless you say so. The existing tests that cover the touched code run first, then `tdd` at the agreed seams, ticket by ticket. Ponytail `full` for the smallest complete change. Targeted skills such as `diagnosing-bugs` load when the task matches. Work that drifts from the plan is discarded and restarted."
+        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. The existing tests that cover the touched code run first, then `tdd` at the agreed seams, ticket by ticket. Ponytail `full` for the smallest complete change. Targeted skills such as `diagnosing-bugs` load when the task matches. Full tier: work that drifts from the plan is discarded and restarted."
       },
       {
         "name": "Verify",

@@ -8,7 +8,7 @@
 # Usage: bench/skillsbench/arm-tar.sh <arm> <out-dir>
 set -eu
 arm=$1 out=$(realpath "$2"); mkdir -p "$out"
-case $arm in AD|AE|AG) project=1 ;; *) project=0 ;; esac
+case $arm in AD|AE|AG|AH) project=1 ;; *) project=0 ;; esac
 podman run --rm --userns=keep-id --entrypoint sh -e P=$project -v "$out":/out:Z "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" -c '
   set -eu; a=/tmp/a; mkdir -p $a; cd ~
   cp -a .claude $a/claude && rm -rf $a/claude/backups

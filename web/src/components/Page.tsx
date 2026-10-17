@@ -195,7 +195,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
               <Stack gap={10} className="host-list">
-                {['Claude Code or Codex, sign-in and permissions', 'Global rules, the setup skills and settings', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
+                {['Claude Code or Codex, sign-in and permissions', 'Global rules, Matt Pocock\'s plugin, the setup skills and settings', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -228,7 +228,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="parts" title="What each part gives you" intro="Each is a separate upstream project, configured for the selected agents.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-            <FeatureCard icon={<IconListCheck size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Per repository, both agents"
+            <FeatureCard icon={<IconListCheck size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="His install: Claude Code global plugin, Codex per repository"
               gives="Steps per task tier: open questions settled before code for full changes, tests first, a review against standards and the spec.">
               Skills for grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull requests and session handoff. Per repository they read the issue tracker and domain docs from <Code>docs/agents/</Code>.
             </FeatureCard>

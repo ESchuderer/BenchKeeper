@@ -12,6 +12,7 @@
 #   AE Matt Pocock + BK v3 + OpenSpec (bench/arms/bk-v3-openspec: OpenSpec owns spec and plan, Matt Pocock's skills the execution)
 #   AF Matt Pocock + Ponytail
 #   AG Matt Pocock + BK v4 (bench/arms/bk-v4: the rules and skills of setup-v3.1, the recommended setup)
+#   AH Matt Pocock + BK v5 (bench/arms/bk-v5: setup-v3.3, Matt Pocock's own install and setup with the BenchKeeper additions)
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -99,6 +100,7 @@ case $arm in
   X) fw=mp bk=yes pt=yes spec=none ;;          Y) fw=mp bk=yes pt=yes spec=openspec ;;
   AD) fw=mp bk=v3 pt=yes spec=none ;;           AE) fw=mp bk=v3 pt=yes spec=openspec ;;
   AF) fw=mp bk=no pt=yes spec=none ;;           AG) fw=mp bk=v4 pt=yes spec=none ;;
+  AH) fw=mp bk=v5 pt=yes spec=none ;;
   Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac
@@ -124,11 +126,11 @@ fi
 t=$HOME/project-template
 if [ "$bk" != no ]; then
   case ${BK:-v1} in v1|v2) ;; *) echo "BK must be v1 or v2, not $BK" >&2; exit 1 ;; esac
-  if [ "$bk" = v3 ] || [ "$bk" = v4 ]; then
+  if [ "$bk" = v3 ] || [ "$bk" = v4 ] || [ "$bk" = v5 ]; then
     cp "/opt/bench/bk-$bk/global.md" "$HOME/.claude/rules/00-global.md"
     d=bk-$bk; [ "$spec" = openspec ] && d=bk-v3-openspec
-    # v4 installs the workflow skill per project (setting-up-projects of setup-v3.1), below with the project template
-    [ "$bk" = v4 ] || cp -r "/opt/bench/$d/skills/following-dev-workflow" "$HOME/.claude/skills/"
+    # v4 and v5 install the workflow skill per project (setting-up-projects of setup-v3.1), below with the project template
+    case $bk in v4|v5) ;; *) cp -r "/opt/bench/$d/skills/following-dev-workflow" "$HOME/.claude/skills/" ;; esac
     # the user-invoked BenchKeeper skills the rules and the workflow skill name, as /setting-up-machine links them on the host
     cp -r "/opt/bench/bk-$bk/skills/setting-up-machine" "/opt/bench/bk-$bk/skills/setting-up-projects" "/opt/bench/bk-$bk/skills/maintaining-repos" "$HOME/.claude/skills/"
   elif [ "${BK:-v1}" = v2 ]; then
@@ -140,17 +142,17 @@ if [ "$bk" != no ]; then
     case $fw in as) rules=bk-rules.md ;; sp) rules=superpowers.rules.md ;; ecc) rules=ecc.rules.md ;; mp) rules=mattpocock.rules.md ;; esac
     cp "/opt/bench/$rules" "$HOME/.claude/rules/00-global.md"
   fi
-  # v3 and v4 ship what the current setup installs: no candidate rules, no old setup skills (they are host installers).
-  case $bk in v3|v4) ;; *) cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md" ;; esac
+  # v3, v4 and v5 ship what the current setup installs: no candidate rules, no old setup skills (they are host installers).
+  case $bk in v3|v4|v5) ;; *) cp /opt/bench/candidate.rules.md "$HOME/.claude/rules/01-candidate.md" ;; esac
   clone vercel-labs/skills v1.7.2 && cp -r "$src/vercel-labs-skills/skills/find-skills" "$HOME/.claude/skills/"
-  case $bk in v3|v4) ;; *) cp -r /opt/bench/skills/project-setup /opt/bench/skills/global-setup "$HOME/.claude/skills/" ;; esac
+  case $bk in v3|v4|v5) ;; *) cp -r /opt/bench/skills/project-setup /opt/bench/skills/global-setup "$HOME/.claude/skills/" ;; esac
   npm i -g --prefix "$HOME/.local" @playwright/mcp@0.0.83
   node "$HOME/.local/lib/node_modules/@playwright/mcp/node_modules/playwright-core/cli.js" install chromium
   cp -r /opt/bench/project-setup "$t" && rm "$t/README.md"
   # Without OpenSpec the project has no spec-tool convention.
   [ "$spec" = openspec ] || sed -i '/^## Conventions/,$d' "$t/AGENTS.md"
   (cd "$t" && DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/currents-dev/playwright-best-practices-skill/tree/283d5cbc5d11aac1abda058b16ad22c317d54dc0 -s playwright-best-practices -a claude-code --copy -y)
-  [ "$bk" != v4 ] || cp -r /opt/bench/bk-v4/skills/following-dev-workflow "$t/.claude/skills/"
+  case $bk in v4|v5) cp -r "/opt/bench/bk-$bk/skills/following-dev-workflow" "$t/.claude/skills/" ;; esac
 fi
 case $spec in
   openspec)

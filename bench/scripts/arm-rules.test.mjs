@@ -40,7 +40,7 @@ test('fails when a replaced section or line is missing', () => {
 });
 
 // Layers v3 (arms AD, AE) and v4 (arm AG): pinned copies of the rules and the workflow skill for Matt Pocock's skills.
-for (const [arm, dir, openspec] of [['AD', 'bk-v3', false], ['AE', 'bk-v3-openspec', true], ['AG', 'bk-v4', false]]) {
+for (const [arm, dir, openspec] of [['AD', 'bk-v3', false], ['AE', 'bk-v3-openspec', true], ['AG', 'bk-v4', false], ['AH', 'bk-v5', false]]) {
   test(`${dir}: no agent-skills name${openspec ? '' : ' or OpenSpec'}, every named skill exists in arm ${arm}`, () => {
     const skill = `bench/arms/${dir}/skills/following-dev-workflow`;
     const text = read(`bench/arms/${dir.replace('-openspec', '')}/global.md`) + read(`${skill}/SKILL.md`)

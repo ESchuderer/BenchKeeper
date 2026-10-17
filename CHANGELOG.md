@@ -2,6 +2,16 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v3.2 (2026-10-17)
+
+Fitted to Matt Pocock's own flow and conventions ([mattpocock/skills](https://github.com/mattpocock/skills) v1.3.1, `ask-matt`, `.agents/invocation.md`, `docs/engineering/setup-matt-pocock-skills.md`; [aihero.dev/skills](https://www.aihero.dev/skills)). The pin stays at v1.3.1, his latest release.
+
+- `following-dev-workflow`: skills run through a Skill tool call, one per skill (his finding: a Skill tool call loads more reliably than a name in prose). Commits carry `Refs #<issue>` so his `code-review` finds the spec. Full tier keeps grilling, `/to-spec` and `/to-tickets` in one session and clears before each ticket (his context hygiene), tickets sized for one fresh session. His review is skipped when `/implement` just ran it and its output shows both of its sections. Seams name what they catch and miss. Research subagents work without his `research` skill (it spawns its own agent). `wizard` for steps only a person can take, `/retro` after a session that went sideways. A one-way door in a pull request's merge danger counts as risky.
+- `setting-up-projects`: the tag pin replaces the plugins' own updates. One install per agent (a user-level copy next to the project one loads twice). His setup's trackers (GitHub, GitLab, local) and draft review. Added on top: the labels his skills apply are created after approval (his setup only records their names), and `docs/agents/` is compared after a version bump.
+- `maintaining-repos`: a description without a trigger list (user-invoked), `/retro` among his suggestions.
+- Every BenchKeeper skill has `agents/openai.yaml` for Codex, with implicit invocation off for the user-invoked ones, as his skills do.
+- Upgrade: `/setting-up-projects` in each repository with the workflow.
+
 ## setup-v3.1 (2026-10-17)
 
 Checked against the current Claude Code docs ([best practices](https://code.claude.com/docs/en/best-practices), [common workflows](https://code.claude.com/docs/en/common-workflows), [code review](https://code.claude.com/docs/en/code-review), retrieved 2026-10-17) and for Matt Pocock's skills by level.

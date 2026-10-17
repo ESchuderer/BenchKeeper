@@ -1,3 +1,5 @@
-# Codex: run only when the user invokes the skill ($setting-up-projects). https://learn.chatgpt.com/docs/build-skills
+interface:
+  display_name: "Setting up projects"
+  short_description: "Devcontainer, workflow, issue tracker setup"
 policy:
   allow_implicit_invocation: false

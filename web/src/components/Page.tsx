@@ -3,13 +3,13 @@ import {
   Paper, Progress, SimpleGrid, Stack, Table, Text, ThemeIcon, Timeline, Title, createTheme,
 } from '@mantine/core';
 import {
-  IconArrowDown, IconArrowRight, IconBrandGithub, IconBrowser, IconChartBar, IconCircleCheck,
-  IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconMoon,
-  IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconSun, IconTool,
+  IconArrowDown, IconArrowRight, IconBrowser, IconCircleCheck,
+  IconCircleX, IconContainer, IconFeather, IconFileDescription, IconFileText, IconListCheck, IconPackage, IconRoute, IconLayoutKanban, IconServer, IconStack2, IconTerminal2, IconSearch, IconAlertTriangle, IconTestPipe, IconShieldLock, IconGauge, IconAccessible, IconCopy, IconCheck, IconTool,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
+import SiteHeader from './SiteHeader';
 
 const theme = createTheme({
   primaryColor: 'teal',
@@ -122,33 +122,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
       <a className="skip" href="#main">Skip to content</a>
-      <Box component="header" className="header">
-        <Container size="lg" h={60}>
-          <Group h="100%" justify="space-between" wrap="nowrap">
-            <Anchor href="#main" underline="never" c="var(--mantine-color-text)">
-              <Group gap={10} wrap="nowrap">
-                <img src={`${base}/logo.svg`} alt="" width={28} height={28} className="logo" />
-                <Text fw={800} size="lg">BenchKeeper</Text>
-              </Group>
-            </Anchor>
-            <Group component="nav" aria-label="Sections" gap="lg" visibleFrom="md">
-              {[['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Rules'], ['cost', 'Cost'], ['not', 'What it is not'], ['start', 'Quick start'], ['tools', 'Tools']].map(([id, l]) => (
-                <Anchor key={id} href={`#${id}`} c="dimmed" size="sm" underline="never">{l}</Anchor>
-              ))}
-            </Group>
-            <Group gap="xs" wrap="nowrap">
-              <Button component="a" href={`${base}/bench/`} variant="default" size="xs" leftSection={<IconChartBar size={16} />} visibleFrom="sm">Benchmark</Button>
-              <ActionIcon component="a" href={`${base}/bench/`} variant="default" size={30} aria-label="Benchmark" hiddenFrom="sm"><IconChartBar size={16} /></ActionIcon>
-              <Button component="a" href={REPO} variant="default" size="xs" leftSection={<IconBrandGithub size={16} />} visibleFrom="sm">GitHub</Button>
-              <ActionIcon component="a" href={REPO} variant="default" size={30} aria-label="GitHub" hiddenFrom="sm"><IconBrandGithub size={16} /></ActionIcon>
-              <ActionIcon data-theme-toggle variant="default" size={30} aria-label="Toggle light and dark theme">
-                <IconMoon size={16} className="icon-moon" />
-                <IconSun size={16} className="icon-sun" />
-              </ActionIcon>
-            </Group>
-          </Group>
-        </Container>
-      </Box>
+      <SiteHeader base={base} home />
 
       <main id="main" tabIndex={-1}>
         <Box className="hero" py={{ base: 64, md: 112 }}>

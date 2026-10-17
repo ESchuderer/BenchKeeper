@@ -2,7 +2,7 @@ import { ActionIcon, Anchor, Box, Button, Container, Group, Text } from '@mantin
 import { IconBrandGithub, IconChartBar, IconMoon, IconSun } from '@tabler/icons-react';
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
-const SECTIONS = [['what', 'What it is'], ['sdlc', 'SDLC'], ['parts', 'Parts'], ['quality', 'Rules'], ['cost', 'Cost'], ['not', 'What it is not'], ['start', 'Quick start'], ['tools', 'Tools']];
+const SECTIONS = [['sdlc', 'SDLC'], ['parts', 'What gets installed'], ['start', 'Quick start'], ['selected', 'Why this stack'], ['where', 'Where things run']];
 
 // The header of every page. On the main page (home) the links stay in the page; elsewhere they lead back to its sections.
 export default function SiteHeader({ base, home = false, size = 'lg' }: { base: string; home?: boolean; size?: string }) {
@@ -24,14 +24,21 @@ export default function SiteHeader({ base, home = false, size = 'lg' }: { base: 
           </Group>
           <Group gap="xs" wrap="nowrap">
             <Button component="a" href={`${base}/bench/`} variant="default" size="xs" leftSection={<IconChartBar size={16} />} visibleFrom="sm">Benchmark</Button>
-            <ActionIcon component="a" href={`${base}/bench/`} variant="default" size={30} aria-label="Benchmark" hiddenFrom="sm"><IconChartBar size={16} /></ActionIcon>
+            <ActionIcon component="a" href={`${base}/bench/`} variant="default" size={36} aria-label="Benchmark" hiddenFrom="sm"><IconChartBar size={16} /></ActionIcon>
             <Button component="a" href={REPO} variant="default" size="xs" leftSection={<IconBrandGithub size={16} />} visibleFrom="sm">GitHub</Button>
-            <ActionIcon component="a" href={REPO} variant="default" size={30} aria-label="GitHub" hiddenFrom="sm"><IconBrandGithub size={16} /></ActionIcon>
-            <ActionIcon data-theme-toggle variant="default" size={30} aria-label="Toggle light and dark theme">
+            <ActionIcon component="a" href={REPO} variant="default" size={36} aria-label="GitHub" hiddenFrom="sm"><IconBrandGithub size={16} /></ActionIcon>
+            <ActionIcon data-theme-toggle variant="default" size={36} aria-label="Toggle light and dark theme">
               <IconMoon size={16} className="icon-moon" />
               <IconSun size={16} className="icon-sun" />
             </ActionIcon>
           </Group>
+        </Group>
+      </Container>
+      <Container size={size} hiddenFrom="md">
+        <Group component="nav" aria-label="Sections" gap="md" wrap="nowrap" pb={10} style={{ overflowX: 'auto' }}>
+          {SECTIONS.map(([id, l]) => (
+            <Anchor key={id} href={to(id)} c="dimmed" size="sm" underline="never" style={{ whiteSpace: 'nowrap' }}>{l}</Anchor>
+          ))}
         </Group>
       </Container>
     </Box>

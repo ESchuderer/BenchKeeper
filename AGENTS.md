@@ -18,7 +18,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 - After editing `rules/global.md` or `skills/`, ask the user to run `/setting-up-machine` (Codex: `$setting-up-machine`). It never starts on its own.
 - Benchmark conventions (pinned BenchKeeper layer versions, arm variants): `bench/AGENTS.md`.
 - Setup versions: `CHANGELOG.md` and tags `setup-v<major>.<minor>`. A change to `rules/` or `skills/` adds a changelog entry.
-- Description, core framework, prerequisites, recommended tools and OpenHands (README and site), SDLC steps (site only): edit `web/src/data/facts.json`, then run `devcontainer exec --docker-path podman --workspace-folder . node web/scripts/readme.mjs`. Never edit the generated README blocks by hand.
+- Description, core framework, prerequisites, recommended tools and OpenHands (README), SDLC steps (site only): edit `web/src/data/facts.json`, then run `devcontainer exec --docker-path podman --workspace-folder . node web/scripts/readme.mjs`. Never edit the generated README blocks by hand.
 - `rules/global.md` is symlinked to `~/.claude/rules/00-global.md` and copied to `~/.codex/AGENTS.md`.
 - `.agents/skills/skill-creator` is vendored from `anthropics/skills` (`skills-lock.json`): do not edit. Update with `DO_NOT_TRACK=1 npx -y skills@1.7.2 add anthropics/skills -s skill-creator -a claude-code -a codex --copy -y`.
 - Evaluations live in `evaluations/<category>/<tool>.md`, indexed in `EVALUATIONS.md`. Update both when a component is added, removed, changed, or new evidence appears.

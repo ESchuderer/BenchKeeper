@@ -54,7 +54,7 @@ for (const [name, width] of [['phone', 375], ['desktop', 1280]]) {
   });
 }
 
-for (const path of ['./bench/', './bench/2026-10-16-cartridges-sonnet/']) {
+for (const path of ['./', './bench/', './bench/2026-10-16-cartridges-sonnet/']) {
   test(`no horizontal page scroll at phone width on ${path}`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto(path);

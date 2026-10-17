@@ -131,10 +131,10 @@
       {
         "name": "Understand",
         "phase": "define",
-        "sub": "request, issue, code",
+        "sub": "request, issue, on-ramps",
         "human": "approve issue",
-        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the tier. Standard and full: explores in plan mode and turns the request into a GitHub issue, which you approve.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the tier. Standard and full tiers explore in plan mode first, then the agent drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval."
+        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the tier. Matt Pocock's on-ramps: triage for incoming issues, diagnosing-bugs for a broken behavior, wayfinder for work too big to see yet. Standard and full: plan mode, then a GitHub issue you approve.",
+        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the tier. Matt Pocock's on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers explore in plan mode first, then the agent drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval."
       },
       {
         "name": "Specify",
@@ -154,24 +154,24 @@
       {
         "name": "Verify",
         "phase": "build",
-        "sub": "build, lint, tests, browser",
-        "tip": "Every tier: build, types, lint and tests in the devcontainer, each reported with its command and result. UI changes also in a browser.",
-        "text": "Every tier: build, types, lint and tests inside the devcontainer, each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them."
+        "sub": "tests, browser, code-review",
+        "tip": "Every tier: build, types, lint and tests in the devcontainer, each with its command and result. UI changes also in a browser. Standard and full: Matt Pocock's code-review checks standards and spec.",
+        "text": "Every tier: build, types, lint and tests inside the devcontainer, each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them. Standard and full tiers: `mattpocock-skills:code-review` against the default branch with the issue as the spec (standards and spec), unless `/implement` just ran it with both of its sections."
       },
       {
         "name": "Ship",
         "phase": "ship",
-        "sub": "reviews, draft PR, checks",
+        "sub": "pr, /code-review, checks",
         "human": "you merge",
-        "tip": "Standard and full: Matt Pocock's code-review, then /code-review before push. Risky: /security-review. Draft pull request, checks, ready. You merge.",
-        "text": "Standard and full tiers: `mattpocock-skills:code-review` (standards and spec), then `/code-review` before `git push` (correctness). Risky changes get `/security-review` in any tier. Findings outside the task stop the push until you decide. Every tier: draft pull request with a body from `pr`, checks, ready. Merge only on your instruction. Unfinished work: state and next step on the issue or pull request, `/handoff` for the next session."
+        "tip": "Standard and full: /code-review for correctness before push. Risky: /security-review. Draft pull request with a body from pr, checks, ready. You merge.",
+        "text": "Standard and full tiers: `/code-review` before `git push` (correctness). Risky changes get `/security-review` in any tier. Findings outside the task stop the push until you decide. Every tier: draft pull request with a body from `pr`, checks, ready. Merge only on your instruction. Unfinished work for another harness or person: state and next step on the issue or pull request, `/handoff` for the next session."
       },
       {
         "name": "Maintain",
         "phase": "maintain",
-        "sub": "findings: new requests",
-        "tip": "On request (/maintaining-repos), suggested after a milestone: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
-        "text": "On request (`/maintaining-repos`), suggested after a milestone or about every 10 merged pull requests: Ponytail's audit and debt, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene. Findings become new requests."
+        "sub": "retro, architecture, audit",
+        "tip": "After a session that went sideways: retro. On request: /maintaining-repos (audit, debt, dependencies, docs drift, unused skills) and improve-codebase-architecture. Findings become new requests.",
+        "text": "After a session that went sideways: `/retro`. On request (`/maintaining-repos`), suggested after a milestone or about every 10 merged pull requests: Ponytail's audit and debt, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, `/improve-codebase-architecture`, `/triage`, repository hygiene. Findings become new requests."
       }
     ]
   }

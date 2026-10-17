@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { arm, loadTrials, summarizeRuns, topByBrief } from './bench-data.mjs';
+import { arm, loadTrials, rankArms, summarizeRuns, topByBrief } from './bench-data.mjs';
 
 test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with Ponytail', () => {
   assert.deepEqual(arm('A'), { framework: 'none', spec: 'none', bk: false, ponytail: false, setup: 'plain' });
@@ -30,9 +30,9 @@ test('trials: one per arm directory, model, effort and k from the manifest, revi
   const [x, ...rest] = loadTrials(root);
   assert.equal(rest.length, 0);
   assert.deepEqual(x, {
-    key: 'run-1/round-1/B', run: 'run-1', brief: 'winery-react', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime: 'Claude Code', arm: 'B',
+    key: 'run-1/round-1/B', run: 'run-1', round: 1, brief: 'winery-react', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime: 'Claude Code', arm: 'B',
     setup: 'Ponytail', features: 1, robustness: null, featuresOf: 2, robustnessOf: null, minutes: 10, overall: 8, protocol: '1.10', criteria: 2,
-    final: null, mutation: null, drawings: null,
+    final: null, mutation: null, drawings: null, brownfield: null, notes: { verdict: null, strengths: [], issues: [] }, screenshots: [],
   });
   assert.doesNotMatch(JSON.stringify(x), /cost|1\.23|0\.4/);
 });
@@ -51,6 +51,34 @@ test('trials: final score, mutation score and the drawing review, a drawing faul
   const [x] = loadTrials(root);
   assert.deepEqual([x.final, x.mutation], [{ total: 80.5, categories: { tests: { score: 12, max: 15 } } }, 71.5]);
   assert.deepEqual(x.drawings, { of: 3, correct: 1, partly: 2, wrong: 0, correctAlphaApart: 2, alphaOnly: 1 });
+});
+
+test('trials: brownfield score per round and arm, review notes, screenshots sorted and images only', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-'));
+  const t = join(root, 'run-1', 'round-2', 'AD');
+  mkdirSync(join(t, 'screenshots'), { recursive: true });
+  writeFileSync(join(root, 'run-1', 'manifest.txt'), 'brief=openballistics model=claude-sonnet-5-5 effort=high k=3 seed=71\n');
+  writeFileSync(join(root, 'run-1', 'brownfield-score.json'), JSON.stringify({ trials: [{ round: 'round-1', arm: 'AD', total: 1 }, { round: 'round-2', arm: 'AD', total: 85.21 }] }));
+  writeFileSync(join(t, 'trial.json'), JSON.stringify({ arm: 'AD', runtime: 'claude-code', wall_seconds: 60 }));
+  writeFileSync(join(t, 'review.json'), JSON.stringify({ review: { overall: 7, verdict: 'Good.', strengths: ['s'], issues: ['i'] } }));
+  for (const f of ['step3-b.jpg', 'step2-a.jpg', 'notes.txt']) writeFileSync(join(t, 'screenshots', f), '');
+  const [x] = loadTrials(root);
+  assert.deepEqual([x.round, x.brownfield, x.notes, x.screenshots], [2, 85.21, { verdict: 'Good.', strengths: ['s'], issues: ['i'] }, ['step2-a.jpg', 'step3-b.jpg']]);
+});
+
+test('arms of a run: median over rounds of the final, brownfield or review score, shared ranks, fewer minutes first, review ranked per runtime', () => {
+  const t = (arm, round, s, minutes = 10) => ({ arm, round, setup: arm, runtime: 'Claude Code', minutes, ...s });
+  const bf = rankArms([t('A', 1, { brownfield: 90 }), t('A', 2, { brownfield: 80 }), t('A', 3, { brownfield: 85 }),
+    t('V', 2, { brownfield: 85 }, 5), t('V', 1, { brownfield: 40 }, 5), t('V', 3, { brownfield: 86 }, 5), t('B', 1, { brownfield: null })]);
+  assert.equal(bf.kind, 'brownfield');
+  const [g] = bf.groups;
+  assert.deepEqual([bf.groups.length, g.runtime], [1, null]);
+  assert.deepEqual(g.rows.map((r) => `${r.arm} ${r.rank} ${r.score}`), ['V 1 85', 'A 1 85', 'B 3 null']);
+  assert.deepEqual(g.rows[0].rounds.map((r) => r.round), [1, 2, 3]);
+  assert.equal(rankArms([t('A', 1, { final: { total: 70 }, overall: 9 }), t('B', 1, { final: { total: 80 }, overall: 7 })]).groups[0].rows[0].arm, 'B');
+  // review as the score: runtimes ranked apart
+  const rv = rankArms([t('A', 1, { overall: 7 }), t('B', 1, { overall: 8 }), { ...t('Q', 1, { overall: 9 }), runtime: 'OpenCode' }]);
+  assert.deepEqual([rv.kind, rv.groups.map((x) => `${x.runtime}: ${x.rows.map((r) => r.arm + r.rank).join(' ')}`)], ['review', ['Claude Code: B1 A2', 'OpenCode: Q1']]);
 });
 
 test('runs: newest first, report file, runtimes apart, ranked with shared ranks and missing values last', () => {

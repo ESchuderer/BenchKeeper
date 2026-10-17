@@ -1,12 +1,28 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { OFF_SITE } from './scripts/bench-data.mjs';
 
-// Post-build: external links open in a new tab (no client JavaScript), unused client bundles are removed.
+// The scorer's screenshots of the runs on the site, at bench/shots/<run>/<round>/<arm>/ next to the run pages.
+async function copyShots(dir) {
+  const results = new URL('../bench/results/', import.meta.url);
+  for (const run of (await readdir(results)).filter((r) => !OFF_SITE.has(r) && existsSync(new URL(`${r}/manifest.txt`, results)))) {
+    for (const round of (await readdir(new URL(`${run}/`, results))).filter((d) => /^round-\d+$/.test(d))) {
+      for (const arm of await readdir(new URL(`${run}/${round}/`, results))) {
+        const src = new URL(`${run}/${round}/${arm}/screenshots/`, results);
+        if (existsSync(src)) await cp(src, new URL(`bench/shots/${run}/${round}/${arm}/`, dir), { recursive: true });
+      }
+    }
+  }
+}
+
+// Post-build: external links open in a new tab (no client JavaScript), unused client bundles are removed, screenshots copied.
 const postBuild = {
   name: 'post-build',
   hooks: {
     'astro:build:done': async ({ dir }) => {
+      await copyShots(dir);
       const files = (await readdir(dir, { recursive: true })).map(String);
       const htmlFiles = files.filter((f) => f.endsWith('.html'));
       const htmls = await Promise.all(htmlFiles.map((f) => readFile(new URL(f, dir), 'utf8')));

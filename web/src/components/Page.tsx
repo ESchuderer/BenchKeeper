@@ -102,7 +102,7 @@ function StepList({ from, className }: { from: number; className?: string }) {
 
 const checks: [ReactNode, string, ReactNode][] = [
   [<IconTestPipe size={18} />, 'Tests', <>The existing tests for the touched code first, then <Code>tdd</Code> at the agreed seams.</>],
-  [<IconShieldLock size={18} />, 'Security', <>Auth, permissions, secrets and input validation: <Code>security-review</Code> and tests for denied paths. Secrets are never printed or committed. Maintain audits dependencies.</>],
+  [<IconShieldLock size={18} />, 'Security', <>Auth, permissions, secrets and input validation: <Code>/security-review</Code> and tests for denied paths. Secrets are never printed or committed. Maintain audits dependencies.</>],
   [<IconGauge size={18} />, 'Performance', <>A benchmark before and after on the same machine. <Code>ponytail-audit</Code> flags slow paths and what breaks under load.</>],
   [<IconAccessible size={18} />, 'UI and accessibility', <>End-to-end and accessibility tests, plus a browser check through Playwright MCP.</>],
 ];
@@ -147,7 +147,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="what" title="What it is" intro={<>Claude Code and Codex are each optional. Setup configures only the agents you select. To change a choice, edit <Code>rules/global.md</Code> or the skills and rerun <Code>/setting-up-machine</Code>.</>}>
+        <Section id="what" title="What it is" intro={<>Claude Code and Codex are each optional. Setup configures only the agents you select. To change a choice, edit <Code>rules/global.md</Code> or the setup skills and rerun <Code>/setting-up-machine</Code>. After a change to <Code>following-dev-workflow</Code>, rerun <Code>/setting-up-projects</Code> in each repository.</>}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} scope="Global, both agents">
               Applies in every session: when to load the workflow skill, ask instead of assuming, brevity, structure, sources for claims, punctuation, scope, devcontainer use, safety, context.
@@ -167,7 +167,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. Quick: no issue, spec, plan or pre-push review. Standard: no spec, a plan of a few lines. Full: all ten steps. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. The tier sets the required steps. Quick: branch, build, verify, ship. Standard: no spec, a plan of a few lines. Full: all ten steps. Targeted skills, such as tdd or a stack skill, load in any tier when they match the task. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -227,7 +227,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         <Section id="parts" title="What each part gives you" intro="Each is a separate upstream project, configured for the selected agents.">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <FeatureCard icon={<IconListCheck size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Per repository, both agents"
-              gives="Steps per task tier: open questions settled before code for full changes, tests first, review before push.">
+              gives="Steps per task tier: open questions settled before code for full changes, tests first, a review against standards and the spec.">
               Skills for grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull requests and session handoff. Per repository they read the issue tracker and domain docs from <Code>docs/agents/</Code>.
             </FeatureCard>
             <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Per repository, both agents"
@@ -249,6 +249,17 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
+        <Section id="selected" title="How this stack was selected">
+          <List spacing="sm" maw={760} styles={listTop}>
+            <List.Item><Text span fw={700}>Quality:</Text> on par with the best setups tested.</List.Item>
+            <List.Item><Text span fw={700}>Time:</Text> less time per task with the BenchKeeper workflow.</List.Item>
+            <List.Item><Text span fw={700}>Cost:</Text> lower with Ponytail.</List.Item>
+            <List.Item><Text span fw={700}>Skills by level:</Text> small composable skills. The big flow runs only for big work, small tiers load targeted skills.</List.Item>
+            <List.Item><Text span fw={700}>Same setup everywhere:</Text> the same pinned setup in every project, for teammates and CI.</List.Item>
+          </List>
+          <Text size="sm" mt="lg">For details, check the full data: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>, <Anchor href={`${base}/bench/`}>benchmark pages</Anchor>.</Text>
+        </Section>
+
         <Section id="quality" title="Rules in every session" intro={<>From <Anchor href={`${REPO}/blob/main/rules/global.md`}>rules/global.md</Anchor>. Spec, tests and review are SDLC steps above.</>}>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48}>
             <List spacing="lg" styles={listTop}>
@@ -266,13 +277,8 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           <SimpleGrid cols={{ base: 1, md: 3 }}>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconGauge size={18} /></ThemeIcon><Text fw={700}>BenchKeeper, own benchmark</Text></Group>
-              <Text size="sm" c="dimmed" mt="sm">Cartridges brief, Claude Sonnet 5.5, one trial per arm, final score out of 100. 29 arms (Claude Code and OpenCode).</Text>
-              <SimpleGrid cols={2} mt="md" spacing="xs">
-                <Stat value="3rd" label="of 29: Matt Pocock's skills alone (V), highest-ranked Claude Code app" />
-                <Stat value="28th" label="of 29: agent-skills + OpenSpec + BenchKeeper layer v1 (C)" />
-              </SimpleGrid>
-              <Text size="sm" c="dimmed" mt="md">Openballistics brownfield brief, three rounds per arm: no setup separates on score (medians 82.9 to 85.7). BenchKeeper layer v3 with Matt Pocock's skills (AD) takes a median of 7.6 minutes, the other setups 11.1 to 12.8.</Text>
-              <Text size="xs" c="dimmed" mt="md">Source: <Anchor href={`${base}/bench/`}>benchmark summary</Anchor>, <Anchor href={`${REPO}/tree/main/bench/results`}>reports</Anchor>.</Text>
+              <Text size="sm" c="dimmed" mt="sm">Each setup runs as its own arm on the same greenfield and brownfield briefs. Scores, time per task and app reviews per arm are on the benchmark pages.</Text>
+              <Text size="xs" c="dimmed" mt="md">Results: <Anchor href={`${base}/bench/`}>benchmark pages</Anchor>, <Anchor href={`${REPO}/tree/main/bench/results`}>reports</Anchor>.</Text>
             </Card>
             <Card withBorder padding="lg">
               <Group gap="sm"><ThemeIcon variant="light" size={34}><IconFeather size={18} /></ThemeIcon><Text fw={700}>Ponytail, vendor benchmark</Text></Group>

@@ -2,6 +2,18 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v3.1 (2026-10-17)
+
+Checked against the current Claude Code docs ([best practices](https://code.claude.com/docs/en/best-practices), [common workflows](https://code.claude.com/docs/en/common-workflows), [code review](https://code.claude.com/docs/en/code-review), retrieved 2026-10-17) and for Matt Pocock's skills by level.
+
+- `following-dev-workflow`: the tier sets which skills are required, not which may load. Any installed skill, Matt Pocock's or another, loads in any tier when its description matches (quick: one targeted skill such as `tdd` or a stack skill). The tier table names the required and the matching skills per tier, user-invoked ones marked (U), with `/wayfinder` and `/grill-with-docs` as user options in the full tier.
+- Reviews by their real names: `mattpocock-skills:code-review` for standards and spec, the bundled `/code-review` for correctness before push (scoped to correctness and the issue's requirements), `/security-review` for risky changes. Only his review and tracker skills need `docs/agents/`.
+- Plan mode before the first edit in standard and full. Sessions: `/clear` once the plan is in the issue, `claude --continue`, `/resume` or `--from-pr` on the same machine, `/handoff` for a fresh context. Verify reports each check with its command and result. Best-of-N names `claude --worktree`.
+- `rules/global.md`: no "project instructions win" line (user and project rules have no precedence order, [memory](https://code.claude.com/docs/en/memory)), a shorter workflow line, the development environment in two lines, no part number in the context rule.
+- No cross-references by part number or another file's section name. `setting-up-projects` installs `following-dev-workflow` from the installed setup's release tag and keeps a `code-review` skill out of `.claude/skills/`. `maintaining-repos` suggests `/improve-codebase-architecture` and `/triage` where Matt Pocock's skills are installed.
+- `AGENTS.md`: the benchmark pin history moved to `bench/AGENTS.md`.
+- Upgrade: `/setting-up-projects` in each repository with the workflow, then `/setting-up-machine`.
+
 ## setup-v3.0 (2026-10-17)
 
 Recommended stack: Matt Pocock's skills with Ponytail and the BenchKeeper workflow skill, without agent-skills and OpenSpec, installed per project. Evidence: `evaluations/skill-libraries/mattpocock-skills.md` (own cartridges and brownfield runs, signals only).

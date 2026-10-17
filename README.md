@@ -10,7 +10,7 @@ BenchKeeper sets up Claude Code and Codex with one rules file and four skills. I
 **Built on [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** his skills drive each SDLC phase (grilling, spec and tickets, tests first, code review, pull request).
 <!-- /generated:core -->
 
-One tool per job, exact versions for CLIs and MCP servers. To change a choice, edit [rules/global.md](rules/global.md) or the skills and rerun `/setting-up-machine`.
+One tool per job, exact versions for CLIs and MCP servers. To change a choice, edit [rules/global.md](rules/global.md) or the setup skills and rerun `/setting-up-machine`. After a change to `following-dev-workflow`, rerun `/setting-up-projects` in each repository.
 
 Claude Code and Codex are each optional. Setup detects installed agents, asks which you use, and configures only those (configuration, plugins, hooks, skills). It does not install agent CLIs.
 
@@ -54,16 +54,12 @@ Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcont
 
 ## Update
 
-- Workflow plugins and skills: pinned to tags per repository. `/setting-up-projects` compares the tags with the latest releases and proposes bumps.
+- Workflow plugins and repository skills: pinned to tags per repository. `/setting-up-projects` compares the tags with the latest releases, proposes bumps and updates the skills.
 - CLIs and MCPs: `/setting-up-machine` compares the pins with the latest releases and proposes bumps.
-- Repo skills: `/setting-up-projects` updates them.
 
 ## Benchmarks
 
-- [Cartridges brief](bench/results/2026-10-16-cartridges.md), one trial per arm, final score: Matt Pocock's skills alone (arm V) are the highest-ranked Claude Code app, 84.0, rank 3 of 29. The previous setup, agent-skills + OpenSpec + BenchKeeper layer v1 (arm C), ranks 28th. Its unit tests failed in the scorer's coverage run (cause unverified).
-- [Openballistics brownfield brief](bench/results/2026-10-17-openballistics.md), three rounds per arm: no setup separates on score (medians 82.9 to 85.7, within the noise). BenchKeeper layer v3 with Matt Pocock's skills (arm AD) takes a median of 7.6 minutes, the other setups 11.1 to 12.8. OpenSpec alone ties plain Claude Code.
-
-Summary: [benchmark page](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](bench/results). Method: [bench/PROTOCOL.md](bench/PROTOCOL.md).
+Each setup runs as its own arm on the same greenfield and brownfield briefs. Scores, time per task and app reviews per arm: [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](bench/results). Method: [bench/PROTOCOL.md](bench/PROTOCOL.md).
 
 ## Contents
 
@@ -94,7 +90,15 @@ Global (per machine): the rules, the setup skills (setting-up-machine, setting-u
 
 The [following-dev-workflow skill](skills/following-dev-workflow/SKILL.md) combines Ponytail and Matt Pocock's skills. The integration lives here, not in the installed plugin files. Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
 
-Components evaluated, included or not, with the research behind them (Dev Containers and find-skills have no evaluation file): [EVALUATIONS.md](EVALUATIONS.md).
+## How this stack was selected
+
+- Quality: on par with the best setups tested.
+- Time: less time per task with the BenchKeeper workflow.
+- Cost: lower with Ponytail.
+- Skills by level: small composable skills. The big flow runs only for big work, small tiers load targeted skills.
+- Same setup everywhere: the same pinned setup in every project, for teammates and CI.
+
+For details, check the full data: [EVALUATIONS.md](https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md) (Dev Containers and find-skills have no evaluation file), [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/).
 
 ## Telemetry
 
@@ -119,7 +123,7 @@ Not installed by BenchKeeper.
 | [cmux](https://github.com/manaflow-ai/cmux) | macOS only | Ghostty-based terminal with vertical tabs; notifications when an agent needs input and a sidebar with branch, PR status and ports; browser pane inside the terminal | you are on macOS and want a terminal without a separate app |
 <!-- /generated:tools -->
 
-Orca only: `/setting-up-machine` asks before installing the optional `orca-cli` and `orchestration` skills. Declining them does not fail setup. Existing Orca skills and hooks are kept ([setup part 7](skills/setting-up-machine/SKILL.md#7-orca-skills-optional-ask), [Orca skill installation](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx)).
+Orca only: `/setting-up-machine` asks before installing the optional `orca-cli` and `orchestration` skills. Declining them does not fail setup. Existing Orca skills and hooks are kept ([Orca skills in setting-up-machine](skills/setting-up-machine/SKILL.md#7-orca-skills-optional-ask), [Orca skill installation](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/cli/skills.mdx)).
 
 <!-- generated:openhands -->
 **Unattended or isolated runs: [OpenHands](https://github.com/OpenHands/OpenHands).** A self-hosted agent server with a web UI that runs work without you at the terminal.

@@ -1,7 +1,5 @@
-A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here wins.
-
 ## Workflow
-- In a repository that has the `following-dev-workflow` skill (installed per project by `/setting-up-projects`), load it and follow it before any edit, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items. It sets the task tier and its steps. Plain questions need neither.
+- Where a repository has the `following-dev-workflow` skill, load and follow it before repository edits, issue or pull request work, and research with two or more items. Plain questions need neither.
 - Without it: work on a branch, and run the project's checks before reporting done.
 - Always, even without the skill: commit, push or merge on the default branch only when the user said so in this task. Never merge a pull request without the user's instruction.
 
@@ -35,9 +33,8 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 - Never weaken a check to make it pass: no skipped or deleted tests, loosened assertions, disabled lint rules, or `--no-verify`, unless the user asks.
 
 ## Development environment
-- Agents run on the host. Project dependency installs, builds, lint, tests, and local MCP/browser tools run in the project's devcontainer (`devcontainer exec --workspace-folder <project> ...`). Host file inspection and editing, Git, `gh`, container configuration and bootstrap, container lifecycle commands, and machine setup the user asked for stay on the host.
-- No devcontainer: ask the user to run `/setting-up-projects` (Codex: `$setting-up-projects`). If the container cannot start, report the failure instead of running development commands on the host.
-- `/setting-up-machine` and `/setting-up-projects` (Codex: `$setting-up-machine`, `$setting-up-projects`) never start on their own (they install software and change settings): when one is needed, ask the user to run it.
+- Agents, Git, `gh` and file edits run on the host. Project installs, builds, lint, tests and local MCP or browser tools run where the project's `AGENTS.md` says (its devcontainer in this setup), never on the host as a fallback: if the container cannot start, report the failure.
+- No devcontainer: ask the user to run `/setting-up-projects` (Codex: `$setting-up-projects`).
 
 ## Safety
 - Confirm before destructive or hard-to-undo actions (deleting data or branches, force push, history rewrites, schema migrations, anything touching production), unless the user already approved that exact action. A worktree or local branch created for the current task and not pushed may be discarded without asking.
@@ -46,5 +43,5 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 ## Context
 - Read only what the task needs.
 - Send noisy commands (full test suites, builds, long logs) to a subagent when available. Return only failures and key lines.
-- Before an unrelated request, suggest `/clear`. The client compacts by itself at its configured window (`/setting-up-machine` part 4).
+- Before an unrelated request, suggest `/clear`. The client compacts by itself at its configured window.
 - When compacting, keep the task tier, the issue, branch and pull request numbers, the modified files, and the checks still to run.

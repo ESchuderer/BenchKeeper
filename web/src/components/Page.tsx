@@ -155,13 +155,13 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               Applies in every session: when to load the workflow skill, ask instead of assuming, brevity, structure, sources for claims, punctuation, scope, devcontainer use, safety, context.
             </FeatureCard>
             <FeatureCard icon={<IconPackage size={20} />} title={<Code fz="sm">/setting-up-machine</Code>} scope="Once per machine">
-              Checks 6 parts plus one optional part (rules, setup skills, settings, devcontainer tooling) without changing anything, then shows one plan: installs, changes, removals, version bumps.
+              Checks 8 parts plus one optional part (rules, Matt Pocock's skills, Ponytail, workflow and setup skills, settings, devcontainer tooling) without changing anything, then shows one plan: installs, changes, removals, version bumps.
             </FeatureCard>
             <FeatureCard icon={<IconRoute size={20} />} title={<Code fz="sm">/setting-up-projects</Code>} scope="Once per repository">
-              Devcontainer, <Code>AGENTS.md</Code>, stack skills, the workflow (following-dev-workflow, Matt Pocock's skills, Ponytail, his repository setup), dead config, with one plan first. On a fresh clone it restores the skills.
+              Devcontainer, <Code>AGENTS.md</Code>, stack skills, Matt Pocock's repository setup (issue tracker, domain docs), the default tier, dead config, with one plan first. On a fresh clone it restores the skills.
             </FeatureCard>
-            <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} scope="Per repository, both agents">
-              Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded before repository work where the repository has it.
+            <FeatureCard icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} scope="Global, both agents">
+              Task tier and its steps: issue, branch, tests first, spec, review before push, draft pull request. Loaded before repository work.
             </FeatureCard>
             <FeatureCard icon={<IconTool size={20} />} title={<Code fz="sm">/maintaining-repos</Code>} scope="On request, per repository">
               The Maintain pass: dead code, shortcut debt, dependency audit, docs drift, unused skills. Findings become new requests.
@@ -195,7 +195,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Paper withBorder p="lg" radius="lg" style={{ borderColor: 'var(--mantine-color-teal-6)', borderWidth: 2 }}>
               <Group gap="xs" mb="md"><Badge variant="outline">Host</Badge><Text fw={700}>one per machine</Text></Group>
               <Stack gap={10} className="host-list">
-                {['Claude Code or Codex, sign-in and permissions', 'Global rules, Matt Pocock\'s plugin, the setup skills and settings', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
+                {['Claude Code or Codex, sign-in and permissions', 'Global rules, Matt Pocock\'s skills, Ponytail, the workflow and setup skills, settings', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'].map((t) => (
                   <Group key={t} gap="sm" wrap="nowrap" align="flex-start"><span className="dot" /><Text size="sm">{t}</Text></Group>
                 ))}
               </Stack>
@@ -232,7 +232,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               gives="Steps per task tier: open questions settled before code for full changes, tests first, a review against standards and the spec.">
               Skills for grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull requests and session handoff. Per repository they read the issue tracker and domain docs from <Code>docs/agents/</Code>.
             </FeatureCard>
-            <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Per repository, both agents"
+            <FeatureCard icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, both agents"
               gives="Fewer lines of code in every source that measured them. Cost varies by setup.">
               Rules for the smallest complete change: reuse before new code, no unrequested options, a test for non-trivial logic, <Code>shortcut:</Code> comments for known limits, plus audit and debt reports.
             </FeatureCard>
@@ -257,7 +257,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <List.Item><Text span fw={700}>Time:</Text> less time per task with the BenchKeeper workflow.</List.Item>
             <List.Item><Text span fw={700}>Cost:</Text> lower with Ponytail.</List.Item>
             <List.Item><Text span fw={700}>Skills by level:</Text> small composable skills. The big flow runs only for big work, small tiers load targeted skills.</List.Item>
-            <List.Item><Text span fw={700}>Same setup everywhere:</Text> the same pinned setup in every project, for teammates and CI.</List.Item>
+            <List.Item><Text span fw={700}>Same setup everywhere:</Text> one machine install covers every repository. Each repository adds only its tracker, docs and stack.</List.Item>
           </List>
           <Text size="sm" mt="lg">For details, check the full data: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>EVALUATIONS.md</Anchor>, <Anchor href={`${base}/bench/`}>benchmark pages</Anchor>.</Text>
         </Section>

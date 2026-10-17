@@ -1,6 +1,6 @@
 ---
 name: setting-up-projects
-description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, the workflow (following-dev-workflow, Matt Pocock's skills, Ponytail) with its issue tracker and domain docs, stack-specific skills. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, Matt Pocock's repository setup (issue tracker, domain docs), stack-specific skills, the default task tier. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 disable-model-invocation: true
 ---
 
@@ -73,24 +73,17 @@ Matt Pocock's skills (step 5) cover the workflow: grilling, specs and tickets, T
 
 Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of Matt Pocock's skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
 
-## 5. Workflow (ask)
+## 5. Workflow setup and default tier (ask)
 
-Ask whether this repository gets the BenchKeeper workflow. Recommend yes for code repositories. Matt Pocock's skills come the way he installs them (Claude Code: his plugin from `setting-up-machine`; Codex: his installer, below), and the BenchKeeper additions sit on top: `following-dev-workflow` (tiers, change types, issue, branch, review and pull request rules) and Ponytail, per project and committed. Each piece is installed once.
+The workflow itself (Matt Pocock's skills, Ponytail, `following-dev-workflow`) is installed once per machine by `setting-up-machine`. This step sets up what his skills read in this repository and removes project copies of earlier setups.
 
-- `following-dev-workflow` from the BenchKeeper release tag of the installed setup, so `skills-lock.json` records a source teammates can restore (`$B` is the BenchKeeper clone that `setting-up-machine` uses):
+- Project copies from setup-v3.0 to v3.3 load the same skills twice next to the global install. Remove them after asking: `following-dev-workflow` in `.claude/skills/` and `.agents/skills/` with its `skills-lock.json` entry (`DO_NOT_TRACK=1 npx -y skills@1.7.2 remove following-dev-workflow <agent-flags> -y`), and the Ponytail and Matt Pocock entries in `.claude/settings.json`:
   ```sh
-  t=$(git -C $B tag -l 'setup-v*' --sort=-v:refname | head -1) u=https://github.com/ESchuderer/BenchKeeper
-  DO_NOT_TRACK=1 npx -y skills@1.7.2 add "$u/tree/$t/skills/following-dev-workflow" <agent-flags> --copy -y
+  f=.claude/settings.json
+  test -f "$f" && jq 'del(.extraKnownMarketplaces.ponytail, .extraKnownMarketplaces.mattpocock) | del(.enabledPlugins["ponytail@ponytail"], .enabledPlugins["mattpocock-skills@mattpocock"])' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
   ```
-- Ponytail v5.2.0. Claude Code: merge into `.claude/settings.json` (create it when missing, keep other keys):
-  ```sh
-  f=.claude/settings.json; mkdir -p .claude; test -f "$f" || printf '{}\n' > "$f"
-  jq '.extraKnownMarketplaces += {"ponytail": {"source": {"source": "github", "repo": "DietrichGebert/ponytail", "ref": "v5.2.0"}}}
-      | .enabledPlugins += {"ponytail@ponytail": true}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-  ```
-  Claude Code offers to install it when the folder is trusted ([marketplace sources](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources)). Codex: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/DietrichGebert/ponytail/tree/v5.2.0 -s ponytail -s ponytail-audit -s ponytail-debt -a codex --copy -y` (its hooks come only with its Codex plugin). Version bumps compare the tag with the latest release.
-- Projects set up with setup-v3.0 to v3.2 enable his pinned plugin in `.claude/settings.json`, which loads his skills twice next to the global plugin. Remove those entries after asking: `jq 'del(.extraKnownMarketplaces.mattpocock) | del(.enabledPlugins["mattpocock-skills@mattpocock"])'`.
-- Matt Pocock's skills for Codex, with his installer: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add mattpocock/skills -a codex` (interactive: project scope, select all skills, including `setup-matt-pocock-skills`) ([installation](https://github.com/mattpocock/skills#installation-30-second-setup)). Claude Code needs nothing here: his plugin is installed by `setting-up-machine`, and a project copy would load every skill twice. Do not install a skill named `code-review` into `.claude/skills/`: it would replace Claude Code's `/code-review`.
+  Codex project copies of Ponytail's skills: `DO_NOT_TRACK=1 npx -y skills@1.7.2 remove ponytail ponytail-audit ponytail-debt -a codex -y`.
+- Matt Pocock's skills for Codex, with his installer: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add mattpocock/skills -a codex` (interactive: project scope, select all skills, including `setup-matt-pocock-skills`), as his [installation](https://github.com/mattpocock/skills#installation-30-second-setup) gives it. Claude Code needs nothing here. Do not install a skill named `code-review` into `.claude/skills/`: it would replace Claude Code's `/code-review`.
 - Matt Pocock's repository setup: ask the user to run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$setup-matt-pocock-skills`) once. It asks for the issue tracker, the triage labels and where docs go, and writes `docs/agents/` and its `## Agent skills` block (into `CLAUDE.md` when it exists). With Codex selected, keep the single block in `AGENTS.md`, which Codex reads, and leave `CLAUDE.md` at `@AGENTS.md`. After one of his releases, he recommends running it again.
 - Spec tools from earlier setups: a repository with `openspec/` or Spec Kit (`.specify/`) keeps them only when the user wants to. Otherwise propose moving open changes and their task lists into the issue tracker, then removing `openspec/` or `.specify/`, `.claude/skills/openspec-*`, `.agents/skills/openspec-*`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*`, and their CI or lint entries.
 

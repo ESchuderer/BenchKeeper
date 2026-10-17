@@ -14,8 +14,8 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 - Pre-push review: `rules/` and `skills/` count as code, not docs.
 - Every install command pins an exact version (`pkg@x.y.z`). `/setting-up-machine` bumps them at install time.
 - SKILL.md front matter: `description` in double quotes (it contains colons).
-- Editing `skills/` or `rules/`: call the Skill tool with `writing-for-agents` (Matt Pocock's skills, once the project install exists). Each skill has `agents/openai.yaml` for Codex: user-invoked skills set `allow_implicit_invocation: false`.
-- After editing `rules/global.md` or the setup skills, ask the user to run `/setting-up-machine` (Codex: `$setting-up-machine`). After editing `skills/following-dev-workflow/`, ask the user to run `/setting-up-projects` in the repositories that use it. Neither starts on its own.
+- Editing `skills/` or `rules/`: call the Skill tool with `writing-for-agents` (Matt Pocock's skills). Each skill has `agents/openai.yaml` for Codex: user-invoked skills set `allow_implicit_invocation: false`.
+- After editing `rules/global.md` or `skills/`, ask the user to run `/setting-up-machine` (Codex: `$setting-up-machine`). It never starts on its own.
 - Benchmark conventions (pinned BenchKeeper layer versions, arm variants): `bench/AGENTS.md`.
 - Setup versions: `CHANGELOG.md` and tags `setup-v<major>.<minor>`. A change to `rules/` or `skills/` adds a changelog entry.
 - Description, core framework, prerequisites, recommended tools and OpenHands (README and site), SDLC steps (site only): edit `web/src/data/facts.json`, then run `devcontainer exec --docker-path podman --workspace-folder . node web/scripts/readme.mjs`. Never edit the generated README blocks by hand.

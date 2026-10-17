@@ -36,12 +36,14 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
 
 1. Install the [prerequisites](#prerequisites): at least one agent, plus the tools for the parts you apply. npm uses prefix `~/.local`, no sudo.
 2. Clone it (`git clone https://github.com/ESchuderer/BenchKeeper.git`) and open the folder in Claude Code or Codex.
-3. Run `/setting-up-machine` (Codex: `$setting-up-machine`) and confirm the agents you use. It checks without changing anything, shows one plan (installs, changes, removals, version bumps), and applies only what you approve. Destructive items are marked and confirmed again before they run. Commands: [skills/setting-up-machine/SKILL.md](skills/setting-up-machine/SKILL.md).
+3. Machine setup: run `/setting-up-machine` (Codex: `$setting-up-machine`) and confirm the agents you use. It installs the rules, Matt Pocock's skills, Ponytail, the workflow skill and the setup skills. It checks without changing anything, shows one plan (installs, changes, removals, version bumps), and applies only what you approve. Destructive items are marked and confirmed again before they run. Commands: [skills/setting-up-machine/SKILL.md](skills/setting-up-machine/SKILL.md).
 4. Restart the selected agents.
 
 ## Per repo
 
-Run `/setting-up-projects` (Codex: `$setting-up-projects`) and confirm the agents for this project. A new repo is set up, an existing setup is updated and cleaned. Plan and approval as in step 3 of the setup steps. Commit the result. On a fresh clone, it restores the skills from their recorded sources.
+1. Project setup, in the repository root: run `/setting-up-projects` (Codex: `$setting-up-projects`) and confirm the agents for this project. A new repo is set up, an existing setup is updated and cleaned. Plan and approval as in step 3 of the setup steps. On a fresh clone, it restores the skills from their recorded sources.
+2. Matt Pocock setup, when project setup asks for it: run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$setup-matt-pocock-skills`). It asks for the issue tracker, the triage labels and where docs go, and writes `docs/agents/`. Project setup then finishes (with Codex it keeps his block in `AGENTS.md`).
+3. Commit the result.
 
 The agent, its sign-in, BenchKeeper, the global rules and skills stay on the host. `setting-up-machine` configures the host tooling, checks Docker and installs the pinned Dev Containers CLI. `setting-up-projects` creates or updates the repository's container and toolchain. Rootless engines, VMs and microVMs are not required.
 
@@ -56,6 +58,7 @@ Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcont
 
 - Workflow plugins: Matt Pocock's skills and Ponytail come from their own marketplaces and update with them. Repository stack skills are pinned in `skills-lock.json`, and `/setting-up-projects` proposes their updates.
 - CLIs and MCPs: `/setting-up-machine` compares the pins with the latest releases and proposes bumps.
+- BenchKeeper itself: `git -C BenchKeeper pull`, then `/setting-up-machine`. After a release of Matt Pocock's skills, he recommends running his setup again in each repository.
 
 ## Benchmarks
 

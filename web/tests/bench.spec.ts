@@ -61,3 +61,11 @@ for (const path of ['./bench/', './bench/2026-10-16-cartridges-sonnet/']) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   });
 }
+
+test('the benchmark pages use the main site header, its section links lead back to the main page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('./bench/2026-10-17-openballistics-sonnet/');
+  const nav = page.getByRole('banner').getByRole('navigation', { name: 'Sections' });
+  await expect(nav.getByRole('link', { name: 'SDLC' })).toHaveAttribute('href', '/BenchKeeper/#sdlc');
+  await expect(page.getByRole('banner').getByRole('link', { name: 'Benchmark', exact: true })).toBeVisible();
+});

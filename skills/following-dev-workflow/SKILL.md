@@ -8,7 +8,7 @@ when_to_use: "Fix, add, change, refactor, rename, update, upgrade or remove anyt
 
 Matt Pocock's skills do the work of each phase. This skill picks the tier, which decides which of his skills a task requires, and adds the repository rules his skills leave open. Any installed skill, his or another, also loads in any tier when its own description matches the task: the tier sets the minimum, not the maximum.
 
-Names: Matt Pocock's skills are `mattpocock-skills:<name>` in Claude Code and `<name>` in Codex. A named skill runs when you call the Skill tool with it, one call per skill: naming it in prose does not reliably load it. User-invoked skills (marked U) only run when the user starts them (Claude Code: `/mattpocock-skills:<name>`, Codex `$<name>`): suggest them and wait. The bundled `/code-review` and `/security-review` are Claude Code's own.
+Names: Matt Pocock's skills are `mattpocock-skills:<name>` in Claude Code and `<name>` in Codex. A named skill runs when you call the Skill tool with it, one call per skill: naming it in prose does not reliably load it. User-invoked skills (marked U) only run when the user starts them (Claude Code: `/mattpocock-skills:<name>`, Codex `$<name>`): suggest them and wait. The bundled `/code-review` and `/security-review` are Claude Code's own. Matt Pocock's skills missing (Codex installs them per repository): ask the user to run `$setting-up-projects`, and meanwhile work on a branch and run the project's checks.
 
 ## Before the first edit
 

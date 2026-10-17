@@ -47,7 +47,8 @@ section[id] { scroll-margin-top: 64px; }
 .ring .lbl { fill: var(--mantine-color-text); font-size: 16px; font-weight: 700; }
 .ring .sub { fill: var(--mantine-color-dimmed); font-size: 12.5px; }
 .ring .core-s { fill: var(--mantine-color-dimmed); font-size: 13px; }
-@media (max-width: 639px) { .ring .lbl, .ring .sub, .ring .you-t { display: none; } .ring .core-s { font-size: 17px; } }
+/* Phones: the ring scales to about 40%, so step names grow to stay readable; subtitles and human notes move to the list below. */
+@media (max-width: 639px) { .ring .sub, .ring .you-t { display: none; } .ring .lbl { font-size: 34px; } .ring .core-s { font-size: 24px; } }
 
 .lift { transition: transform 150ms ease, box-shadow 150ms ease; }
 .lift:hover { transform: translateY(-2px); box-shadow: var(--mantine-shadow-md); }
@@ -127,3 +128,4 @@ td code { white-space: normal; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .mantine-Timeline-item:target { animation: none; outline: 2px solid var(--mantine-color-teal-6); } }
 /* stacked on phones: continue the line from step 5 into step 6 */
 @media (max-width: 47.99em) { .steps-first .mantine-Timeline-item:last-of-type { --timeline-line-display: block; } }
+@media (max-width: 639px) { .ring text.ph-l { font-size: 17px; } .ring .req-t { font-size: 22px; } }

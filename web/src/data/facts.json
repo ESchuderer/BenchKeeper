@@ -131,46 +131,25 @@
       {
         "name": "Understand",
         "phase": "define",
-        "sub": "request, AGENTS.md, code",
-        "tip": "Reads the request, AGENTS.md and the code it touches. Standard and full tiers explore in plan mode. No edits yet.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches before any edit. Standard and full tiers explore in plan mode first."
-      },
-      {
-        "name": "Track",
-        "phase": "define",
-        "sub": "GitHub issue",
+        "sub": "request, issue, code",
         "human": "approve issue",
-        "tip": "Standard and full tiers: turns the request into a GitHub issue with goal, acceptance criteria and tasks. You approve it.",
-        "text": "Standard and full tiers without an issue: the agent drafts title, goal, acceptance criteria and tasks, and creates the issue after your approval."
-      },
-      {
-        "name": "Branch",
-        "phase": "define",
-        "sub": "type/issue-slug",
-        "tip": "Every tier: creates <type>/<issue>-<slug> from the default branch.",
-        "text": "Every tier: `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue. No work on the default branch unless you say so."
+        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the tier. Standard and full: explores in plan mode and turns the request into a GitHub issue, which you approve.",
+        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the tier. Standard and full tiers explore in plan mode first, then the agent drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval."
       },
       {
         "name": "Specify",
         "phase": "define",
-        "sub": "grilling, domain docs",
-        "tip": "Full tier: grilling settles the open questions. domain-modeling records terms and decisions: deployment, storage, module boundaries, core types.",
-        "text": "Full tier: `grilling` until the open questions are settled. `domain-modeling` records terms and decisions in `GLOSSARY.md` and ADRs: deployment target, data storage, module boundaries, core types."
-      },
-      {
-        "name": "Plan",
-        "phase": "build",
-        "sub": "spec, tickets",
-        "tip": "Standard: a plan of a few lines that names the test seams. Full tier, work for several sessions: /to-spec and /to-tickets, which you run.",
-        "text": "Standard tier: a plan of a few lines in the reply that names the test seams. Full tier: work for one session is built in the same context. Work for several sessions: the agent suggests `/to-spec`, then `/to-tickets`, and waits for you to run them.",
-        "human": "you run /to-spec, /to-tickets"
+        "sub": "grilling, spec, tickets",
+        "human": "you run /to-spec, /to-tickets",
+        "tip": "Standard: a plan of a few lines that names the test seams. Full: grilling settles the open questions. Work for several sessions: /to-spec and /to-tickets, which you run.",
+        "text": "Standard tier: a plan of a few lines in the reply that names the test seams. Full tier: `grilling` until the open questions are settled, `domain-modeling` records terms and decisions in `GLOSSARY.md` and ADRs. Work for several sessions: the agent suggests `/to-spec`, then `/to-tickets`, and waits for you to run them."
       },
       {
         "name": "Build",
         "phase": "build",
-        "sub": "existing tests, then tdd",
-        "tip": "Runs the existing tests for the touched code, then builds with tdd at the agreed seams, the smallest complete change.",
-        "text": "The existing tests that cover the touched code run first, then `tdd` at the agreed seams, ticket by ticket. Ponytail `full` for the smallest complete change. `diagnosing-bugs` for a bug with an unknown cause. Work that drifts from the plan is discarded and restarted, with the cause added to the plan."
+        "sub": "branch, tests, tdd",
+        "tip": "Every tier: a branch off the default branch. Runs the existing tests for the touched code, then builds with tdd at the agreed seams.",
+        "text": "Every tier: `<type>/<issue>-<slug>`, never on the default branch unless you say so. The existing tests that cover the touched code run first, then `tdd` at the agreed seams, ticket by ticket. Ponytail `full` for the smallest complete change. Targeted skills such as `diagnosing-bugs` load when the task matches. Work that drifts from the plan is discarded and restarted."
       },
       {
         "name": "Verify",
@@ -180,27 +159,19 @@
         "text": "Every tier: build, types, lint and tests inside the devcontainer, each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them."
       },
       {
-        "name": "Review",
-        "phase": "ship",
-        "sub": "reviews before push",
-        "human": "findings stop push",
-        "tip": "Standard and full tiers: mattpocock-skills:code-review checks standards and spec, /code-review checks correctness before push. Risky changes: /security-review in any tier. Findings wait for you.",
-        "text": "Standard and full tiers: `mattpocock-skills:code-review` against the default branch with the issue as the spec (standards and spec), then `/code-review` of the commits before `git push` (correctness). Risky changes get `/security-review` before push in any tier. Findings outside the task stop the push until you decide."
-      },
-      {
         "name": "Ship",
         "phase": "ship",
-        "sub": "draft PR, checks, ready",
+        "sub": "reviews, draft PR, checks",
         "human": "you merge",
-        "tip": "Every tier: opens a draft pull request with a body from pr, waits for checks, marks it ready. You merge.",
-        "text": "Every tier: draft pull request, body from `pr`, with `Closes #n` when an issue exists and the key decisions. Wait for checks, mark ready. Merge only on your instruction. Unfinished work: state and next step on the issue or pull request, `/handoff` for the next session."
+        "tip": "Standard and full: Matt Pocock's code-review, then /code-review before push. Risky: /security-review. Draft pull request, checks, ready. You merge.",
+        "text": "Standard and full tiers: `mattpocock-skills:code-review` (standards and spec), then `/code-review` before `git push` (correctness). Risky changes get `/security-review` in any tier. Findings outside the task stop the push until you decide. Every tier: draft pull request with a body from `pr`, checks, ready. Merge only on your instruction. Unfinished work: state and next step on the issue or pull request, `/handoff` for the next session."
       },
       {
         "name": "Maintain",
         "phase": "maintain",
         "sub": "findings: new requests",
-        "tip": "On request (/maintaining-repos), suggested after a milestone or a large merge: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
-        "text": "On request (`/maintaining-repos`), suggested after a milestone or a large merge: `ponytail-audit`, `ponytail-debt`, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene. Findings become new requests."
+        "tip": "On request (/maintaining-repos), suggested after a milestone: audit, debt, dependencies, docs drift, unused skills. Findings become new requests.",
+        "text": "On request (`/maintaining-repos`), suggested after a milestone or about every 10 merged pull requests: Ponytail's audit and debt, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene. Findings become new requests."
       }
     ]
   }

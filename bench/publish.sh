@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copies a run's results into bench/results/<name>/: manifest, and per trial trial.json, the transcript,
-# the built app (app.tar.gz, without node_modules), the scorer's screenshots and the app reviews (review.json, review-<n>.json).
+# the built app (app.tar.gz, without node_modules), the scorer's screenshots (step briefs: per step) and the app reviews (review.json, review-<n>.json).
 # Refuses when the token is unavailable or appears in any file, including the apps' git history.
 # Usage: bench/publish.sh <run-dir> <name>
 set -eu
@@ -21,6 +21,7 @@ fi
 [ -s "$pats" ] || { echo "no credential to scan for" >&2; exit 1; }
 found() { grep -aqF -f "$pats" -- "$1"; }
 cp "$run/manifest.txt" "$tmp/"
+[ ! -f "$run/brownfield-score.json" ] || cp "$run/brownfield-score.json" "$tmp/"
 for t in "$run"/round-*/*/; do
   [ -f "$t/trial.json" ] || continue
   objs=$tmp/objects.bin
@@ -33,9 +34,18 @@ for t in "$run"/round-*/*/; do
   cp "$t/trial.json" "$d/" && gzip -9 -c "$t/transcript.jsonl" > "$d/transcript.jsonl.gz"
   [ ! -f "$t/score/app.tar.gz" ] || cp "$t/score/app.tar.gz" "$d/"
   [ ! -d "$t/score/screenshots" ] || cp -r "$t/score/screenshots" "$d/"
+  # Step briefs (openballistics): each step's screenshots as screenshots/step<k>-<name>.
+  for s in "$t"/steps/*/screenshots/*; do
+    [ -f "$s" ] || continue
+    k=$(basename "$(dirname "$(dirname "$s")")") && mkdir -p "$d/screenshots" && cp "$s" "$d/screenshots/step$k-$(basename "$s")"
+  done
   for f in "$t"/review.json "$t"/review-*.json; do [ ! -f "$f" ] || cp "$f" "$d/"; done
 done
-for f in $(find "$tmp" -type f); do
+# Files added to a published run later (final-score.json, the scorer's per-trial results) stay unless this copy replaces them.
+[ ! -d "$out" ] || (cd "$out" && find . -type f) | while IFS= read -r f; do
+  [ -e "$tmp/$f" ] || { mkdir -p "$tmp/$(dirname "$f")" && cp "$out/$f" "$tmp/$f"; }
+done
+find "$tmp" -type f ! -name .plain | while IFS= read -r f; do
   case $f in *.gz) zcat "$f" > "$tmp/.plain" && found "$tmp/.plain" ;; *) found "$f" ;; esac && { echo "credential found in ${f#$tmp/}" >&2; exit 1; }
   rm -f "$tmp/.plain"
 done

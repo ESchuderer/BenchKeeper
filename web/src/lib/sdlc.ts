@@ -5,8 +5,9 @@ const C = 320;
 const R = 220;
 const { steps, phases, requirements } = facts.sdlc;
 
-// The ring layout places exactly 10 steps at 36 degrees each, with each phase a contiguous run of steps.
-if (steps.length !== 10) throw new Error(`facts.sdlc.steps must have 10 entries, found ${steps.length}`);
+// The ring places the steps evenly (6 steps: 60 degrees each), each phase a contiguous run of steps.
+if (steps.length < 4 || steps.length > 10) throw new Error(`facts.sdlc.steps must have 4 to 10 entries, found ${steps.length}`);
+const step = 360 / steps.length;
 for (const p of phases) {
   const idx = steps.map((s, k) => (s.phase === p.key ? k : -1)).filter((k) => k >= 0);
   if (!idx.length || idx[idx.length - 1] - idx[0] !== idx.length - 1) throw new Error(`phase ${p.key} must own a contiguous, non-empty run of steps`);
@@ -33,22 +34,22 @@ const humans = steps.map((s) => (s.human ? `${s.name} (${s.human})` : '')).filte
 const o: string[] = [
   '<svg class="ring" viewBox="-140 -90 920 750" role="group" aria-labelledby="ring-t ring-d">',
   '<title id="ring-t">BenchKeeper SDLC loop</title>',
-  `<desc id="ring-d">${esc(`Requirements from people and from Maintain findings enter at step 1. Ten steps in a clockwise loop, in four phases: ${phases.map((p) => `${p.name}: ${steps.filter((s) => s.phase === p.key).map((s) => s.name).join(', ')}`).join('. ')}. Human in the loop: ${humans}.`)}</desc>`,
+  `<desc id="ring-d">${esc(`Requirements from people and from Maintain findings enter at step 1. ${steps.length} steps in a clockwise loop, in four phases: ${phases.map((p) => `${p.name}: ${steps.filter((s) => s.phase === p.key).map((s) => s.name).join(', ')}`).join('. ')}. Human in the loop: ${humans}.`)}</desc>`,
   '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5 0 10z"/></marker></defs>',
   `<circle class="track" cx="${C}" cy="${C}" r="${R}"/>`,
 ];
 
 for (const p of phases) {
   const idx = steps.map((s, k) => (s.phase === p.key ? k : -1)).filter((k) => k >= 0);
-  const a0 = idx[0] * 36 - 13;
-  const a1 = idx[idx.length - 1] * 36 + 13;
-  const [x, y] = pt((a0 + a1) / 2, 160);
+  const a0 = idx[0] * step - step * 0.36;
+  const a1 = idx[idx.length - 1] * step + step * 0.36;
+  const [x, y] = pt((a0 + a1) / 2, 145);
   o.push(`<path class="phase ${p.key}" d="${arc(a0, a1)}"/>`);
   o.push(`<text class="ph-l ${p.key}" x="${f(x)}" y="${f(y + 4)}" text-anchor="middle">${p.name.toUpperCase()}</text>`);
 }
 steps.forEach((_, k) => {
-  const [x, y] = pt(k * 36 + 18);
-  o.push(`<path class="chev" d="M-3-5L3 0-3 5" transform="translate(${f(x)} ${f(y)}) rotate(${k * 36 + 18})"/>`);
+  const [x, y] = pt(k * step + step / 2);
+  o.push(`<path class="chev" d="M-3-5L3 0-3 5" transform="translate(${f(x)} ${f(y)}) rotate(${k * step + step / 2})"/>`);
 });
 
 // Requirements box fed by people (right) and Maintain findings (left); both link to step 1, which lists the sources.
@@ -64,7 +65,7 @@ o.push(`<circle class="you-dot" cx="${C - 62}" cy="${C}" r="10"/>`);
 o.push(`<text class="core-s" x="${C - 44}" y="${C + 5}">human in the loop</text>`);
 
 steps.forEach((s, k) => {
-  const deg = k * 36;
+  const deg = k * step;
   const [x, y] = pt(deg);
   const tip = esc(`${k + 1}. ${s.name}: ${s.tip}`);
   o.push(`<a class="step" href="#step-${k + 1}" data-tip="${tip}" aria-label="${tip}"><circle class="hit" cx="${f(x)}" cy="${f(y)}" r="40"/>`);

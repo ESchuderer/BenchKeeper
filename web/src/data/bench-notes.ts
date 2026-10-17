@@ -12,7 +12,7 @@ export const notes: Notes = {
       headline: 'No BenchKeeper layer arm met the win rule (median at least 3 above the best of V, AB and A, ahead in 2 of 3 rounds). Plain Claude Code (A) and OpenSpec alone (AB) tie on the median.',
       findings: [
         'Medians of 3 rounds: A and AB 85.7, AD 85.2, AE and V 82.9. Spread within an arm reaches about 7 points: medians within 3 points are not separable at k = 3.',
-        'AD (BenchKeeper layer v3 + Matt Pocock) took a median of 7.6 minutes, against 11.1 to 12.8 for V, AB and A, and passed all cross-step checks (changelog and version) in 2 of 3 rounds.',
+        'AD (BenchKeeper layer v3 + Matt Pocock) took a median of 8 minutes, against 11 to 13 for V, AB and A, and passed all cross-step checks (changelog and version) in 2 of 3 rounds.',
         'AE round 3 stopped after writing the OpenSpec proposal in step 2 and implemented nothing, so step 3 had no compare view to fix.',
         'Step 1 misses the same CI hardening checks in every arm: actions pinned to commit SHAs, explicit workflow permissions, a ref guard on the Pages deploy.',
       ],

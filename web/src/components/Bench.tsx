@@ -78,6 +78,8 @@ const SCORE_HELP: Record<Ranking['kind'], string> = {
   brownfield: 'step checks 45, review 35, test suite green after each step 10, cross-step checks 10 (method in the report).',
   review: 'blind rating by Claude Opus 5.5. Runtimes are ranked apart: their reviews use other criteria.',
 };
+// An id from a runtime name ("Claude Code" -> "rank-claude-code"): ids cannot contain spaces.
+const slug = (prefix: string, runtime: string | null) => `${prefix}-${(runtime ?? 'all').toLowerCase().replace(/\s+/g, '-')}`;
 const runHref = (base: string, run: string) => `${base}/bench/${run}/`;
 const shot = (base: string, t: Trial, f: string) => `${base}/bench/shots/${t.run}/round-${t.round}/${t.arm}/${f}`;
 // "step2-compare-308_win-300_win_mag.jpg" -> "step 2, compare 308 win 300 win mag"
@@ -266,8 +268,8 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
       </Stack>
 
       {ranking.groups.map((g) => (
-        <Box key={g.runtime ?? 'all'} component="section" aria-labelledby={`rank-${g.runtime ?? 'all'}`} mb="xl">
-          <Title order={2} fz="xl" id={`rank-${g.runtime ?? 'all'}`}>Ranking{g.runtime ? `, ${g.runtime}` : ''}</Title>
+        <Box key={g.runtime ?? 'all'} component="section" aria-labelledby={slug('rank', g.runtime)} mb="xl">
+          <Title order={2} fz="xl" id={slug('rank', g.runtime)}>Ranking{g.runtime ? `, ${g.runtime}` : ''}</Title>
           <Text size="sm" c="dimmed">{SCORE[ranking.kind]}: {SCORE_HELP[ranking.kind]}</Text>
           <Region label={`${r.brief}, ${r.model}${g.runtime ? `, ${g.runtime}` : ''}: ranked arms`} minWidth={640}>
             <Table.Thead>

@@ -6,8 +6,16 @@
 # Arm bundles: bench/skillsbench/arm-tar.sh <arm> ~/.cache/benchkeeper/skillsbench/arms.
 # Usage: bench/skillsbench/run-arm.sh <arm> [job name] [harbor run arguments, e.g. -i dialogue-parser]
 set -eu
-arm=$1 job=${2:-$1}; shift; [ $# -eq 0 ] || shift
+arm=$1 job=${2:-$1}
 here=$(dirname "$(realpath "$0")") c=$HOME/.cache/benchkeeper/skillsbench
+# Run as its own systemd user unit: containers started from a terminal app's scope (Orca, VS Code) lose their conmon when
+# that app restarts or reaps its processes, and the trial dies. Log: jobs/<job>.log, status: systemctl --user status bk-<job>.
+if [ -z "${BK_UNIT:-}" ]; then
+  mkdir -p "$c/jobs"
+  exec systemd-run --user --collect --quiet --unit "bk-$job" -p Nice=10 -p "StandardOutput=append:$c/jobs/$job.log" \
+    -p "StandardError=append:$c/jobs/$job.log" -E BK_UNIT=1 -E "BK_TOKEN_FILE=${BK_TOKEN_FILE:-}" -E PATH="$PATH" "$(realpath "$0")" "$@"
+fi
+shift; [ $# -eq 0 ] || shift
 export BK_ARM_TAR=$c/arms/$arm.tgz CLAUDE_FORCE_OAUTH=1
 [ -f "$BK_ARM_TAR" ] || { echo "missing $BK_ARM_TAR" >&2; exit 1; }
 CLAUDE_CODE_OAUTH_TOKEN=$(cat "${BK_TOKEN_FILE:-$HOME/.config/benchkeeper/oauth-token-team}"); export CLAUDE_CODE_OAUTH_TOKEN

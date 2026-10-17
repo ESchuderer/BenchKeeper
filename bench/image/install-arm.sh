@@ -10,6 +10,7 @@
 #   V Matt Pocock alone        W Matt Pocock + OpenSpec   X Matt Pocock + BK     Y Matt Pocock + BK + OpenSpec
 #   AD Matt Pocock + BK v3 (bench/arms/bk-v3: current rules and the following-dev-workflow skill for Matt Pocock's skills)
 #   AE Matt Pocock + BK v3 + OpenSpec (bench/arms/bk-v3-openspec: OpenSpec owns spec and plan, Matt Pocock's skills the execution)
+#   AF Matt Pocock + Ponytail
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -96,6 +97,7 @@ case $arm in
   V) fw=mp bk=no pt=no spec=none ;;            W) fw=mp bk=no pt=no spec=openspec ;;
   X) fw=mp bk=yes pt=yes spec=none ;;          Y) fw=mp bk=yes pt=yes spec=openspec ;;
   AD) fw=mp bk=v3 pt=yes spec=none ;;           AE) fw=mp bk=v3 pt=yes spec=openspec ;;
+  AF) fw=mp bk=no pt=yes spec=none ;;
   Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac

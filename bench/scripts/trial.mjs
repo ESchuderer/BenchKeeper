@@ -17,7 +17,7 @@ export const ARMS = {
   C: ['as', 1, 1, 'openspec'], D: ['sp', 1, 1, 'openspec'], E: ['ecc', 1, 1, 'openspec'],
   O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'], AB: [null, 0, 0, 'openspec'], AC: [null, 0, 0, 'speckit'],
   V: ['mp', 0, 0, null], W: ['mp', 0, 0, 'openspec'], X: ['mp', 1, 1, null], Y: ['mp', 1, 1, 'openspec'],
-  AD: ['mp', 1, 'v3', null], AE: ['mp', 1, 'v3', 'openspec'],
+  AD: ['mp', 1, 'v3', null], AE: ['mp', 1, 'v3', 'openspec'], AF: ['mp', 1, 0, null],
 };
 
 // What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.

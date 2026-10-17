@@ -282,15 +282,14 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
             </Table.Thead>
             <Table.Tbody>
               {g.rows.map((x) => {
-                const [t] = x.rounds;
                 return (
                   <Table.Tr key={x.arm}>
                     <Table.Td>{x.rank}</Table.Td><Table.Td><Anchor href={`#arm-${x.arm}`}>{x.arm}</Anchor></Table.Td><Table.Td>{plain(x.setup)}</Table.Td>
                     {!g.runtime && <Table.Td>{x.runtime}</Table.Td>}
                     <Table.Td fw={700}>{fmt(ranking.kind, x.score)}</Table.Td>
                     {many && <Table.Td>{x.rounds.map((y) => fmt(ranking.kind, ranking.kind === 'brownfield' ? y.brownfield : ranking.kind === 'final' ? y.final?.total ?? null : y.overall)).join(', ')}</Table.Td>}
-                    {r.featuresOf != null && <Table.Td>{of(t.features, r.featuresOf)}</Table.Td>}
-                    {r.robustnessOf != null && <Table.Td>{of(t.robustness, r.robustnessOf)}</Table.Td>}
+                    {r.featuresOf != null && <Table.Td>{x.rounds.map((y) => of(y.features, r.featuresOf)).join(', ')}</Table.Td>}
+                    {r.robustnessOf != null && <Table.Td>{x.rounds.map((y) => of(y.robustness, r.robustnessOf)).join(', ')}</Table.Td>}
                     {ranking.kind !== 'review' && <Table.Td>{x.rounds.map((y) => y.overall ?? 'n/a').join(', ')}</Table.Td>}
                     <Table.Td>{x.minutes}</Table.Td>
                   </Table.Tr>

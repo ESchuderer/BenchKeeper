@@ -41,7 +41,11 @@ for t in "$run"/round-*/*/; do
   done
   for f in "$t"/review.json "$t"/review-*.json; do [ ! -f "$f" ] || cp "$f" "$d/"; done
 done
-for f in $(find "$tmp" -type f); do
+# Files added to a published run later (final-score.json, the scorer's per-trial results) stay unless this copy replaces them.
+[ ! -d "$out" ] || (cd "$out" && find . -type f) | while IFS= read -r f; do
+  [ -e "$tmp/$f" ] || { mkdir -p "$tmp/$(dirname "$f")" && cp "$out/$f" "$tmp/$f"; }
+done
+find "$tmp" -type f ! -name .plain | while IFS= read -r f; do
   case $f in *.gz) zcat "$f" > "$tmp/.plain" && found "$tmp/.plain" ;; *) found "$f" ;; esac && { echo "credential found in ${f#$tmp/}" >&2; exit 1; }
   rm -f "$tmp/.plain"
 done

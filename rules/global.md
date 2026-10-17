@@ -1,12 +1,13 @@
 A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here wins.
 
 ## Workflow
-- Load the `following-dev-workflow` skill and follow it before any edit in a repository, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items. It sets the task tier and its steps (issue, branch, tests, review, pull request). Plain questions need neither.
+- In a repository that has the `following-dev-workflow` skill (installed per project by `/setting-up-projects`), load it and follow it before any edit, before creating or editing a GitHub issue, before pushing or opening a pull request, and before research with two or more independent items. It sets the task tier and its steps. Plain questions need neither.
+- Without it: work on a branch, and run the project's checks before reporting done.
 - Always, even without the skill: commit, push or merge on the default branch only when the user said so in this task. Never merge a pull request without the user's instruction.
 
 ## Ask, do not assume
 - Before starting a task, make sure you know what the user wants: goal, scope, expected result. Where the request leaves open something that would change the result, ask precise questions, all in one message (Claude Code: `AskUserQuestion`), and keep asking until it is settled. Do not guess. Do not ask what the code, the docs or a sensible default already answer.
-- Then restate the task in your own words, one to three lines with the tier line (`following-dev-workflow`), before the first edit, command or subagent. Plain questions need neither.
+- Then restate the task in your own words, one to three lines (with the tier line where the repository has `following-dev-workflow`), before the first edit, command or subagent. Plain questions need neither.
 - Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, and continue without waiting for confirmation.
 
 ## Brevity
@@ -45,5 +46,5 @@ A project instruction (`AGENTS.md`, `CLAUDE.md`) that conflicts with a rule here
 ## Context
 - Read only what the task needs.
 - Send noisy commands (full test suites, builds, long logs) to a subagent when available. Return only failures and key lines.
-- Before an unrelated request, suggest `/clear`. The client compacts by itself at its configured window (`/setting-up-machine` part 7).
+- Before an unrelated request, suggest `/clear`. The client compacts by itself at its configured window (`/setting-up-machine` part 4).
 - When compacting, keep the task tier, the issue, branch and pull request numbers, the modified files, and the checks still to run.

@@ -9,6 +9,6 @@
 
 ## Decision
 
-Not in: overlaps OpenSpec `tasks.md`.
+Not in: overlaps the ticket files of Matt Pocock's skills (`/to-tickets`).
 
 [All evaluations](../../EVALUATIONS.md)

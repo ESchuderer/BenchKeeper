@@ -77,7 +77,11 @@ Update or restore missing skills by reinstalling each selected skill from its re
 
 Ask whether this repository gets the BenchKeeper workflow. Recommend yes for code repositories. It is installed here, per project and committed, so teammates, CI and other machines get the same setup. The global setup installs none of it, so nothing loads twice.
 
-- `following-dev-workflow` from the BenchKeeper release tag of the installed setup (`git -C $B tag -l 'setup-v*' --sort=-v:refname | head -1`, where `$B` is the BenchKeeper clone that `setting-up-machine` uses), so `skills-lock.json` records a source teammates can restore: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/ESchuderer/BenchKeeper/tree/<tag>/skills/following-dev-workflow <agent-flags> --copy -y`.
+- `following-dev-workflow` from the BenchKeeper release tag of the installed setup, so `skills-lock.json` records a source teammates can restore (`$B` is the BenchKeeper clone that `setting-up-machine` uses):
+  ```sh
+  t=$(git -C $B tag -l 'setup-v*' --sort=-v:refname | head -1) u=https://github.com/ESchuderer/BenchKeeper
+  DO_NOT_TRACK=1 npx -y skills@1.7.2 add "$u/tree/$t/skills/following-dev-workflow" <agent-flags> --copy -y
+  ```
 - Matt Pocock's skills v1.3.1 and Ponytail v5.2.0. Claude Code: merge into `.claude/settings.json` (create it when missing, keep other keys):
   ```sh
   f=.claude/settings.json; mkdir -p .claude; test -f "$f" || printf '{}\n' > "$f"

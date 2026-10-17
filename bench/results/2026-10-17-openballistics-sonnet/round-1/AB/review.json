@@ -1,0 +1,45 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "1a1be5611e2e80242a506a005f783449e57455958fcaed9e0a27bb168e3e3e33",
+  "cost_usd_api_equivalent": 1.0634146000000002,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 5,
+      "s2_requirements": 5,
+      "s2_correctness": 5,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 5,
+      "cross_step": 5
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs `npm ci`, `npm test`, `npm run build` in site/; all exist in site/package.json (test, build with svelte-check). The trigger is `pull_request` plus workflow_call, with no pull_request_target. Top-level permissions are `contents: read`. Pages `deploy` gets only `pages: write`/`id-token: write`, and release gets `contents: write` at job level. The only token is GITHUB_TOKEN (`github.token`), and `persist-credentials: false` is set. The PR title goes in through env, not interpolated into the script. Pages triggers on `push: branches: [main]` but also has `workflow_dispatch` (pages.yml:194), which can be dispatched from any ref. The big gap: every action is referenced by tag (`actions/checkout@v4`, `setup-node@v4`, `upload-pages-artifact@v3`, `deploy-pages@v4`), not by commit SHA. RELEASING.md:878-880 even says SHA pinning is 'stricter' and leaves it undone. Step 1 changed only new files and README.md, as its constraints required.",
+      "s1_readme": "README.md covers install (Node 22 via .node-version, `npm ci`), develop (`npm run dev` plus a table of the other scripts), test (`npm test`, `npx vitest run src/lib/units.test.ts`, `../lib/targets`), build (`npm run build`, `PAGES_BASE`, which vite.config.ts:11 reads), data contribution (layout, sources, links to CONTRIBUTING and the issue templates data.yml/bullet.yml/site-feedback.yml, all present in app/.github/ISSUE_TEMPLATE) and license (MIT, LICENSE and THIRD-PARTY.md exist). Every script shown exists in site/package.json, and units.test.ts exists; vitest's include covers ../lib.",
+      "s1_release": "There is one strategy, stated in README, RELEASING.md and CHANGELOG.md. The version lives in site/package.json (0.1.0) and its lockfile, under SemVer with a 0.y.z rule and a database-specific bump table. A release is a `v*` tag push; release.yml checks the tag is on main, and release-notes.mjs checks that tag, package.json, lockfile and CHANGELOG agree, then publishes notes from the changelog section. The changelog states Keep a Changelog 1.1.0 and explains how it is kept. Dependabot covers npm (/site) and github-actions, weekly and grouped, with conventional prefixes. Conventional Commits are stated in CONTRIBUTING.md with a types table and enforced by pr-title.yml. All 7 commits in commits.txt follow it (`ci:`, `ci(release):`, `build(deps):`, `docs:`, `feat(site):`, `fix(site):`).",
+      "s2_requirements": "Route: router.ts parses `#/compare/<a>/<b>` with encoded keys, and `href.compare` builds it. It is a hash route, so it survives a reload. App.svelte lazy-loads Compare.svelte. The SVG comes from renderProfileOverlaySvg: role=img, aria-label `Profiles of {a} and {b}` from record names, one `<path>` per outline from caseOuterProfile, one viewport and scale, and the head faces at z=0 on one axis. The table's `<caption>` reads `Dimensions (mm|in)`. Headers are Symbol / name A / name B / Difference, and symbols come from FIELD_LABELS. dimensionsOf keeps only numbers in `cartridge` with no FIELD_UNITS entry and no Tol fields. Difference is B−A. Units follow unitSystem(): formatValue for metric, displayNumber(…,'in') for imperial. Cartridge.svelte adds a Label `Compare with`, a NativeSelect of the other entries by name, and a `Compare` button that sets href.compare(key, chosen). German strings are added for every key. Tests are added and the work is committed.",
+      "s2_correctness": "In metric, values are String(value) via formatValue. The difference is b−a cleaned with toPrecision(12), the same precision displayNumber uses, so 66.55−51 gives 15.55 and not float noise. In imperial, values and differences go through displayNumber. The tests check L3 51.18/66.55/15.37 and the inch values. The overlay test checks lengths of L3×scale, the same head x, a common centre line and rim diameters 12.01/13.51. Shotshells and records too sparse to draw return null and show a message, so nothing crashes. Repeating groups and angle objects are skipped, and a symbol that appears in two groups is kept once. Router edge cases (missing or extra segments, malformed escapes) fall back to the list.",
+      "s2_fit": "It reuses lib/geom/svg (viewportFor, fullSectionPath, fmt, num, stroke constants), shapes2d (adaptMetallic, caseOuterProfile), core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, toleranceFor, formatValue), site units (defaultUnit, displayNumber), and the shadcn Label/NativeSelect components. The only change to existing lib code is exporting escapeXml. New modules follow the repo's layout (lib/core/compare.ts, lib/render2d/compare.ts, site/src/lib/compare.ts, routes/Compare.svelte), and the styling follows the `[data-ui]` `@layer legacy` pattern. Minor: the same `record(key)` file-lookup helper is copied into three test files, and a misindented line was added to the print CSS block in Cartridge.svelte:751.",
+      "s2_tests": "lib/core/compare.test.ts tests dimension filtering against real 300_win_mag data (units, angles, Tol excluded) plus synthetic edge cases. lib/render2d/compare.test.ts tests role/label/one path per outline, escaping, scale, head alignment and fit in the viewBox. site/src/lib/compare.test.ts tests metric and imperial values and differences, float noise, a zero difference and shotshell null. router.test.ts adds round-trip and malformed-hash cases. All are vitest, colocated as the repo does it. There is no test of the Cartridge page's select and button or the Compare.svelte markup (caption and headers), and the repo has no component-test setup.",
+      "s3_fixes": "Bug: sharedDimensions became comparedDimensions, which returns the union with `a`/`b` as `number|null`, placing B-only fields after their predecessor in B's order. compareRows leaves the missing side and the Difference empty (''). The tests check `delta L` (a 0.1, b '') and `R3` (a '', b '13.51') on real 308/300 WM data in both unit systems and with the sides swapped. The noShared string was renamed to noDimensions in EN and DE, a consequential change. Style: Compare.svelte from step 2 already sets `[data-ui=Compare] th, td { text-align: right }` with `td:first-child, th:first-child { text-align:left }`, mirroring GroupTable.svelte:231-245, and no later CSS layer overrides it. The numeric columns and their headers were therefore already right-aligned, and no change was needed. Nothing unrelated was touched.",
+      "cross_step": "The stated strategy (CONTRIBUTING.md 'Do not edit CHANGELOG.md or the version number; maintainers do that when they make a release') is followed: steps 2 and 3 leave CHANGELOG.md and the version alone. The commits `feat(site): add a view that compares two cartridges` and `fix(site): list dimensions only one cartridge publishes in the comparison` follow Conventional Commits and pass the pr-title regex. The code uses existing APIs (t with vars, $props.id, NativeSelect id via restProps), and the tests are consistent with the data, so `npm test`/`npm run build` should pass. Nothing was run."
+    },
+    "unmet_requirements": [
+      "Step 1 (criterion): GitHub Actions are pinned to major-version tags (@v4/@v3), not full commit SHAs"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Compare feature reuses lib/geom/svg, shapes2d, core field metadata and site unit helpers, with a clean split between a unit-free lib/core/compare and a site-side formatting layer",
+      "A thorough and internally consistent release setup: one version source, a tag-triggered release with version/changelog consistency checks, Keep a Changelog, Dependabot and an enforced Conventional Commits PR title",
+      "Meaningful tests against real records for values, differences, units, overlay geometry and router edge cases; the step 3 union fix comes with targeted tests for delta L and R3"
+    ],
+    "issues": [
+      "Workflow actions are pinned to tags, not commit SHAs, and RELEASING.md explicitly defers this",
+      "pages.yml allows workflow_dispatch, so a deploy can be dispatched from a non-main ref; only the github-pages environment rules would stop it",
+      "Minor duplication and style: the same record-lookup helper is copied into three test files, a misindented print-CSS line was added in Cartridge.svelte, and there is no test of the detail page's Compare-with control"
+    ],
+    "verdict": "The compare view meets every step 2 requirement, reuses the repository's libraries properly and is well tested. Step 3's bug is fixed correctly, and its alignment point was already met by the step 2 CSS. Step 1's setup is strong and consistent, but its workflows use tag-pinned actions instead of SHAs, and Pages can be dispatched manually from any ref; both need tightening before merge."
+  }
+}

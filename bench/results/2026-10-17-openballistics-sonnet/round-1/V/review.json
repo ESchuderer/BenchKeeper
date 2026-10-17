@@ -1,0 +1,46 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "1a1be5611e2e80242a506a005f783449e57455958fcaed9e0a27bb168e3e3e33",
+  "cost_usd_api_equivalent": 1.0101228000000002,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 4,
+      "s2_requirements": 5,
+      "s2_correctness": 4,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 4,
+      "cross_step": 5
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs `npm ci`, `npm test`, `npm run build` in site/ (scripts exist in site/package.json:13-16) on `pull_request` and push to main, with `permissions: contents: read` and a clean-tree check whose generated outputs are covered by site/.gitignore. pages.yml triggers on push to main plus workflow_dispatch. Only the deploy job gets `pages: write`/`id-token: write`. release.yml has `contents: write`, which `gh release create` needs, and uses only `github.token`. There is no pull_request_target. But every action is pinned to a moving tag rather than a full commit SHA: `actions/checkout@v4`, `actions/setup-node@v4`, `actions/configure-pages@v5`, `actions/upload-pages-artifact@v3`, `actions/deploy-pages@v4` (step1.patch lines 91, 93, 155, 157, 165, 181, 197, 228, 259). Also, workflow_dispatch lets someone pick a non-main ref, so the workflow itself does not limit deploys to main.",
+      "s1_readme": "README (step1.patch 461-552) covers clone and `npm ci`, `npm run dev`, `npm test`, a single-file `npx vitest run src/lib/router.test.ts` (the file exists), svelte-check, `npm run build`/`preview`, PAGES_BASE (read in site/vite.config.ts:11), prepare-data/index/fieldsets/sample-bullets (all in package.json), data contribution with a link to CONTRIBUTING, and the MIT license with THIRD-PARTY.md. The linked files (LICENSE, THIRD-PARTY.md, data/bullets/README.md, .github/ISSUE_TEMPLATE) exist.",
+      "s1_release": "There is one consistent strategy. The version lives in site/package.json (0.1.0). Releases follow SemVer with a bump table, a `chore(release): vX.Y.Z` commit and an annotated tag. release.yml checks the tag against package.json, that the tag is on main and that the changelog section is non-empty, then publishes that section and a data tarball. CHANGELOG.md states Keep a Changelog 1.1.0. Dependabot is weekly for npm and actions. Conventional Commits are stated in CONTRIBUTING/README, and all 7 commits follow them. Inconsistencies: dependabot.yml uses `chore(deps)` for npm bumps although CONTRIBUTING defines `build` as the type for dependencies. CONTRIBUTING says tooling and docs need no changelog entry, yet step 1 adds Added entries for CI, workflows and the README.",
+      "s2_requirements": "Every requirement is met:\n- Route: router.ts parses `compare/<a>/<b>` from the hash, so it survives a reload, and `href.compare` builds it.\n- Drawing: one `<path>` per outline from caseOuterProfile, in one viewport (same scale, axis, head at z=0). The SVG has `role=\"img\"` and `aria-label` 'Profiles of {a} and {b}'. Shotshells are excluded in outlineOf.\n- Table: `<caption>` 'Dimensions ({unit})', headers Symbol/name A/name B/Difference, FIELD_LABELS symbols, B−A, tolerances and FIELD_UNITS fields excluded, chamber ignored.\n- Units: metric via formatValue, imperial via displayNumber.\n- Reaching it: CompareWith.svelte has a Label 'Compare with' tied to a NativeSelect of the other entries by name and a 'Compare' submit button that sets the hash.\n- German strings are added for every key.\n- Tests are added and the work is committed.",
+      "s2_correctness": "dimensionsOf (compare.ts:330-348) reads only `record.cartridge`, skips non-numbers (angle objects), `*Tol` and FIELD_UNITS keys, and keeps the first of duplicate symbols in GROUP_ORDER/orderedFields order. formatDifference takes b−a on the millimetres. Imperial converts through displayNumber. Metric cleans float noise with toPrecision(12), which is documented and matches displayNumber's precision. overlay uses viewportFor over both profiles and fullSectionPath, so the head faces share xy(0,0). One edge case is off: when only one outline can be drawn, the SVG is still labelled 'Profiles of A and B' while drawing a single path (Compare.svelte:648-663).",
+      "s2_fit": "It reuses @lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, formatValue), @lib/shapes2d (adaptMetallic, caseOuterProfile), @lib/geom (viewportFor, fullSectionPath), site units.ts/units.svelte.ts, the shadcn Label/NativeSelect/Button, PageLoadError, and the lazy-chunk pattern in App.svelte. metadata.ts and SiteNavigation are updated the same way as the other routes. Logic sits in a framework-free lib/compare.ts. Minor: an unused i18n key `compare.failed` in both languages; the table CSS copies GroupTable's rules instead of sharing them; the router header comment still says 'Five views' and now overruns its line wrap.",
+      "s2_tests": "compare.test.ts (168 lines) uses the repo's Vitest setup and the lib/testing/fixtures CARTRIDGES path to load the real 308 Win./300 Win. Mag. records. It tests symbol extraction, the FIELD_UNITS/Tol exclusion, ordering, the shotshell repeating group, shared rows, metric/imperial formatting, B−A, outlineOf equal to caseOuterProfile, and overlay head/axis/scale/fit. router.test.ts adds parse/href round-trips and malformed URLs. Not covered: accessible names, headers, the German strings and the Compare with select (the repo has no component tests). The overlay scale assertion uses only 2-digit precision.",
+      "s3_fixes": "Point 1: compareRows (step3.patch 108-123) now merges both symbol lists, placing symbols only the second record has after their predecessor. DimensionRow a/b became optional, and Compare.svelte leaves the cell and Difference empty when a value is missing. Tests check that `delta L` (b undefined) and `R3` (a undefined) appear, and the lede and 'none' strings and the changelog were updated to match. Point 2: added a `figure` class on the three headers and cells with `text-align: right`. However, the step 2 CSS already set `th, td { text-align: right }` with `:first-child` left (step2.patch 760-765), so the new rule duplicates it. The agent neither found a cause for the reported left alignment nor said it was already right-aligned. The result does meet the request.",
+      "cross_step": "Step 2 adds a CHANGELOG Unreleased/Added entry, and step 3 amends it, which is right because the feature is unreleased. Under the stated strategy the version is bumped only at release time, so leaving 0.1.0 is consistent. Commits `feat(site): compare two cartridges` and `fix(site): list every dimension either cartridge publishes in compare` follow the convention. The code type-checks on inspection (optional a/b guarded before formatLength/formatDifference), and the tests target the real data (deltaL in 308_win.json:57, R3 in 300_win_mag.json:29), so CI should pass."
+    },
+    "unmet_requirements": [
+      "Step 1 (rating criterion): GitHub Actions are pinned to version tags (@v3/@v4/@v5), not full commit SHAs",
+      "Step 1: pages.yml also has workflow_dispatch, so a deploy can be started from a ref other than main"
+    ],
+    "overall": 8,
+    "strengths": [
+      "The compare logic sits in a framework-free, well-tested site/src/lib/compare.ts that reuses lib/core field tables, shapes2d caseOuterProfile and geom viewportFor/fullSectionPath instead of re-deriving them",
+      "Step 1 gives a complete, self-consistent setup: real CI checks with least permissions, a tag-guarded release workflow that checks version, branch and changelog, Keep a Changelog, Dependabot, and a README whose every command exists",
+      "Steps 2 and 3 follow the stated conventions: Conventional Commit messages, Unreleased changelog entries, German strings, and step 3 tests that pin the reviewer's delta L / R3 example"
+    ],
+    "issues": [
+      "Workflow actions are pinned to moving tags (actions/checkout@v4, deploy-pages@v4, etc.), not full commit SHAs, which matters for a repo that takes outside PRs",
+      "Step 3's alignment fix duplicates CSS that already right-aligned those cells in step 2 (Compare.svelte th/td text-align:right), without finding a cause or saying so",
+      "Small inconsistencies: Dependabot uses `chore(deps)` although CONTRIBUTING assigns dependencies to `build`; the `compare.failed` i18n key is unused; the SVG keeps the two-name label when only one outline can be drawn"
+    ],
+    "verdict": "This is careful, well-structured work: the compare view meets every step 2 requirement, reuses the shared libraries, has meaningful tests, and the step 3 bug fix is correct and tested. Before merging, the actions should be pinned to SHAs, and the release-related details and the redundant alignment change need tidying."
+  }
+}

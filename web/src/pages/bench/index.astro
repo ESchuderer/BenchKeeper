@@ -8,7 +8,8 @@ import { loadTrials, summarizeRuns, topByBrief } from '../../../scripts/bench-da
 // The build runs in web/ (npm run build), next to bench/.
 const results = join(process.cwd(), '..', 'bench', 'results');
 // Runs kept off the site (owner, 2026-10-16: no Haiku). Their data and Markdown report stay in bench/results.
-const offSite = new Set(['2026-10-15-winery-react-haiku', '2026-10-16-cartridges-haiku']);
+// The openballistics run has no hidden tests or final score for the tables: it is listed under the other reports.
+const offSite = new Set(['2026-10-15-winery-react-haiku', '2026-10-16-cartridges-haiku', '2026-10-17-openballistics-sonnet']);
 const trials = loadTrials(results).filter((t) => !offSite.has(t.run));
 const runs = summarizeRuns(trials, readdirSync(results).filter((f) => f.endsWith('.md')));
 const tops = topByBrief(trials);
@@ -39,6 +40,7 @@ const notes: Notes = {
     },
   },
   reports: [
+    { file: '2026-10-17-openballistics.md', title: 'Openballistics: three changes to an existing site', summary: 'Five Claude Code arms on Sonnet 5.5, three rounds: CI and release setup, a new view, two bug fixes, each in its own session. No BenchKeeper layer arm met the win rule. Plain Claude Code and OpenSpec alone tie on the median (85.7 of 100).' },
     { file: '2026-10-16-skills-inventory.md', title: 'Skills inventory and usage', summary: 'The skills each framework adds, their size in tokens, and which of them the agents called in the 58 winery-react trials.' },
     { file: '2026-10-16-skill-authoring.md', title: 'Skill authoring check', summary: "The benchmarked skill collections checked against Anthropic's skill authoring guide: a static check and one review per collection, ranked." },
   ],

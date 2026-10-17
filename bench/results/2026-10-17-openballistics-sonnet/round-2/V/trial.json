@@ -1,0 +1,299 @@
+{
+  "arm": "V",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 685,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "mattpocock-skills"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 99027,
+    "result_events": 3,
+    "turns": 77,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 2.206735,
+    "usage": {
+      "input": 154,
+      "cache_creation": 229665,
+      "cache_read": 5398370,
+      "output": 74793,
+      "thinking": 28341
+    }
+  },
+  "workflow": {
+    "tool_calls": 83,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [],
+    "tiers": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash npm run build 2>&1 | tail -2 && cd /work && git add site/src/routes/Compare.svel"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "a6d1d4e1139bb268"
+  },
+  "lines": {
+    "source": 10947,
+    "test": 2512,
+    "files": 119
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": false,
+    "test_script": false,
+    "lint_or_typecheck": false,
+    "ci": true,
+    "node_version": true,
+    "changelog": true,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-actionlint",
+          "ok": true
+        },
+        {
+          "id": "S1-ci-checks",
+          "ok": true
+        },
+        {
+          "id": "S1-npm-scripts",
+          "ok": true
+        },
+        {
+          "id": "S1-sha-pins",
+          "ok": false
+        },
+        {
+          "id": "S1-permissions",
+          "ok": false
+        },
+        {
+          "id": "S1-no-prt",
+          "ok": true
+        },
+        {
+          "id": "S1-secrets",
+          "ok": false
+        },
+        {
+          "id": "S1-pages-trigger",
+          "ok": false
+        },
+        {
+          "id": "S1-release",
+          "ok": true
+        },
+        {
+          "id": "S1-changelog",
+          "ok": true
+        },
+        {
+          "id": "S1-dependency-updates",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-sections",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-commands",
+          "ok": true
+        },
+        {
+          "id": "S1-commits",
+          "ok": true
+        }
+      ],
+      "passed": 10,
+      "total": 14,
+      "suite_ok": true,
+      "minutes": 4.1,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.7079967,
+      "tokens": {
+        "input": 50,
+        "cache_creation": 68244,
+        "cache_read": 1380507,
+        "output": 29687,
+        "thinking": 13528
+      },
+      "usage": null
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-build",
+          "ok": true
+        },
+        {
+          "id": "S2-route",
+          "ok": true
+        },
+        {
+          "id": "S2-delta",
+          "ok": true
+        },
+        {
+          "id": "S2-overlay",
+          "ok": true
+        },
+        {
+          "id": "S2-units",
+          "ok": true
+        },
+        {
+          "id": "S2-link",
+          "ok": true
+        },
+        {
+          "id": "S2-reuse",
+          "ok": true
+        },
+        {
+          "id": "X2-ci",
+          "ok": true
+        },
+        {
+          "id": "X2-changelog",
+          "ok": false
+        },
+        {
+          "id": "X2-version",
+          "ok": true
+        }
+      ],
+      "passed": 9,
+      "total": 10,
+      "suite_ok": true,
+      "minutes": 5.3,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 1.2064665,
+      "tokens": {
+        "input": 72,
+        "cache_creation": 126230,
+        "cache_read": 3466625,
+        "output": 35474,
+        "thinking": 11678
+      },
+      "usage": null
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-bug",
+          "ok": true
+        },
+        {
+          "id": "S3-style",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "X3-ci",
+          "ok": true
+        },
+        {
+          "id": "X3-changelog",
+          "ok": false
+        },
+        {
+          "id": "X3-version",
+          "ok": true
+        }
+      ],
+      "passed": 5,
+      "total": 6,
+      "suite_ok": true,
+      "minutes": 1.7,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.2922718,
+      "tokens": {
+        "input": 32,
+        "cache_creation": 35191,
+        "cache_read": 551238,
+        "output": 9632,
+        "thinking": 3135
+      },
+      "usage": null
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.17",
+    "hidden_tests": "a6d1d4e1139bb268",
+    "bk": "v1"
+  },
+  "phases": {
+    "phases": {
+      "explore": {
+        "calls": 6,
+        "minutes": 0.2,
+        "usd": 0.123
+      },
+      "verify": {
+        "calls": 29,
+        "minutes": 4.9,
+        "usd": 0.897
+      },
+      "build": {
+        "calls": 41,
+        "minutes": 5.8,
+        "usd": 1.147
+      },
+      "test": {
+        "calls": 1,
+        "minutes": 0.1,
+        "usd": 0.04
+      }
+    },
+    "subagents": {},
+    "method": "estimate"
+  }
+}

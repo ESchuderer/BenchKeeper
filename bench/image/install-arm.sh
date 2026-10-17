@@ -11,7 +11,7 @@
 #   AD Matt Pocock + BK v3 (bench/arms/bk-v3: current rules and the following-dev-workflow skill for Matt Pocock's skills)
 #   AE Matt Pocock + BK v3 + OpenSpec (bench/arms/bk-v3-openspec: OpenSpec owns spec and plan, Matt Pocock's skills the execution)
 #   AF Matt Pocock + Ponytail
-#   AG Matt Pocock + BK v4 (bench/arms/bk-v4: the rules and skills of setup-v3.0, the recommended setup)
+#   AG Matt Pocock + BK v4 (bench/arms/bk-v4: the rules and skills of setup-v3.1, the recommended setup)
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -127,7 +127,7 @@ if [ "$bk" != no ]; then
   if [ "$bk" = v3 ] || [ "$bk" = v4 ]; then
     cp "/opt/bench/bk-$bk/global.md" "$HOME/.claude/rules/00-global.md"
     d=bk-$bk; [ "$spec" = openspec ] && d=bk-v3-openspec
-    # v4 installs the workflow skill per project (setting-up-projects of setup-v3.0), below with the project template
+    # v4 installs the workflow skill per project (setting-up-projects of setup-v3.1), below with the project template
     [ "$bk" = v4 ] || cp -r "/opt/bench/$d/skills/following-dev-workflow" "$HOME/.claude/skills/"
     # the user-invoked BenchKeeper skills the rules and the workflow skill name, as /setting-up-machine links them on the host
     cp -r "/opt/bench/bk-$bk/skills/setting-up-machine" "/opt/bench/bk-$bk/skills/setting-up-projects" "/opt/bench/bk-$bk/skills/maintaining-repos" "$HOME/.claude/skills/"
@@ -161,5 +161,5 @@ case $spec in
     uv tool install -q specify-cli --from git+https://github.com/github/spec-kit.git@v1.2.0
     mkdir -p "$t" && (cd "$t" && specify init --here --integration claude --script sh --force --non-interactive --ignore-agent-tools >/dev/null) ;;
 esac
-# v4: the "## Agent skills" block goes into AGENTS.md (setting-up-projects of setup-v3.0), CLAUDE.md stays @AGENTS.md
+# v4: the "## Agent skills" block goes into AGENTS.md (setting-up-projects of setup-v3.1), CLAUDE.md stays @AGENTS.md
 if [ "$fw" = mp ]; then mkdir -p "$t" && if [ "$bk" = v4 ]; then mp_setup AGENTS.md force; else mp_setup; fi; fi

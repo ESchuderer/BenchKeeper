@@ -132,8 +132,8 @@
         "name": "Understand",
         "phase": "define",
         "sub": "request, AGENTS.md, code",
-        "tip": "Reads the request, AGENTS.md and the code it touches. No edits yet.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches before any edit."
+        "tip": "Reads the request, AGENTS.md and the code it touches. Standard and full tiers explore in plan mode. No edits yet.",
+        "text": "Read the request, `AGENTS.md` and the code the change touches before any edit. Standard and full tiers explore in plan mode first."
       },
       {
         "name": "Track",
@@ -147,8 +147,8 @@
         "name": "Branch",
         "phase": "define",
         "sub": "type/issue-slug",
-        "tip": "Creates <type>/<issue>-<slug> from the default branch.",
-        "text": "`<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue. No work on the default branch unless you say so."
+        "tip": "Every tier: creates <type>/<issue>-<slug> from the default branch.",
+        "text": "Every tier: `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue. No work on the default branch unless you say so."
       },
       {
         "name": "Specify",
@@ -161,8 +161,9 @@
         "name": "Plan",
         "phase": "build",
         "sub": "spec, tickets",
-        "tip": "Full tier, work for several sessions: /to-spec and /to-tickets, which you run.",
-        "text": "Full tier: work for one session is built in the same context. Work for several sessions: the agent suggests `/to-spec`, then `/to-tickets`, and waits for you to run them."
+        "tip": "Standard: a plan of a few lines that names the test seams. Full tier, work for several sessions: /to-spec and /to-tickets, which you run.",
+        "text": "Standard tier: a plan of a few lines in the reply that names the test seams. Full tier: work for one session is built in the same context. Work for several sessions: the agent suggests `/to-spec`, then `/to-tickets`, and waits for you to run them.",
+        "human": "you run /to-spec, /to-tickets"
       },
       {
         "name": "Build",
@@ -175,24 +176,24 @@
         "name": "Verify",
         "phase": "build",
         "sub": "build, lint, tests, browser",
-        "tip": "Runs build, types, lint and tests in the devcontainer and checks UI changes in a browser.",
-        "text": "Build, types, lint and tests inside the devcontainer. UI changes in a browser through Playwright MCP."
+        "tip": "Every tier: build, types, lint and tests in the devcontainer, each reported with its command and result. UI changes also in a browser.",
+        "text": "Every tier: build, types, lint and tests inside the devcontainer, each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them."
       },
       {
         "name": "Review",
         "phase": "ship",
-        "sub": "code review before push",
+        "sub": "reviews before push",
         "human": "findings stop push",
-        "tip": "Standard and full tiers: code-review of the commits before push, with security for risky changes. Findings wait for you.",
-        "text": "Standard and full tiers: `code-review` of the commits before `git push`, with security for risky changes. Findings stop the push until you decide."
+        "tip": "Standard and full tiers: mattpocock-skills:code-review checks standards and spec, /code-review checks correctness before push. Risky changes: /security-review in any tier. Findings wait for you.",
+        "text": "Standard and full tiers: `mattpocock-skills:code-review` against the default branch with the issue as the spec (standards and spec), then `/code-review` of the commits before `git push` (correctness). Risky changes get `/security-review` before push in any tier. Findings outside the task stop the push until you decide."
       },
       {
         "name": "Ship",
         "phase": "ship",
         "sub": "draft PR, checks, ready",
         "human": "you merge",
-        "tip": "Opens a draft pull request with a body from pr, waits for checks, marks it ready. You merge.",
-        "text": "Draft pull request, body from `pr`, with `Closes #n` when an issue exists and the key decisions. Wait for checks, mark ready. Merge only on your instruction. Unfinished work: state and next step on the issue or pull request, `/handoff` for the next session."
+        "tip": "Every tier: opens a draft pull request with a body from pr, waits for checks, marks it ready. You merge.",
+        "text": "Every tier: draft pull request, body from `pr`, with `Closes #n` when an issue exists and the key decisions. Wait for checks, mark ready. Merge only on your instruction. Unfinished work: state and next step on the issue or pull request, `/handoff` for the next session."
       },
       {
         "name": "Maintain",

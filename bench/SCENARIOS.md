@@ -32,8 +32,9 @@ Comparison matrix of the arms in `bench/PROTOCOL.md`. Every arm gets the same br
 | AE | Matt Pocock's skills | yes | v3 | OpenSpec | as AD, OpenSpec owns spec and plan, Matt Pocock's execution skills |
 | AF | Matt Pocock's skills | yes | no | none | Matt Pocock's skills with Ponytail, no BenchKeeper layer |
 | AG | Matt Pocock's skills | yes | v4 | none | the recommended setup of setup-v3.1: its rules, `following-dev-workflow` and setup skills (`bench/arms/bk-v4/`) |
+| AH | Matt Pocock's skills | yes | v5 | none | setup-v3.3: Matt Pocock's own install and setup, with the BenchKeeper rules, `following-dev-workflow` and Ponytail on top (`bench/arms/bk-v5/`) |
 
-BenchKeeper layer: rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC, Matt Pocock's skills: `bench/arms/superpowers.rules.md`, `ecc.rules.md`, `mattpocock.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves. Layer v3 (AD, AE): the rules and `following-dev-workflow` of setup-v2.9 (`bench/arms/bk-v3*`) instead of the pinned rules, candidate rules and old setup skills. Layer v4 (AG): the rules, `following-dev-workflow` and setup skills of setup-v3.1 (`bench/arms/bk-v4/`).
+BenchKeeper layer: rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC, Matt Pocock's skills: `bench/arms/superpowers.rules.md`, `ecc.rules.md`, `mattpocock.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves. Layer v3 (AD, AE): the rules and `following-dev-workflow` of setup-v2.9 (`bench/arms/bk-v3*`) instead of the pinned rules, candidate rules and old setup skills. Layer v4 (AG): the rules, `following-dev-workflow` and setup skills of setup-v3.1 (`bench/arms/bk-v4/`). Layer v5 (AH): the same of setup-v3.3 (`bench/arms/bk-v5/`).
 
 ## OpenCode arms (OpenCode 1.19.0, Anthropic API key)
 

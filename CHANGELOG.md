@@ -2,6 +2,16 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v3.3 (2026-10-17)
+
+Matt Pocock's skills installed the way he documents it ([installation](https://github.com/mattpocock/skills#installation-30-second-setup)), with the BenchKeeper additions on top. His skills have no tiers, change-type checks, issue, branch or pull request rules, security review or Ponytail, so `following-dev-workflow` and Ponytail stay.
+
+- `setting-up-machine` part 2: his Claude Code plugin from the official marketplace (`mattpocock-skills@claude-plugins-official`), user level, updated when the official marketplace entry moves (it pins a commit of his repository), no BenchKeeper pin. Parts renumbered (Playwright MCP 3 to Orca 8). The earlier `mattpocock` marketplace installs are extras to remove.
+- `setting-up-projects` step 5: Codex gets his skills with his installer (`npx skills add mattpocock/skills`). The repository setup is his `/mattpocock-skills:setup-matt-pocock-skills`, run by the user, instead of a description of it. Its `## Agent skills` block goes where his setup puts it (`CLAUDE.md` next to `@AGENTS.md`), or into `AGENTS.md` when Codex is selected. Projects from setup-v3.0 to v3.2 lose their pinned plugin entries, so his skills load once. Ponytail and `following-dev-workflow` stay per project.
+- `following-dev-workflow`: a missing `docs/agents/` points to his setup skill.
+- Bench: arm AH (layer v5) measures this setup.
+- Upgrade: `/setting-up-machine` (installs his plugin, removes the pinned project copies' marketplace), then `/setting-up-projects` in each repository with the workflow.
+
 ## setup-v3.2 (2026-10-17)
 
 Fitted to Matt Pocock's own flow and conventions ([mattpocock/skills](https://github.com/mattpocock/skills) v1.3.1, `ask-matt`, `.agents/invocation.md`, `docs/engineering/setup-matt-pocock-skills.md`; [aihero.dev/skills](https://www.aihero.dev/skills)). The pin stays at v1.3.1, his latest release.

@@ -15,7 +15,7 @@ const ARMS = {
   L: { fw: 'F', bk: true }, M: { fw: 'G', bk: true }, N: { fw: 'H', bk: true }, X: { fw: 'V', bk: true },
   C: { fw: 'F', bk: true, spec: 'OpenSpec' }, D: { fw: 'G', bk: true, spec: 'OpenSpec' },
   E: { fw: 'H', bk: true, spec: 'OpenSpec' }, Y: { fw: 'V', bk: true, spec: 'OpenSpec' },
-  AD: { fw: 'V', bk: true, label: 'BK v3 + Matt Pocock' }, AE: { fw: 'V', bk: true, spec: 'OpenSpec', label: 'BK v3 + Matt Pocock + OpenSpec' }, AF: { fw: 'V', ponytail: true }, AG: { fw: 'V', bk: true, label: 'BK v4 + Matt Pocock' },
+  AD: { fw: 'V', bk: true, label: 'BK v3 + Matt Pocock' }, AE: { fw: 'V', bk: true, spec: 'OpenSpec', label: 'BK v3 + Matt Pocock + OpenSpec' }, AF: { fw: 'V', ponytail: true }, AG: { fw: 'V', bk: true, label: 'BK v4 + Matt Pocock' }, AH: { fw: 'V', bk: true, label: 'BK v5 + Matt Pocock' },
   Q: { framework: 'targeted agent-skills', spec: 'OpenSpec' }, R: { fw: 'G' }, S: { fw: 'G', spec: 'OpenSpec', label: 'OpenSpec + Superpowers (oso)' },
   T: { fw: 'F' }, U: { fw: 'F', spec: 'OpenSpec' }, Z: { fw: 'V' }, AA: { fw: 'V', spec: 'OpenSpec' },
 };

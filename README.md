@@ -3,7 +3,7 @@
 # BenchKeeper
 
 <!-- generated:description -->
-BenchKeeper sets up Claude Code and Codex with one rules file and four skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The setup skills install and check rules, skills and tools, per machine and per repository: CLIs, MCP servers and workflow plugins at pinned versions. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.
+BenchKeeper sets up Claude Code and Codex with one rules file and four skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The setup skills install and check rules, skills and tools, per machine and per repository: CLIs, MCP servers and CLIs and MCP servers at pinned versions, Matt Pocock's skills and Ponytail from their marketplaces. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.
 <!-- /generated:description -->
 
 <!-- generated:core -->

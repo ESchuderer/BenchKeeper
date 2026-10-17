@@ -1,5 +1,6 @@
-// Benchmark trials for the /bench/ page, read at build time from bench/results/<run>/round-<n>/<arm>/
-// (trial.json, review.json, drawing-review.json), the run's manifest.txt and final-score.json (bench/scripts/final-score.mjs).
+// Benchmark trials for the /bench/ pages, read at build time from bench/results/<run>/round-<n>/<arm>/
+// (trial.json, review.json, drawing-review.json, screenshots/), the run's manifest.txt, final-score.json (bench/scripts/final-score.mjs)
+// and brownfield-score.json (bench/scripts/brownfield-score.mjs).
 // Cost fields are never read (owner decision).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -27,6 +28,9 @@ export function arm(id) {
   return { framework, spec: a.spec || 'none', bk: Boolean(a.bk), ponytail: Boolean(a.ponytail || a.bk), setup: a.label || parts.join(' + ') || 'plain' };
 }
 
+// Runs kept off the site (owner, 2026-10-16: no Haiku). Their data and Markdown report stay in bench/results.
+export const OFF_SITE = new Set(['2026-10-15-winery-react-haiku', '2026-10-16-cartridges-haiku']);
+
 const json = (f) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null);
 // Drawing review per app (drawing-review.json, one verdict per drawing). Reviewers differed on the shoulder angle drawn as
 // a leader label instead of an angle dimension: a drawing faulted only for that counts as correct in correctAlphaApart.
@@ -49,6 +53,7 @@ export function loadTrials(results) {
     const meta = Object.fromEntries(head.split(' ').map((kv) => kv.split('=')));
     // final-score.mjs scores round 1 only.
     const finals = new Map((json(join(results, run, 'final-score.json'))?.trials ?? []).map((f) => [f.arm, { total: f.total, categories: f.categories }]));
+    const brownfield = new Map((json(join(results, run, 'brownfield-score.json'))?.trials ?? []).map((b) => [`${b.round}/${b.arm}`, b.total]));
     if (!meta.brief || !meta.model) throw new Error(`${run}/manifest.txt: first line needs brief= and model=`);
     for (const round of readdirSync(join(results, run)).filter((d) => /^round-\d+$/.test(d)).sort()) {
       for (const id of readdirSync(join(results, run, round)).sort()) {
@@ -56,14 +61,18 @@ export function loadTrials(results) {
         const t = json(join(dir, 'trial.json'));
         if (!t) continue;
         const r = json(join(dir, 'review.json'))?.review;
+        const shots = join(dir, 'screenshots');
         trials.push({
-          key: `${run}/${round}/${id}`, run, brief: meta.brief, model: MODELS[meta.model] || meta.model, effort: meta.effort, k: meta.k,
+          key: `${run}/${round}/${id}`, run, round: Number(round.slice(6)), brief: meta.brief, model: MODELS[meta.model] || meta.model, effort: meta.effort, k: meta.k,
           runtime: t.runtime === 'opencode' ? 'OpenCode' : 'Claude Code', arm: id, setup: arm(id).setup,
           features: t.score?.features_passed ?? null, robustness: t.score?.robustness_passed ?? null,
           featuresOf: Object.keys(t.score?.features || {}).length || null, robustnessOf: Object.keys(t.score?.robustness || {}).length || null,
           minutes: Math.round((t.wall_seconds ?? 0) / 60), overall: r?.overall ?? null,
           protocol: t.method?.protocol ?? null, criteria: Object.keys(r?.scores || {}).length || null,
           final: (round === 'round-1' && finals.get(id)) || null, mutation: t.score?.mutation?.score ?? null, drawings: drawingReview(json(join(dir, 'drawing-review.json'))),
+          brownfield: brownfield.get(`${round}/${id}`) ?? null,
+          notes: r ? { verdict: r.verdict ?? null, strengths: r.strengths ?? [], issues: r.issues ?? [] } : null,
+          screenshots: existsSync(shots) ? readdirSync(shots).filter((f) => /\.(jpe?g|png)$/i.test(f)).sort() : [],
         });
       }
     }
@@ -105,4 +114,30 @@ export function topByBrief(trials) {
     const baselines = ranked.filter((t) => t.arm === 'A' && t.runtime === 'Claude Code' && !top.includes(t)).map((t) => ({ ...t, place: ranked.indexOf(t) + 1 }));
     return { brief, of: ranked.length, top, baselines };
   });
+}
+
+const median = (v) => {
+  const s = v.filter((x) => x != null).sort((a, b) => a - b), m = s.length >> 1;
+  return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : null;
+};
+
+// The trials of one run, one row per arm with its rounds, ranked by the run's score: the final score where the run has one
+// (round 1 only), else the brownfield score, else the review overall. An arm's score is the median over its rounds;
+// equal scores share a rank and are ordered by fewer minutes. Review ratings of different runtimes use other criteria:
+// with the review as score, each runtime is ranked apart (groups); otherwise one group with runtime null.
+export function rankArms(trials) {
+  const kind = trials.some((t) => t.final) ? 'final' : trials.some((t) => t.brownfield != null) ? 'brownfield' : 'review';
+  const value = (t) => (kind === 'final' ? t.final?.total ?? null : kind === 'brownfield' ? t.brownfield : t.overall);
+  const rank = (ts) => {
+    const rows = [...new Set(ts.map((t) => t.arm))].map((id) => {
+      const rounds = ts.filter((t) => t.arm === id).sort((a, b) => a.round - b.round);
+      return { arm: id, setup: rounds[0].setup, runtime: rounds[0].runtime, score: median(rounds.map(value)), minutes: median(rounds.map((t) => t.minutes)), rounds };
+    }).sort((a, b) => desc(a.score, b.score) || a.minutes - b.minutes);
+    rows.forEach((r, i) => { r.rank = i && rows[i - 1].score === r.score ? rows[i - 1].rank : i + 1; });
+    return rows;
+  };
+  const groups = kind === 'review'
+    ? [...new Set(trials.map((t) => t.runtime))].sort().map((runtime) => ({ runtime, rows: rank(trials.filter((t) => t.runtime === runtime)) }))
+    : [{ runtime: null, rows: rank(trials) }];
+  return { kind, groups };
 }

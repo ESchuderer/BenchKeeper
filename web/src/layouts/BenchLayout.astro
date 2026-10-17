@@ -1,5 +1,5 @@
 ---
-// Page frame of the benchmark summary page: styles, head, color scheme and theme toggle.
+// Page frame of the benchmark pages: styles, head, color scheme and theme toggle.
 import '@mantine/core/styles/baseline.css';
 import '@mantine/core/styles/default-css-variables.css';
 import '@mantine/core/styles/global.css';
@@ -38,6 +38,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   </script>
   <style is:global>
     .list { margin: 4px 0 0; padding-left: 1.2em; }
+    .card { border: 1px solid var(--mantine-color-default-border); border-radius: var(--mantine-radius-md); padding: 16px; }
+    .notes { margin-top: 6px; font-size: var(--mantine-font-size-sm); }
+    .notes summary { cursor: pointer; font-weight: 600; }
+    .gallery { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+    .gallery img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: top; border: 1px solid var(--mantine-color-default-border); border-radius: 6px; background: var(--mantine-color-body); }
   </style>
 </head>
 <body>

@@ -1,6 +1,7 @@
-import { ActionIcon, Anchor, Box, Button, Container, Group, MantineProvider, Stack, Table, Text, Title, createTheme } from '@mantine/core';
-import { IconArrowLeft, IconArrowRight, IconBrandGithub, IconMoon, IconSun } from '@tabler/icons-react';
+import { Anchor, Box, Button, Container, Group, MantineProvider, Stack, Table, Text, Title, createTheme } from '@mantine/core';
+import { IconArrowLeft, IconArrowRight } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
+import SiteHeader from './SiteHeader';
 
 const theme = createTheme({
   primaryColor: 'teal',
@@ -17,25 +18,7 @@ export function BenchShell({ base, children }: { base: string; children: ReactNo
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
       <a className="skip" href="#main">Skip to content</a>
-      <Box component="header" className="header">
-        <Container size="xl" h={60}>
-          <Group h="100%" justify="space-between" wrap="nowrap">
-            <Anchor href={`${base}/`} underline="never" c="var(--mantine-color-text)">
-              <Group gap={10} wrap="nowrap">
-                <img src={`${base}/logo.svg`} alt="" width={28} height={28} className="logo" />
-                <Text fw={800} size="lg">BenchKeeper</Text>
-              </Group>
-            </Anchor>
-            <Group gap="xs" wrap="nowrap">
-              <Button component="a" href={REPO} variant="default" size="xs" leftSection={<IconBrandGithub size={16} />} visibleFrom="sm">GitHub</Button>
-              <ActionIcon data-theme-toggle variant="default" size={30} aria-label="Toggle light and dark theme">
-                <IconMoon size={16} className="icon-moon" />
-                <IconSun size={16} className="icon-sun" />
-              </ActionIcon>
-            </Group>
-          </Group>
-        </Container>
-      </Box>
+      <SiteHeader base={base} size="xl" />
 
       <main id="main" tabIndex={-1}>
         <Container size="xl" py={{ base: 40, md: 64 }}>{children}</Container>

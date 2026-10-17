@@ -111,9 +111,11 @@ const checks: [ReactNode, string, ReactNode][] = [
 
 const quickstart: [string, string, string][] = [
   ['Clone BenchKeeper and open it in your agent', 'git clone https://github.com/ESchuderer/BenchKeeper.git && cd BenchKeeper && claude', 'Codex: run codex instead of claude.'],
-  ['Set up the machine', '/setting-up-machine', 'Codex: $setting-up-machine. Pick your agents, review the plan, approve.'],
-  ['Restart the agents', '', 'New sessions load the global rules and setup skills.'],
-  ['Set up each repository', '/setting-up-projects', 'Codex: $setting-up-projects. Run it in the repository root, then commit the result.'],
+  ['Machine setup', '/setting-up-machine', 'Codex: $setting-up-machine. Pick your agents, review the plan, approve. Installs the rules, Matt Pocock\'s skills, Ponytail and the workflow and setup skills.'],
+  ['Restart the agents', '', 'New sessions load the global rules and skills.'],
+  ['Project setup, in each repository root', '/setting-up-projects', 'Codex: $setting-up-projects. Devcontainer, AGENTS.md, stack skills, default tier. It asks for the next step partway through.'],
+  ['Matt Pocock setup, when project setup asks for it', '/mattpocock-skills:setup-matt-pocock-skills', 'Codex: $setup-matt-pocock-skills. Issue tracker, triage labels, domain docs in docs/agents/. Then project setup finishes. Commit the result.'],
+  ['Update later', 'git -C BenchKeeper pull', 'Then /setting-up-machine again. Matt Pocock\'s skills and Ponytail update through their marketplaces.'],
 ];
 
 const listTop = { root: { paddingInlineStart: 0 }, itemWrapper: { alignItems: 'flex-start' }, itemIcon: { marginTop: 1 } };

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
 import { claudePhases, opencodePhases, shellWriteTarget } from './phases.mjs';
 
-// Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3': rules and the
+// Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3' and 'v4': rules and the
 // following-dev-workflow skill), spec tool.
 export const ARMS = {
   A: [null, 0, 0, null], B: [null, 1, 0, null],
@@ -17,7 +17,7 @@ export const ARMS = {
   C: ['as', 1, 1, 'openspec'], D: ['sp', 1, 1, 'openspec'], E: ['ecc', 1, 1, 'openspec'],
   O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'], AB: [null, 0, 0, 'openspec'], AC: [null, 0, 0, 'speckit'],
   V: ['mp', 0, 0, null], W: ['mp', 0, 0, 'openspec'], X: ['mp', 1, 1, null], Y: ['mp', 1, 1, 'openspec'],
-  AD: ['mp', 1, 'v3', null], AE: ['mp', 1, 'v3', 'openspec'],
+  AD: ['mp', 1, 'v3', null], AE: ['mp', 1, 'v3', 'openspec'], AF: ['mp', 1, 0, null], AG: ['mp', 1, 'v4', null],
 };
 
 // What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
@@ -28,7 +28,7 @@ function expect(fw, pt, bk, spec) {
   if (fw === 'ecc') e.skills.push('tdd-workflow'), e.agents.push('planner', 'code-reviewer');
   if (fw === 'mp') e.plugins.push('mattpocock-skills'), e.skills.push('mattpocock-skills:tdd');
   if (pt) e.plugins.push('ponytail'), e.skills.push('ponytail:ponytail'), e.hooks.push('PONYTAIL MODE ACTIVE');
-  if (bk) e.skills.push('find-skills', bk === 'v3' ? 'following-dev-workflow' : 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
+  if (bk) e.skills.push('find-skills', (bk === 'v3' || bk === 'v4') ? 'following-dev-workflow' : 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
   if (spec === 'openspec') e.skills.push('openspec-propose');
   if (spec === 'speckit') e.skills.push('speckit-specify');
   return e;

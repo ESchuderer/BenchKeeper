@@ -30,8 +30,8 @@ Components considered for BenchKeeper, the evidence for each, and whether each i
 
 | Component | Decision | Summary |
 |---|---|---|
-| [agent-skills](evaluations/skill-libraries/agent-skills.md) | In, unmeasured | no task-level study. About 2.8k tokens of descriptions, no hooks (0.6.13) |
-| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | Not in | own brownfield run, k = 3 (a signal): median 82.9 alone, 85.2 with the BenchKeeper layer, plain Claude Code 85.7. Overlaps agent-skills |
+| [agent-skills](evaluations/skill-libraries/agent-skills.md) | Out (setup-v3.0) | replaced by Matt Pocock's skills. Own cartridges run: 7th of 29 alone, Matt Pocock's skills 3rd |
+| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | In (setup-v3.0) | signals: best Claude Code app on cartridges (rank 3 of 29), brownfield scores within noise, with the BenchKeeper layer the fastest arm that finished every step |
 | [andrej-karpathy-skills](evaluations/skill-libraries/andrej-karpathy-skills.md) | Not in | accuracy 60/60 in every arm. Cost +11.5% (skill-receipts), +6.6% (skillbench) |
 | [Anthropic document skills](evaluations/skill-libraries/anthropic-document-skills.md) | Not global, per project | DocOps: Claude Code Sonnet 4.6 0.519 with skills vs 0.552 without |
 | [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation. `setting-up-projects` vets single skills |
@@ -41,10 +41,10 @@ Components considered for BenchKeeper, the evidence for each, and whether each i
 | Component | Decision | Summary |
 |---|---|---|
 | [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (arms G, J, M, D, k=1) | cost higher in every test but one 6-task run (1.33x on v6.4.2). Pass rate n.s. (p about 0.235) |
-| [OpenSpec](evaluations/workflow-frameworks/openspec.md) | In, unmeasured | own brownfield run, k = 3 (a signal): median 85.7, tied with plain Claude Code. Owns spec files per change |
-| [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no agent-skills baseline. Overlaps agent-skills |
+| [OpenSpec](evaluations/workflow-frameworks/openspec.md) | Out (setup-v3.0) | specs and tickets live in the issue tracker of Matt Pocock's skills. Brownfield: tied with plain Claude Code, one stop after the proposal with the layer |
+| [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no baseline with a skill collection. Overlaps Matt Pocock's skills |
 | [GSD](evaluations/workflow-frameworks/gsd.md) | Not in | one task: about 1.2M tokens vs 200K vanilla, outputs indistinguishable |
-| [planning-with-files](evaluations/workflow-frameworks/planning-with-files.md) | Not in | vendor only. Every arm passed 77/77. Overlaps OpenSpec `tasks.md` |
+| [planning-with-files](evaluations/workflow-frameworks/planning-with-files.md) | Not in | vendor only. Every arm passed 77/77. Overlaps the ticket files of Matt Pocock's skills |
 
 ### Harness bundles
 

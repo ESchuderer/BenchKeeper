@@ -12,7 +12,9 @@ test('each arm passes its own delivery audit and fails every other arm\'s', () =
   for (const real of ARMS) {
     for (const claimed of ARMS) {
       const r = audit(fixture(real), claimed);
-      assert.equal(r.ok, real === claimed, `${real} audited as ${claimed}: ${r.problems.join('; ')}`);
+      // AD and AG differ only in the layer version (v3, v4), which the init event does not show: run-brief.sh records it in <trial>/bk.
+      const twins = [real, claimed].sort().join() === 'AD,AG';
+      assert.equal(r.ok, real === claimed || twins, `${real} audited as ${claimed}: ${r.problems.join('; ')}`);
     }
   }
 });

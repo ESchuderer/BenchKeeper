@@ -1,5 +1,5 @@
 #!/bin/sh
-# Skill authoring check (#58): extracts the skills installed in the pinned arm images and runs bench/scripts/skill-lint.mjs
+# Skill authoring check: extracts the skills installed in the pinned arm images and runs bench/scripts/skill-lint.mjs
 # on each collection, BenchKeeper's own from skills/. Arm A (plain Claude Code) has no skills, so each arm's skills are its
 # framework's. Usage: bench/scripts/skill-lint.sh <out-dir>   writes <out-dir>/skill-lint.json and skill-lint.md
 set -eu

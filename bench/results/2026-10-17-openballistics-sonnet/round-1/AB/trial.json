@@ -1,0 +1,297 @@
+{
+  "arm": "AB",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 734,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": []
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 113770,
+    "result_events": 3,
+    "turns": 87,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 2.5779788,
+    "usage": {
+      "input": 174,
+      "cache_creation": 267312,
+      "cache_read": 6657228,
+      "output": 84266,
+      "thinking": 30277
+    }
+  },
+  "workflow": {
+    "tool_calls": 91,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [],
+    "tiers": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash npm run build 2>&1 | grep -i \"error\\|warn\\|svelte-check found\" ; git status --sh"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "a6d1d4e1139bb268"
+  },
+  "lines": {
+    "source": 11008,
+    "test": 2570,
+    "files": 124
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": false,
+    "test_script": false,
+    "lint_or_typecheck": false,
+    "ci": true,
+    "node_version": true,
+    "changelog": true,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-actionlint",
+          "ok": true
+        },
+        {
+          "id": "S1-ci-checks",
+          "ok": true
+        },
+        {
+          "id": "S1-npm-scripts",
+          "ok": true
+        },
+        {
+          "id": "S1-sha-pins",
+          "ok": false
+        },
+        {
+          "id": "S1-permissions",
+          "ok": true
+        },
+        {
+          "id": "S1-no-prt",
+          "ok": true
+        },
+        {
+          "id": "S1-secrets",
+          "ok": true
+        },
+        {
+          "id": "S1-pages-trigger",
+          "ok": false
+        },
+        {
+          "id": "S1-release",
+          "ok": true
+        },
+        {
+          "id": "S1-changelog",
+          "ok": true
+        },
+        {
+          "id": "S1-dependency-updates",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-sections",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-commands",
+          "ok": true
+        },
+        {
+          "id": "S1-commits",
+          "ok": true
+        }
+      ],
+      "passed": 12,
+      "total": 14,
+      "suite_ok": true,
+      "minutes": 5,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.8765619,
+      "tokens": {
+        "input": 66,
+        "cache_creation": 77976,
+        "cache_read": 2052359,
+        "output": 35929,
+        "thinking": 12724
+      },
+      "usage": null
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-build",
+          "ok": true
+        },
+        {
+          "id": "S2-route",
+          "ok": true
+        },
+        {
+          "id": "S2-delta",
+          "ok": true
+        },
+        {
+          "id": "S2-overlay",
+          "ok": true
+        },
+        {
+          "id": "S2-units",
+          "ok": true
+        },
+        {
+          "id": "S2-link",
+          "ok": true
+        },
+        {
+          "id": "S2-reuse",
+          "ok": false
+        },
+        {
+          "id": "X2-ci",
+          "ok": true
+        },
+        {
+          "id": "X2-changelog",
+          "ok": false
+        },
+        {
+          "id": "X2-version",
+          "ok": false
+        }
+      ],
+      "passed": 7,
+      "total": 10,
+      "suite_ok": true,
+      "minutes": 4.9,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 1.339146,
+      "tokens": {
+        "input": 72,
+        "cache_creation": 145490,
+        "cache_read": 3884120,
+        "output": 36863,
+        "thinking": 14351
+      },
+      "usage": null
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-bug",
+          "ok": true
+        },
+        {
+          "id": "S3-style",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "X3-ci",
+          "ok": true
+        },
+        {
+          "id": "X3-changelog",
+          "ok": false
+        },
+        {
+          "id": "X3-version",
+          "ok": false
+        }
+      ],
+      "passed": 4,
+      "total": 6,
+      "suite_ok": true,
+      "minutes": 1.9,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.3622709,
+      "tokens": {
+        "input": 36,
+        "cache_creation": 43846,
+        "cache_read": 720749,
+        "output": 11474,
+        "thinking": 3202
+      },
+      "usage": null
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.17",
+    "hidden_tests": "a6d1d4e1139bb268",
+    "bk": "v1"
+  },
+  "phases": {
+    "phases": {
+      "explore": {
+        "calls": 2,
+        "minutes": 0.1,
+        "usd": 0.03
+      },
+      "build": {
+        "calls": 80,
+        "minutes": 10.6,
+        "usd": 2.364
+      },
+      "verify": {
+        "calls": 3,
+        "minutes": 0.6,
+        "usd": 0.073
+      },
+      "test": {
+        "calls": 2,
+        "minutes": 0.6,
+        "usd": 0.112
+      }
+    },
+    "subagents": {},
+    "method": "estimate"
+  }
+}

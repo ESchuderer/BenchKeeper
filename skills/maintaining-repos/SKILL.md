@@ -15,4 +15,4 @@ Read only until the findings are approved. Run each part the repository supports
 - Instruction files (Claude Code): `/doctor prompt-audit` for outdated, conflicting or missing references in `CLAUDE.md`, `AGENTS.md` and rules; `/skill-doctor` for unused skills and their context cost.
 - Repository hygiene: unarchived OpenSpec changes, merged branches and worktrees, stopped containers.
 
-Present the findings as one list; create issues only for those the user approves. Delete code, tests or docs only after confirmation; remove a test only together with the code it covers (`deprecation-and-migration`).
+Present the findings as one list. Create issues only for those the user approves. Delete code, tests or docs only after confirmation. Remove a test only together with the code it covers (`deprecation-and-migration`).

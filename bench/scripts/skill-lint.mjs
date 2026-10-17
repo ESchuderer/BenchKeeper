@@ -1,5 +1,5 @@
-// Static checks of skill collections against Anthropic's skill authoring guide (#58,
-// https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices).
+// Static checks of skill collections against Anthropic's skill authoring guide
+// (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices).
 // Usage: node bench/scripts/skill-lint.mjs [--md] <collection>=<dir> ...   prints JSON, or a Markdown summary with --md.
 // Each SKILL.md under <dir> is one skill (copies for other agents under `.openclaw/`, `.opencode/`, `.codex/`, and
 // `node_modules/` are skipped).

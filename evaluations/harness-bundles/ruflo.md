@@ -8,7 +8,7 @@
 
 ## Independent evidence
 
-- None found; no method published, README and CHANGELOG word the claim differently.
+- None found. No method published, README and CHANGELOG word the claim differently.
 
 ## Decision
 

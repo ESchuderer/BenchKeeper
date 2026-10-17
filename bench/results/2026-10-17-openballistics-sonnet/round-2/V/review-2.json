@@ -1,0 +1,48 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "1a1be5611e2e80242a506a005f783449e57455958fcaed9e0a27bb168e3e3e33",
+  "cost_usd_api_equivalent": 1.1649463999999998,
+  "review": {
+    "scores": {
+      "s1_ci": 2,
+      "s1_readme": 5,
+      "s1_release": 4,
+      "s2_requirements": 4,
+      "s2_correctness": 4,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 4,
+      "cross_step": 4
+    },
+    "evidence": {
+      "s1_ci": "Good: ci.yml runs `npm ci`, `npm test` and `npm run build` in site/ on `pull_request`; all three scripts exist in site/package.json. It has workflow-level `permissions: contents: read` and `persist-credentials: false`, and uses no pull_request_target. pr-title.yml passes the attacker-controlled title through env. The Pages deploy job alone gets `pages: write`/`id-token: write`. Problems: every action uses a tag, not a SHA (`actions/checkout@v7`, `setup-node@v7`, `configure-pages@v6`, `upload-pages-artifact@v5`, `deploy-pages@v5`, `googleapis/release-please-action@v5`; step1.patch ci.yml:126,130, pages.yml:184-229, release.yml:300). release.yml:303 uses `secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN`, a secret beyond GITHUB_TOKEN. pages.yml:165 adds `workflow_dispatch` with no branch guard, so the workflow file itself does not limit deploys to main. Nothing was run or published.",
+      "s1_readme": "README.md (step1.patch 512-603) covers Install (`cd site && npm ci`, Node 22 via .node-version), Develop (`npm run dev`, `npm run prepare-data`), Test (`npm test`, `npx vitest run targets`), Build (`npm run build`, `npm run preview`, PAGES_BASE, which vite.config.ts:11 reads), Contribute data (record paths, sources, issue forms) and License (MIT, THIRD-PARTY.md). Every command exists in site/package.json scripts or is vitest itself. CONTRIBUTING adds `npm run sample-bullets`, which also exists.",
+      "s1_release": "One coherent strategy. The version lives in version.txt and .release-please-manifest.json, and release-please copies it into site/package.json and package-lock via extra-files (release-please-config.json). Releases come from a release-please PR on main that tags vX.Y.Z and attaches a data archive. The CHANGELOG format is stated in CHANGELOG.md and CONTRIBUTING. Dependabot covers npm in /site and GitHub Actions, with `build`/`ci` commit prefixes that match the convention. The convention (Conventional Commits, type table, check-title.sh) is in CONTRIBUTING and README. All 9 commits in commits.txt follow it. Minor: the seed `## 0.1.0` entry does not use the stated `## [X.Y.Z](link) (date)` heading.",
+      "s2_requirements": "Met: the route `#/compare/<a>/<b>` parses from the hash (router.ts:500-511). The SVG has role=img, aria-label `Profiles of {a} and {b}` and two `<path>` outlines (Compare.svelte:653-664). The caption is `Dimensions ({unit})`. Headers are Symbol / name A / name B / Difference. Symbols come from FIELD_LABELS; FIELD_UNITS fields and *Tol are excluded (compare.ts dimensionsOf). Imperial uses displayNumber. The detail page has a `Compare with` select and a `Compare` button that set the hash (Cartridge.svelte). German strings were added. Tests were added and the work was committed. Partly met: metric differences go through `displayNumber(other - value, 'mm')`, which rounds to 12 significant digits (compare.ts:305), not through formatValue with no rounding as 'written the same way' asks. For example e min is shown as -0.46 where formatValue gives -0.45999999999999996.",
+      "s2_correctness": "Values match the records (308 Win. L3 51.18 vs 300 Win. Mag. 66.55; e min 1.4/0.94). The difference is B minus A. Imperial values go through displayNumber with no extra rounding, and the imperial difference is converted from the mm difference. The overlay uses one viewportFor over both profiles with frame 'upright' and one scale, so both head faces (z=0) map to the same y (axis.y2), and each outline is fullSectionPath of caseOuterProfile. Shot records and unbuildable records give an explained fallback. Unknown keys show an error. Malformed URLs fall back to the list. Only deviation: the metric difference is rounded to 12 significant digits.",
+      "s2_fit": "Reuses caseOuterProfile/adaptMetallic (lib/shapes2d), viewportFor/fullSectionPath (lib/geom), FIELD_LABELS/FIELD_UNITS/GROUP_ORDER/orderedFields/toleranceFor/formatValue (lib/core), displayNumber/defaultUnit/unitSystem, and the existing PageHeader, PageLoadError, NativeSelect, Label and ShadcnButton. It follows the lazy route chunk pattern in App.svelte, the `@layer legacy` data-ui styling and the i18n en/de keys. Touches stay small: router, metadata, nav and Cartridge. Minor: the router doc comment still says 'Five views' and the edited line runs past the file's width.",
+      "s2_tests": "compare.test.ts runs against real records: symbol labels, exclusion of FIELD_UNITS fields and tolerances, ordering and no duplicates, exact metric and imperial strings, difference sign, and overlay invariants (one axis, head faces level, same scale ratio vs L3, order symmetry, shot/unpublished reasons, more than 90% of metallic pairs drawable). router.test.ts covers parse/href round-trips and malformed URLs. Vitest is the repository's setup. Not tested: the rendered SVG accessible name, the table headers and the detail-page select/button. The repository has no component-test tooling, so that gap is partly structural.",
+      "s3_fixes": "Bug: compareDimensions now lists the union of both cartridges' symbols, with empty a/b/difference cells where missing. B-only symbols are placed after their predecessor in B (step3.patch 112-131). Tests check delta L (308 only) and R3 (300 WM only). Style: added `:is(th, td):not(:first-child) { text-align: right }` in the legacy layer, which right-aligns headers and figures and leaves Symbol on the left. The markup already had Tailwind `text-right` utilities, which sit in a higher layer, so the new rule is redundant. The related text changes ('compare.lede', 'compare.noCommon', en and de) follow from the new behaviour and are not regressions.",
+      "cross_step": "Steps 2 and 3 do not hand-edit CHANGELOG.md or the version. That matches the stated strategy: release-please generates both, and the files are not to be edited by hand. Commits follow the convention: `feat(site)` and `fix(site)` would bump minor and patch. `style(site)` was used for a visible alignment change, but CONTRIBUTING says `style` is for changes that 'alter neither behaviour nor data', so `fix` fits better and the change is left out of the changelog. A site/dist build is present, and the new code only uses existing scripts and types, so the CI checks would plausibly pass."
+    },
+    "unmet_requirements": [
+      "Step 1: the workflow actions are pinned to tags (@v5/@v6/@v7), not full commit SHAs",
+      "Step 1: release.yml uses the extra secret RELEASE_PLEASE_TOKEN beyond GITHUB_TOKEN",
+      "Step 1: the Pages workflow also runs on workflow_dispatch from any branch; the workflow file does not limit deploys to main or tags",
+      "Step 2 (partly met): metric differences are rounded to 12 significant digits via displayNumber, not written with formatValue (no rounding) like the values"
+    ],
+    "overall": 6,
+    "strengths": [
+      "The compare feature reuses the repository's modules: caseOuterProfile, viewportFor and fullSectionPath for the overlay, and FIELD_LABELS, FIELD_UNITS, orderedFields and formatValue for the table, with en/de i18n and the existing UI components",
+      "Release setup is coherent and well documented: release-please with version.txt and a manifest, a stated CHANGELOG format, Dependabot prefixes that match Conventional Commits, and a PR-title check script; all commits follow the convention",
+      "The step 3 bug fix is careful: union of symbols with sensible ordering, empty cells, and tests on the exact 308 Win./300 Win. Mag. case named in the review"
+    ],
+    "issues": [
+      "None of the GitHub Actions is pinned to a full commit SHA; all use mutable tags",
+      "release.yml relies on an extra secret, RELEASE_PLEASE_TOKEN, and pages.yml allows workflow_dispatch deploys without a branch guard",
+      "Metric differences are rounded through displayNumber, not written with formatValue as the step asked; the step 3 alignment rule duplicates text-right utilities that were already in the markup"
+    ],
+    "verdict": "The compare view and the step 3 fixes are correct, well tested and fit the codebase; the release, README and commit conventions are solid and consistently followed. The CI setup misses explicit requirements (no SHA pinning, an extra secret, an unguarded manual Pages deploy), and the metric difference is rounded against the spec, so it needs a revision before merging."
+  }
+}

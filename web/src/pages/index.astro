@@ -87,9 +87,9 @@ try {
             copyTimer = setTimeout(function () { document.querySelectorAll('[data-copy].copied').forEach(function (c) { c.classList.remove('copied'); }); status.textContent = ''; }, 1500);
           }
           // Clipboard needs a secure context (https or localhost).
-          if (!navigator.clipboard) return done('Copy is not available here; select the command instead');
+          if (!navigator.clipboard) return done('Copy is not available. Select the command instead.');
           navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function () { document.querySelectorAll('[data-copy].copied').forEach(function (c) { c.classList.remove('copied'); }); b.classList.add('copied'); done('Copied'); },
-            function () { done('Copy failed; select the command instead'); });
+            function () { done('Copy failed. Select the command instead.'); });
         });
       });
       // SDLC loop: tooltip follows the cursor on hover devices; a tap or click on a step jumps to its description.

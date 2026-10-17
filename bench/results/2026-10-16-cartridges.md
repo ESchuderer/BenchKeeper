@@ -2,11 +2,16 @@
 
 Brief: a static reference database of 25 C.I.P. cartridges with search, a detail view, a computed 2D drawing and a one-page print view. 29 Sonnet 5.5 apps (22 Claude Code, 7 OpenCode), one trial per arm, runs 2026-10-15 to 2026-10-16: descriptive only, no significance tests. Haiku 5.5 trials are listed at the end as records: Haiku and OpenCode are dropped from future runs (PROTOCOL 1.15).
 
+- Arm: one tested setup (runtime, skills, rules, spec tool), named by letters (`bench/SCENARIOS.md`).
+- BK: the BenchKeeper layer, v1 in these runs (the SDLC in the rules file, Ponytail, the project template, no workflow skill).
+- Final score: 0 to 100 from six weighted categories (section "Final score").
+
 ## Winners
 
 - Best overall: Q (OpenCode, OpenSpec + targeted skills), final score 84.8 of 100.
 - Best Claude Code app: V (Matt Pocock), 84.0, rank 3.
 - Plain Claude Code (A): 78.3, rank 19 of 29 (median 79.8).
+- Best BenchKeeper layer (v1) arm: E (BK + ECC + OpenSpec), 83.2, rank 5.
 - The top 10 spans 81.8 to 84.8: with one trial per arm, totals within about 2 points are not separable.
 
 | Category (weight) | Best | Plain Claude Code (A) |
@@ -39,8 +44,10 @@ Final score out of 100 from six weighted categories (method below). Ranked by to
 ## Key findings
 
 - Final score (Sonnet 5.5): the top 10 spans 81.8 to 84.8 points and both runtimes (OpenCode Q and Z lead). Plain Claude Code (A) is 19th of 29 (78.3, median 79.8). Setups do not group: OpenSpec, ECC, agent-skills, Superpowers and Matt Pocock arms all appear in the top 10.
+- The setup BenchKeeper recommends today (BK v1 + agent-skills + OpenSpec, arm C) is 28th of 29 (64.8). Its unit tests failed in the scorer's coverage run, so its line coverage scores 0 of 10 points (cause unverified).
 - Every reviewed Sonnet app draws proper cartridges of the right family with values that match the records: 25 of 25 correct for all reviewed apps except F (20). The drawings do not separate the setups.
-- Documentation on Sonnet scores 0.7 to 6.8 of 10, median 6.2. 10 of 29 apps have no README; the share of documented functions has a median of 14% (2% to 34%).
+- Mutation score of the top 10 and plain A: 46.1% (A) to 70.1% (OpenSpec alone, AB). Matt Pocock alone (V) catches 46.6% of mutants, about as many as plain A. The final score does not include it.
+- Documentation on Sonnet scores 0.7 to 6.8 of 10, median 6.2. 10 of 29 apps have no README. The share of documented functions has a median of 14% (2% to 34%).
 - Hidden tests and review disagree on Sonnet K: 2 of 6 features but overall 8. The review found a strong drawing engine and could not check the detail and print rendering of the current build, which is where the hidden tests failed.
 - The hidden tests separate the arms more than on the winery brief, but most arms still pass: Claude Code 41 of 44 trials at 6 of 6 (Sonnet J 5 of 6 and K 2 of 6, Haiku I 5 of 6), OpenCode 10 of 14 (Haiku Q, S, T 0 of 6, Sonnet AA 2 of 6).
 - Plain Claude Code (A) is among the best on both models (overall 7 on each, 6 of 6 features). The BenchKeeper layer with agent-skills (L): Haiku 6, Sonnet 8, 6 of 6 on both. Ponytail alone (B): Haiku 5, Sonnet 6, 6 of 6 on both.
@@ -54,19 +61,19 @@ Raw values behind the score, plus two measures that are not part of it because t
 
 | Rank | Arm | Features | Print (of 25) | Review criteria (of 65) | Coverage | Type errors | Erosion | Duplication | Lint | Sonar bugs | Security | Axe | README topics | Drawings correct (of 25) | Mutation score |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Q | 100% | 25 | 53 | 80.6% | 12.8 | 0.232 | 0% | 0.8 | 0 | 0 | 0 | 100% | 25 | pending |
-| 2 | Z | 100% | 25 | 53 | 76.8% | 18 | 0.068 | 0% | 1.5 | 0 | 0.8 | 0 | 100% | 25 | pending |
-| 3 | V | 100% | 25 | 50 | 79.2% | 8.2 | 0.303 | 0% | 2.1 | 0 | 0 | 0 | 100% | 25 | pending |
-| 4 | G | 100% | 24 | 54 | 84.4% | 33.5 | 0.469 | 0% | 3.2 | 0 | 0 | 0 | 100% | 25 | pending |
+| 1 | Q | 100% | 25 | 53 | 80.6% | 12.8 | 0.232 | 0% | 0.8 | 0 | 0 | 0 | 100% | 25 | 51% |
+| 2 | Z | 100% | 25 | 53 | 76.8% | 18 | 0.068 | 0% | 1.5 | 0 | 0.8 | 0 | 100% | 25 | 52.1% |
+| 3 | V | 100% | 25 | 50 | 79.2% | 8.2 | 0.303 | 0% | 2.1 | 0 | 0 | 0 | 100% | 25 | 46.6% |
+| 4 | G | 100% | 24 | 54 | 84.4% | 33.5 | 0.469 | 0% | 3.2 | 0 | 0 | 0 | 100% | 25 | 52.9% |
 | 5 | E | 100% | 25 | 50 | 81.6% | 5 | 0.25 | 0% | 1.2 | 0 | 0 | 0 | 83.3% | 25 | 52.4% |
-| 6 | I | 100% | 25 | 51 | 77.1% | 3.2 | 0.306 | 0% | 2.4 | 0 | 1.2 | 0 | 100% | 25 | pending |
+| 6 | I | 100% | 25 | 51 | 77.1% | 3.2 | 0.306 | 0% | 2.4 | 0 | 1.2 | 0 | 100% | 25 | 65.4% |
 | 7 | F | 100% | 25 | 52 | 82% | 55.7 | 0.295 | 0% | 1.7 | 0 | 0.8 | 0 | 66.7% | 20 | 57.7% |
 | 8 | AB | 100% | 25 | 54 | 78.8% | 18.5 | 0.249 | 0% | 0.7 | 0 | 2.2 | 0 | 100% | 25 | 70.1% |
 | 9 | H | 100% | 25 | 53 | 71.1% | 17.7 | 0.118 | 0% | 2.6 | 0 | 1.3 | 0 | 100% | 25 | 64.6% |
 | 10 | W | 100% | 25 | 55 | 78.6% | 9.3 | 0.362 | 0% | 3.1 | 0 | 2.3 | 0 | 100% | 25 | own test fails |
-| 19 (baseline) | A | 100% | 25 | 50 | 63.4% | 13.9 | 0.358 | 0% | 1.9 | 0 | 1.9 | 0 | 100% | 25 | pending |
+| 19 (baseline) | A | 100% | 25 | 50 | 63.4% | 13.9 | 0.358 | 0% | 1.9 | 0 | 1.9 | 0 | 100% | 25 | 46.1% |
 
-Mutation score: Stryker reruns the app's own unit tests per mutant (`npx vitest run` for vitest suites, else the `test:unit` script, else `npm test`). Sources loaded through `vm` get `process` in their context, since Stryker reads the active mutant from `process.env`. Both rules were added during this run: E and F were measured with them, AB and H before (neither has a `test:unit` script or `vm` loading). Pending: the runs still in the queue, and three earlier results replaced by a rerun with the fixed scorer: Z (its `npm test` also starts browser tests, which the scoring container cannot run), G (0% before: its tests load the sources in a `vm` context without `process`) and Q (a test compares the generated `js/data.js` byte for byte, which the instrumentation changes; rerun with that file not mutated). W: one of its own tests fails before mutation starts.
+Mutation score: Stryker reruns the app's own unit tests per mutant (`npx vitest run` for vitest suites, else the `test:unit` script, else `npm test`). Sources loaded through `vm` get `process` in their context, since Stryker reads the active mutant from `process.env`, and `// @ts-nocheck` goes into TypeScript files only. These three rules were added during this run, and every score above was measured with them except AB and H (neither has a `test:unit` script, `vm` loading or a byte-compared file, so the rules do not change them). Three apps needed a rule: Z (its `npm test` also starts browser tests, which the scoring container cannot run), G (0% before: its tests load the sources in a `vm` context) and Q (a test compares the generated `js/data.js` byte for byte, so that file is not mutated). W: one of its own tests fails before mutation starts.
 
 Drawings: every reviewed app draws the right cartridge family with values that match the records. Per app (the reviewer's summary):
 
@@ -145,7 +152,7 @@ One score out of 100 per app (`bench/scripts/final-score.mjs`, weights in `bench
 | UX and accessibility | 10 | review ux (4), axe violations (3), lighthouse accessibility (1), lighthouse performance (1), html errors (1) |
 | Documentation | 10 | readme coverage (2.5), readme accuracy (2.5), doc functions (1), doc exports (1), comment density (1), decision records (1), maintenance flags (1) |
 
-Measures added for this score, run on all 58 apps of both models (`bench/scorer/`): type errors (TypeScript 6.0.3, `checkJs`, `strict` off), line coverage of the app's own unit tests (c8 12.0.0), print check (Playwright 1.64.0: each of the 25 cartridges on one A4 page, drawing at 80% of the printable width or more), HTML validity (Nu HTML Checker 26.10.12), documentation (README coverage of six topics and accuracy of its commands and paths, documented functions, comment density, decision records), and the static scan (ESLint 9.39.5 with SonarJS 4.2.2 and security 4.2.0 rules; security without `security/detect-object-injection` and `sonarjs/no-clear-text-protocols`, which flag ordinary lookups and the SVG namespace URL). Axe, Lighthouse and the maintenance flags come from the scorer's existing run.
+Measures added for this score, run on all 58 apps of both models (`bench/scorer/`): type errors (TypeScript 6.0.3, `checkJs`, `strict` off), line coverage of the app's own unit tests (c8 12.0.0), print check (Playwright 1.64.0: each of the 25 cartridges on one A4 page, drawing at 80% of the printable width or more), HTML validity (Nu HTML Checker 26.10.12), documentation (README coverage of six topics and accuracy of its commands and paths, documented functions, comment density, decision records), and the static scan (ESLint 9.39.5 with SonarJS 4.2.2 and security 4.2.0 rules, security findings without `security/detect-object-injection` and `sonarjs/no-clear-text-protocols`, which flag ordinary lookups and the SVG namespace URL). Axe, Lighthouse and the maintenance flags come from the scorer's existing run.
 
 Inputs with nearly the same value for every app, so they add points but hardly separate apps: hidden features (26 of 29 at 100), print pass (28 of 29 at 100), review requirements correctness (28 of 29 at 75), sonar bugs (29 of 29 at 100), duplication (29 of 29 at 100), review security (28 of 29 at 100), axe violations (27 of 29 at 100), lighthouse accessibility (29 of 29 at 100), html errors (29 of 29 at 100), decision records (26 of 29 at 33.3).
 

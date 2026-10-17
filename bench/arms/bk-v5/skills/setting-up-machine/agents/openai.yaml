@@ -1,0 +1,5 @@
+interface:
+  display_name: "Setting up machine"
+  short_description: "Global rules, setup skills, settings"
+policy:
+  allow_implicit_invocation: false

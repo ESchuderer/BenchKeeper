@@ -79,14 +79,14 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 |---|---|---|
 | [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | agents run on the host, project commands run inside the container |
 | [Ponytail](https://github.com/DietrichGebert/ponytail), v5.2.0, level `full` | per project, Claude + Codex | implementation simplicity within the phases of Matt Pocock's skills |
-| [Matt Pocock's skills](https://github.com/mattpocock/skills), v1.3.1 | per project, Claude + Codex | workflow: grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull request, handoff. Per repo it reads the issue tracker, triage labels and domain docs from `docs/agents/` |
+| [Matt Pocock's skills](https://github.com/mattpocock/skills), his install | Claude Code: global plugin from the official marketplace, which pins a commit of his repository. Codex: per project | workflow: grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull request, handoff. Per repo it reads the issue tracker, triage labels and domain docs from `docs/agents/` |
 | [following-dev-workflow](skills/following-dev-workflow/SKILL.md) | per project, Claude + Codex | task tier pre-filter (quick, standard, full, research), pre-push correctness review, security review for risky changes |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
 
-Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (following-dev-workflow, stack skills, Codex copies of Matt Pocock's skills and Ponytail), `skills-lock.json`, `.claude/settings.json` (Matt Pocock's skills and Ponytail as plugins pinned to tags), `docs/agents/` (with an `## Agent skills` block in `AGENTS.md`), `.mcp.json`, `.codex/config.toml`.
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (following-dev-workflow, stack skills, Codex copies of Matt Pocock's skills and Ponytail), `skills-lock.json`, `.claude/settings.json` (Ponytail as a plugin pinned to its tag), `docs/agents/` (from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`.
 
-Global (per machine): the rules, the setup skills (setting-up-machine, setting-up-projects, maintaining-repos), find-skills, settings. Nothing is installed at both levels.
+Global (per machine): the rules, Matt Pocock's Claude Code plugin (as he installs it), the setup skills (setting-up-machine, setting-up-projects, maintaining-repos), find-skills, settings. Nothing is installed at both levels.
 
 The [following-dev-workflow skill](skills/following-dev-workflow/SKILL.md) combines Ponytail and Matt Pocock's skills. The integration lives here, not in the installed plugin files. Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
 

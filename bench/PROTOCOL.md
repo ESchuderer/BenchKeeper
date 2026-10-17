@@ -2,7 +2,7 @@
 
 Version 1.19, 2026-10-17
 
-- 1.19: SkillsBench arm AH (BenchKeeper layer v5, setup-v3.3), queued after AG. The other briefs unchanged.
+- 1.19: SkillsBench arm AH (BenchKeeper layer v5, setup-v3.3) replaces AG (owner decision 2026-10-17): the run has arms A, AF and AH. The other briefs unchanged.
 - 1.18: SkillsBench run with Harbor (section SkillsBench), arms A, AF (new: Matt Pocock's skills with Ponytail) and AG (new: BenchKeeper layer v4, the setup of setup-v3.1). The other briefs unchanged.
 - 1.17: trigger evals per skill dropped before any run (owner decision 2026-10-17): queries, scripts and image removed. Arms AD and AE (BenchKeeper layer v3 with Matt Pocock's skills, AE with OpenSpec owning spec and plan).
 - 1.16: OpenCode arms excluded from new runs (owner decision 2026-10-17): new runs are the Claude Code arms on Sonnet 5.5. The recorded OpenCode results (arms Q to U, Z, AA, on Haiku 5.5 and Sonnet 5.5) stay in `bench/results` and their reports. The OpenCode code paths (`bench/scripts/opencode.mjs`, the OpenCode branches of `bench/image/install-arm.sh` and `bench/scripts/trial.mjs`, the fixtures) stay, so recorded trials can be read and rescored.

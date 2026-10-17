@@ -86,10 +86,12 @@ function Stat({ value, label }: { value: string; label: string }) {
 
 const phaseColor = Object.fromEntries(facts.sdlc.phases.map((p) => [p.key, p.color]));
 
+const half = Math.ceil(facts.sdlc.steps.length / 2);
+
 function StepList({ from, className }: { from: number; className?: string }) {
   return (
-    <Timeline active={10} bulletSize={30} lineWidth={2} className={className}>
-      {facts.sdlc.steps.slice(from, from + 5).map((st, i) => (
+    <Timeline active={facts.sdlc.steps.length} bulletSize={30} lineWidth={2} className={className}>
+      {facts.sdlc.steps.slice(from, from + half).map((st, i) => (
         <Timeline.Item key={st.name} id={`step-${from + i + 1}`} color={phaseColor[st.phase]} bullet={<Text size="xs" fw={700}>{from + i + 1}</Text>}
           title={<Group gap="xs"><Text fw={700}>{st.name}</Text>{st.human && <Badge size="xs" variant="outline" className="decide">human in the loop</Badge>}</Group>}>
           <Text size="sm" c="dimmed">{md(from + i === 0 ? `${st.text} ${facts.sdlc.requirements}` : st.text)}</Text>
@@ -167,14 +169,14 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. The tier sets the required steps. Quick: branch, build, verify, ship. Standard: no spec, a plan of a few lines. Full: all ten steps. Targeted skills, such as tdd or a stack skill, load in any tier when they match the task. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="The following-dev-workflow skill sizes each request by tier and change type. The tier sets the required steps. Quick: branch, build, verify, ship. Standard: no spec, a plan of a few lines. Full: all six steps. Targeted skills, such as tdd or a stack skill, load in any tier when they match the task. Research with several items: parallel subagents, no edits. Each change type adds its own check, such as terraform plan for infrastructure or a reproducer test for a bug.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
           </div>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={40} verticalSpacing="xl" mt={40}>
             <StepList from={0} className="steps-first" />
-            <StepList from={5} />
+            <StepList from={half} />
           </SimpleGrid>
           <Text fw={700} mt={48} mb="xs">Checks built into the loop</Text>
           <Text size="sm" c="dimmed" mb="md" maw={760}>Each change type in the following-dev-workflow skill adds its check before the change is reported done.</Text>

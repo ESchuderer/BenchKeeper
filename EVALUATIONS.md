@@ -36,6 +36,7 @@ Components considered for BenchKeeper, the evidence for each, and whether each i
 | [Anthropic document skills](evaluations/skill-libraries/anthropic-document-skills.md) | Not global, per project | DocOps: Claude Code Sonnet 4.6 0.519 with skills vs 0.552 without. Library: Codex only (Claude Code has them through the claude.ai skills) |
 | [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation. Four sets in the library, other single skills through the search |
 | [marketingskills](evaluations/skill-libraries/marketingskills.md) | Not global, per project | no task-level evaluation. Core and optional set in the library |
+| [Library exclusions](evaluations/skill-libraries/library-exclusions.md) | Not in the library | skills reviewed on 2026-10-18 and left out of `plugins/benchkeeper/library/README.md`, with reasons |
 
 ### Workflow frameworks
 

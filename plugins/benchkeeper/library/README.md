@@ -1,6 +1,6 @@
 # Skill library
 
-Skills that `setting-up-projects` installs into a project, never globally. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. Nothing here duplicates the global setup (Matt Pocock's skills, Ponytail, the BenchKeeper skills, find-skills) or Claude Code's bundled skills. Stack skills (frameworks, libraries) are not listed: `setting-up-projects` finds them per project with find-skills.
+Skills that `setting-up-projects` installs into a project, never globally. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. Nothing here duplicates the global setup (Matt Pocock's skills, Ponytail, the BenchKeeper skills, find-skills) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
 
 Install, from the project root, for the selected agents only:
 - Own skill (folder next to this file): copy it to `.agents/skills/<name>/` (Codex) and `.claude/skills/<name>/` (Claude Code). With both agents selected, the Claude Code copy is a link to the Codex copy. Codex ignores the `paths` key.
@@ -14,7 +14,7 @@ Install, from the project root, for the selected agents only:
 
 ## Anthropic
 
-Source `anthropics/skills`. In Claude Code, `docx`, `pdf`, `pptx` and `xlsx` already come with the claude.ai skills `anthropic-skills`, so they are Codex only here. `skill-creator` is not listed: Claude Code gets it the same way and Codex bundles it.
+Source `anthropics/skills`. In Claude Code, `docx`, `pdf`, `pptx` and `xlsx` already come with the claude.ai skills `anthropic-skills`, so they are Codex only here.
 
 | Skill | Pick when | Agents |
 |---|---|---|
@@ -24,7 +24,7 @@ Source `anthropics/skills`. In Claude Code, `docx`, `pdf`, `pptx` and `xlsx` alr
 
 ## Science
 
-Source `K-Dense-AI/scientific-agent-skills` (MIT). Python skills: read each one's dependencies before installing. Skills that need paid API keys are not listed. `literature-review` and `scientific-critical-thinking` mention an optional `OPENROUTER_API_KEY` (for generated figures), which they work without.
+Source `K-Dense-AI/scientific-agent-skills` (MIT). Python skills: read each one's dependencies before installing. Skills that need paid API keys are not listed.
 
 | Set | Skills | Pick when |
 |---|---|---|
@@ -43,8 +43,6 @@ Source `coreyhaines31/marketingskills` (MIT). The skills read `.agents/product-m
 | Optional | `content-strategy`, `cro`, `directory-submissions`, `analytics` | A blog or docs plan, conversion work, directory listings, or analytics setup |
 
 ## Security
-
-`/security-review` and `/code-review` (bundled) cover general reviews. These cover specialist checks.
 
 | Skill | Source (license) | Pick when |
 |---|---|---|
@@ -72,5 +70,3 @@ CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project.
 | `compliance-check` | `anthropics/knowledge-work-plugins` (Apache-2.0) | The product falls under a regulation (privacy, finance, health) |
 | `gdpr-compliant` | `github/awesome-copilot` (MIT) | The code processes personal data of people in the EU |
 | `synthesize-research` | `anthropics/knowledge-work-plugins` (Apache-2.0) | The repository holds user interviews, surveys or feedback to evaluate |
-
-Not listed after review (2026-10-18): Vercel `web-design-guidelines` and `writing-guidelines` (fetch their rules from a branch URL on every run), skills that download code at run time (Remotion, HyperFrames, `dxf`, `m5-onboard`), non-commercial or missing licenses, PRD and spec skills (Matt Pocock's `to-spec`), Anthropic `explore-data` and `data-visualization` (science set), and product-named skills the stack search finds (Terraform, PostGIS, Home Assistant, MapLibre).

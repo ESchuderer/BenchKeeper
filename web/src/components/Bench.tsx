@@ -1,4 +1,4 @@
-import { Anchor, Box, Button, Container, Group, MantineProvider, SimpleGrid, Stack, Table, Text, Title, createTheme } from '@mantine/core';
+import { Anchor, Box, Button, Container, Group, MantineProvider, Stack, Table, Text, Title, createTheme } from '@mantine/core';
 import { IconArrowLeft, IconArrowRight } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import SiteHeader from './SiteHeader';
@@ -28,13 +28,13 @@ export function BenchShell({ base, children }: { base: string; children: ReactNo
 }
 
 export type Trial = {
-  key: string; run: string; round: number; arm: string; setup: string; runtime: string; minutes: number; overall: number | null;
+  key: string; run: string; round: number; arm: string; setup: string; runtime: string; minutes: number; cost: number | null; overall: number | null;
   features: number | null; robustness: number | null; brownfield: number | null; mutation: number | null;
   drawings: { of: number; correctAlphaApart: number } | null;
   final: { total: number; categories: Record<string, { score: number; max: number }> } | null;
   notes: { verdict: string | null; strengths: string[]; issues: string[] } | null; screenshots: string[];
 };
-export type ArmRow = { arm: string; setup: string; runtime: string; score: number | null; minutes: number | null; rank: number; rounds: Trial[] };
+export type ArmRow = { arm: string; setup: string; runtime: string; score: number | null; minutes: number | null; cost: number | null; rank: number; rounds: Trial[] };
 export type Ranking = { kind: 'final' | 'brownfield' | 'review'; groups: { runtime: string | null; rows: ArmRow[] }[] };
 export type Run = {
   run: string; brief: string; model: string; effort: string; k: string; date: string; report: string | null; protocols: string[];
@@ -45,7 +45,7 @@ export type Top = { brief: string; of: number; top: Detail[]; baselines: (Detail
 export type Notes = {
   briefs: Record<string, string>; runs: Record<string, { tested?: string; summary?: string; findings: string[] }>;
   reports: { file: string; title: string; summary: string }[];
-  stacks: { name: string; url: string; version: string; text: string; arms: string }[];
+  stacks: { name: string; url: string; version: string; text: string }[];
 };
 
 // The short summary of a run, labeled as written by AI.
@@ -54,6 +54,8 @@ const Summary = ({ text }: { text?: string }) => (text ? <Text mt="md"><Text spa
 const plain = (setup: string) => (setup === 'plain' ? 'no add-ons' : setup.replace(/^BK\b/, 'BenchKeeper layer'));
 const of = (n: number | null, total: number | null) => (n == null || total == null ? 'n/a' : `${n}/${total}`);
 const pct = (v: number | null) => (v == null ? 'n/a' : `${v}%`);
+// API-equivalent USD: what the tokens would cost at API prices; the trials bill a subscription.
+const usd = (v: number | null) => (v == null ? 'n/a' : `$${v.toFixed(2)}`);
 // rounds half up on the decimal value (82.85 -> 82.9), which toFixed does not for binary floats
 const one = (v: number) => (Math.round(Number(`${v}e1`)) / 10).toFixed(1);
 const fmt = (kind: Ranking['kind'], v: number | null) => (v == null ? 'n/a' : kind === 'review' ? String(v) : one(v));
@@ -75,7 +77,7 @@ const shotLabel = (f: string) => f.replace(/\.\w+$/, '').replace(/^step(\d+)-/, 
 function Meta({ r }: { r: Run }) {
   return (
     <Text size="sm" c="dimmed" mt="xs">
-      {r.model} at effort {r.effort}. Each setup ran {r.k === '1' ? 'once (k = 1)' : `${r.k} times from a fresh start (k = ${r.k}), and its score is the median of those runs`}. Benchmark protocol {r.protocols.join(', ') || 'not recorded'}, run {r.date}.
+      {r.model} at effort {r.effort}. Each setup ran {r.k === '1' ? 'once (k = 1)' : `${r.k} times from a fresh start (k = ${r.k}), and its score is the median of those runs`}. Benchmark protocol {r.protocols.join(', ') || 'not recorded'}, run {r.date}. API cost: the tokens at API prices (the trials ran on a subscription).
     </Text>
   );
 }
@@ -107,7 +109,7 @@ function RunCard({ base, r, ranking, notes }: { base: string; r: Run; ranking: R
             <Text size="sm" c="dimmed">{SCORE[ranking.kind]}: {SCORE_HELP[ranking.kind]}</Text>
             <Region label={label} minWidth={480}>
               <Table.Thead>
-                <Table.Tr><Table.Th>Rank</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Score</Table.Th><Table.Th>Minutes</Table.Th></Table.Tr>
+                <Table.Tr><Table.Th>Rank</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Score</Table.Th><Table.Th>Minutes</Table.Th><Table.Th>API cost</Table.Th></Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {top.map((x) => (
@@ -115,7 +117,7 @@ function RunCard({ base, r, ranking, notes }: { base: string; r: Run; ranking: R
                     <Table.Td>{x.rank}</Table.Td>
                     <Table.Td><Anchor href={`${runHref(base, r.run)}#arm-${x.arm}`}>{x.arm}</Anchor></Table.Td>
                     <Table.Td>{plain(x.setup)}{g.runtime ? '' : x.runtime === 'Claude Code' ? '' : ` (${x.runtime})`}</Table.Td>
-                    <Table.Td fw={700}>{fmt(ranking.kind, x.score)}</Table.Td><Table.Td>{x.minutes}</Table.Td>
+                    <Table.Td fw={700}>{fmt(ranking.kind, x.score)}</Table.Td><Table.Td>{x.minutes}</Table.Td><Table.Td>{usd(x.cost)}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -149,22 +151,20 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
         <Text c="dimmed">An arm is one tested setup. The BenchKeeper layer includes Ponytail.</Text>
       </Stack>
 
-      <Box component="section" aria-labelledby="stacks" mb={56}>
-        <Title order={2} id="stacks">Tested components</Title>
-        <Text c="dimmed" mt="xs" maw={820}>Each arm combines these with Claude Code or OpenCode. Arms Q to AA run on OpenCode.</Text>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mt="md">
-          {notes.stacks.map((x) => (
-            <div key={x.name} className="card">
-              <Anchor href={x.url} fw={700}>{x.name}</Anchor>
-              <Text size="sm" c="dimmed">{x.version}</Text>
-              <Text size="sm" mt={4}>{x.text}</Text>
-              <Text size="sm" mt={4}>Arms: {x.arms}</Text>
-            </div>
-          ))}
-        </SimpleGrid>
-      </Box>
-
       {runs.map(({ run, ranking }) => <RunCard key={run.run} base={base} r={run} ranking={ranking} notes={notes} />)}
+
+      <Box component="section" aria-labelledby="stacks" mb={56} maw={1000}>
+        <Title order={2} id="stacks" mb="xs">Tested components</Title>
+        <Region label="Components and pinned versions" minWidth={560}>
+          <Table.Tbody>
+            {notes.stacks.map((x) => (
+              <Table.Tr key={x.name}>
+                <Table.Td style={{ whiteSpace: 'nowrap' }}><Anchor href={x.url} fw={700}>{x.name}</Anchor></Table.Td><Table.Td>{x.version}</Table.Td><Table.Td>{x.text}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Region>
+      </Box>
 
       <Title order={2} mb="md">Other reports</Title>
       <Stack gap="md" maw={820}>
@@ -198,7 +198,7 @@ function TopDetail({ t: x }: { t: Top }) {
           <Table.Tr>
             <Table.Th>Rank</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Runtime</Table.Th><Table.Th>Setup</Table.Th>
             <Table.Th>Final</Table.Th>{cats.map((c) => <Table.Th key={c.k}>{c.label} ({c.max})</Table.Th>)}
-            <Table.Th>Drawings</Table.Th><Table.Th>Mutation</Table.Th><Table.Th>Minutes</Table.Th>
+            <Table.Th>Drawings</Table.Th><Table.Th>Mutation</Table.Th><Table.Th>Minutes</Table.Th><Table.Th>API cost</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -208,7 +208,7 @@ function TopDetail({ t: x }: { t: Top }) {
               <Table.Td fw={700}>{one(t.final.total)}</Table.Td>
               {cats.map((c) => <Table.Td key={c.k}>{one(t.final.categories[c.k].score)}</Table.Td>)}
               <Table.Td>{t.drawings ? `${t.drawings.correctAlphaApart}/${t.drawings.of}` : 'n/a'}</Table.Td><Table.Td>{pct(t.mutation)}</Table.Td>
-              <Table.Td>{t.minutes}</Table.Td>
+              <Table.Td>{t.minutes}</Table.Td><Table.Td>{usd(t.cost)}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
@@ -237,7 +237,7 @@ function Round({ base, r, kind, t, many }: { base: string; r: Run; kind: Ranking
   const facts = [
     many && kind === 'brownfield' && `score ${fmt(kind, t.brownfield)}`,
     r.featuresOf != null && `features ${of(t.features, r.featuresOf)}`, r.robustnessOf != null && `robustness ${of(t.robustness, r.robustnessOf)}`,
-    t.overall != null && `review ${t.overall}/10`, `${t.minutes} minutes`,
+    t.overall != null && `review ${t.overall}/10`, `${t.minutes} minutes`, t.cost != null && `API cost ${usd(t.cost)}`,
   ].filter(Boolean).join(', ');
   return (
     <Box mt="md">
@@ -280,7 +280,7 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
                 <Table.Th>Rank</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Setup</Table.Th>{!g.runtime && <Table.Th>Runtime</Table.Th>}
                 <Table.Th>Score</Table.Th>{many && <Table.Th>Rounds</Table.Th>}
                 {r.featuresOf != null && <Table.Th>Features</Table.Th>}{r.robustnessOf != null && <Table.Th>Robustness</Table.Th>}
-                {ranking.kind !== 'review' && <Table.Th>Review</Table.Th>}<Table.Th>Minutes</Table.Th>
+                {ranking.kind !== 'review' && <Table.Th>Review</Table.Th>}<Table.Th>Minutes</Table.Th><Table.Th>API cost</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -294,7 +294,7 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
                     {r.featuresOf != null && <Table.Td>{x.rounds.map((y) => of(y.features, r.featuresOf)).join(', ')}</Table.Td>}
                     {r.robustnessOf != null && <Table.Td>{x.rounds.map((y) => of(y.robustness, r.robustnessOf)).join(', ')}</Table.Td>}
                     {ranking.kind !== 'review' && <Table.Td>{x.rounds.map((y) => y.overall ?? 'n/a').join(', ')}</Table.Td>}
-                    <Table.Td>{x.minutes}</Table.Td>
+                    <Table.Td>{x.minutes}</Table.Td><Table.Td>{usd(x.cost)}</Table.Td>
                   </Table.Tr>
                 );
               })}

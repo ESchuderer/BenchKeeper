@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('one summary per run: winners and top 10 by the run score, link to the run page, report link, no cost figures', async ({ page }) => {
+test('one summary per run: winners and top 10 by the run score, link to the run page, report link, API cost per arm', async ({ page }) => {
   await page.goto('./bench/');
   await expect(page.getByRole('heading', { level: 1, name: 'Benchmarks' })).toBeVisible();
   const run = page.locator('section', { has: page.getByRole('heading', { level: 2, name: 'winery-react, Sonnet 5.5' }) });
@@ -14,7 +14,8 @@ test('one summary per run: winners and top 10 by the run score, link to the run 
   const brownfield = page.locator('section', { has: page.getByRole('heading', { level: 2, name: 'openballistics, Sonnet 5.5' }) });
   await expect(brownfield.getByRole('region', { name: /top 10/ }).locator('tbody tr')).toHaveCount(5);
   await expect(page.getByRole('link', { name: 'Skill authoring check' })).toBeVisible();
-  await expect(page.locator('body')).not.toContainText(/USD|\$\s?\d|\bcosts?\b/i);
+  await expect(brownfield.getByRole('region', { name: /top 10/ }).getByRole('columnheader', { name: 'API cost' })).toBeVisible();
+  await expect(brownfield.getByRole('region', { name: /top 10/ }).locator('tbody tr').first()).toContainText(/\$\d+\.\d{2}/);
 });
 
 test('a run page ranks every arm and shows each arm with its rounds, review notes and screenshots', async ({ page, request }) => {
@@ -30,7 +31,7 @@ test('a run page ranks every arm and shows each arm with its rounds, review note
   const img = ad.locator('.gallery img').first();
   await expect(img).toHaveAttribute('alt', /^AD, round 1: step 2, compare/);
   expect((await request.get(await img.getAttribute('src') ?? '')).status()).toBe(200);
-  await expect(page.locator('body')).not.toContainText(/USD|\$\s?\d/);
+  await expect(page.getByRole('region', { name: /ranked arms/ }).first().getByRole('columnheader', { name: 'API cost' })).toBeVisible();
 });
 
 test('the winery run page ranks runtimes apart', async ({ page }) => {

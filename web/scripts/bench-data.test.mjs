@@ -16,7 +16,7 @@ test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with
   assert.throws(() => arm('ZZ'));
 });
 
-test('trials: one per arm directory, model, effort and k from the manifest, review overall and criteria, no cost', () => {
+test('trials: one per arm directory, model, effort and k from the manifest, review overall and criteria, the trial API cost but not the review cost', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-'));
   const t = join(root, 'run-1', 'round-1', 'B');
   mkdirSync(t, { recursive: true });
@@ -31,10 +31,10 @@ test('trials: one per arm directory, model, effort and k from the manifest, revi
   assert.equal(rest.length, 0);
   assert.deepEqual(x, {
     key: 'run-1/round-1/B', run: 'run-1', round: 1, brief: 'winery-react', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime: 'Claude Code', arm: 'B',
-    setup: 'Ponytail', features: 1, robustness: null, featuresOf: 2, robustnessOf: null, minutes: 10, overall: 8, protocol: '1.10', criteria: 2,
+    setup: 'Ponytail', features: 1, robustness: null, featuresOf: 2, robustnessOf: null, minutes: 10, cost: 1.23, overall: 8, protocol: '1.10', criteria: 2,
     final: null, mutation: null, drawings: null, brownfield: null, notes: { verdict: null, strengths: [], issues: [] }, screenshots: [],
   });
-  assert.doesNotMatch(JSON.stringify(x), /cost|1\.23|0\.4/);
+  assert.doesNotMatch(JSON.stringify(x), /0\.4/);
 });
 
 test('trials: final score, mutation score and the drawing review, a drawing faulted only for the alpha label counted apart', () => {

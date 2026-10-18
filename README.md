@@ -84,7 +84,7 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 | [plugins/benchkeeper/skills/setting-up-projects](plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, library and stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, other configuration to remove | plugin skill `benchkeeper:setting-up-projects` |
 | [plugins/benchkeeper/skills/following-dev-workflow](plugins/benchkeeper/skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request), loaded before repository work | plugin skill `benchkeeper:following-dev-workflow` |
 | [plugins/benchkeeper/skills/maintaining-repos](plugins/benchkeeper/skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code, debt, dependency audit, version pins, docs drift, unused skills | plugin skill `benchkeeper:maintaining-repos` |
-| [plugins/benchkeeper/library](plugins/benchkeeper/library/README.md) | skills installed per project: own (`writing-microcopy`), Anthropic, science, marketing | copied or installed into a project by `setting-up-projects` |
+| [plugins/benchkeeper/library](plugins/benchkeeper/library/README.md) | skills installed per project: own (`designing-technical-uis`), Anthropic, science, marketing, security, docs and data, operations, legal, product | copied or installed into a project by `setting-up-projects` |
 | [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 

@@ -67,7 +67,7 @@ Matt Pocock's skills (step 5) cover the workflow: grilling, specs and tickets, T
 ### Library (ask)
 
 The catalog is `library/README.md` in the BenchKeeper plugin, two levels above this skill's folder. Read it, then propose the entries whose "Pick when" matches what the repository contains, each set as one question the user can trim skill by skill. Install as the catalog says:
-- Own skills (a folder in the library): copy the folder to `.agents/skills/<name>/` when Codex is selected and to `.claude/skills/<name>/` when Claude Code is selected. With both selected, `.claude/skills/<name>` is a link to `../../.agents/skills/<name>`. When the catalog names folders for `paths` and the user names them, add `paths:` with their globs to the Claude Code copy's front matter (Claude Code then loads the skill only for files there). With both agents selected, that copy is then a second copy instead of a link, so the Codex copy keeps the library front matter. Add the catalog's pointer line to the `AGENTS.md` it names.
+- Own skills (a folder in the library): copy the folder to `.agents/skills/<name>/` when Codex is selected and to `.claude/skills/<name>/` when Claude Code is selected. With both selected, `.claude/skills/<name>` is a link to `../../.agents/skills/<name>`. When the catalog names folders for `paths` and the user names them, add `paths:` with their globs to the copied front matter. Claude Code then loads the skill only for files there, and Codex ignores the key. Add the catalog's pointer line to the `AGENTS.md` it names.
 - Community skills: read and check them as in item 4 below, then install with the command in item 5. `skills-lock.json` pins their content.
 - Entries marked Codex only: only when Codex is selected, installed with `-a codex` alone even when both agents are selected.
 
@@ -101,7 +101,7 @@ List everything agent-related in the project that the plan does not create or ke
 - skills in `.claude/skills/` and `.agents/skills/` that are neither in `skills-lock.json` nor library skills, and copies of skills a global plugin already provides
 - plugin and marketplace entries in `.claude/settings*.json` (`enabledPlugins`, `extraKnownMarketplaces`)
 - MCP servers in `.mcp.json` and `.codex/config.toml`
-- hooks in `.claude/settings*.json` and `.codex/hooks.json`
+- hooks in `.claude/settings*.json`, `.codex/hooks.json` and the `[hooks]` table of `.codex/config.toml`
 - other agent rules files (for example `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`)
 - spec or workflow tool folders with their skills and CI entries (for example `openspec/`, `.specify/`)
 

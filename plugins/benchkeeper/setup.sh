@@ -186,6 +186,8 @@ for f in ${claude:+"$HOME/.claude/settings.json"} ${codex:+"$HOME/.codex/hooks.j
   done
   [ -z "$orca" ] || info "Orca hooks in $f:$orca (Orca manages them)"
 done
+f=$HOME/.codex/config.toml
+[ -z "$codex" ] || [ ! -f "$f" ] || ! grep -q '^\[hooks' "$f" || info "hooks table in $f (Codex also runs these, edit by hand)"
 IFS=$IFS_old
 
 # Settings: merged into the existing files, other keys and hooks stay.

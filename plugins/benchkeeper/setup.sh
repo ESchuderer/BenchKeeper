@@ -208,11 +208,11 @@ if [ -n "$claude" ]; then
   if same "$f" '.model = "opusplan"'; then ok "Claude default model opusplan"; else
     step "set the default model in $f to opusplan, Opus in plan mode and Sonnet otherwise (now: $(jq -r '.model // "unset"' "$f" 2>/dev/null || echo unset))" jqset "$f" '.model = "opusplan"'
   fi
-  # Default effort medium. In the user file Opus 5.5 and later ignore the top-level key, so the opusplan pair gets a
+  # Default effort high. In the user file Opus 5.5 and later ignore the top-level key, so the opusplan pair gets a
   # per-model level too (https://code.claude.com/docs/en/settings-reference#effortlevel).
-  effort='.effortLevel = "medium" | .modelSettings["claude-opus-5-5"].effortLevel = "medium" | .modelSettings["claude-sonnet-5-5"].effortLevel = "medium"'
-  if same "$f" "$effort"; then ok "Claude default effort medium"; else
-    step "set the default effort in $f to medium for all models, Opus 5.5 and Sonnet 5.5 included (now: $(jq -r '[.effortLevel // "unset", (.modelSettings["claude-opus-5-5"].effortLevel // "unset"), (.modelSettings["claude-sonnet-5-5"].effortLevel // "unset")] | join(", ")' "$f" 2>/dev/null || echo unset))" jqset "$f" "$effort"
+  effort='.effortLevel = "high" | .modelSettings["claude-opus-5-5"].effortLevel = "high" | .modelSettings["claude-sonnet-5-5"].effortLevel = "high"'
+  if same "$f" "$effort"; then ok "Claude default effort high"; else
+    step "set the default effort in $f to high for all models, Opus 5.5 and Sonnet 5.5 included (now: $(jq -r '[.effortLevel // "unset", (.modelSettings["claude-opus-5-5"].effortLevel // "unset"), (.modelSettings["claude-sonnet-5-5"].effortLevel // "unset")] | join(", ")' "$f" 2>/dev/null || echo unset))" jqset "$f" "$effort"
   fi
   # Auto-compact at 400000 tokens instead of about 967K on 1M models: half the context resent per turn, same price per
   # token. No Anthropic recommendation or Claude 5 long-context data exists (CHANGELOG setup-v5.0). A level saved per
@@ -231,11 +231,11 @@ if [ -n "$codex" ]; then
     fi
   done
   # Top-level key: replaced in place, or prepended so it stays above the first table.
-  if [ -f "$f" ] && grep -qx 'model_reasoning_effort = "medium"' "$f"; then ok "Codex default effort medium"; else
-    step "set model_reasoning_effort = \"medium\" in $f (now: $(sed -n 's/^model_reasoning_effort = //p' "$f" 2>/dev/null | grep . || echo unset))" sh -c '
+  if [ -f "$f" ] && grep -qx 'model_reasoning_effort = "high"' "$f"; then ok "Codex default effort high"; else
+    step "set model_reasoning_effort = \"high\" in $f (now: $(sed -n 's/^model_reasoning_effort = //p' "$f" 2>/dev/null | grep . || echo unset))" sh -c '
       mkdir -p "$(dirname "$1")" && touch "$1"
-      if grep -q "^model_reasoning_effort" "$1"; then sed -i "s/^model_reasoning_effort = .*/model_reasoning_effort = \"medium\"/" "$1"
-      else { echo "model_reasoning_effort = \"medium\""; cat "$1"; } >"$1.tmp" && mv "$1.tmp" "$1"; fi' _ "$f"
+      if grep -q "^model_reasoning_effort" "$1"; then sed -i "s/^model_reasoning_effort = .*/model_reasoning_effort = \"high\"/" "$1"
+      else { echo "model_reasoning_effort = \"high\""; cat "$1"; } >"$1.tmp" && mv "$1.tmp" "$1"; fi' _ "$f"
   fi
 fi
 f=$HOME/.config/ponytail/config.json

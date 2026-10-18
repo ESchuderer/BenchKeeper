@@ -83,9 +83,9 @@ jq -e '.hooks.Stop == null and .hooks.SessionStart != null and (.hooks.PreToolUs
   pass "other hooks removed, Orca hooks and other keys kept, model opusplan" || fail "settings merge or hooks"
 jq -e '.advisorModel == null and .model == "opus" and .hooks.Stop != null' "$HOME/.config/benchkeeper/backup/$b/.claude/settings.json" >/dev/null && pass "old settings in the backup" || fail "settings backup"
 jq -e '.cleanupPeriodDays == 14 and .autoUpdatesChannel == "stable" and .env.DISABLE_FEEDBACK_COMMAND == "1" and .env.CLAUDE_CODE_SUBAGENT_MODEL == "sonnet"' "$HOME/.claude/settings.json" >/dev/null && pass "transcripts 14 days, stable channel, /feedback off, subagents on Sonnet" || fail "privacy or cost settings"
-jq -e '.autoCompactWindow == 400000 and .effortLevel == "medium" and .modelSettings == {"claude-opus-5-5":{"effortLevel":"medium"},"claude-sonnet-5-5":{"effortLevel":"medium"}}' "$HOME/.claude/settings.json" >/dev/null &&
-  pass "effort medium, auto-compact 400000, per-model windows removed" || fail "effort or auto-compact"
-[ "$(head -1 "$HOME/.codex/config.toml")" = 'model_reasoning_effort = "medium"' ] && grep -q '^\[analytics\]' "$HOME/.codex/config.toml" && pass "Codex effort medium above the tables" || fail "Codex effort"
+jq -e '.autoCompactWindow == 400000 and .effortLevel == "high" and .modelSettings == {"claude-opus-5-5":{"effortLevel":"high"},"claude-sonnet-5-5":{"effortLevel":"high"}}' "$HOME/.claude/settings.json" >/dev/null &&
+  pass "effort high, auto-compact 400000, per-model windows removed" || fail "effort or auto-compact"
+[ "$(head -1 "$HOME/.codex/config.toml")" = 'model_reasoning_effort = "high"' ] && grep -q '^\[analytics\]' "$HOME/.codex/config.toml" && pass "Codex effort high above the tables" || fail "Codex effort"
 [ "$(cat "$HOME/.dc")" = 1.0.0 ] && pass "host tool at the newest release older than 7 days" || fail "version pick"
 
 out=$(sh "$setup" --apply </dev/null)

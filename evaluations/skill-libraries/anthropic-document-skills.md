@@ -12,6 +12,6 @@
 
 ## Decision
 
-Not global, per project: not part of the coding setup. Install per need.
+Not global, per project: the BenchKeeper library (setup-v5.0) lists `frontend-design` and `mcp-builder` for both agents, and `docx`, `pdf`, `pptx` and `xlsx` for Codex only, since Claude Code gets them from the claude.ai skills `anthropic-skills`. `doc-coauthoring` is left out: it has no license file.
 
 [All evaluations](../../EVALUATIONS.md)

@@ -4,6 +4,7 @@
 # only after a y. Run it yourself, it never runs on its own. Needs jq. Never uses sudo.
 # Usage: setup.sh            dry run: prints the plan, changes nothing
 #        setup.sh --apply    asks before each change (y to apply, anything else skips)
+#        setup.sh --apply-all   applies every change of the dry run without asking, removals included
 #        setup.sh --restore <name>   moves the files of a backup (~/.config/benchkeeper/backup/<name>) back
 # Files are never deleted: anything replaced, edited or removed is first moved or copied to ~/.config/benchkeeper/backup/<date>/.
 # Plugins, marketplaces and MCP servers are removed with the agent's own command, so undoing those means installing them again.
@@ -33,6 +34,7 @@ restore() {
 mode=plan
 case ${1:-} in
 --apply) mode=apply ;;
+--apply-all) mode=all ;;
 --restore) restore "${2:?--restore needs a backup name, see ls $backups}"; exit 0 ;;
 '') ;;
 *) sed -n '5,8p' "$0" >&2; exit 2 ;;
@@ -40,12 +42,14 @@ esac
 
 ok() { echo "ok     $1"; }
 info() { echo "info   $1"; }
-# step <text> <command...>: dry run prints the change, --apply asks for it and runs the command after a y.
+# step <text> <command...>: dry run prints the change, --apply asks for it and runs the command after a y, --apply-all runs it.
 step() {
   text=$1; shift
   if [ "$mode" = plan ]; then echo "change $text"; return 0; fi
-  printf 'change %s? [y/N] ' "$text"
-  read -r answer || answer=
+  if [ "$mode" = all ]; then echo "change $text"; answer=y; else
+    printf 'change %s? [y/N] ' "$text"
+    read -r answer || answer=
+  fi
   case $answer in
   y | Y) if "$@"; then echo "done"; else echo "failed, continuing"; failed=1; fi ;;
   *) echo "skipped" ;;
@@ -192,18 +196,32 @@ IFS=$IFS_old
 
 # Settings: merged into the existing files, other keys and hooks stay.
 claude_keys='.advisorModel = "opus" | .remoteControlAtStartup = true | .showClearContextOnPlanAccept = true
-  | .autoCompactWindow = (.autoCompactWindow // 400000)
+  | .cleanupPeriodDays = 14 | .autoUpdatesChannel = "stable"
   | .attribution = {"commit": "Assisted-by: generative AI", "pr": "Created with the assistance of generative AI.", "sessionUrl": false}
-  | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"})'
+  | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1", "DISABLE_FEEDBACK_COMMAND": "1", "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"})'
 if [ -n "$claude" ]; then
   f=$HOME/.claude/settings.json
   if same "$f" "$claude_keys"; then ok "Claude settings $f"; else
-    step "set in $f: advisorModel opus, Remote Control on at startup, clear-context option on plan accept, autoCompactWindow 400000 if unset, neutral AI attribution without session link, error reporting and feedback survey off (other keys stay, the old file goes to the backup)" jqset "$f" "$claude_keys"
+    step "set in $f: advisorModel opus, Remote Control on at startup, clear-context option on plan accept, local transcripts kept 14 days, stable update channel, neutral AI attribution without session link, error reporting, feedback survey and /feedback off, subagents without a model on Sonnet (other keys stay, the old file goes to the backup)" jqset "$f" "$claude_keys"
   fi
   # Default model opusplan: Opus in plan mode, Sonnet for the rest. Its own step, since it replaces a model the user chose.
   if same "$f" '.model = "opusplan"'; then ok "Claude default model opusplan"; else
     step "set the default model in $f to opusplan, Opus in plan mode and Sonnet otherwise (now: $(jq -r '.model // "unset"' "$f" 2>/dev/null || echo unset))" jqset "$f" '.model = "opusplan"'
   fi
+  # Default effort medium. In the user file Opus 5.5 and later ignore the top-level key, so the opusplan pair gets a
+  # per-model level too (https://code.claude.com/docs/en/settings-reference#effortlevel).
+  effort='.effortLevel = "medium" | .modelSettings["claude-opus-5-5"].effortLevel = "medium" | .modelSettings["claude-sonnet-5-5"].effortLevel = "medium"'
+  if same "$f" "$effort"; then ok "Claude default effort medium"; else
+    step "set the default effort in $f to medium for all models, Opus 5.5 and Sonnet 5.5 included (now: $(jq -r '[.effortLevel // "unset", (.modelSettings["claude-opus-5-5"].effortLevel // "unset"), (.modelSettings["claude-sonnet-5-5"].effortLevel // "unset")] | join(", ")' "$f" 2>/dev/null || echo unset))" jqset "$f" "$effort"
+  fi
+  # Auto-compact at 400000 tokens instead of about 967K on 1M models: half the context resent per turn, same price per
+  # token. No Anthropic recommendation or Claude 5 long-context data exists (CHANGELOG setup-v5.0). A level saved per
+  # model with /autocompact outranks the key, so those are removed with it.
+  compact='.autoCompactWindow = 400000 | if .modelSettings then .modelSettings |= (map_values(del(.autoCompactWindow)) | with_entries(select(.value != {}))) else . end'
+  if same "$f" "$compact"; then ok "Claude auto-compact window 400000"; else
+    step "set the auto-compact window in $f to 400000 tokens, per-model values removed (now: $(jq -r '[(.autoCompactWindow // "unset" | tostring)] + [.modelSettings // {} | to_entries[] | select(.value.autoCompactWindow) | "\(.key) \(.value.autoCompactWindow)"] | join(", ")' "$f" 2>/dev/null || echo unset))" jqset "$f" "$compact"
+  fi
+  [ -z "${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-}" ] || info "CLAUDE_CODE_AUTO_COMPACT_WINDOW=$CLAUDE_CODE_AUTO_COMPACT_WINDOW in this shell outranks the setting (remove it where it is exported)"
 fi
 if [ -n "$codex" ]; then
   f=$HOME/.codex/config.toml
@@ -212,6 +230,13 @@ if [ -n "$codex" ]; then
       step "add [$s] enabled = false to $f" sh -c 'mkdir -p "$(dirname "$1")" && printf "\n[%s]\nenabled = false\n" "$2" >>"$1"' _ "$f" "$s"
     fi
   done
+  # Top-level key: replaced in place, or prepended so it stays above the first table.
+  if [ -f "$f" ] && grep -qx 'model_reasoning_effort = "medium"' "$f"; then ok "Codex default effort medium"; else
+    step "set model_reasoning_effort = \"medium\" in $f (now: $(sed -n 's/^model_reasoning_effort = //p' "$f" 2>/dev/null | grep . || echo unset))" sh -c '
+      mkdir -p "$(dirname "$1")" && touch "$1"
+      if grep -q "^model_reasoning_effort" "$1"; then sed -i "s/^model_reasoning_effort = .*/model_reasoning_effort = \"medium\"/" "$1"
+      else { echo "model_reasoning_effort = \"medium\""; cat "$1"; } >"$1.tmp" && mv "$1.tmp" "$1"; fi' _ "$f"
+  fi
 fi
 f=$HOME/.config/ponytail/config.json
 if same "$f" '.defaultMode = "full"'; then ok "Ponytail level full"; else
@@ -246,7 +271,7 @@ skills_v=""
 command -v npm >/dev/null && skills_v=$(newest skills)
 skill vercel-labs/skills find-skills
 command -v orca >/dev/null && skill https://github.com/stablyai/orca orca-cli && skill https://github.com/stablyai/orca orchestration
-[ "$mode" = plan ] && echo "Dry run: nothing changed. Run with --apply to choose changes."
+[ "$mode" = plan ] && echo "Dry run: nothing changed. Run with --apply to choose changes, or --apply-all to apply them all."
 [ -d "$backups/$stamp" ] && echo "Backup: $backups/$stamp (undo with --restore $stamp)"
 [ -z "$failed" ] || { echo "Some changes failed, see the lines marked failed." >&2; exit 1; }
 exit 0

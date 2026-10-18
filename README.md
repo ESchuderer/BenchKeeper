@@ -36,11 +36,12 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
 1. Install the [prerequisites](#prerequisites): at least one agent and jq, plus the tools for the parts you apply. npm uses a user prefix such as `~/.local`, no sudo.
 2. Clone: `git clone --depth 1 https://github.com/ESchuderer/BenchKeeper.git`
 3. Review the plan: `sh BenchKeeper/plugins/benchkeeper/setup.sh`. This dry run lists each change and changes nothing.
-4. Apply: `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply`. It asks before each change:
+4. Apply: `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply`. It asks before each change. `--apply-all` applies every change from the dry run without asking, removals included:
    - the global rules (`~/.claude/rules/00-global.md`, `~/.codex/AGENTS.md`)
    - the plugins: BenchKeeper, Matt Pocock's skills and Ponytail (pinned to a tag, since it runs a `SessionStart` hook), in each agent
-   - settings and telemetry (merged, other keys and hooks stay)
+   - settings and telemetry (merged, other keys and hooks stay): error reporting, feedback survey and `/feedback` off, local transcripts kept 14 days instead of 30, the stable update channel (about one week behind latest), subagents without a model on Sonnet
    - the default model `opusplan` in Claude Code (Opus in plan mode, Sonnet otherwise), as its own question since it replaces the model you set. Orca starts `claude` without `--model`, so it applies there too. Not benchmarked.
+   - default effort `medium` in Claude Code (also saved for Opus 5.5 and Sonnet 5.5, which ignore the global key) and in Codex, and the Claude Code auto-compact window at 400000 tokens (default about 967K on 1M models). A different value is shown and asked about. Neither is benchmarked. Anthropic gives no recommended window.
    - everything else installed globally, one item at a time: other rules files (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks. Files go to `~/.config/benchkeeper/backup/<date>/`, never deleted, and `setup.sh --restore <date>` moves them back. Plugins, marketplaces and MCP servers are removed with the agent's own command. Hooks are offered per event, and Orca's own entries are only reported.
    - the Dev Containers CLI at the newest release that is at least 7 days old
 
@@ -67,7 +68,7 @@ Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcont
 ## Update
 
 - BenchKeeper's plugin: its `version` changes with each setup release ([CHANGELOG.md](CHANGELOG.md)). Claude Code: `claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper`, or turn on auto-update for the marketplace in `/plugin` (off by default for marketplaces outside Anthropic's, [docs](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)). Codex upgrades Git marketplaces at startup.
-- Rules and settings: after a release that changes them, `git -C BenchKeeper pull`, then `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply`.
+- Rules and settings: after a release that changes them, `git -C BenchKeeper pull`, then `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply` (or `--apply-all`).
 - Matt Pocock's skills update through their marketplaces. After one of his releases, he recommends running his setup again in each repository. Ponytail's marketplace stays on the tag it was added with (`setup.sh` adds `v5.3.2`). A newer tag means adding the marketplace again with the new `#ref` (Claude Code) or `@ref` (Codex).
 - Repository skills (library and stack) are pinned in `skills-lock.json`, and `/benchkeeper:setting-up-projects` proposes their updates. `/benchkeeper:maintaining-repos` proposes bumps for pins in docs and scripts.
 

@@ -144,7 +144,7 @@ if [ "$bk" = v6 ] || [ "$bk" = v7 ]; then
   # medium per model, auto-compact 400000, transcripts 14 days, /feedback off, subagents without a model on Sonnet. No
   # remote control and no update channel in a container.
   [ "$bk" != v7 ] || { jq '.advisorModel = "opus" | .autoCompactWindow = 400000 | .cleanupPeriodDays = 14
-    | .effortLevel = "medium" | .modelSettings["claude-opus-5-5"].effortLevel = "medium" | .modelSettings["claude-sonnet-5-5"].effortLevel = "medium"
+    | .effortLevel = "high" | .modelSettings["claude-opus-5-5"].effortLevel = "high" | .modelSettings["claude-sonnet-5-5"].effortLevel = "high"
     | .env = ((.env // {}) + {"DISABLE_FEEDBACK_COMMAND": "1", "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"})' "$f" > "$f.tmp" && mv "$f.tmp" "$f"; }
 elif [ "$bk" != no ]; then
   case ${BK:-v1} in v1|v2) ;; *) echo "BK must be v1 or v2, not $BK" >&2; exit 1 ;; esac

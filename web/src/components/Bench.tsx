@@ -45,7 +45,7 @@ export type Top = { brief: string; of: number; top: Detail[]; baselines: (Detail
 export type Notes = {
   briefs: Record<string, string>; runs: Record<string, { tested?: string; summary?: string; findings: string[] }>;
   reports: { file: string; title: string; summary: string }[];
-  running: { title: string; url: string; text: string }[];
+  partial: { title: string; url: string; text: string }[];
   stacks: { name: string; url: string; version: string; text: string; arms: string }[];
 };
 
@@ -167,9 +167,9 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
 
       {runs.map(({ run, ranking }) => <RunCard key={run.run} base={base} r={run} ranking={ranking} notes={notes} />)}
 
-      <Title order={2} mb="md">Running now</Title>
+      <Title order={2} mb="md">Partial runs</Title>
       <Stack gap="md" maw={820} mb={56}>
-        {notes.running.map((x) => (
+        {notes.partial.map((x) => (
           <div key={x.title}>
             <Anchor href={x.url} fw={700}>{x.title}</Anchor>
             <Text size="sm" mt={4}>{x.text}</Text>

@@ -9,7 +9,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 - Site locally: `devcontainer exec --docker-path podman --workspace-folder . sh -lc 'cd web && npm ci && npm run build && npm test'`. Preview (`npm run preview`) under `/BenchKeeper/` on a free host port: `podman port $(podman ps -q --filter label=devcontainer.local_folder="$PWD") 4321`
 
 ## Conventions
-- `rules/global.md` applies here: no em dash, no emojis, facts only.
+- `plugins/benchkeeper/rules/global.md` applies here: no em dash, no emojis, facts only.
 - Default tier: research
 - Pre-push review: `rules/` and `skills/` count as code, not docs.
 - Every install command pins an exact version (`pkg@x.y.z`). `/setting-up-machine` bumps them at install time.

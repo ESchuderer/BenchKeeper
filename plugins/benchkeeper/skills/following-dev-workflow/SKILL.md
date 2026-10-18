@@ -8,7 +8,7 @@ when_to_use: "Fix, add, change, refactor, rename, update, upgrade or remove anyt
 
 Matt Pocock's skills do the work of each phase. This skill picks the tier, which decides which of his skills a task requires, and adds the repository rules his skills leave open. Any installed skill, his or another, also loads in any tier when its own description matches the task: the tier sets the minimum, not the maximum.
 
-Names: Matt Pocock's skills are `mattpocock-skills:<name>` in Claude Code and `<name>` in Codex. A named skill runs when you call the Skill tool with it, one call per skill: naming it in prose does not reliably load it. User-invoked skills (marked U) only run when the user starts them (Claude Code: `/mattpocock-skills:<name>`, Codex `$<name>`): suggest them and wait. The bundled `/code-review` and `/security-review` are Claude Code's own. Matt Pocock's skills missing (Codex installs them per repository): ask the user to run `$setting-up-projects`, and meanwhile work on a branch and run the project's checks.
+Names: Matt Pocock's skills are `mattpocock-skills:<name>` in Claude Code and `<name>` in Codex. A named skill runs when you call the Skill tool with it, one call per skill: naming it in prose does not reliably load it. User-invoked skills (marked U) only run when the user starts them (Claude Code: `/mattpocock-skills:<name>`, Codex `$<name>`): suggest them and wait. The bundled `/code-review` and `/security-review` are Claude Code's own. Matt Pocock's skills missing (Codex installs them per repository): ask the user to run `$benchkeeper:setting-up-projects`, and meanwhile work on a branch and run the project's checks.
 
 ## Before the first edit
 
@@ -71,4 +71,4 @@ The change type sets the tier and the check before reporting done, in addition t
 
 Before reporting done: the project's own build, types, lint and tests, each reported with its command and result. UI changes also in a browser (Playwright MCP), next to the UI tests, never instead of them. Browser and build output (`.playwright-mcp/`, `test-results/`, screenshots) is git-ignored or deleted. Report failures as they are.
 
-After a milestone or about every 10 merged pull requests, suggest `/maintaining-repos`.
+After a milestone or about every 10 merged pull requests, suggest `/benchkeeper:maintaining-repos`.

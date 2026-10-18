@@ -1,6 +1,6 @@
 #!/bin/sh
 # Skill authoring check: extracts the skills installed in the pinned arm images and runs bench/scripts/skill-lint.mjs
-# on each collection, BenchKeeper's own from skills/. Arm A (plain Claude Code) has no skills, so each arm's skills are its
+# on each collection, BenchKeeper's own from plugins/benchkeeper/skills/. Arm A (plain Claude Code) has no skills, so each arm's skills are its
 # framework's. Usage: bench/scripts/skill-lint.sh <out-dir>   writes <out-dir>/skill-lint.json and skill-lint.md
 set -eu
 repo=$(dirname "$(dirname "$(dirname "$(realpath "$0")")")"); out=$(realpath -m "$1"); x=$(mktemp -d)
@@ -13,7 +13,7 @@ for arm in B F G H V AB AC; do
   podman run --rm "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sh -c 'cd "$HOME" && ls -d .claude/plugins/cache .claude/skills project-template/.claude \
     project-template/.specify 2>/dev/null | tar -c --exclude="*/node_modules/*" --exclude="*/.git/*" -T -' | tar -x -C "$x/$arm"
 done
-cp -r "$repo/skills" "$x/BK"
+cp -r "$repo/plugins/benchkeeper/skills" "$x/BK"
 set -- agent-skills=/x/F/.claude/plugins/cache/addy-agent-skills/agent-skills/0.6.13 \
   Superpowers=/x/G/.claude/plugins/cache/superpowers-dev/superpowers/7.0.0 ECC=/x/H/.claude/skills \
   Matt-Pocock=/x/V/.claude/plugins/cache/mattpocock/mattpocock-skills/1.3.1 Ponytail=/x/B/.claude/plugins/cache/ponytail/ponytail/5.2.0 \

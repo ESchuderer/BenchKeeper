@@ -13,6 +13,7 @@
 #   AF Matt Pocock + Ponytail
 #   AG Matt Pocock + BK v4 (bench/arms/bk-v4: the rules and skills of setup-v3.1, the recommended setup)
 #   AH Matt Pocock + BK v5 (bench/arms/bk-v5: setup-v3.3, Matt Pocock's own install and setup with the BenchKeeper additions)
+#   AL Matt Pocock + BK v6 (bench/arms/bk-v6: setup-v4.0, the BenchKeeper plugin with Ponytail and Matt Pocock's plugins, as setup.sh installs them)
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -20,7 +21,7 @@ set -eu
 arm=$1
 
 # Matt Pocock's one-time /setup-matt-pocock-skills, as its recommended answers give it (local markdown issue tracker,
-# default triage labels, single-context domain docs), from the seed templates at v1.3.1: docs/agents/ plus the
+# default triage labels, single-context domain docs), from the seed templates of the pinned commit: docs/agents/ plus the
 # "## Agent skills" block in CLAUDE.md, or in <file> when given (it creates the file when neither exists).
 mp_setup() {
   s=$src/mattpocock-skills/skills/engineering/setup-matt-pocock-skills
@@ -100,12 +101,13 @@ case $arm in
   X) fw=mp bk=yes pt=yes spec=none ;;          Y) fw=mp bk=yes pt=yes spec=openspec ;;
   AD) fw=mp bk=v3 pt=yes spec=none ;;           AE) fw=mp bk=v3 pt=yes spec=openspec ;;
   AF) fw=mp bk=no pt=yes spec=none ;;           AG) fw=mp bk=v4 pt=yes spec=none ;;
-  AH) fw=mp bk=v5 pt=yes spec=none ;;
+  AH) fw=mp bk=v5 pt=yes spec=none ;;          AL) fw=mp bk=v6 pt=yes spec=none ;;
   Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac
 src=$HOME/.bench-src
-clone() { git -c advice.detachedHead=false clone -q --depth 1 --branch "$2" "https://github.com/$1.git" "$src/$(echo "$1" | tr / -)"; }
+# <owner/repo> <tag or commit>: a shallow checkout of that ref in $src/<owner>-<repo>
+clone() { d=$src/$(echo "$1" | tr / -); git init -q "$d" && git -C "$d" fetch -q --depth 1 "https://github.com/$1.git" "$2" && git -C "$d" -c advice.detachedHead=false checkout -q FETCH_HEAD; }
 plugin() { clone "$1" "$2"; claude plugin marketplace add "$src/$(echo "$1" | tr / -)"; claude plugin install "$3"; }
 mkdir -p "$src" "$HOME/.claude/rules" "$HOME/.claude/skills"
 # Every arm: a no-op status line, as on the owner's machine; without one Ponytail asks the agent to set one up.
@@ -116,15 +118,27 @@ case $fw in
   as) plugin addyosmani/agent-skills 0.6.13 agent-skills@addy-agent-skills ;;
   sp) plugin obra/superpowers v7.0.0 superpowers@superpowers-dev ;;
   ecc) DO_NOT_TRACK=1 npx -y ecc-universal@2.2.3 install --profile minimal --target claude ;;
-  mp) plugin mattpocock/skills v1.3.1 mattpocock-skills@mattpocock ;;
+  mp) plugin mattpocock/skills 49dd158d1076134a641b33efb035946536778336 mattpocock-skills@mattpocock ;;
 esac
 if [ "$pt" = yes ]; then
-  plugin DietrichGebert/ponytail v5.2.0 ponytail@ponytail
+  plugin DietrichGebert/ponytail v5.3.2 ponytail@ponytail
   mkdir -p "$HOME/.config/ponytail" && printf '{"defaultMode":"full"}\n' > "$HOME/.config/ponytail/config.json"
 fi
 
 t=$HOME/project-template
-if [ "$bk" != no ]; then
+if [ "$bk" = v6 ]; then
+  # setup-v4.0 (setup.sh): the rules file, the BenchKeeper plugin from its pinned copy, find-skills, and the Claude settings
+  # without advisorModel and remoteControlAtStartup (an Opus advisor would mix a second model into a Sonnet run; no remote
+  # control in a container). Project: Matt Pocock's repository setup like the other mp arms (mp_setup below), no devcontainer.
+  cp /opt/bench/bk-v6/plugins/benchkeeper/rules/global.md "$HOME/.claude/rules/00-global.md"
+  # the marketplace from a copy: /opt/bench is removed after the install
+  cp -r /opt/bench/bk-v6 "$src/benchkeeper" && claude plugin marketplace add "$src/benchkeeper" && claude plugin install benchkeeper@benchkeeper
+  clone vercel-labs/skills v1.7.2 && cp -r "$src/vercel-labs-skills/skills/find-skills" "$HOME/.claude/skills/"
+  f=$HOME/.claude/settings.json
+  jq '.showClearContextOnPlanAccept = true | .autoCompactWindow = (.autoCompactWindow // 400000)
+    | .attribution = {"commit": "Assisted-by: generative AI", "pr": "Created with the assistance of generative AI.", "sessionUrl": false}
+    | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"})' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+elif [ "$bk" != no ]; then
   case ${BK:-v1} in v1|v2) ;; *) echo "BK must be v1 or v2, not $BK" >&2; exit 1 ;; esac
   if [ "$bk" = v3 ] || [ "$bk" = v4 ] || [ "$bk" = v5 ]; then
     cp "/opt/bench/bk-$bk/global.md" "$HOME/.claude/rules/00-global.md"
@@ -156,11 +170,11 @@ if [ "$bk" != no ]; then
 fi
 case $spec in
   openspec)
-    npm i -g --prefix "$HOME/.local" @fission-ai/openspec@1.14.1
+    npm i -g --prefix "$HOME/.local" @fission-ai/openspec@1.14.3
     openspec config set delivery skills >/dev/null && openspec config set telemetry.enabled false >/dev/null
     mkdir -p "$t" && (cd "$t" && openspec init --tools claude --no-animation >/dev/null) ;;
   speckit)
-    uv tool install -q specify-cli --from git+https://github.com/github/spec-kit.git@v1.2.0
+    uv tool install -q specify-cli --from git+https://github.com/github/spec-kit.git@v1.2.1
     mkdir -p "$t" && (cd "$t" && specify init --here --integration claude --script sh --force --non-interactive --ignore-agent-tools >/dev/null) ;;
 esac
 # v4: the "## Agent skills" block goes into AGENTS.md (setting-up-projects of setup-v3.1), CLAUDE.md stays @AGENTS.md

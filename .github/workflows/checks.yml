@@ -29,7 +29,7 @@ jobs:
       # AGENTS.md: SKILL.md front matter `description` in double quotes (it contains colons).
       - name: SKILL.md front matter
         run: |
-          for f in plugins/benchkeeper/skills/*/SKILL.md; do
+          for f in plugins/benchkeeper/skills/*/SKILL.md plugins/benchkeeper/library/*/SKILL.md; do
             awk 'NR == 1 && $0 != "---" { exit 1 } NR > 1 && $0 == "---" { exit found ? 0 : 1 } /^description: ".*"$/ { found = 1 }' "$f" \
               || { echo "::error file=$f::front matter needs description: \"...\""; exit 1; }
           done

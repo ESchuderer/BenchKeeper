@@ -43,9 +43,12 @@ export type Run = {
 export type Detail = Trial & { model: string; final: NonNullable<Trial['final']> };
 export type Top = { brief: string; of: number; top: Detail[]; baselines: (Detail & { place: number })[] };
 export type Notes = {
-  briefs: Record<string, string>; runs: Record<string, { headline?: string; findings: string[] }>;
+  briefs: Record<string, string>; runs: Record<string, { tested?: string; summary?: string; findings: string[] }>;
   reports: { file: string; title: string; summary: string }[];
 };
+
+// The short summary of a run, labeled as written by AI.
+const Summary = ({ text }: { text?: string }) => (text ? <Text mt="md"><Text span fw={700}>AI summary: </Text>{text}</Text> : null);
 
 const plain = (setup: string) => (setup === 'plain' ? 'no add-ons' : setup.replace(/^BK\b/, 'BenchKeeper layer'));
 const of = (n: number | null, total: number | null) => (n == null || total == null ? 'n/a' : `${n}/${total}`);
@@ -71,7 +74,7 @@ const shotLabel = (f: string) => f.replace(/\.\w+$/, '').replace(/^step(\d+)-/, 
 function Meta({ r }: { r: Run }) {
   return (
     <Text size="sm" c="dimmed" mt="xs">
-      Model {r.model}, effort {r.effort}, k = {r.k} (trials per arm), protocol {r.protocols.join(', ') || 'not recorded'}, run {r.date}.
+      {r.model} at effort {r.effort}. Each setup ran {r.k === '1' ? 'once (k = 1)' : `${r.k} times from a fresh start (k = ${r.k}), and its score is the median of those runs`}. Benchmark protocol {r.protocols.join(', ') || 'not recorded'}, run {r.date}.
     </Text>
   );
 }
@@ -92,7 +95,8 @@ function RunCard({ base, r, ranking, notes }: { base: string; r: Run; ranking: R
       <Title order={2} id={`run-${r.run}`}>{r.brief}, {r.model}</Title>
       {notes.briefs[r.brief] && <Text mt="xs">{notes.briefs[r.brief]}</Text>}
       <Meta r={r} />
-      {note?.headline && <Text mt="md" fw={600}>{note.headline}</Text>}
+      {note?.tested && <Text size="sm" mt="xs"><Text span fw={700}>Tested: </Text>{note.tested}</Text>}
+      <Summary text={note?.summary} />
       {ranking.groups.map((g) => {
         const top = g.rows.slice(0, 10), base0 = g.rows.find((x) => x.arm === 'A' && x.runtime === 'Claude Code');
         const label = `${r.brief}, ${r.model}${g.runtime ? `, ${g.runtime}` : ''}: top 10`;
@@ -246,7 +250,7 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
         {notes.briefs[r.brief] && <Text size="lg">{notes.briefs[r.brief]}</Text>}
         <Meta r={r} />
         {r.report && <Text>Full report: <Anchor href={`${REPO}/blob/main/bench/results/${r.report}`}>{r.report}</Anchor></Text>}
-        {note?.headline && <Text fw={600} mt="sm">{note.headline}</Text>}
+        <Summary text={note?.summary} />
         {note?.findings.length ? (<><Title order={2} fz="xl" mt="md">Key findings</Title><ul className="list">{note.findings.map((f) => <li key={f}>{f}</li>)}</ul></>) : null}
       </Stack>
 

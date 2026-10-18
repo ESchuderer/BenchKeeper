@@ -81,12 +81,13 @@ for d in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
   done
 done
 
-# Plugins: BenchKeeper, Matt Pocock's skills and Ponytail, installed the way each project documents it.
+# Plugins: BenchKeeper, Matt Pocock's skills and Ponytail, installed the way each project documents it. Ponytail runs a
+# SessionStart hook, so its marketplace is pinned to a tag (Claude #ref, Codex @ref) and bumped on purpose.
 install_claude() { claude plugin marketplace add "$2" ${3:+--sparse $3} && claude plugin install "$1"; }
 install_codex() { codex plugin marketplace add "$2" ${3:+--sparse ${3% *} --sparse ${3#* }} && codex plugin add "$1"; }
 if [ -n "$claude" ]; then
   have=$(claude plugin list --json | jq -r '.[] | select(.enabled) | .id')
-  for p in "benchkeeper@benchkeeper ESchuderer/BenchKeeper .claude-plugin,plugins" "ponytail@ponytail DietrichGebert/ponytail"; do
+  for p in "benchkeeper@benchkeeper ESchuderer/BenchKeeper .claude-plugin,plugins" "ponytail@ponytail DietrichGebert/ponytail#v5.3.2"; do
     set -- $p
     if echo "$have" | grep -qx "$1"; then ok "Claude plugin $1"; else step "install the Claude plugin $1" install_claude "$1" "$2" "$(echo "${3:-}" | tr , ' ')"; fi
   done
@@ -98,7 +99,7 @@ if [ -n "$claude" ]; then
 fi
 if [ -n "$codex" ]; then
   have=$(codex plugin list --json | jq -r '.installed[] | select(.enabled) | .pluginId')
-  for p in "benchkeeper@benchkeeper ESchuderer/BenchKeeper .claude-plugin,plugins" "ponytail@ponytail DietrichGebert/ponytail" "mattpocock-skills@mattpocock mattpocock/skills"; do
+  for p in "benchkeeper@benchkeeper ESchuderer/BenchKeeper .claude-plugin,plugins" "ponytail@ponytail DietrichGebert/ponytail@v5.3.2" "mattpocock-skills@mattpocock mattpocock/skills"; do
     set -- $p
     if echo "$have" | grep -qx "$1"; then ok "Codex plugin $1"; else step "install the Codex plugin $1" install_codex "$1" "$2" "$(echo "${3:-}" | tr , ' ')"; fi
   done

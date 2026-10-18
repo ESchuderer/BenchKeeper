@@ -1,12 +1,17 @@
 # Version updates for the `uses:` pins (SHA plus version comment) and the site's npm packages. Not covered, bumped by hand: the
-# actionlint image digest in checks.yml, and node-version.
+# actionlint image digest in checks.yml, and node-version. Each update waits until the release is 7 days old (cooldown): a release
+# withdrawn within that time never reaches a pull request.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
   - package-ecosystem: npm
     directory: /web
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7

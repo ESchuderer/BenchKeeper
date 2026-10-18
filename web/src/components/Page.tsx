@@ -68,12 +68,13 @@ function StepList({ from, className }: { from: number; className?: string }) {
 }
 
 const quickstart: [string, string, string][] = [
-  ['Clone BenchKeeper and open it in your agent', 'git clone https://github.com/ESchuderer/BenchKeeper.git && cd BenchKeeper && claude', 'Codex: run codex instead of claude.'],
-  ['Machine setup', '/setting-up-machine', 'Codex: $setting-up-machine. Pick your agents, review the plan, approve. Installs the rules, Matt Pocock\'s skills, Ponytail and the workflow and setup skills.'],
-  ['Restart the agents', '', 'New sessions load the global rules and skills.'],
-  ['Project setup, in each repository root', '/setting-up-projects', 'Codex: $setting-up-projects. Devcontainer, AGENTS.md, stack skills, default tier. It asks for the next step partway through.'],
-  ['Matt Pocock setup, when project setup asks for it', '/mattpocock-skills:setup-matt-pocock-skills', 'Codex: $setup-matt-pocock-skills. Issue tracker, triage labels, domain docs in docs/agents/. Then project setup finishes. Commit the result.'],
-  ['Update later', 'git -C BenchKeeper pull', 'Then /setting-up-machine again. In Claude Code, Matt Pocock\'s skills and Ponytail update through their marketplaces. Codex: rerun $setting-up-projects for his skills.'],
+  ['Clone BenchKeeper', 'git clone --depth 1 https://github.com/ESchuderer/BenchKeeper.git', 'setup.sh and the rules come from the clone. The skills install as a plugin.'],
+  ['Review the plan', 'sh BenchKeeper/plugins/benchkeeper/setup.sh', 'A dry run: lists each change for the agents on your PATH and changes nothing.'],
+  ['Apply', 'sh BenchKeeper/plugins/benchkeeper/setup.sh --apply', 'Asks before each change: rules, the plugins (BenchKeeper, Matt Pocock\'s skills, Ponytail), settings. Other global rules it finds go to a backup, and --restore moves them back. No root.'],
+  ['Restart the agents', '', 'New sessions load the global rules and the plugin skills.'],
+  ['Project setup, in each repository root', '/benchkeeper:setting-up-projects', 'Codex: $benchkeeper:setting-up-projects. Devcontainer, AGENTS.md, stack skills, default tier. It asks for the next step partway through.'],
+  ['Matt Pocock setup, when project setup asks for it', '/mattpocock-skills:setup-matt-pocock-skills', 'Codex: $mattpocock-skills:setup-matt-pocock-skills. Issue tracker, triage labels, domain docs in docs/agents/. Then project setup finishes. Commit the result.'],
+  ['Update later', 'claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper', 'Codex upgrades plugins at startup. When a release changes the rules: git -C BenchKeeper pull, then setup.sh --apply again.'],
 ];
 
 const reasons: [string, string][] = [
@@ -84,7 +85,7 @@ const reasons: [string, string][] = [
   ['One install', 'one machine setup covers every repository. Each repository adds only its tracker, docs and stack.'],
 ];
 
-const host = ['Claude Code or Codex, sign-in and permissions', 'Rules, Matt Pocock\'s skills, Ponytail, the workflow and setup skills', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'];
+const host = ['Claude Code or Codex, sign-in and permissions', 'Rules and the plugins: BenchKeeper, Matt Pocock\'s skills, Ponytail', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker'];
 const container = ['Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser', 'Non-root user, project mount only'];
 
 function Side({ label, color, items }: { label: string; color: string; items: string[] }) {
@@ -138,20 +139,20 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="parts" title="What gets installed">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-            <Part icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} href={`${REPO}/blob/main/rules/global.md`} scope="Global, every session">
+            <Part icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/rules/global.md`} scope="Global, every session">
               Ask before assuming, short answers, sources for claims, only what the task needs, checks never weakened, confirm before destructive steps.
             </Part>
-            <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} href={`${REPO}/blob/main/skills/following-dev-workflow/SKILL.md`} scope="Global, before repository work">
+            <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/following-dev-workflow/SKILL.md`} scope="Global, before repository work">
               The tier, the required steps and the check per change type: issue, branch, tests, reviews before push, draft pull request.
             </Part>
-            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="His install: Claude Code global, Codex per repository">
+            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="His plugin, global in both agents">
               Grilling, spec and tickets, TDD, bug diagnosis, code review, pull request text. They read the issue tracker and domain docs in <Code>docs/agents/</Code>.
             </Part>
             <Part icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, level full">
               The smallest complete change: reuse before new code, no unrequested options, a test for new logic, <Code>shortcut:</Code> comments for known limits.
             </Part>
-            <Part icon={<IconRoute size={20} />} title="Setup skills" scope="On request">
-              <Code>/setting-up-machine</Code>, <Code>/setting-up-projects</Code> and <Code>/maintaining-repos</Code> check first, show one plan and apply only what you approve.
+            <Part icon={<IconRoute size={20} />} title="setup.sh and the setup skills" href={`${REPO}/blob/main/plugins/benchkeeper/setup.sh`} scope="On request">
+              <Code>setup.sh</Code> sets up the machine, <Code>/benchkeeper:setting-up-projects</Code> each repository, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass. Each shows its plan first and applies only what you approve.
             </Part>
             <Part icon={<IconContainer size={20} />} title="Devcontainer and Playwright" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="Per repository">
               Installs, builds, tests and the browser run in the container as a non-root user. Stack skills come from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
@@ -159,7 +160,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="start" title="Quick start" intro={<>Needs Claude Code or Codex, Git, gh, Docker and the Dev Containers CLI (<Anchor href={`${REPO}#prerequisites`}>full list</Anchor>). Each setup step shows its plan before it changes anything.</>}>
+        <Section id="start" title="Quick start" intro={<>Needs Claude Code or Codex, Git, jq, npm and Docker (<Anchor href={`${REPO}#prerequisites`}>full list</Anchor>). <Code>setup.sh</Code> installs the Dev Containers CLI. Each setup step shows its plan before it changes anything.</>}>
           <Stack gap="lg" maw={760}>
             {quickstart.map(([title, cmd, note], k) => (
               <Group key={title} gap="md" wrap="nowrap" align="flex-start">

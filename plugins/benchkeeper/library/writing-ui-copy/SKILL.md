@@ -18,7 +18,7 @@ Delete:
 - tooltips that repeat their own label
 - consequences of an action, unless they are destructive, irreversible, paid, or notify other people (these stay)
 
-Each idea appears once per screen.
+Each idea appears once per screen. Buttons that repeat the action they confirm are the exception.
 
 ## Controls and messages
 

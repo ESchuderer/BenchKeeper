@@ -79,7 +79,7 @@ When the repository has a user interface or user-facing docs, ask whether to ins
 
 1. Copy the folder to `.agents/skills/writing-ui-copy/` when Codex is selected and to `.claude/skills/writing-ui-copy/` when Claude Code is selected. With both selected, `.claude/skills/writing-ui-copy` is a link to `../../.agents/skills/writing-ui-copy`.
 2. Folders named, not the whole repository: add `paths:` with their globs (`paths: ["web/**", "docs/**"]`) to the copied front matter. Claude Code then loads the skill only for files there. Codex has no such field and relies on the description and the pointer.
-3. Pointer: add `UI text and user docs: load the writing-ui-copy skill first.` to the `AGENTS.md` of each named folder (the root `AGENTS.md` conventions for the whole repository). A folder `AGENTS.md` created here gets a `CLAUDE.md` containing `@AGENTS.md` when Claude Code is selected.
+3. Pointer: add `UI text and user docs: load the writing-ui-copy skill first.` to the `AGENTS.md` of each named folder (the root `AGENTS.md` conventions for the whole repository). A folder `AGENTS.md` created here gets a `CLAUDE.md` containing `@AGENTS.md` when Claude Code is selected. An existing folder `CLAUDE.md` follows step 3.
 
 Update: compare the copy with the library version, ignoring `paths`, and propose the diff.
 

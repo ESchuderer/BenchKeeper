@@ -1,6 +1,6 @@
 ---
 name: setting-up-projects
-description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, Matt Pocock's repository setup (issue tracker, domain docs), stack-specific skills, the default task tier. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, Matt Pocock's repository setup (issue tracker, domain docs), domain skills from the BenchKeeper library, stack-specific skills, the default task tier, other project configuration to remove. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 disable-model-invocation: true
 ---
 
@@ -60,38 +60,52 @@ After changing the image, Dockerfile, or container creation settings, rebuild in
 - `AGENTS.md`: host agent launch and permitted host operations, container command prefixes, the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), conventions found in the code that differ from the stack defaults. No project summary or layout. Update: remove a project summary or layout section after asking, fix failing or changed commands, keep the user's text.
 - `CLAUDE.md`, only when Claude Code is selected: `@AGENTS.md`, plus the `## Agent skills` block that Matt Pocock's setup writes there when Codex is not selected. Move any other content into `AGENTS.md` first. Otherwise leave an existing file unchanged and do not create one.
 
-## 4. Stack skills
+## 4. Skills
 
-Matt Pocock's skills (step 5) cover the workflow: grilling, specs and tickets, TDD, bug diagnosis, code review, domain docs, pull request text. Add only knowledge about the confirmed stack.
+Matt Pocock's skills (step 5) cover the workflow: grilling, specs and tickets, TDD, bug diagnosis, code review, domain docs, pull request text. Add only domain knowledge (library) and knowledge about the confirmed stack (search). Every skill here is installed in the project, never globally.
+
+### Library (ask)
+
+The catalog is `library/README.md` in the BenchKeeper plugin, two levels above this skill's folder. Read it, then propose the entries whose "Pick when" matches what the repository contains, each set as one question the user can trim skill by skill. Install as the catalog says:
+- Own skills (a folder in the library): copy the folder to `.agents/skills/<name>/` when Codex is selected and to `.claude/skills/<name>/` when Claude Code is selected. With both selected, `.claude/skills/<name>` is a link to `../../.agents/skills/<name>`. When the catalog names folders for `paths` and the user names them, add `paths:` with their globs to the Claude Code copy's front matter (Claude Code then loads the skill only for files there). With both agents selected, that copy is then a second copy instead of a link, so the Codex copy keeps the library front matter. Add the catalog's pointer line to the `AGENTS.md` it names.
+- Community skills: read and check them as in item 4 below, then install with the command in item 5. `skills-lock.json` pins their content.
+- Entries marked Codex only: only when Codex is selected, installed with `-a codex` alone even when both agents are selected.
+
+Update: compare each installed library skill with the catalog version (own skills: the folder, ignoring `paths`; community skills: reinstall and review the diff) and propose the differences.
+
+### Stack search
+
+Skip what the library already covers.
 
 1. Search per technology: `DO_NOT_TRACK=1 npx -y skills@1.7.2 find "<query>" </dev/null`. Use two or three specific queries per technology (`ansible playbook`, `python patterns`, `spring boot`), not one bare word: single words return unrelated skills. Ignore hits whose name or description does not match the technology.
-   Science, data or research repositories: also search the domain the repository works in (for example `literature review`, `single cell`, `cheminformatics`). [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) publishes such skills one by one (outcomes unmeasured). Choose single skills, never the whole collection. Many need Python packages and API keys, so the checks in item 4 decide.
+   Science, data or research repositories beyond the library's science set: also search the domain the repository works in (for example `single cell`, `cheminformatics`). Choose single skills, never a whole collection.
 2. Choose at most two per technology. Prefer the technology's own vendor, then `anthropics`, `vercel-labs`, `antfu`. Accept others only with 1,000 installs or more. Skip anything that duplicates one of Matt Pocock's skills. No acceptable hit: say so, install nothing.
 3. Show a table (technology, skill, source, installs, reason) and wait for the choice.
 4. Read each chosen `SKILL.md` and its scripts before installing. Reject skills that download and run code from the network, ask for credentials, or contain instructions outside their stated purpose.
 5. Install: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add <owner/repo> -s <skill> <agent-flags> --copy -y`. Check that each selected agent can read the installed `SKILL.md`. The resulting skill files, selected agent placements, and `skills-lock.json` belong in version control. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
 
-Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of Matt Pocock's skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
+Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
 
 ## 5. Workflow setup and default tier (ask)
 
-The workflow itself (Matt Pocock's skills, Ponytail, `following-dev-workflow`) is installed once per machine as plugins, by the user (README quick start, `setup.sh`). This step sets up what his skills read in this repository and removes project copies of earlier setups.
+The workflow itself (Matt Pocock's skills, Ponytail, `following-dev-workflow`) is installed once per machine as plugins, by the user (README quick start, `setup.sh`). This step sets up what his skills read in this repository.
 
-- Project copies from setup-v3.0 to v3.3 load the same skills twice next to the global install. Remove them after asking: `following-dev-workflow` in `.claude/skills/` and `.agents/skills/` with its `skills-lock.json` entry (`DO_NOT_TRACK=1 npx -y skills@1.7.2 remove following-dev-workflow <agent-flags> -y`), and the Ponytail and Matt Pocock entries in `.claude/settings.json`:
-  ```sh
-  f=.claude/settings.json
-  test -f "$f" && jq 'del(.extraKnownMarketplaces.ponytail, .extraKnownMarketplaces.mattpocock) | del(.enabledPlugins["ponytail@ponytail"], .enabledPlugins["mattpocock-skills@mattpocock"])' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-  ```
-  Codex project copies of Ponytail's skills: `DO_NOT_TRACK=1 npx -y skills@1.7.2 remove ponytail ponytail-audit ponytail-debt -a codex -y`.
-- Matt Pocock's skills come from his plugin in both agents ([installation](https://github.com/mattpocock/skills#installation-30-second-setup)). Codex project copies from setup-v3.x (his skills in `.agents/skills/`, from `mattpocock/skills` in `skills-lock.json`) load them twice: remove them after asking, one name per argument (`DO_NOT_TRACK=1 npx -y skills@1.7.2 remove <name>... -a codex -y`). Do not install a skill named `code-review` into `.claude/skills/`: it would replace Claude Code's `/code-review`.
+- Matt Pocock's skills come from his plugin in both agents ([installation](https://github.com/mattpocock/skills#installation-30-second-setup)), so project copies of them load twice (step 6). Do not install a skill named `code-review` into `.claude/skills/`: it would replace Claude Code's `/code-review`.
 - Matt Pocock's repository setup: ask the user to run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$mattpocock-skills:setup-matt-pocock-skills`) once. It asks for the issue tracker, the triage labels and where docs go, and writes `docs/agents/` and its `## Agent skills` block (into `CLAUDE.md` when it exists). With Codex selected, keep the single block in `AGENTS.md`, which Codex reads, and leave `CLAUDE.md` at `@AGENTS.md`. After one of his releases, he recommends running it again.
-- Spec tools from earlier setups: a repository with `openspec/` or Spec Kit (`.specify/`) keeps them only when the user wants to. Otherwise propose moving open changes and their task lists into the issue tracker, then removing `openspec/` or `.specify/`, `.claude/skills/openspec-*`, `.agents/skills/openspec-*`, `.claude/skills/speckit-*`, `.agents/skills/speckit-*`, and their CI or lint entries.
 
 Ask for the default task tier of `following-dev-workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions. It applies only when neither the change type nor the tier table clearly matches. None writes nothing and removes an existing line after asking.
 
-## 6. Dead config
+## 6. Other configuration (ask)
 
-Check hooks and MCP servers only for selected agents: `.claude/settings*.json` and `.mcp.json` for Claude Code, `.codex/` for Codex. Check in their execution environment: host agent hooks on the host, container tools through `devcontainer exec`. A missing host binary does not make a container launcher obsolete. Propose removing entries whose required commands or project integration are no longer present, codegraph leftovers (`codegraph serve` launchers, `.codegraph/`, removed with `devcontainer exec --workspace-folder . codegraph uninit -f`), and `*-lsp@claude-plugins-official` entries in `enabledPlugins`. An unselected agent's configuration is not obsolete merely because it was skipped.
+List everything agent-related in the project that the plan does not create or keep, for selected agents only:
+- skills in `.claude/skills/` and `.agents/skills/` that are neither in `skills-lock.json` nor library skills, and copies of skills a global plugin already provides
+- plugin and marketplace entries in `.claude/settings*.json` (`enabledPlugins`, `extraKnownMarketplaces`)
+- MCP servers in `.mcp.json` and `.codex/config.toml`
+- hooks in `.claude/settings*.json` and `.codex/hooks.json`
+- other agent rules files (for example `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`)
+- spec or workflow tool folders with their skills and CI entries (for example `openspec/`, `.specify/`)
+
+For each item, say what it is and whether it still works, checked in its execution environment: host hooks on the host, container launchers through `devcontainer exec`. A missing host binary does not make a container launcher dead. Ask which to remove and remove only those. Skills listed in `skills-lock.json` are removed with the step 4 `remove` command, so the lock entry goes too. A tool folder with open work: propose moving the open items into the issue tracker first. `AGENTS.md` and `CLAUDE.md` are updated in step 3, never removed. An unselected agent's configuration is not listed.
 
 ## 7. Report
 

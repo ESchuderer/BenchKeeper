@@ -1,10 +1,12 @@
 #!/bin/sh
 # BenchKeeper machine setup for Claude Code and Codex: the global rules, settings, plugin installs, host checks, and a
-# scan for other global rules. Run it yourself, it never runs on its own. Needs jq. Never uses sudo.
+# list of everything else installed globally (rules, skills, plugins, marketplaces, MCP servers, hooks), each removed
+# only after a y. Run it yourself, it never runs on its own. Needs jq. Never uses sudo.
 # Usage: setup.sh            dry run: prints the plan, changes nothing
 #        setup.sh --apply    asks before each change (y to apply, anything else skips)
 #        setup.sh --restore <name>   moves the files of a backup (~/.config/benchkeeper/backup/<name>) back
 # Files are never deleted: anything replaced, edited or removed is first moved or copied to ~/.config/benchkeeper/backup/<date>/.
+# Plugins, marketplaces and MCP servers are removed with the agent's own command, so undoing those means installing them again.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 rules=$here/rules/global.md
@@ -33,7 +35,7 @@ case ${1:-} in
 --apply) mode=apply ;;
 --restore) restore "${2:?--restore needs a backup name, see ls $backups}"; exit 0 ;;
 '') ;;
-*) sed -n '4,7p' "$0" >&2; exit 2 ;;
+*) sed -n '5,8p' "$0" >&2; exit 2 ;;
 esac
 
 ok() { echo "ok     $1"; }
@@ -55,11 +57,11 @@ stash() {
   dest=$backups/$stamp/${1#"$HOME"/}
   mkdir -p "$(dirname "$dest")" && mv "$1" "$dest"
 }
-# jqset <file> <filter>: applies the filter to the current file (or {}), after a copy of the old file goes to the backup.
+# jqset <file> <filter>: applies the filter to the current file (or {}). The first change in a run copies the old file to the backup.
 jqset() {
   if [ -f "$1" ]; then
     dest=$backups/$stamp/${1#"$HOME"/}
-    mkdir -p "$(dirname "$dest")" && cp -p "$1" "$dest" && jq "$2" "$1" >"$tmp/set.json"
+    mkdir -p "$(dirname "$dest")" && { [ -e "$dest" ] || cp -p "$1" "$dest"; } && jq "$2" "$1" >"$tmp/set.json"
   else
     mkdir -p "$(dirname "$1")" && echo '{}' | jq "$2" >"$tmp/set.json"
   fi && cp "$tmp/set.json" "$1"
@@ -106,13 +108,6 @@ if [ -n "$codex" ]; then
   [ ! -e "$f" ] || step "move other global rules $f ($(wc -l <"$f") lines) to the backup" stash "$f"
 fi
 
-# Skill links of setup-v3 and earlier: the plugin replaces them.
-for d in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
-  for n in following-dev-workflow setting-up-machine setting-up-projects maintaining-repos sdlc maintain global-setup project-setup; do
-    [ ! -L "$d/$n" ] || step "move the old skill link $d/$n to the backup (the plugin replaces it)" stash "$d/$n"
-  done
-done
-
 # Plugins: BenchKeeper, Matt Pocock's skills and Ponytail, installed the way each project documents it. Ponytail runs a
 # SessionStart hook, so its marketplace is pinned to a tag (Claude #ref, Codex @ref) and bumped on purpose.
 install_claude() { claude plugin marketplace add "$2" ${3:+--sparse $3} && claude plugin install "$1"; }
@@ -125,9 +120,6 @@ if [ -n "$claude" ]; then
   done
   p=mattpocock-skills@claude-plugins-official
   if echo "$have" | grep -qx "$p"; then ok "Claude plugin $p"; else step "install the Claude plugin $p" claude plugin install "$p"; fi
-  echo "$have" | grep -vx -e benchkeeper@benchkeeper -e ponytail@ponytail -e "$p" | grep -v "@anthropic-plugin-directory$" | while IFS= read -r x; do
-    [ -z "$x" ] || info "other Claude plugin $x (remove: claude plugin uninstall $x)"
-  done
 fi
 if [ -n "$codex" ]; then
   have=$(codex plugin list --json | jq -r '.installed[] | select(.enabled) | .pluginId')
@@ -135,10 +127,66 @@ if [ -n "$codex" ]; then
     set -- $p
     if echo "$have" | grep -qx "$1"; then ok "Codex plugin $1"; else step "install the Codex plugin $1" install_codex "$1" "$2" "$(echo "${3:-}" | tr , ' ')"; fi
   done
-  echo "$have" | grep -vx -e benchkeeper@benchkeeper -e ponytail@ponytail -e mattpocock-skills@mattpocock | grep -v "@openai-curated-remote$" | while IFS= read -r x; do
-    [ -z "$x" ] || info "other Codex plugin $x (remove: codex plugin remove $x)"
+fi
+
+# Everything else installed globally: listed one by one and removed only after a y. Files go to the backup. Plugins,
+# marketplaces and MCP servers are removed with the agent's own command. Loops read lists from variables, not pipes,
+# so step can read the answer from the terminal.
+nl='
+'
+IFS_old=$IFS
+IFS=$nl
+if [ -n "$claude" ]; then
+  for s in "$HOME"/.claude/skills/*; do
+    case ${s##*/} in find-skills | orca-cli | orchestration | synced) continue ;; esac
+    { [ -e "$s" ] || [ -L "$s" ]; } && step "move the global skill $s to the backup" stash "$s"
+  done
+  for x in $(claude plugin list --json | jq -r '.[] | select(.scope == "user" or .scope == null) | .id'); do
+    case $x in
+    benchkeeper@benchkeeper | ponytail@ponytail | mattpocock-skills@claude-plugins-official | *@anthropic-plugin-directory) ;;
+    *) step "uninstall the Claude plugin $x" claude plugin uninstall "$x" ;;
+    esac
+  done
+  for x in $(claude plugin marketplace list --json | jq -r '.[].name'); do
+    case $x in benchkeeper | ponytail | claude-plugins-official | anthropic-plugin-directory) ;;
+    *) step "remove the Claude marketplace $x" claude plugin marketplace remove "$x" ;; esac
+  done
+  for x in $(jq -r '.mcpServers // {} | keys[]' "$HOME/.claude.json" 2>/dev/null); do
+    step "remove the Claude user MCP server $x (projects configure their own)" claude mcp remove --scope user "$x"
   done
 fi
+if [ -n "$codex" ]; then
+  for s in "$HOME"/.agents/skills/*; do
+    case ${s##*/} in find-skills | orca-cli | orchestration) continue ;; esac
+    { [ -e "$s" ] || [ -L "$s" ]; } && step "move the global skill $s to the backup" stash "$s"
+  done
+  for x in $(codex plugin list --json | jq -r '.installed[] | .pluginId'); do
+    case $x in benchkeeper@benchkeeper | ponytail@ponytail | mattpocock-skills@mattpocock | *@openai-curated*) ;;
+    *) step "remove the Codex plugin $x" codex plugin remove "$x" ;; esac
+  done
+  for x in $(codex plugin marketplace list --json | jq -r '.marketplaces[].name'); do
+    case $x in benchkeeper | ponytail | mattpocock | openai-curated*) ;;
+    *) step "remove the Codex marketplace $x" codex plugin marketplace remove "$x" ;; esac
+  done
+  for x in $(cd "$HOME" && codex mcp list --json | jq -r '.[].name'); do
+    step "remove the Codex MCP server $x (projects configure their own)" sh -c 'cd "$HOME" && codex mcp remove "$1"' _ "$x"
+  done
+fi
+# Hooks per event. Orca writes its own hooks back, so they are reported, not offered.
+for f in ${claude:+"$HOME/.claude/settings.json"} ${codex:+"$HOME/.codex/hooks.json"}; do
+  [ -f "$f" ] || continue
+  orca=
+  for e in $(jq -r '.hooks // {} | keys[]' "$f"); do
+    keep=".hooks[\"$e\"] |= map(select(any(.hooks[]?; .command // \"\" | test(\"ORCA_\"))))"
+    n=$(jq "$keep | .hooks[\"$e\"] | length" "$f")
+    if [ "$n" -eq 0 ]; then keep="del(.hooks[\"$e\"])"; else orca="$orca $e"; fi
+    if [ "$(jq ".hooks[\"$e\"] | length" "$f")" -gt "$n" ]; then
+      step "remove the non-Orca $e hooks from $f (the old file goes to the backup)" jqset "$f" "$keep"
+    fi
+  done
+  [ -z "$orca" ] || info "Orca hooks in $f:$orca (Orca manages them)"
+done
+IFS=$IFS_old
 
 # Settings: merged into the existing files, other keys and hooks stay.
 claude_keys='.advisorModel = "opus" | .remoteControlAtStartup = true | .showClearContextOnPlanAccept = true
@@ -188,18 +236,10 @@ fi
 if docker info >/dev/null 2>&1; then ok "container engine (docker info)"; elif command -v podman >/dev/null && podman info >/dev/null 2>&1; then
   ok "container engine (podman)"
 else info "no container engine reachable: see https://docs.docker.com/engine/install/"; fi
-if [ -n "$claude" ]; then
-  claude mcp list 2>/dev/null | grep -i '^playwright' | grep -v devcontainer | while IFS= read -r x; do
-    info "host Playwright MCP: ${x%%:*} (projects run it in their devcontainer, see setting-up-projects)"
-  done
-fi
 skills_v=""
 command -v npm >/dev/null && skills_v=$(newest skills)
 skill vercel-labs/skills find-skills
 command -v orca >/dev/null && skill https://github.com/stablyai/orca orca-cli && skill https://github.com/stablyai/orca orchestration
-for f in "$HOME/.claude/RTK.md" "$HOME/.codex/RTK.md"; do
-  [ ! -e "$f" ] || step "move the RTK leftover $f to the backup" stash "$f"
-done
 [ "$mode" = plan ] && echo "Dry run: nothing changed. Run with --apply to choose changes."
 [ -d "$backups/$stamp" ] && echo "Backup: $backups/$stamp (undo with --restore $stamp)"
 [ -z "$failed" ] || { echo "Some changes failed, see the lines marked failed." >&2; exit 1; }

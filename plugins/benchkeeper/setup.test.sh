@@ -7,9 +7,39 @@ trap 'rm -rf "$t"' EXIT
 export HOME="$t/home" PATH="$t/bin:$PATH"
 mkdir -p "$HOME" "$t/bin"
 stub() { printf '#!/bin/sh\n%s\n' "$2" >"$t/bin/$1"; chmod +x "$t/bin/$1"; }
-# Plugins count as installed once the stub saw an install; npm knows one release older and one newer than 7 days.
-stub claude 'case "$1 $2" in "plugin list") [ -f "$HOME/.c" ] && echo "[{\"id\":\"benchkeeper@benchkeeper\",\"enabled\":true},{\"id\":\"ponytail@ponytail\",\"enabled\":true},{\"id\":\"mattpocock-skills@claude-plugins-official\",\"enabled\":true}]" || echo "[]" ;; "plugin install") touch "$HOME/.c" ;; esac'
-stub codex 'case "$1 $2" in "plugin list") [ -f "$HOME/.x" ] && echo "{\"installed\":[{\"pluginId\":\"benchkeeper@benchkeeper\",\"enabled\":true},{\"pluginId\":\"ponytail@ponytail\",\"enabled\":true},{\"pluginId\":\"mattpocock-skills@mattpocock\",\"enabled\":true}]}" || echo "{\"installed\":[]}" ;; "plugin add") [ ! -f "$HOME/.fail" ] && touch "$HOME/.x" ;; esac'
+# Plugins count as installed once the stub saw an install. Each agent also has one foreign plugin, marketplace and MCP
+# server. A removal leaves a marker file that hides it. npm knows one release older and one newer than 7 days.
+cat >"$t/bin/claude" <<'EOF'
+#!/bin/sh
+case "$*" in
+"plugin list --json")
+  l='{"id":"other@x","enabled":true,"scope":"user"}'
+  [ -f "$HOME/.c-pu" ] && l='{"id":"other@x","enabled":false,"scope":"project"}'
+  [ -f "$HOME/.c" ] && l="$l"',{"id":"benchkeeper@benchkeeper","enabled":true,"scope":"user"},{"id":"ponytail@ponytail","enabled":true,"scope":"user"},{"id":"mattpocock-skills@claude-plugins-official","enabled":true,"scope":"user"}'
+  echo "[$l]" ;;
+"plugin uninstall other@x") touch "$HOME/.c-pu" ;;
+"plugin marketplace list --json") [ -f "$HOME/.c-mr" ] && echo '[{"name":"ponytail"}]' || echo '[{"name":"ponytail"},{"name":"old"}]' ;;
+"plugin marketplace remove old") touch "$HOME/.c-mr" ;;
+"mcp remove --scope user extra") jq 'del(.mcpServers.extra)' "$HOME/.claude.json" >"$HOME/.cj" && mv "$HOME/.cj" "$HOME/.claude.json" ;;
+"plugin install"*) touch "$HOME/.c" ;;
+esac
+EOF
+cat >"$t/bin/codex" <<'EOF'
+#!/bin/sh
+case "$*" in
+"plugin list --json")
+  l='{"pluginId":"other@x","enabled":true}'
+  [ -f "$HOME/.x-pu" ] && l=
+  [ -f "$HOME/.x" ] && l="${l:+$l,}"'{"pluginId":"benchkeeper@benchkeeper","enabled":true},{"pluginId":"ponytail@ponytail","enabled":true},{"pluginId":"mattpocock-skills@mattpocock","enabled":true}'
+  echo "{\"installed\":[$l]}" ;;
+"plugin remove other@x") touch "$HOME/.x-pu" ;;
+"plugin marketplace list --json") echo '{"marketplaces":[{"name":"ponytail"}]}' ;;
+"mcp list --json") [ -f "$HOME/.x-mcp" ] && echo '[]' || echo '[{"name":"extra"}]' ;;
+"mcp remove extra") touch "$HOME/.x-mcp" ;;
+"plugin add"*) [ ! -f "$HOME/.fail" ] && touch "$HOME/.x" ;;
+esac
+EOF
+chmod +x "$t/bin/claude" "$t/bin/codex"
 stub npm 'case "$1" in view) echo "[{\"created\":\"2020-01-01T00:00:00Z\",\"1.0.0\":\"2020-01-01T00:00:00Z\",\"9.9.9\":\"2999-01-01T00:00:00Z\"}]" ;; i) echo "1.0.0" >"$HOME/.dc" ;; esac'
 stub devcontainer 'cat "$HOME/.dc" 2>/dev/null || true'
 stub docker 'exit 0'
@@ -24,7 +54,9 @@ mkdir -p "$HOME/.claude/rules" "$HOME/.claude/skills" "$HOME/.codex"
 echo "old rules" >"$HOME/.claude/CLAUDE.md"
 echo "other" >"$HOME/.claude/rules/10-other.md"
 ln -s /nowhere/skills/following-dev-workflow "$HOME/.claude/skills/following-dev-workflow"
-echo '{"hooks":{"Stop":[]},"model":"opus"}' >"$HOME/.claude/settings.json"
+mkdir -p "$HOME/.agents/skills/old-skill"
+echo '{"mcpServers":{"extra":{"command":"x"}}}' >"$HOME/.claude.json"
+echo '{"hooks":{"Stop":[{"hooks":[{"command":"echo mine"}]}],"SessionStart":[{"hooks":[{"command":"ORCA_AGENT_HOOK_PORT=1 x"}]}],"PreToolUse":[{"hooks":[{"command":"ORCA_AGENT_HOOK_PORT=1 y"}]},{"hooks":[{"command":"echo mine too"}]}],"PostToolUse":[]},"model":"opus"}' >"$HOME/.claude/settings.json"
 echo "my codex rules" >"$HOME/.codex/AGENTS.md"
 
 before=$(snapshot)
@@ -41,12 +73,14 @@ yes y | sh "$setup" --apply >/dev/null
 cmp -s "$HOME/.claude/rules/00-global.md" "$(dirname "$setup")/rules/global.md" && pass "Claude rules written" || fail "Claude rules"
 cmp -s "$HOME/.codex/AGENTS.md" "$(dirname "$setup")/rules/global.md" && pass "Codex rules written" || fail "Codex rules"
 [ ! -e "$HOME/.claude/CLAUDE.md" ] && [ ! -e "$HOME/.claude/rules/10-other.md" ] && [ ! -L "$HOME/.claude/skills/following-dev-workflow" ] &&
-  pass "other rules and old links moved" || fail "other rules or links still there"
+  [ ! -e "$HOME/.agents/skills/old-skill" ] && pass "other rules and global skills moved" || fail "other rules or skills still there"
+[ -f "$HOME/.c-pu" ] && [ -f "$HOME/.c-mr" ] && [ -f "$HOME/.x-pu" ] && [ -f "$HOME/.x-mcp" ] && jq -e '.mcpServers == {}' "$HOME/.claude.json" >/dev/null &&
+  pass "other plugins, marketplaces and MCP servers removed" || fail "other plugins, marketplaces or MCP servers"
 b=$(ls "$HOME/.config/benchkeeper/backup" | head -1)
 [ -f "$HOME/.config/benchkeeper/backup/$b/.claude/CLAUDE.md" ] && pass "backup keeps the path below HOME" || fail "backup layout"
-jq -e '.hooks.Stop == [] and .model == "opus" and .advisorModel == "opus" and .attribution.sessionUrl == false' "$HOME/.claude/settings.json" >/dev/null &&
-  pass "settings merged, other keys kept" || fail "settings merge"
-jq -e '.advisorModel == null and .model == "opus"' "$HOME/.config/benchkeeper/backup/$b/.claude/settings.json" >/dev/null && pass "old settings in the backup" || fail "settings backup"
+jq -e '.hooks.Stop == null and .hooks.SessionStart != null and (.hooks.PreToolUse | length) == 1 and .hooks.PostToolUse == [] and .model == "opus" and .advisorModel == "opus" and .attribution.sessionUrl == false' "$HOME/.claude/settings.json" >/dev/null &&
+  pass "other hooks removed, Orca hooks and other keys kept" || fail "settings merge or hooks"
+jq -e '.advisorModel == null and .model == "opus" and .hooks.Stop != null' "$HOME/.config/benchkeeper/backup/$b/.claude/settings.json" >/dev/null && pass "old settings in the backup" || fail "settings backup"
 [ "$(cat "$HOME/.dc")" = 1.0.0 ] && pass "host tool at the newest release older than 7 days" || fail "version pick"
 
 out=$(sh "$setup" --apply </dev/null)

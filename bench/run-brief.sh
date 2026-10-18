@@ -20,10 +20,9 @@ serve=$(jq -r '.serve // "npm"' "$conf" 2>/dev/null || echo npm)
 # "steps": "sessions": the brief is steps/<k>.md on the baseline repository of its prepare.sh, one session per step.
 steps=$(jq -r '.steps // empty' "$conf" 2>/dev/null || true)
 # Final-message phrases that wait for the user (follow-up rule, protocol v1.8); `bench/scripts/waits.test.sh` checks them.
-WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when|answer the questions|once you answer|after you answer|i can.t (start|begin|continue|proceed) (yet|until)|which of these is (true|right|correct)|please run [^ ]*setting-up-projects'
-# Reads a final message on stdin; true when its last non-empty line ends with "?" or its last 5 lines match WAITS.
-waiting() { awk 'NF { l[++n] = $0 } END { for (i = (n > 5 ? n - 4 : 1); i <= n; i++) print l[i]; if (n && l[n] ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' \
-  | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
+WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when|answer the questions|once you answer|after you answer|i can.t (start|begin|continue|proceed) (yet|until)|which of these is (true|right|correct)|please run [^ ]*setting-up-projects|(i.ll|i will) wait for|not done yet|what i need from you|run [^ ]*setting-up-projects'
+# Reads a final message on stdin; true when its last non-empty line ends with "?" or any line matches WAITS.
+waiting() { awk 'NF { print; l = $0 } END { if (l ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
 runtime() { case $1 in Q|R|S|T|U|Z|AA) echo opencode ;; *) echo claude ;; esac; }
 needs() { for a in $arms; do [ "$(runtime "$a")" = "$1" ] && return 0; done; return 1; }
 if needs claude; then
@@ -119,8 +118,8 @@ for r in $(seq "$k"); do
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
     # PHASES=1: per-phase and per-subagent measurements for this trial (bench/scripts/phases.mjs).
     [ "${PHASES:-}" != 1 ] || touch "$t/log/phases"
-    # Arms AD and AE always carry layer v3 (bench/arms/bk-v3*), AG layer v4 (bench/arms/bk-v4), AH layer v5 (bench/arms/bk-v5), AL layer v6 (bench/arms/bk-v6, setup-v4.0); the other layer arms the BK build argument (default v1).
-    case $arm in AD|AE) echo v3 ;; AG) echo v4 ;; AH) echo v5 ;; AL) echo v6 ;; *) echo "${BK:-v1}" ;; esac > "$t/bk"
+    # Arms AD and AE always carry layer v3 (bench/arms/bk-v3*), AG layer v4 (bench/arms/bk-v4), AH layer v5 (bench/arms/bk-v5), AL layer v6 (bench/arms/bk-v6, setup-v4.0), AM layer v7 (bench/arms/bk-v7, setup-v5.0); the other layer arms the BK build argument (default v1).
+    case $arm in AD|AE) echo v3 ;; AG) echo v4 ;; AH) echo v5 ;; AL) echo v6 ;; AM) echo v7 ;; *) echo "${BK:-v1}" ;; esac > "$t/bk"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
     [ "$steps" != sessions ] || { cp -a "$runs/baseline/." "$t/workspace/" && echo baseline > "$t/condition"; }
     # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first;
@@ -185,6 +184,8 @@ for r in $(seq "$k"); do
       tail -n +"$((${from:-0} + 1))" "$t/transcript.jsonl" | jq -Rrn '[inputs | fromjson? | if .type == "result" then .result elif .type == "text" then .part.text else empty end] | last // ""' \
         2> /dev/null | waiting
     }
+    # Step briefs: a turn that leaves the repository as the step found it is not done either (protocol 1.21).
+    state() { (cd "$t/workspace" && find . \( -name node_modules -o -path ./.git/objects -o -path ./.git/logs -o -path ./.git/index \) -prune -o -type f -print0 | sort -z | xargs -0 sha1sum) | sha1sum; }
     n=0
     if [ "$steps" = sessions ]; then
       # Step briefs (steps/<k>.md): each step in a new session on the same workspace, the follow-up rule within that
@@ -195,11 +196,11 @@ for r in $(seq "$k"); do
         [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] || break
         s=$t/steps/${f%.md} && mkdir -p "$s"
         [ "$rt" != claude ] || usage > "$s/usage-before"
-        a=$(wc -l < "$t/transcript.jsonl") && from=$a && date +%s > "$s/start"
+        a=$(wc -l < "$t/transcript.jsonl") && from=$a && st0=$(state) && date +%s > "$s/start"
         turn "$(cat "$bench/briefs/$brief/steps/$f")"; rc=$?
         if waits; then echo 1; else echo 0; fi > "$s/waited"
         m=0
-        while [ "$m" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && { ! runs_app || waits; }; do
+        while [ "$m" -lt 2 ] && [ $((TIMEOUT - ($(date +%s) - start))) -gt 0 ] && { ! runs_app || waits || [ "$(state)" = "$st0" ]; }; do
           m=$((m + 1)); n=$((n + 1))
           turn "$FOLLOWUP" --continue; rc=$?
         done

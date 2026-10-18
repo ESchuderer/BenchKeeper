@@ -43,7 +43,7 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
    - other global rules it finds (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`) and skill links from setup-v3: moved to `~/.config/benchkeeper/backup/<date>/`, never deleted. `setup.sh --restore <date>` moves them back.
    - the Dev Containers CLI at the newest release that is at least 7 days old
 
-   It needs no root and writes only under `~/.claude`, `~/.codex`, `~/.config` and the npm user prefix. It never runs on its own.
+   It needs no root and writes only under `~/.claude`, `~/.codex`, `~/.agents/skills`, `~/.config` and the npm user prefix. It never runs on its own.
 5. Restart the agents.
 
 Skills only, without rules and settings: `claude plugin marketplace add ESchuderer/BenchKeeper --sparse .claude-plugin plugins && claude plugin install benchkeeper@benchkeeper` (Codex: `codex plugin marketplace add ESchuderer/BenchKeeper --sparse .claude-plugin --sparse plugins && codex plugin add benchkeeper@benchkeeper`).

@@ -4,7 +4,7 @@
 # Usage: setup.sh            dry run: prints the plan, changes nothing
 #        setup.sh --apply    asks before each change (y to apply, anything else skips)
 #        setup.sh --restore <name>   moves the files of a backup (~/.config/benchkeeper/backup/<name>) back
-# Files are never deleted: anything replaced or removed is moved to ~/.config/benchkeeper/backup/<date>/ first.
+# Files are never deleted: anything replaced, edited or removed is first moved or copied to ~/.config/benchkeeper/backup/<date>/.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 rules=$here/rules/global.md
@@ -15,11 +15,15 @@ trap 'rm -rf "$tmp"' EXIT
 command -v jq >/dev/null || { echo "setup.sh needs jq" >&2; exit 1; }
 
 restore() {
+  case $1 in */* | . | .. | '') echo "bad backup name: $1 (one name from ls $backups)" >&2; exit 2 ;; esac
   src=$backups/$1
   [ -d "$src" ] || { echo "no backup $src" >&2; exit 1; }
   (cd "$src" && find . \( -type f -o -type l \) -print) | while IFS= read -r rel; do
     dest=$HOME/${rel#./}
-    if [ -e "$dest" ] || [ -L "$dest" ]; then echo "skip   $dest exists"; continue; fi
+    if [ -e "$dest" ] || [ -L "$dest" ]; then
+      keep=$backups/$stamp-restore/${rel#./}
+      mkdir -p "$(dirname "$keep")" && mv "$dest" "$keep" && echo "kept   the current $dest in $keep"
+    fi
     mkdir -p "$(dirname "$dest")" && mv "$src/$rel" "$dest" && echo "back   $dest"
   done
 }
@@ -40,18 +44,46 @@ step() {
   if [ "$mode" = plan ]; then echo "change $text"; return 0; fi
   printf 'change %s? [y/N] ' "$text"
   read -r answer || answer=
-  case $answer in y | Y) "$@" && echo "done" ;; *) echo "skipped" ;; esac
+  case $answer in
+  y | Y) if "$@"; then echo "done"; else echo "failed, continuing"; failed=1; fi ;;
+  *) echo "skipped" ;;
+  esac
 }
+failed=
 # stash <path>: moves a file or link to the backup, keeping its path below $HOME.
 stash() {
   dest=$backups/$stamp/${1#"$HOME"/}
   mkdir -p "$(dirname "$dest")" && mv "$1" "$dest"
 }
+# jqset <file> <filter>: applies the filter to the current file (or {}), after a copy of the old file goes to the backup.
+jqset() {
+  if [ -f "$1" ]; then
+    dest=$backups/$stamp/${1#"$HOME"/}
+    mkdir -p "$(dirname "$dest")" && cp -p "$1" "$dest" && jq "$2" "$1" >"$tmp/set.json"
+  else
+    mkdir -p "$(dirname "$1")" && echo '{}' | jq "$2" >"$tmp/set.json"
+  fi && cp "$tmp/set.json" "$1"
+}
+# same <file> <filter>: the file exists and the filter changes nothing in it.
+same() { [ -f "$1" ] && [ "$(jq -S . "$1")" = "$(jq -S "$2" "$1")" ]; }
 put() { { [ ! -e "$2" ] && [ ! -L "$2" ]; } || stash "$2"; mkdir -p "$(dirname "$2")" && cp "$1" "$2"; }
-# newest <pkg>: the newest release that has been public for at least 7 days, so a bad release is caught before it lands.
+# newest <pkg>: the highest release that has been public for at least 7 days, so a bad release is caught before it lands.
+# Prints nothing when npm cannot answer or no release qualifies.
 newest() {
-  npm view "$1" time --json | jq -r '(now - 604800 | todate) as $cut | (if type == "array" then add else . end) | del(.created, .modified) | to_entries
-    | map(select(.value < $cut and (.key | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")))) | sort_by(.value) | last.key'
+  times=$(npm view "$1" time --json 2>/dev/null) || return 0
+  echo "$times" | jq -r '(now - 604800 | todate) as $cut | (if type == "array" then add else . end) | del(.created, .modified)
+    | to_entries | map(select(.value < $cut and (.key | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))))
+    | sort_by(.key | split(".") | map(tonumber)) | last.key // empty' 2>/dev/null || true
+}
+# skill <repo> <name>: offers a global skill from the skills CLI for each present agent that lacks it.
+skill() {
+  flags=""
+  [ -z "$claude" ] || [ -e "$HOME/.claude/skills/$2" ] || flags="$flags -a claude-code"
+  [ -z "$codex" ] || [ -e "$HOME/.agents/skills/$2" ] || flags="$flags -a codex"
+  if [ -z "$flags" ]; then ok "skill $2"; return 0; fi
+  if [ -z "$skills_v" ]; then info "skill $2 missing, npm could not name a skills CLI release"; return 0; fi
+  step "install the skill $2 from $1 (skills@$skills_v,$flags)" sh -c 'r=$1 n=$2 v=$3; shift 3
+    DO_NOT_TRACK=1 npx -y "skills@$v" add "$r" -s "$n" -g "$@" --copy -y' _ "$1" "$2" "$skills_v" $flags
 }
 
 claude=$(command -v claude || true)
@@ -109,16 +141,14 @@ if [ -n "$codex" ]; then
 fi
 
 # Settings: merged into the existing files, other keys and hooks stay.
-merge() { cp "$2" "$1"; }
+claude_keys='.advisorModel = "opus" | .remoteControlAtStartup = true | .showClearContextOnPlanAccept = true
+  | .autoCompactWindow = (.autoCompactWindow // 400000)
+  | .attribution = {"commit": "Assisted-by: generative AI", "pr": "Created with the assistance of generative AI.", "sessionUrl": false}
+  | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"})'
 if [ -n "$claude" ]; then
   f=$HOME/.claude/settings.json
-  [ -f "$f" ] && cp "$f" "$tmp/old.json" || echo '{}' >"$tmp/old.json"
-  jq '.advisorModel = "opus" | .remoteControlAtStartup = true | .showClearContextOnPlanAccept = true
-    | .autoCompactWindow = (.autoCompactWindow // 400000)
-    | .attribution = {"commit": "Assisted-by: generative AI", "pr": "Created with the assistance of generative AI.", "sessionUrl": false}
-    | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"})' "$tmp/old.json" >"$tmp/new.json"
-  if [ -f "$f" ] && [ "$(jq -S . "$f")" = "$(jq -S . "$tmp/new.json")" ]; then ok "Claude settings $f"; else
-    step "merge the BenchKeeper keys into $f (attribution, advisor, telemetry off)" merge "$f" "$tmp/new.json"
+  if same "$f" "$claude_keys"; then ok "Claude settings $f"; else
+    step "set in $f: advisorModel opus, Remote Control on at startup, clear-context option on plan accept, autoCompactWindow 400000 if unset, neutral AI attribution without session link, error reporting and feedback survey off (other keys stay, the old file goes to the backup)" jqset "$f" "$claude_keys"
   fi
 fi
 if [ -n "$codex" ]; then
@@ -130,10 +160,8 @@ if [ -n "$codex" ]; then
   done
 fi
 f=$HOME/.config/ponytail/config.json
-if [ -f "$f" ] && [ "$(jq -r .defaultMode "$f")" = full ]; then ok "Ponytail level full"; else
-  [ -f "$f" ] && cp "$f" "$tmp/p.json" || echo '{}' >"$tmp/p.json"
-  jq '.defaultMode = "full"' "$tmp/p.json" >"$tmp/p2.json"
-  step "set the Ponytail level to full in $f" sh -c 'mkdir -p "$(dirname "$1")" && cp "$2" "$1"' _ "$f" "$tmp/p2.json"
+if same "$f" '.defaultMode = "full"'; then ok "Ponytail level full"; else
+  step "set the Ponytail level to full in $f" jqset "$f" '.defaultMode = "full"'
 fi
 
 # Variables that switch off the advisor or Remote Control: reported with their place, edited by hand.
@@ -150,7 +178,8 @@ done
 if command -v npm >/dev/null; then
   want=$(newest @devcontainers/cli)
   have=$(devcontainer --version 2>/dev/null || true)
-  if [ "$have" = "$want" ]; then ok "Dev Containers CLI $have"; else
+  if [ -z "$want" ]; then info "npm could not name a Dev Containers CLI release (offline?), installed: ${have:-none}"
+  elif [ "$have" = "$want" ]; then ok "Dev Containers CLI $have"; else
     step "install the Dev Containers CLI $want (installed: ${have:-none})" npm i -g "@devcontainers/cli@$want"
   fi
 else
@@ -164,16 +193,14 @@ if [ -n "$claude" ]; then
     info "host Playwright MCP: ${x%%:*} (projects run it in their devcontainer, see setting-up-projects)"
   done
 fi
-if command -v orca >/dev/null && [ ! -e "$HOME/.claude/skills/orca-cli" ] && [ ! -e "$HOME/.agents/skills/orca-cli" ]; then
-  v=$(newest skills)
-  step "install the optional Orca skills orca-cli and orchestration (skills@$v)" sh -c '
-    for s in orca-cli orchestration; do
-      DO_NOT_TRACK=1 npx -y "skills@$1" add https://github.com/stablyai/orca -s "$s" -g -a claude-code -a codex --copy -y || exit 1
-    done' _ "$v"
-fi
+skills_v=""
+command -v npm >/dev/null && skills_v=$(newest skills)
+skill vercel-labs/skills find-skills
+command -v orca >/dev/null && skill https://github.com/stablyai/orca orca-cli && skill https://github.com/stablyai/orca orchestration
 for f in "$HOME/.claude/RTK.md" "$HOME/.codex/RTK.md"; do
   [ ! -e "$f" ] || step "move the RTK leftover $f to the backup" stash "$f"
 done
 [ "$mode" = plan ] && echo "Dry run: nothing changed. Run with --apply to choose changes."
 [ -d "$backups/$stamp" ] && echo "Backup: $backups/$stamp (undo with --restore $stamp)"
+[ -z "$failed" ] || { echo "Some changes failed, see the lines marked failed." >&2; exit 1; }
 exit 0

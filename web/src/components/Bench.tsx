@@ -1,4 +1,4 @@
-import { Anchor, Box, Button, Container, Group, MantineProvider, Stack, Table, Text, Title, createTheme } from '@mantine/core';
+import { Anchor, Box, Button, Container, Group, MantineProvider, SimpleGrid, Stack, Table, Text, Title, createTheme } from '@mantine/core';
 import { IconArrowLeft, IconArrowRight } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import SiteHeader from './SiteHeader';
@@ -45,6 +45,8 @@ export type Top = { brief: string; of: number; top: Detail[]; baselines: (Detail
 export type Notes = {
   briefs: Record<string, string>; runs: Record<string, { tested?: string; summary?: string; findings: string[] }>;
   reports: { file: string; title: string; summary: string }[];
+  running: { title: string; url: string; text: string }[];
+  stacks: { name: string; url: string; version: string; text: string; arms: string }[];
 };
 
 // The short summary of a run, labeled as written by AI.
@@ -148,7 +150,32 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
         <Text c="dimmed">An arm is one tested setup. The BenchKeeper layer includes Ponytail.</Text>
       </Stack>
 
+      <Box component="section" aria-labelledby="stacks" mb={56}>
+        <Title order={2} id="stacks">Tested components</Title>
+        <Text c="dimmed" mt="xs" maw={820}>Each arm combines these with Claude Code or OpenCode. Arms Q to AA run on OpenCode.</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mt="md">
+          {notes.stacks.map((x) => (
+            <div key={x.name} className="card">
+              <Anchor href={x.url} fw={700}>{x.name}</Anchor>
+              <Text size="sm" c="dimmed">{x.version}</Text>
+              <Text size="sm" mt={4}>{x.text}</Text>
+              <Text size="sm" mt={4}>Arms: {x.arms}</Text>
+            </div>
+          ))}
+        </SimpleGrid>
+      </Box>
+
       {runs.map(({ run, ranking }) => <RunCard key={run.run} base={base} r={run} ranking={ranking} notes={notes} />)}
+
+      <Title order={2} mb="md">Running now</Title>
+      <Stack gap="md" maw={820} mb={56}>
+        {notes.running.map((x) => (
+          <div key={x.title}>
+            <Anchor href={x.url} fw={700}>{x.title}</Anchor>
+            <Text size="sm" mt={4}>{x.text}</Text>
+          </div>
+        ))}
+      </Stack>
 
       <Title order={2} mb="md">Other reports</Title>
       <Stack gap="md" maw={820}>

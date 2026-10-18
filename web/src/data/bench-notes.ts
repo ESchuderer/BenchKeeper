@@ -39,6 +39,22 @@ export const notes: Notes = {
       ]
     },
   },
+  // The components the published runs tested, at the versions bench/image/install-arm.sh pins.
+  stacks: [
+    { name: 'BenchKeeper layer', url: 'https://github.com/ESchuderer/BenchKeeper', version: 'layer v1 (rules of 2026-10-14), layer v3 (setup-v2.9)', text: 'Global rules and the workflow skill that sets the task tier. Every layer arm also gets Ponytail.', arms: 'C, D, E, L, M, N, X, Y, AD, AE' },
+    { name: 'Ponytail', url: 'https://github.com/DietrichGebert/ponytail', version: 'v5.2.0, level full', text: 'A behavior mode for the smallest complete change.', arms: 'B, O, P and every BenchKeeper layer arm' },
+    { name: "Matt Pocock's skills", url: 'https://github.com/mattpocock/skills', version: 'v1.3.1', text: 'Skills for grilling, specs, tickets, TDD and code review.', arms: 'V, W, X, Y, AD, AE, Z, AA' },
+    { name: 'agent-skills', url: 'https://github.com/addyosmani/agent-skills', version: '0.6.13', text: "Addy Osmani's engineering skill library.", arms: 'F, I, L, C, Q, T, U' },
+    { name: 'Superpowers', url: 'https://github.com/obra/superpowers', version: 'v7.0.0 (v6.1.1 in S)', text: 'A workflow framework of skills by Jesse Vincent.', arms: 'G, J, M, D, R, S' },
+    { name: 'ECC', url: 'https://github.com/affaan-m/ECC', version: '2.2.3, minimal profile', text: 'A harness bundle of agents, skills and rules (formerly everything-claude-code).', arms: 'H, K, N, E' },
+    { name: 'OpenSpec', url: 'https://github.com/Fission-AI/OpenSpec', version: '1.14.1', text: 'A proposal, specs and tasks per change, kept in the repository.', arms: 'AB, O, I, J, K, W, C, D, E, Y, AE, Q, S, U, AA' },
+    { name: 'Spec Kit', url: 'https://github.com/github/spec-kit', version: 'v1.2.0', text: 'Spec, plan and tasks per feature, with a constitution.', arms: 'AC, P' },
+    { name: 'oso', url: 'https://github.com/moyaspace/openspec-superpowers-opencode', version: '1.1.1', text: 'OpenSpec and Superpowers combined for OpenCode.', arms: 'S' },
+    { name: 'Vercel agent-skills', url: 'https://github.com/vercel-labs/agent-skills', version: 'commit 063bee9', text: 'React skills, next to targeted agent-skills.', arms: 'Q' },
+  ],
+  running: [
+    { title: 'SkillsBench, Sonnet 5.5', url: 'https://github.com/benchflow-ai/skillsbench', text: "86 tasks in 8 domains from SkillsBench, run through Harbor 0.24.0 with Claude Code on Sonnet 5.5 at effort medium. A pytest verifier scores each task from 0 to 1, and a task passes at 1. The tasks' own bundled skills are withheld, so each arm's installed skills are the only ones available, and the agent decides whether to call them. Arms: plain Claude Code (A), Ponytail (B), Matt Pocock's skills (V), Matt Pocock with Ponytail (AF), and the BenchKeeper layer v5 (setup-v3.3, which also stands for setup-v3.4 and v4.0) alone, with Ponytail, with Matt Pocock, and with both (AK, AJ, AI, AH). Results follow after round 2." },
+  ],
   reports: [
     { file: '2026-10-16-skills-inventory.md', title: 'Skills inventory and usage', summary: 'The skills each framework adds, their size in tokens, and which of them the agents called in the 58 winery-react trials.' },
     { file: '2026-10-16-skill-authoring.md', title: 'Skill authoring check', summary: "The benchmarked skill collections checked against Anthropic's skill authoring guide: a static check and one review per collection, ranked." },

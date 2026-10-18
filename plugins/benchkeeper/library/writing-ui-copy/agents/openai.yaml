@@ -1,0 +1,5 @@
+interface:
+  display_name: "Writing UI copy"
+  short_description: "Labels and values, help text only where needed"
+policy:
+  allow_implicit_invocation: true

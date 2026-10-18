@@ -1,4 +1,4 @@
-import { Anchor, Box, Button, Container, Group, MantineProvider, Stack, Table, Text, Title, createTheme } from '@mantine/core';
+import { Anchor, Box, Button, Container, Group, MantineProvider, SimpleGrid, Stack, Table, Text, Title, createTheme } from '@mantine/core';
 import { IconArrowLeft, IconArrowRight } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import SiteHeader from './SiteHeader';
@@ -43,9 +43,14 @@ export type Run = {
 export type Detail = Trial & { model: string; final: NonNullable<Trial['final']> };
 export type Top = { brief: string; of: number; top: Detail[]; baselines: (Detail & { place: number })[] };
 export type Notes = {
-  briefs: Record<string, string>; runs: Record<string, { headline?: string; findings: string[] }>;
+  briefs: Record<string, string>; runs: Record<string, { tested?: string; summary?: string; findings: string[] }>;
   reports: { file: string; title: string; summary: string }[];
+  partial: { title: string; url: string; text: string }[];
+  stacks: { name: string; url: string; version: string; text: string; arms: string }[];
 };
+
+// The short summary of a run, labeled as written by AI.
+const Summary = ({ text }: { text?: string }) => (text ? <Text mt="md"><Text span fw={700}>AI summary: </Text>{text}</Text> : null);
 
 const plain = (setup: string) => (setup === 'plain' ? 'no add-ons' : setup.replace(/^BK\b/, 'BenchKeeper layer'));
 const of = (n: number | null, total: number | null) => (n == null || total == null ? 'n/a' : `${n}/${total}`);
@@ -71,7 +76,7 @@ const shotLabel = (f: string) => f.replace(/\.\w+$/, '').replace(/^step(\d+)-/, 
 function Meta({ r }: { r: Run }) {
   return (
     <Text size="sm" c="dimmed" mt="xs">
-      Model {r.model}, effort {r.effort}, k = {r.k} (trials per arm), protocol {r.protocols.join(', ') || 'not recorded'}, run {r.date}.
+      {r.model} at effort {r.effort}. Each setup ran {r.k === '1' ? 'once (k = 1)' : `${r.k} times from a fresh start (k = ${r.k}), and its score is the median of those runs`}. Benchmark protocol {r.protocols.join(', ') || 'not recorded'}, run {r.date}.
     </Text>
   );
 }
@@ -92,7 +97,8 @@ function RunCard({ base, r, ranking, notes }: { base: string; r: Run; ranking: R
       <Title order={2} id={`run-${r.run}`}>{r.brief}, {r.model}</Title>
       {notes.briefs[r.brief] && <Text mt="xs">{notes.briefs[r.brief]}</Text>}
       <Meta r={r} />
-      {note?.headline && <Text mt="md" fw={600}>{note.headline}</Text>}
+      {note?.tested && <Text size="sm" mt="xs"><Text span fw={700}>Tested: </Text>{note.tested}</Text>}
+      <Summary text={note?.summary} />
       {ranking.groups.map((g) => {
         const top = g.rows.slice(0, 10), base0 = g.rows.find((x) => x.arm === 'A' && x.runtime === 'Claude Code');
         const label = `${r.brief}, ${r.model}${g.runtime ? `, ${g.runtime}` : ''}: top 10`;
@@ -144,7 +150,32 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
         <Text c="dimmed">An arm is one tested setup. The BenchKeeper layer includes Ponytail.</Text>
       </Stack>
 
+      <Box component="section" aria-labelledby="stacks" mb={56}>
+        <Title order={2} id="stacks">Tested components</Title>
+        <Text c="dimmed" mt="xs" maw={820}>Each arm combines these with Claude Code or OpenCode. Arms Q to AA run on OpenCode.</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mt="md">
+          {notes.stacks.map((x) => (
+            <div key={x.name} className="card">
+              <Anchor href={x.url} fw={700}>{x.name}</Anchor>
+              <Text size="sm" c="dimmed">{x.version}</Text>
+              <Text size="sm" mt={4}>{x.text}</Text>
+              <Text size="sm" mt={4}>Arms: {x.arms}</Text>
+            </div>
+          ))}
+        </SimpleGrid>
+      </Box>
+
       {runs.map(({ run, ranking }) => <RunCard key={run.run} base={base} r={run} ranking={ranking} notes={notes} />)}
+
+      <Title order={2} mb="md">Partial runs</Title>
+      <Stack gap="md" maw={820} mb={56}>
+        {notes.partial.map((x) => (
+          <div key={x.title}>
+            <Anchor href={x.url} fw={700}>{x.title}</Anchor>
+            <Text size="sm" mt={4}>{x.text}</Text>
+          </div>
+        ))}
+      </Stack>
 
       <Title order={2} mb="md">Other reports</Title>
       <Stack gap="md" maw={820}>
@@ -246,7 +277,7 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
         {notes.briefs[r.brief] && <Text size="lg">{notes.briefs[r.brief]}</Text>}
         <Meta r={r} />
         {r.report && <Text>Full report: <Anchor href={`${REPO}/blob/main/bench/results/${r.report}`}>{r.report}</Anchor></Text>}
-        {note?.headline && <Text fw={600} mt="sm">{note.headline}</Text>}
+        <Summary text={note?.summary} />
         {note?.findings.length ? (<><Title order={2} fz="xl" mt="md">Key findings</Title><ul className="list">{note.findings.map((f) => <li key={f}>{f}</li>)}</ul></>) : null}
       </Stack>
 

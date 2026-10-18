@@ -70,14 +70,14 @@ Excluded: MerrillLi/openspec-superpowers (owner decision 2026-10-14). Its README
 
 ## Briefs
 
-Each brief has its section in `bench/PROTOCOL.md`. The app briefs run through the same arms and images. SkillsBench runs arms A, AF and AG.
+Each brief has its section in `bench/PROTOCOL.md`. The app briefs run through the same arms and images. SkillsBench measured installed setups on tasks where no workflow skill is called (PROTOCOL, section SkillsBench).
 
 - `winery-react`: server app with React (bookings, staff sign-in). Hidden tests F1 to F6.
 - `winery-iterative`: `winery-react` plus four change requests as follow-up turns.
 - `cartridges`: static app (25 C.I.P. cartridges, 2D drawings, print view, works from `file://`). Hidden tests C1 to C6.
 - `openballistics`: brownfield, three steps in separate sessions on a clone of OpenBallistics.
 - `skill-*`: seven targeted tasks, one per phase, for the per-skill ratings.
-- SkillsBench: 86 tasks with pytest verifiers through Harbor, arms A, AF and AG.
+- SkillsBench: 86 tasks with pytest verifiers through Harbor, one round of arms A, B, V, AF, AH, AI, AJ and AK. The agents called no skill library skill, so it tests the always-loaded context, not the libraries.
 
 ## Failure classes
 

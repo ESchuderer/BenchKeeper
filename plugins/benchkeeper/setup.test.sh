@@ -78,8 +78,8 @@ cmp -s "$HOME/.codex/AGENTS.md" "$(dirname "$setup")/rules/global.md" && pass "C
   pass "other plugins, marketplaces and MCP servers removed" || fail "other plugins, marketplaces or MCP servers"
 b=$(ls "$HOME/.config/benchkeeper/backup" | head -1)
 [ -f "$HOME/.config/benchkeeper/backup/$b/.claude/CLAUDE.md" ] && pass "backup keeps the path below HOME" || fail "backup layout"
-jq -e '.hooks.Stop == null and .hooks.SessionStart != null and (.hooks.PreToolUse | length) == 1 and .hooks.PostToolUse == [] and .model == "opus" and .advisorModel == "opus" and .attribution.sessionUrl == false' "$HOME/.claude/settings.json" >/dev/null &&
-  pass "other hooks removed, Orca hooks and other keys kept" || fail "settings merge or hooks"
+jq -e '.hooks.Stop == null and .hooks.SessionStart != null and (.hooks.PreToolUse | length) == 1 and .hooks.PostToolUse == [] and .model == "opusplan" and .advisorModel == "opus" and .attribution.sessionUrl == false' "$HOME/.claude/settings.json" >/dev/null &&
+  pass "other hooks removed, Orca hooks and other keys kept, model opusplan" || fail "settings merge or hooks"
 jq -e '.advisorModel == null and .model == "opus" and .hooks.Stop != null' "$HOME/.config/benchkeeper/backup/$b/.claude/settings.json" >/dev/null && pass "old settings in the backup" || fail "settings backup"
 [ "$(cat "$HOME/.dc")" = 1.0.0 ] && pass "host tool at the newest release older than 7 days" || fail "version pick"
 

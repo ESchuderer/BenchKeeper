@@ -40,6 +40,7 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
    - the global rules (`~/.claude/rules/00-global.md`, `~/.codex/AGENTS.md`)
    - the plugins: BenchKeeper, Matt Pocock's skills and Ponytail (pinned to a tag, since it runs a `SessionStart` hook), in each agent
    - settings and telemetry (merged, other keys and hooks stay)
+   - the default model `opusplan` in Claude Code (Opus in plan mode, Sonnet otherwise), as its own question since it replaces the model you set. Orca starts `claude` without `--model`, so it applies there too. Not benchmarked.
    - everything else installed globally, one item at a time: other rules files (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks. Files go to `~/.config/benchkeeper/backup/<date>/`, never deleted, and `setup.sh --restore <date>` moves them back. Plugins, marketplaces and MCP servers are removed with the agent's own command. Hooks are offered per event, and Orca's own entries are only reported.
    - the Dev Containers CLI at the newest release that is at least 7 days old
 

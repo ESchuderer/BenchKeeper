@@ -200,6 +200,10 @@ if [ -n "$claude" ]; then
   if same "$f" "$claude_keys"; then ok "Claude settings $f"; else
     step "set in $f: advisorModel opus, Remote Control on at startup, clear-context option on plan accept, autoCompactWindow 400000 if unset, neutral AI attribution without session link, error reporting and feedback survey off (other keys stay, the old file goes to the backup)" jqset "$f" "$claude_keys"
   fi
+  # Default model opusplan: Opus in plan mode, Sonnet for the rest. Its own step, since it replaces a model the user chose.
+  if same "$f" '.model = "opusplan"'; then ok "Claude default model opusplan"; else
+    step "set the default model in $f to opusplan, Opus in plan mode and Sonnet otherwise (now: $(jq -r '.model // "unset"' "$f" 2>/dev/null || echo unset))" jqset "$f" '.model = "opusplan"'
+  fi
 fi
 if [ -n "$codex" ]; then
   f=$HOME/.codex/config.toml

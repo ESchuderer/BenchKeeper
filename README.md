@@ -84,7 +84,6 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 | [plugins/benchkeeper/skills/setting-up-projects](plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, dead config | plugin skill `benchkeeper:setting-up-projects` |
 | [plugins/benchkeeper/skills/following-dev-workflow](plugins/benchkeeper/skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request), loaded before repository work | plugin skill `benchkeeper:following-dev-workflow` |
 | [plugins/benchkeeper/skills/maintaining-repos](plugins/benchkeeper/skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code, debt, dependency audit, version pins, docs drift, unused skills | plugin skill `benchkeeper:maintaining-repos` |
-| [plugins/benchkeeper/library/writing-ui-copy](plugins/benchkeeper/library/writing-ui-copy/SKILL.md) | UI copy rules: labels and values, help text only where a term needs a definition, buttons, errors, empty states | copied into a project by `setting-up-projects` (Claude Code limited to the UI folders with `paths`) |
 | [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 

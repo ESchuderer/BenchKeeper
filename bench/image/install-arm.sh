@@ -14,6 +14,7 @@
 #   AG Matt Pocock + BK v4 (bench/arms/bk-v4: the rules and skills of setup-v3.1, the recommended setup)
 #   AH Matt Pocock + BK v5 (bench/arms/bk-v5: setup-v3.3, Matt Pocock's own install and setup with the BenchKeeper additions)
 #   AL Matt Pocock + BK v6 (bench/arms/bk-v6: setup-v4.0, the BenchKeeper plugin with Ponytail and Matt Pocock's plugins, as setup.sh installs them)
+#   AM Matt Pocock + BK v7 (bench/arms/bk-v7: setup-v5.0, as AL with the setup-v5.0 settings: advisor, effort medium, auto-compact, subagents on Sonnet)
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -102,6 +103,7 @@ case $arm in
   AD) fw=mp bk=v3 pt=yes spec=none ;;           AE) fw=mp bk=v3 pt=yes spec=openspec ;;
   AF) fw=mp bk=no pt=yes spec=none ;;           AG) fw=mp bk=v4 pt=yes spec=none ;;
   AH) fw=mp bk=v5 pt=yes spec=none ;;          AL) fw=mp bk=v6 pt=yes spec=none ;;
+  AM) fw=mp bk=v7 pt=yes spec=none ;;
   Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac
@@ -126,18 +128,24 @@ if [ "$pt" = yes ]; then
 fi
 
 t=$HOME/project-template
-if [ "$bk" = v6 ]; then
+if [ "$bk" = v6 ] || [ "$bk" = v7 ]; then
   # setup-v4.0 (setup.sh): the rules file, the BenchKeeper plugin from its pinned copy, find-skills, and the Claude settings
   # without advisorModel and remoteControlAtStartup (an Opus advisor would mix a second model into a Sonnet run; no remote
   # control in a container). Project: Matt Pocock's repository setup like the other mp arms (mp_setup below), no devcontainer.
-  cp /opt/bench/bk-v6/plugins/benchkeeper/rules/global.md "$HOME/.claude/rules/00-global.md"
+  cp "/opt/bench/bk-$bk/plugins/benchkeeper/rules/global.md" "$HOME/.claude/rules/00-global.md"
   # the marketplace from a copy: /opt/bench is removed after the install
-  cp -r /opt/bench/bk-v6 "$src/benchkeeper" && claude plugin marketplace add "$src/benchkeeper" && claude plugin install benchkeeper@benchkeeper
+  cp -r "/opt/bench/bk-$bk" "$src/benchkeeper" && claude plugin marketplace add "$src/benchkeeper" && claude plugin install benchkeeper@benchkeeper
   clone vercel-labs/skills v1.7.2 && cp -r "$src/vercel-labs-skills/skills/find-skills" "$HOME/.claude/skills/"
   f=$HOME/.claude/settings.json
   jq '.showClearContextOnPlanAccept = true | .autoCompactWindow = (.autoCompactWindow // 400000)
     | .attribution = {"commit": "Assisted-by: generative AI", "pr": "Created with the assistance of generative AI.", "sessionUrl": false}
     | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"})' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  # v7 (setup-v5.0) runs with its defaults (owner decision 2026-10-18: opusplan, effort medium): the Opus advisor, effort
+  # medium per model, auto-compact 400000, transcripts 14 days, /feedback off, subagents without a model on Sonnet. No
+  # remote control and no update channel in a container.
+  [ "$bk" != v7 ] || { jq '.advisorModel = "opus" | .autoCompactWindow = 400000 | .cleanupPeriodDays = 14
+    | .effortLevel = "medium" | .modelSettings["claude-opus-5-5"].effortLevel = "medium" | .modelSettings["claude-sonnet-5-5"].effortLevel = "medium"
+    | .env = ((.env // {}) + {"DISABLE_FEEDBACK_COMMAND": "1", "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"})' "$f" > "$f.tmp" && mv "$f.tmp" "$f"; }
 elif [ "$bk" != no ]; then
   case ${BK:-v1} in v1|v2) ;; *) echo "BK must be v1 or v2, not $BK" >&2; exit 1 ;; esac
   if [ "$bk" = v3 ] || [ "$bk" = v4 ] || [ "$bk" = v5 ]; then

@@ -13,6 +13,7 @@ COPY bench/arms/bk-v3-openspec /opt/bench/bk-v3-openspec
 COPY bench/arms/bk-v4 /opt/bench/bk-v4
 COPY bench/arms/bk-v5 /opt/bench/bk-v5
 COPY bench/arms/bk-v6 /opt/bench/bk-v6
+COPY bench/arms/bk-v7 /opt/bench/bk-v7
 ARG ARM
 # BenchKeeper layer version: v1 (bench/arms/bk-rules.md, every published run) or v2 (bench/arms/bk-v2: rules and sdlc skill).
 ARG BK=v1

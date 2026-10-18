@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v4.1 (2026-10-18)
+
+- New library skill `writing-ui-copy` (`plugins/benchkeeper/library/`): labels and values carry the screen. It removes captions, hover notes and lead paragraphs that restate the page, reassurance and descriptions of internals, and keeps help text where a term needs a definition. It also covers buttons, confirmations, errors, empty and disabled states, sentence case, one term per concept, placeholders, accessible names and missing facts. Rules drawn from artouc/stop-describing-ui, pbakaus/impeccable (`reference/clarify.md`), humbleteam/ux-writing, tinywaffles/Copyslop-skill and anthropics/knowledge-work-plugins (`ux-copy`).
+- `setting-up-projects` step 4 asks, for repositories with a UI or user docs, whether to install it and for which folders. It copies the skill into `.agents/skills/` and `.claude/skills/`, sets `paths` to those folders for Claude Code, and adds a pointer line to each folder's `AGENTS.md`.
+- Plugin `version` 4.1.0.
+
 ## setup-v4.0 (2026-10-18)
 
 BenchKeeper installs as a plugin in Claude Code and Codex, and a user-run `setup.sh` replaces the agent-run `setting-up-machine` skill (#88). No agent runs the machine install, nothing needs root, and nothing is removed without a per-item yes.

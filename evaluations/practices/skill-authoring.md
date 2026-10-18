@@ -30,6 +30,8 @@ BenchKeeper skills, checked 2026-10-16:
 | MCP tool names | None used. |
 | Evaluations, model coverage | None for these skills. The benchmark measures the BenchKeeper layer as a whole (`bench/PROTOCOL.md`), not each skill's triggering or effect. Trigger evaluations were dropped (protocol 1.17). The targeted tasks in `bench/PROTOCOL.md` (not run yet) rate each skill's effect on one task per phase. |
 
+Library skill `writing-ui-copy` (setup-v4.1, copied into projects by `setting-up-projects`): gerund name, description 247 characters in third person with what and when, body 50 lines, no reference files. Check 2026-10-18: 3 copy tasks on `web/` (settings drawer, bench empty state and error, review of `Page.tsx`), one Sonnet subagent with and one without the skill each, scored by the author, not blind. With the skill: no restating helper text or tooltips (without: 4 in the drawer), missing facts marked `[NEED]` (without: 3 invented in the drawer, 2 in the bench texts), 9 of 15 review changes delete restating or internal text (without: mostly rewording). Confidence low to medium (n = 1 per task).
+
 Benchmarked collections: all eight ranked in [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md): static check plus one Opus review per collection.
 
 ## Decision

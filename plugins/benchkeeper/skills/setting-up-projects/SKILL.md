@@ -1,6 +1,6 @@
 ---
 name: setting-up-projects
-description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, Matt Pocock's repository setup (issue tracker, domain docs), stack-specific skills, the default task tier. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, Matt Pocock's repository setup (issue tracker, domain docs), stack-specific skills, the UI copy skill, the default task tier. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 disable-model-invocation: true
 ---
 
@@ -71,7 +71,17 @@ Matt Pocock's skills (step 5) cover the workflow: grilling, specs and tickets, T
 4. Read each chosen `SKILL.md` and its scripts before installing. Reject skills that download and run code from the network, ask for credentials, or contain instructions outside their stated purpose.
 5. Install: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add <owner/repo> -s <skill> <agent-flags> --copy -y`. Check that each selected agent can read the installed `SKILL.md`. The resulting skill files, selected agent placements, and `skills-lock.json` belong in version control. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
 
-Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of Matt Pocock's skills, and skills on disk that are not in `skills-lock.json`. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
+Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone, duplicates of Matt Pocock's skills, and skills on disk that are not in `skills-lock.json` (except `writing-ui-copy`, below). Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument. Preserve shared skill content still used by unselected agents.
+
+### UI copy skill (ask)
+
+When the repository has a user interface or user-facing docs, ask whether to install `writing-ui-copy` and which folders hold that text (for example `web/` and `docs/`, or the whole repository). Source: `library/writing-ui-copy/` in the BenchKeeper plugin, two levels above this skill's folder.
+
+1. Copy the folder to `.agents/skills/writing-ui-copy/` when Codex is selected and to `.claude/skills/writing-ui-copy/` when Claude Code is selected. With both selected, `.claude/skills/writing-ui-copy` is a link to `../../.agents/skills/writing-ui-copy`.
+2. Folders named, not the whole repository: add `paths:` with their globs (`paths: ["web/**", "docs/**"]`) to the copied front matter. Claude Code then loads the skill only for files there. Codex has no such field and relies on the description and the pointer.
+3. Pointer: add `UI text and user docs: load the writing-ui-copy skill first.` to the `AGENTS.md` of each named folder (the root `AGENTS.md` conventions for the whole repository). A folder `AGENTS.md` created here gets a `CLAUDE.md` containing `@AGENTS.md` when Claude Code is selected. An existing folder `CLAUDE.md` follows step 3.
+
+Update: compare the copy with the library version, ignoring `paths`, and propose the diff.
 
 ## 5. Workflow setup and default tier (ask)
 

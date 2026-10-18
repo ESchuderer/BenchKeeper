@@ -9,17 +9,17 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 - Site locally: `devcontainer exec --docker-path podman --workspace-folder . sh -lc 'cd web && npm ci && npm run build && npm test'`. Preview (`npm run preview`) under `/BenchKeeper/` on a free host port: `podman port $(podman ps -q --filter label=devcontainer.local_folder="$PWD") 4321`
 
 ## Conventions
-- `rules/global.md` applies here: no em dash, no emojis, facts only.
+- `plugins/benchkeeper/rules/global.md` applies here: no em dash, no emojis, facts only.
 - Default tier: research
-- Pre-push review: `rules/` and `skills/` count as code, not docs.
-- Every install command pins an exact version (`pkg@x.y.z`). `/setting-up-machine` bumps them at install time.
+- Pre-push review: `plugins/` counts as code, not docs.
+- Every install command in docs pins an exact version (`pkg@x.y.z`). `/benchkeeper:maintaining-repos` proposes bumps. `setup.sh` installs host tools at the newest release at least 7 days old instead of a pin. Ponytail's marketplace tag in `setup.sh` is bumped by hand.
 - SKILL.md front matter: `description` in double quotes (it contains colons).
-- Editing `skills/` or `rules/`: call the Skill tool with `writing-for-agents` (Matt Pocock's skills). Each skill has `agents/openai.yaml` for Codex: user-invoked skills set `allow_implicit_invocation: false`.
-- After editing `rules/global.md` or `skills/`, ask the user to run `/setting-up-machine` (Codex: `$setting-up-machine`). It never starts on its own.
+- Editing `plugins/benchkeeper/skills/` or `plugins/benchkeeper/rules/`: call the Skill tool with `mattpocock-skills:writing-for-agents`. Each skill has `agents/openai.yaml` for Codex: user-invoked skills set `allow_implicit_invocation: false`.
+- Plugin: `.claude-plugin/marketplace.json` (both agents read it) lists `plugins/benchkeeper/`. Its `version` in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` equals the setup version and changes with each changelog entry. Check: `claude plugin validate .`. Try a change for one session: `claude --plugin-dir plugins/benchkeeper`. After a release, ask the user to update the plugin (`claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper`, Codex: `codex plugin marketplace upgrade benchkeeper`) and, when `rules/global.md` or `setup.sh` changed, to run `sh plugins/benchkeeper/setup.sh --apply`. Neither starts on its own.
 - Benchmark conventions (pinned BenchKeeper layer versions, arm variants): `bench/AGENTS.md`.
-- Setup versions: `CHANGELOG.md` and tags `setup-v<major>.<minor>`. A change to `rules/` or `skills/` adds a changelog entry.
+- Setup versions: `CHANGELOG.md` and tags `setup-v<major>.<minor>`. A change to `plugins/benchkeeper/` adds a changelog entry and bumps the plugin `version`.
 - Description, core framework, prerequisites, recommended tools and OpenHands (README), SDLC steps (site only): edit `web/src/data/facts.json`, then run `devcontainer exec --docker-path podman --workspace-folder . node web/scripts/readme.mjs`. Never edit the generated README blocks by hand.
-- `rules/global.md` is symlinked to `~/.claude/rules/00-global.md` and copied to `~/.codex/AGENTS.md`.
+- `setup.sh` copies `plugins/benchkeeper/rules/global.md` to `~/.claude/rules/00-global.md` and `~/.codex/AGENTS.md`. Self-check: `sh plugins/benchkeeper/setup.test.sh` (CI runs it).
 - `.agents/skills/skill-creator` is vendored from `anthropics/skills` (`skills-lock.json`): do not edit. Update with `DO_NOT_TRACK=1 npx -y skills@1.7.2 add anthropics/skills -s skill-creator -a claude-code -a codex --copy -y`.
 - Evaluations live in `evaluations/<category>/<tool>.md`, indexed in `EVALUATIONS.md`. Update both when a component is added, removed, changed, or new evidence appears.
 - `web/scripts/og.svg` is the source of `web/public/og.png`: `rsvg-convert -w 1200 -h 630`.

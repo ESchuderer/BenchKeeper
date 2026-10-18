@@ -23,6 +23,6 @@ Out (setup-v3.0, 2026-10-17): Matt Pocock's skills keep specs and tickets in the
 - Openballistics brownfield, k = 3: OpenSpec alone (AB) tied plain Claude Code on the median (85.7). With the BenchKeeper layer v3 and Matt Pocock's skills (AE) the median was 82.9, and in one of three rounds the agent stopped after writing the proposal and implemented nothing.
 - Cartridges, one trial per arm: OpenSpec alone ranked 8th of 29, with the highest mutation score of the arms measured (70.1%).
 
-What it adds (one folder per change, deltas merged into `openspec/specs/` on archive, `openspec validate --strict`) still fits repositories that want per-change spec history. `setting-up-projects` keeps an existing `openspec/` when the user asks, and `setting-up-machine` lists the CLI as an extra to remove.
+What it adds (one folder per change, deltas merged into `openspec/specs/` on archive, `openspec validate --strict`) still fits repositories that want per-change spec history. `setting-up-projects` keeps an existing `openspec/` when the user asks. A global OpenSpec CLI from earlier setups is removed with `npm rm -g @fission-ai/openspec` (setup-v4.0 `setup.sh` does not list it).
 
 [All evaluations](../../EVALUATIONS.md)

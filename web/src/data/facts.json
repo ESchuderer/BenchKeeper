@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper sets up Claude Code and Codex with one rules file and four skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The setup skills install and check rules, skills and tools, per machine and per repository: CLIs, MCP servers and CLIs and MCP servers at pinned versions, Matt Pocock's skills and Ponytail from their marketplaces. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.",
+  "description": "BenchKeeper sets up Claude Code and Codex with one rules file and three skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The skills ship as a plugin for both agents. setup.sh, which you run yourself, installs the rules, settings and plugins (BenchKeeper, Matt Pocock's skills, Ponytail) and asks before each change. setting-up-projects sets up each repository: devcontainer, AGENTS.md, stack skills at pinned versions. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.",
   "core": {
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
@@ -30,17 +30,12 @@
     {
       "name": "Node.js and npm",
       "url": "https://nodejs.org/en/download",
-      "for": "global CLIs, prefix `~/.local`"
+      "for": "Dev Containers CLI and skills CLI, user prefix such as `~/.local`"
     },
     {
       "name": "jq",
       "url": "https://jqlang.org/download/",
-      "for": "setup scripts"
-    },
-    {
-      "name": "curl",
-      "url": "https://curl.se/download.html",
-      "for": "setup scripts"
+      "for": "`setup.sh`"
     },
     {
       "name": "Docker Engine",
@@ -62,7 +57,7 @@
       "points": [
         "one git worktree per agent, the same prompt across agents",
         "terminal splits, SSH remote worktrees, mobile app",
-        "`/setting-up-machine` offers its `orca-cli` and `orchestration` skills after asking"
+        "`setup.sh` offers its `orca-cli` and `orchestration` skills after asking"
       ],
       "when": "you want terminal-based parallel agents with worktrees, remote machines or mobile access"
     },

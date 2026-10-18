@@ -21,7 +21,7 @@ Post in r/claudeskills (2026-10-16, screenshot supplied by the owner, Reddit can
 
 BenchKeeper skills, checked 2026-10-16:
 
-| Point | `following-dev-workflow`, `setting-up-machine`, `setting-up-projects`, `maintaining-repos` (before setup-v2.5: `sdlc`, `global-setup`, `project-setup`, `maintain`) |
+| Point | `benchkeeper:following-dev-workflow`, `benchkeeper:setting-up-projects`, `benchkeeper:maintaining-repos` (setup-v2.5 to v3.4: also `setting-up-machine`, without the plugin prefix. Before setup-v2.5: `sdlc`, `global-setup`, `project-setup`, `maintain`) |
 |---|---|
 | Name format | Valid. The patterns were mixed (acronym, two noun phrases, one verb). Renamed to gerunds (setup-v2.5, owner decision). The benchmark image installs pinned copies under the old names (`bench/arms/bk-skills/`). |
 | Description | 257 to 415 characters, what and when in each. Rewritten in third person (setup-v2.5). |

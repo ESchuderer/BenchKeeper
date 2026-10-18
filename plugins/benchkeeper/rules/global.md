@@ -1,10 +1,10 @@
 ## Workflow
-- Load and follow the `following-dev-workflow` skill before repository edits, issue or pull request work, and research with two or more items. Plain questions need neither.
+- Load and follow the `benchkeeper:following-dev-workflow` skill before repository edits, issue or pull request work, and research with two or more items. Plain questions need neither.
 - Always, even without the skill: commit, push or merge on the default branch only when the user said so in this task. Never merge a pull request without the user's instruction.
 
 ## Ask, do not assume
 - Before starting a task, make sure you know what the user wants: goal, scope, expected result. Where the request leaves open something that would change the result, ask precise questions, all in one message (Claude Code: `AskUserQuestion`), and keep asking until it is settled. Do not guess. Do not ask what the code, the docs or a sensible default already answer.
-- Then restate the task in your own words, one to three lines with the tier line (`following-dev-workflow`), before the first edit, command or subagent. Plain questions need neither.
+- Then restate the task in your own words, one to three lines with the tier line (`benchkeeper:following-dev-workflow`), before the first edit, command or subagent. Plain questions need neither.
 - Non-interactive runs (headless, CI), where asking is impossible: state the assumption in one line, pick the safest reversible option, and continue without waiting for confirmation.
 
 ## Brevity
@@ -33,7 +33,7 @@
 
 ## Development environment
 - Agents, Git, `gh` and file edits run on the host. Project installs, builds, lint, tests and local MCP or browser tools run where the project's `AGENTS.md` says (its devcontainer in this setup), never on the host as a fallback: if the container cannot start, report the failure.
-- No devcontainer: ask the user to run `/setting-up-projects` (Codex: `$setting-up-projects`).
+- No devcontainer: ask the user to run `/benchkeeper:setting-up-projects` (Codex: `$benchkeeper:setting-up-projects`).
 
 ## Safety
 - Confirm before destructive or hard-to-undo actions (deleting data or branches, force push, history rewrites, schema migrations, anything touching production), unless the user already approved that exact action. A worktree or local branch created for the current task and not pushed may be discarded without asking.

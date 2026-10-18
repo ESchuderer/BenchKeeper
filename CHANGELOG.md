@@ -2,6 +2,20 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v4.0 (2026-10-18)
+
+BenchKeeper installs as a plugin in Claude Code and Codex, and a user-run `setup.sh` replaces the agent-run `setting-up-machine` skill (#88). No agent runs the machine install, nothing needs root, and nothing is removed without a per-item yes.
+
+- Layout: the marketplace file `.claude-plugin/marketplace.json` sits at the repository root (both agents read it) and lists `plugins/benchkeeper/`. `skills/` and `rules/` moved there. A plugin version copies about 50 KB into the plugin caches instead of the 55 MB repository.
+- Plugin `version` in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` is the setup version (`4.0.0`) and changes with each entry here.
+- Skill names carry the plugin namespace in both agents: `benchkeeper:following-dev-workflow`, `benchkeeper:setting-up-projects`, `benchkeeper:maintaining-repos`, and `mattpocock-skills:<name>` for Matt Pocock's. The rules and skills use these names.
+- `setup.sh`: dry run by default, `--apply` asks per change, `--restore <date>` undoes the moves. It copies the rules, installs the plugins (BenchKeeper, Matt Pocock's skills, Ponytail at tag `v5.3.2`), merges the settings, moves other global rules and setup-v3 skill links to `~/.config/benchkeeper/backup/<date>/`, reports variables that disable the advisor, checks Docker and host Playwright entries, and offers find-skills and the Orca skills for each agent that lacks them. A failed step is reported and the rest still runs. `--restore` keeps the current copy of a restored file in `<date>-restore`. Host tools take the newest release that is at least 7 days old. Self-check in CI (`setup.test.sh`, POSIX sh).
+- `setting-up-machine` is removed. Pin bumps move to `maintaining-repos` (newest release at least 7 days old). `setting-up-projects` names the Playwright MCP pin itself.
+- Codex gets Matt Pocock's skills from his plugin (`mattpocock-skills@mattpocock`), as in Claude Code. `setting-up-projects` removes Codex project copies of his skills after asking.
+- Dependabot waits 7 days after a release (`cooldown`).
+- Benchmarks keep their frozen copies in `bench/arms/`. Behavior inside a task is unchanged apart from the skill names.
+- Upgrade from v3: `git -C BenchKeeper pull`, then `sh BenchKeeper/plugins/benchkeeper/setup.sh` to see the plan and `--apply` to run it. It replaces the rules symlink with a copy, moves the old skill links to the backup and installs the plugins. An existing Ponytail marketplace keeps its current ref. Then `/benchkeeper:setting-up-projects` in each repository with Codex project copies of Matt Pocock's skills.
+
 ## setup-v3.4 (2026-10-17)
 
 One level for the workflow: Matt Pocock's skills are global (his install), so the parts that shape them are global too. Otherwise his skills run without the tier filter in every repository that `setting-up-projects` has not touched.

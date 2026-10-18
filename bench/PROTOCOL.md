@@ -1,6 +1,6 @@
 # Benchmark protocol
 
-Version 1.21, 2026-10-18
+Version 1.22, 2026-10-18
 
 - 1.21: brownfield brief `mistreevous` (section Mistreevous brief) with arm AL (BenchKeeper layer v6, setup-v4.0). New pins for every arm (owner decision 2026-10-18): Ponytail v5.3.2, Matt Pocock's skills `49dd158`, OpenSpec 1.14.3, Spec Kit v1.2.1; agent-skills 0.6.13, Superpowers v7.0.0 and ECC 2.2.3 are current. Runs recorded before keep their pins. Each step records its workflow trace (`workflow` in `trial.json` steps). The other briefs unchanged.
 - 1.20: SkillsBench removed with its scripts and data (owner decision 2026-10-18): its one-shot tasks never called the compared skill libraries, so it could not compare them. The other briefs unchanged.
@@ -219,6 +219,15 @@ Purpose: a feature with design work in an existing library, where planning, spec
 - Arms: A, B, F, G, H, V, AF, AB, AC and AL (owner decision 2026-10-18). A pilot on Haiku 5.5 at k = 1 checks the brief, the audit and that each stack's skills are called; the run is Sonnet 5.5 at effort high, k = 3.
 - Validation (`validate.sh`): the untouched baseline fails every step 1 hidden check; a reference trial (`reference/` in step 1, a README note, tests and a Version History row per step) passes every check of every step and the suite.
 - Limitations: the process checks read tool calls, so a plan kept only in the conversation does not count. The hidden tests fix the method names `snapshot` and `restore`. Step 3's reports can describe bugs an arm's step 1 did not have; its checks then pass without a change.
+
+## External benchmark pilots: SlopCodeBench and DeepSWE (v1.22)
+
+Purpose: check whether two public benchmarks separate the stacks before a larger run. Owner decision 2026-10-18: after the mistreevous Sonnet run, Claude Sonnet 5.5 at effort high, arms A, AL, B and F, k = 1. Both run through our own podman runners, because the upstream harnesses need Docker and do not carry an arm's plugins, rules and settings. Benchmark data (specs, tests, canaries) is fetched at run time into git-ignored `.cache/` folders and stays out of this repository.
+
+- SlopCodeBench (harness https://github.com/SprocketLab/slop-code-bench at `31ceea3`, MIT; problems https://github.com/gabeorlanski/scb-problems at `9cd9ca3`, Apache-2.0): problems `xjq` (5 checkpoints) and `mvvault` (6 checkpoints) as step briefs `bench/briefs/scb-xjq/` and `bench/briefs/scb-mvvault/` for `bench/run-brief.sh`, one new session per checkpoint on the same workspace, as the harness does. Baseline: an empty repository. Prompt per step: the harness's `just-solve` prompt with the checkpoint spec (entry `python <entry>.py`), then the same workflow lines for every arm (`bench/briefs/scb/workflow.md`). `"python": true` builds the arm images with Python 3, venv and pip (tag suffix `-py`).
+- SlopCodeBench scoring per checkpoint (`bench/briefs/scb/checks/step.sh`, scorer image `bench/briefs/scb/Containerfile`): the harness's own `slop-code eval-snapshot` in its local environment (tests of checkpoints 1 to k) and `scb-check` 0.1.3 (verbosity, erosion), as in the paper. Checks: `C<k>-core`, `C<k>-functionality`, `C<k>-error`, from step 2 on `C<k>-regression` (all tests of the group pass; null without tests). Raw pass counts and quality metrics in `scb.json`. Suite: the agent's own pytest tests. Validation: the problems' reference solutions pass every group; the empty baseline fails every check.
+- DeepSWE (https://github.com/datacurve-ai/deep-swe at `0b9fabb`, Apache-2.0, dataset v1.1): `bench/run-deepswe.sh`, tasks `ts-pattern-match-each`, `true-myth-iterable-collection-combinators`, `obsidian-linter-auto-table-of-contents`, `cattrs-partial-structuring-recovery`, `tomlkit-toml-table-converters` (TypeScript and Python feature requests). The agent runs in the task's own image with Claude Code and the arm's home copied in (root, `IS_SANDBOX=1`, network for the model API, 2 CPUs, 8 GB, 3 hours), prompt `instruction.md` and the follow-up rule. A project template (arm AL) is copied in git-excluded, so the patch holds only the agent's work. Grading as upstream: `git diff --binary <base> HEAD` in the verifier image without network, `reward.json` (`reward` 1 when every fail-to-pass and pass-to-pass test passes, `f2p`, `p2p`, `partial`). Validation: the reference patch scores 1, an empty patch 0.
+- Reported per arm: pass counts, reward and f2p, verbosity and erosion, the process checks of `trial.mjs` (test files and test commands now include pytest), skills called, minutes and tokens. No composite score in the pilots.
 
 ## Targeted tasks (`bench/briefs/skill-*`, v1.14)
 

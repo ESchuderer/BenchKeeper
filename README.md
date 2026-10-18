@@ -36,14 +36,16 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
 1. Install the [prerequisites](#prerequisites): at least one agent and jq, plus the tools for the parts you apply. npm uses a user prefix such as `~/.local`, no sudo.
 2. Clone: `git clone --depth 1 https://github.com/ESchuderer/BenchKeeper.git`
 3. Review the plan: `sh BenchKeeper/plugins/benchkeeper/setup.sh`. This dry run lists each change and changes nothing.
-4. Apply: `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply`. It asks before each change:
+4. Apply: `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply`. It asks before each change. `--apply-all` applies every change from the dry run without asking, removals included:
    - the global rules (`~/.claude/rules/00-global.md`, `~/.codex/AGENTS.md`)
    - the plugins: BenchKeeper, Matt Pocock's skills and Ponytail (pinned to a tag, since it runs a `SessionStart` hook), in each agent
-   - settings and telemetry (merged, other keys and hooks stay)
-   - other global rules it finds (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`) and skill links from setup-v3: moved to `~/.config/benchkeeper/backup/<date>/`, never deleted. `setup.sh --restore <date>` moves them back.
+   - settings and telemetry (merged, other keys and hooks stay): error reporting, feedback survey and `/feedback` off, local transcripts kept 14 days instead of 30, the stable update channel (about one week behind latest), subagents without a model on Sonnet
+   - the default model `opusplan` in Claude Code (Opus in plan mode, Sonnet otherwise), as its own question since it replaces the model you set. Orca starts `claude` without `--model`, so it applies there too. Not benchmarked.
+   - default effort `high` in Claude Code (also saved for Opus 5.5 and Sonnet 5.5, which ignore the global key) and in Codex, and the Claude Code auto-compact window at 400000 tokens (default about 967K on 1M models). A different value is shown and asked about. Neither is benchmarked. Anthropic gives no recommended window.
+   - everything else installed globally, one item at a time: other rules files (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks. Files go to `~/.config/benchkeeper/backup/<date>/`, never deleted, and `setup.sh --restore <date>` moves them back. Plugins, marketplaces and MCP servers are removed with the agent's own command. Hooks are offered per event, and Orca's own entries are only reported.
    - the Dev Containers CLI at the newest release that is at least 7 days old
 
-   It needs no root and writes only under `~/.claude`, `~/.codex`, `~/.agents/skills`, `~/.config` and the npm user prefix. It never runs on its own.
+   It needs no root and writes only under `~/.claude`, `~/.claude.json`, `~/.codex`, `~/.agents/skills`, `~/.config` and the npm user prefix. It never runs on its own.
 5. Restart the agents.
 
 Skills only, without rules and settings: `claude plugin marketplace add ESchuderer/BenchKeeper --sparse .claude-plugin plugins && claude plugin install benchkeeper@benchkeeper` (Codex: `codex plugin marketplace add ESchuderer/BenchKeeper --sparse .claude-plugin --sparse plugins && codex plugin add benchkeeper@benchkeeper`).
@@ -66,9 +68,9 @@ Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcont
 ## Update
 
 - BenchKeeper's plugin: its `version` changes with each setup release ([CHANGELOG.md](CHANGELOG.md)). Claude Code: `claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper`, or turn on auto-update for the marketplace in `/plugin` (off by default for marketplaces outside Anthropic's, [docs](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)). Codex upgrades Git marketplaces at startup.
-- Rules and settings: after a release that changes them, `git -C BenchKeeper pull`, then `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply`.
+- Rules and settings: after a release that changes them, `git -C BenchKeeper pull`, then `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply` (or `--apply-all`).
 - Matt Pocock's skills update through their marketplaces. After one of his releases, he recommends running his setup again in each repository. Ponytail's marketplace stays on the tag it was added with (`setup.sh` adds `v5.3.2`). A newer tag means adding the marketplace again with the new `#ref` (Claude Code) or `@ref` (Codex).
-- Repository stack skills are pinned in `skills-lock.json`, and `/benchkeeper:setting-up-projects` proposes their updates. `/benchkeeper:maintaining-repos` proposes bumps for pins in docs and scripts.
+- Repository skills (library and stack) are pinned in `skills-lock.json`, and `/benchkeeper:setting-up-projects` proposes their updates. `/benchkeeper:maintaining-repos` proposes bumps for pins in docs and scripts.
 
 ## Benchmarks
 
@@ -80,10 +82,11 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 |---|---|---|
 | [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) | the marketplace, read by Claude Code and Codex | `~/.claude/plugins/`, `~/.codex/plugins/` |
 | [plugins/benchkeeper/rules/global.md](plugins/benchkeeper/rules/global.md) | global rules | copied by `setup.sh` to `~/.claude/rules/00-global.md` and `~/.codex/AGENTS.md` |
-| [plugins/benchkeeper/setup.sh](plugins/benchkeeper/setup.sh) | rules, settings, plugin installs, host checks, scan for other global rules ([self-check](plugins/benchkeeper/setup.test.sh)) | run from the clone |
-| [plugins/benchkeeper/skills/setting-up-projects](plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, dead config | plugin skill `benchkeeper:setting-up-projects` |
+| [plugins/benchkeeper/setup.sh](plugins/benchkeeper/setup.sh) | rules, settings, plugin installs, host checks, everything else installed globally offered for removal ([self-check](plugins/benchkeeper/setup.test.sh)) | run from the clone |
+| [plugins/benchkeeper/skills/setting-up-projects](plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, library and stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, other configuration to remove | plugin skill `benchkeeper:setting-up-projects` |
 | [plugins/benchkeeper/skills/following-dev-workflow](plugins/benchkeeper/skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request), loaded before repository work | plugin skill `benchkeeper:following-dev-workflow` |
 | [plugins/benchkeeper/skills/maintaining-repos](plugins/benchkeeper/skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code, debt, dependency audit, version pins, docs drift, unused skills | plugin skill `benchkeeper:maintaining-repos` |
+| [plugins/benchkeeper/library](plugins/benchkeeper/library/README.md) | skills installed per project: own (`designing-technical-uis`), Anthropic, science, marketing, security, docs and data, operations, legal, product | copied or installed into a project by `setting-up-projects` |
 | [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 
@@ -98,7 +101,7 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
 
-Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (stack skills), `skills-lock.json`, `docs/agents/` (from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`.
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `docs/agents/` (from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`.
 
 Global (per machine): the rules, the plugins (BenchKeeper, Matt Pocock's skills, Ponytail), find-skills, settings. Nothing is installed at both levels.
 

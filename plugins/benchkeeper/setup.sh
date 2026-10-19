@@ -1,10 +1,13 @@
 #!/bin/sh
 # BenchKeeper machine setup for Claude Code and Codex: the global rules, settings, plugin installs, host checks, and a
-# scan for other global rules. Run it yourself, it never runs on its own. Needs jq. Never uses sudo.
+# list of everything else installed globally (rules, skills, plugins, marketplaces, MCP servers, hooks), each removed
+# only after a y. Run it yourself, it never runs on its own. Needs jq. Never uses sudo.
 # Usage: setup.sh            dry run: prints the plan, changes nothing
 #        setup.sh --apply    asks before each change (y to apply, anything else skips)
+#        setup.sh --apply-all   applies every change of the dry run without asking, removals included
 #        setup.sh --restore <name>   moves the files of a backup (~/.config/benchkeeper/backup/<name>) back
 # Files are never deleted: anything replaced, edited or removed is first moved or copied to ~/.config/benchkeeper/backup/<date>/.
+# Plugins, marketplaces and MCP servers are removed with the agent's own command, so undoing those means installing them again.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 rules=$here/rules/global.md
@@ -31,19 +34,22 @@ restore() {
 mode=plan
 case ${1:-} in
 --apply) mode=apply ;;
+--apply-all) mode=all ;;
 --restore) restore "${2:?--restore needs a backup name, see ls $backups}"; exit 0 ;;
 '') ;;
-*) sed -n '4,7p' "$0" >&2; exit 2 ;;
+*) sed -n '5,8p' "$0" >&2; exit 2 ;;
 esac
 
 ok() { echo "ok     $1"; }
 info() { echo "info   $1"; }
-# step <text> <command...>: dry run prints the change, --apply asks for it and runs the command after a y.
+# step <text> <command...>: dry run prints the change, --apply asks for it and runs the command after a y, --apply-all runs it.
 step() {
   text=$1; shift
   if [ "$mode" = plan ]; then echo "change $text"; return 0; fi
-  printf 'change %s? [y/N] ' "$text"
-  read -r answer || answer=
+  if [ "$mode" = all ]; then echo "change $text"; answer=y; else
+    printf 'change %s? [y/N] ' "$text"
+    read -r answer || answer=
+  fi
   case $answer in
   y | Y) if "$@"; then echo "done"; else echo "failed, continuing"; failed=1; fi ;;
   *) echo "skipped" ;;
@@ -55,11 +61,11 @@ stash() {
   dest=$backups/$stamp/${1#"$HOME"/}
   mkdir -p "$(dirname "$dest")" && mv "$1" "$dest"
 }
-# jqset <file> <filter>: applies the filter to the current file (or {}), after a copy of the old file goes to the backup.
+# jqset <file> <filter>: applies the filter to the current file (or {}). The first change in a run copies the old file to the backup.
 jqset() {
   if [ -f "$1" ]; then
     dest=$backups/$stamp/${1#"$HOME"/}
-    mkdir -p "$(dirname "$dest")" && cp -p "$1" "$dest" && jq "$2" "$1" >"$tmp/set.json"
+    mkdir -p "$(dirname "$dest")" && { [ -e "$dest" ] || cp -p "$1" "$dest"; } && jq "$2" "$1" >"$tmp/set.json"
   else
     mkdir -p "$(dirname "$1")" && echo '{}' | jq "$2" >"$tmp/set.json"
   fi && cp "$tmp/set.json" "$1"
@@ -106,13 +112,6 @@ if [ -n "$codex" ]; then
   [ ! -e "$f" ] || step "move other global rules $f ($(wc -l <"$f") lines) to the backup" stash "$f"
 fi
 
-# Skill links of setup-v3 and earlier: the plugin replaces them.
-for d in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
-  for n in following-dev-workflow setting-up-machine setting-up-projects maintaining-repos sdlc maintain global-setup project-setup; do
-    [ ! -L "$d/$n" ] || step "move the old skill link $d/$n to the backup (the plugin replaces it)" stash "$d/$n"
-  done
-done
-
 # Plugins: BenchKeeper, Matt Pocock's skills and Ponytail, installed the way each project documents it. Ponytail runs a
 # SessionStart hook, so its marketplace is pinned to a tag (Claude #ref, Codex @ref) and bumped on purpose.
 install_claude() { claude plugin marketplace add "$2" ${3:+--sparse $3} && claude plugin install "$1"; }
@@ -125,9 +124,6 @@ if [ -n "$claude" ]; then
   done
   p=mattpocock-skills@claude-plugins-official
   if echo "$have" | grep -qx "$p"; then ok "Claude plugin $p"; else step "install the Claude plugin $p" claude plugin install "$p"; fi
-  echo "$have" | grep -vx -e benchkeeper@benchkeeper -e ponytail@ponytail -e "$p" | grep -v "@anthropic-plugin-directory$" | while IFS= read -r x; do
-    [ -z "$x" ] || info "other Claude plugin $x (remove: claude plugin uninstall $x)"
-  done
 fi
 if [ -n "$codex" ]; then
   have=$(codex plugin list --json | jq -r '.installed[] | select(.enabled) | .pluginId')
@@ -135,21 +131,97 @@ if [ -n "$codex" ]; then
     set -- $p
     if echo "$have" | grep -qx "$1"; then ok "Codex plugin $1"; else step "install the Codex plugin $1" install_codex "$1" "$2" "$(echo "${3:-}" | tr , ' ')"; fi
   done
-  echo "$have" | grep -vx -e benchkeeper@benchkeeper -e ponytail@ponytail -e mattpocock-skills@mattpocock | grep -v "@openai-curated-remote$" | while IFS= read -r x; do
-    [ -z "$x" ] || info "other Codex plugin $x (remove: codex plugin remove $x)"
+fi
+
+# Everything else installed globally: listed one by one and removed only after a y. Files go to the backup. Plugins,
+# marketplaces and MCP servers are removed with the agent's own command. Loops read lists from variables, not pipes,
+# so step can read the answer from the terminal.
+nl='
+'
+IFS_old=$IFS
+IFS=$nl
+if [ -n "$claude" ]; then
+  for s in "$HOME"/.claude/skills/*; do
+    case ${s##*/} in find-skills | orca-cli | orchestration | synced) continue ;; esac
+    { [ -e "$s" ] || [ -L "$s" ]; } && step "move the global skill $s to the backup" stash "$s"
+  done
+  for x in $(claude plugin list --json | jq -r '.[] | select(.scope == "user" or .scope == null) | .id'); do
+    case $x in
+    benchkeeper@benchkeeper | ponytail@ponytail | mattpocock-skills@claude-plugins-official | *@anthropic-plugin-directory) ;;
+    *) step "uninstall the Claude plugin $x" claude plugin uninstall "$x" ;;
+    esac
+  done
+  for x in $(claude plugin marketplace list --json | jq -r '.[].name'); do
+    case $x in benchkeeper | ponytail | claude-plugins-official | anthropic-plugin-directory) ;;
+    *) step "remove the Claude marketplace $x" claude plugin marketplace remove "$x" ;; esac
+  done
+  for x in $(jq -r '.mcpServers // {} | keys[]' "$HOME/.claude.json" 2>/dev/null); do
+    step "remove the Claude user MCP server $x (projects configure their own)" claude mcp remove --scope user "$x"
   done
 fi
+if [ -n "$codex" ]; then
+  for s in "$HOME"/.agents/skills/*; do
+    case ${s##*/} in find-skills | orca-cli | orchestration) continue ;; esac
+    { [ -e "$s" ] || [ -L "$s" ]; } && step "move the global skill $s to the backup" stash "$s"
+  done
+  for x in $(codex plugin list --json | jq -r '.installed[] | .pluginId'); do
+    case $x in benchkeeper@benchkeeper | ponytail@ponytail | mattpocock-skills@mattpocock | *@openai-curated*) ;;
+    *) step "remove the Codex plugin $x" codex plugin remove "$x" ;; esac
+  done
+  for x in $(codex plugin marketplace list --json | jq -r '.marketplaces[].name'); do
+    case $x in benchkeeper | ponytail | mattpocock | openai-curated*) ;;
+    *) step "remove the Codex marketplace $x" codex plugin marketplace remove "$x" ;; esac
+  done
+  for x in $(cd "$HOME" && codex mcp list --json | jq -r '.[].name'); do
+    step "remove the Codex MCP server $x (projects configure their own)" sh -c 'cd "$HOME" && codex mcp remove "$1"' _ "$x"
+  done
+fi
+# Hooks per event. Orca writes its own hooks back, so they are reported, not offered.
+for f in ${claude:+"$HOME/.claude/settings.json"} ${codex:+"$HOME/.codex/hooks.json"}; do
+  [ -f "$f" ] || continue
+  orca=
+  for e in $(jq -r '.hooks // {} | keys[]' "$f"); do
+    keep=".hooks[\"$e\"] |= map(select(any(.hooks[]?; .command // \"\" | test(\"ORCA_\"))))"
+    n=$(jq "$keep | .hooks[\"$e\"] | length" "$f")
+    if [ "$n" -eq 0 ]; then keep="del(.hooks[\"$e\"])"; else orca="$orca $e"; fi
+    if [ "$(jq ".hooks[\"$e\"] | length" "$f")" -gt "$n" ]; then
+      step "remove the non-Orca $e hooks from $f (the old file goes to the backup)" jqset "$f" "$keep"
+    fi
+  done
+  [ -z "$orca" ] || info "Orca hooks in $f:$orca (Orca manages them)"
+done
+f=$HOME/.codex/config.toml
+[ -z "$codex" ] || [ ! -f "$f" ] || ! grep -q '^\[hooks' "$f" || info "hooks table in $f (Codex also runs these, edit by hand)"
+IFS=$IFS_old
 
 # Settings: merged into the existing files, other keys and hooks stay.
 claude_keys='.advisorModel = "opus" | .remoteControlAtStartup = true | .showClearContextOnPlanAccept = true
-  | .autoCompactWindow = (.autoCompactWindow // 400000)
+  | .cleanupPeriodDays = 14 | .autoUpdatesChannel = "stable"
   | .attribution = {"commit": "Assisted-by: generative AI", "pr": "Created with the assistance of generative AI.", "sessionUrl": false}
-  | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"})'
+  | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1", "DISABLE_FEEDBACK_COMMAND": "1", "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"})'
 if [ -n "$claude" ]; then
   f=$HOME/.claude/settings.json
   if same "$f" "$claude_keys"; then ok "Claude settings $f"; else
-    step "set in $f: advisorModel opus, Remote Control on at startup, clear-context option on plan accept, autoCompactWindow 400000 if unset, neutral AI attribution without session link, error reporting and feedback survey off (other keys stay, the old file goes to the backup)" jqset "$f" "$claude_keys"
+    step "set in $f: advisorModel opus, Remote Control on at startup, clear-context option on plan accept, local transcripts kept 14 days, stable update channel, neutral AI attribution without session link, error reporting, feedback survey and /feedback off, subagents without a model on Sonnet (other keys stay, the old file goes to the backup)" jqset "$f" "$claude_keys"
   fi
+  # Default model opusplan: Opus in plan mode, Sonnet for the rest. Its own step, since it replaces a model the user chose.
+  if same "$f" '.model = "opusplan"'; then ok "Claude default model opusplan"; else
+    step "set the default model in $f to opusplan, Opus in plan mode and Sonnet otherwise (now: $(jq -r '.model // "unset"' "$f" 2>/dev/null || echo unset))" jqset "$f" '.model = "opusplan"'
+  fi
+  # Default effort high. In the user file Opus 5.5 and later ignore the top-level key, so the opusplan pair gets a
+  # per-model level too (https://code.claude.com/docs/en/settings-reference#effortlevel).
+  effort='.effortLevel = "high" | .modelSettings["claude-opus-5-5"].effortLevel = "high" | .modelSettings["claude-sonnet-5-5"].effortLevel = "high"'
+  if same "$f" "$effort"; then ok "Claude default effort high"; else
+    step "set the default effort in $f to high for all models, Opus 5.5 and Sonnet 5.5 included (now: $(jq -r '[.effortLevel // "unset", (.modelSettings["claude-opus-5-5"].effortLevel // "unset"), (.modelSettings["claude-sonnet-5-5"].effortLevel // "unset")] | join(", ")' "$f" 2>/dev/null || echo unset))" jqset "$f" "$effort"
+  fi
+  # Auto-compact at 400000 tokens instead of about 967K on 1M models: half the context resent per turn, same price per
+  # token. No Anthropic recommendation or Claude 5 long-context data exists (CHANGELOG setup-v5.0). A level saved per
+  # model with /autocompact outranks the key, so those are removed with it.
+  compact='.autoCompactWindow = 400000 | if .modelSettings then .modelSettings |= (map_values(del(.autoCompactWindow)) | with_entries(select(.value != {}))) else . end'
+  if same "$f" "$compact"; then ok "Claude auto-compact window 400000"; else
+    step "set the auto-compact window in $f to 400000 tokens, per-model values removed (now: $(jq -r '[(.autoCompactWindow // "unset" | tostring)] + [.modelSettings // {} | to_entries[] | select(.value.autoCompactWindow) | "\(.key) \(.value.autoCompactWindow)"] | join(", ")' "$f" 2>/dev/null || echo unset))" jqset "$f" "$compact"
+  fi
+  [ -z "${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-}" ] || info "CLAUDE_CODE_AUTO_COMPACT_WINDOW=$CLAUDE_CODE_AUTO_COMPACT_WINDOW in this shell outranks the setting (remove it where it is exported)"
 fi
 if [ -n "$codex" ]; then
   f=$HOME/.codex/config.toml
@@ -158,6 +230,13 @@ if [ -n "$codex" ]; then
       step "add [$s] enabled = false to $f" sh -c 'mkdir -p "$(dirname "$1")" && printf "\n[%s]\nenabled = false\n" "$2" >>"$1"' _ "$f" "$s"
     fi
   done
+  # Top-level key: replaced in place, or prepended so it stays above the first table.
+  if [ -f "$f" ] && grep -qx 'model_reasoning_effort = "high"' "$f"; then ok "Codex default effort high"; else
+    step "set model_reasoning_effort = \"high\" in $f (now: $(sed -n 's/^model_reasoning_effort = //p' "$f" 2>/dev/null | grep . || echo unset))" sh -c '
+      mkdir -p "$(dirname "$1")" && touch "$1"
+      if grep -q "^model_reasoning_effort" "$1"; then sed -i "s/^model_reasoning_effort = .*/model_reasoning_effort = \"high\"/" "$1"
+      else { echo "model_reasoning_effort = \"high\""; cat "$1"; } >"$1.tmp" && mv "$1.tmp" "$1"; fi' _ "$f"
+  fi
 fi
 f=$HOME/.config/ponytail/config.json
 if same "$f" '.defaultMode = "full"'; then ok "Ponytail level full"; else
@@ -188,19 +267,11 @@ fi
 if docker info >/dev/null 2>&1; then ok "container engine (docker info)"; elif command -v podman >/dev/null && podman info >/dev/null 2>&1; then
   ok "container engine (podman)"
 else info "no container engine reachable: see https://docs.docker.com/engine/install/"; fi
-if [ -n "$claude" ]; then
-  claude mcp list 2>/dev/null | grep -i '^playwright' | grep -v devcontainer | while IFS= read -r x; do
-    info "host Playwright MCP: ${x%%:*} (projects run it in their devcontainer, see setting-up-projects)"
-  done
-fi
 skills_v=""
 command -v npm >/dev/null && skills_v=$(newest skills)
 skill vercel-labs/skills find-skills
 command -v orca >/dev/null && skill https://github.com/stablyai/orca orca-cli && skill https://github.com/stablyai/orca orchestration
-for f in "$HOME/.claude/RTK.md" "$HOME/.codex/RTK.md"; do
-  [ ! -e "$f" ] || step "move the RTK leftover $f to the backup" stash "$f"
-done
-[ "$mode" = plan ] && echo "Dry run: nothing changed. Run with --apply to choose changes."
+[ "$mode" = plan ] && echo "Dry run: nothing changed. Run with --apply to choose changes, or --apply-all to apply them all."
 [ -d "$backups/$stamp" ] && echo "Backup: $backups/$stamp (undo with --restore $stamp)"
 [ -z "$failed" ] || { echo "Some changes failed, see the lines marked failed." >&2; exit 1; }
 exit 0

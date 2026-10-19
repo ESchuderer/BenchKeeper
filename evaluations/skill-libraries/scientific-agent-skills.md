@@ -10,6 +10,6 @@
 
 ## Decision
 
-Not global, per project: `setting-up-projects` step 4 vets single skills for science repositories.
+Not global, per project: the BenchKeeper library (`plugins/benchkeeper/library/README.md`, setup-v5.0) lists a core, literature, writing and modelling set without paid API keys. `setting-up-projects` proposes them for science repositories, and its search vets other single skills.
 
 [All evaluations](../../EVALUATIONS.md)

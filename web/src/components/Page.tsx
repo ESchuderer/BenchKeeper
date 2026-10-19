@@ -70,9 +70,9 @@ function StepList({ from, className }: { from: number; className?: string }) {
 const quickstart: [string, string, string][] = [
   ['Clone BenchKeeper', 'git clone --depth 1 https://github.com/ESchuderer/BenchKeeper.git', 'setup.sh and the rules come from the clone. The skills install as a plugin.'],
   ['Review the plan', 'sh BenchKeeper/plugins/benchkeeper/setup.sh', 'A dry run: lists each change for the agents on your PATH and changes nothing.'],
-  ['Apply', 'sh BenchKeeper/plugins/benchkeeper/setup.sh --apply', 'Asks before each change: rules, the plugins (BenchKeeper, Matt Pocock\'s skills, Ponytail), settings. Other global rules it finds go to a backup, and --restore moves them back. No root.'],
+  ['Apply', 'sh BenchKeeper/plugins/benchkeeper/setup.sh --apply', 'Asks before each change: rules, the plugins (BenchKeeper, Matt Pocock\'s skills, Ponytail), settings (default model opusplan, effort high, auto-compact at 400K tokens, subagents on Sonnet, stable updates, /feedback off, transcripts kept 14 days). --apply-all applies them all without asking. Then it lists every other global rules file, skill, plugin, marketplace, MCP server and hook, and removes only what you confirm. Files go to a backup that --restore moves back. No root.'],
   ['Restart the agents', '', 'New sessions load the global rules and the plugin skills.'],
-  ['Project setup, in each repository root', '/benchkeeper:setting-up-projects', 'Codex: $benchkeeper:setting-up-projects. Devcontainer, AGENTS.md, stack skills, default tier. It asks for the next step partway through.'],
+  ['Project setup, in each repository root', '/benchkeeper:setting-up-projects', 'Codex: $benchkeeper:setting-up-projects. Devcontainer, AGENTS.md, library and stack skills, default tier. It asks for the next step partway through.'],
   ['Matt Pocock setup, when project setup asks for it', '/mattpocock-skills:setup-matt-pocock-skills', 'Codex: $mattpocock-skills:setup-matt-pocock-skills. Issue tracker, triage labels, domain docs in docs/agents/. Then project setup finishes. Commit the result.'],
   ['Update later', 'claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper', 'Codex upgrades plugins at startup. When a release changes the rules: git -C BenchKeeper pull, then setup.sh --apply again.'],
 ];
@@ -155,7 +155,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               <Code>setup.sh</Code> sets up the machine, <Code>/benchkeeper:setting-up-projects</Code> each repository, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass. Each shows its plan first and applies only what you approve.
             </Part>
             <Part icon={<IconContainer size={20} />} title="Devcontainer and Playwright" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="Per repository">
-              Installs, builds, tests and the browser run in the container as a non-root user. Stack skills come from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
+              Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the <Anchor href={`${REPO}/blob/main/plugins/benchkeeper/library/README.md`}>BenchKeeper library</Anchor>, stack skills from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
             </Part>
           </SimpleGrid>
         </Section>

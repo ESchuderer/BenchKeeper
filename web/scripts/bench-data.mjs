@@ -1,7 +1,7 @@
 // Benchmark trials for the /bench/ pages, read at build time from bench/results/<run>/round-<n>/<arm>/
 // (trial.json, review.json, drawing-review.json, screenshots/), the run's manifest.txt, final-score.json (bench/scripts/final-score.mjs)
 // and brownfield-score.json (bench/scripts/brownfield-score.mjs).
-// Cost fields are never read (owner decision).
+// Cost: the API-equivalent USD the transcript reports (owner decision 2026-10-18). Trials bill the subscription, not the API.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -67,7 +67,7 @@ export function loadTrials(results) {
           runtime: t.runtime === 'opencode' ? 'OpenCode' : 'Claude Code', arm: id, setup: arm(id).setup,
           features: t.score?.features_passed ?? null, robustness: t.score?.robustness_passed ?? null,
           featuresOf: Object.keys(t.score?.features || {}).length || null, robustnessOf: Object.keys(t.score?.robustness || {}).length || null,
-          minutes: Math.round((t.wall_seconds ?? 0) / 60), overall: r?.overall ?? null,
+          minutes: Math.round((t.wall_seconds ?? 0) / 60), cost: t.outcome?.cost_usd_api_equivalent ?? null, overall: r?.overall ?? null,
           protocol: t.method?.protocol ?? null, criteria: Object.keys(r?.scores || {}).length || null,
           final: (round === 'round-1' && finals.get(id)) || null, mutation: t.score?.mutation?.score ?? null, drawings: drawingReview(json(join(dir, 'drawing-review.json'))),
           brownfield: brownfield.get(`${round}/${id}`) ?? null,
@@ -131,7 +131,7 @@ export function rankArms(trials) {
   const rank = (ts) => {
     const rows = [...new Set(ts.map((t) => t.arm))].map((id) => {
       const rounds = ts.filter((t) => t.arm === id).sort((a, b) => a.round - b.round);
-      return { arm: id, setup: rounds[0].setup, runtime: rounds[0].runtime, score: median(rounds.map(value)), minutes: median(rounds.map((t) => t.minutes)), rounds };
+      return { arm: id, setup: rounds[0].setup, runtime: rounds[0].runtime, score: median(rounds.map(value)), minutes: median(rounds.map((t) => t.minutes)), cost: median(rounds.map((t) => t.cost)), rounds };
     }).sort((a, b) => desc(a.score, b.score) || a.minutes - b.minutes);
     rows.forEach((r, i) => { r.rank = i && rows[i - 1].score === r.score ? rows[i - 1].rank : i + 1; });
     return rows;

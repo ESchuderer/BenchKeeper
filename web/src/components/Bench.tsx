@@ -43,7 +43,7 @@ export type Run = {
 export type Detail = Trial & { model: string; final: NonNullable<Trial['final']> };
 export type Top = { brief: string; of: number; top: Detail[]; baselines: (Detail & { place: number })[] };
 export type Notes = {
-  briefs: Record<string, string>; runs: Record<string, { tested?: string; summary?: string; findings: string[] }>;
+  briefs: Record<string, string>; runs: Record<string, { tested?: string; summary?: string; score?: string; findings: string[] }>;
   reports: { file: string; title: string; summary: string }[];
   stacks: { name: string; url: string; version: string; text: string }[];
 };
@@ -106,7 +106,7 @@ function RunCard({ base, r, ranking, notes }: { base: string; r: Run; ranking: R
         return (
           <Box key={g.runtime ?? 'all'} mt="lg">
             <Title order={3} fz="lg">Top {top.length} of {g.rows.length}{g.runtime ? ` ${g.runtime} arms` : ' arms'}</Title>
-            <Text size="sm" c="dimmed">{SCORE[ranking.kind]}: {SCORE_HELP[ranking.kind]}</Text>
+            <Text size="sm" c="dimmed">{SCORE[ranking.kind]}: {note?.score ?? SCORE_HELP[ranking.kind]}</Text>
             <Region label={label} minWidth={480}>
               <Table.Thead>
                 <Table.Tr><Table.Th>Rank</Table.Th><Table.Th>Arm</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Score</Table.Th><Table.Th>Minutes</Table.Th><Table.Th>API cost</Table.Th></Table.Tr>
@@ -273,7 +273,7 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
       {ranking.groups.map((g) => (
         <Box key={g.runtime ?? 'all'} component="section" aria-labelledby={slug('rank', g.runtime)} mb="xl">
           <Title order={2} fz="xl" id={slug('rank', g.runtime)}>Ranking{g.runtime ? `, ${g.runtime}` : ''}</Title>
-          <Text size="sm" c="dimmed">{SCORE[ranking.kind]}: {SCORE_HELP[ranking.kind]}</Text>
+          <Text size="sm" c="dimmed">{SCORE[ranking.kind]}: {note?.score ?? SCORE_HELP[ranking.kind]}</Text>
           <Region label={`${r.brief}, ${r.model}${g.runtime ? `, ${g.runtime}` : ''}: ranked arms`} minWidth={640}>
             <Table.Thead>
               <Table.Tr>

@@ -1,0 +1,306 @@
+{
+  "arm": "AH",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 479,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "mattpocock-skills",
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 88697,
+    "result_events": 3,
+    "turns": 68,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 1.5788937000000003,
+    "usage": {
+      "input": 136,
+      "cache_creation": 184772,
+      "cache_read": 4017437,
+      "output": 43779,
+      "thinking": 11939
+    }
+  },
+  "workflow": {
+    "tool_calls": 75,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "following-dev-workflow",
+      "following-dev-workflow",
+      "following-dev-workflow"
+    ],
+    "agents": [],
+    "tiers": [],
+    "plan_or_spec_files": [
+      ".scratch/compare-view/spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "review": false,
+    "last_tool": "Bash for p in /proc/[0-9]*; do grep -qa \"port.5199\" $p/cmdline 2>/dev/null && kill ${"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "a6d1d4e1139bb268"
+  },
+  "lines": {
+    "source": 10825,
+    "test": 2409,
+    "files": 119
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": false,
+    "test_script": false,
+    "lint_or_typecheck": false,
+    "ci": true,
+    "node_version": false,
+    "changelog": true,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-actionlint",
+          "ok": true
+        },
+        {
+          "id": "S1-ci-checks",
+          "ok": true
+        },
+        {
+          "id": "S1-npm-scripts",
+          "ok": true
+        },
+        {
+          "id": "S1-sha-pins",
+          "ok": false
+        },
+        {
+          "id": "S1-permissions",
+          "ok": false
+        },
+        {
+          "id": "S1-no-prt",
+          "ok": true
+        },
+        {
+          "id": "S1-secrets",
+          "ok": true
+        },
+        {
+          "id": "S1-pages-trigger",
+          "ok": false
+        },
+        {
+          "id": "S1-release",
+          "ok": true
+        },
+        {
+          "id": "S1-changelog",
+          "ok": true
+        },
+        {
+          "id": "S1-dependency-updates",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-sections",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-commands",
+          "ok": true
+        },
+        {
+          "id": "S1-commits",
+          "ok": true
+        }
+      ],
+      "passed": 11,
+      "total": 14,
+      "suite_ok": true,
+      "minutes": 2.6,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.432887,
+      "tokens": {
+        "input": 44,
+        "cache_creation": 47540,
+        "cache_read": 960890,
+        "output": 14655,
+        "thinking": 4087
+      },
+      "usage": null
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-build",
+          "ok": true
+        },
+        {
+          "id": "S2-route",
+          "ok": true
+        },
+        {
+          "id": "S2-delta",
+          "ok": true
+        },
+        {
+          "id": "S2-overlay",
+          "ok": true
+        },
+        {
+          "id": "S2-units",
+          "ok": true
+        },
+        {
+          "id": "S2-link",
+          "ok": true
+        },
+        {
+          "id": "S2-reuse",
+          "ok": true
+        },
+        {
+          "id": "X2-ci",
+          "ok": true
+        },
+        {
+          "id": "X2-changelog",
+          "ok": true
+        },
+        {
+          "id": "X2-version",
+          "ok": true
+        }
+      ],
+      "passed": 10,
+      "total": 10,
+      "suite_ok": true,
+      "minutes": 3.5,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.8816515000000003,
+      "tokens": {
+        "input": 60,
+        "cache_creation": 102355,
+        "cache_read": 2452215,
+        "output": 22689,
+        "thinking": 6788
+      },
+      "usage": null
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-bug",
+          "ok": true
+        },
+        {
+          "id": "S3-style",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "X3-ci",
+          "ok": true
+        },
+        {
+          "id": "X3-changelog",
+          "ok": false
+        },
+        {
+          "id": "X3-version",
+          "ok": false
+        }
+      ],
+      "passed": 4,
+      "total": 6,
+      "suite_ok": true,
+      "minutes": 1.5,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "cost_usd_api_equivalent": 0.2643552,
+      "tokens": {
+        "input": 32,
+        "cache_creation": 34877,
+        "cache_read": 604332,
+        "output": 6435,
+        "thinking": 1064
+      },
+      "usage": null
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "a6d1d4e1139bb268",
+    "bk": "v5"
+  },
+  "phases": {
+    "phases": {
+      "explore": {
+        "calls": 5,
+        "minutes": 0.3,
+        "usd": 0.104
+      },
+      "verify": {
+        "calls": 27,
+        "minutes": 2.6,
+        "usd": 0.565
+      },
+      "build": {
+        "calls": 35,
+        "minutes": 4.7,
+        "usd": 0.874
+      },
+      "spec": {
+        "calls": 1,
+        "minutes": 0.1,
+        "usd": 0.035
+      }
+    },
+    "subagents": {},
+    "method": "estimate"
+  }
+}

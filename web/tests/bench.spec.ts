@@ -12,7 +12,7 @@ test('one summary per run: winners and top 10 by the run score, link to the run 
   await expect(run.getByRole('link', { name: '2026-10-15-winery-react.md' })).toHaveAttribute('href', /\/blob\/main\/bench\/results\/2026-10-15-winery-react\.md$/);
   await expect(run.getByRole('link', { name: 'All arms, reviews and screenshots' })).toHaveAttribute('href', '/BenchKeeper/bench/2026-10-15-winery-react-sonnet/');
   const brownfield = page.locator('section', { has: page.getByRole('heading', { level: 2, name: 'openballistics, Sonnet 5.5' }) });
-  await expect(brownfield.getByRole('region', { name: /top 10/ }).locator('tbody tr')).toHaveCount(5);
+  await expect(brownfield.getByRole('region', { name: /top 10/ }).locator('tbody tr')).toHaveCount(8);
   await expect(page.getByRole('link', { name: 'Skill authoring check' })).toBeVisible();
   await expect(brownfield.getByRole('region', { name: /top 10/ }).getByRole('columnheader', { name: 'API cost' })).toBeVisible();
   await expect(brownfield.getByRole('region', { name: /top 10/ }).locator('tbody tr').first()).toContainText(/\$\d+\.\d{2}/);
@@ -22,7 +22,7 @@ test('a run page ranks every arm and shows each arm with its rounds, review note
   await page.goto('./bench/2026-10-17-openballistics-sonnet/');
   await expect(page.getByRole('heading', { level: 1, name: 'openballistics, Sonnet 5.5' })).toBeVisible();
   const table = page.getByRole('region', { name: /ranked arms/ });
-  await expect(table.locator('tbody tr')).toHaveCount(5);
+  await expect(table.locator('tbody tr')).toHaveCount(8);
   const scores = await table.locator('tbody tr td:nth-child(5)').allInnerTexts();
   expect(scores.map(Number)).toEqual([...scores.map(Number)].sort((a, b) => b - a));
   const ad = page.locator('#arm-AD');

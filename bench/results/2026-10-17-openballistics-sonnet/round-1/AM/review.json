@@ -1,0 +1,46 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "af4f7622cd343f51cadaf315b62c6181b7a454da60bce1f6c46cc7e24ea1b27c",
+  "cost_usd_api_equivalent": 0.921857,
+  "review": {
+    "scores": {
+      "s1_ci": 2,
+      "s1_readme": 5,
+      "s1_release": 4,
+      "s2_requirements": 5,
+      "s2_correctness": 4,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 4,
+      "cross_step": 4
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs `npm ci`, `npm test` (with the pretest prepare-data step) and `npm run build` (with svelte-check) in site/. All of these exist in site/package.json:8-18. It triggers on pull_request, uses no pull_request_target, sets `permissions: contents: read`, and the only token is github.token (release.yml:195). Every action is pinned to a moving major tag, not a commit SHA: actions/checkout@v4, setup-node@v4, configure-pages@v5, upload-pages-artifact@v3, deploy-pages@v4 (step1.patch:58-59,100-127,152-155). pages.yml grants `pages: write` and `id-token: write` at workflow level (step1.patch:82-85), so the build job that runs npm ci and the tests also gets them; only the deploy job needs them. pages.yml also has `workflow_dispatch`, which can deploy from any branch. CONTRIBUTING only says the environment 'may restrict deployments to main'. Release is tag-triggered and checks that the tag is an ancestor of origin/main (release.yml:161-162). The agent did not run, push or publish anything.",
+      "s1_readme": "README (step1.patch:322-390) covers requirements, install (`cd site && npm ci`), develop (`npm run dev`), test (`npm test`), build (`npm run build`, `npm run preview`, PAGES_BASE), the other scripts (`prepare-data`, `sample-bullets`), data contribution (issue forms data.yml and bullet.yml, which exist in app/.github/ISSUE_TEMPLATE; PR flow; link to CONTRIBUTING), code contribution, and license (MIT, LICENSE and THIRD-PARTY.md exist). Every command it shows is in site/package.json, and PAGES_BASE is read in site/vite.config.ts:11.",
+      "s1_release": "The strategy is consistent. The version lives in site/package.json (0.1.0) and its lock file, tags are vX.Y.Z, and SemVer rules for data and URLs are stated (CONTRIBUTING.md 'Versioning'). The release steps are: rename Unreleased, run `npm version`, commit `chore(release): X.Y.Z`, then tag on main. release.yml checks the tag matches the version and that a CHANGELOG section exists, then uses that section as the release notes. CHANGELOG.md states Keep a Changelog 1.1.0 and its heading format. Dependabot covers npm (/site) and github-actions, with commit prefixes that match the convention. The convention (Conventional Commits with a type table) is stated in CONTRIBUTING.md. The commits mostly conform. Small type misuses: 9f99a36 `build(deps)` for adding the Dependabot config, and 8d5263d `feat(site): test the comparison table...`, which is mostly a test change.",
+      "s2_requirements": "Route `#/compare/<a>/<b>` is parsed with decoding and safe fallbacks (router.ts in step2.patch:423-431), and the route is read from location.hash on load, so it survives a reload. One SVG has role=img, the label 'Profiles of {a} and {b}', and two `path` elements (CompareFigure.svelte). The table caption is 'Dimensions ({unit})', with headers Symbol, name A, name B, Difference. Rows come from cartridge-part numeric fields without a FIELD_UNITS entry, use FIELD_LABELS symbols, and Difference is y-x. Metric values use formatValue; imperial uses displayNumber. The unit follows unitSystem(), the Default units preference. The Cartridge page has a Label 'Compare with', a NativeSelect of the other cartridges by name, and a 'Compare' button that goes to href.compare(key, target). German strings are added for every new key. Shot cartridges are excluded and get a message.",
+      "s2_correctness": "profileOverlay passes both caseOuterProfile results to one viewportFor, so the scale, the frame and the head face at z=0 are shared, and fullSectionPath gives one closed path each (compare.ts in step2.patch:314-325). Tests check that both head x values are equal and that 300 WM reaches further. Values were checked against the data: L6 71.12 vs 84.84 gives 13.72, and e min gives -0.46. displayNumber's toPrecision(12) removes the subtraction's float noise, and same-cartridge compares give '0'. Imperial L1 is 1.55984251969 in. Small gaps: a profile build failure shows the raw English error message in both languages (Compare.svelte notDrawn), and the metric difference is written with displayNumber rather than formatValue. That choice is reasonable and commented.",
+      "s2_fit": "It reuses lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, formatValue), lib/shapes2d (adaptMetallic, caseOuterProfile), lib/geom (viewportFor, fullSectionPath), units.ts displayNumber, units.svelte unitSystem, data.load and entries, the shadcn Label, NativeSelect and Button, and the lazy route chunk pattern in App.svelte. One duplication: `dimensions()` in compare.ts:286-289 reimplements the group ordering of `orderedGroups` in site/src/lib/fields.ts:19-27 instead of importing it. Changes are limited to the router, App, metadata, nav, i18n, Cartridge and new files.",
+      "s2_tests": "compare.test.ts tests row selection and order, the exclusion of FIELD_UNITS fields and Tol fields, the symbol labels, exact values and differences, inch conversion, a zero difference, the overlay head alignment and scale, and the error for an undrawable case. router.test.ts adds round-trip and malformed-URL cases. CompareFigure and CompareTable tests check the role, the accessible name, one path per outline, the caption in mm and in, and the headers. Gaps: no test for the Cartridge page's Compare with/Compare control or the Compare route component. Component tests with svelte/server are a new pattern in a repo that had no component tests before.",
+      "s3_fixes": "Point 1: compareRows now takes the union of both symbol sets. A B-only symbol goes after the symbol that precedes it in B, and a missing cell and its Difference are '' (step3.patch:59-81). Tests cover 'delta L' (A only, a='0.1') and R3 (B only, b='13.51'). The empty-state text was reworded in English and German, and the CHANGELOG entry was updated. Point 2: the step 3 patch changes no alignment. CompareTable.svelte already had `text-right` on the A, B and Difference th and td since step 2 (step2.patch:129-140), and Tailwind's utilities layer comes after legacy (shadcn.css:1), so the cells are right-aligned. The result meets the request, but nothing was changed or tested for it, and the step 3 commit doesn't mention it.",
+      "cross_step": "Steps 2 and 3 add or update the CHANGELOG entry under `## [Unreleased]`. The version is not bumped, which matches the stated strategy of bumping only at release. Commits use Conventional Commits types and scopes (7fe16ca feat, 551c3d4 fix, 9060641 fix). 8d5263d is typed `feat` for a mostly-test change, and the step 3 fix is typed `fix` for a feature that has not been released yet; neither is serious. The code type-checks on reading: the union narrowing of drawn() works through TS object-literal normalization, and the imports resolve. Tests and the build were not run here."
+    },
+    "unmet_requirements": [
+      "Step 1 / CI: GitHub Actions are pinned to major-version tags, not full commit SHAs.",
+      "Step 1 / CI: the Pages workflow's workflow_dispatch can deploy from any branch, not only main or tags, and pages/id-token write is granted to the build job too (not least privilege)."
+    ],
+    "overall": 7,
+    "strengths": [
+      "The compare view reuses lib/core, lib/shapes2d, lib/geom, the site's unit helpers and the shadcn components. It meets every step 2 requirement, including exact accessible names, headers and German texts.",
+      "The release strategy is consistent and enforced: version in site/package.json, a Keep a Changelog CHANGELOG, a tag-triggered release that checks the tag, the version, the CHANGELOG section and that the commit is on main, and Dependabot with commit prefixes that match the convention.",
+      "The tests are meaningful and use real record values: exact values and differences, inch conversion, overlay head alignment, malformed-route fallbacks, and the step 3 one-sided rows."
+    ],
+    "issues": [
+      "None of the workflow actions are pinned to commit SHAs (checkout@v4, setup-node@v4, configure-pages@v5, upload-pages-artifact@v3, deploy-pages@v4).",
+      "pages.yml grants pages: write and id-token: write at workflow level, so the build job gets them too, and workflow_dispatch allows deploying from a branch other than main.",
+      "compare.ts dimensions() duplicates the group ordering of orderedGroups in site/src/lib/fields.ts. Step 3 made no change for the alignment point and does not mention it; the step 2 code already right-aligned those cells."
+    ],
+    "verdict": "The feature and the step 3 bug fix are correct, well tested and fit the codebase, and the README, changelog and release process are clear and consistent. The CI setup misses supply-chain hardening (no SHA-pinned actions) and least-privilege Pages permissions, so it needs a follow-up before merging."
+  }
+}

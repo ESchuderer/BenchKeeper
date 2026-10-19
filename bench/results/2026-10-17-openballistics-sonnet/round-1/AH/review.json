@@ -1,0 +1,45 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "af4f7622cd343f51cadaf315b62c6181b7a454da60bce1f6c46cc7e24ea1b27c",
+  "cost_usd_api_equivalent": 1.238404,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 5,
+      "s2_requirements": 5,
+      "s2_correctness": 5,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 5,
+      "cross_step": 5
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs `npm ci`, `npm test` and `npm run build` in site/ on pull_request. All three are real scripts in site/package.json (pretest builds the index, build runs svelte-check). Top-level `permissions: contents: read`; there is no pull_request_target and no secret other than github.token. pages.yml deploys on push to `main` and gives `pages: write` and `id-token: write` only to the deploy job. release.yml triggers only on `v*` tags with `contents: write`. Nothing was run or published. However, every action uses a version tag rather than a full commit SHA: `actions/checkout@v7`, `actions/setup-node@v7`, `actions/upload-pages-artifact@v5`, `actions/deploy-pages@v5` (step1.patch lines 54-55, 98-99, 107, 123, 148-149). pages.yml also has `workflow_dispatch` with no branch guard, so a manual run could start from a non-main branch; only the github-pages environment policy would stop it.",
+      "s1_readme": "README (step1.patch 295-368) covers requirements (Node 22), install (`cd site && npm ci`), develop (`npm run dev`, `npm run preview`), test (`npm test`), build (`npm run build`, plus PAGES_BASE, which vite.config.ts:11 reads), contributing data (the family dirs match data/cartridges, the issue templates exist, it explains the fixture comparison, and its count of 75 `sample_` bullets matches data/bullets), and the license (MIT, 2026 PiMetry, matching LICENSE). Every command exists in site/package.json.",
+      "s1_release": "The strategy is single and consistent. The version lives in site/package.json (0.1.0) and tags are `v<version>`. release.yml checks that the tag matches package.json and that CHANGELOG.md has a matching `## [x.y.z]` section, extracts those notes, runs test and build, and creates the release with gh. CONTRIBUTING.md documents SemVer and the meaning of each number, gives the release steps, and states Keep a Changelog 1.1.0, as does the top of CHANGELOG.md. Dependabot covers npm in /site and github-actions, weekly and grouped. The commit convention (Conventional Commits with a type table) is stated in CONTRIBUTING.md, and all 8 commits in commits.txt follow it. One small inconsistency: the type table maps dependencies to `build`, while Dependabot uses `chore(deps)`; this is stated explicitly as an exception.",
+      "s2_requirements": "Route: router.ts parses `compare/<a>/<b>` and href.compare builds it; App.svelte loads Compare.svelte. Drawing: two `<path>` elements in one SVG with `role=img` and aria-label from 'Profiles of {a} and {b}', built with caseOuterProfile and one shared viewportFor. Table: `<caption>` 'Dimensions (mm|in)'; headers Symbol, name A, name B, Difference; symbols from FIELD_LABELS; FIELD_UNITS fields and Tol fields excluded; difference is B−A. Units: unitSystem(), formatValue for metric, displayNumber 'in' for imperial. Detail page: a `Compare with` label with a NativeSelect of the other cartridges (shotshell excluded) and a `Compare` button. German strings added. Changelog entry and commit present. Every requirement is met.",
+      "s2_correctness": "compareRows (step2 compare.ts) iterates GROUP_ORDER.cartridge and uses orderedFields, which drops `*Tol`. It skips FIELD_UNITS entries (alpha, beta, delta, pressures, M) and non-numbers, so only millimetre values remain. The tests confirm L1 appears once and Pmax/α/L1Tol are absent. outlines() puts both profiles, which start at the head face (z = 0), in one Viewport, so they share one scale, one axis and one origin. Each outline is drawn with fullSectionPath as a single closed path. cells() writes metric values with formatValue and imperial values with displayNumber(…,'in'). The difference uses displayNumber's toPrecision(12) to remove float noise (9.6→11.9 gives '2.3'). Shotshell and unknown keys reach the error alert through the caught throw or rejection.",
+      "s2_fit": "The feature reuses lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, formatValue), lib/shapes2d (adaptMetallic, caseOuterProfile), lib/geom (viewportFor, fullSectionPath), site units.ts and units.svelte.ts, PageHeader, NativeSelect, the shadcn Button, the router's href and the lazy chunk map in App.svelte. Pure logic sits in site/src/lib/compare.ts next to the other lib modules, and the changes are narrow. Minor style departures: Compare.svelte hardcodes `#d9480f` with inline `style=` legend swatches, Cartridge.svelte uses a raw `<label>` where other routes use the `Label` component, and the record is cast with `as unknown as CartridgeRecord`.",
+      "s2_tests": "compare.test.ts (vitest, using the real 308_win and 300_win_mag records through @lib/testing/fixtures) covers row selection and exclusions, the shared-only rule, metric cells without float noise, imperial conversion of values and differences, and two distinct paths. router.test.ts covers the round trip, encoding and malformed hashes. Gaps: the outlines test only checks that the paths differ and width > 0, not the common origin or scale. Nothing checks the select or the SVG and table accessible names, though the repo has no component-test setup.",
+      "s3_fixes": "Bug: compareRows now merges both groups' fields (`{ ...y, ...x }`), keeps a row when either side is a number, and stores null for the missing side. cells() returns '' for a null value and for the Difference. New tests assert the reviewer's exact cases: `delta L` with b null and `R3` with a null on 308_win/300_win_mag. Style: the step 2 Compare.svelte already had `text-right` on the three numeric `<th>` headers and their `<td>` cells, and shadcn.css orders the utilities layer after legacy with `@source './'`, so they are right-aligned and step 3 rightly left them unchanged. The related text changes (lede, `compare.none` in EN and DE, the changelog wording) follow from the new behaviour; nothing unrelated was touched.",
+      "cross_step": "Steps 2 and 3 add or amend an entry under `## [Unreleased]` / `### Added` in CHANGELOG.md. Amending rather than adding a Fixed entry is correct for an unreleased feature. Leaving the version unchanged matches the stated strategy, where the bump happens in the release PR. Commits 6f7cabe `feat:` and a25d745 `fix:` follow Conventional Commits. The code uses existing exported APIs with consistent types, so `npm test` and `npm run build` should pass, though this could not be run."
+    },
+    "unmet_requirements": [
+      "Step 1 / criterion: GitHub Actions are pinned to version tags (@v7, @v5), not full commit SHAs"
+    ],
+    "overall": 8,
+    "strengths": [
+      "The compare feature meets every step 2 requirement by reusing lib/core, lib/shapes2d and lib/geom (orderedFields, FIELD_UNITS, caseOuterProfile, one shared viewportFor), and the logic is a small, tested site/src/lib/compare.ts",
+      "One coherent release strategy: the version in site/package.json, a tag-triggered release.yml that checks tag, version and changelog section, Keep a Changelog stated, Dependabot, and Conventional Commits that every commit follows",
+      "The step 3 bug fix is minimal and correct (null cells, empty Difference), with tests for the reviewer's exact `delta L`/`R3` example; the changelog and texts were updated to match"
+    ],
+    "issues": [
+      "None of the workflow actions are pinned to full commit SHAs (actions/checkout@v7, setup-node@v7, upload-pages-artifact@v5, deploy-pages@v5)",
+      "pages.yml has `workflow_dispatch` with no branch guard, so deploying only from main depends on the github-pages environment policy and not on the workflow itself",
+      "The outlines test does not verify the shared origin or scale, and Compare.svelte hardcodes a colour and inline legend styles instead of using theme tokens"
+    ],
+    "verdict": "The repository setup, the compare view and the review fix are correct, well scoped and consistent with the release and commit conventions set up in step 1. Before merging, the workflow actions should be pinned to commit SHAs, and preferably the Pages workflow should be limited to main."
+  }
+}

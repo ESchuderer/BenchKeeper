@@ -1,0 +1,44 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "fa3398d184be6d254c22a4012d363ab8f1d7c55b8e32fabd72f17392f029f151",
+  "cost_usd_api_equivalent": 1.4786572,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 4,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 5,
+      "tests": 4,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "Every step 1 requirement is met. `BehaviourTree.snapshot()` and `restore()` are at src/BehaviourTree.ts:132-176. The snapshot is a plain nested object, and a JSON round trip is asserted on every snapshot in test/SnapshotTestUtilities.ts:4988 (all.patch). `BehaviourTreeSnapshot` and `NodeSnapshot` are exported as types from src/index.ts. The snapshot keeps node states and child states (Composite/Decorator getSnapshot), repeat and retry current and target counts (Repeat.ts:167-198, Retry.ts), the lotto `selectedChildIndex` (Lotto.ts:80-121) and the wait `totalDuration`/`waitedDuration` (Wait.ts:112-150). A restored wait sets `initialUpdateTime = now - waitedDuration`, so time between snapshot and restore is not counted in clock mode or with `getDeltaTime`. A finished tree restores as finished and redraws its random choices on the next step (spec 'snapshot and restore of a finished tree'). The README has an API section and an example.",
+      "s1_correctness": "Each node restores its own state through a validate-then-restore pass. Ready-state normalisation (Repeat/Retry/Wait/Lotto in READY) means stale values are never saved. Restoring an action invalidates its pending promise through `updatePromiseGeneration` (Action.ts:251). An equivalence harness covers sequence, selector, parallel, race, all, flip/succeed/fail, repeat/retry (fixed, random, unbounded), lotto, wait (aborted, repeated, random), attributes with while/until, and branches, in both time modes (SnapshotTestUtilities.ts). One defect: a lotto aborted by its own guard before its first draw. `Node.update` sets it to FAILED/SUCCEEDED while `selectedChild` is still undefined. `getSnapshot` then leaves out `selectedChildIndex` (Lotto.ts:83), but `validateSnapshot` requires that index for any state other than READY (Lotto.ts:98-110). The result is that a legitimately taken snapshot, e.g. of `root { selector { lotto while(False) {...} action [Work] } }` after one step, is rejected with 'invalid snapshot'. Also, in clock mode a running wait reports `now - initialUpdateTime`, so a snapshot taken a few real milliseconds after restore differs from the one restored. The fake clock in the tests hides this.",
+      "s2_validation": "The definition fingerprint is a canonicalised JSON definition: keys sorted, undefined values dropped, `args: []` and `succeedOnAbort: false` treated as defaults, subtree roots ordered, then hashed with cyrb53 (src/BehaviourTreeDefinitionFingerprint.ts). It is computed from the validated `json`, so MDSL and equivalent JSON agree. A mismatch throws 'invalid snapshot: the snapshot does not match the tree's definition' (BehaviourTree.ts:165-166), and this check runs before structural validation. The input checks reject null, undefined, strings, numbers, booleans, arrays, functions, `{}` and partial objects. Everything is validated before anything is restored, and tests check the snapshot, the node details and onNodeStateChange after a rejection (spec lines 476-494, 714-750). Equivalence tests cover formatting and comments, property order, a single root versus an array, spelled-out defaults, subtree order and an MDSL definition using every node type. A pending promise is snapshotted as READY (Action.ts:203-205), with tests for every parent type (spec 1410-1470). The limitation is documented under README 'Async actions'.",
+      "s3_fixes": "Report 1 is fixed at its cause: `Node.restoreSnapshot` sets `_state` directly instead of calling `setState` (step3.patch Node.ts:106-108). Regression tests cover a fresh tree, an already-stepped tree, the next step still reporting changes, and a rejected restore. The agent's own earlier test, which asserted the opposite, was replaced, and README and Version History were updated. Report 2 got a thorough regression test across node families and both time modes, plus a pending-promise case (commit 9c7adc2), but no code change. The existing code already met the test, but only because the Date is faked: with a real clock and a running wait, the snapshot taken right after restore drifts by the elapsed milliseconds. There are no unrelated changes.",
+      "design": "State lives in each node class through `getSnapshot`/`validateSnapshot`/`restoreSnapshot` overrides that chain to `super`. Shared assertion helpers live in src/BehaviourTreeSnapshot.ts and the definition fingerprint has its own module. The public surface is two methods plus exported types. Error wrapping (`error taking snapshot:` / `invalid snapshot:`) follows the existing `error stepping tree:` style, and JSDoc matches the codebase. No dependency was added. Minor: `NodeSnapshot` is a flat bag of optional fields rather than a discriminated union.",
+      "tests": "The tests use mocha, chai and sinon fake timers in test/BehaviourTreeSnapshot.spec.ts, with a helper module next to the existing TestUtilities.ts. A differential harness compares a never-snapshotted run, a reference run and runs restored at every step, checking calls, details and random draw counts. Edge-case tests cover wait clock/delta, idle time, restoring into the same tree, invalid fields, promise outcomes and rejected restores. One test was added to Action.spec.ts and no existing test was removed or weakened. Gaps: no guard-aborted lotto (which hides the bug above), and no test without the faked Date.",
+      "docs": "The README adds a feature bullet, `snapshot()`/`restore(snapshot)` API entries and a 'Snapshots' section. The section has a correct example, what a snapshot holds, restore semantics, definition matching, the pending-promise limitation and the onNodeStateChange behaviour. The Version History has a 4.4.0 row with sub-rows per change, and package.json/package-lock.json were bumped 4.3.1 to 4.4.0, matching the repository's minor-feature convention.",
+      "process": "There are 16 focused conventional commits (feat/test/refactor/docs/build), with dist rebuilds kept in separate build commits and messages that describe each change. No new dependency. The fix for a stale promise affecting an action after reset (commit 6683fab) was not requested, but restore-to-same-tree needs it, and it is tested and listed in Version History."
+    },
+    "unmet_requirements": [
+      "Step 1: a snapshot of a tree where a lotto node was resolved by its own guard before drawing a child cannot be restored (Lotto.validateSnapshot requires selectedChildIndex that getSnapshot omits)",
+      "Step 3 report 2 (partly): with the real clock, a snapshot taken right after restore(s) differs from s when a wait node is running, because Wait.getSnapshot counts elapsed wall time; the test only passes because Date is faked"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Clean per-node design with a validate-then-restore pass that guarantees a rejected restore leaves the tree untouched, and a robust canonical definition fingerprint that treats MDSL and equivalent JSON as the same",
+      "Very strong tests: a differential harness checks that restored trees match the original step by step (agent calls, node details, random draw counts) across all node types and both time modes, plus tests for pending promises in every kind of parent",
+      "Complete docs: README API, example, limitations, Version History rows and a 4.4.0 version bump, all following repository conventions"
+    ],
+    "issues": [
+      "Lotto snapshot/restore mismatch: a lotto resolved by its own while/until guard before drawing gets no selectedChildIndex, so restore rejects a legitimately taken snapshot (src/nodes/composite/Lotto.ts:83 vs 98-110)",
+      "Step 3 report 2 was answered with a test only; with the real clock, Wait.getSnapshot counts wall time since restore, so 'snapshot right after restore equals s' holds only because the tests fake Date",
+      "No test for a guard-aborted lotto or with an unfaked clock, which is why both issues went unnoticed"
+    ],
+    "verdict": "This is high-quality, well-structured work that meets nearly every requirement of the three steps, with thorough tests and documentation that follow the repository's conventions. One real edge-case bug (a lotto resolved by its own guard before drawing produces a snapshot that cannot be restored) and a clock-dependent gap in the step 3 independence guarantee keep it from being mergeable without a small follow-up."
+  }
+}

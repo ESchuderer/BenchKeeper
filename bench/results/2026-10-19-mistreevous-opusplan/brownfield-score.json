@@ -1,0 +1,165 @@
+{
+  "weights": {
+    "hidden": 35,
+    "suite": 10,
+    "static": 15,
+    "process": 15,
+    "review": 25
+  },
+  "trials": [
+    {
+      "round": "round-1",
+      "arm": "A",
+      "total": 86.61,
+      "parts": {
+        "hidden": 35,
+        "suite": 10,
+        "static": 13.5,
+        "process": 5.45,
+        "review": 22.66
+      },
+      "raw": {
+        "hidden_checks": "17/17",
+        "static_checks": "18/20",
+        "process_checks": "4/11",
+        "suite_steps": 3,
+        "review_criteria": 16
+      },
+      "minutes": 19.4,
+      "cost_usd_api_equivalent": 3.32,
+      "skills": []
+    },
+    {
+      "round": "round-1",
+      "arm": "AM",
+      "total": 91.84,
+      "parts": {
+        "hidden": 35,
+        "suite": 10,
+        "static": 14.25,
+        "process": 9.55,
+        "review": 23.05
+      },
+      "raw": {
+        "hidden_checks": "17/17",
+        "static_checks": "19/20",
+        "process_checks": "7/11",
+        "suite_steps": 3,
+        "review_criteria": 16
+      },
+      "minutes": 26.4,
+      "cost_usd_api_equivalent": 6.26,
+      "skills": [
+        "benchkeeper:following-dev-workflow",
+        "mattpocock-skills:code-review",
+        "code-review",
+        "benchkeeper:following-dev-workflow",
+        "mattpocock-skills:code-review",
+        "benchkeeper:following-dev-workflow"
+      ]
+    },
+    {
+      "round": "round-2",
+      "arm": "A",
+      "total": 85.83,
+      "parts": {
+        "hidden": 35,
+        "suite": 10,
+        "static": 13.5,
+        "process": 5.45,
+        "review": 21.88
+      },
+      "raw": {
+        "hidden_checks": "17/17",
+        "static_checks": "18/20",
+        "process_checks": "4/11",
+        "suite_steps": 3,
+        "review_criteria": 16
+      },
+      "minutes": 20.9,
+      "cost_usd_api_equivalent": 3.75,
+      "skills": []
+    },
+    {
+      "round": "round-2",
+      "arm": "AM",
+      "total": 90.34,
+      "parts": {
+        "hidden": 35,
+        "suite": 10,
+        "static": 12.75,
+        "process": 9.55,
+        "review": 23.05
+      },
+      "raw": {
+        "hidden_checks": "17/17",
+        "static_checks": "17/20",
+        "process_checks": "7/11",
+        "suite_steps": 3,
+        "review_criteria": 16
+      },
+      "minutes": 24.3,
+      "cost_usd_api_equivalent": 5.72,
+      "skills": [
+        "benchkeeper:following-dev-workflow",
+        "mattpocock-skills:code-review",
+        "code-review",
+        "benchkeeper:following-dev-workflow",
+        "mattpocock-skills:code-review",
+        "benchkeeper:following-dev-workflow"
+      ]
+    },
+    {
+      "round": "round-3",
+      "arm": "A",
+      "total": 89.12,
+      "parts": {
+        "hidden": 35,
+        "suite": 10,
+        "static": 14.25,
+        "process": 6.82,
+        "review": 23.05
+      },
+      "raw": {
+        "hidden_checks": "17/17",
+        "static_checks": "19/20",
+        "process_checks": "5/11",
+        "suite_steps": 3,
+        "review_criteria": 16
+      },
+      "minutes": 18.7,
+      "cost_usd_api_equivalent": 3.1,
+      "skills": []
+    },
+    {
+      "round": "round-3",
+      "arm": "AM",
+      "total": 88.36,
+      "parts": {
+        "hidden": 35,
+        "suite": 10,
+        "static": 13.5,
+        "process": 9.55,
+        "review": 20.31
+      },
+      "raw": {
+        "hidden_checks": "17/17",
+        "static_checks": "18/20",
+        "process_checks": "7/11",
+        "suite_steps": 3,
+        "review_criteria": 16
+      },
+      "minutes": 26.7,
+      "cost_usd_api_equivalent": 6.44,
+      "skills": [
+        "benchkeeper:following-dev-workflow",
+        "mattpocock-skills:tdd",
+        "mattpocock-skills:code-review",
+        "code-review",
+        "benchkeeper:following-dev-workflow",
+        "mattpocock-skills:code-review",
+        "benchkeeper:following-dev-workflow"
+      ]
+    }
+  ]
+}

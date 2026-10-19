@@ -9,6 +9,16 @@ export const notes: Notes = {
     cartridges: 'The brief asks for a static reference database of 25 C.I.P. cartridges: list, search and family filter, a detail view, a computed 2D drawing with dimensions and a one-page print view.',
   },
   runs: {
+    '2026-10-19-mistreevous-opusplan': {
+      tested: "Model setting opusplan (Opus 5.5 in plan mode, Sonnet 5.5 otherwise) with plain Claude Code (A) and BenchKeeper setup-v5.0 (AM), seed 101. No trial entered plan mode: the main loop ran on Sonnet, and only AM's subagents ran on Opus.",
+      score: 'hidden tests 35, review 25, static checks 15, process checks 15, test suite green after each step 10 (method in the report).',
+      summary: 'AM scores 90.3 against 86.6 for A, ahead in 2 of 3 rounds, at 1.9 times the cost and 1.4 times the time; the process checks make the difference. Against the Sonnet run, AM gains 1.4 points at 1.3 times the cost, inside the round-to-round spread, so opusplan shows a cost increase and no measurable score gain here.',
+      findings: [
+        'Medians: AM 90.34 (26.4 min, 6.26 USD), A 86.61 (19.4 min, 3.32 USD). Sonnet run, seed 83: AM 88.98 (24.9 min, 4.79 USD), A 86.97 (22.7 min, 3.76 USD).',
+        "AM's general-purpose and Explore subagents ran on Opus in steps 1 and 2: 1.63 to 2.28 USD per trial, 29 to 35% of its cost. A spawned no subagent and used no Opus.",
+        'All 6 trials pass all 17 hidden checks and end every step with the suite green. Review parts are close (AM 20.3 to 23.1, A 21.9 to 23.1). Process checks: AM 9.55 of 15 in every round, A 5.45 to 6.82.',
+      ]
+    },
     '2026-10-18-mistreevous-sonnet': {
       tested: "BenchKeeper setup-v4.0 (AL): the rules, the following-dev-workflow skill, Matt Pocock's skills and Ponytail. Added 2026-10-19 with the same seed, baseline and checks: setup-v5.0 (AM, the rules and workflow skill of setup-v5.2) and setup-v4.0 without Ponytail (AN).",
       score: 'hidden tests 35, review 25, static checks 15, process checks 15, test suite green after each step 10 (method in the report).',

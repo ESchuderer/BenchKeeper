@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.3110486,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 4,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 4,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "Every step 1 requirement is met. `snapshot()`/`restore()` are in src/BehaviourTree.ts:139-182. The result is a plain object, and `TreeSnapshot`/`NodeSnapshot` are exported as types in src/index.ts:4,10. The snapshot keeps: node states and ids (Node.ts getSnapshot); child states for composites; repeat/retry target and current counts (Repeat.ts, Retry.ts getSnapshotData); the lotto selected index (Lotto.ts:74-76); wait totalDuration and waitedDuration (Wait.ts:118-140). A restored wait counts only the remaining time in both clock and getDeltaTime modes (Wait.ts:167, tested at Snapshot.spec.ts:757-780). A finished tree restores as finished and re-picks its random choices (spec:975-1022). The README documents the API with an example. Version is 4.4.0 with Version History rows.",
+      "s1_correctness": "Correctness is checked by a behavioural-equivalence harness (spec:88-134). For every scenario it restores a snapshot taken at each step into a fresh tree, three days later, and compares agent call logs, getTreeNodeDetails and tree state. Scenarios cover sequence, selector, parallel, race, all, flip/succeed/fail, branch subtrees, entry/step/exit callbacks with while/until guards, fixed/random/infinite repeat and retry, weighted and unweighted lotto, and wait (fixed, random, indefinite, aborted) in both time modes. An infinite delta is clamped to MAX_VALUE so it survives JSON (Wait.ts:135-137). Remaining gap: Action.restoreSnapshotData (Action.ts:222-226) sets `isUsingUpdatePromise = true` for a settled result. If the target tree still has an in-flight promise for that action, that old promise's `.then` (Action.ts:116-127) later overwrites the restored result. Restoring into an already-stepped tree is documented as supported, so this is a real, if narrow, defect.",
+      "s2_validation": "The definition fingerprint is a canonicalised and hashed validated JSON definition (BehaviourTreeDefinitionFingerprint.ts). It sorts keys, drops default `args: []` and `succeedOnAbort: false`, and orders root nodes by id. A mismatch throws \"error restoring snapshot: the snapshot does not match the tree's definition\" (BehaviourTree.ts:166-168). Tests check MDSL, reformatted MDSL, full JSON and minimal reordered JSON as equivalent pairwise (spec:1313-1348), and reject 8 kinds of difference in both directions (spec:1350-1430). Non-snapshot inputs are rejected: null, undefined, string, number, boolean, array, {} and missing or bad fields (spec:1436-1481). The whole snapshot is validated before anything is written, and the tree is then compared before and after (spec:1203-1219, 1413-1414). A pending action is snapshotted as READY (Action.ts:178-184), tested at spec:903-960, and the limitation is documented in the README next to the API.",
+      "s3_fixes": "Report 1 (onNodeStateChange during restore) did not reproduce: restoreSnapshot has written `_state` directly since step 1. The agent added a broad regression test across three target-tree states that also checks the next step reports changes as the original does (spec:254-318); no code change was needed. Report 2's real cause was the clock-mode wait recomputing waitedDuration from `Date` in getSnapshotData. The fix is the `isAwaitingUpdateAfterRestore` flag (step3.patch Wait.ts), committed after a test commit (ef22a02 before 0e0e01f). The fix creates an inconsistency, which is documented: a snapshot of a restored, unstepped tree ignores time since restore, but the next step counts that time (Wait.ts:105). Snapshot→restore chains without a step therefore lose waiting time. The step also bumps to 4.4.1 and adds a Version History row; it makes no unrelated changes.",
+      "design": "Each node type owns its state through template methods on Node: getSnapshotData, validateSnapshotData and restoreSnapshotData, overridden in Lotto, Repeat, Retry, Action and Wait. Validation is separate from mutation, which gives the all-or-nothing restore. The public surface is two methods and two exported types. Weaker points: NodeSnapshot is one flat bag of optional per-type fields (BehaviourTreeSnapshot.ts) rather than a typed union, which forces `!` assertions in restore code (Repeat.ts restoreSnapshotData). A new protected getChildNodes() duplicates the existing getChildren arrows in Composite and Decorator. `uid` loses `readonly` (Node.ts:101). A hand-rolled 128-bit hash adds ~30 lines where the canonical JSON string itself could have been compared. No new dependencies.",
+      "tests": "A single new test/Snapshot.spec.ts (mocha/chai/sinon, fake timers) covers each requirement and edge case: JSON round-trip, independence, no callbacks on restore, every node type in an equivalence harness, both wait time modes, time between snapshot and restore, finished trees and random re-picks, every promise outcome (pending, resolved, invalid, rejected), entry called again for a pending action, about 20 targeted corruption cases with exact messages, and MDSL/JSON equivalence plus mismatch matrices. No existing test was modified or removed (all.patch adds only this file under test/). Untested: restoring into a tree with an in-flight promise.",
+      "docs": "The README adds a feature bullet, snapshot()/restore() API entries, and a Snapshots section covering what a snapshot keeps and does not keep, restore semantics and the pending-promise limitation next to the API (README +17-31). The version goes 4.3.1→4.4.0 in step 1, stays there in step 2 (unreleased), then 4.4.1 in step 3, with matching Version History rows and package.json/package-lock updates. Flaw: the example's `WaitForApproval` uses an undeclared `approvals` variable, so it does not run as written.",
+      "process": "There are 17 focused conventional commits. Feature commits are split per node type (repeat/retry, lotto, wait, action), and docs and dist rebuilds are in separate commits. Step 3 has a test commit before its fix commit. Messages accurately describe each change. No unrequested features or new dependencies: lotto-draw is the only dependency, unchanged."
+    },
+    "unmet_requirements": [
+      "Step 1 (partly met): restoring a snapshot with a settled action result into an already-stepped tree whose action still has an in-flight promise lets the old promise overwrite the restored result (Action.ts:222-226 with 116-127), so the tree does not behave exactly as the original would"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Validation is cleanly separated from mutation: each node type owns its own snapshot, validation and restore hooks, so a rejected restore leaves the tree exactly as it was.",
+      "An unusually rigorous equivalence test harness restores a snapshot from every step of many scenarios after simulated days and compares call logs and node details. It also has exhaustive tests for invalid input and for MDSL/JSON definition matching.",
+      "Thorough, accurate documentation of semantics and limitations (pending promises, wait timing, what is not kept), plus correct versioning across the three steps."
+    ],
+    "issues": [
+      "Action.restoreSnapshotData sets isUsingUpdatePromise=true for a settled result, so a promise still in flight in the target tree can later overwrite the restored result (Action.ts:222-226 vs 116-127). This case is untested.",
+      "The step 3 wait fix freezes waitedDuration in snapshots until the next update, but the next step counts all time since restore. Snapshot→restore→snapshot chains without a step silently drop clock time, a trade-off that is documented but inconsistent.",
+      "NodeSnapshot is a flat bag of optional per-type fields (non-null assertions in restore code), getChildNodes duplicates the existing getChildren, and the README example references an undeclared `approvals` variable."
+    ],
+    "verdict": "This is high-quality, well-structured work: all three steps' requirements are met, every node type and timing mode is covered by equivalence-based tests, and the documentation is excellent. I would merge it after small fixes: guard against stale promises when restoring into a stepped tree, reconsider the frozen-wait snapshot semantics, and fix the README example."
+  }
+}

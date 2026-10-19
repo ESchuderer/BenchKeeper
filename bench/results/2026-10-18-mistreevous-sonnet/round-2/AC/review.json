@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "3b4066f290dbc3ff37234776e0cbf0fec75fa8c9ba9949b5a1606b3227a8bce1",
+  "cost_usd_api_equivalent": 1.5980877999999998,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "snapshot() returns {version, root} plain object (BehaviourTree.ts:134-136), BehaviourTreeSnapshot and NodeSnapshot exported (index.ts). restore() applies node state, repeat/retry target+current counts (Repeat.ts:100-135), lotto selected index (Lotto.ts:74-110), wait total+waited duration (Wait.ts:111-160). Remaining-time semantics for clock and getDeltaTime, finished trees restore as finished and re-randomise on next run (tests at spec 1611-1686). README 'Snapshots' section with workflow example; version 4.3.1→4.4.0 with Version History row.",
+      "s1_correctness": "Per-node overrides cover every stateful node (only Lotto, Repeat, Retry, Wait, Action hold private run state per grep of src/nodes); stateless composites/decorators rely on child states. Clock-mode wait includes time since last update in snapshot (Wait.ts:119-124) and restore sets initialUpdateTime=now-waited (Wait.ts:157), so downtime doesn't count; cross-mode restore works. Settled promise results stored as strings, reproducing original error messages (spec 1504-1517). Stale promises ignored via identity check (Action.ts:126,138). Seeded fuzz test across all node types, guards, lotto, random ranges and both time modes asserts identical details, call logs and snapshots (spec 1688-1830). No defects found.",
+      "s2_validation": "createDefinitionIdentifier normalises defaults (args, succeedOnAbort), sorts keys and root nodes, hashes canonical JSON (BehaviourTreeDefinitionIdentifier.ts); computed in constructor from validated json. restore rejects mismatched definition with 'the snapshot does not match the tree's definition' (BehaviourTree.ts:156-162); null/undefined/string/number/boolean/array rejected (line 148), objects without fields rejected via version/definition/root checks. Validation precedes apply; tests check tree snapshot and details unchanged, including running waits and settled promises (spec 951-981). Pending promise snapshotted as READY (Action.ts:197-199), tested (spec 1383-1480), documented in README snapshot()/restore() and Promise-based actions bullet.",
+      "s3_fixes": "Report 1 fixed at cause: applySnapshot assigns this._state directly instead of setState (Node.ts:327), with tests that restore calls no onNodeStateChange (spec 200-228) and next step reports as usual (spec 230-250). Report 2: no source change needed since snapshots share no references; a regression test was added (spec 283-330), but it runs under fake timers, so it can't catch that with the real clock a running wait's snapshot right after restore() includes elapsed ms and can differ from s. No unrelated changes.",
+      "design": "Each node owns its state via getSnapshot/validateSnapshot/applySnapshot overrides; validation separated from apply for atomicity; public surface is snapshot()/restore() plus exported types. Weaknesses: NodeSnapshot is one flat type with all-optional per-node fields rather than a discriminated union; new protected getChildNodes() duplicates existing getChildren arrow properties in Composite/Decorator; a 124-line custom identifier module with a hand-rolled cyrb53 hash is heavy, though dependency-free.",
+      "tests": "New test/BehaviourTreeSnapshot.spec.ts uses mocha/chai/sinon like existing tests, reuses findNode and adds withoutNodeIds to TestUtilities. Covers every composite/decorator type, guards, branches (local and registered), lotto weights, random ranges, both wait modes and cross-mode restore, promise states (pending, resolved, rejected, stale), finished trees, invalid snapshots per field, definition matching/rejection cases, and a seeded fuzz test. Only the agent's own step-1 onNodeStateChange test was changed in step 3, as the report required; no baseline test removed or weakened.",
+      "docs": "README adds feature bullet, snapshot()/restore() API entries, Snapshots section with a correct ESM example, what is kept, waiting/finished/promise/callback/definition notes; step 2 documents the pending-promise limitation next to the API; step 3 updates the Callbacks note. Version bumped to 4.4.0 in package.json and package-lock, Version History rows added under 4.4.0 for unreleased follow-ups, consistent with the table's convention.",
+      "process": "Commits are focused and descriptive (per-node feat commits, separate test, docs, release and dist-rebuild commits; step 2 split into pending-promise and definition commits; step 3 into test and fix). No new dependencies. One small unrequested change, the stale-promise-after-reset fix, follows from the restore mechanism and is noted in Version History."
+    },
+    "unmet_requirements": [
+      "Step 3 report 2 (partly): with the real clock, a snapshot taken right after restore(s) of a running wait includes the milliseconds that pass after restore, so it is not guaranteed to equal s; the regression test uses fake timers and cannot detect this"
+    ],
+    "overall": 9,
+    "strengths": [
+      "Each stateful node type snapshots, validates and applies its own state; restore validates everything before changing anything, so a rejected restore leaves the tree untouched",
+      "Thorough tests, including a seeded fuzz test that restores at every step of a long run covering all node types, guards, random choices and both time modes",
+      "Definition matching normalises MDSL and JSON forms, and the README documents the API, the pending-promise limitation and the definition rules clearly"
+    ],
+    "issues": [
+      "With the real clock, a running wait's snapshot taken right after restore() can differ from the restored snapshot by the milliseconds elapsed; the step 3 independence test hides this by using fake timers",
+      "NodeSnapshot is a single flat type with every per-node field optional instead of a precise per-node-type shape, and the new getChildNodes() duplicates the existing getChildren",
+      "The definition check needs a 124-line identifier module with a hand-rolled hash, more code than the requirement strictly needs"
+    ],
+    "verdict": "A complete, well-tested snapshot/restore feature with correct per-node state handling, robust validation and clear documentation across all three steps. The only weaknesses are a minor real-clock caveat in the snapshot-equality guarantee and some looseness in the snapshot type, so it is mergeable as is."
+  }
+}

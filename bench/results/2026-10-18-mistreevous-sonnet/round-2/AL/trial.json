@@ -1,0 +1,410 @@
+{
+  "arm": "AL",
+  "runtime": "claude-code",
+  "followups": 5,
+  "wall_seconds": 769,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "benchkeeper",
+      "mattpocock-skills",
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 179814,
+    "result_events": 8,
+    "turns": 83,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 2.2798731999999995,
+    "usage": {
+      "input": 166,
+      "cache_creation": 233602,
+      "cache_read": 5301132,
+      "output": 81502,
+      "thinking": 35915
+    }
+  },
+  "workflow": {
+    "tool_calls": 102,
+    "subagent_tool_calls": 0,
+    "skills": [
+      "benchkeeper:following-dev-workflow",
+      "benchkeeper:following-dev-workflow",
+      "benchkeeper:following-dev-workflow"
+    ],
+    "agents": [],
+    "tiers": [
+      "standard"
+    ],
+    "plan_or_spec_files": [
+      ".scratch/snapshot-restore/spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "plan_first": false,
+    "verified": true,
+    "review": false,
+    "last_tool": "Bash cp test/BehaviourTreeSnapshot.spec.ts /tmp/full.spec.ts && node -e '\nconst fs=re"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "ed70ada50d57578b"
+  },
+  "lines": {
+    "source": 5114,
+    "test": 7386,
+    "files": 71
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": true,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-api",
+          "ok": true
+        },
+        {
+          "id": "S1-resume",
+          "ok": true
+        },
+        {
+          "id": "S1-counters",
+          "ok": true
+        },
+        {
+          "id": "S1-random",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-clock",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-delta",
+          "ok": true
+        },
+        {
+          "id": "S1-details",
+          "ok": true
+        },
+        {
+          "id": "S1-fresh-run",
+          "ok": true
+        },
+        {
+          "id": "Q1-tests",
+          "ok": true
+        },
+        {
+          "id": "Q1-intact",
+          "ok": true
+        },
+        {
+          "id": "Q1-deps",
+          "ok": true
+        },
+        {
+          "id": "Q1-docs",
+          "ok": true
+        },
+        {
+          "id": "Q1-history",
+          "ok": true
+        },
+        {
+          "id": "Q1-committed",
+          "ok": true
+        },
+        {
+          "id": "Q1-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 15,
+      "total": 15,
+      "suite_ok": true,
+      "minutes": 5.1,
+      "waited": true,
+      "followups": 2,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 45,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [
+          ".scratch/snapshot-restore/spec.md"
+        ],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": false,
+        "review": false,
+        "last_tool": "Bash ls -d node_modules .devcontainer AGENTS.md 2>&1; git status --short; git log --o"
+      },
+      "cost_usd_api_equivalent": 0.9469441000000001,
+      "tokens": {
+        "input": 54,
+        "cache_creation": 90838,
+        "cache_read": 1925041,
+        "output": 39098,
+        "thinking": 17921
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.45,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.11,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0,
+          "five_hour_reset": 1792371000,
+          "weekly": 0.11,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": null,
+        "weekly_share": 0
+      }
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-reject",
+          "ok": true
+        },
+        {
+          "id": "S2-unchanged",
+          "ok": true
+        },
+        {
+          "id": "S2-equivalent",
+          "ok": true
+        },
+        {
+          "id": "S2-invalid",
+          "ok": true
+        },
+        {
+          "id": "S2-async",
+          "ok": true
+        },
+        {
+          "id": "S2-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q2-tests",
+          "ok": true
+        },
+        {
+          "id": "Q2-intact",
+          "ok": true
+        },
+        {
+          "id": "Q2-deps",
+          "ok": true
+        },
+        {
+          "id": "Q2-docs",
+          "ok": true
+        },
+        {
+          "id": "Q2-history",
+          "ok": false
+        },
+        {
+          "id": "Q2-committed",
+          "ok": true
+        },
+        {
+          "id": "Q2-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 12,
+      "total": 13,
+      "suite_ok": false,
+      "minutes": 3.4,
+      "waited": true,
+      "followups": 2,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 32,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": false,
+        "review": false,
+        "last_tool": "Bash ls -a | head -30; which docker podman devcontainer; ls node_modules 2>&1 | head "
+      },
+      "cost_usd_api_equivalent": 0.7512280999999997,
+      "tokens": {
+        "input": 62,
+        "cache_creation": 77958,
+        "cache_read": 1999321,
+        "output": 23934,
+        "thinking": 10075
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0,
+          "five_hour_reset": 1792371000,
+          "weekly": 0.11,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.01,
+          "five_hour_reset": 1792371000,
+          "weekly": 0.11,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-no-events",
+          "ok": true
+        },
+        {
+          "id": "S3-detached",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q3-tests",
+          "ok": true
+        },
+        {
+          "id": "Q3-intact",
+          "ok": true
+        },
+        {
+          "id": "Q3-deps",
+          "ok": true
+        },
+        {
+          "id": "Q3-history",
+          "ok": true
+        },
+        {
+          "id": "Q3-committed",
+          "ok": true
+        },
+        {
+          "id": "Q3-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 9,
+      "total": 9,
+      "suite_ok": true,
+      "minutes": 3.8,
+      "waited": true,
+      "followups": 1,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 25,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [
+          "standard"
+        ],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash cp test/BehaviourTreeSnapshot.spec.ts /tmp/full.spec.ts && node -e '\nconst fs=re"
+      },
+      "cost_usd_api_equivalent": 0.5817009999999999,
+      "tokens": {
+        "input": 50,
+        "cache_creation": 64806,
+        "cache_read": 1376770,
+        "output": 18470,
+        "thinking": 7919
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.01,
+          "five_hour_reset": 1792371000,
+          "weekly": 0.11,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.02,
+          "five_hour_reset": 1792371000,
+          "weekly": 0.11,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "ed70ada50d57578b",
+    "bk": "v6"
+  }
+}

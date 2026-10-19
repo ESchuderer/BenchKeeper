@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.3872814,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 4,
+      "s2_validation": 5,
+      "s3_fixes": 5,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "All step 1 requirements are met. `snapshot()` returns a plain object `{version, definition, root}` (src/BehaviourTree.ts), and `BehaviourTreeSnapshot` and `NodeSnapshot` are exported (src/index.ts). `restore()` validates the whole snapshot and then restores it (src/BehaviourTree.ts restore). The snapshot keeps: node state and children recursively (Node.getSnapshot); repeat and retry target and current counts (Repeat.ts, Retry.ts getSnapshotData); the lotto `selectedChildIndex` (Lotto.ts:73); the wait `totalDuration` and `waitedDuration` (Wait.ts:115-127). A restored wait re-anchors `initialUpdateTime = now - waitedDuration` (Wait.ts:153), so the gap between snapshot and restore does not count, in both time modes. A finished tree restores as SUCCEEDED or FAILED, and the reset in `step()` makes new random choices; a test checks this with a different `random`. The README has an API section and an example.",
+      "s1_correctness": "Each node with extra state saves and restores it, and the stateless composites and decorators are covered by the node state of their children. Infinite delta times are clamped so the snapshot stays JSON-safe (Wait.ts:124). Settled promise results are kept (Action.ts:193-209). The differential replay tests restore at every event, 10,000,000 ms later, in both time modes, and check the same agent calls and node states as the original for every node type, guards and callbacks. One narrow gap remains. `restore` into a tree whose action still has an in-flight promise sets `isUsingUpdatePromise = true` when the snapshot carries a settled `promiseResult` (Action.ts:242). The old promise's `then` handler (Action.ts:117-127) only checks that flag, so if it settles later it overwrites the restored result. Validation also accepts snapshots whose fields contradict each other, for example a `promiseResult` on a node that is not RUNNING.",
+      "s2_validation": "The definition fingerprint is computed from the validated JSON with properties and defaults normalised and root nodes sorted (src/BehaviourTreeDefinitionFingerprint.ts). So MDSL and its equivalent JSON match; tests cover MDSL to JSON, JSON to MDSL, a single root not in an array, and reordered properties. A mismatch throws \"the snapshot does not match the tree's definition\" (BehaviourTree.ts restore). It is rejected for 27 definition variants in both directions, with the tree, agent calls and onNodeStateChange calls unchanged. null, undefined, strings, numbers, booleans, arrays, functions, `{}` and partial snapshots are all rejected before anything changes, because the whole tree is validated before it is restored. A pending promise is saved as READY with `promiseResult: null` (Action.ts:184-197). Tests show the action function and `entry` are called again, inside every kind of parent. The README documents this limitation next to the API. Globally registered subtrees are not part of the fingerprint; the README says so.",
+      "s3_fixes": "Report 1 is fixed at its cause: `Node.restoreSnapshot` now assigns `this._state` instead of calling `setState` (step3.patch, Node.ts:333-346). The agent's own earlier test, which asserted the handler was called, was changed to assert there are no changes during restore and the usual changes on the next step. For report 2 the code already copies primitives and the `promiseResult` object, so there is no source change. A regression test (60 iterations × 3 definitions × 2 time modes) checks that stepping the original tree does not change `s`, that stepping the restored tree does not change it either, and that a snapshot taken right after restore equals `s`. No unrelated changes. The README note and the 4.4.1 entry were updated.",
+      "design": "Template-method hooks in Node (`getSnapshotState`, `getSnapshotData`, `validateSnapshotData`, `restoreSnapshotData`) let each node type own its state, with overrides only in Repeat, Retry, Lotto, Wait and Action. The public API is two typed methods plus exported types. `getChildren` is reused: a default was added to Node, and Composite and Decorator already override it. Validation helpers are shared in BehaviourTreeSnapshot.ts. Weaknesses: the fingerprint module is about 100 lines with a hand-written cyrb53 hash and a hand-listed canonical node shape, so a new definition property would be silently ignored unless someone adds it there. Lotto also re-implements its index check inline instead of reusing `assertCountProperty`.",
+      "tests": "One new spec file, test/BehaviourTreeSnapshot.spec.ts (1,880 lines), uses mocha, chai and sinon fake timers. It includes differential replay tests for all node types with `covers` assertions so they cannot pass without exercising each node type, plus targeted tests for counts, lotto, wait in both modes, promises (pending, resolved, rejected, invalid), finished trees, onNodeStateChange, invalid input with exact messages, definition equivalence and mismatch, and snapshot independence. No existing test was removed, skipped or weakened. The only test that was rewritten was the agent's own step 1 test, as step 3 required.",
+      "docs": "The README adds `snapshot()` and `restore(snapshot)` API entries, a 'Saving and Restoring a Tree' section with a correct persistence example, what a snapshot keeps, and a 'Things to be aware of' list. That list covers the definition check, MDSL/JSON equivalence, no onNodeStateChange calls during restore, and the pending-promise limitation with its double-call consequence. Version History gained 4.4.0 (feature) and 4.4.1 (fix), and package.json and package-lock.json were bumped 4.3.1 → 4.4.0 → 4.4.1. Step 2 was before release, so it was folded into 4.4.0 without a bump.",
+      "process": "16 commits, each focused, with conventional messages: feat commits per node concern, a separate JSON-safety fix, docs and version commits, and the dist rebuild in separate build commits, since dist is tracked in the baseline. No new dependencies. The extras (a `version` field, the README feature bullet, keeping settled promise results) are small and serve the stated requirements."
+    },
+    "unmet_requirements": [
+      "Partly met (step 1, 'behaves exactly'): restoring a snapshot with a settled promiseResult into a tree whose action still has an in-flight promise lets that old promise overwrite the restored result (Action.ts:117-127, 242)."
+    ],
+    "overall": 9,
+    "strengths": [
+      "Clean per-node design: hooks in Node, overridden only by the node types that have extra state, with all validation done before any change, so a rejected restore leaves the tree exactly as it was.",
+      "Exceptionally strong tests: differential replay from every checkpoint in both time modes, coverage guards, 27 definition-mismatch variants, invalid-input cases and promise edge cases.",
+      "Thorough, accurate README and correct versioning (4.4.0 feature, 4.4.1 fix), with focused, well-described commits."
+    ],
+    "issues": [
+      "Action.restoreSnapshotData sets isUsingUpdatePromise = true for a restored settled result, so an in-flight promise from before the restore can still overwrite updatePromiseResult when it settles.",
+      "The definition fingerprint relies on a hand-maintained list of canonical node properties and a custom hash. New definition properties would be silently left out, and globally registered subtrees are not covered.",
+      "Snapshot validation checks each field's type but not that fields are consistent with each other (for example a promiseResult on a non-RUNNING action), so a crafted snapshot can put a tree into a state it could never reach."
+    ],
+    "verdict": "This is a high-quality, well-designed and very thoroughly tested snapshot/restore feature that meets all three steps, with good docs, versioning and commits. The only defects are narrow edge cases: an in-flight promise surviving a restore into a used tree, and a hand-maintained definition fingerprint. Neither blocks merging."
+  }
+}

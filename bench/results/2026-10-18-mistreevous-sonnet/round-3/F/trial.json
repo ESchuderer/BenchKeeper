@@ -1,0 +1,394 @@
+{
+  "arm": "F",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 2152,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "agent-skills"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 217497,
+    "result_events": 3,
+    "turns": 126,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 4.869340500000001,
+    "usage": {
+      "input": 308,
+      "cache_creation": 448466,
+      "cache_read": 13320955,
+      "output": 190319,
+      "thinking": 90832
+    }
+  },
+  "workflow": {
+    "tool_calls": 162,
+    "subagent_tool_calls": 29,
+    "skills": [],
+    "agents": [
+      "agent-skills:code-reviewer"
+    ],
+    "tiers": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": true,
+    "plan_first": false,
+    "verified": true,
+    "review": true,
+    "last_tool": "Bash git add README.md package.json package-lock.json src && git commit -q -m \"docs: "
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "ed70ada50d57578b"
+  },
+  "lines": {
+    "source": 5438,
+    "test": 8321,
+    "files": 74
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": true,
+    "node_version": false,
+    "changelog": false,
+    "docs": false
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-api",
+          "ok": true
+        },
+        {
+          "id": "S1-resume",
+          "ok": true
+        },
+        {
+          "id": "S1-counters",
+          "ok": true
+        },
+        {
+          "id": "S1-random",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-clock",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-delta",
+          "ok": true
+        },
+        {
+          "id": "S1-details",
+          "ok": true
+        },
+        {
+          "id": "S1-fresh-run",
+          "ok": true
+        },
+        {
+          "id": "Q1-tests",
+          "ok": true
+        },
+        {
+          "id": "Q1-intact",
+          "ok": true
+        },
+        {
+          "id": "Q1-deps",
+          "ok": true
+        },
+        {
+          "id": "Q1-docs",
+          "ok": true
+        },
+        {
+          "id": "Q1-history",
+          "ok": true
+        },
+        {
+          "id": "Q1-committed",
+          "ok": true
+        },
+        {
+          "id": "Q1-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 15,
+      "total": 15,
+      "suite_ok": true,
+      "minutes": 25.7,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 93,
+        "subagent_tool_calls": 29,
+        "skills": [],
+        "agents": [
+          "agent-skills:code-reviewer"
+        ],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": true,
+        "review": true,
+        "last_tool": "Bash grep -n \"snapshot\\|restore\\|Snapshot\" dist/index.d.ts dist/BehaviourTree.d.ts | "
+      },
+      "cost_usd_api_equivalent": 3.3301037,
+      "tokens": {
+        "input": 178,
+        "cache_creation": 292016,
+        "cache_read": 9065587,
+        "output": 141555,
+        "thinking": 71505
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.07,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.02,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.13,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.03,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.06,
+        "weekly_share": 0.01
+      }
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-reject",
+          "ok": true
+        },
+        {
+          "id": "S2-unchanged",
+          "ok": true
+        },
+        {
+          "id": "S2-equivalent",
+          "ok": true
+        },
+        {
+          "id": "S2-invalid",
+          "ok": true
+        },
+        {
+          "id": "S2-async",
+          "ok": true
+        },
+        {
+          "id": "S2-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q2-tests",
+          "ok": true
+        },
+        {
+          "id": "Q2-intact",
+          "ok": true
+        },
+        {
+          "id": "Q2-deps",
+          "ok": true
+        },
+        {
+          "id": "Q2-docs",
+          "ok": true
+        },
+        {
+          "id": "Q2-history",
+          "ok": false
+        },
+        {
+          "id": "Q2-committed",
+          "ok": true
+        },
+        {
+          "id": "Q2-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 12,
+      "total": 13,
+      "suite_ok": true,
+      "minutes": 6,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 45,
+        "subagent_tool_calls": 0,
+        "skills": [],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add dist && git commit -q -F - <<'EOF'\nbuild: regenerate dist for the snapsh"
+      },
+      "cost_usd_api_equivalent": 0.9744969000000002,
+      "tokens": {
+        "input": 82,
+        "cache_creation": 90287,
+        "cache_read": 2965549,
+        "output": 31663,
+        "thinking": 12331
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.13,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.03,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.15,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.04,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.02,
+        "weekly_share": 0.01
+      }
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-no-events",
+          "ok": true
+        },
+        {
+          "id": "S3-detached",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q3-tests",
+          "ok": true
+        },
+        {
+          "id": "Q3-intact",
+          "ok": true
+        },
+        {
+          "id": "Q3-deps",
+          "ok": true
+        },
+        {
+          "id": "Q3-history",
+          "ok": true
+        },
+        {
+          "id": "Q3-committed",
+          "ok": true
+        },
+        {
+          "id": "Q3-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 9,
+      "total": 9,
+      "suite_ok": true,
+      "minutes": 3.7,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 24,
+        "subagent_tool_calls": 0,
+        "skills": [],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add README.md package.json package-lock.json src && git commit -q -m \"docs: "
+      },
+      "cost_usd_api_equivalent": 0.5647399000000001,
+      "tokens": {
+        "input": 48,
+        "cache_creation": 66163,
+        "cache_read": 1289819,
+        "output": 17101,
+        "thinking": 6996
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.15,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.04,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.16,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.04,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "ed70ada50d57578b",
+    "bk": "v1"
+  }
+}

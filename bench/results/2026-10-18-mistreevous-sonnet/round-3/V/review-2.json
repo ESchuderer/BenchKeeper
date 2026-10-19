@@ -1,0 +1,41 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.2499154,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 5,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "All of steps/1.md is met. `snapshot()`/`restore()` are on BehaviourTree (step1.patch 1894-1921). The snapshot is plain data, built from fresh objects and arrays per node (Node.ts:284-290, Composite/Decorator map children). `BehaviourTreeSnapshot` and `NodeSnapshot` are exported (src/index.ts, step1.patch 2103-2109). The snapshot keeps node states, children's states, repeat/retry target and current counts (Repeat/Retry getSnapshot), the lotto `selectedChildIndex`, and the wait `totalDuration`/`waitedDuration`. A restored wait waits only for the remaining time in both modes: in Wait.ts:117-118 the clock mode counts time up to the snapshot, and in Wait.ts:161 `initialUpdateTime = now - waited` drops the time between snapshot and restore. A finished tree restores as finished, and step() resets it, so random choices are made again (Repeat/Wait onUpdate READY branch). The README section has an example. The version went to 4.4.0 with a Version History row.",
+      "s1_correctness": "I checked every private state field under src/nodes. Lotto.selectedChild, Repeat and Retry target/current counts, and Wait totalDuration/waitedDuration/initialUpdateTime are all saved or derived. Action promise flags are reset on restore. Sequence, selector, parallel, race, all, flip, succeed, fail and root have no state beyond their children. The lotto validation allows a null draw for a node aborted by a guard (Lotto validateSnapshot, with a test at spec:390). An infinite delta-time waitedDuration is clamped so it survives JSON (Wait.ts:126). The equivalence harness `assertRestoredTreeBehavesLikeOriginal` (spec:99-144) restores at every step and compares the agent call log, tree state and getTreeNodeDetails for composites, decorators, callbacks and guards, subtrees, random counts, and both time modes, including the time between the last step and the snapshot.",
+      "s2_validation": "The constructor stores `createDefinitionId(json)`, a canonicalised JSON with sorted keys, `args: []`/`succeedOnAbort:false` defaults dropped and root order ignored, hashed with cyrb53 (step2.patch 497-564). restore() rejects non-objects and arrays, a missing or wrong version, and a missing definition. It rejects a mismatched definition with \"invalid snapshot: the snapshot does not match the tree's definition\" (BehaviourTree.ts:149-163), then validates the whole node tree before any mutation (165-167). Tests: null, string, number, boolean, array, {} and {foo} inputs each throw and leave details, snapshot and onNodeStateChange unchanged (spec:1085-1259). Eleven kinds of definition difference are rejected, and MDSL, converted JSON, hand-written JSON and reordered roots are accepted in every pairing (spec:1304-1456). A pending promise is saved as READY (Action.ts:192-194) and documented in the README section 'Actions that are waiting for a promise'.",
+      "s3_fixes": "Report 1 is fixed at its cause. The notifications queue is removed from every restoreSnapshot signature, and Node.restoreSnapshot assigns `_state` without going through setState (step3.patch 484-655). The regression test at spec:319 asserts no calls, and spec:338 asserts that the next step reports changes starting from the restored states. The step 1/2 tests that asserted the old behaviour were rewritten or removed, which is consistent with the report. For report 2, the step 2 code already builds fresh objects in getSnapshot and copies only primitives in restore, so no code change was needed. Three regression tests run under both the clock and getDeltaTime with fake timers (spec:1829-1927). There are no unrelated changes. The README row is 4.4.1 and the version was bumped.",
+      "design": "Each node class owns getSnapshot/validateSnapshot/restoreSnapshot for its own fields and delegates to super and its children. The snapshot types form a discriminated union in BehaviourTreeSnapshot.ts, and the public API is two methods plus two exported types. Weaknesses: `uid` loses `readonly` so ids can be restored (Node.ts:102). There are `as NodeSnapshot` casts in Node/Composite/Decorator getSnapshot. The definition identity uses a hand-rolled cyrb53 hash plus a canonicaliser that hard-codes MDSL default values (`args`, `succeedOnAbort`), which is fragile if the converter adds new defaults. Registered subtrees are not covered by the identity (documented).",
+      "tests": "One new mocha/chai/sinon file, test/BehaviourTreeSnapshot.spec.ts (~1900 lines), reuses TestUtilities.findNode, and uses sinon fake timers for the clock. A reusable world/scenario harness compares the restored tree with the original step by step. Coverage includes every node type, random choices, both wait modes, finished trees (succeeded and failed), guard-aborted lotto, a table of invalid inputs, definition matching, promise states (pending, settled, rejected, aborted) and the step 3 regressions. No existing test file is modified. Removed tests were the agent's own step 1 tests for behaviour that step 3 reversed.",
+      "docs": "The README adds feature bullets, API entries for snapshot()/restore(), and a 'Saving and Restoring a Tree' section with a correct example. The example's WaitForApproval returns State.RUNNING, which validateUpdateResult accepts. Subsections cover what a snapshot keeps, waiting, finished trees and caveats, and 'Actions that are waiting for a promise' sits next to the API as step 2 asked. Version History has a 4.4.0 row with step 2 sub-rows (step 2 came before release) and a 4.4.1 row for the step 3 fix. package.json and package-lock.json were bumped accordingly. The docs are verbose but accurate.",
+      "process": "There are 18 conventional-style commits: plan, feature slices per concern, docs, self-review fixes (99211d2, 3665eff), and separate dist rebuilds (dist is tracked in the repo). Each message describes its change. No dependency was added. Extras are small and justified: the `version` field, node ids kept for getTreeNodeDetails equality, and structural validation in step 1. Step 1's refusal to snapshot a pending promise was a reasonable choice that step 2 then replaced."
+    },
+    "unmet_requirements": [],
+    "overall": 9,
+    "strengths": [
+      "Correct, complete per-node state capture. Every private field under src/nodes is covered, and wait timing is right in both modes, including time between the last step and the snapshot and time between snapshot and restore.",
+      "Validation runs over the whole tree before any mutation, so a rejected restore leaves the tree untouched. Definition identity treats MDSL and equivalent JSON as the same.",
+      "A thorough test suite with a step-by-step equivalence harness covering every node type, both time modes, promise edge cases, invalid inputs and both step 3 regressions."
+    ],
+    "issues": [
+      "Definition identity depends on a hand-written canonicaliser that hard-codes MDSL default values (`args: []`, `succeedOnAbort: false`) plus a custom cyrb53 hash. It is fragile if the converter's defaults change, and it does not cover registered subtrees (documented).",
+      "Node `uid` was made mutable and is restored from the snapshot. There are loose `as NodeSnapshot` casts in the base getSnapshot implementations.",
+      "Report 2 got tests but no code change. The tests use fake timers only, so the real-clock case of a snapshot taken right after restore (a running wait can gain elapsed milliseconds) is neither covered nor discussed."
+    ],
+    "verdict": "This is a well-designed, correct and thoroughly tested snapshot/restore feature that meets every requirement of the three steps, with clear README docs and versioning that follows the repository's convention. The remaining concerns are maintainability details (hard-coded canonicalisation defaults, the hand-rolled hash, the mutable uid), not functional defects, so I would merge it largely as is."
+  }
+}

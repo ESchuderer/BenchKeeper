@@ -145,7 +145,7 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
         <Anchor href={`${base}/`} size="sm" underline="hover"><Group gap={4} component="span"><IconArrowLeft size={14} />Back to BenchKeeper</Group></Anchor>
         <Title order={1} fz={{ base: 32, md: 44 }}>Benchmarks</Title>
         <Text c="dimmed" size="lg">
-          The winners of each published run. Each run has its own page with every arm, the review notes and the app
+          The winners of each published run. Each run has its own page with every arm, the review notes and, for apps, the
           screenshots. Method: the linked Markdown reports and the <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>.
         </Text>
         <Text c="dimmed">An arm is one tested setup. The BenchKeeper layer includes Ponytail.</Text>
@@ -308,7 +308,7 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
       {top && <TopDetail t={top} />}
 
       <Title order={2} fz="xl" mt={56}>Arms</Title>
-      <Text size="sm" c="dimmed">{ui ? "Review notes by Claude Opus 5.5 and the scorer's screenshots of each app. Select a screenshot to open it at full size." : 'Review notes by Claude Opus 5.5. This brief has no user interface, so the scorer takes no screenshots.'}</Text>
+      <Text size="sm" c="dimmed">{ui ? "Review notes by Claude Opus 5.5 and the scorer's screenshots of each app. Select a screenshot to open it at full size." : 'Review notes by Claude Opus 5.5.'}</Text>
       {ranking.groups.flatMap((g) => g.rows).map((x) => (
         <Box key={x.arm} component="section" id={`arm-${x.arm}`} aria-labelledby={`arm-h-${x.arm}`} mt="xl" className="card">
           <Title order={3} fz="lg" id={`arm-h-${x.arm}`}>

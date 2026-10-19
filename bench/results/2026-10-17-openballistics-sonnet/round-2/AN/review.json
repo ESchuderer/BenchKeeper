@@ -1,0 +1,45 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "af4f7622cd343f51cadaf315b62c6181b7a454da60bce1f6c46cc7e24ea1b27c",
+  "cost_usd_api_equivalent": 1.2228991999999999,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 5,
+      "s2_requirements": 5,
+      "s2_correctness": 4,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 4,
+      "cross_step": 5
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs on pull_request and runs `npm ci`, `npm test` (pretest runs prepare-data) and `npm run build` in site/. All of these are real scripts in site/package.json, and vitest's include also covers ../lib tests (vite.config.ts:74). pages.yml triggers only on push to main or workflow_dispatch. Permissions are minimal: workflow-level contents: read, with pages: write and id-token: write only on the deploy job. release.yml uses contents: write and only the github.token, with no pull_request_target. PAGES_BASE was already in the baseline vite.config.ts:11. The big miss is pinning: every action uses a moving tag instead of a full commit SHA (step1.patch:62,64,118,133,150,180,216, e.g. `actions/checkout@v7`, `actions/deploy-pages@v5`). Nothing was run or published.",
+      "s1_readme": "README (step1.patch:415-510) covers requirements, install (`cd site && npm ci`), develop (`npm run dev`), test (`npm test`, `npm test -- lib/targets`), build (with PAGES_BASE), the scripts prepare-data, sample-bullets and preview, CI, data contribution (linking issue templates that exist in app/.github/ISSUE_TEMPLATE), and the MIT licence with LICENSE and THIRD-PARTY.md, both of which exist. Every command maps to a script in site/package.json.",
+      "s1_release": "The version lives in site/package.json (0.1.0). CONTRIBUTING.md documents SemVer with pre-1.0 rules and a step-by-step tag-triggered release (npm version --no-git-tag-version, renaming Unreleased, a chore(release) commit, then tag). release.yml enforces that the tag matches package.json, that the CHANGELOG section exists, and that the commit is on main. CHANGELOG states Keep a Changelog 1.1.0 and its heading format. Dependabot covers npm in /site and actions, with commit prefixes that match the convention. Conventional Commits is stated in CONTRIBUTING, and all 8 commits in commits.txt follow it.",
+      "s2_requirements": "Route `#/compare/<a>/<b>` is parsed in router.ts and reloads work because it is parsed from location.hash. The overlaid SVG has role=img and aria-label 'Profiles of {a} and {b}', with one <path> per outline (Compare.svelte:46-57). The table has caption 'Dimensions (mm)'/'Dimensions (in)', headers Symbol/name A/name B/Difference, symbols from FIELD_LABELS, only the cartridge part, FIELD_UNITS and *Tol excluded, and Difference = b - a. Units follow unitSystem(): formatValue for metric, displayNumber(...,'in') for imperial. CompareControl adds a 'Compare with' select (other cartridges sorted by name) and a 'Compare' button to the detail page (Cartridge.svelte:355). German strings were added. Shot cartridges give a no-profile message.",
+      "s2_correctness": "Profiles come from caseOuterProfile(adaptMetallic(record)) and are put in one viewportFor([a,b]) with fullSectionPath, so both share one scale and one axis, with z=0 (the head face) at the same x. Tests check symmetry about the axis, a shared head x and equal scale. The row set for 308 Win vs 300 Win Mag is asserted against the real data. Imperial values and differences go through displayNumber on the mm difference. Metric differences are cut with toPrecision(12) before formatValue (compare.ts:353-358). That is a reasonable way to remove float noise, but it is a small departure from 'formatValue, no rounding'. Unknown keys show an error and malformed hashes fall back to the list.",
+      "s2_fit": "It reuses lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, formatValue), lib/geom (viewportFor, fullSectionPath), lib/shapes2d, site units, data.byKey/load, the ui Button, Label and NativeSelect, the `@layer legacy` style blocks and the lazy chunk pattern in App.svelte. It also updates metadata.ts and SiteNavigation consistently. One small duplication: compare.ts reimplements the group ordering in site/src/lib/fields.ts orderedGroups, as `sheetOrder` in step 3. The diff touches only what the feature needs.",
+      "s2_tests": "compare.test.ts runs under the existing vitest setup on real 308_win/300_win_mag records. It covers the row set and order, exclusion of tolerances, angles, pressures and masses, the cartridge-only scope, repeating groups, metric and imperial formatting, the sign of differences, and geometry invariants (one closed path, shared head, shared axis, one scale, fit in the viewport). router.test.ts adds round-trip and malformed-route cases. Compare.svelte and CompareControl have no tests for accessible names, headers or caption, but the repo has no component-testing setup.",
+      "s3_fixes": "Bug: dimensionRows now merges both records' groups in sheet order and emits rows with `undefined` for the missing side (compare.ts step3:142-158). Compare.svelte leaves the value and Difference cells empty, and the tests assert the delta L and R3 rows and the union size. The noCommon string became noDimensions, which the change requires. Style: the CSS now defaults to left and sets `thead th.num, td.num { text-align: right }`, which right-aligns the two cartridge columns, Difference and their headers while the Symbol column stays left. The step 2 CSS already had `th, td { text-align: right }`, so this is an equivalent restyle rather than a fix for a cause that was found. No unrelated changes.",
+      "cross_step": "Step 2 added a line under `## [Unreleased]` / Added, and step 3 updated that unreleased entry. The version stayed at 0.1.0, which matches the documented strategy (bump only when releasing). Commits `feat(site): compare two cartridges` and `fix(site): list every dimension in the cartridge comparison` follow Conventional Commits. The code type-checks against Record_ and the tests are consistent, so `npm test` and `npm run build` should pass."
+    },
+    "unmet_requirements": [
+      "Step 1: GitHub Actions are pinned to version tags, not full commit SHAs (ci.yml, pages.yml, release.yml)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "The compare view reuses lib/shapes2d, lib/geom and lib/core directly and meets each route, SVG, table, units, selector and i18n requirement as written",
+      "The release process is consistent and self-enforcing: version in site/package.json, a Keep a Changelog file with a stated format, and a tag workflow that checks tag, version, changelog and main ancestry",
+      "Data-driven unit tests check row sets, formatting and geometry invariants (shared head, shared axis, one scale), and the step 3 tests assert the union behaviour"
+    ],
+    "issues": [
+      "None of the workflow actions are pinned to full commit SHAs (e.g. `actions/checkout@v7`, `actions/deploy-pages@v5`), which matters for a repo that takes outside PRs",
+      "Metric differences are cut with toPrecision(12) rather than written with formatValue unrounded as step 2 specifies (a defensible noise fix, but a departure); there are no tests of the rendered table or SVG accessible names",
+      "The step 3 alignment change is equivalent to CSS that already right-aligned the cells, and compare.ts duplicates the group-ordering logic of site/src/lib/fields.ts orderedGroups"
+    ],
+    "verdict": "A careful, well-integrated piece of work: the compare view meets the spec, reuses the repository's geometry and field modules, and both step 3 points end up in the requested state with tests. The main thing blocking a clean merge is the unpinned GitHub Actions in all three workflows; the rest are minor interpretation and duplication points."
+  }
+}

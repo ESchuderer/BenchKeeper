@@ -21,11 +21,13 @@ export const notes: Notes = {
       ]
     },
     '2026-10-17-openballistics-sonnet': {
-      tested: "BenchKeeper layer v3: the rules and following-dev-workflow skill of setup-v2.9 with Matt Pocock's skills (AD), plus OpenSpec (AE). setup-v3.x builds on this workflow skill; setup-v4.0 keeps the 3.x rules and skills and changes the install (plugin and setup.sh).",
-      summary: "The BenchKeeper layer v3 with Matt Pocock's skills (AD) finished the three changes in a median of 7.6 minutes, the fastest arm, and passed all cross-step checks in 2 of 3 rounds. All five arms land within 3 points of each other (medians 82.9 to 85.7), inside the round-to-round spread of a single arm.",
+      tested: "BenchKeeper layer v3: the rules and following-dev-workflow skill of setup-v2.9 with Matt Pocock's skills (AD), plus OpenSpec (AE). Added later with the same seed, baseline and checks: setup-v3.3 (AH, 2026-10-18), setup-v5.0 (AM) and setup-v4.0 without Ponytail (AN, both 2026-10-19).",
+      summary: 'Cost and time separate the setups here, the score does not. Five arms reach medians of 85.2 to 86.2 (AM, AH, A, AB, AD), inside the round-to-round spread of up to 7 points, so they count as equal in quality. At that quality, setup-v3.3 (AH) and layer v3 (AD) need about 8 minutes and 1.7 USD per trial, 40% less time and 30% less cost than plain Claude Code (A). setup-v5.0 (AM) scores 0.4 points more than AH at 2.2 times the cost and time.',
       findings: [
-        'Medians of 3 rounds: A and AB 85.7, AD 85.2, AE and V 82.9. The spread within one arm reaches about 7 points, so medians within 3 points are not separable at k = 3.',
-        'AD (BenchKeeper layer v3 + Matt Pocock) took a median of 7.6 minutes, against 11 to 13 for V, AB and A, and passed all cross-step checks (changelog and version) in 2 of 3 rounds.',
+        'Weighing cost against score: with 3 rounds, a median difference below about 3 points is not measurable. A setup that costs 2 or 4 times as much and scores 1 point higher has shown a cost increase, not a quality gain. The win rule set before the run asks for a median at least 3 points higher and a lead in 2 of 3 rounds. No arm meets it.',
+        'Medians, minutes and API-equivalent cost against plain Claude Code (A: 85.69, 12.8 min, 2.42 USD): AH 85.76, 0.63x time, 0.69x cost. AD 85.21, 0.59x, 0.73x. AM 86.18, 1.38x, 1.53x. AB 85.69, 0.92x, 1.07x. V, AE and AN 82.85.',
+        'setup-v5.0 (AM) writes about twice the output tokens of setup-v3.3 (AH) per trial (78,000 to 95,000 against 43,000 to 48,000) and called the code-review skill in 2 of 3 rounds. On this brief its changes add cost and time without a measurable score gain.',
+        'AH is the most consistent arm (85.69 to 86.67). AN, setup-v4.0 without Ponytail, ranges from 60.21 to 91.39: in round 1 a type error left in step 2 failed the build and every step 2 check. No setup-v4.0 arm with Ponytail ran on this brief.',
         'AE round 3 wrote the OpenSpec proposal in step 2 and stopped there, so step 3 had no compare view to fix.',
         'Every arm misses the same CI hardening checks in step 1: actions pinned to commit SHAs, explicit workflow permissions, a ref guard on the Pages deploy.',
       ]
@@ -53,7 +55,7 @@ export const notes: Notes = {
   },
   // The components the published runs tested, at the versions bench/image/install-arm.sh pins.
   stacks: [
-    { name: 'BenchKeeper layer', url: 'https://github.com/ESchuderer/BenchKeeper', version: 'layer v1 (rules of 2026-10-14), layer v3 (setup-v2.9), setup-v4.0 (mistreevous)', text: 'Global rules and the workflow skill that sets the task tier. Every layer arm also gets Ponytail.' },
+    { name: 'BenchKeeper layer', url: 'https://github.com/ESchuderer/BenchKeeper', version: 'layer v1 (rules of 2026-10-14), layer v3 (setup-v2.9), setup-v4.0 (mistreevous), setup-v3.3, setup-v4.0 without Ponytail and setup-v5.0 (openballistics)', text: 'Global rules and the workflow skill that sets the task tier. Every layer arm also gets Ponytail.' },
     { name: 'Ponytail', url: 'https://github.com/DietrichGebert/ponytail', version: 'v5.2.0, v5.3.2 in mistreevous, level full', text: 'A behavior mode for the smallest complete change.' },
     { name: "Matt Pocock's skills", url: 'https://github.com/mattpocock/skills', version: 'v1.3.1, commit 49dd158 in mistreevous', text: 'Skills for grilling, specs, tickets, TDD and code review.' },
     { name: 'agent-skills', url: 'https://github.com/addyosmani/agent-skills', version: '0.6.13', text: "Addy Osmani's engineering skill library." },

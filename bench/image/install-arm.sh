@@ -15,6 +15,7 @@
 #   AH Matt Pocock + BK v5 (bench/arms/bk-v5: setup-v3.3, Matt Pocock's own install and setup with the BenchKeeper additions)
 #   AL Matt Pocock + BK v6 (bench/arms/bk-v6: setup-v4.0, the BenchKeeper plugin with Ponytail and Matt Pocock's plugins, as setup.sh installs them)
 #   AM Matt Pocock + BK v7 (bench/arms/bk-v7: setup-v5.0, as AL with the setup-v5.0 settings: advisor, effort high, auto-compact, subagents on Sonnet)
+#   AN as AL without Ponytail (owner decision 2026-10-19)
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -103,7 +104,7 @@ case $arm in
   AD) fw=mp bk=v3 pt=yes spec=none ;;           AE) fw=mp bk=v3 pt=yes spec=openspec ;;
   AF) fw=mp bk=no pt=yes spec=none ;;           AG) fw=mp bk=v4 pt=yes spec=none ;;
   AH) fw=mp bk=v5 pt=yes spec=none ;;          AL) fw=mp bk=v6 pt=yes spec=none ;;
-  AM) fw=mp bk=v7 pt=yes spec=none ;;
+  AM) fw=mp bk=v7 pt=yes spec=none ;;           AN) fw=mp bk=v6 pt=no spec=none ;;
   Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac

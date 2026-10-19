@@ -1,0 +1,46 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "af4f7622cd343f51cadaf315b62c6181b7a454da60bce1f6c46cc7e24ea1b27c",
+  "cost_usd_api_equivalent": 0.9825957999999999,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 5,
+      "s2_requirements": 5,
+      "s2_correctness": 5,
+      "s2_fit": 4,
+      "s2_tests": 3,
+      "s3_fixes": 5,
+      "cross_step": 4
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs `npm ci`, `npm test` (pretest prepares data) and `npm run build` in site/ on `pull_request`; both scripts exist in site/package.json. Top-level `permissions: contents: read`, with `pages: write`/`id-token: write` only on the deploy job and `contents: write` only on the release job. Only `github.token` is used and there is no `pull_request_target`. pages.yml triggers on push to main, and release.yml checks `git merge-base --is-ancestor \"$TAG\" origin/main`. Nothing was run or pushed. However, no action is pinned to a commit SHA: `actions/checkout@v7`, `actions/setup-node@v7`, `actions/upload-pages-artifact@v5` and `actions/deploy-pages@v5` all use major tags (step1.patch lines 50-51, 90-91, 103, 118, 150). pages.yml also has `workflow_dispatch:`, so the workflow can be dispatched on any branch, and only the github-pages environment's default branch rule (not the workflow) limits deploys to main.",
+      "s1_readme": "README.md covers layout, requirements (Node 22), Install (`npm ci`), Develop (`npm run dev`, plus prepare-data, sample-bullets and preview), Test (`npm test`), Build (`npm run build`, with PAGES_BASE, which vite.config.ts already reads), Contribute data (issue templates, which exist in .github/ISSUE_TEMPLATE, the file name = key rule, sources) and License (MIT LICENSE, THIRD-PARTY.md, both present). Every npm script it names exists in site/package.json.",
+      "s1_release": "There is one strategy: the version lives in `site/package.json` (0.1.0), a release is a tag `vX.Y.Z` on main, release.yml checks the tag against the version and the changelog section and creates the GitHub release from that section, and CONTRIBUTING.md lists the steps (`npm version <X.Y.Z> --no-git-tag-version`, rename Unreleased, `chore: release X.Y.Z`). CHANGELOG.md states Keep a Changelog 1.1.0 and SemVer. Dependabot covers npm (/site, prefix `build`) and github-actions (prefix `ci`). CONTRIBUTING.md states Conventional Commits with a documented type table, and all 10 commits in commits.txt follow it.",
+      "s2_requirements": "Route `#/compare/<a>/<b>` is parsed and built in router.ts, and hash routing survives a reload. The SVG has role=img, aria-label `Profiles of {a} and {b}` and one `<path>` per outline, from caseOuterProfile in one viewportFor frame. The table has caption `Dimensions (mm|in)` and headers Symbol / name A / name B / Difference. Rows use FIELD_LABELS, skip `Tol` fields and anything in FIELD_UNITS, and read only `cartridge`; Difference is y−x (B−A). Values go through formatValue (metric) or displayNumber(…,'in') (imperial), following unitSystem(). Cartridge.svelte adds a Label `Compare with` with a NativeSelect of the other entries by name and a `Compare` submit button. German strings were added, shot cartridges are not drawn, and there is a CHANGELOG entry and commits. Every requirement is met as written.",
+      "s2_correctness": "compare.ts:163 uses `Number(mm.toPrecision(12))` before formatValue, so 40−39.62 prints 0.38 and not FP noise; the test confirms `difference: '0.38'`. In imperial, displayNumber gives 25.4 mm → '1', which matches the repo's own rule. Both profiles share one viewport with head faces at z=0, so the heads coincide and the scale is common. For the real records, 308 vs 300 WM excludes Pmax and α. A missing key gives a notFound message, and malformed escapes fall back to the list route (router.ts:285-293). Shot records' array groups are skipped.",
+      "s2_fit": "It reuses adaptMetallic/caseOuterProfile (lib/shapes2d), viewportFor/fullSectionPath/OUTLINE_STROKE_MM (lib/geom), FIELD_LABELS/FIELD_UNITS/orderedFields/toleranceFor/formatValue/GROUP_ORDER (lib/core), displayNumber, the shadcn Label/NativeSelect/Button, the i18n tables and the lazy route chunk pattern in App.svelte. Small deviations: `dimensions()` re-implements the group ordering of site/src/lib/fields.ts `orderedGroups` (compare.ts:144-147); Compare.svelte's `<style>` is not wrapped in `@layer legacy`, unlike every other route; and the test re-implements a record loader instead of using a fixture helper. The change is confined to the files it needs.",
+      "s2_tests": "compare.test.ts tests row selection (Tol, bar and angle fields excluded, null P1 excluded), B−A, metric formatting, imperial conversion and real 308/300 WM records. router.test.ts tests the compare route round-trip, encoding and rejection of incomplete or malformed hashes. Weak spots: the shot test only checks `toBeInstanceOf(Array)` and all-zero differences; compareProfiles is checked only for `startsWith('M')` and a != b, with no check of the common scale or head alignment; and nothing covers the accessible names or headers. The repo has no component tests, so the last gap fits the repository's setup.",
+      "s3_fixes": "Bug: compareRows now takes the union of both symbol sets (`new Set([...first.keys(), ...second.keys()])`), writes '' for a missing value and '' Difference unless both values exist, and the tests assert `delta L` (b '') and `R3` (a '') on the real records. Style: `th, td { text-align: right }` plus `th:first-child, td:first-child { left }` (Compare.svelte), the same pattern as GroupTable's tables, so headers are included. The wording of the lede and noShared strings changed to match the fix; this is consistent, not unrelated. No regressions.",
+      "cross_step": "Step 2 added a CHANGELOG `Added` entry under Unreleased, and step 3 corrected it. The version stays 0.1.0, consistent with the stated bump-at-release strategy. Commits use `feat:`/`fix:`. Step 3 put both review points (bug and style) in one commit titled only for the bug. The workflow checks (`npm test`, `npm run build`) should pass from the code read (types and imports resolve), but I did not run them."
+    },
+    "unmet_requirements": [
+      "Step 1 / CI criterion: GitHub Actions are pinned to major tags (`@v7`, `@v5`), not to full commit SHAs.",
+      "Step 1 / CI criterion: pages.yml's `workflow_dispatch` can be run on any branch; only the environment's default branch protection, not the workflow, limits deploys to main."
+    ],
+    "overall": 7,
+    "strengths": [
+      "The compare logic is correct and reuses the repo's own geometry and field modules: one shared viewportFor frame over two caseOuterProfile outlines, FIELD_LABELS/FIELD_UNITS/toleranceFor filtering, and formatValue/displayNumber with FP noise removed.",
+      "One coherent release setup: the version is in site/package.json, the tag-triggered release checks that the tag is on main, matches the version and has a changelog section, Keep a Changelog is stated, Dependabot prefixes follow the Conventional Commits convention, and every commit follows it.",
+      "Both step 3 points were fixed cleanly with real-record tests (delta L, R3), using the right-alignment pattern of the detail page's GroupTable."
+    ],
+    "issues": [
+      "No workflow action is pinned to a full commit SHA (ci.yml, pages.yml, release.yml all use `@v5`/`@v7` tags).",
+      "pages.yml allows `workflow_dispatch` with no branch guard, so the workflow itself does not limit deploys to main.",
+      "The tests are thin on the drawing and on shot records (only `startsWith('M')`, `toBeInstanceOf(Array)`). Also minor fit and convention issues: Compare.svelte's style is outside `@layer legacy`, group ordering is re-implemented, and step 3's bug and style fixes share one `fix:` commit."
+    ],
+    "verdict": "The compare feature and the step 3 fixes are correct, meet every stated requirement, reuse the repository's modules and follow the release and commit conventions that step 1 set up. The main drawback is the CI hardening: actions are not SHA-pinned and the Pages workflow can be dispatched from any branch, so it would need small changes before merge."
+  }
+}

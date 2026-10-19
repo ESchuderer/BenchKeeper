@@ -130,7 +130,7 @@ function RunCard({ base, r, ranking, notes }: { base: string; r: Run; ranking: R
       })}
       <Group mt="md" gap="md">
         <Button component="a" href={runHref(base, r.run)} rightSection={<IconArrowRight size={16} />}>
-          All arms, reviews and screenshots
+          {ranking.groups.some((g) => g.rows.some((x) => x.rounds.some((t) => t.screenshots.length > 0))) ? 'All arms, reviews and screenshots' : 'All arms and reviews'}
         </Button>
         {r.report && <Anchor href={`${REPO}/blob/main/bench/results/${r.report}`}>{r.report}</Anchor>}
       </Group>
@@ -145,7 +145,7 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
         <Anchor href={`${base}/`} size="sm" underline="hover"><Group gap={4} component="span"><IconArrowLeft size={14} />Back to BenchKeeper</Group></Anchor>
         <Title order={1} fz={{ base: 32, md: 44 }}>Benchmarks</Title>
         <Text c="dimmed" size="lg">
-          The winners of each published run. Each run has its own page with every arm, the review notes and the app
+          The winners of each published run. Each run has its own page with every arm, the review notes and, for apps, the
           screenshots. Method: the linked Markdown reports and the <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>.
         </Text>
         <Text c="dimmed">An arm is one tested setup. The BenchKeeper layer includes Ponytail.</Text>
@@ -233,7 +233,7 @@ function Gallery({ base, t }: { base: string; t: Trial }) {
   );
 }
 
-function Round({ base, r, kind, t, many }: { base: string; r: Run; kind: Ranking['kind']; t: Trial; many: boolean }) {
+function Round({ base, r, kind, t, many, ui }: { base: string; r: Run; kind: Ranking['kind']; t: Trial; many: boolean; ui: boolean }) {
   const facts = [
     many && kind === 'brownfield' && `score ${fmt(kind, t.brownfield)}`,
     r.featuresOf != null && `features ${of(t.features, r.featuresOf)}`, r.robustnessOf != null && `robustness ${of(t.robustness, r.robustnessOf)}`,
@@ -250,7 +250,7 @@ function Round({ base, r, kind, t, many }: { base: string; r: Run; kind: Ranking
           {t.notes.issues.length > 0 && <><Text size="sm" fw={700} mt="xs">Issues</Text><ul className="list">{t.notes.issues.map((x) => <li key={x}>{x}</li>)}</ul></>}
         </details>
       )}
-      <Gallery base={base} t={t} />
+      {ui && <Gallery base={base} t={t} />}
     </Box>
   );
 }
@@ -258,6 +258,8 @@ function Round({ base, r, kind, t, many }: { base: string; r: Run; kind: Ranking
 // One run: findings, the full ranking, the top 10 in detail where the run has a final score, then every arm with its rounds.
 export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Run; ranking: Ranking; top?: Top; notes: Notes }) {
   const note = notes.runs[r.run], many = Number(r.k) > 1;
+  // A run without any screenshot is a brief without a user interface (mistreevous): no gallery and no "did not start" text.
+  const ui = ranking.groups.some((g) => g.rows.some((x) => x.rounds.some((t) => t.screenshots.length > 0)));
   return (
     <BenchShell base={base}>
       <Stack gap="xs" maw={820} mb="xl">
@@ -306,14 +308,14 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
       {top && <TopDetail t={top} />}
 
       <Title order={2} fz="xl" mt={56}>Arms</Title>
-      <Text size="sm" c="dimmed">Review notes by Claude Opus 5.5 and the scorer's screenshots of each app. Select a screenshot to open it at full size.</Text>
+      <Text size="sm" c="dimmed">{ui ? "Review notes by Claude Opus 5.5 and the scorer's screenshots of each app. Select a screenshot to open it at full size." : 'Review notes by Claude Opus 5.5.'}</Text>
       {ranking.groups.flatMap((g) => g.rows).map((x) => (
         <Box key={x.arm} component="section" id={`arm-${x.arm}`} aria-labelledby={`arm-h-${x.arm}`} mt="xl" className="card">
           <Title order={3} fz="lg" id={`arm-h-${x.arm}`}>
             {x.arm}: {plain(x.setup)}{x.runtime === 'Claude Code' ? '' : ` (${x.runtime})`}
           </Title>
           <Text size="sm" c="dimmed">Rank {x.rank}, score {fmt(ranking.kind, x.score)}{many ? ' (median)' : ''}.</Text>
-          {x.rounds.map((t) => <Round key={t.key} base={base} r={r} kind={ranking.kind} t={t} many={many} />)}
+          {x.rounds.map((t) => <Round key={t.key} base={base} r={r} kind={ranking.kind} t={t} many={many} ui={ui} />)}
         </Box>
       ))}
     </BenchShell>

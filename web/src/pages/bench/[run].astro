@@ -19,9 +19,10 @@ export function getStaticPaths() {
   });
 }
 const { r, ranking, top } = Astro.props;
+const shots = ranking.groups.some((g) => g.rows.some((x) => x.rounds.some((t) => t.screenshots.length > 0)));
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <BenchLayout title={`${r.brief}, ${r.model}: benchmark, BenchKeeper`}
-  description={`BenchKeeper benchmark run ${r.run}: ranking of all arms, review notes and app screenshots.`}>
+  description={`BenchKeeper benchmark run ${r.run}: ranking of all arms, review notes${shots ? ' and app screenshots' : ''}.`}>
   <BenchRun base={base} r={r} ranking={ranking} top={top} notes={notes} />
 </BenchLayout>

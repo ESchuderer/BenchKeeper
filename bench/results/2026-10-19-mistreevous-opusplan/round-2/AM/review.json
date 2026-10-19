@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "fa3398d184be6d254c22a4012d363ab8f1d7c55b8e32fabd72f17392f029f151",
+  "cost_usd_api_equivalent": 1.048452,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "snapshot() returns {version, definition, root} plain object (src/BehaviourTree.ts:131); TreeSnapshot/NodeSnapshot exported in src/index.ts; restore() validates then restores (BehaviourTree.ts:139-148); keeps node states, children, repeat/retry target+current counts (Repeat.ts:127-144, Retry.ts), lotto selectedChild index (Lotto.ts), wait totalDuration+waitedDuration (Wait.ts:111-138); wait restore sets initialUpdateTime = now - waited so offline time doesn't count, getDeltaTime mode keeps accumulated value; finished trees restore as finished; README snapshot()/restore(snapshot) section with realistic workflow example; version 4.4.0 in package.json, package-lock.json and Version History.",
+      "s1_correctness": "Every stateful field found by grepping src/nodes (Lotto.selectedChild, Repeat/Retry counts, Wait times, Action promise fields) is saved; Node._guardPath is structural. Restore writes _state directly so no callbacks. Settled promise result stored as String(value), which reproduces the same error text since Action uses `${value}`. Node ids restored so getTreeNodeDetails matches. Stale promises ignored via updatePromise identity check (Action.ts:120-149, 214). Tests cover every composite/decorator at 0-4 steps, guards aborting, entry/exit callbacks not repeated, random counts/durations/lotto with differing random functions, wait remaining time in both modes, infinite delta time.",
+      "s2_validation": "getDefinitionHash (BehaviourTreeSnapshot.ts:87-136) canonicalises sorted keys, args ??= [], succeedOnAbort for guards, sorted roots, then cyrb53; validateSnapshot throws \"the snapshot does not match the tree's definition\" (line 161), rejects null/array/non-object (148), missing definition, version, malformed nodes, all before mutating. Tests: MDSL<->JSON both directions incl. defaults omitted, whitespace/comments, differences in name/arg/duration/count/guard/weights rejected, tree unchanged after ~24 invalid inputs (spec 543-726). Pending promise saved as READY (Action.ts:195-197), tested with entry callback re-run; README documents limitation.",
+      "s3_fixes": "Step 3 patch is test-only (diff/step3.patch); the step-2 code already satisfied both reports: Node.restore bypasses setState, getSnapshot builds fresh objects, Action.restore keeps a reference to the snapshot's updatePromiseResult but never mutates it. Regression tests added for no onNodeStateChange during restore, snapshot unaffected by stepping source/restored trees, snapshot-after-restore equality, including settled promise case. Residual: Wait.getSnapshot (Wait.ts:116-121) reads new Date() so in clock mode a snapshot taken >=1ms after restore differs from s; tests use sinon fake timers and hide this.",
+      "design": "Each node class overrides getSnapshot/restore for its own state (Node, Composite, Decorator, Lotto, Repeat, Retry, Action, Wait) following the existing getDetails pattern. Weaknesses: NodeSnapshot is a single flat type with optional per-node fields rather than a discriminated union; validation is centralised in a type switch in BehaviourTreeSnapshot.ts:206 rather than owned by nodes; Node.uid lost readonly. Hash implemented locally without dependencies; minimal public API (snapshot, restore, two types).",
+      "tests": "New test/BehaviourTreeSnapshot.spec.ts (~1080 lines) with mocha/chai/sinon; lockstep helper assertRestoredTreeMatches compares node details and agent call logs after JSON round trip; covers all node types, random choices, both wait modes, guards, callbacks, promises (pending/settled/rejected/stale), invalid input, definition matching, step 3 regressions. No existing tests modified. Minor: 'of a finished tree: restores as finished, and the next step runs the tree again' (spec:360) snapshots after 1 step with a running 100ms real-clock wait and asserts RUNNING, so it does not test a finished tree (the lotto test does).",
+      "docs": "README adds snapshot() and restore(snapshot) sections with a correct fs-based workflow example, lists what is kept, wait timing, finished tree, no callbacks, error cases; step 2 adds MDSL/JSON equivalence, definition-mismatch error and the pending-promise limitation next to the API. Version History row 4.4.0 and package.json/package-lock.json bumped once (unreleased feature kept at 4.4.0 in later steps).",
+      "process": "15 commits with conventional, accurate messages (feat/fix/docs/build/test), dist regenerated in separate build commits matching the repo's tracked dist, step 3 honestly committed as test-only. No new dependencies, no unrequested features beyond node-id restoration needed for getTreeNodeDetails equality."
+    },
+    "unmet_requirements": [
+      "Step 3 report 2 (partly): a snapshot taken right after restore(s) is not guaranteed equal to s for a running wait node in clock mode, because Wait.getSnapshot recomputes elapsed time from new Date(); only verified under fake timers."
+    ],
+    "overall": 9,
+    "strengths": [
+      "Snapshot and restore cover every node type and stateful field, including settled promise results, guards, random choices and both wait time modes, and validation completes before any change.",
+      "Definition matching via a canonical hash correctly treats MDSL and hand-written JSON as the same, tested in both directions and against many near-miss definitions.",
+      "Thorough lockstep test suite plus clear README docs, the limitation note and correct versioning."
+    ],
+    "issues": [
+      "Clock-mode wait snapshots depend on the current time, so a snapshot taken right after restore(s) with a real clock can differ from s; the step 3 tests hide this with fake timers.",
+      "NodeSnapshot is one loose type with optional per-node fields, and validation is centralised in a type switch instead of being owned by each node.",
+      "The 'of a finished tree … runs the tree again' test never snapshots a finished tree (it snapshots mid-wait and asserts RUNNING)."
+    ],
+    "verdict": "A careful, complete implementation of snapshot and restore across all three steps, with strong validation, documentation and tests. The only gaps are a minor clock-dependent edge case in wait snapshots, a flat snapshot type and one misnamed test."
+  }
+}

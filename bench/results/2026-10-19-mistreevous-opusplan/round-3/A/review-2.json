@@ -1,0 +1,41 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "fa3398d184be6d254c22a4012d363ab8f1d7c55b8e32fabd72f17392f029f151",
+  "cost_usd_api_equivalent": 1.1424288,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 5,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "snapshot() returns {version, definition, root} plain data (src/BehaviourTree.ts snapshot); type BehaviourTreeSnapshot (+NodeSnapshot) exported in src/index.ts; restore() validates fully then restores; repeat/retry counts, lotto selectedChild, random wait totalDuration and waitedDuration saved; Wait.restoreSnapshot sets initialUpdateTime = now - waitedDuration so delay between snapshot and restore is not counted (Wait.ts:162) for Date and getDeltaTime; finished trees restore as finished and BehaviourTree.step resets; README section 'Saving and Restoring a Tree' with example.",
+      "s1_correctness": "Every private stateful field under src/nodes (Lotto.selectedChild, Repeat/Retry target/current, Wait initialUpdateTime/totalDuration/waitedDuration, Action promise fields) is snapshotted; READY nodes omit counts so random choices are redone; Date-mode snapshot computes waited time up to snapshot moment (Wait.ts:123). assertRestoredTreesBehaveIdentically (test/SnapshotUtilities.ts:124) restores at every step of 26 scenarios (sequence, selector, parallel, race, all, flip/succeed/fail, branch, repeat/retry fixed/random/unlimited, lotto, waits both modes and random, guards while/until with aborts, callbacks) comparing details, logs and results after a 10h delay. Only caveat: in real Date mode a snapshot right after restore drifts by elapsed ms.",
+      "s2_validation": "createDefinitionIdentifier canonicalises (sorted keys, drops undefined, empty args, succeedOnAbort:false) and hashes sorted root nodes (BehaviourTreeSnapshot.ts:314-373); restore throws 'invalid snapshot: the snapshot does not match the tree's definition'. Tests: MDSL<->JSON accepted both directions, 27 distinct definitions give distinct ids, null/undefined/string/number/boolean/function/array/partial objects rejected, each asserting tree snapshot and details unchanged. Pending promise snapshotted as READY (Action.getSnapshot), pendingUpdatePromise identity ignores stale promises; README documents limitation incl. entry callback re-run.",
+      "s3_fixes": "Report 1: Node.restoreSnapshot changed from setState to direct _state assignment (step3 Node.ts:318-322); test reworked to assert no onNodeStateChange calls on restore and normal reporting on next step, plus a restore-into-stepped-tree test. Report 2: code already copied all data (Action spreads updatePromiseResult, lotto index), so only a regression test was added (5 definitions x 2 time modes, step3 test lines 213-287). README bullet corrected, 4.4.1 patch bump and history entry; no unrelated changes.",
+      "design": "Each node type overrides getSnapshot/validateSnapshot/restoreSnapshot for its own state; shared helpers in new src/BehaviourTreeSnapshot.ts; restore(snapshot: BehaviourTreeSnapshot) typed. Downsides: NodeSnapshot is a flat bag of optional per-type fields instead of discriminated types; UpdatePromiseResultSnapshot referenced but not exported; pendingUpdatePromise added alongside redundant isUsingUpdatePromise; '[this.child].map' idiom in Decorator.ts.",
+      "tests": "New test/BehaviourTreeSnapshot.spec.ts (~1530 lines) + SnapshotUtilities.ts using mocha/chai/sinon fake timers; covers JSON round-trip, independence, invalid inputs with unchanged-tree checks, per-field validation, random choices, wait remaining time in both modes, promise settled/rejected/invalid/pending, finished trees, behavioural equivalence scenarios. No baseline tests touched. Minor: stale test title at spec.ts:1155 ('will not be possible to take...') asserts doesNotThrow.",
+      "docs": "README adds feature bullet, snapshot()/restore() API entries, section with correct example (step runs RequestReview then starts wait), contents list, caveats incl. definition matching, pending-promise limitation and onNodeStateChange behaviour. Version History rows 4.4.0 (feature) and 4.4.1 (fix) match package.json/package-lock bumps; step 2 left unreleased 4.4.0 as is.",
+      "process": "15 commits with descriptive conventional messages (feat per node concern, docs, test, fix, separate 'build: regenerate dist'); no new dependencies, no unrequested features."
+    },
+    "unmet_requirements": [],
+    "overall": 9,
+    "strengths": [
+      "Every stateful node field is snapshotted, validated and restored by its own node class, and the test helper restores at every step of 26 scenarios after a simulated gap, comparing behaviour with the original tree",
+      "Definition matching through a canonicalised hash accepts equivalent MDSL and JSON and rejects every other definition; all validation runs before anything is changed, and each test checks the tree is unchanged after a rejected restore",
+      "Thorough README section with a correct example and documented limitations, plus a correct 4.4.0/4.4.1 version history and package version"
+    ],
+    "issues": [
+      "Wait in clock mode: a snapshot taken right after restore() equals the original only if no millisecond passes in between; this is inherent to how time is measured, and the tests pass because they use a fake clock",
+      "NodeSnapshot is one flat type full of optional fields rather than one type per node; UpdatePromiseResultSnapshot is used by NodeSnapshot but not exported; pendingUpdatePromise overlaps with the existing isUsingUpdatePromise",
+      "Stale test title from step 1 ('will not be possible to take if the action node is in a pending state...') now asserts doesNotThrow (test/BehaviourTreeSnapshot.spec.ts:1155)"
+    ],
+    "verdict": "A complete and correct snapshot/restore feature: each node class owns its state, validation leaves the tree unchanged on rejection, definitions are matched correctly, and the tests and README are thorough. Only small design and naming issues remain, so it is ready to merge."
+  }
+}

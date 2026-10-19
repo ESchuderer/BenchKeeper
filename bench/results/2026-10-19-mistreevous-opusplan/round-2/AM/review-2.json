@@ -1,0 +1,41 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "fa3398d184be6d254c22a4012d363ab8f1d7c55b8e32fabd72f17392f029f151",
+  "cost_usd_api_equivalent": 1.1609288,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 4,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "Every step 1 requirement is met. `snapshot()`/`restore()` are added to BehaviourTree (step1.patch 1665-1682). The snapshot is a plain object `{version, root}` built from new objects. `TreeSnapshot` and `NodeSnapshot` are exported from src/index.ts (1889). It keeps node states, children, repeat/retry target and current counts (Repeat.ts:127-144), the index of the lotto's selected child (Lotto.ts:74-89) and wait totalDuration/waitedDuration (Wait.ts:111-138). A restored wait counts only the remaining time because `initialUpdateTime = now - waitedDuration`, and in delta mode the saved waitedDuration is reused. A finished tree restores as finished and re-draws on reset. The README section has an example. The version goes to 4.4.0 and a Version History row is added.",
+      "s1_correctness": "Node.restore sets `_state` directly, without setState, so restore makes no callbacks (Node.ts:273-276). Composites and decorators recurse. Lotto keeps its pick and re-draws on READY. Repeat and Retry re-pick their targets on READY. The Date-mode wait snapshot counts the time since the last step (Wait.ts:116-121), and a non-running wait saves 0, so an Infinity delta does not leak into JSON (test at spec:898). Restore drops stale promises through the `updatePromise` identity check (Action.ts:121-149). Settled promise results are saved and validated. Node ids are restored, so getTreeNodeDetails deep-equals the source. Tests cover guards and aborts (spec:344), the entry/exit callbacks, both time modes and finished trees. I found no incorrect case.",
+      "s2_validation": "A definition hash over the canonicalised JSON is stored in the snapshot (BehaviourTree.ts:64,132). `canonicalise` sorts keys and roots and fills in the defaults the MDSL converter adds (args, succeedOnAbort). The tests check MDSL↔JSON equivalence both ways, plus whitespace and comments (spec:710-867). Six kinds of definition difference, plus lotto weights, are rejected with \"the snapshot does not match the tree's definition\" (BehaviourTreeSnapshot.ts:160). null, a string, a number, an array, undefined and {} are rejected (spec:556-561). All validation runs before any change, and the tests assert the tree is unchanged (spec:641, 679, 707). A pending promise is saved as READY (Action.ts:195-197), and the re-call and the entry callback are tested and documented in the README.",
+      "s3_fixes": "step3.patch contains only tests (spec:951-1084). The implementation already met both reports: Node.restore bypasses setState, and snapshots are built fresh with no shared mutable state. The only shared reference, updatePromiseResult, is never mutated. The regression tests cover restoring several snapshots with no onNodeStateChange calls, a snapshot unchanged after stepping the source and after stepping the restored tree, and a snapshot equal to `s` right after restore, including the settled-promise case. There are no unrelated changes. Because no fix was made, the step does not show a cause being fixed; the tests only confirm behaviour that already worked.",
+      "design": "Each node class overrides getSnapshot/restore for the state it owns (Node, Composite, Decorator, Lotto, Repeat, Retry, Action, Wait), following the existing getDetails pattern. Three weaker points: NodeSnapshot is one flat type with optional fields, not a discriminated union, so restore needs non-null assertions (`snapshot.targetCount!`); validation sits in one `switch (snapshot.type)` in BehaviourTreeSnapshot.ts:206-252 instead of in each node; and `canonicalise` hard-codes which defaults the MDSL converter fills in, which breaks if the converter changes. `uid` lost its readonly modifier. No new dependencies; the cyrb53 hash is inlined and justified for the browser build.",
+      "tests": "One new mocha/chai/sinon spec, test/BehaviourTreeSnapshot.spec.ts, with a helper that steps the source and restored trees in lockstep and compares node details and agent call logs. It covers every composite and decorator at 0-4 steps, fixed and random counts, the lotto pick, wait in both time modes and random durations, guards, callbacks, finished trees, promise states, more than 20 invalid inputs, definition mismatch and MDSL/JSON equivalence. It uses fake timers. No existing test was changed. A small redundancy: spec:879-895 builds an unused extra tree.",
+      "docs": "The README documents snapshot() and restore(), what a snapshot holds and what it leaves out, the wait timing, finished trees, the absence of callbacks, the error cases, and an example that works. The step 2 pending-promise limitation sits next to the API (step2.patch:10). The version is bumped to 4.4.0 in package.json and package-lock.json, with a Version History row. Step 2 behaviour (the definition check and pending promises restoring as not started) was not added to the 4.4.0 notes.",
+      "process": "There are 15 commits, each focused, with conventional and descriptive messages: separate feat commits for node states, counts, and lotto/wait, then self-review fixes, docs, and dist regeneration (dist is committed in this repo). Step 2 and step 3 commits are split the same way. No dependencies were added. Restoring node ids and validating the internal fields of the snapshot support the stated requirements; they are not extra features."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Snapshot and restore are correct for every node type and state, including subtle cases: the Date-mode wait counts the time since the last step, a stale promise is ignored after restore, a finished tree re-draws its random choices, and restore makes no callbacks.",
+      "Validation is complete and runs before anything changes. MDSL/JSON equivalence uses a canonicalised definition hash that is tested in both directions, and the stated error message is used.",
+      "Very thorough lockstep tests that compare node details and the order of agent calls between source and restored trees, in the repository's mocha/chai/sinon setup."
+    ],
+    "issues": [
+      "Snapshot validation is centralised in one type-string switch in BehaviourTreeSnapshot.ts and not owned by each node. NodeSnapshot is a flat optional-field type, so restore relies on non-null assertions.",
+      "Definition equivalence depends on `canonicalise` hard-coding the defaults the MDSL converter adds (args, succeedOnAbort), which breaks silently if the converter changes. Globally registered subtrees are not part of the hash.",
+      "Step 3 has tests only: both reports were already met by the step 1 code. The Version History row was not updated for the step 2 behaviour (definition check, pending promises restored as not started)."
+    ],
+    "verdict": "This is a careful, correct implementation of snapshot and restore with strong validation, MDSL/JSON definition matching, documented limitations and very thorough tests. The remaining concerns are design-level (central type switch, flat snapshot type, brittle canonicalisation) and small gaps in the release notes, so I would merge it after minor cleanup."
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "fa3398d184be6d254c22a4012d363ab8f1d7c55b8e32fabd72f17392f029f151",
+  "cost_usd_api_equivalent": 0.930375,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 4,
+      "s3_fixes": 3,
+      "design": 4,
+      "tests": 4,
+      "docs": 5,
+      "process": 4
+    },
+    "evidence": {
+      "s1_requirements": "step1.patch: snapshot() returns {version, root} plain object (BehaviourTree.ts), BehaviourTreeSnapshot and NodeSnapshot exported from index.ts; restore() sets every node's state, Lotto selectedChild index, Repeat/Retry target+current counts, Wait totalDuration+waitedDuration, Action settled promise result. Wait remaining-time in both Date and getDeltaTime modes (Wait.ts:125-162, tests at spec 'waits only for the remaining time ... (Date)/(getDeltaTime)'). Finished tree restores finished and next step redraws random choices (test 'is finished and starts a new run with new random choices'). README section with fs-based example added.",
+      "s1_correctness": "Per-node getSnapshot/prepareRestore covers all stateful fields (grep of private fields: only Lotto.selectedChild, Repeat/Retry counts, Wait timing, Action promise fields). State set directly via _state, not setState (Node.ts:364-367), so no handlers. Date-mode wait counts time since last step in snapshot (Wait.ts:127-130) and re-bases initialUpdateTime on restore; waited duration clamped to total so Infinity delta survives JSON. Guard-aborted lotto with no pick allowed (Lotto.ts:96-105); stale promise ignored via updatePromiseId (Action.ts:120-139); settled-but-unhandled results kept as strings that reproduce same error/state. Lockstep tests across sequence/selector/parallel/race/all/decorators/guards/callbacks/nested repeat-retry/wait both modes.",
+      "s2_validation": "createDefinitionId (BehaviourTreeDefinitionUtilities.ts) normalises JSON (sorted keys, roots sorted by id, drops args:[] and succeedOnAbort:false) then cyrb53 hash; restore throws 'snapshot does not match the tree's definition' before any node change (BehaviourTree.ts:169-171). Tests reject null/undefined/string/number/bool/arrays/{}/{root:{}}/{version:1} and check details unchanged; MDSL<->JSON, default-values, root order, whitespace equivalence tests. Pending promise saved READY in getSnapshot (Action.ts:197-201) without touching source tree; README 'Limitation: pending promises' paragraph. Weaknesses: 53-bit hash with in-code 'shortcut: ... could collide' comment, and a hand-maintained list of defaults.",
+      "s3_fixes": "step3.patch adds only tests, no source change; the implementation already never calls setState during restore and builds fresh snapshot objects, so neither bug appears to exist, but the commit 'test: cover ...' does not state this. The test 'stepping the tree does not change a snapshot of it' (step3.patch:69-79) uses JSON.parse(JSON.stringify(tree.snapshot())) copies from snapshotsOfSteppedTree, so it can never fail and does not guard report 2's first clause. The restore-then-step independence and snapshot-equals-after-restore tests are meaningful. No unrelated changes.",
+      "design": "Each node class owns getSnapshot/prepareRestore; two-phase validate-then-apply via closures gives atomic restore. Public API is two methods plus exported types. NodeSnapshot is a flat bag of optional fields instead of a discriminated union; new isNonNegativeInteger in Utilities.ts next to existing isInteger in BehaviourTreeDefinitionUtilities; Node.uid made non-readonly; hash function inlined with 'shortcut' comment.",
+      "tests": "New test/BehaviourTreeSnapshot.spec.ts uses mocha/chai/sinon fake timers and existing findNode helper; lockstep original-vs-restored comparisons of agent calls and node details, JSON round-trip checks, many rejection cases with unchanged-tree assertions, MDSL/JSON equivalence, pending promise behaviour including entry callback. No existing tests removed or weakened (step 2 updated the agent's own RUNNING expectation to READY per new requirement). One step-3 test is vacuous because it uses JSON copies.",
+      "docs": "README documents snapshot()/restore() with a correct restart example, lists what is kept, wait timing, finished-tree semantics, random option advice, no callbacks, error conditions and the pending-promise limitation next to the API. Version History row 4.4.0 plus sub-row in step 2; package.json and package-lock.json bumped 4.3.1 -> 4.4.0 (minor for a feature).",
+      "process": "13 commits with conventional prefixes, mostly focused (feat for composites/decorators then wait/action, docs, tests). Step 1 includes three follow-up 'fix:' commits for unreleased code (8e79c9f, c20bec4, a99fcaf). Commit 02f9496 'docs: add acceptance criteria' touches no file in the reviewed diffs (likely a process file). No new dependencies; extras (version field, id restoring, stale-promise guard) support the requirements."
+    },
+    "unmet_requirements": [
+      "Step 3 report 2: no effective regression test that stepping the original tree does not change a snapshot returned by snapshot() (the test uses JSON copies)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Per-node snapshot/restore with atomic validate-then-apply covering every stateful field, including both wait time modes, guard-aborted lotto and stale promises",
+      "Very thorough lockstep tests comparing original and restored trees across all node types, plus extensive rejection and MDSL/JSON equivalence tests",
+      "Clear README with example, the pending-promise limitation and a correct version bump and history row"
+    ],
+    "issues": [
+      "Step 3 test 'stepping the tree does not change a snapshot of it' only checks JSON copies, so it can never fail",
+      "Step 3 changed no source code and nothing visible says the reported bugs did not reproduce",
+      "Definition matching uses a 53-bit hash marked 'shortcut' and a hand-maintained list of default values; NodeSnapshot is an untyped bag of optional fields"
+    ],
+    "verdict": "Steps 1 and 2 are correct, well designed, thoroughly tested and documented, and atomic restores plus MDSL/JSON definition matching work as specified. Step 3 is weaker: no code change was needed, but one regression test can never fail and the outcome was not stated clearly."
+  }
+}

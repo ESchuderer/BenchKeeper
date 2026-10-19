@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "fa3398d184be6d254c22a4012d363ab8f1d7c55b8e32fabd72f17392f029f151",
+  "cost_usd_api_equivalent": 1.0397992000000003,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 4,
+      "s3_fixes": 3,
+      "design": 4,
+      "tests": 4,
+      "docs": 5,
+      "process": 4
+    },
+    "evidence": {
+      "s1_requirements": "Every requirement in steps/1.md is met. `BehaviourTree.snapshot()` returns `{version, root}`, built only from strings, numbers and null (step1.patch BehaviourTree.ts). `BehaviourTreeSnapshot` and `NodeSnapshot` are exported from src/index.ts. `restore()` sets node states, composite children, repeat/retry target and current counts (Repeat.ts and Retry.ts getSnapshot), the lotto selectedChild index (Lotto.ts), and the wait totalDuration and waitedDuration (Wait.ts). On restore, Wait sets `initialUpdateTime = now - waitedDuration`, so it waits only the remaining time on the Date clock; with getDeltaTime, the saved waitedDuration carries over. Finished trees restore as finished, and `step()` then resets them, so random choices are made again. The README has a snapshot/restore section with an fs-based example. The package version was bumped to 4.4.0 and a Version History row was added.",
+      "s1_correctness": "Each node type covers all of its runtime fields. A grep of the private fields shows that only Lotto, Repeat, Retry, Wait and Action carry state beyond `_state`, and all of them are saved. Lotto validation allows a missing selectedChild except when the lotto is RUNNING, which covers guard aborts (Lotto.ts prepareRestore). The Wait snapshot caps waitedDuration at totalDuration, so an Infinity delta time survives JSON. In Date mode the snapshot includes time since the last step. Action keeps a settled but unhandled promise result as a string, so the same error message is produced on a rejection. Action also uses `updatePromiseId` to ignore stale promises that settle after a restore. Restore is two-phase (`prepareRestore` returns a commit closure), so a rejected restore cannot leave nodes partly changed. Lockstep tests compare calls and `getTreeNodeDetails()` across every composite and decorator, guards, callbacks and both wait modes.",
+      "s2_validation": "`createDefinitionId` (BehaviourTreeDefinitionUtilities.ts:130) normalises the JSON: it sorts keys, drops undefined values, empty `args` and `succeedOnAbort:false`, and sorts roots by id. It then hashes the result, so MDSL and its equivalent JSON produce the same id. Tests cover MDSL→JSON, JSON→MDSL, written-out defaults, root order and whitespace. Mismatches throw 'error restoring tree: snapshot does not match the tree's definition', with tests for name, args, iterations, duration, guard, callback, children, subtree, order and succeedOnAbort. null, undefined, strings, numbers, booleans, arrays, `{}` and `{version:1}` are rejected, and the tests check that the tree is unchanged and that its ids are kept. A pending promise is saved as READY in `Action.getSnapshot`, and the README documents this under 'Limitation: pending promises', including that entry is called again. One weakness: identity is a 53-bit cyrb53 hash, which the code itself marks with a 'shortcut: ... could collide' comment, instead of comparing the normalised text.",
+      "s3_fixes": "step3.patch only adds tests; there is no source change. Reading the code, neither bug was present. Restore assigns `_state` directly and never calls setState (Node.ts:364-367). getSnapshot always builds new objects, and no node mutates restored objects in place. So adding tests without a fix is defensible. However, the regression test 'stepping the tree does not change a snapshot of it' is vacuous: `snapshotsOfSteppedTree` stores `JSON.parse(JSON.stringify(rig.tree.snapshot()))` (step3.patch line 28), so stepping can never change the stored copies, and aliasing in `snapshot()` would go undetected. The onNodeStateChange test and the tests that step a restored tree are meaningful. Changing the Date-mode wait waitedDuration to live clock time also means 'a snapshot right after restore equals s' holds only if no milliseconds pass, which the fake-timer tests hide.",
+      "design": "Each node class overrides `getSnapshot`/`prepareRestore` for its own fields, following the existing `getDetails` pattern. The public API adds only two methods and two exported types. The prepare/commit closure keeps restores atomic. Weaker points: `NodeSnapshot` is one flat type with every per-node field optional rather than a typed union. `Node.uid` became mutable so that restore can overwrite the tree's node ids. `isNonNegativeInteger` was added to Utilities.ts although `isInteger` already exists in BehaviourTreeDefinitionUtilities. A hand-written cyrb53 hash sits in the definition utilities.",
+      "tests": "A single new mocha/chai/sinon spec, test/BehaviourTreeSnapshot.spec.ts, reuses `findNode` from TestUtilities and uses fake timers. It has lockstep comparisons for every node type, random choices with a replayed random sequence, both wait modes, Infinity delta time, finished trees, promise actions (pending, settled, rejected, stale), atomic rejection, definition matching and pending-promise restart with entry. No existing test was removed. Step 2 changed one step-1 expectation from RUNNING to READY, which is the intended behaviour change. The main gap is the vacuous step-3 test for 'stepping the tree does not change s'.",
+      "docs": "The README documents snapshot() and restore(snapshot): what a snapshot holds, wait timing, finished trees, the random option, that callbacks are not called, and the errors thrown. It includes a runnable example and a clearly marked pending-promise limitation that also mentions entry being called again. A 4.4.0 Version History row was added in step 1 and extended in step 2 (unreleased, so no second bump). package.json and package-lock.json were bumped to 4.4.0, which fits a new feature. The README does not mention that restore replaces node ids.",
+      "process": "There are 13 commits with conventional prefixes, each covering one concern (composites, wait/action, docs, then validation fixes, the definition check and the pending promise, and finally one test commit for step 3). No dependencies were added and no unrequested features were built. Commit 02f9496 'docs: add acceptance criteria...' changes nothing in the reviewed diff, so it apparently touches only agent process files, which adds noise to the history. Step 1 also contains three follow-up fix commits for its own unreleased code."
+    },
+    "unmet_requirements": [
+      "Step 3 report 2: the regression test for 'stepping the tree does not change s' stores JSON copies of the snapshots, so it cannot detect the reported problem"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Each node type saves and restores its own state, and a two-phase prepare/commit restore leaves the tree untouched on any rejection",
+      "Lockstep tests compare agent calls and node details after restore for every node type, both wait time modes, guards, callbacks, random choices and promise actions",
+      "Definition matching normalises MDSL and JSON before comparing, and the README covers the API, an example and the pending-promise limitation, with the version and history updated"
+    ],
+    "issues": [
+      "Step 3's test 'stepping the tree does not change a snapshot of it' JSON-copies the snapshots before stepping (step3.patch line 28), so it cannot catch the aliasing the bug report describes",
+      "Definition identity is a 53-bit cyrb53 hash that the code marks as a 'shortcut' that could collide, instead of comparing the normalised definition text",
+      "NodeSnapshot is a flat type where every per-node field is optional, restore overwrites node uids (Node.uid made mutable, not documented), and isNonNegativeInteger duplicates the existing isInteger helper"
+    ],
+    "verdict": "The snapshot/restore feature is complete and correct for every node type, with atomic validation, definition matching that treats MDSL and JSON alike, thorough lockstep tests and good README documentation. It is close to mergeable; the main gaps are a vacuous step-3 regression test, a hash-based definition id flagged in the code as a shortcut, and some loose typing in the snapshot type."
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "af4f7622cd343f51cadaf315b62c6181b7a454da60bce1f6c46cc7e24ea1b27c",
+  "cost_usd_api_equivalent": 1.2611448000000003,
+  "review": {
+    "scores": {
+      "s1_ci": 2,
+      "s1_readme": 5,
+      "s1_release": 4,
+      "s2_requirements": 5,
+      "s2_correctness": 3,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 5,
+      "cross_step": 4
+    },
+    "evidence": {
+      "s1_ci": "Good: ci.yml runs on pull_request and runs `npm ci`, `npm test` and `npm run build` in site/. These are real scripts in site/package.json (pretest → prepare-data, vitest over src and ../lib per vite.config.ts:74). Top-level permissions are `contents: read`, and the deploy job adds only `pages: write` and `id-token: write`. There is no pull_request_target, and the PR title goes through env, not inline interpolation. pages.yml deploys on push to main. Problems: (1) no action is pinned to a commit SHA. Every action uses a floating major tag: actions/checkout@v7, setup-node@v7, configure-pages@v6, upload-pages-artifact@v5, deploy-pages@v5, release-please-action@v5 (step1.patch:79-80,120-132,148,174). (2) release-please.yml:176 uses `secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN`, a secret beyond GITHUB_TOKEN. (3) pages.yml also has `workflow_dispatch`, which can be started from any branch, so the workflow itself does not restrict deploys to main. Nothing was run or pushed.",
+      "s1_readme": "README (step1.patch:207-334) covers requirements (Node 22 via the new .nvmrc), install (`cd site && npm ci`), develop (`npm run dev`), a table of the other scripts, test, build (with PAGES_BASE, which vite.config.ts:11 reads), data contribution (paths, families, sample_ bullets, sources, issue templates that exist in .github/ISSUE_TEMPLATE), the commit convention, releases, CI and license (LICENSE is MIT, Copyright (c) 2026 PiMetry, and THIRD-PARTY.md exists). Every npm script it names (index, fieldsets, prepare-data, sample-bullets, preview, dev, test, build) exists in site/package.json.",
+      "s1_release": "One consistent strategy. The version is in version.txt (0.1.0), mirrored to site/package.json (already 0.1.0) and package-lock through release-please extra-files, and recorded in .release-please-manifest.json. release-please (release-type simple, bump-minor-pre-major) opens a release PR, and merging it tags vX.Y.Z. CHANGELOG.md is a stub whose format the README states, with changelog-sections that match the README's type table. Dependabot covers npm in /site and github-actions, with `build`/`ci` prefixes plus scope. The commit convention is Conventional Commits, and all 8 commits in commits.txt follow it. Small inconsistency: the Dependabot config was committed as `build(deps): update npm packages...`, but the README assigns repository automation to `ci`, and that commit updates no package.",
+      "s2_requirements": "All requirements are met. Route: `#/compare/<a>/<b>` is parsed in router.ts with decodeURIComponent and href.compare, and is wired into App.svelte. Drawing: one SVG with role img and aria-label `Profiles of {a} and {b}` from record names, and one `path` per case from caseOuterProfile (Compare.svelte:545-553). Table: caption `Dimensions (mm|in)`, headers Symbol / name A / name B / Difference, symbols from FIELD_LABELS, only the cartridge part, Tol and FIELD_UNITS fields excluded, B minus A. Units follow unitSystem(), with formatValue for metric and displayNumber for inches. CompareWith.svelte puts a select labelled `Compare with` and a `Compare` button on the detail page. German strings are added for every new key. Unknown keys and shot cartridges are handled.",
+      "s2_correctness": "Profiles use one viewportFor() over both profiles and fullSectionPath for each, so they share one scale, the axis is centred and the head faces sit at z=0 on the same y. The tests check this. Row selection is correct for 308 Win./300 Win. Mag. (Q mm², pressures and angles dropped; deltaL and R3 handled after step 3). Defect: metric differences are `formatValue(other - value)` on raw floats (compare.ts write()), so the named example shows binary noise. For example E is 5.59 - 3.85, which prints `1.7399999999999998`, and L3 is 66.55 - 51.18, which prints `15.36999999999999`, not 15.37. The imperial path hides this through toPrecision(12), but the default metric view does not. The test pins `formatValue(valueB - valueA)`, so it cannot catch this.",
+      "s2_fit": "It reuses lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, toleranceFor, formatValue, PX_PER_MM), lib/geom (viewportFor, fullSectionPath, Viewport.length), lib/shapes2d (adaptMetallic, caseOuterProfile), site/src/lib/units (defaultUnit, displayNumber), the shadcn Button/Label/NativeSelect, PageHeader and PageLoadError. It follows the route chunk, metadata and i18n patterns. Minor issues: dimensionsOf re-implements the group ordering that site/src/lib/fields.ts:19 orderedGroups already provides, and Compare.svelte hard-codes hex stroke colours. The changes are otherwise narrow (App, router, metadata, nav, Cartridge plus the new files).",
+      "s2_tests": "compare.test.ts (vitest, real fixtures through lib/testing/fixtures) covers dimension filtering (Tol, units, chamber, repeating groups), the symbol labels, B-minus-A values in metric and imperial, the empty case, the overlay geometry (one closed path each, the same head face y, the same axis centre, one scale against the caseOuterProfile extents) and a null overlay for a shotshell. router.test.ts adds round-trip and malformed-hash cases. Gaps: no test for the accessible names, the caption or the CompareWith select/button, and the value assertions mirror the implementation's formula, so they miss the float-noise issue.",
+      "s3_fixes": "Bug: compareRows (step3.patch:91-119) now builds the union, A's fields then B-only fields, with '' for a missing value and for its Difference. The tests assert deltaL (A only) and R3 (B only), the empty cells in metric and imperial, and a disjoint case. Style: `th, td` are right-aligned with tabular-nums and `th:first-child, td:first-child` left-aligned, the same pattern as GroupTable.svelte:231-245, headers included. The lede/noShared texts were updated in EN and DE to match the new behaviour. No regressions found. The leftover `class=\"num\"` attributes still apply the global mono font.",
+      "cross_step": "The stated strategy says release-please generates CHANGELOG.md and the version, and that neither is edited by hand. Steps 2 and 3 accordingly leave CHANGELOG and version untouched and use feat/fix commits that release-please would pick up. All commits follow Conventional Commits, so the pr-title regex would pass. The tests and build look consistent (fixtures exist, imports resolve), but they were not run. Minor: the step 3 commit message (`fix(site): list dimensions only one cartridge publishes...`) does not mention the alignment change bundled into it."
+    },
+    "unmet_requirements": [
+      "Step 1: actions are not pinned to full commit SHAs (all use major tags such as actions/checkout@v7)",
+      "Step 1: release-please.yml uses an optional secret RELEASE_PLEASE_TOKEN beyond GITHUB_TOKEN",
+      "Step 2 (partly): metric Difference cells show floating-point noise (e.g. 1.7399999999999998 for E on 308 Win. vs 300 Win. Mag.)"
+    ],
+    "overall": 6,
+    "strengths": [
+      "The compare view reuses lib/geom viewportFor/fullSectionPath and lib/shapes2d caseOuterProfile, giving a correct overlay at one scale on one axis, with geometry tests that check it",
+      "The README and release setup are complete and consistent: every command exists, version.txt, the manifest and release-please config agree, the changelog format is stated, and Dependabot and a PR title lint enforce the convention",
+      "Step 3 fixes both review points cleanly: the union of rows with empty cells, tested for deltaL and R3, and right-alignment matching GroupTable"
+    ],
+    "issues": [
+      "Workflow actions are referenced by floating major tags instead of full commit SHAs, and release-please uses an extra secret RELEASE_PLEASE_TOKEN; pages.yml also allows workflow_dispatch from any branch",
+      "Metric differences are written from raw float subtraction, so the example page shows values like 1.7399999999999998 and 15.36999999999999, and the tests pin that formula, so they do not catch it",
+      "Minor duplication and convention drift: dimensionsOf re-implements site/src/lib/fields orderedGroups, Compare.svelte hard-codes hex colours, the Dependabot config commit is typed build(deps) not ci, and the step 3 commit message omits the alignment fix"
+    ],
+    "verdict": "The feature work is solid: it reuses the libraries, meets the spec as written, and the step 3 fixes are correct and tested. I would not merge it as is, because the CI workflows break the stated supply-chain rules (no SHA pinning, an extra secret) and the default metric view shows floating-point noise in the Difference column."
+  }
+}

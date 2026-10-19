@@ -1,0 +1,430 @@
+{
+  "arm": "AN",
+  "runtime": "claude-code",
+  "followups": 2,
+  "wall_seconds": 740,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "benchkeeper",
+      "mattpocock-skills"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 50884,
+    "result_events": 5,
+    "turns": 79,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 2.0857864,
+    "usage": {
+      "input": 23522,
+      "cache_creation": 237421,
+      "cache_read": 4879135,
+      "output": 70104,
+      "thinking": 28514
+    }
+  },
+  "workflow": {
+    "tool_calls": 95,
+    "subagent_tool_calls": 4,
+    "skills": [
+      "benchkeeper:following-dev-workflow",
+      "benchkeeper:following-dev-workflow",
+      "benchkeeper:following-dev-workflow",
+      "code-review"
+    ],
+    "agents": [],
+    "tiers": [
+      "full",
+      "full",
+      "full",
+      "full",
+      "standard"
+    ],
+    "plan_or_spec_files": [
+      ".scratch/cartridge-compare/spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": false,
+    "plan_first": false,
+    "verified": false,
+    "review": true,
+    "last_tool": "Bash git diff main...HEAD -- CHANGELOG.md | head -40; grep -n \"compare\" -i CHANGELOG."
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "a6d1d4e1139bb268"
+  },
+  "lines": {
+    "source": 10904,
+    "test": 2489,
+    "files": 119
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": false,
+    "test_script": false,
+    "lint_or_typecheck": false,
+    "ci": true,
+    "node_version": false,
+    "changelog": true,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-actionlint",
+          "ok": true
+        },
+        {
+          "id": "S1-ci-checks",
+          "ok": true
+        },
+        {
+          "id": "S1-npm-scripts",
+          "ok": true
+        },
+        {
+          "id": "S1-sha-pins",
+          "ok": false
+        },
+        {
+          "id": "S1-permissions",
+          "ok": true
+        },
+        {
+          "id": "S1-no-prt",
+          "ok": true
+        },
+        {
+          "id": "S1-secrets",
+          "ok": true
+        },
+        {
+          "id": "S1-pages-trigger",
+          "ok": false
+        },
+        {
+          "id": "S1-release",
+          "ok": true
+        },
+        {
+          "id": "S1-changelog",
+          "ok": true
+        },
+        {
+          "id": "S1-dependency-updates",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-sections",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-commands",
+          "ok": true
+        },
+        {
+          "id": "S1-commits",
+          "ok": true
+        }
+      ],
+      "passed": 12,
+      "total": 14,
+      "suite_ok": true,
+      "minutes": 3,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 27,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [
+          "full"
+        ],
+        "plan_or_spec_files": [],
+        "tests_written": false,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": false,
+        "review": false,
+        "last_tool": "Bash A=\"Assisted-by: generative AI\" && \ngit add .github/workflows/ci.yml && git commi"
+      },
+      "cost_usd_api_equivalent": 0.4829109,
+      "tokens": {
+        "input": 23388,
+        "cache_creation": 53339,
+        "cache_read": 807935,
+        "output": 19411,
+        "thinking": 7564
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.1,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.11,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-build",
+          "ok": true
+        },
+        {
+          "id": "S2-route",
+          "ok": true
+        },
+        {
+          "id": "S2-delta",
+          "ok": true
+        },
+        {
+          "id": "S2-overlay",
+          "ok": true
+        },
+        {
+          "id": "S2-units",
+          "ok": true
+        },
+        {
+          "id": "S2-link",
+          "ok": true
+        },
+        {
+          "id": "S2-reuse",
+          "ok": true
+        },
+        {
+          "id": "X2-ci",
+          "ok": true
+        },
+        {
+          "id": "X2-changelog",
+          "ok": true
+        },
+        {
+          "id": "X2-version",
+          "ok": true
+        }
+      ],
+      "passed": 10,
+      "total": 10,
+      "suite_ok": true,
+      "minutes": 5.3,
+      "waited": false,
+      "followups": 1,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 41,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [
+          "full",
+          "full",
+          "full"
+        ],
+        "plan_or_spec_files": [
+          ".scratch/cartridge-compare/spec.md"
+        ],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash cat >> CHANGELOG.md <<'EOF'\n- Site: a comparison view at `#/compare/<a>/<b>` tha"
+      },
+      "cost_usd_api_equivalent": 1.0099429999999998,
+      "tokens": {
+        "input": 76,
+        "cache_creation": 100888,
+        "cache_read": 2887790,
+        "output": 31746,
+        "thinking": 12747
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.11,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.12,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-bug",
+          "ok": true
+        },
+        {
+          "id": "S3-style",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "X3-ci",
+          "ok": true
+        },
+        {
+          "id": "X3-changelog",
+          "ok": true
+        },
+        {
+          "id": "X3-version",
+          "ok": true
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "suite_ok": true,
+      "minutes": 3.5,
+      "waited": true,
+      "followups": 1,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 27,
+        "subagent_tool_calls": 4,
+        "skills": [
+          "benchkeeper:following-dev-workflow",
+          "code-review"
+        ],
+        "agents": [],
+        "tiers": [
+          "standard"
+        ],
+        "plan_or_spec_files": [],
+        "tests_written": false,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": false,
+        "review": true,
+        "last_tool": "Bash git diff main...HEAD -- CHANGELOG.md | head -40; grep -n \"compare\" -i CHANGELOG."
+      },
+      "cost_usd_api_equivalent": 0.5929325000000001,
+      "tokens": {
+        "input": 58,
+        "cache_creation": 83194,
+        "cache_read": 1183410,
+        "output": 18947,
+        "thinking": 8203
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.12,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.12,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0,
+        "weekly_share": 0
+      }
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "a6d1d4e1139bb268",
+    "bk": "v1"
+  },
+  "phases": {
+    "phases": {
+      "build": {
+        "calls": 65,
+        "minutes": 9.2,
+        "usd": 1.597
+      },
+      "verify": {
+        "calls": 6,
+        "minutes": 1.1,
+        "usd": 0.148
+      },
+      "spec": {
+        "calls": 3,
+        "minutes": 0.2,
+        "usd": 0.079
+      },
+      "test": {
+        "calls": 3,
+        "minutes": 0.7,
+        "usd": 0.119
+      },
+      "review": {
+        "calls": 6,
+        "minutes": 0.7,
+        "usd": 0.143
+      }
+    },
+    "subagents": {
+      "unknown": {
+        "calls": 4,
+        "minutes": 0.3,
+        "usd": 0.105
+      }
+    },
+    "method": "estimate"
+  }
+}

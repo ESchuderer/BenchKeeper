@@ -1,0 +1,47 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "af4f7622cd343f51cadaf315b62c6181b7a454da60bce1f6c46cc7e24ea1b27c",
+  "cost_usd_api_equivalent": 1.0779180000000002,
+  "review": {
+    "scores": {
+      "s1_ci": 4,
+      "s1_readme": 5,
+      "s1_release": 5,
+      "s2_requirements": 4,
+      "s2_correctness": 5,
+      "s2_fit": 5,
+      "s2_tests": 4,
+      "s3_fixes": 4,
+      "cross_step": 5
+    },
+    "evidence": {
+      "s1_ci": "ci.yml (step1.patch 35-86) runs `npm ci`, `npm test` and `npm run build` in site/. All three exist in site/package.json:8-18, and build includes svelte-check. CI triggers on pull_request (no pull_request_target), has top-level `permissions: contents: read`, uses `persist-credentials: false`, and pins every action to a 40-char SHA. The PR-title check passes the title through env rather than interpolating it into the script. pages.yml triggers on push to main and also on workflow_dispatch, which the workflow does not restrict to main. Its build job is read-only, and only the deploy job gets pages/id-token write. Deviation: release.yml:179 uses `secrets.RELEASE_PLEASE_TOKEN || github.token`, a secret beyond GITHUB_TOKEN (optional and documented, but still against the criterion). Nothing was run or published.",
+      "s1_readme": "README (step1.patch 287-356) covers requirements (Node 22), install (`cd site && npm ci`), develop (dev, preview, plus a table of index/fieldsets/prepare-data/sample-bullets), test, build (including PAGES_BASE, which vite.config.ts:11 reads), data contribution, releases and license (MIT, LICENSE file exists). Every npm script it shows exists in site/package.json. It links to CONTRIBUTING for field references and checks.",
+      "s1_release": "One strategy throughout: release-please `simple` (release-please-config.json), with version.txt 0.1.0 as the source of truth mirrored into site/package.json (already 0.1.0) and the lock file via extra-files. The manifest is 0.1.0, tags are vX.Y.Z, and bump-minor-pre-major is set. CHANGELOG.md is only a heading, but CONTRIBUTING:265 states its format: Conventional Changelog layout, visible and hidden sections matching changelog-sections. Dependabot covers npm in /site and github-actions, with build/ci prefixes that match the convention. Conventional Commits is stated with a table of release effects, and all 7 commits in commits.txt follow it.",
+      "s2_requirements": "Route `#/compare/a/b` is parsed from location.hash, so it survives a reload (router.ts). Both outlines are drawn with caseOuterProfile and fullSectionPath in one SVG, one `path` each, with role img and the aria-label 'Profiles of {a} and {b}'. The table has caption 'Dimensions (mm|in)' and headers Symbol / name A / name B / Difference, uses FIELD_LABELS for symbols, takes values from the `cartridge` part only, excludes FIELD_UNITS fields, drops Tol fields via orderedFields, and computes Difference as B minus A. It follows unitSystem(). The detail page gets a 'Compare with' select and a 'Compare' button (CompareLauncher.svelte). German texts are given. Partial: metric differences go through displayNumber (12 significant digits, compare.ts:216) instead of formatValue as 'written the same way' says. This is a documented choice to suppress float noise, but it departs from the letter of the spec.",
+      "s2_correctness": "overlay() builds both profiles with adaptMetallic and caseOuterProfile, uses a shared viewportFor and fullSectionPath, and returns axisY = view.xy(0,0)[1]. Both head faces therefore sit at z=0 at the same x, on one axis and one scale. Shot cartridges return null, and a missing dimension is caught and shown as a message. Unknown keys get an error message, and malformed escapes fall back to the list (router.ts try/catch). Values for 308_win P1 (11.96/13.03/1.07) and the inch conversions are checked in tests. The SVG width uses PX_PER_MM, so the drawing keeps its true scale.",
+      "s2_fit": "Reuses lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, formatValue, PX_PER_MM), lib/geom (viewportFor, fullSectionPath), lib/shapes2d (adaptMetallic, caseOuterProfile), site units.ts displayNumber, units.svelte unitSystem, data byKey/load, router href, and the shadcn Button/Label/NativeSelect. Follows the lazy-chunk pattern in App.svelte, the metadata map, data-ui scoped `@layer legacy` styles and i18n keys. Small, focused change set across 10 files. The table CSS copies GroupTable's rules rather than sharing them, which is consistent with how other routes style themselves.",
+      "s2_tests": "compare.test.ts follows the repository's Vitest setup and @lib/testing/fixtures, using real 308_win and 300_win_mag records. It checks: exclusion of symbols, tolerances and non-mm fields; a formatValue metric row; case-sensitive symbols; imperial conversion; float noise; one closed path per case; a shared head x and axis; shot cartridges returning null; and missing dimensions throwing. router.test.ts adds round-trip and malformed-URL cases. Not covered: the accessible names, column headers and the Compare-with launcher. The repository has no component-test setup, so this is a moderate gap.",
+      "s3_fixes": "Bug: dimensions() now merges both records' groups and returns [a|undefined, b|undefined] pairs. Rows show '' for the missing value and the difference (step3.patch 76-125). Tests cover the synthetic case and the real 'delta L' (308 only) and 'R3' (300 WM only) rows. The EN and DE lede and noCommon texts were updated to match. Style: no change was made. The step-2 CSS (Compare.svelte:112,115, built into dist Compare-*.css) already right-aligns all th/td except the first column, the same rules as GroupTable.svelte:231-245. The final state meets the request, but the commit does not acknowledge the point. No regressions or unrelated changes.",
+      "cross_step": "Steps 2 and 3 are committed as `feat(site): add cartridge comparison view` and `fix(site): list dimensions either cartridge publishes in comparison`, which follow Conventional Commits. Following the stated strategy, CHANGELOG and version are left to release-please, with no hand edits. New code fits the checks: metadata's Record<Route['view'],…> was extended, so svelte-check should pass; tests were added under src/; and the boundary test is unaffected because compare.ts lives in site/src/lib."
+    },
+    "unmet_requirements": [
+      "Step 1/CI criterion: release.yml uses an optional `RELEASE_PLEASE_TOKEN` secret beyond GITHUB_TOKEN",
+      "Step 2 (partly): metric differences are written with displayNumber (rounded to 12 significant digits), not with formatValue as the values are",
+      "Step 3 point 2: no change was made; it is met only because the step-2 CSS already right-aligned the columns, and this was not acknowledged"
+    ],
+    "overall": 8,
+    "strengths": [
+      "The compare feature reuses lib/shapes2d, lib/geom, lib/core and site units/components, with correct overlay geometry (shared viewport, head faces at z=0, one path per case) and complete EN/DE texts",
+      "Step 1 sets up a coherent, well-documented release-please strategy (version.txt mirrored to package.json, stated changelog format, Dependabot prefixes that match the convention), and every commit follows it",
+      "CI and Pages workflows run the real `npm test`/`npm run build`, pin actions to SHAs, keep permissions read-only by default, and handle the PR title safely through env"
+    ],
+    "issues": [
+      "release.yml relies on an optional `RELEASE_PLEASE_TOKEN` secret, and pages.yml's workflow_dispatch can deploy from any branch at the workflow level",
+      "Metric differences use displayNumber (12 significant digits) instead of formatValue, a deliberate departure from the spec's 'written the same way'",
+      "Step 3's alignment point got no change and no acknowledgement (already satisfied by step-2 CSS), and there are no tests for accessible names, headers or the Compare-with launcher"
+    ],
+    "verdict": "This is solid, well-structured work: the setup is consistent and well documented, and the compare feature reuses the existing libraries correctly and has meaningful logic tests. A few deviations stop it from being exemplary: an extra optional secret in the release workflow, the metric difference formatting, and the alignment review point not being acknowledged."
+  }
+}

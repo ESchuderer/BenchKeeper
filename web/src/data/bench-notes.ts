@@ -10,14 +10,16 @@ export const notes: Notes = {
   },
   runs: {
     '2026-10-18-mistreevous-sonnet': {
-      tested: "BenchKeeper setup-v4.0 (AL): the rules, the following-dev-workflow skill, Matt Pocock's skills and Ponytail. setup-v5.0 replaces the v4.0 rule that stopped AL without a devcontainer.",
+      tested: "BenchKeeper setup-v4.0 (AL): the rules, the following-dev-workflow skill, Matt Pocock's skills and Ponytail. Added 2026-10-19 with the same seed, baseline and checks: setup-v5.0 (AM, the rules and workflow skill of setup-v5.2) and setup-v4.0 without Ponytail (AN).",
       score: 'hidden tests 35, review 25, static checks 15, process checks 15, test suite green after each step 10 (method in the report).',
-      summary: 'ECC (H), agent-skills (F) and Superpowers (G) have the highest medians (90.1, 89.7, 89.3). 28 of 30 trials pass every hidden test, so reviews and process checks set the order. The three arms with Ponytail are the fastest and cheapest (about 13 minutes, about 2 USD) and have the lowest review ratings.',
+      summary: 'Most setups score within the round-to-round spread of plain Claude Code (A, 86.97). ECC (H) is the only arm measurably above it (+3.15, ahead in 2 of 3 rounds), at 2.0 times the cost and 1.6 times the time. Superpowers (G) scores 2.3 higher at slightly less cost, and Ponytail alone (B) matches A at 0.58 times the cost. BenchKeeper setup-v5.0 (AM) scores 88.98, 4.9 above setup-v4.0 (AL) and ahead in all 3 rounds, at 2.1 times its cost.',
       findings: [
-        'Medians of 3 rounds: H 90.1, F 89.7, G 89.3, AB 88.4, AC 87.9, B 87.6, V 87.2, A 87.0, AF 84.6, AL 84.1. The spread within one arm reaches about 8 points.',
-        'Arms with Ponytail (B, AF, AL) take a median of 12.8 to 13.3 minutes and 2.01 to 2.28 USD, against 20 to 35 minutes and 3.53 to 7.52 USD for the others. Reviews rate their validation and tests lower.',
+        'Weighing cost against score: one arm varies by up to about 8 points between rounds, so a median difference below about 3 points is not measurable. A higher cost needs a median at least 3 points higher and a lead in 2 of 3 rounds. Against A, only H meets that.',
+        'Medians, minutes and API-equivalent cost against A (86.97, 22.7 min, 3.76 USD): H 90.12, 1.56x time, 2.00x cost. F 89.73, 1.26x, 1.30x. G 89.31, 0.89x, 0.94x. AM 88.98, 1.10x, 1.27x. AB 88.37, 1.37x, 1.10x. AC 87.94, 1.08x, 0.99x. B 87.58, 0.59x, 0.58x. AN 87.58, 1.12x, 1.12x. V 87.22, 1.00x, 0.99x. AF 84.63, 0.56x, 0.53x. AL 84.08, 0.58x, 0.61x.',
+        'setup-v5.0 (AM) against setup-v4.0 (AL): review part 22.5 against 20.2 of 25, process checks 6 to 7 of 11 against 3 to 5. The v4.0 rule that stopped AL without a devcontainer is gone in v5.0.',
+        'Ponytail at the same setup version: without it (AN) the median is 3.5 higher and leads in 2 of 3 rounds, at 1.9 times the time and 1.8 times the cost. The arms with Ponytail (B, AF, AL) are the fastest and cheapest, and reviews rate their validation and tests lower.',
         'BenchKeeper setup-v4.0 (AL) skipped the final test run in 3 of 9 steps while it looked for a devcontainer, and once ended a step with failing tests.',
-        'Superpowers (G) called its TDD skill in 8 of 9 steps and planned before the first edit in 4 of 6. B, F, H and AF called no skill. The OpenSpec and Spec Kit arms never ran their spec tools.',
+        'Superpowers (G) called its TDD skill in 8 of 9 steps and planned before the first edit in 4 of 6. The OpenSpec and Spec Kit arms never ran their spec tools.',
       ]
     },
     '2026-10-17-openballistics-sonnet': {
@@ -55,7 +57,7 @@ export const notes: Notes = {
   },
   // The components the published runs tested, at the versions bench/image/install-arm.sh pins.
   stacks: [
-    { name: 'BenchKeeper layer', url: 'https://github.com/ESchuderer/BenchKeeper', version: 'layer v1 (rules of 2026-10-14), layer v3 (setup-v2.9), setup-v4.0 (mistreevous), setup-v3.3, setup-v4.0 without Ponytail and setup-v5.0 (openballistics)', text: 'Global rules and the workflow skill that sets the task tier. Every layer arm also gets Ponytail.' },
+    { name: 'BenchKeeper layer', url: 'https://github.com/ESchuderer/BenchKeeper', version: 'layer v1 (rules of 2026-10-14), layer v3 (setup-v2.9), setup-v4.0 (mistreevous), setup-v3.3 (openballistics), setup-v4.0 without Ponytail and setup-v5.0 (openballistics, mistreevous)', text: 'Global rules and the workflow skill that sets the task tier. Every layer arm also gets Ponytail.' },
     { name: 'Ponytail', url: 'https://github.com/DietrichGebert/ponytail', version: 'v5.2.0, v5.3.2 in mistreevous, level full', text: 'A behavior mode for the smallest complete change.' },
     { name: "Matt Pocock's skills", url: 'https://github.com/mattpocock/skills', version: 'v1.3.1, commit 49dd158 in mistreevous', text: 'Skills for grilling, specs, tickets, TDD and code review.' },
     { name: 'agent-skills', url: 'https://github.com/addyosmani/agent-skills', version: '0.6.13', text: "Addy Osmani's engineering skill library." },

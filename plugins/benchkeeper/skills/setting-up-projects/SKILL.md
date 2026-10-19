@@ -87,7 +87,9 @@ Update or restore missing skills by reinstalling each selected skill from its re
 The workflow itself (Matt Pocock's skills, Ponytail, `following-dev-workflow`) is installed once per machine as plugins, by the user (README quick start, `setup.sh`). This step sets up what his skills read in this repository.
 
 - A project copy of Matt Pocock's skills loads twice (step 6). Do not install a skill named `code-review` into `.claude/skills/`: it would replace Claude Code's `/code-review`.
-- Matt Pocock's repository setup: ask the user to run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$mattpocock-skills:setup-matt-pocock-skills`) once. It asks for the issue tracker, the triage labels and where docs go, and writes `docs/agents/` and its `## Agent skills` block (into `CLAUDE.md` when it exists). With Codex selected, keep the single block in `AGENTS.md`, which Codex reads, and leave `CLAUDE.md` at `@AGENTS.md`.
+- Matt Pocock's repository setup: ask the user to run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$mattpocock-skills:setup-matt-pocock-skills`) once. It asks for the issue tracker and where docs go, and writes `docs/agents/` and its `## Agent skills` block. Afterwards fix its two gaps:
+  - It edits `CLAUDE.md` when that exists. With Codex selected, move the block into `AGENTS.md`, which Codex reads, and leave `CLAUDE.md` at `@AGENTS.md`.
+  - It skips the triage labels when it does not recognize the plugin skill `mattpocock-skills:triage`. Then write `docs/agents/triage-labels.md` from its `triage-labels.md` template with the default labels, add its `### Triage labels` sub-block, and create the labels the tracker lacks (`gh label create`).
 
 Ask for the default task tier of `following-dev-workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions. None writes nothing and removes an existing line after asking.
 

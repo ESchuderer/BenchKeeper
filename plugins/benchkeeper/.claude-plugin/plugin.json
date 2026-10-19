@@ -1,6 +1,6 @@
 {
   "name": "benchkeeper",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "description": "Task tiers on top of Matt Pocock's skills and Ponytail, plus project setup and repository maintenance skills.",
   "author": { "name": "ESchuderer", "url": "https://github.com/ESchuderer" },
   "homepage": "https://eschuderer.github.io/BenchKeeper/",

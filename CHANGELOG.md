@@ -1,6 +1,12 @@
 # Changelog
 
-Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
+Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
+
+## setup-v5.2 (2026-10-19)
+
+- `setting-up-projects` step 5: after Matt Pocock's repository setup, move its `## Agent skills` block from `CLAUDE.md` into `AGENTS.md` when Codex is selected, and write the triage labels when it skipped them. His setup looks for a skill named `triage` and missed the plugin's `mattpocock-skills:triage` in the BenchKeeper repository, so `docs/agents/triage-labels.md` and the GitHub labels were missing.
+- Plugin `version` 5.2.0.
+- Upgrade: update the plugin. Repositories set up already: run `/benchkeeper:setting-up-projects` again, or add `docs/agents/triage-labels.md` by hand.
 
 ## setup-v5.1 (2026-10-19)
 

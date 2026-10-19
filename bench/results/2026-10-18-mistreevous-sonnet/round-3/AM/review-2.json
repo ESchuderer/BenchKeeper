@@ -1,0 +1,41 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "fa3398d184be6d254c22a4012d363ab8f1d7c55b8e32fabd72f17392f029f151",
+  "cost_usd_api_equivalent": 1.127183,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 5,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "All of steps/1.md is met. `snapshot()` and `restore()` are on BehaviourTree (step1.patch 1434-1446). The snapshot is a plain object built fresh from primitives (Node.ts:288-296), and `BehaviourTreeSnapshot` is exported as a type (src/index.ts, step1.patch 1540). Each node type saves its own state: Repeat and Retry save current and target counts, Lotto saves selectedChildIndex, Wait saves totalDuration and waitedDuration (Repeat.ts:99-131, Lotto.ts:73-105, Wait.ts:110-147). A restored wait only waits for the remaining time, because restore sets initialUpdateTime = now - waited (Wait.ts:146); in getDeltaTime mode the waited time is stored directly. A finished tree restores as finished and redraws its random choices on the next step; a test checks this (step1.patch 2163-2187). The README has a section with a JSON round-trip example, the version is bumped to 4.4.0 in package.json and package-lock, and a Version History row is added.",
+      "s1_correctness": "The only per-node mutable state is in Repeat, Retry, Lotto, Wait and Action (grep for `private` in src/nodes), and all of it is captured. A parameterised test runs a reference tree for 30 steps and snapshots after every step. Each snapshot is restored a day of fake time later and replayed, comparing the agent call log and the getTreeNodeDetails states at every step. It covers 12 definitions (sequence/selector, parallel, race, all, repeat, random repeat, retry, random retry, lotto, a lotto stopped by a guard, random wait, decorators with guards and callbacks) in both the clock and getDeltaTime modes (step1.patch 2009-2071). Fix 464ebd0 handles a lotto that a guard resolved before it picked a child: a null index is rejected only when the lotto is RUNNING (Lotto.ts:91). Indefinite waits, random counts kept across restore, and restoring into a running tree are also tested.",
+      "s2_validation": "The snapshot stores a canonical fingerprint of the definition. Keys and root nodes are sorted, and the defaults the MDSL parser adds (`args: []`, `succeedOnAbort: false`) are dropped before a cyrb53 hash (BehaviourTreeDefinitionUtilities.ts, step2.patch 495-521). This matches what MDSLNodeAttributeParser.ts:82-91 emits. `restore` rejects non-objects, null and values without a string `definition`, and throws \"the snapshot does not match the tree's definition\" before anything is changed (BehaviourTree.ts, step2.patch 470-479). Tests check MDSL↔JSON and object↔array equivalence, nine kinds of differing definition (unchanged tree, no onNodeStateChange calls), and null, undefined, string, number, boolean, array, {} and a snapshot without a definition (step2.patch 655-793). A pending action is saved as READY (Action.ts:185-192). Promise identity tracking (Action.ts:121-138) makes a stale promise ignored after a restore into the same tree. The README documents the limitation, including that the entry callback runs again.",
+      "s3_fixes": "Report 1 is fixed at its cause: `restoreSnapshot` assigns `this._state` directly instead of calling `setState` (step3.patch 98-100). The step-1 test that expected the calls was changed to assert no calls on restore and normal reporting on the next step (step3.patch 112-141). For report 2, no source change was needed: snapshots are built from new objects and primitives, and restore copies only primitives. The agent added a regression test for every definition. It checks that stepping the original tree leaves `s` unchanged, that a snapshot right after restore equals `s` after a JSON round trip, and that stepping the restored tree leaves `s` unchanged (step3.patch 143-173). There are no unrelated changes. One limitation: the fix and its test are in the same commit, so whether the test was written first can't be confirmed.",
+      "design": "Each node class owns get, validate and restore of its own snapshot, with a base implementation in Node that reuses the existing Composite/Decorator `getChildren` (Node.ts:165, 288-335). Validation runs over the whole tree before any mutation. The public surface is two methods and one exported type. Weaker points: `BehaviourTreeSnapshot` is a flat bag of optional fields rather than a per-node-type union. Runtime helpers (`throwInvalidSnapshot`, `isCount`, `isDuration`) live in the type module, and `isCount` partly duplicates the existing `isInteger` in BehaviourTreeDefinitionUtilities. The hand-written hash is reasonable to avoid a dependency, but it adds code. The Action promise-identity change touches baseline abort/reset behaviour, though it is justified and tested.",
+      "tests": "Everything is in one new file, test/BehaviourTreeSnapshot.spec.ts, using mocha, chai and sinon fake timers like the existing suite. The step-by-step equivalence harness against a reference tree is strong evidence of correctness. It is backed by focused tests for wait timing in both modes, random counts, the lotto pick, finished trees, eleven corrupted snapshots, definition mismatches, invalid inputs, pending promises (including a promise that settled before the step and a stale promise in the same tree) and both step 3 reports. No existing test was removed or weakened; the only test changed is the agent's own step-1 onNodeStateChange test, as report 1 required.",
+      "docs": "The README documents `snapshot()` and `restore(snapshot)` next to the other BehaviourTree methods (README.md:93-133). It covers what is kept, the pending-promise limitation, the definition check including MDSL/JSON equivalence and branch refs, wait timing, finished trees and the onNodeStateChange behaviour. The example is correct. The version is bumped to 4.4.0 with a matching Version History row. Steps 2 and 3 correctly keep the unreleased 4.4.0. The row does not mention the definition check, but it summarises the feature as the repository's other rows do.",
+      "process": "There are 16 commits with conventional prefixes and messages that describe what each does: separate feat, fix, docs and test commits per behaviour. Dist rebuilds are in their own commits, which matches the repository, since dist is tracked in base. There are no new dependencies. The work stays within the asked scope: the extra Action promise-identity fix is needed so a restore into a running tree is correct, and it has its own commit (8abc49d)."
+    },
+    "unmet_requirements": [],
+    "overall": 9,
+    "strengths": [
+      "Each node type owns its snapshot, validation and restore. A tree is validated in full before it is changed, which gives a small, clean public API.",
+      "A step-by-step equivalence test against a reference tree covers every node type and both wait time modes. It gives strong evidence that a restored tree behaves exactly like the original.",
+      "The definition fingerprint correctly treats an MDSL definition and its JSON equivalent as the same. Pending promises are handled carefully: a stale promise is ignored by identity, and the limitation is documented."
+    ],
+    "issues": [
+      "`BehaviourTreeSnapshot` is a flat type of optional fields rather than a per-node-type union, so the type checker cannot help callers or implementers.",
+      "Runtime helpers (`throwInvalidSnapshot`, `isCount`, `isDuration`) sit in the type module, and `isCount` partly duplicates the existing `isInteger` utility.",
+      "Each step 3 regression test is committed together with or after its fix, so the test-first order can't be confirmed. The 4.4.0 Version History row does not mention the definition check or the pending-promise behaviour."
+    ],
+    "verdict": "The snapshot/restore feature is complete and correct across all node types, both wait time modes, the definition-matching and pending-promise follow-ups, and both bug reports, and it has a rigorous equivalence test suite and clear README docs. Apart from minor typing and helper-placement points, it is ready to merge."
+  }
+}

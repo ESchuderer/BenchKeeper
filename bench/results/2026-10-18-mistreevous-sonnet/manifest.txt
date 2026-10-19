@@ -520,3 +520,38 @@ round 3 order AL
 2026-10-18T22:01:34+02:00 usage 5h 0.02 weekly 0.11
 2026-10-18T22:01:34+02:00 round 3 arm AL start
 2026-10-18T22:15:41+02:00 round 3 arm AL done: {"audit":true,"features":0,"checks":[15,12,8],"cost":2.2011917}
+brief=mistreevous model=claude-sonnet-5-5 effort=high k=3 seed=83 timeout=5400s
+benchkeeper=c7e7864b0f529c0d6f23b07bf82086db18f1c559 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+baseline b0b5dcc34d48b0fd52a4f7a0b8e3bbacb5062df9
+image AN 33f03b17c742863bd92369093f58f9b36bf7997c9879273341dabe5ea0a140be
+round 1 order AN 
+2026-10-19T07:01:22+02:00 usage 5h 0.04 weekly 0.16
+2026-10-19T07:01:22+02:00 round 1 arm AN start
+brief=mistreevous model=claude-sonnet-5-5 effort=high k=3 seed=83 timeout=5400s
+benchkeeper=c7e7864b0f529c0d6f23b07bf82086db18f1c559 dirty=0
+host=Linux 7.2.9-1-cachyos x86_64 cpu=16 mem=31G podman version 6.1.3
+baseline b0b5dcc34d48b0fd52a4f7a0b8e3bbacb5062df9
+image AN 33f03b17c742863bd92369093f58f9b36bf7997c9879273341dabe5ea0a140be
+image AM f53d20f213b8fb10d0f0f06379ea98cdf83f88a36914522532a22077b1ba8b8a
+round 1 order AN AM 
+2026-10-19T07:11:07+02:00 usage 5h 0.05 weekly 0.16
+2026-10-19T07:11:07+02:00 round 1 arm AN start
+2026-10-19T07:35:01+02:00 round 1 arm AN done: {"audit":true,"features":0,"checks":[15,12,8],"cost":3.499418}
+2026-10-19T07:35:04+02:00 usage 5h 0.07 weekly 0.17
+2026-10-19T07:35:04+02:00 round 1 arm AM start
+2026-10-19T08:00:01+02:00 round 1 arm AM done: {"audit":true,"features":0,"checks":[15,12,8],"cost":4.3656394}
+round 2 order AN AM 
+2026-10-19T08:00:05+02:00 usage 5h 0.1 weekly 0.18
+2026-10-19T08:00:05+02:00 round 2 arm AN start
+2026-10-19T08:30:09+02:00 round 2 arm AN done: {"audit":true,"features":0,"checks":[15,12,8],"cost":4.1978986}
+2026-10-19T08:30:12+02:00 usage 5h 0.13 weekly 0.19
+2026-10-19T08:30:12+02:00 round 2 arm AM start
+2026-10-19T08:57:23+02:00 round 2 arm AM done: {"audit":true,"features":0,"checks":[14,12,8],"cost":5.162041800000001}
+round 3 order AM AN 
+2026-10-19T08:57:26+02:00 usage 5h 0.01 weekly 0.19
+2026-10-19T08:57:26+02:00 round 3 arm AM start
+2026-10-19T09:23:22+02:00 round 3 arm AM done: {"audit":true,"features":0,"checks":[15,12,8],"cost":4.7910602}
+2026-10-19T09:23:26+02:00 usage 5h 0.03 weekly 0.2
+2026-10-19T09:23:26+02:00 round 3 arm AN start
+2026-10-19T09:49:55+02:00 round 3 arm AN done: {"audit":true,"features":0,"checks":[15,11,9],"cost":4.275131}

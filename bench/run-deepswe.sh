@@ -31,7 +31,7 @@ mkdir -p "$runs"
 
 # Same final-message test as bench/run-brief.sh (protocol v1.21: WAITS on any line of the final message).
 WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when|answer the questions|once you answer|after you answer|i can.t (start|begin|continue|proceed) (yet|until)|which of these is (true|right|correct)|please run [^ ]*setting-up-projects|(i.ll|i will) wait for|not done yet|what i need from you|run [^ ]*setting-up-projects'
-waiting() { awk 'NF { print; l = $0 } END { if (l ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
+waiting() { awk 'NF { l = $0 } NF && !/for the full setup/ { print } END { if (l ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
 waits() { jq -Rrn '[inputs | fromjson? | select(.type == "result") | .result] | last // ""' < "$t/transcript.jsonl" 2> /dev/null | waiting; }
 # Subscription gate as in bench/run-brief.sh: wait for the 5-hour reset at USAGE_MAX or bench/usage-max (default 0.70).
 usage() {

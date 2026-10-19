@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.1996656,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 4,
+      "process": 4
+    },
+    "evidence": {
+      "s1_requirements": "Every requirement in steps/1.md is met. `snapshot()` returns `{version, root}`, built from primitives, arrays and plain objects (src/BehaviourTree.ts:130). `BehaviourTreeSnapshot` and `NodeSnapshot` are exported as types (src/index.ts, step1.patch:2014-2021). `restore()` validates the whole snapshot first and then applies it (BehaviourTree.ts:161-163). The snapshot keeps: node states and composite children (Composite/Decorator getSnapshot), repeat and retry target and current counts including random targets (Repeat.ts/Retry.ts getSnapshot), the lotto `selectedChildIndex`, and the wait `totalDuration`/`waitedDuration`. For the clock, the waited time is computed at snapshot time (Wait.ts:128-130). On restore, `initialUpdateTime` is re-anchored to now minus the waited time (Wait.ts:162), so time between snapshot and restore does not count. In getDeltaTime mode the accumulated duration is restored. A finished tree restores as finished, and `step()` resets it and makes new random choices (tests at step1.patch:2829, 3046, 3129, 3304). The README gains a Snapshots section with an example (step1.patch:30-96).",
+      "s1_correctness": "Each stateful node is covered. Base Node.ts holds only `_state` and the guard path, and guards are stateless. Lotto keeps `selectedChild`, Repeat/Retry keep their counters, Wait keeps its timing, and Action keeps settled promise results. `updatePromiseId` (Action.ts:121-140) stops a promise from before a restore from settling into the restored node. Restored RUNNING nodes do not re-run `entry`, because `Node.update` only calls entry from READY. A differential test replays a 60-step run with lotto, retry, repeat, wait, race and guards, snapshotting at every step for 4 seeds in both time modes. At each step it compares `getTreeNodeDetails()` and the agent call log (step1.patch:3568-3687). Guard aborts, selector, race and all, flip/succeed/fail, and an indefinite wait are each tested.",
+      "s2_validation": "`getDefinitionId` (BehaviourTreeSnapshot.ts) canonicalises the validated JSON. It sorts keys and root nodes, drops undefined values, drops `args: []` and `succeedOnAbort: false`, and hashes the result. `restore` throws \"invalid snapshot: the snapshot does not match the tree's definition\" (BehaviourTree.ts:157-159). Tests cover four equivalent forms against each other in a 4x4 grid: MDSL, parsed JSON, hand-written JSON and reordered roots (step2.patch:768-852). Nine kinds of different definition are rejected, including a subtree, args and a guard's succeedOnAbort. Null, undefined, a string, a number, a boolean, an array, `{}` and partial snapshots are all rejected (step2.patch:910-969). Each rejection test checks the node details and the snapshot are unchanged and that the tree then steps normally. A pending action is recorded as READY (Action.ts:202-204), and the README states that its action and entry functions are called again (step2.patch:22).",
+      "s3_fixes": "Step 3 adds only tests (step3.patch). The code already met both reports. Restore sets `_state` directly and never calls `setState` (Node.restoreSnapshot), and every `getSnapshot`/`restoreSnapshot` builds new objects. The regression tests are meaningful: they check no `onNodeStateChange` during restore, that the next step's changes equal the original's, that the snapshot is unchanged after stepping the source or the restored tree, and that a snapshot right after restore equals the input. There are no unrelated changes. Caveat: the round-trip equality test runs under sinon fake timers. With the real clock, a RUNNING clock-mode wait gains `waitedDuration` for every millisecond between `restore()` and `snapshot()` (Wait.ts:129, 162), so equality is not guaranteed.",
+      "design": "Each node type owns its state through overridden getSnapshot, validateSnapshot and restoreSnapshot methods (Node, Composite, Decorator, Lotto, Repeat, Retry, Action, Wait). This follows the existing getDetails pattern and doc-comment style. The public surface is small: two methods and exported types. Weaknesses: `NodeSnapshot` is one flat bag of optional per-type fields rather than a discriminated union, which forces non-null assertions (`snapshot.children![index]`, `snapshot.currentIterationCount!`). Runtime helpers (`validateSnapshotNumber`, `getDefinitionId`, a hand-rolled cyrb53 hash) live in the types module.",
+      "tests": "All tests are in one new mocha/chai/sinon file, test/BehaviourTreeSnapshot.spec.ts, and reuse `findNode` from TestUtilities. Helpers check JSON round-trip stability on every snapshot (takeSnapshot) and compare behaviour with ids removed (assertSameBehaviour). Coverage includes per-node edge cases, invalid field values, stale promises, both time modes and the seeded differential replay. Step 2 and step 3 tests cover each stated behaviour. No existing test was modified or removed.",
+      "docs": "The README adds a feature bullet, method entries and a Snapshots section with an example, a list of what is kept, and caveats including the pending-promise limitation (step2.patch:22). Version History has a 4.4.0 row plus a continuation row, following the table's multi-row convention. package.json and package-lock.json are bumped from 4.3.1 to 4.4.0. Minor flaws: the example uses an undefined `workflowAgent` and imports `State` without using it. The bullet \"Nodes that were RUNNING are not entered again\" sits next to the pending-action case, which is entered again.",
+      "process": "There are 14 commits, step 1 split by concern: core, repeat/retry, lotto, wait, action, the differential test, docs and the version bump. Messages are descriptive. dist rebuilds are separate commits, consistent with dist being tracked in the repo. 3a3702e mixes a refactor with a docs note. No new dependencies. The snapshot `version` field is a small unrequested addition. Step 3 honestly commits only tests (\"pin that ...\") rather than inventing a fix."
+    },
+    "unmet_requirements": [
+      "Step 3 report 2 (partly): a snapshot taken right after restore() equals the input only when no millisecond passes. A RUNNING wait timed by the clock accrues waitedDuration from the moment of restore (Wait.ts:129,162), and the regression test hides this with fake timers."
+    ],
+    "overall": 9,
+    "strengths": [
+      "Snapshot state is spread across the node classes, each saving its own fields. The two-phase validate-then-restore guarantees a rejected restore leaves the tree untouched, and a stale-promise guard (`updatePromiseId`) prevents corruption after a restore.",
+      "A strong differential test replays a complex tree with seeded randomness and checks that the restored tree matches the original at every step, in both wait time modes.",
+      "Definition matching canonicalises the JSON, so MDSL and equivalent hand-written JSON are accepted and real differences are rejected; this is tested exhaustively."
+    ],
+    "issues": [
+      "With the real clock, a snapshot taken after restore() is not guaranteed to equal the input for a running clock-timed wait (the waited time advances from the restore moment). The step 3 test only passes because of fake timers.",
+      "`NodeSnapshot` is a loose flat type with optional per-node fields and non-null assertions, rather than a discriminated union; runtime helpers and a custom hash sit in the type module.",
+      "README nits: the example uses an undefined `workflowAgent` and an unused `State` import, and the 'not entered again' bullet reads against the pending-action exception."
+    ],
+    "verdict": "This is a thorough, well-tested implementation of snapshot and restore: each node class saves its own state, input is fully validated before anything is applied, definitions are matched in a canonical form, and the docs and versioning follow the repository's conventions. The only real gap is that, with a real clock, a snapshot taken right after a restore can differ for a running wait; the rest are small typing and documentation issues, so I would merge it with minor follow-ups."
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.5505987999999997,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 4,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 4,
+      "process": 4
+    },
+    "evidence": {
+      "s1_requirements": "Every step 1 requirement is met. BehaviourTree.snapshot()/restore() are at src/BehaviourTree.ts:127-183. The snapshot is a plain object of version, definitionHash and a nested root of type/name/state/children plus per-type fields. The BehaviourTreeSnapshot and NodeSnapshot types are exported from src/index.ts:5,10. The snapshot keeps every node state, Repeat current/target iteration counts, Retry current/target attempt counts, the Lotto selectedChild index, and the Wait waited/total durations. For wait, initialUpdateTime = now - waitedDuration on restore (Wait.ts:170) works with the clock, and getDeltaTime accumulates from the restored waitedDuration. A finished root is restored as finished, and BehaviourTree.step() resets it, so random choices are made again (tests in Lotto.spec and Wait.spec 'restore a finished wait node...'). The README has a 'Saving and Restoring a Tree' section with an example.",
+      "s1_correctness": "Each node type with internal state overrides the hooks: Lotto.ts:73-112, Repeat.ts:118-153, Retry, Wait.ts:119-171 and Action.ts:193-243. Composites and the plain decorators rely only on child states, which is correct. Guarded lotto aborted before picking (selectedChild null when not RUNNING) is handled in Lotto.ts:97-101. The Action promise-identity fix (Action.ts:126-160) stops a stale promise from changing a restored node. Weak point: in step 1, Wait.getSnapshotProperties measured clock time at snapshot time, so a snapshot of a restored tree drifted from the one restored. Step 3 had to patch this with a special-case restoredWaitedDuration flag. Validation checks only the shape and type of each field, not consistency between them (e.g. currentIterationCount > target, a RUNNING sequence whose children are all READY), but the definition hash limits the exposure.",
+      "s2_validation": "getDefinitionHash (src/BehaviourTreeDefinitionHash.ts) normalises key order, empty args, succeedOnAbort false, undefined values and unreachable roots, and includes the registered subtrees used. It is computed in the constructor (BehaviourTree.ts:68). restore() rejects non-objects, a bad version, a missing or non-string hash, and a mismatched hash with 'the snapshot does not match the tree's definition'. It then validates the whole tree before restoreSnapshot, so a rejected restore leaves the tree unchanged (BehaviourTree.ts:160-182). Tests cover null, undefined, string, number, boolean, arrays and objects without the fields, and check that the details and the snapshot are unchanged after rejection. They also cover an MDSL definition and its hand-written JSON equivalent. A pending promise is snapshotted as READY via Action.getSnapshotState (Action.ts:193-195), and the README documents this next to the API.",
+      "s3_fixes": "Report 2: the cause was clock-mode Wait computing now - initialUpdateTime at snapshot time. It is fixed by restoredWaitedDuration (step3.patch Wait.ts hunk), with regression tests in BehaviourTreeSnapshot.spec ('has a snapshot that is independent of the tree') and Wait.spec. Report 1: restoreSnapshot already set _state directly in step 1 (step1.patch line 537), so no code change was needed. The agent added a broader test comparing next-step changes for every node kind. Nothing unrelated was changed. The Wait fix is a special-case flag rather than a simpler, consistent rule such as recording the time waited as of the last step.",
+      "design": "The base Node owns getSnapshot/validateSnapshot/restoreSnapshot, and each node type overrides protected hooks (getSnapshotState/Properties, validateSnapshotProperties, restoreSnapshotProperties), so each node owns the state it saves. The public API is two methods plus exported types; the snapshot is a typed discriminated union. Downsides: restoreSnapshotProperties takes NodeSnapshot and every override casts it (e.g. Lotto.ts:109). Lotto re-implements the index/integer check instead of the isCount helper. isObject lives in BehaviourTreeSnapshot.ts and is imported by the hash module. getReachableRootNodes duplicates the builder's subtree resolution (BehaviourTreeBuilder.ts:275). The repository's naming, doc-comment style and file layout are followed.",
+      "tests": "The tests use mocha, chai and sinon in test/. The new BehaviourTreeSnapshot.spec.ts (~1000 lines) and BehaviourTreeDefinitionHash.spec.ts cover the behaviour. TestUtilities.assertRestoredTreeBehavesLikeOriginal compares agent call logs, node details, random call counts and final snapshots at every snapshot point. There are per-node restore suites in the Lotto/Repeat/Retry/Action/Wait specs, covering both wait time modes, random counts and durations, guards, finished trees, and many pending- and settled-promise cases. Mismatch and invalid-input tests check that the tree is unchanged. No existing test was removed or weakened; the only removed lines are import changes.",
+      "docs": "The README adds the snapshot()/restore() API entries, a Saving and Restoring section with an example, and sections on wait timing, finished trees and a 'Things to be aware of' list that includes the pending-promise limitation and the definition check. The Version History has 4.4.0 (feature plus the promise fix) and 4.4.1 (the step 3 fix), and package.json and package-lock follow. The example calls undefined helpers (startCIRun, notifyManager) and never calls stepAndSave. The section is very long and repeats itself.",
+      "process": "The 20 commits are focused, with conventional messages (feat/test/fix/docs/chore). The dist rebuild is kept in separate commits. No new dependencies were added. Step 1 also fixed a pre-existing stale-promise bug in Action; it is justified by restore and recorded in the Version History, but was not requested. Self-review fixes appear as separate commits (0f6f7a1, 4c051fd, 812c51a, 3e7b9dc)."
+    },
+    "unmet_requirements": [],
+    "overall": 8,
+    "strengths": [
+      "Clean per-node design: base Node drives snapshot/validate/restore through protected hooks that each stateful node type overrides, with a typed, exported snapshot union.",
+      "Robust step 2: the normalised definition hash accepts MDSL and its equivalent JSON, and every bad input is fully validated before anything is restored, so a rejected restore leaves the tree unchanged.",
+      "Very thorough tests: a shared helper checks that a restored tree behaves like the original at every snapshot point, plus per-node, time-mode, promise, guard and mismatch cases."
+    ],
+    "issues": [
+      "Wait timing design: step 1 measured clock time at snapshot time, so a restored tree's snapshot drifted from the restored one. Step 3 patched this with a special-case restoredWaitedDuration flag instead of a single consistent rule, such as recording the time waited as of the last step.",
+      "Loose typing and some duplication: every restoreSnapshotProperties override casts NodeSnapshot; Lotto re-implements the integer check; the hash module re-implements the builder's subtree resolution. Restore validation also doesn't check that the restored values are consistent with each other.",
+      "The README section is long and repeats itself, and the example calls undefined helpers (startCIRun, notifyManager) and never calls stepAndSave."
+    ],
+    "verdict": "The work meets every requirement in the three steps, with a well-structured per-node snapshot design, strict validation of a restore against the tree's definition, and extensive tests that follow the repository's setup. It is mergeable after minor cleanup; the main weakness is the special-case flag on wait timing that step 3 had to add."
+  }
+}

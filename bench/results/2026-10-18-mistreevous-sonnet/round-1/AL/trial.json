@@ -1,0 +1,367 @@
+{
+  "arm": "AL",
+  "runtime": "claude-code",
+  "followups": 1,
+  "wall_seconds": 897,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "benchkeeper",
+      "mattpocock-skills",
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 112758,
+    "result_events": 4,
+    "turns": 84,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 2.7474687,
+    "usage": {
+      "input": 198,
+      "cache_creation": 302981,
+      "cache_read": 6183417,
+      "output": 100459,
+      "thinking": 44048
+    }
+  },
+  "workflow": {
+    "tool_calls": 103,
+    "subagent_tool_calls": 15,
+    "skills": [
+      "benchkeeper:following-dev-workflow",
+      "benchkeeper:following-dev-workflow",
+      "code-review",
+      "benchkeeper:following-dev-workflow"
+    ],
+    "agents": [],
+    "tiers": [
+      "full"
+    ],
+    "plan_or_spec_files": [
+      ".scratch/snapshot-restore/spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "plan_first": false,
+    "verified": true,
+    "review": true,
+    "last_tool": "Bash git add src test && git commit -q -m \"fix: do not call onNodeStateChange when re"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "ed70ada50d57578b"
+  },
+  "lines": {
+    "source": 5207,
+    "test": 7617,
+    "files": 71
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": true,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-api",
+          "ok": true
+        },
+        {
+          "id": "S1-resume",
+          "ok": true
+        },
+        {
+          "id": "S1-counters",
+          "ok": true
+        },
+        {
+          "id": "S1-random",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-clock",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-delta",
+          "ok": true
+        },
+        {
+          "id": "S1-details",
+          "ok": true
+        },
+        {
+          "id": "S1-fresh-run",
+          "ok": true
+        },
+        {
+          "id": "Q1-tests",
+          "ok": true
+        },
+        {
+          "id": "Q1-intact",
+          "ok": true
+        },
+        {
+          "id": "Q1-deps",
+          "ok": true
+        },
+        {
+          "id": "Q1-docs",
+          "ok": true
+        },
+        {
+          "id": "Q1-history",
+          "ok": true
+        },
+        {
+          "id": "Q1-committed",
+          "ok": true
+        },
+        {
+          "id": "Q1-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 15,
+      "total": 15,
+      "suite_ok": true,
+      "minutes": 6.8,
+      "waited": true,
+      "followups": 1,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 29,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [
+          "full"
+        ],
+        "plan_or_spec_files": [
+          ".scratch/snapshot-restore/spec.md"
+        ],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash npm test > /tmp/test.log 2>&1; echo exit $?; grep -E \" passing| failing\" /tmp/te"
+      },
+      "cost_usd_api_equivalent": 1.1260106999999997,
+      "tokens": {
+        "input": 58,
+        "cache_creation": 104078,
+        "cache_read": 2353627,
+        "output": 47422,
+        "thinking": 20938
+      },
+      "usage": null
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-reject",
+          "ok": true
+        },
+        {
+          "id": "S2-unchanged",
+          "ok": true
+        },
+        {
+          "id": "S2-equivalent",
+          "ok": true
+        },
+        {
+          "id": "S2-invalid",
+          "ok": true
+        },
+        {
+          "id": "S2-async",
+          "ok": true
+        },
+        {
+          "id": "S2-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q2-tests",
+          "ok": true
+        },
+        {
+          "id": "Q2-intact",
+          "ok": true
+        },
+        {
+          "id": "Q2-deps",
+          "ok": true
+        },
+        {
+          "id": "Q2-docs",
+          "ok": true
+        },
+        {
+          "id": "Q2-history",
+          "ok": false
+        },
+        {
+          "id": "Q2-committed",
+          "ok": true
+        },
+        {
+          "id": "Q2-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 12,
+      "total": 13,
+      "suite_ok": true,
+      "minutes": 5.8,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 54,
+        "subagent_tool_calls": 15,
+        "skills": [
+          "benchkeeper:following-dev-workflow",
+          "code-review"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": true,
+        "last_tool": "Bash git add src test && git commit -q -F - <<'EOF'\nfix: ignore an action promise lef"
+      },
+      "cost_usd_api_equivalent": 1.1582339000000001,
+      "tokens": {
+        "input": 100,
+        "cache_creation": 139533,
+        "cache_read": 2812149,
+        "output": 40647,
+        "thinking": 17915
+      },
+      "usage": null
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-no-events",
+          "ok": true
+        },
+        {
+          "id": "S3-detached",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q3-tests",
+          "ok": true
+        },
+        {
+          "id": "Q3-intact",
+          "ok": true
+        },
+        {
+          "id": "Q3-deps",
+          "ok": true
+        },
+        {
+          "id": "Q3-history",
+          "ok": true
+        },
+        {
+          "id": "Q3-committed",
+          "ok": true
+        },
+        {
+          "id": "Q3-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 9,
+      "total": 9,
+      "suite_ok": true,
+      "minutes": 1.9,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 20,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add src test && git commit -q -m \"fix: do not call onNodeStateChange when re"
+      },
+      "cost_usd_api_equivalent": 0.4632241,
+      "tokens": {
+        "input": 40,
+        "cache_creation": 59370,
+        "cache_read": 1017641,
+        "output": 12390,
+        "thinking": 5195
+      },
+      "usage": null
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "ed70ada50d57578b",
+    "bk": "v6"
+  }
+}

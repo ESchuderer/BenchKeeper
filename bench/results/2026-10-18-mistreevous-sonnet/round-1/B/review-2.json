@@ -1,0 +1,44 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 0.678909,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 4,
+      "s2_validation": 3,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 4,
+      "docs": 4,
+      "process": 4
+    },
+    "evidence": {
+      "s1_requirements": "Every point in steps/1.md is met. `snapshot()`/`restore()` are on BehaviourTree (step1.patch BehaviourTree.ts +144-161). The snapshot is a plain object, and `BehaviourTreeSnapshot` is exported from index.ts. It saves node states through child states, repeat/retry target and current counts, the lotto `selectedChild` index, and wait `totalDuration`/`waitedDuration`. A restored wait counts only the remaining time: Wait.ts:137-145 sets `initialUpdateTime = now - waited`. A finished root restores as finished and step() resets it. The README section has an example (README +17-68). Version is 4.4.0 with a history row.",
+      "s1_correctness": "Every stateful field in src/nodes is covered: _state, Repeat/Retry counts, Lotto.selectedChild, Wait timing, Action promise fields (checked with a grep for private fields). Validation runs on the whole tree before restoreSnapshot writes anything, so a failed restore is atomic. In Date mode a running wait reports time up to now (Wait.ts:110-119). The scenario tests take a snapshot at every step and cover composites, decorators, guards/aborts, random repeat/retry/lotto/wait and finished trees. One gap: restoring into the same tree while its promise is pending sets isUsingUpdatePromise=false. The next step starts a new promise and sets the flag again, so if the old promise settles it passes the `if (!this.isUsingUpdatePromise)` check (Action.ts:118,130) and overwrites the result. The test at step2.patch +324 uses a promise that never settles, so it misses this. The same race exists in the baseline for reset().",
+      "s2_validation": "The definition id is a cyrb53 hash of the validated JSON with sorted keys (Utilities.ts createDefinitionId; BehaviourTree.ts:77). The JSON is not normalised. MDSL `action [A]` becomes `{type:'action',call:'A',args:[]}` (MDSLDefinitionParser.ts:653-657), while JSON `args` is optional (BehaviourTreeDefinition.ts:14) and the README's own JSON examples leave it out (README:195). So a tree built from the README-style JSON rejects a snapshot from the equivalent MDSL with 'snapshot does not match the tree's definition'. The test (step2.patch +210-233) passes `args` on both sides and hides this. Non-snapshot inputs (null, string, number, array, {}, partial objects) are rejected, and a test checks the tree is unchanged afterwards. A pending promise is saved as `updatePromiseResult: null`, and the action is called again on the next step. The node is still shown as RUNNING rather than READY, so an `entry` callback would not run again. The limitation is documented in the README (step2.patch +12).",
+      "s3_fixes": "Step 3 changes only tests (step3.patch). With the step-2 code neither report reproduces: restoreSnapshot assigns `_state` directly (Node.ts restoreSnapshot), and getSnapshot/restoreSnapshot build new objects, including the copy of Action's updatePromiseResult. So adding regression tests and no code change is right. The tests cover: no onNodeStateChange calls across repeated restores, with the expected transitions on the next step; the snapshot unchanged after stepping the source tree and the restored tree; and a snapshot taken right after restore deep-equals the original across 5 steps. The commit message ('pin that…') says honestly that nothing was fixed. The tests use only getDeltaTime, so the Date-mode wait case is not covered.",
+      "design": "Each node type owns its state through getSnapshot/validateSnapshot/restoreSnapshot overrides in Lotto, Repeat, Retry, Action and Wait, with the shared logic in Node. Validate-then-restore is clean. Weaknesses: a new protected `getChildNodes()` duplicates the existing `getChildren` on Composite and Decorator (Composite.ts, Decorator.ts). NodeSnapshot is one flat type with optional fields for every node kind rather than a discriminated union. NodeSnapshot is exported as well as BehaviourTreeSnapshot, which widens the public API. The hand-rolled hash avoids adding a dependency.",
+      "tests": "One new file, test/BehaviourTreeSnapshot.spec.ts, uses mocha, chai and sinon fake timers. A replay harness (assertRestoredTreeBehavesLikeOriginal) compares agent call logs, node details and state after every possible snapshot point, across 19 scenarios. There are table-driven validation tests and wait tests for both time modes. No existing test is touched. Gaps: equivalence with JSON that leaves out `args`/attribute args (the gap that hides the s2 bug), and a stale settling promise after restore.",
+      "docs": "The README adds a features bullet, snapshot()/restore() sections with an example, a list of caveats, and the pending-promise limitation as a bold 'Limitation:' paragraph next to the API. package.json and package-lock.json move to 4.4.0, with a Version History row updated in step 2 for the same unreleased version. The README's claim that 'An MDSL definition and its equivalent JSON definition count as the same definition' is wrong for JSON written the way the README itself writes it.",
+      "process": "There are 7 commits with conventional messages that describe them. Step 1 has two feature commits, a docs/version commit, and a 'fix JSDoc tags' fixup of the agent's own earlier commit. Step 2 has one commit per gap. Step 3 has one honest test-only commit. No new dependencies are added and nothing beyond the request appears, apart from exporting NodeSnapshot."
+    },
+    "unmet_requirements": [
+      "Step 2: an MDSL definition and its equivalent JSON definition are not always treated as the same. JSON that leaves out the optional `args` (as the README examples do) hashes differently from MDSL, which always emits `args: []`, so restore rejects it.",
+      "Step 2 (partial): an action whose promise was pending is restored with state RUNNING rather than as not started (READY). The action function is called again, but an `entry` callback is not."
+    ],
+    "overall": 7,
+    "strengths": [
+      "Each node type saves and restores its own state, and validation of the whole tree runs before any write, so a failed restore leaves the tree unchanged.",
+      "The replay test harness snapshots at every step of 19 scenarios and checks call order, node details and state against the original tree, plus Date and getDeltaTime wait tests with sinon fake timers.",
+      "The README documents the API with an example, the caveats and the pending-promise limitation; the version bump and history row follow the repository convention; step 3 honestly adds pinning tests instead of inventing a fix."
+    ],
+    "issues": [
+      "The definition id hashes the raw JSON without normalising it, so README-style JSON (no `args`) rejects snapshots from the equivalent MDSL (MDSLDefinitionParser.ts:656 vs BehaviourTreeDefinition.ts:14). The step 2 test only passes because it spells out `args` in the JSON.",
+      "Restoring into the same tree while its promise is pending lets the old promise later write its result into the new run, because the `isUsingUpdatePromise` guard (Action.ts:118,130) does not tell promises apart. The pending action is also restored as RUNNING rather than not started.",
+      "Minor design duplication and API width: `getChildNodes()` duplicates the existing `getChildren`, the snapshot type is one flat optional-field type, and the internal `NodeSnapshot` is also exported."
+    ],
+    "verdict": "This is solid, well-structured work: per-node snapshot and restore, thorough replay-based tests and good documentation cover steps 1 and 3 well. It should not be merged as is, because step 2's core requirement that MDSL and equivalent JSON definitions match fails for ordinary JSON without `args`, and the tests hide it."
+  }
+}

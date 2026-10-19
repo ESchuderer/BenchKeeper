@@ -1,0 +1,391 @@
+{
+  "arm": "AF",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 792,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "mattpocock-skills",
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 182913,
+    "result_events": 3,
+    "turns": 62,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 1.8908523000000002,
+    "usage": {
+      "input": 124,
+      "cache_creation": 202344,
+      "cache_read": 3520883,
+      "output": 72914,
+      "thinking": 30518
+    }
+  },
+  "workflow": {
+    "tool_calls": 70,
+    "subagent_tool_calls": 0,
+    "skills": [],
+    "agents": [],
+    "tiers": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": true,
+    "plan_first": false,
+    "verified": true,
+    "review": false,
+    "last_tool": "Bash f=test/BehaviourTreeSnapshot.spec.ts && cp $f /tmp/full.ts && n=$(grep -n 'regar"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "ed70ada50d57578b"
+  },
+  "lines": {
+    "source": 5126,
+    "test": 7492,
+    "files": 71
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": true,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-api",
+          "ok": true
+        },
+        {
+          "id": "S1-resume",
+          "ok": true
+        },
+        {
+          "id": "S1-counters",
+          "ok": true
+        },
+        {
+          "id": "S1-random",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-clock",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-delta",
+          "ok": true
+        },
+        {
+          "id": "S1-details",
+          "ok": true
+        },
+        {
+          "id": "S1-fresh-run",
+          "ok": true
+        },
+        {
+          "id": "Q1-tests",
+          "ok": true
+        },
+        {
+          "id": "Q1-intact",
+          "ok": true
+        },
+        {
+          "id": "Q1-deps",
+          "ok": true
+        },
+        {
+          "id": "Q1-docs",
+          "ok": true
+        },
+        {
+          "id": "Q1-history",
+          "ok": true
+        },
+        {
+          "id": "Q1-committed",
+          "ok": true
+        },
+        {
+          "id": "Q1-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 15,
+      "total": 15,
+      "suite_ok": true,
+      "minutes": 6.4,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 33,
+        "subagent_tool_calls": 0,
+        "skills": [],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add src test && git commit -q -m \"feat: add snapshot and restore methods to "
+      },
+      "cost_usd_api_equivalent": 0.9190068,
+      "tokens": {
+        "input": 50,
+        "cache_creation": 89047,
+        "cache_read": 1706788,
+        "output": 39204,
+        "thinking": 15697
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.12,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.03,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.14,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.03,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.02,
+        "weekly_share": 0
+      }
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-reject",
+          "ok": true
+        },
+        {
+          "id": "S2-unchanged",
+          "ok": true
+        },
+        {
+          "id": "S2-equivalent",
+          "ok": true
+        },
+        {
+          "id": "S2-invalid",
+          "ok": true
+        },
+        {
+          "id": "S2-async",
+          "ok": true
+        },
+        {
+          "id": "S2-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q2-tests",
+          "ok": true
+        },
+        {
+          "id": "Q2-intact",
+          "ok": true
+        },
+        {
+          "id": "Q2-deps",
+          "ok": true
+        },
+        {
+          "id": "Q2-docs",
+          "ok": true
+        },
+        {
+          "id": "Q2-history",
+          "ok": false
+        },
+        {
+          "id": "Q2-committed",
+          "ok": true
+        },
+        {
+          "id": "Q2-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 12,
+      "total": 13,
+      "suite_ok": true,
+      "minutes": 3.3,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 18,
+        "subagent_tool_calls": 0,
+        "skills": [],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git checkout dist && git add src test && git commit -q -m \"feat: tie snapshots t"
+      },
+      "cost_usd_api_equivalent": 0.5015735000000001,
+      "tokens": {
+        "input": 34,
+        "cache_creation": 58981,
+        "cache_read": 877615,
+        "output": 17782,
+        "thinking": 8076
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.14,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.03,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.15,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.04,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0.01
+      }
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-no-events",
+          "ok": true
+        },
+        {
+          "id": "S3-detached",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q3-tests",
+          "ok": true
+        },
+        {
+          "id": "Q3-intact",
+          "ok": true
+        },
+        {
+          "id": "Q3-deps",
+          "ok": true
+        },
+        {
+          "id": "Q3-history",
+          "ok": true
+        },
+        {
+          "id": "Q3-committed",
+          "ok": true
+        },
+        {
+          "id": "Q3-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 9,
+      "total": 9,
+      "suite_ok": true,
+      "minutes": 3.1,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 19,
+        "subagent_tool_calls": 0,
+        "skills": [],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": false,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash f=test/BehaviourTreeSnapshot.spec.ts && cp $f /tmp/full.ts && n=$(grep -n 'regar"
+      },
+      "cost_usd_api_equivalent": 0.4702719999999999,
+      "tokens": {
+        "input": 40,
+        "cache_creation": 54316,
+        "cache_read": 936480,
+        "output": 15928,
+        "thinking": 6745
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.15,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.04,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.16,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.04,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "ed70ada50d57578b",
+    "bk": "v1"
+  }
+}

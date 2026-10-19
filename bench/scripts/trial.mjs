@@ -8,7 +8,7 @@ import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.
 import { claudePhases, opencodePhases, shellWriteTarget } from './phases.mjs';
 
 // Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3' to 'v5': rules and the
-// following-dev-workflow skill, 'v6': the setup-v4.0 plugin), spec tool.
+// following-dev-workflow skill, 'v6': the setup-v4.0 plugin, 'v7': the setup-v5.0 plugin), spec tool.
 export const ARMS = {
   A: [null, 0, 0, null], B: [null, 1, 0, null],
   F: ['as', 0, 0, null], G: ['sp', 0, 0, null], H: ['ecc', 0, 0, null],
@@ -18,7 +18,7 @@ export const ARMS = {
   O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'], AB: [null, 0, 0, 'openspec'], AC: [null, 0, 0, 'speckit'],
   V: ['mp', 0, 0, null], W: ['mp', 0, 0, 'openspec'], X: ['mp', 1, 1, null], Y: ['mp', 1, 1, 'openspec'],
   AD: ['mp', 1, 'v3', null], AE: ['mp', 1, 'v3', 'openspec'], AF: ['mp', 1, 0, null], AG: ['mp', 1, 'v4', null], AH: ['mp', 1, 'v5', null],
-  AL: ['mp', 1, 'v6', null],
+  AL: ['mp', 1, 'v6', null], AM: ['mp', 1, 'v7', null], AN: ['mp', 0, 'v6', null],
 };
 
 // What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
@@ -29,7 +29,7 @@ function expect(fw, pt, bk, spec) {
   if (fw === 'ecc') e.skills.push('tdd-workflow'), e.agents.push('planner', 'code-reviewer');
   if (fw === 'mp') e.plugins.push('mattpocock-skills'), e.skills.push('mattpocock-skills:tdd');
   if (pt) e.plugins.push('ponytail'), e.skills.push('ponytail:ponytail'), e.hooks.push('PONYTAIL MODE ACTIVE');
-  if (bk === 'v6') e.plugins.push('benchkeeper'), e.skills.push('find-skills', 'benchkeeper:following-dev-workflow');
+  if (bk === 'v6' || bk === 'v7') e.plugins.push('benchkeeper'), e.skills.push('find-skills', 'benchkeeper:following-dev-workflow');
   else if (bk) e.skills.push('find-skills', ['v3', 'v4', 'v5'].includes(bk) ? 'following-dev-workflow' : 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
   if (spec === 'openspec') e.skills.push('openspec-propose');
   if (spec === 'speckit') e.skills.push('speckit-specify');

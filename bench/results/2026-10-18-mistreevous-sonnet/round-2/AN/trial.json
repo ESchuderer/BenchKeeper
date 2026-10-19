@@ -1,0 +1,471 @@
+{
+  "arm": "AN",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1734,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "benchkeeper",
+      "mattpocock-skills"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 200872,
+    "result_events": 3,
+    "turns": 116,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 4.1978986,
+    "usage": {
+      "input": 290,
+      "cache_creation": 434944,
+      "cache_read": 11352066,
+      "output": 152348,
+      "thinking": 63369
+    }
+  },
+  "workflow": {
+    "tool_calls": 158,
+    "subagent_tool_calls": 30,
+    "skills": [
+      "benchkeeper:following-dev-workflow",
+      "mattpocock-skills:tdd",
+      "mattpocock-skills:code-review",
+      "code-review",
+      "benchkeeper:following-dev-workflow",
+      "benchkeeper:following-dev-workflow"
+    ],
+    "agents": [
+      "Explore",
+      "Explore"
+    ],
+    "tiers": [
+      "full",
+      "standard"
+    ],
+    "plan_or_spec_files": [
+      ".scratch/snapshot-restore/spec.md"
+    ],
+    "tests_written": true,
+    "tests_first": true,
+    "plan_first": false,
+    "verified": true,
+    "review": true,
+    "last_tool": "Bash git add test/Snapshot.spec.ts && git commit -q -m \"test: cover restore reporting"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "ed70ada50d57578b"
+  },
+  "lines": {
+    "source": 5414,
+    "test": 7973,
+    "files": 74
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": true,
+    "node_version": false,
+    "changelog": false,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-api",
+          "ok": true
+        },
+        {
+          "id": "S1-resume",
+          "ok": true
+        },
+        {
+          "id": "S1-counters",
+          "ok": true
+        },
+        {
+          "id": "S1-random",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-clock",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-delta",
+          "ok": true
+        },
+        {
+          "id": "S1-details",
+          "ok": true
+        },
+        {
+          "id": "S1-fresh-run",
+          "ok": true
+        },
+        {
+          "id": "Q1-tests",
+          "ok": true
+        },
+        {
+          "id": "Q1-intact",
+          "ok": true
+        },
+        {
+          "id": "Q1-deps",
+          "ok": true
+        },
+        {
+          "id": "Q1-docs",
+          "ok": true
+        },
+        {
+          "id": "Q1-history",
+          "ok": true
+        },
+        {
+          "id": "Q1-committed",
+          "ok": true
+        },
+        {
+          "id": "Q1-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 15,
+      "total": 15,
+      "suite_ok": true,
+      "minutes": 19.5,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 114,
+        "subagent_tool_calls": 30,
+        "skills": [
+          "benchkeeper:following-dev-workflow",
+          "mattpocock-skills:tdd",
+          "mattpocock-skills:code-review",
+          "code-review"
+        ],
+        "agents": [
+          "Explore",
+          "Explore"
+        ],
+        "tiers": [
+          "full"
+        ],
+        "plan_or_spec_files": [
+          ".scratch/snapshot-restore/spec.md"
+        ],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": true,
+        "review": true,
+        "last_tool": "Bash git add src test && git commit -q -m \"fix: reject snapshots with a promise on a "
+      },
+      "cost_usd_api_equivalent": 2.8832758000000003,
+      "tokens": {
+        "input": 202,
+        "cache_creation": 288017,
+        "cache_read": 8617678,
+        "output": 107018,
+        "thinking": 49509
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.1,
+          "five_hour_reset": 1792392000,
+          "weekly": 0.18,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.12,
+          "five_hour_reset": 1792392000,
+          "weekly": 0.19,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.02,
+        "weekly_share": 0.01
+      }
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-reject",
+          "ok": true
+        },
+        {
+          "id": "S2-unchanged",
+          "ok": true
+        },
+        {
+          "id": "S2-equivalent",
+          "ok": true
+        },
+        {
+          "id": "S2-invalid",
+          "ok": true
+        },
+        {
+          "id": "S2-async",
+          "ok": true
+        },
+        {
+          "id": "S2-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q2-tests",
+          "ok": true
+        },
+        {
+          "id": "Q2-intact",
+          "ok": true
+        },
+        {
+          "id": "Q2-deps",
+          "ok": true
+        },
+        {
+          "id": "Q2-docs",
+          "ok": true
+        },
+        {
+          "id": "Q2-history",
+          "ok": false
+        },
+        {
+          "id": "Q2-committed",
+          "ok": true
+        },
+        {
+          "id": "Q2-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 12,
+      "total": 13,
+      "suite_ok": true,
+      "minutes": 5.5,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 27,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": false,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add src/nodes test && git commit -q -m \"fix: save an action with a pending p"
+      },
+      "cost_usd_api_equivalent": 0.887758,
+      "tokens": {
+        "input": 54,
+        "cache_creation": 90773,
+        "cache_read": 1896980,
+        "output": 33486,
+        "thinking": 10317
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.12,
+          "five_hour_reset": 1792392000,
+          "weekly": 0.19,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.13,
+          "five_hour_reset": 1792392000,
+          "weekly": 0.19,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-no-events",
+          "ok": true
+        },
+        {
+          "id": "S3-detached",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q3-tests",
+          "ok": true
+        },
+        {
+          "id": "Q3-intact",
+          "ok": true
+        },
+        {
+          "id": "Q3-deps",
+          "ok": true
+        },
+        {
+          "id": "Q3-history",
+          "ok": false
+        },
+        {
+          "id": "Q3-committed",
+          "ok": true
+        },
+        {
+          "id": "Q3-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 8,
+      "total": 9,
+      "suite_ok": true,
+      "minutes": 3.4,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 17,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [
+          "standard"
+        ],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add test/Snapshot.spec.ts && git commit -q -m \"test: cover restore reporting"
+      },
+      "cost_usd_api_equivalent": 0.4268648,
+      "tokens": {
+        "input": 34,
+        "cache_creation": 56154,
+        "cache_read": 837408,
+        "output": 11844,
+        "thinking": 3543
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.13,
+          "five_hour_reset": 1792392000,
+          "weekly": 0.19,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.13,
+          "five_hour_reset": 1792392000,
+          "weekly": 0.19,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0,
+        "weekly_share": 0
+      }
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "ed70ada50d57578b",
+    "bk": "v1"
+  },
+  "phases": {
+    "phases": {
+      "explore": {
+        "calls": 1,
+        "minutes": 0,
+        "usd": 0.024
+      },
+      "build": {
+        "calls": 68,
+        "minutes": 14.4,
+        "usd": 2.124
+      },
+      "verify": {
+        "calls": 16,
+        "minutes": 3.7,
+        "usd": 0.469
+      },
+      "spec": {
+        "calls": 1,
+        "minutes": 0.2,
+        "usd": 0.027
+      },
+      "test": {
+        "calls": 25,
+        "minutes": 4.3,
+        "usd": 0.812
+      },
+      "review": {
+        "calls": 31,
+        "minutes": 5.9,
+        "usd": 0.741
+      }
+    },
+    "subagents": {
+      "Explore": {
+        "calls": 14,
+        "minutes": 2.9,
+        "usd": 0.277
+      },
+      "unknown": {
+        "calls": 12,
+        "minutes": 2.5,
+        "usd": 0.259
+      }
+    },
+    "method": "estimate"
+  }
+}

@@ -1,7 +1,7 @@
 // Benchmark trials for the /bench/ pages, read at build time from bench/results/<run>/round-<n>/<arm>/
 // (trial.json, review.json, drawing-review.json, screenshots/), the run's manifest.txt, final-score.json (bench/scripts/final-score.mjs)
 // and brownfield-score.json (bench/scripts/brownfield-score.mjs).
-// Cost fields are never read (owner decision).
+// Cost: the API-equivalent USD the transcript reports (owner decision 2026-10-18). Trials bill the subscription, not the API.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -15,7 +15,7 @@ const ARMS = {
   L: { fw: 'F', bk: true }, M: { fw: 'G', bk: true }, N: { fw: 'H', bk: true }, X: { fw: 'V', bk: true },
   C: { fw: 'F', bk: true, spec: 'OpenSpec' }, D: { fw: 'G', bk: true, spec: 'OpenSpec' },
   E: { fw: 'H', bk: true, spec: 'OpenSpec' }, Y: { fw: 'V', bk: true, spec: 'OpenSpec' },
-  AD: { fw: 'V', bk: true, label: 'BK v3 + Matt Pocock' }, AE: { fw: 'V', bk: true, spec: 'OpenSpec', label: 'BK v3 + Matt Pocock + OpenSpec' }, AF: { fw: 'V', ponytail: true }, AG: { fw: 'V', bk: true, label: 'BK v4 + Matt Pocock' }, AH: { fw: 'V', bk: true, label: 'BK v5 + Matt Pocock' }, AL: { fw: 'V', bk: true, label: 'BenchKeeper setup-v4.0 + Matt Pocock' },
+  AD: { fw: 'V', bk: true, label: 'BK v3 + Matt Pocock' }, AE: { fw: 'V', bk: true, spec: 'OpenSpec', label: 'BK v3 + Matt Pocock + OpenSpec' }, AF: { fw: 'V', ponytail: true }, AG: { fw: 'V', bk: true, label: 'BK v4 + Matt Pocock' }, AH: { fw: 'V', bk: true, label: 'BenchKeeper setup-v3.3 + Matt Pocock' }, AL: { fw: 'V', bk: true, label: 'BenchKeeper setup-v4.0 + Matt Pocock' }, AM: { fw: 'V', bk: true, label: 'BenchKeeper setup-v5.0 + Matt Pocock' }, AN: { fw: 'V', bk: true, ponytail: false, label: 'BenchKeeper setup-v4.0 + Matt Pocock, no Ponytail' },
   Q: { framework: 'targeted agent-skills', spec: 'OpenSpec' }, R: { fw: 'G' }, S: { fw: 'G', spec: 'OpenSpec', label: 'OpenSpec + Superpowers (oso)' },
   T: { fw: 'F' }, U: { fw: 'F', spec: 'OpenSpec' }, Z: { fw: 'V' }, AA: { fw: 'V', spec: 'OpenSpec' },
 };
@@ -25,7 +25,7 @@ export function arm(id) {
   if (!a) throw new Error(`unknown arm ${id}`);
   const framework = a.framework || FW[a.fw] || 'none';
   const parts = [a.bk && 'BK', framework !== 'none' && framework, a.ponytail && !a.bk && 'Ponytail', a.spec].filter(Boolean);
-  return { framework, spec: a.spec || 'none', bk: Boolean(a.bk), ponytail: Boolean(a.ponytail || a.bk), setup: a.label || parts.join(' + ') || 'plain' };
+  return { framework, spec: a.spec || 'none', bk: Boolean(a.bk), ponytail: a.ponytail ?? Boolean(a.bk), setup: a.label || parts.join(' + ') || 'plain' };
 }
 
 // Runs kept off the site (owner, 2026-10-16: no Haiku). Their data and Markdown report stay in bench/results.
@@ -67,7 +67,7 @@ export function loadTrials(results) {
           runtime: t.runtime === 'opencode' ? 'OpenCode' : 'Claude Code', arm: id, setup: arm(id).setup,
           features: t.score?.features_passed ?? null, robustness: t.score?.robustness_passed ?? null,
           featuresOf: Object.keys(t.score?.features || {}).length || null, robustnessOf: Object.keys(t.score?.robustness || {}).length || null,
-          minutes: Math.round((t.wall_seconds ?? 0) / 60), overall: r?.overall ?? null,
+          minutes: Math.round((t.wall_seconds ?? 0) / 60), cost: t.outcome?.cost_usd_api_equivalent ?? null, overall: r?.overall ?? null,
           protocol: t.method?.protocol ?? null, criteria: Object.keys(r?.scores || {}).length || null,
           final: (round === 'round-1' && finals.get(id)) || null, mutation: t.score?.mutation?.score ?? null, drawings: drawingReview(json(join(dir, 'drawing-review.json'))),
           brownfield: brownfield.get(`${round}/${id}`) ?? null,
@@ -131,7 +131,7 @@ export function rankArms(trials) {
   const rank = (ts) => {
     const rows = [...new Set(ts.map((t) => t.arm))].map((id) => {
       const rounds = ts.filter((t) => t.arm === id).sort((a, b) => a.round - b.round);
-      return { arm: id, setup: rounds[0].setup, runtime: rounds[0].runtime, score: median(rounds.map(value)), minutes: median(rounds.map((t) => t.minutes)), rounds };
+      return { arm: id, setup: rounds[0].setup, runtime: rounds[0].runtime, score: median(rounds.map(value)), minutes: median(rounds.map((t) => t.minutes)), cost: median(rounds.map((t) => t.cost)), rounds };
     }).sort((a, b) => desc(a.score, b.score) || a.minutes - b.minutes);
     rows.forEach((r, i) => { r.rank = i && rows[i - 1].score === r.score ? rows[i - 1].rank : i + 1; });
     return rows;

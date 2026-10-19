@@ -1,0 +1,44 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.3245040000000001,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 4,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 4,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "step1.patch: `snapshot()` returns `{version, root}` built only from primitives and new arrays (Node.ts getSnapshot, l.1999-2010). `TreeSnapshot`/`NodeSnapshot` are exported as types from src/index.ts (l.1929-1936). restore() validates the whole snapshot before it changes anything. The snapshot keeps node states, child states, repeat/retry target and current counts (Repeat.ts/Retry.ts getSnapshotData), the lotto child index (Lotto.ts l.2124), and wait totalDuration/waitedDuration (Wait.ts l.2369-2385). With the clock, a restored wait sets `initialUpdateTime = now - waitedDuration` (l.2412), so time between snapshot and restore does not count, in both time modes. A finished tree restores as finished and re-rolls its random choices on the next run (test l.3158-3206). The README has API sections plus a Snapshots section with an example. Every requirement is met. The only flaw is in the example, which belongs under docs.",
+      "s1_correctness": "Scenario tests restore every snapshot taken along a run and replay the remaining steps. They cover sequence, selector, parallel, race, all, flip/succeed/fail, branch subtrees, guards and callbacks, fixed, random and infinite repeat and retry, lotto with and without weights, and wait (fixed, random, indefinite, aborted) under both the clock and getDeltaTime. The clock-mode snapshot counts time since the last step (Wait.ts l.2374-2376), and Infinity is clamped so it survives JSON. One gap remains in Action.restoreSnapshotData (app/src/nodes/leaf/Action.ts:224): it sets `isUsingUpdatePromise = true` when the snapshot has a settled result. A promise the target tree was still waiting on before restore therefore passes the `if (!this.isUsingUpdatePromise)` check in its `then` callback (l.118-127) and overwrites the restored result. Restoring into an already-stepped tree is documented as supported, so this scenario counts.",
+      "s2_validation": "step2.patch: BehaviourTreeDefinitionFingerprint.ts canonicalises the validated JSON. It sorts keys, drops `undefined`, `args: []` and `succeedOnAbort: false`, orders root nodes by id, then hashes the result. restore() throws \"error restoring snapshot: the snapshot does not match the tree's definition\" (BehaviourTree.ts:165-166). Arrays, null and objects without a version/definition are rejected. Tests restore across MDSL, MDSL with different whitespace and comments, full JSON and minimal JSON. They reject eight kinds of one-detail differences, a non-equivalent JSON definition and 16 kinds of non-snapshot input, and check that the tree is unchanged after each rejection (step2 test l.930-1018). A pending action is snapshotted as READY (Action.ts:178-184), with tests that the source tree is untouched and that the entry callback is called again. The limitation is documented in the README next to snapshot().",
+      "s3_fixes": "Report 2: the regression test 'a snapshot taken after restoring ... however much time has passed' (step3 l.383-397) was committed in ef22a02, before the fix in 0e0e01f. The cause, a clock wait recomputing waitedDuration from Date in getSnapshotData, is fixed with an `isAwaitingUpdateAfterRestore` flag (Wait.ts:49,56,128,168), and the quirk it introduces is documented. Independence tests cover stepping both the source and the restored tree. Report 1: the existing restore already sets `_state` directly without onNodeStateChange (Node.ts:375-380). The agent added a broader regression test (restore into new, stepped and finished trees, then compare the next step's reports) and made no code change. That is defensible but leaves report 1 without a demonstrated fix. Version bumped to 4.4.1. No unrelated changes.",
+      "design": "Each node type owns its own state through overridable getSnapshotData/validateSnapshotData/restoreSnapshotData hooks in Node.ts. Composites and decorators expose their children, and Lotto, Repeat, Retry, Wait and Action implement the hooks. The public surface is two methods plus exported types. Weaknesses: NodeSnapshot is one flat type with every per-node field optional, not a discriminated union, so callers need `!` assertions (e.g. Repeat.ts restoreSnapshotData). A new protected `getChildNodes()` duplicates the existing `getChildren` arrow properties. `uid` lost its `readonly`. Otherwise the change follows the repo's file and naming style, and the fingerprint lives in its own module with no dependency.",
+      "tests": "test/Snapshot.spec.ts uses mocha, chai and sinon fake timers like the rest of the suite. The generic `assertSnapshotsRestoreEquivalently` helper checks agent call order, node details and tree state after every possible snapshot point, with three days passing before each restore. Separate cases cover both wait time modes, promise outcomes (resolved, rejected, invalid value, pending), finished trees with random re-rolls, 20 kinds of corrupted snapshot, definition matching, non-snapshot inputs, onNodeStateChange on restore, and snapshot independence. The only removed test is the agent's own step 1 'different definition' test, replaced by stronger ones in step 2. No baseline tests were touched.",
+      "docs": "README adds API entries, a Snapshots section, the pending-promise limitation (step 2) and a wait-timing note (step 3). The Version History rows (4.4.0 extended in step 2 since the feature was unreleased; 4.4.1 in step 3) match package.json and package-lock. The example is not runnable as written: `WaitForApproval: () => (approvals.has(\"pr-42\") ...)` (app/README.md:128) uses an `approvals` variable that is never declared, so the example throws ReferenceError.",
+      "process": "17 commits split by concern (feat per node type, test, docs+version, separate dist builds) with descriptive conventional messages. In step 3 the test commit (ef22a02) comes before the fix (0e0e01f). No new dependencies and no unrequested features; the fingerprint hash is implemented inline instead of adding a package."
+    },
+    "unmet_requirements": [
+      "Step 1 (docs): the README example is not runnable because `approvals` is never declared.",
+      "Step 3 report 1: only a regression test was added, with no code change. The existing behaviour already satisfied the report, so no failing-then-fixed cause was shown."
+    ],
+    "overall": 8,
+    "strengths": [
+      "Each node type owns its snapshot state through per-node hooks, and the whole snapshot is validated before anything changes, so a rejected restore leaves the tree exactly as it was.",
+      "Very strong scenario tests: every snapshot taken along a run is restored and replayed, checking agent call order and node details across all node types and both wait time modes.",
+      "Definition matching canonicalises the validated JSON, so MDSL, its whitespace and comment variants, and full or minimal JSON all match while one-detail differences are rejected with the required message."
+    ],
+    "issues": [
+      "Action.restoreSnapshotData (Action.ts:224) sets isUsingUpdatePromise = true for a settled snapshot result. A promise the target tree was already waiting on can then resolve later and overwrite the restored result.",
+      "The README example uses an undeclared `approvals` variable (README.md:128), so it throws when run.",
+      "NodeSnapshot is a flat type with every per-node field optional (not a discriminated union), so restore code relies on `!` assertions; getChildNodes duplicates the existing getChildren."
+    ],
+    "verdict": "This is a thorough, well-structured implementation. It meets nearly every stated requirement, is backed by unusually rigorous equivalence tests, and adds definition fingerprinting that treats MDSL and JSON as equivalent. Remaining concerns are minor: a stale-promise edge case when restoring into an already-stepped tree, a README example that cannot run, and loose snapshot typing. I would merge it after small fixes."
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.4531696,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "Every requirement in steps/1.md is met. `BehaviourTree.snapshot()` returns a plain `{version, definition, root}` object (src/BehaviourTree.ts:134-140), and `BehaviourTreeSnapshot` and `NodeSnapshot` are exported from src/index.ts. `restore()` brings back node states and ids, so `getTreeNodeDetails()` gives the same result. Repeat and retry targets and counters are kept (Repeat/Retry getSnapshot), and so are the lotto `selectedChildIndex` and wait `totalDuration`/`waitedDuration`. A restored wait waits only for the remaining time in both time modes: Wait.ts:153-162 resets `initialUpdateTime`, and in delta mode `waitedDuration` is restored. A finished tree restores as finished, and `step()` resets it, so the random choices are made again. The README has an API section and an example (all.patch README lines 17-60). One gap was temporary: in step 1, `snapshot()` threw while a promise was pending (commit 4659490), and step 2 replaced that.",
+      "s1_correctness": "Every stateful node field in the library is covered; a grep for private fields shows only Lotto.selectedChild, Repeat/Retry counters, Wait timing and the Action promise flags. Wait.getSnapshot adds the clock time since the last update, which is correct, and clamps an Infinity waited duration so it survives JSON. Lotto validation allows a null draw for a lotto aborted by a guard before it drew (Lotto.ts:512-528). `restoreSnapshot` sets `_state` directly, not through `setState`. The harness `assertRestoredTreeBehavesLikeOriginal` restores at every step and checks the agent call log and node details for sequence, selector, parallel, race, all, flip, succeed, fail, guards and callbacks, branches, nested weighted lotto/repeat/retry, finished trees and both wait time modes.",
+      "s2_validation": "`createDefinitionId` (BehaviourTreeSnapshotUtilities.ts) sorts object keys, drops empty `args` and `succeedOnAbort:false`, orders the roots, and hashes the result with cyrb53. Tests cover MDSL, converted JSON, hand-written JSON, reordered roots, and a single-object root, and all are accepted in both directions. Eleven kinds of definition change are rejected with \"invalid snapshot: the snapshot does not match the tree's definition\". null, undefined, strings, numbers, booleans, arrays and objects without the fields are rejected. The whole snapshot is validated before anything is restored (BehaviourTree.ts:149-167). Tests check that the details, the snapshot and the onNodeStateChange calls are unchanged after a rejected restore. A pending promise is saved as READY (Action.ts:189-197), and its old result is dropped on restore. The README has an 'Actions that are waiting for a promise' section next to the API.",
+      "s3_fixes": "Report 1 is fixed at its cause. Step 3 removes the `notifications` queue from `restoreSnapshot` in every node class and from `BehaviourTree.restore` (step3.patch 484-655). A test checks that `onNodeStateChange` is not called during restore and that the next step reports changes from the restored states. The step-1 tests that asserted the old behaviour were replaced, which is appropriate. Report 2: the source needed no change, because `getSnapshot` builds new objects and `restore` copies only primitives. The agent added three regression tests for clock and delta time. They run only under sinon fake timers, so they cannot show that for a running wait in clock mode, a snapshot taken after `restore(s)` with the real clock includes the milliseconds since the restore (Wait.ts:117-118 with 161), so it is not always equal to `s`. The commits do not show whether each test was written before its fix.",
+      "design": "Each node type owns its own getSnapshot, validateSnapshot and restoreSnapshot (Node, Composite, Decorator, Lotto, Repeat, Retry, Wait, Action), and validation is kept separate from restoring so a rejected restore is atomic. The public API is two methods plus exported types, in new files that follow the repository's *Utilities naming. Weaknesses: the `as NodeSnapshot`/`as RepeatNodeSnapshot` casts on spreads loosen the discriminated union; `uid` is no longer readonly (Node.ts:102) so ids can be restored; and the hand-rolled definition canonicaliser special-cases two keys.",
+      "tests": "A new mocha, chai and sinon spec, test/BehaviourTreeSnapshot.spec.ts (about 1,900 lines), reuses `findNode` from TestUtilities. It has a step-by-step equivalence harness, more than 25 table-driven cases for invalid input, the MDSL/JSON definition matrix, wait timing in both modes with fake timers, pending, settled and rejected promises in every container type, and the independence checks from step 3. No baseline test was changed or removed. The only gap is that the independence tests do not exercise the real clock.",
+      "docs": "The README adds a features bullet, `snapshot()` and `restore(snapshot)` API entries, and a 'Saving and Restoring a Tree' section with a correct fs-based example. `WaitForApproval` returning `State.RUNNING` is valid under `validateUpdateResult`. The section covers what a snapshot keeps, waiting, finished trees, things to be aware of, and the promise limitation. The Version History table gets a 4.4.0 row with continuation lines added in step 2, before release, and a 4.4.1 row for the step 3 fix. package.json and package-lock.json go 4.3.1 → 4.4.0 → 4.4.1, which follows the repository's convention. The README is wordy but accurate.",
+      "process": "There are 18 commits, each with a focused, descriptive conventional message (feat/fix/docs/test/build). dist is rebuilt in separate build commits, which matches the baseline repository, where dist is committed. No dependencies were added. A few small extras go beyond the steps: a snapshot `version` field, restoring node ids, and a check that a snapshot restores across time modes. The id restore is arguably needed for `getTreeNodeDetails()` to match."
+    },
+    "unmet_requirements": [
+      "Step 3 report 2 (partly): with the real clock, a snapshot taken right after restore(s) of a running clock-mode wait includes the milliseconds since the restore and so may not equal s; the regression tests only use fake timers"
+    ],
+    "overall": 9,
+    "strengths": [
+      "Each node type owns its state through getSnapshot, validateSnapshot and restoreSnapshot, and the whole snapshot is validated before any node changes, so a rejected restore leaves the tree as it was",
+      "The test harness restores at every step and compares the agent call log and node details with the original tree, across all node types, both wait time modes, random choices, guards and finished trees",
+      "Definition matching treats MDSL and equivalent JSON as the same definition (key order, default args and succeedOnAbort, root order) and is tested in both directions; the README documents the pending-promise limitation and its consequences"
+    ],
+    "issues": [
+      "Report 2's 'snapshot right after restore equals s' depends on the clock not advancing: Wait.getSnapshot recomputes `now - initialUpdateTime` for a running clock-mode wait, and the independence tests run only under fake timers, so this is not covered",
+      "Typing is loose inside the node classes: the `as NodeSnapshot`/`as XNodeSnapshot` casts on spread objects bypass the discriminated union, and `Node.uid` lost `readonly` so ids can be restored",
+      "Some scope beyond the steps (snapshot `version` field, cross-time-mode restore) and a long README section; the commits do not show whether the step 3 tests came before the fix"
+    ],
+    "verdict": "This is a complete, careful implementation: snapshot and restore are correct for every stateful node, step 2's definition check and pending-promise handling are atomic and well documented, and the tests are unusually thorough and follow the repository's setup. The remaining gaps are small: a clock-dependent edge in step 3's snapshot-equality requirement that the fake-timer tests do not cover, and some loose casts inside the node classes."
+  }
+}

@@ -15,11 +15,26 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 - Every install command in docs pins an exact version (`pkg@x.y.z`). `/benchkeeper:maintaining-repos` proposes bumps. `setup.sh` installs host tools at the newest release at least 7 days old instead of a pin. Ponytail's marketplace tag in `setup.sh` is bumped by hand.
 - SKILL.md front matter: `description` in double quotes (it contains colons).
 - Editing `plugins/benchkeeper/skills/` or `plugins/benchkeeper/rules/`: call the Skill tool with `mattpocock-skills:writing-for-agents`. Each skill has `agents/openai.yaml` for Codex: user-invoked skills set `allow_implicit_invocation: false`.
+- `plugins/benchkeeper/library/`: the skill library that `setting-up-projects` installs per project (`README.md` is the catalog). The plugin does not load it. Own library skills follow the `skills/` conventions (SKILL.md, `agents/openai.yaml`).
 - Plugin: `.claude-plugin/marketplace.json` (both agents read it) lists `plugins/benchkeeper/`. Its `version` in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` equals the setup version and changes with each changelog entry. Check: `claude plugin validate .`. Try a change for one session: `claude --plugin-dir plugins/benchkeeper`. After a release, ask the user to update the plugin (`claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper`, Codex: `codex plugin marketplace upgrade benchkeeper`) and, when `rules/global.md` or `setup.sh` changed, to run `sh plugins/benchkeeper/setup.sh --apply`. Neither starts on its own.
 - Benchmark conventions (pinned BenchKeeper layer versions, arm variants): `bench/AGENTS.md`.
-- Setup versions: `CHANGELOG.md` and tags `setup-v<major>.<minor>`. A change to `plugins/benchkeeper/` adds a changelog entry and bumps the plugin `version`.
+- Setup versions: `CHANGELOG.md` and tags `setup-v<major>.<minor>`. A change under `plugins/benchkeeper/` raises `version` (`<major>.<minor>.0`) in both `plugin.json` files and adds its changelog entry. The Release workflow checks this on pull requests, and on merge tags the version and publishes its GitHub Release (`.github/scripts/release.sh`, self-check `release.test.sh`).
 - Description, core framework, prerequisites, recommended tools and OpenHands (README), SDLC steps (site only): edit `web/src/data/facts.json`, then run `devcontainer exec --docker-path podman --workspace-folder . node web/scripts/readme.mjs`. Never edit the generated README blocks by hand.
 - `setup.sh` copies `plugins/benchkeeper/rules/global.md` to `~/.claude/rules/00-global.md` and `~/.codex/AGENTS.md`. Self-check: `sh plugins/benchkeeper/setup.test.sh` (CI runs it).
 - `.agents/skills/skill-creator` is vendored from `anthropics/skills` (`skills-lock.json`): do not edit. Update with `DO_NOT_TRACK=1 npx -y skills@1.7.2 add anthropics/skills -s skill-creator -a claude-code -a codex --copy -y`.
 - Evaluations live in `evaluations/<category>/<tool>.md`, indexed in `EVALUATIONS.md`. Update both when a component is added, removed, changed, or new evidence appears.
 - `web/scripts/og.svg` is the source of `web/public/og.png`: `rsvg-convert -w 1200 -h 630`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues of `ESchuderer/BenchKeeper` (`gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repository root, read when present (neither exists yet). See `docs/agents/domain.md`.

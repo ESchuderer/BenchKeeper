@@ -1,0 +1,415 @@
+{
+  "arm": "AM",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1196,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "benchkeeper",
+      "mattpocock-skills",
+      "ponytail"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 109527,
+    "result_events": 3,
+    "turns": 73,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 3.9129724000000015,
+    "usage": {
+      "input": 270506,
+      "cache_creation": 302662,
+      "cache_read": 5367359,
+      "output": 95452,
+      "thinking": 26575
+    }
+  },
+  "workflow": {
+    "tool_calls": 94,
+    "subagent_tool_calls": 17,
+    "skills": [
+      "benchkeeper:following-dev-workflow",
+      "code-review",
+      "benchkeeper:following-dev-workflow",
+      "code-review",
+      "benchkeeper:following-dev-workflow"
+    ],
+    "agents": [],
+    "tiers": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": false,
+    "plan_first": false,
+    "verified": true,
+    "review": true,
+    "last_tool": "Bash npx vitest run 2>&1 | grep -E \"Tests|Test Files|FAIL\"; cd /work && git add -A &&"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "a6d1d4e1139bb268"
+  },
+  "lines": {
+    "source": 10833,
+    "test": 2435,
+    "files": 121
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": true,
+    "lockfile": false,
+    "test_script": false,
+    "lint_or_typecheck": false,
+    "ci": true,
+    "node_version": false,
+    "changelog": true,
+    "docs": true
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-actionlint",
+          "ok": true
+        },
+        {
+          "id": "S1-ci-checks",
+          "ok": true
+        },
+        {
+          "id": "S1-npm-scripts",
+          "ok": true
+        },
+        {
+          "id": "S1-sha-pins",
+          "ok": false
+        },
+        {
+          "id": "S1-permissions",
+          "ok": false
+        },
+        {
+          "id": "S1-no-prt",
+          "ok": true
+        },
+        {
+          "id": "S1-secrets",
+          "ok": true
+        },
+        {
+          "id": "S1-pages-trigger",
+          "ok": false
+        },
+        {
+          "id": "S1-release",
+          "ok": true
+        },
+        {
+          "id": "S1-changelog",
+          "ok": true
+        },
+        {
+          "id": "S1-dependency-updates",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-sections",
+          "ok": true
+        },
+        {
+          "id": "S1-readme-commands",
+          "ok": true
+        },
+        {
+          "id": "S1-commits",
+          "ok": true
+        }
+      ],
+      "passed": 11,
+      "total": 14,
+      "suite_ok": true,
+      "minutes": 5.4,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 31,
+        "subagent_tool_calls": 7,
+        "skills": [
+          "benchkeeper:following-dev-workflow",
+          "code-review"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": false,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": true,
+        "last_tool": "Bash sed -i 's/The workflow fails if the tag differs from `site\\/package.json`, or if"
+      },
+      "cost_usd_api_equivalent": 1.1200086000000007,
+      "tokens": {
+        "input": 66664,
+        "cache_creation": 95230,
+        "cache_read": 1454706,
+        "output": 30491,
+        "thinking": 7530
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.07,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.21,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.08,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.21,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-build",
+          "ok": true
+        },
+        {
+          "id": "S2-route",
+          "ok": true
+        },
+        {
+          "id": "S2-delta",
+          "ok": true
+        },
+        {
+          "id": "S2-overlay",
+          "ok": true
+        },
+        {
+          "id": "S2-units",
+          "ok": true
+        },
+        {
+          "id": "S2-link",
+          "ok": true
+        },
+        {
+          "id": "S2-reuse",
+          "ok": true
+        },
+        {
+          "id": "X2-ci",
+          "ok": true
+        },
+        {
+          "id": "X2-changelog",
+          "ok": true
+        },
+        {
+          "id": "X2-version",
+          "ok": true
+        }
+      ],
+      "passed": 10,
+      "total": 10,
+      "suite_ok": true,
+      "minutes": 12,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 44,
+        "subagent_tool_calls": 10,
+        "skills": [
+          "benchkeeper:following-dev-workflow",
+          "code-review"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": true,
+        "last_tool": "Bash sed -i 's|border-solid align-middle\"></span>|border-solid align-middle\" style=\"b"
+      },
+      "cost_usd_api_equivalent": 2.492094400000001,
+      "tokens": {
+        "input": 203806,
+        "cache_creation": 169494,
+        "cache_read": 3205499,
+        "output": 57128,
+        "thinking": 16630
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.08,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.21,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.1,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.02,
+        "weekly_share": 0.01
+      }
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-bug",
+          "ok": true
+        },
+        {
+          "id": "S3-style",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "X3-ci",
+          "ok": true
+        },
+        {
+          "id": "X3-changelog",
+          "ok": true
+        },
+        {
+          "id": "X3-version",
+          "ok": true
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "suite_ok": true,
+      "minutes": 1.9,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 19,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "benchkeeper:following-dev-workflow"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash npx vitest run 2>&1 | grep -E \"Tests|Test Files|FAIL\"; cd /work && git add -A &&"
+      },
+      "cost_usd_api_equivalent": 0.3008694,
+      "tokens": {
+        "input": 36,
+        "cache_creation": 37938,
+        "cache_read": 707154,
+        "output": 7833,
+        "thinking": 2415
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.1,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.1,
+          "five_hour_reset": 1792410000,
+          "weekly": 0.22,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0,
+        "weekly_share": 0
+      }
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "a6d1d4e1139bb268",
+    "bk": "v7"
+  },
+  "phases": {
+    "phases": {
+      "explore": {
+        "calls": 1,
+        "minutes": 0,
+        "usd": 0.062
+      },
+      "build": {
+        "calls": 43,
+        "minutes": 10.1,
+        "usd": 1.922
+      },
+      "verify": {
+        "calls": 15,
+        "minutes": 5.1,
+        "usd": 0.612
+      },
+      "review": {
+        "calls": 21,
+        "minutes": 2.9,
+        "usd": 0.893
+      },
+      "test": {
+        "calls": 8,
+        "minutes": 1.4,
+        "usd": 0.425
+      }
+    },
+    "subagents": {
+      "unknown": {
+        "calls": 15,
+        "minutes": 12,
+        "usd": 0.611
+      }
+    },
+    "method": "estimate"
+  }
+}

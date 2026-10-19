@@ -1,0 +1,47 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "af4f7622cd343f51cadaf315b62c6181b7a454da60bce1f6c46cc7e24ea1b27c",
+  "cost_usd_api_equivalent": 0.9050810000000001,
+  "review": {
+    "scores": {
+      "s1_ci": 3,
+      "s1_readme": 5,
+      "s1_release": 5,
+      "s2_requirements": 4,
+      "s2_correctness": 4,
+      "s2_fit": 4,
+      "s2_tests": 4,
+      "s3_fixes": 4,
+      "cross_step": 5
+    },
+    "evidence": {
+      "s1_ci": "ci.yml runs `npm ci`, `npm test`, `npm run build` in site/. All three scripts exist in app/site/package.json, and build includes svelte-check. It runs on pull_request and push to main, with `permissions: contents: read` and `persist-credentials: false`. Every action is pinned to a 40-char SHA. The PR title is passed through env, which avoids script injection. There is no pull_request_target. pages.yml gives the build job read-only permissions and puts `pages: write`/`id-token: write` on the deploy job only. Two problems. First, release.yml:179 uses `secrets.RELEASE_PLEASE_TOKEN || github.token`, a secret beyond GITHUB_TOKEN. Second, pages.yml:98 adds `workflow_dispatch`, which can be started from any branch, so 'deploys only from main' is not enforced by the workflow itself. Nothing was run, pushed or published.",
+      "s1_readme": "README (step1.patch 287-356) covers requirements, install (`cd site && npm ci`), develop (dev, preview, index, fieldsets, prepare-data, sample-bullets), test, build (with PAGES_BASE, which vite.config.ts:11 reads), contributing data, releases and license (MIT LICENSE, THIRD-PARTY.md). Every npm script it shows exists in site/package.json. Every file it links exists: .github/ISSUE_TEMPLATE, data/bullets/README.md, CONTRIBUTING.md. CONTRIBUTING adds the record paths and an honest account of what the checks cover.",
+      "s1_release": "The strategy is consistent. version.txt is the source of truth (release-type simple), and release-please mirrors it into site/package.json and the lock file through extra-files. release.yml opens a release PR, and merging it creates the `v`-prefixed tag and the GitHub release. CHANGELOG.md is a stub whose format CONTRIBUTING:265 states as the Conventional Changelog layout, generated, with the sections matching changelog-sections in the config. Dependabot covers npm in /site and actions, with `build`/`ci` prefixes that match the PR-title regex. Conventional Commits 1.0.0 is stated with release effects, and all 7 commits in commits.txt follow it.",
+      "s2_requirements": "Met: the `#/compare/<a>/<b>` route with decoding and a safe fallback (router.ts:349-358); reload works because the route is parsed from location.hash. The SVG has role=img and aria-label 'Profiles of {a} and {b}', with two `path` elements from caseOuterProfile, one viewport and an axis line. The table has the caption 'Dimensions (mm|in)' and the headers Symbol / A name / B name / Difference. Rows come from the cartridge part only, exclude FIELD_UNITS fields and Tol fields (via orderedFields), and are labelled with FIELD_LABELS. Units follow unitSystem(), the 'Default units' setting. The launcher has the 'Compare with' select and the 'Compare' button. German texts are given. Partly met: a metric difference is written with displayNumber (toPrecision 12) rather than formatValue as the spec says ('written the same way… no rounding'). This was a deliberate choice to hide float noise, documented at compare.ts.",
+      "s2_correctness": "Metric values use formatValue, imperial values use displayNumber(v,'in'), and the difference is y − x (B minus A). The test checks P1 11.96/13.03/1.07 against the real records. The overlay uses viewportFor over both profiles and fullSectionPath, so the scale, the axis (r=0) and z=0 head faces are shared. Shotshell and missing-dimension cases are handled (overlay returns null and the view catches the error). Unknown keys show a message. The only deviation is the 12-significant-digit rounding of metric differences.",
+      "s2_fit": "It reuses lib/core (FIELD_LABELS, FIELD_UNITS, GROUP_ORDER, orderedFields, formatValue, PX_PER_MM), lib/shapes2d (adaptMetallic, caseOuterProfile), lib/geom (viewportFor, fullSectionPath), site units.ts, and the shadcn Button, Label and NativeSelect. It follows the App.svelte lazy-chunk, metadata and SiteNavigation patterns. Cartridge.svelte gets one line. One drawback: Compare.svelte:506-511 copies GroupTable's table CSS rules (GroupTable.svelte:226-248) as :global styles instead of sharing them.",
+      "s2_tests": "compare.test.ts tests dimensionRows against the real 308 Win./300 Win. Mag. records: the labels, the exclusion of tolerances, angles, pressures and chamber fields, exact metric values, the imperial conversion, case-sensitive symbols and float noise. It tests overlay for two closed paths, aligned head faces, the axis, shotshell and a missing dimension. router.test.ts adds round-trip and malformed-hash cases. It follows the existing Vitest and @lib/testing/fixtures setup. There are no component-level checks of the accessible names or the launcher, but the repo has no component-test tooling.",
+      "s3_fixes": "Bug: dimensions() now merges both records' groups and returns [a|undefined, b|undefined] pairs. dimensionRows leaves the missing value and the Difference empty (step3.patch 70-125). The tests cover the synthetic case and the real `delta L`/`R3` rows. The i18n lede and the empty-state texts were updated to match in EN and DE. Style: the step 2 CSS already right-aligned the th/td of the three numeric columns and left-aligned the first column (Compare.svelte:508,511, legacy layer after base, with no conflicting rule), so no change was needed and none was made. Code risk: a symbol that the two records place in different groups would get its pair overwritten in the found Map (compare.ts:85-90).",
+      "cross_step": "Commits 7391c84 `feat(site): …` and 6f51821 `fix(site): …` follow the stated convention. Under the stated release-please strategy, CHANGELOG.md and version.txt are generated and must not be edited by hand, so making no manual changelog or version change is correct. The new code adds tests in the existing Vitest setup and respects the boundaries test (compare.ts lives in site/src/lib). From the code read, nothing indicates that `npm test`/`npm run build` would fail."
+    },
+    "unmet_requirements": [
+      "Step 1 (criterion): release.yml uses an optional secret RELEASE_PLEASE_TOKEN beyond GITHUB_TOKEN",
+      "Step 1 (criterion): pages.yml allows workflow_dispatch from any branch, so deploy-only-from-main is not enforced in the workflow",
+      "Step 2 (partly): metric differences are written with displayNumber (12 significant digits) rather than formatValue without rounding"
+    ],
+    "overall": 8,
+    "strengths": [
+      "The compare feature is built from the existing modules (caseOuterProfile, viewportFor/fullSectionPath, orderedFields, FIELD_LABELS/UNITS, formatValue, displayNumber, the shadcn components) and meets the route, accessibility, table and launcher requirements in English and German.",
+      "The step 1 setup is coherent and secure: real npm scripts in CI, SHA-pinned actions, least permissions, the PR title passed via env, and one consistent release-please / version.txt / Conventional Commits strategy that the later commits follow.",
+      "The tests are meaningful and use the real records (values, exclusions, overlay alignment, router edge cases), and the step 3 bug fix comes with targeted tests for `delta L` and `R3`."
+    ],
+    "issues": [
+      "release.yml references a RELEASE_PLEASE_TOKEN secret beyond GITHUB_TOKEN, and pages.yml's workflow_dispatch can deploy from a non-main branch.",
+      "Metric differences are rounded to 12 significant digits via displayNumber instead of being written with formatValue as step 2 specifies. The rounding is sensible, but it departs from the spec as written.",
+      "The merged-groups logic in step 3 keys rows by symbol across groups, so a symbol the two records place in different groups would lose one value. Separately, Compare.svelte duplicates GroupTable's table CSS instead of sharing it."
+    ],
+    "verdict": "The work is solid and consistent across all three steps. The CI, README and release strategy are well built, and the compare view reuses the repository's geometry and field modules, with good tests and a correct fix for the step 3 bug. Minor deviations hold it back from a clean merge: an optional extra secret and a dispatchable Pages deploy in step 1, and metric differences rounded to 12 significant digits against the letter of the step 2 spec."
+  }
+}

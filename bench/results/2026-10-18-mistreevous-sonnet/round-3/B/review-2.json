@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.019495,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 4,
+      "s2_validation": 4,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "Every requirement in steps/1.md is met. `snapshot()` returns `{version, root}`, a tree of plain NodeSnapshot objects (src/BehaviourTree.ts:131, src/BehaviourTreeSnapshot.ts). `BehaviourTreeSnapshot` is exported as a type from src/index.ts. `restore()` validates the whole snapshot before applying it (Node.prepareRestore, Node.ts:305-330). The snapshot keeps node states, repeat/retry target and current counts (Repeat.ts:100-116, Retry), the lotto pick as a child index (Lotto.ts:74-91), and the wait total and waited duration (Wait.ts:111-139). A restored wait rebases `initialUpdateTime = now - waitedDuration`, so time between snapshot and restore does not count in clock mode; in delta mode `waitedDuration` is stored. A finished tree restores as SUCCEEDED/FAILED; the next step() calls reset() and makes new random choices, which the finished-tree test checks. The README has a snapshot/restore section with a file-based example.",
+      "s1_correctness": "Every stateful field on every node class is covered: grep of private fields in src/nodes shows only Lotto.selectedChild, Repeat/Retry counts, Wait timing and Action promise state, and all are saved. Composites without extra state, decorators, guards and aborts need only node states. Restore sets `_state` directly, so no onNodeStateChange calls and no agent calls. In clock mode a running wait computes its waited time up to now when the snapshot is taken (Wait.ts:113-117), which is correct. The 150-step test restores at every step in both time modes and compares agent calls, state changes, node details and random-call counts. Narrow gap: restoring into a tree that has an in-flight promise and a snapshot with `settledResult` sets `isUsingUpdatePromise = true` (Action.ts:190). The old promise's `.then` guard then passes and can overwrite the restored `updatePromiseResult`. The same pattern exists after reset() in the baseline, but README says restore can replace a running tree.",
+      "s2_validation": "`getDefinitionId` (BehaviourTreeDefinitionUtilities.ts) normalises the parsed JSON: sorted keys, sorted roots, default `args: []`, default `succeedOnAbort`. It then hashes the result (cyrb53), so MDSL and equivalent JSON match; a test with while, entry args, branch, lotto weights and wait covers both directions. A mismatch throws \"snapshot does not match the tree's definition\" (BehaviourTree.ts:156-158). null, undefined, numbers, strings, arrays, `{}`, and objects with missing fields throw \"invalid snapshot\", and tests check the tree's details and snapshot are unchanged afterwards. A pending promise is snapshotted as `state: READY` (Action.ts:166-168), with a test that the function is called again; the README states the limitation, including the second `entry` call. Gaps: the hash covers only the definition, not the content of globally registered subtrees that `branch` refers to, so such a change is caught only by the coarser type/name/shape check. Hash collisions are accepted.",
+      "s3_fixes": "step3.patch only adds two tests (spec lines 210-248) and changes no source. From reading the code, neither reported bug exists. Restore never calls setState (Node.ts:326). Snapshots copy only primitives, and Action copies `settledResult` with `{...settledResult}` (Action.ts:191), so the snapshot and the tree share nothing. The independence test checks all three properties from the report over six steps. Leaving the source alone is correct, but the tests could not fail first, as the step asked. The onNodeStateChange test only asserts `isNotEmpty(changes)` after the step and does not check which changes are reported. No unrelated changes.",
+      "design": "Each node type owns its state through the overridable `getSnapshotData` / `prepareRestoreData` hooks. The two-phase prepare-then-apply design guarantees a rejected restore changes nothing. The public API is small (`snapshot()`, `restore(snapshot: BehaviourTreeSnapshot)`) and the type is exported. Weaker points: NodeSnapshot is one flat type with optional fields for every node type, not a discriminated union. A pending action changes its stored state by returning `state` from getSnapshotData, which is an implicit override. The new `isCount` / `isFiniteNumber` in Utilities.ts partly duplicate the existing `isInteger` in BehaviourTreeDefinitionUtilities. The `// shortcut:` comment prefix does not match the repo's comment style.",
+      "tests": "A new file test/BehaviourTreeSnapshot.spec.ts uses mocha, chai and sinon fake timers, like the existing tests. The main test runs 150 steps of a definition that uses most node types, then restores at every step in both time modes and compares calls, changes, details and random-call counts with the original run. It also asserts that interesting states were actually reached. Focused tests cover random repeat/retry counts, the lotto pick, random wait durations, clock and delta remaining time, finished trees, settled and rejected promises, pending promises, MDSL↔JSON equivalence, many invalid inputs, other definitions, and the tree being unchanged after a rejected restore. The only removed test is the agent's own step-1 'error on pending promise' test, which step 2 made obsolete. No baseline tests were touched.",
+      "docs": "README sections for snapshot() and restore(snapshot) sit next to getTreeNodeDetails(). They have a realistic file-based example and bullets on wait timing, finished trees, no callbacks, errors and running nodes. Step 2 adds the pending-promise **Limitation** under snapshot() and the MDSL/JSON equivalence note. package.json and package-lock go from 4.3.1 to 4.4.0, with a matching Version History row in the table's format. Since 4.4.0 was not yet released, steps 2 and 3 correctly add no new version.",
+      "process": "Eight commits, each focused, with conventional messages: feat, docs plus version, dist rebuild, two separate feat commits for step 2, docs, rebuild, and step 3 tests. No new dependencies and no features beyond what the steps asked for. The step-3 commit is labelled `test:` rather than presented as a fix, which matches what changed."
+    },
+    "unmet_requirements": [
+      "Step 3: the regression tests could not fail before a fix as the step asked, because the code never had either bug, so no fix was made (justified, but not done as written)"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Each node type owns its state through snapshot hooks, and the prepare-then-apply restore cleanly guarantees that a rejected restore leaves the tree unchanged",
+      "A very strong test restores at every one of 150 steps in both time modes and compares agent calls, state changes, details and random use with the original run, plus focused edge-case tests",
+      "Thorough README docs with a working example, the pending-promise limitation, and the version bump and Version History row in the repository's format"
+    ],
+    "issues": [
+      "Restoring a snapshot with a settled promise into a tree whose action has an in-flight promise sets isUsingUpdatePromise = true, so the old promise can later overwrite the restored result (Action.ts:190)",
+      "The definition check hashes only the definition, not the content of globally registered subtrees that branch nodes refer to, so a changed subtree is caught only by the coarser structure check; hash collisions are accepted",
+      "Smaller design points: NodeSnapshot is a flat bag of optional fields rather than a per-node-type union; a pending action overrides its stored state implicitly; the new isCount/isFiniteNumber helpers duplicate the existing isInteger; the step-3 state-change test only checks that changes are non-empty"
+    ],
+    "verdict": "This is a well-designed, thoroughly tested snapshot/restore feature that meets the step 1 and step 2 requirements, with correct definition matching, input validation and documented pending-promise handling. Step 3 rightly added regression tests without code changes, since neither bug existed. Only narrow edge cases remain (a stale in-flight promise, registered subtrees not in the definition hash), so I would merge it with minor follow-ups."
+  }
+}

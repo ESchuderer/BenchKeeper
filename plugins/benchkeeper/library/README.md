@@ -50,7 +50,6 @@ Source `coreyhaines31/marketingskills` (MIT). The skills read `.agents/product-m
 | `fp-check` | `trailofbits/skills` (CC-BY-SA-4.0) | Security findings from a scanner or review need triage |
 | `variant-analysis` | `trailofbits/skills` (CC-BY-SA-4.0) | A found vulnerability may repeat elsewhere in the code |
 | `sharp-edges` | `trailofbits/skills` (CC-BY-SA-4.0) | The repository exposes an API or configuration others can misuse |
-| `dimensional-analysis` | `trailofbits/skills` (CC-BY-SA-4.0) | The code computes with physical units or scaled numbers |
 
 CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project.
 

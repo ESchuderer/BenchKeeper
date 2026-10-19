@@ -2,6 +2,17 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v5.1 (2026-10-19)
+
+Fixes from the first setup-v5.0 runs on five repositories (BenchKeeper, the OpenReloading workspace, Artwork, AutoLever, PiMetry website).
+
+- `setting-up-projects` step 7 is a review by a subagent after the apply step: commands and tools in the touched `AGENTS.md` files exist where they run, instructions for removed tools are gone (the workspace kept `openspec archive` after its OpenSpec skills went), checked statements match the checks (Artwork claimed byte-identical PNG rebuilds, they are pixel-identical), a folder `AGENTS.md` inside a docs source is excluded from the build (AutoLever's MkDocs would have published it), install and removal checks hold, and the branch merges cleanly into the default branch (Artwork conflicted with a pull request merged meanwhile). The report moves to step 8.
+- Step 4 install: every file a skill references by relative path and the license file of CC-BY and CC-BY-SA skills must be in the installed folder.
+- Step 4 removal: check that the folder and the lock entry are gone. `skills remove -a codex` reported success and removed nothing while other agents the CLI detects shared `.agents/skills/` (38 skills in the workspace).
+- Library: Trail of Bits `dimensional-analysis` removed. The skills CLI does not copy the agent prompt files it runs.
+- Plugin `version` 5.1.0.
+- Upgrade: update the plugin (`claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper`). Rules and settings are unchanged.
+
 ## setup-v5.0 (2026-10-18)
 
 A skill library installed per project, and a generic cleanup in place of steps for older setups (#99). The global set is unchanged: rules, the BenchKeeper plugin, Matt Pocock's skills, Ponytail, find-skills, and the Orca skills on request.

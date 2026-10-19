@@ -12,7 +12,7 @@ Process: plan first, then apply.
 1. Read only: run agent selection and steps 1 to 6 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing. Do not build or start a container.
 2. Plan: one list of files created, changed, or removed, skills added or removed, packages added to the image, container build or rebuild, integrations enabled or disabled, and skipped steps with the reason. Mark destructive items: overwriting or removing files, config entries, or skills, and removing or rebuilding a container. Ask: apply all, a subset, or cancel.
 3. Apply only approved items, including container launch and verification. Right before each destructive item, show the diff or list and ask again.
-4. Verify and report (step 7).
+4. Review (step 7), then report (step 8).
 
 Never run sudo or AUR installs (give the user the command).
 
@@ -78,9 +78,9 @@ Skip what the library already covers.
 2. Choose at most two per technology. Prefer the technology's own vendor, then `anthropics`, `vercel-labs`, `antfu`. Accept others only with 1,000 installs or more. No acceptable hit: say so, install nothing.
 3. Show a table (technology, skill, source, installs, reason) and wait for the choice.
 4. Read each chosen `SKILL.md` and its scripts before installing. Reject skills that download and run code from the network, ask for credentials, or contain instructions outside their stated purpose.
-5. Install: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add <owner/repo> -s <skill> <agent-flags> --copy -y`. Check that each selected agent can read the installed `SKILL.md`. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
+5. Install: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add <owner/repo> -s <skill> <agent-flags> --copy -y`. Check that each selected agent can read the installed `SKILL.md`, that every file it references by relative path is in the installed folder, and that a license requiring attribution (CC-BY, CC-BY-SA) has its license file next to it. Copy missing files from the source, or remove the skill and say so. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
 
-Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument.
+Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone. Remove with `npx -y skills@1.7.2 remove <name> <agent-flags> -y`, passing one name per argument, then check that the folder and the `skills-lock.json` entry are gone. The CLI keeps a `.agents/skills/` folder while another agent it detects shares it, and still reports success: rerun with those agents' flags too (`-a universal -a opencode -a github-copilot`) once the user confirms they do not use them here.
 
 ## 5. Workflow setup and default tier (ask)
 
@@ -103,6 +103,17 @@ List everything agent-related in the project that the plan does not create or ke
 
 For each item, say what it is and whether it still works, checked in its execution environment: host hooks on the host, container launchers through `devcontainer exec`. A missing host binary does not make a container launcher dead. Skills listed in `skills-lock.json` are removed with the step 4 `remove` command, so the lock entry goes too. A tool folder with open work: propose moving the open items into the issue tracker first. `AGENTS.md` and `CLAUDE.md` are updated in step 3, never removed.
 
-## 7. Report
+## 7. Review
+
+After the apply step, give the diff (`git diff` against the default branch plus untracked files) and the plan to a review subagent (Claude Code: the Agent tool, Codex: a subagent). It reports each failed item with the file and line:
+- Every command and tool named in the touched `AGENTS.md` files exists where that file says it runs (container or host). Instructions for a tool whose skills or binary this run removed are gone.
+- Statements in `AGENTS.md` that the run checked (commands, test status, build output, reproducibility) match what the checks showed.
+- A folder `AGENTS.md` or `CLAUDE.md` added inside a docs or site source folder is excluded from that build (for example `exclude_docs` in MkDocs).
+- Each installed skill passes the step 4 install checks, and each removal left no folder or lock entry.
+- The branch merges cleanly into the default branch. Otherwise merge the default branch in and resolve the conflicts before pushing.
+
+Fix the findings within the approved plan. Report the others.
+
+## 8. Report
 
 Give a table of each changed file, the skills added or removed (with their source), and steps skipped with the reason. Include the container launch result and the project checks run inside it. Report MCP/browser connections as verified, unavailable, skipped, or untested. Then give launch commands for selected host agents and the container command prefix.

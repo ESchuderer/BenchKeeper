@@ -1,0 +1,41 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 0.9040022000000001,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 4,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "BehaviourTree.snapshot() returns {version, root} plain object (step1.patch BehaviourTree.ts), type BehaviourTreeSnapshot and NodeSnapshot exported in src/index.ts. Per-node state saved: Repeat target/currentIterationCount, Retry target/currentAttemptCount, Lotto selectedChildIndex, Wait totalDuration/waitedDuration, Action settled promise result. Wait restore sets initialUpdateTime = now - waitedDuration (Wait.ts:145); delta-time mode keeps waitedDuration. Finished trees restore with state and next step() resets via existing Root reset, re-drawing random choices. README section 'Saving and Restoring a Tree' with example. Version bumped to 4.4.0 with Version History row.",
+      "s1_correctness": "Checks are done before anything is applied (prepareRestore returns closure, Node.ts/Composite.ts/Decorator.ts), so a failed restore is atomic. State written to _state directly, so no onNodeStateChange. uid restored so getTreeNodeDetails equal. Wait.getSnapshot in clock mode computes now-initialUpdateTime for RUNNING nodes (Wait.ts:113-118) so time to snapshot counts and downtime does not. Action stale-promise guard switched to identity check (updatePromise !== updatePromise) so pre-restore promises are ignored. Guards/aborts carry no extra state; parallel/race/all/selector/sequence derive from child states. Tests verify every composite, decorators, repeat/retry explicit+random, lotto, guard abort with exit callback, wait clock/deltaTime/random/indefinite, finished SUCCEEDED/FAILED, settled/rejected promises.",
+      "s2_validation": "getDefinitionId (BehaviourTreeSnapshot.ts in step2.patch) canonicalises JSON (sorted keys, drops args:[] and succeedOnAbort:false outside args, sorts roots by id) and hashes with cyrb53; restore asserts snapshot.definition === this._definitionId with message 'the snapshot does not match the tree's definition' before any change. Tests: MDSL vs JSON equivalence incl. branch subtree, $ agent args, guards; object vs array root; restore both directions; six differing definitions rejected with tree details unchanged; null/undefined/string/number/boolean/array/{}/missing fields rejected. Pending action: Action.getSnapshot sets snapshot.state = READY when isUsingUpdatePromise && !updatePromiseResult; tests check function and entry callback called again; README documents the limitation next to the API and in snapshot() docs.",
+      "s3_fixes": "step3.patch only adds two tests (test/BehaviourTreeSnapshot.spec.ts:612-654); no code change, since restore already bypasses setState and snapshots are freshly built with updatePromiseResult copied on restore. So the behaviours already held. The first test largely overlaps the existing 'does not call onNodeStateChange' test (line 599); the second uses getDeltaTime only, so it does not cover a clock-mode wait or an action with a settled promise (the only object field that could alias).",
+      "design": "Each node type overrides getSnapshot/prepareRestore for its own fields (Node, Composite, Decorator, Lotto, Repeat, Retry, Action, Wait), following the getDetails pattern. The public API is two methods plus exported types. Weaknesses: NodeSnapshot is one flat type with optional per-node fields instead of a discriminated union; Composite and Decorator duplicate their prepareRestore code (Decorator uses [this.child].map); Node.uid lost its readonly; definition hash is inline cyrb53 code. No new dependencies.",
+      "tests": "New test/BehaviourTreeSnapshot.spec.ts uses mocha/chai/sinon fake timers and the existing findNode helper. The Run/assertStepsMatch harness compares agent call logs and getTreeNodeDetails step by step between original and restored trees. Covers JSON round-trip, every node type, random choices, both time modes, finished trees, promises (settled/rejected/pending/stale), definition matching, invalid inputs and atomicity. No existing tests changed (all.patch touches only src and the new test file).",
+      "docs": "README adds snapshot()/restore(snapshot) under the BehaviourTree API, a 'Saving and Restoring a Tree' section with an example and a list of limitations, the pending-promise limitation (step 2) and the MDSL/JSON definition rule, plus Version History rows for 4.4.0. package.json and package-lock.json bumped to 4.4.0. Small issues: the example references an undefined `agent` and imports State without using it.",
+      "process": "Eight commits: feat, docs+version, dist rebuild for step 1; two feat commits, docs and dist rebuild for step 2; one test commit for step 3. Messages are accurate and the scope stays within the steps. No new dependencies. Whether the work was test-first cannot be verified because tests and code land in the same feat commits."
+    },
+    "unmet_requirements": [],
+    "overall": 9,
+    "strengths": [
+      "Two-phase validate-then-apply restore, owned per node type, makes rejected restores atomic and avoids onNodeStateChange calls; ids are restored so getTreeNodeDetails matches exactly",
+      "Definition matching canonicalises MDSL/JSON differences and is checked before any mutation, with the exact required error message and broad invalid-input rejection",
+      "Very thorough differential test harness comparing agent call logs and node details step by step across all node types, random choices, both wait time modes and promise states"
+    ],
+    "issues": [
+      "Step 3 regression tests partly duplicate an existing test, and the independence test avoids the clock-mode wait and the settled-promise action, which are the only places aliasing or drift could occur",
+      "NodeSnapshot is a flat type with optional fields for every node kind rather than a per-type discriminated union; Composite and Decorator duplicate their restore logic and Node.uid lost readonly",
+      "README example uses an undefined agent and an unused State import"
+    ],
+    "verdict": "The snapshot/restore feature and its step 2 follow-up are correct, atomic, well documented and thoroughly tested across every node type and edge case named in the steps. Step 3 added only regression tests because the reported behaviours already held, and those tests are somewhat narrower than they could be; otherwise this is mergeable."
+  }
+}

@@ -1,0 +1,349 @@
+{
+  "arm": "F",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1750,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "agent-skills"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 190586,
+    "result_events": 4,
+    "turns": 134,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 5.0759348,
+    "usage": {
+      "input": 304,
+      "cache_creation": 461638,
+      "cache_read": 14126838,
+      "output": 198005,
+      "thinking": 91396
+    }
+  },
+  "workflow": {
+    "tool_calls": 169,
+    "subagent_tool_calls": 25,
+    "skills": [],
+    "agents": [
+      "agent-skills:code-reviewer"
+    ],
+    "tiers": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": true,
+    "plan_first": false,
+    "verified": true,
+    "review": true,
+    "last_tool": "Bash git add README.md package.json package-lock.json src test && git commit -q -m \"f"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "ed70ada50d57578b"
+  },
+  "lines": {
+    "source": 5581,
+    "test": 8483,
+    "files": 74
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": true,
+    "node_version": false,
+    "changelog": false,
+    "docs": false
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-api",
+          "ok": true
+        },
+        {
+          "id": "S1-resume",
+          "ok": true
+        },
+        {
+          "id": "S1-counters",
+          "ok": true
+        },
+        {
+          "id": "S1-random",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-clock",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-delta",
+          "ok": true
+        },
+        {
+          "id": "S1-details",
+          "ok": true
+        },
+        {
+          "id": "S1-fresh-run",
+          "ok": true
+        },
+        {
+          "id": "Q1-tests",
+          "ok": true
+        },
+        {
+          "id": "Q1-intact",
+          "ok": true
+        },
+        {
+          "id": "Q1-deps",
+          "ok": true
+        },
+        {
+          "id": "Q1-docs",
+          "ok": true
+        },
+        {
+          "id": "Q1-history",
+          "ok": true
+        },
+        {
+          "id": "Q1-committed",
+          "ok": true
+        },
+        {
+          "id": "Q1-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 15,
+      "total": 15,
+      "suite_ok": true,
+      "minutes": 19.3,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 86,
+        "subagent_tool_calls": 25,
+        "skills": [],
+        "agents": [
+          "agent-skills:code-reviewer"
+        ],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": true,
+        "review": true,
+        "last_tool": "Bash cd /work; grep -c \"TreeSnapshot\" dist/index.d.ts"
+      },
+      "cost_usd_api_equivalent": 3.1700839000000007,
+      "tokens": {
+        "input": 154,
+        "cache_creation": 277680,
+        "cache_read": 8462349,
+        "output": 137678,
+        "thinking": 69961
+      },
+      "usage": null
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-reject",
+          "ok": true
+        },
+        {
+          "id": "S2-unchanged",
+          "ok": true
+        },
+        {
+          "id": "S2-equivalent",
+          "ok": true
+        },
+        {
+          "id": "S2-invalid",
+          "ok": true
+        },
+        {
+          "id": "S2-async",
+          "ok": true
+        },
+        {
+          "id": "S2-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q2-tests",
+          "ok": true
+        },
+        {
+          "id": "Q2-intact",
+          "ok": true
+        },
+        {
+          "id": "Q2-deps",
+          "ok": true
+        },
+        {
+          "id": "Q2-docs",
+          "ok": true
+        },
+        {
+          "id": "Q2-history",
+          "ok": false
+        },
+        {
+          "id": "Q2-committed",
+          "ok": true
+        },
+        {
+          "id": "Q2-erosion",
+          "ok": false
+        }
+      ],
+      "passed": 11,
+      "total": 13,
+      "suite_ok": true,
+      "minutes": 6.2,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 50,
+        "subagent_tool_calls": 0,
+        "skills": [],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash npm test > /tmp/npmtest.log 2>&1; echo exit=$?; grep -E \"^\\s+[0-9]+ (passing|fai"
+      },
+      "cost_usd_api_equivalent": 1.1981122999999996,
+      "tokens": {
+        "input": 86,
+        "cache_creation": 107028,
+        "cache_read": 3628783,
+        "output": 40695,
+        "thinking": 14970
+      },
+      "usage": null
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-no-events",
+          "ok": true
+        },
+        {
+          "id": "S3-detached",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q3-tests",
+          "ok": true
+        },
+        {
+          "id": "Q3-intact",
+          "ok": true
+        },
+        {
+          "id": "Q3-deps",
+          "ok": true
+        },
+        {
+          "id": "Q3-history",
+          "ok": true
+        },
+        {
+          "id": "Q3-committed",
+          "ok": true
+        },
+        {
+          "id": "Q3-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 9,
+      "total": 9,
+      "suite_ok": true,
+      "minutes": 3.2,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 33,
+        "subagent_tool_calls": 0,
+        "skills": [],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add README.md package.json package-lock.json src test && git commit -q -m \"f"
+      },
+      "cost_usd_api_equivalent": 0.7077386,
+      "tokens": {
+        "input": 64,
+        "cache_creation": 76930,
+        "cache_read": 2035706,
+        "output": 19632,
+        "thinking": 6465
+      },
+      "usage": null
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "ed70ada50d57578b",
+    "bk": "v1"
+  }
+}

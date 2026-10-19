@@ -7,8 +7,8 @@ import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
 import { claudePhases, opencodePhases, shellWriteTarget } from './phases.mjs';
 
-// Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3' and 'v4': rules and the
-// following-dev-workflow skill), spec tool.
+// Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3' to 'v5': rules and the
+// following-dev-workflow skill, 'v6': the setup-v4.0 plugin, 'v7': the setup-v5.0 plugin), spec tool.
 export const ARMS = {
   A: [null, 0, 0, null], B: [null, 1, 0, null],
   F: ['as', 0, 0, null], G: ['sp', 0, 0, null], H: ['ecc', 0, 0, null],
@@ -18,6 +18,7 @@ export const ARMS = {
   O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'], AB: [null, 0, 0, 'openspec'], AC: [null, 0, 0, 'speckit'],
   V: ['mp', 0, 0, null], W: ['mp', 0, 0, 'openspec'], X: ['mp', 1, 1, null], Y: ['mp', 1, 1, 'openspec'],
   AD: ['mp', 1, 'v3', null], AE: ['mp', 1, 'v3', 'openspec'], AF: ['mp', 1, 0, null], AG: ['mp', 1, 'v4', null], AH: ['mp', 1, 'v5', null],
+  AL: ['mp', 1, 'v6', null], AM: ['mp', 1, 'v7', null],
 };
 
 // What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
@@ -28,7 +29,8 @@ function expect(fw, pt, bk, spec) {
   if (fw === 'ecc') e.skills.push('tdd-workflow'), e.agents.push('planner', 'code-reviewer');
   if (fw === 'mp') e.plugins.push('mattpocock-skills'), e.skills.push('mattpocock-skills:tdd');
   if (pt) e.plugins.push('ponytail'), e.skills.push('ponytail:ponytail'), e.hooks.push('PONYTAIL MODE ACTIVE');
-  if (bk) e.skills.push('find-skills', ['v3', 'v4', 'v5'].includes(bk) ? 'following-dev-workflow' : 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
+  if (bk === 'v6' || bk === 'v7') e.plugins.push('benchkeeper'), e.skills.push('find-skills', 'benchkeeper:following-dev-workflow');
+  else if (bk) e.skills.push('find-skills', ['v3', 'v4', 'v5'].includes(bk) ? 'following-dev-workflow' : 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
   if (spec === 'openspec') e.skills.push('openspec-propose');
   if (spec === 'speckit') e.skills.push('speckit-specify');
   return e;
@@ -85,6 +87,15 @@ export function workflow(events, uses = claudeUses(events)) {
   const firstSource = writes.findIndex((p) => SOURCE.test(p) && !TEST.test(p) && !CONFIG.test(p));
   const skills = uses.filter((u) => u.name === 'Skill').map((u) => u.input.skill || u.input.command || '?');
   const agents = uses.filter((u) => u.name === 'Agent' || u.name === 'Task').map((u) => u.input.subagent_type || 'general-purpose');
+  // Planning before the first source edit: a plan or spec file (also a spec tool's artifacts), a planning skill or a
+  // planning agent. Checks run after the last source edit: a test, build, lint or type check command.
+  const PLAN_FILE = /(plan|spec|design|brainstorm|requirement|proposal|tasks|adr)[^/]*\.md$|(^|\/)(openspec|\.specify|specs|docs\/(adr|plans?|superpowers))\//i;
+  const planIndex = uses.findIndex((u) => (['Write', 'Edit', 'MultiEdit'].includes(u.name) && PLAN_FILE.test(String(u.input.file_path || '')))
+    || (u.name === 'Skill' && /plan|spec|brainstorm|grill|propos|prd|design/i.test(String(u.input.skill || u.input.command || '')))
+    || ((u.name === 'Agent' || u.name === 'Task') && /plan/i.test(String(u.input.subagent_type || ''))) || u.name === 'EnterPlanMode');
+  const sourceIndex = uses.findIndex((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) && SOURCE.test(String(u.input.file_path || '')) && !TEST.test(String(u.input.file_path || '')) && !CONFIG.test(String(u.input.file_path || '')));
+  const lastSource = uses.findLastIndex((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) && SOURCE.test(String(u.input.file_path || '')));
+  const CHECK = /\b(npm (run )?test|npx (mocha|vitest|jest|tsc)|mocha|vitest|jest|tsc\b|npm run (build|lint|typecheck))/;
   const last = uses.at(-1);
   // Tier lines the agent wrote (`Tier: quick`), from the main thread's text.
   const tiers = events.filter((e) => e.type === 'assistant' && !e.parent_tool_use_id).flatMap((e) => (e.message?.content || [])
@@ -98,6 +109,8 @@ export function workflow(events, uses = claudeUses(events)) {
     plan_or_spec_files: writes.filter((p) => /\.md$/i.test(p) && /(plan|spec|design|brainstorm|requirement)/i.test(p)),
     tests_written: firstTest >= 0,
     tests_first: firstTest >= 0 && (firstSource < 0 || firstTest < firstSource),
+    plan_first: planIndex >= 0 && (sourceIndex < 0 || planIndex < sourceIndex),
+    verified: uses.some((u, i) => i > lastSource && u.name === 'Bash' && CHECK.test(String(u.input.command || ''))),
     // A review skill or agent type, or a general subagent whose task description names a review.
     review: [...skills, ...agents].some((n) => /review/i.test(n))
       || uses.some((u) => (u.name === 'Agent' || u.name === 'Task') && /review/i.test(u.input.description || '')),
@@ -253,6 +266,8 @@ export function steps(dir) {
       followups: num('followups'),
       // The agent asked through the tool for questions (deliberate ambiguity measure, next to `waited`).
       ask_user_calls: ev ? claudeUses(ev).filter((u) => u.name === 'AskUserQuestion').length : null,
+      // The step's own workflow trace: skills, agents, plan and test order, review, checks after the last edit.
+      workflow: ev ? workflow(ev) : null,
       cost_usd_api_equivalent: o?.finished ? o.cost_usd_api_equivalent : null,
       tokens: o?.usage ?? null,
       usage: usage(txt('usage-before'), txt('usage-after')),

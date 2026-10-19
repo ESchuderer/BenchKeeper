@@ -33,8 +33,9 @@ Comparison matrix of the arms in `bench/PROTOCOL.md`. Every arm gets the same br
 | AF | Matt Pocock's skills | yes | no | none | Matt Pocock's skills with Ponytail, no BenchKeeper layer |
 | AG | Matt Pocock's skills | yes | v4 | none | the recommended setup of setup-v3.1: its rules, `following-dev-workflow` and setup skills (`bench/arms/bk-v4/`) |
 | AH | Matt Pocock's skills | yes | v5 | none | setup-v3.3: Matt Pocock's own install and setup, with the BenchKeeper rules, `following-dev-workflow` and Ponytail on top (`bench/arms/bk-v5/`) |
+| AL | Matt Pocock's skills | yes | v6 | none | setup-v4.0: the BenchKeeper plugin and rules with Matt Pocock's and Ponytail's plugins, as `setup.sh` installs them (`bench/arms/bk-v6/`) |
 
-BenchKeeper layer: rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC, Matt Pocock's skills: `bench/arms/superpowers.rules.md`, `ecc.rules.md`, `mattpocock.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves. Layer v3 (AD, AE): the rules and `following-dev-workflow` of setup-v2.9 (`bench/arms/bk-v3*`) instead of the pinned rules, candidate rules and old setup skills. Layer v4 (AG): the rules, `following-dev-workflow` and setup skills of setup-v3.1 (`bench/arms/bk-v4/`). Layer v5 (AH): the same of setup-v3.3 (`bench/arms/bk-v5/`).
+BenchKeeper layer: rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC, Matt Pocock's skills: `bench/arms/superpowers.rules.md`, `ecc.rules.md`, `mattpocock.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves. Layer v3 (AD, AE): the rules and `following-dev-workflow` of setup-v2.9 (`bench/arms/bk-v3*`) instead of the pinned rules, candidate rules and old setup skills. Layer v4 (AG): the rules, `following-dev-workflow` and setup skills of setup-v3.1 (`bench/arms/bk-v4/`). Layer v5 (AH): the same of setup-v3.3 (`bench/arms/bk-v5/`). Layer v6 (AL): setup-v4.0 (`bench/arms/bk-v6/`): its rules file, the BenchKeeper plugin, find-skills and its Claude settings without `advisorModel` and `remoteControlAtStartup`; no candidate rules, no Playwright MCP.
 
 ## OpenCode arms (OpenCode 1.19.0, Anthropic API key)
 
@@ -76,6 +77,7 @@ Each brief has its section in `bench/PROTOCOL.md`. The app briefs run through th
 - `winery-iterative`: `winery-react` plus four change requests as follow-up turns.
 - `cartridges`: static app (25 C.I.P. cartridges, 2D drawings, print view, works from `file://`). Hidden tests C1 to C6.
 - `openballistics`: brownfield, three steps in separate sessions on a clone of OpenBallistics.
+- `mistreevous`: brownfield, three steps in separate sessions on mistreevous: snapshot and restore of a behaviour tree's execution state (its open issue #120).
 - `skill-*`: seven targeted tasks, one per phase, for the per-skill ratings.
 
 ## Failure classes

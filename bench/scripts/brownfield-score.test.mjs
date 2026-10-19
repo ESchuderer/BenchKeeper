@@ -26,3 +26,18 @@ test('a step not reached counts its checks as failed; null cross checks are not 
 test('no review gives no total', () => {
   assert.equal(score({ steps: [] }, []).total, null);
 });
+
+test('scoreBrief: hidden, static, suite and process checks per step with the brief\'s weights', async () => {
+  const { scoreBrief } = await import('./brownfield-score.mjs');
+  const conf = { weights: { hidden: 35, suite: 10, static: 15, process: 15, review: 25 }, hidden: { 1: 2, 2: 2 }, static: { 1: 1, 2: 1 }, process: { 1: ['plan_first', 'verified'], 2: ['verified'] } };
+  const trial = { steps: [
+    { k: 1, checks: [{ id: 'S1-a', ok: true }, { id: 'S1-b', ok: false }, { id: 'Q1-tests', ok: true }], suite_ok: true, workflow: { plan_first: true, verified: false, skills: ['tdd'] }, minutes: 5 },
+  ] };
+  const r = scoreBrief(trial, [{ review: { scores: { a: 5, b: 3 } } }], conf);
+  // step 2 not reached: its checks count as failed
+  assert.deepEqual(r.raw, { hidden_checks: '1/4', static_checks: '1/2', process_checks: '1/3', suite_steps: 1, review_criteria: 2 });
+  assert.deepEqual(r.parts, { hidden: 8.75, suite: 5, static: 7.5, process: 5, review: 18.75 });
+  assert.equal(r.total, 45);
+  assert.deepEqual(r.skills, ['tdd']);
+  assert.equal(scoreBrief(trial, [], conf).total, null);
+});

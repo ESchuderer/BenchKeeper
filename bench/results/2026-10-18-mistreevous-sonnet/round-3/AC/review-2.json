@@ -1,0 +1,41 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.2360674000000003,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 5,
+      "s2_validation": 5,
+      "s3_fixes": 4,
+      "design": 5,
+      "tests": 5,
+      "docs": 5,
+      "process": 5
+    },
+    "evidence": {
+      "s1_requirements": "Every requirement in steps/1.md is met. `snapshot()` returns `{version, root}` as plain data (src/BehaviourTree.ts:133). `BehaviourTreeSnapshot` and `NodeSnapshot` are exported from src/index.ts. `restore()` validates and then restores (BehaviourTree.ts:148). Each node saves its own state: node state, children, repeat/retry current and target counts, lotto `selectedChildIndex`, wait `totalDuration`/`waitedDuration`. A restored wait only waits for the remaining time: Wait.ts:115-118 computes the time waited so far when the snapshot is taken in clock mode, and Wait.ts:163 sets `initialUpdateTime = now - waited`. Finished trees restore as finished and make new random choices (tested in BehaviourTreeSnapshot.spec). The README has an API section and an example. The version is bumped to 4.4.0.",
+      "s1_correctness": "Each node type is handled. Composite.ts and Decorator.ts recurse into children. Repeat and Retry save 0/null when READY, matching what their READY branch resets (Repeat.ts:54-63). Lotto saves null when READY, so the next run picks again. Wait handles both time modes and indefinite waits. Action keeps a settled but unused promise result, and the new `updatePromise` identity check (Action.ts:128,140) makes sure a stale promise from before a restore is ignored. Guards and aborts need no extra state; a test covers a lotto resolved by a guard before it picked. BehaviourTreeSnapshotEquivalence.spec.ts compares the original and restored trees' traces (log, randomIndex, details, snapshot) after every step count from 0 to 22. It covers 9 scenarios: all composites, decorators, branches, guards and callbacks, random counts, and both wait modes. That is strong evidence of exact equivalence.",
+      "s2_validation": "`getDefinitionIdentifier` (src/BehaviourTreeDefinitionIdentifier.ts) normalizes the JSON before hashing it: keys sorted, subtrees in a fixed order, and default `args: []`, `succeedOnAbort: false` and undefined values dropped. A mismatch throws 'error restoring snapshot: the snapshot does not match the tree's definition'. Rejected inputs (null, undefined, string, number, boolean, array, `{}`, missing fields, non-string definition) are tested and leave both `snapshot()` and `getTreeNodeDetails()` unchanged. Many MDSL/JSON equivalence cases are tested in both directions, along with 14 mismatch cases. A pending promise is saved with state READY (Action.ts:203-208), with tests that `entry` is called again and that an abort calls no `exit`. The limitation is documented in the README.",
+      "s3_fixes": "The step 3 patch only adds tests: four regression tests on a tree with every kind of node. Neither bug was present in the code. `restoreSnapshot` assigns `_state` directly and never calls `setState`, and snapshots are built from fresh objects, with `updatePromiseResult` copied on both sides (Action.ts:211,255). So adding tests and changing no code is reasonable, and nothing unrelated was touched. However, the test that a snapshot right after restore equals `s` uses `getDeltaTime: () => 0.5`. It never exercises a clock-mode wait, the one case where such a snapshot adds the milliseconds that pass after restore (Wait.ts:115-118 vs 163). The tests were not seen to fail first.",
+      "design": "Each node class has its own get/validate/restoreSnapshot. Validating the whole snapshot before restoring any of it makes a rejected restore leave the tree unchanged. The snapshot types are a discriminated union in a separate BehaviourTreeSnapshot.ts. The public API adds only `snapshot()`/`restore()` and two exported types. The small `isNonNegativeInteger` helper sits in Utilities.ts. The code matches the repository's style and JSDoc. Minor: there are casts (`as NodeSnapshot` in Node.ts:287) and non-null assertions (`snapshot.children!`).",
+      "tests": "Tests are in mocha/chai/sinon under test/: BehaviourTreeSnapshot.spec.ts (~1000+ lines) and BehaviourTreeSnapshotEquivalence.spec.ts, using fake timers and JSON round trips. Each requirement and edge case has a test: finished trees, random kept and re-picked, clock and delta time and switching between them, settled, rejected and invalid promises, stale promises, corrupt fields, definition match and mismatch. TestUtilities.ts only gains `withoutIds`; no existing test was removed or weakened.",
+      "docs": "The README adds a feature bullet, `snapshot()`/`restore()` method entries, and a 'Saving and Restoring a Tree' section with an example and the caveats. Step 2 rewrote the pending-promise caveat as 'restored as not yet started' and documented definition matching and that registered subtrees are excluded. The Version History has a 4.4.0 row with continuation rows in the repository's format. package.json and package-lock.json are at 4.4.0.",
+      "process": "There are 12 commits with clear conventional messages: feat per node concern, a test commit for the equivalence harness, docs/version, and dist regeneration in separate build commits (dist is tracked in the baseline). Step 2 has one commit per gap. Step 3 has one test commit. No new dependencies and no unrequested features."
+    },
+    "unmet_requirements": [],
+    "overall": 9,
+    "strengths": [
+      "Snapshot logic is split across the node classes, with validation before restoring, so a rejected restore leaves the tree exactly as it was.",
+      "The equivalence test runs each of 9 scenarios with a snapshot after every step count from 0 to 22 and checks that the restored tree's log, random draws, details and snapshots match the original's.",
+      "MDSL/JSON definition matching is normalized and tested in both directions, with a precise error message and thorough tests that rejected input leaves the tree unchanged."
+    ],
+    "issues": [
+      "The step 3 test that a snapshot right after restore equals `s` uses only `getDeltaTime`. A running clock-mode wait (Wait.ts:115-118, 163) adds the milliseconds that pass after restore, so equality can fail with a real clock and nothing tests it.",
+      "Step 3 changed no code because neither bug was present. The new regression tests were never seen to fail, and the commit does not say the reports did not reproduce.",
+      "Minor typing shortcuts: `as NodeSnapshot` casts and `snapshot.children!` non-null assertions in Node/Composite/Decorator."
+    ],
+    "verdict": "This is a careful, well-structured implementation: every node type owns its state, restore is atomic, definitions are matched, and the differential tests show that a restored tree behaves exactly like the original. The only gaps are small: the step 3 equality test leaves out the clock-mode wait, and the regression tests were never seen to fail. I would merge it as is."
+  }
+}

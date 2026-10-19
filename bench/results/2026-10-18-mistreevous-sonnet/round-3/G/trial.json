@@ -1,0 +1,408 @@
+{
+  "arm": "G",
+  "runtime": "claude-code",
+  "followups": 0,
+  "wall_seconds": 1467,
+  "audit": {
+    "ok": true,
+    "problems": [],
+    "model": "claude-sonnet-5-5",
+    "claude_code_version": "2.1.299",
+    "plugins": [
+      "superpowers"
+    ]
+  },
+  "outcome": {
+    "finished": true,
+    "subtype": "success",
+    "is_error": false,
+    "infra_error": false,
+    "ends_with_question": false,
+    "duration_ms": 254916,
+    "result_events": 3,
+    "turns": 123,
+    "sessions": 3,
+    "cost_usd_api_equivalent": 3.9171377000000005,
+    "usage": {
+      "input": 258,
+      "cache_creation": 370602,
+      "cache_read": 11124832,
+      "output": 137098,
+      "thinking": 56275
+    }
+  },
+  "workflow": {
+    "tool_calls": 150,
+    "subagent_tool_calls": 5,
+    "skills": [
+      "superpowers:brainstorming",
+      "superpowers:test-driven-development",
+      "code-review",
+      "superpowers:test-driven-development",
+      "superpowers:writing-plans",
+      "superpowers:test-driven-development",
+      "superpowers:systematic-debugging"
+    ],
+    "agents": [],
+    "tiers": [],
+    "plan_or_spec_files": [],
+    "tests_written": true,
+    "tests_first": true,
+    "plan_first": true,
+    "verified": true,
+    "review": true,
+    "last_tool": "Bash git add dist && git commit -q -m \"build: regenerate dist\n\nCo-Authored-By: Claude"
+  },
+  "score": {
+    "install": null,
+    "build": null,
+    "acceptance_run": null,
+    "agent_tests": null,
+    "features": {},
+    "features_passed": 0,
+    "robustness": null,
+    "robustness_passed": null,
+    "changes": null,
+    "strict": null,
+    "code": null,
+    "axe": null,
+    "lighthouse": null,
+    "audit": null,
+    "mutation": null,
+    "hidden_tests": "ed70ada50d57578b"
+  },
+  "lines": {
+    "source": 5254,
+    "test": 7996,
+    "files": 71
+  },
+  "maintenance": {
+    "readme": true,
+    "readme_setup": false,
+    "lockfile": true,
+    "test_script": true,
+    "lint_or_typecheck": true,
+    "ci": true,
+    "node_version": false,
+    "changelog": false,
+    "docs": false
+  },
+  "condition": "baseline",
+  "checkpoints": null,
+  "steps": [
+    {
+      "k": 1,
+      "checks": [
+        {
+          "id": "S1-api",
+          "ok": true
+        },
+        {
+          "id": "S1-resume",
+          "ok": true
+        },
+        {
+          "id": "S1-counters",
+          "ok": true
+        },
+        {
+          "id": "S1-random",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-clock",
+          "ok": true
+        },
+        {
+          "id": "S1-wait-delta",
+          "ok": true
+        },
+        {
+          "id": "S1-details",
+          "ok": true
+        },
+        {
+          "id": "S1-fresh-run",
+          "ok": true
+        },
+        {
+          "id": "Q1-tests",
+          "ok": true
+        },
+        {
+          "id": "Q1-intact",
+          "ok": true
+        },
+        {
+          "id": "Q1-deps",
+          "ok": true
+        },
+        {
+          "id": "Q1-docs",
+          "ok": true
+        },
+        {
+          "id": "Q1-history",
+          "ok": true
+        },
+        {
+          "id": "Q1-committed",
+          "ok": true
+        },
+        {
+          "id": "Q1-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 15,
+      "total": 15,
+      "suite_ok": true,
+      "minutes": 14.5,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 78,
+        "subagent_tool_calls": 5,
+        "skills": [
+          "superpowers:brainstorming",
+          "superpowers:test-driven-development",
+          "code-review"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": true,
+        "verified": true,
+        "review": true,
+        "last_tool": "Bash git add src && git commit -qm \"refactor: define getChildren as a method on all n"
+      },
+      "cost_usd_api_equivalent": 2.2439187,
+      "tokens": {
+        "input": 134,
+        "cache_creation": 191756,
+        "cache_read": 6816262,
+        "output": 84425,
+        "thinking": 36584
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.01,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.04,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.02,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.04,
+        "weekly_share": 0.01
+      }
+    },
+    {
+      "k": 2,
+      "checks": [
+        {
+          "id": "S2-reject",
+          "ok": true
+        },
+        {
+          "id": "S2-unchanged",
+          "ok": true
+        },
+        {
+          "id": "S2-equivalent",
+          "ok": true
+        },
+        {
+          "id": "S2-invalid",
+          "ok": true
+        },
+        {
+          "id": "S2-async",
+          "ok": true
+        },
+        {
+          "id": "S2-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q2-tests",
+          "ok": true
+        },
+        {
+          "id": "Q2-intact",
+          "ok": true
+        },
+        {
+          "id": "Q2-deps",
+          "ok": true
+        },
+        {
+          "id": "Q2-docs",
+          "ok": true
+        },
+        {
+          "id": "Q2-history",
+          "ok": false
+        },
+        {
+          "id": "Q2-committed",
+          "ok": true
+        },
+        {
+          "id": "Q2-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 12,
+      "total": 13,
+      "suite_ok": true,
+      "minutes": 5.2,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 40,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "superpowers:test-driven-development",
+          "superpowers:writing-plans"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": false,
+        "plan_first": true,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add dist && git commit -q -F - <<'EOF'\nbuild: regenerate dist\n\nCo-Authored-B"
+      },
+      "cost_usd_api_equivalent": 0.9363790000000002,
+      "tokens": {
+        "input": 60,
+        "cache_creation": 98105,
+        "cache_read": 2247290,
+        "output": 31911,
+        "thinking": 11475
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.04,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.02,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.06,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.02,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.02,
+        "weekly_share": 0
+      }
+    },
+    {
+      "k": 3,
+      "checks": [
+        {
+          "id": "S3-no-events",
+          "ok": true
+        },
+        {
+          "id": "S3-detached",
+          "ok": true
+        },
+        {
+          "id": "S3-regressions",
+          "ok": true
+        },
+        {
+          "id": "Q3-tests",
+          "ok": true
+        },
+        {
+          "id": "Q3-intact",
+          "ok": true
+        },
+        {
+          "id": "Q3-deps",
+          "ok": true
+        },
+        {
+          "id": "Q3-history",
+          "ok": true
+        },
+        {
+          "id": "Q3-committed",
+          "ok": true
+        },
+        {
+          "id": "Q3-erosion",
+          "ok": true
+        }
+      ],
+      "passed": 9,
+      "total": 9,
+      "suite_ok": true,
+      "minutes": 4.3,
+      "waited": false,
+      "followups": 0,
+      "ask_user_calls": 0,
+      "workflow": {
+        "tool_calls": 32,
+        "subagent_tool_calls": 0,
+        "skills": [
+          "superpowers:test-driven-development",
+          "superpowers:systematic-debugging"
+        ],
+        "agents": [],
+        "tiers": [],
+        "plan_or_spec_files": [],
+        "tests_written": true,
+        "tests_first": true,
+        "plan_first": false,
+        "verified": true,
+        "review": false,
+        "last_tool": "Bash git add dist && git commit -q -m \"build: regenerate dist\n\nCo-Authored-By: Claude"
+      },
+      "cost_usd_api_equivalent": 0.7368400000000002,
+      "tokens": {
+        "input": 64,
+        "cache_creation": 80741,
+        "cache_read": 2061280,
+        "output": 20762,
+        "thinking": 8216
+      },
+      "usage": {
+        "before": {
+          "five_hour": 0.06,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.02,
+          "weekly_reset": 1792846800
+        },
+        "after": {
+          "five_hour": 0.07,
+          "five_hour_reset": 1792353000,
+          "weekly": 0.02,
+          "weekly_reset": 1792846800
+        },
+        "five_hour_share": 0.01,
+        "weekly_share": 0
+      }
+    }
+  ],
+  "steps_sent": 3,
+  "method": {
+    "protocol": "1.21",
+    "hidden_tests": "ed70ada50d57578b",
+    "bk": "v1"
+  }
+}

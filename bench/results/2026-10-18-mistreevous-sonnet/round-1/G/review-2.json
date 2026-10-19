@@ -1,0 +1,43 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "high",
+  "image": "7cd5d4a08ed3bea62b855afb05e8a0acc60e17521206a59545751d34d73b81e3",
+  "cost_usd_api_equivalent": 1.085009,
+  "review": {
+    "scores": {
+      "s1_requirements": 5,
+      "s1_correctness": 4,
+      "s2_validation": 5,
+      "s3_fixes": 5,
+      "design": 4,
+      "tests": 4,
+      "docs": 5,
+      "process": 4
+    },
+    "evidence": {
+      "s1_requirements": "Every point in steps/1.md is met. `snapshot()` returns `{version, root}` built only from primitives and fresh arrays/objects (src/BehaviourTree.ts snapshot, Node/Composite/Decorator getSnapshot). `BehaviourTreeSnapshot` and `NodeSnapshot` are exported from src/index.ts. `restore()` brings back node states, composite child states (through the per-child state), repeat/retry target and current counts, the lotto `selectedChildIndex`, and the wait `totalDuration`/`waitedDuration`. A restored wait counts only its remaining time in both modes: Wait.restoreSnapshot sets `initialUpdateTime = now - waitedDuration`, and in clock mode getSnapshot works out the waited time at the moment the snapshot is taken. A finished tree restores as finished and makes new random choices on the next run (tests 'restores a finished tree as finished…' and 'makes new random choices…'). The README has a 'Snapshots' section with an example. Small nits in the example: `State` is imported but never used, and `workflowAgent` is never defined.",
+      "s1_correctness": "Each kind of node state is saved: All/Parallel/Race/Selector/Sequence keep no fields besides their children, and Repeat, Retry, Lotto, Wait and Action save every private field that matters. Action promises are handled carefully: a promise that settled but was not yet handled keeps its result as `String(value)`, which reproduces the same error messages, and `updatePromiseId` stops a stale promise from before a restore from writing its result. A fuzz test compares the original and restored trees after every step, in both time modes. One confirmed defect: Lotto.validateSnapshot (all.patch 2427-2433) rejects `selectedChildIndex: null` whenever the state is not READY. But Node.update evaluates guards before onUpdate, so a `lotto while(IsX)` whose guard fails on its first update goes READY→FAILED (or SUCCEEDED) without ever picking a child (Lotto.ts:41-54; Node.ts:229-254). Snapshotting that finished tree and restoring it then throws `expected 'selectedChildIndex' to be defined…`. That breaks 'a snapshot of a finished tree restores as finished' in the guards+lotto case.",
+      "s2_validation": "`getDefinitionId` (BehaviourTreeSnapshot.ts) canonicalises the validated JSON: it sorts keys and root nodes and drops undefined values, empty `args` and `succeedOnAbort: false`, then hashes the result. restore() throws `invalid snapshot: the snapshot does not match the tree's definition`. Tests show that MDSL, parsed JSON, hand-written JSON and reordered JSON all restore into each other in every combination, and that different args, durations, attributes, guards, structure, subtree contents and abort results are rejected. null, undefined, strings, numbers, booleans, arrays, `{}` and objects missing `definition` or `root` are rejected. The whole snapshot is validated before any of it is applied, and tests check that getTreeNodeDetails, snapshot() and the next step are unchanged after a rejection. A pending promise is saved as READY with `updatePromiseResult: null`, so the action and its entry callback run again; this is tested and documented in the README.",
+      "s3_fixes": "step3.patch only adds tests (two describe blocks, test file lines 1480+). In the step-2 code neither report reproduces: Node.restoreSnapshot assigns `_state` directly and never calls setState, so onNodeStateChange does not fire, and every getSnapshot/restoreSnapshot builds new objects (Action copies `updatePromiseResult` in both directions). The regression tests cover restore with and without earlier steps, a pending-promise action, snapshots staying the same while the source or restored tree is stepped, and snapshot-after-restore equality at 15 points of a run. No unrelated changes were made, and the commit message ('pin that…') says honestly that this was test-only.",
+      "design": "Each node class overrides getSnapshot, validateSnapshot and restoreSnapshot for its own fields, and validation is kept separate from applying the snapshot. The shared helper `validateSnapshotNumber` and the snapshot types sit in a new src/BehaviourTreeSnapshot.ts. The public API is two typed methods. Weaknesses: `NodeSnapshot` is one flat type with optional fields for every node kind instead of a discriminated union, which leads to `snapshot.children![index]` and `snapshot.currentIterationCount!` non-null assertions. The three snapshot methods are public on every Node class. The hand-written cyrb53 hash is acceptable because it avoids a new dependency.",
+      "tests": "test/BehaviourTreeSnapshot.spec.ts (about 1650 lines) uses mocha, chai, sinon fake timers and the existing `findNode` helper. It covers every composite and decorator type, guards and entry/step/exit callbacks, random counts and durations, both wait time modes, finished trees, validation of each field, pending, settled and stale promises, definition matching, and a seeded fuzz run in both time modes. No existing test was touched. It misses the guard-aborted lotto that has never picked a child, which is the confirmed bug.",
+      "docs": "README: a 'Snapshots' entry in the feature list, method entries for snapshot()/restore(), a Snapshots section with an example, a list of what a snapshot contains, and limitations: when to take snapshots, the definition matching rules, the agent not being part of a snapshot, the pending-promise behaviour (READY, the action and entry run again), no onNodeStateChange calls, and the version field. The Version History has a 4.4.0 row plus a continuation row in the repository's style, and package.json and package-lock.json are bumped from 4.3.1 to 4.4.0. Example nits: an unused `State` import and an undefined `workflowAgent`.",
+      "process": "There are 14 commits, mostly one feature each (repeat/retry, lotto, wait, action promises, docs, version bump), with dist rebuilds in separate 'chore: rebuild dist' commits, which fits a repository that tracks dist. 3a3702e mixes a refactor with a README note. Step 3 is one honest test-only commit. No new dependencies. Small extras beyond the steps: a `version` field and validation of node types and child counts, which are reasonable hardening."
+    },
+    "unmet_requirements": [
+      "Step 1 (finished tree restores as finished / guards and lotto): a lotto node whose own guard aborts it before its first update is FAILED/SUCCEEDED with no selected child, and restore() rejects its snapshot as invalid"
+    ],
+    "overall": 8,
+    "strengths": [
+      "Each node owns its snapshot state, and the validate-then-apply split ensures a rejected restore() leaves the tree exactly as it was. Stale promises from before a restore are ignored through `updatePromiseId`.",
+      "Very strong tests: a seeded fuzz run compares the original and restored trees after every step in both wait time modes, plus thorough MDSL/JSON equivalence and invalid-input cases.",
+      "Thorough README docs (example, contents, limitations including the pending-promise rule) and a correct 4.4.0 version bump in package.json, package-lock.json and the Version History table."
+    ],
+    "issues": [
+      "Lotto.validateSnapshot requires `selectedChildIndex` whenever the state is not READY. A `lotto` aborted by its own guard on its first update has no picked child, so snapshots of such finished or running trees cannot be restored.",
+      "`NodeSnapshot` is one flat type with optional fields for every node kind rather than a discriminated union, which forces non-null assertions (`children![i]`, `currentIterationCount!`) in the restore code.",
+      "Small nits: the README example imports an unused `State` and uses an undefined `workflowAgent`, and one commit (3a3702e) mixes a refactor with a docs change."
+    ],
+    "verdict": "This is a careful, well-tested snapshot/restore feature: definition matching, validation, pending promises and both step-3 reports (which needed only regression tests) are handled correctly. One edge case is broken: a lotto aborted by its own guard before it ever picked a child produces a snapshot that restore() rejects. That small fix is needed before merging."
+  }
+}

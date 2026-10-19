@@ -25,5 +25,7 @@ check yes "4. The default branch is master. Should I commit on feat/x?\nI'll wai
 check yes "- Node ids are not preserved.\nNot done yet: the implementation, the README section, and the commits. Nothing has been run."
 check yes "- **What I need from you:** run \`/benchkeeper:setting-up-projects\`, or tell me that host installs are fine.\n\nI made two behaviour decisions.\n- a\n- b\n- c\n- d\n\nI haven't looked at dist/ yet."
 check yes "Implemented and committed, not tested. Please run npm test, or run \`/benchkeeper:setting-up-projects\` and I'll re-run it.\n\n- a\n- b\n- c\n- d\n- e"
+check no "All checks pass. I created .devcontainer/devcontainer.json (not committed). Run \`/benchkeeper:setting-up-projects\` for the full setup."
+check yes "- Run \`/benchkeeper:setting-up-projects\` to create the devcontainer, then I run \`npm ci\` and \`npm test\` there."
 [ "$fail" = 0 ] && echo "waits: all checks pass"
 exit "$fail"

@@ -21,8 +21,9 @@ serve=$(jq -r '.serve // "npm"' "$conf" 2>/dev/null || echo npm)
 steps=$(jq -r '.steps // empty' "$conf" 2>/dev/null || true)
 # Final-message phrases that wait for the user (follow-up rule, protocol v1.8); `bench/scripts/waits.test.sh` checks them.
 WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when|answer the questions|once you answer|after you answer|i can.t (start|begin|continue|proceed) (yet|until)|which of these is (true|right|correct)|please run [^ ]*setting-up-projects|(i.ll|i will) wait for|not done yet|what i need from you|run [^ ]*setting-up-projects'
-# Reads a final message on stdin; true when its last non-empty line ends with "?" or any line matches WAITS.
-waiting() { awk 'NF { print; l = $0 } END { if (l ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
+# Reads a final message on stdin; true when its last non-empty line ends with "?" or any line matches WAITS. Lines with
+# "for the full setup" are skipped: setup-v5.0 names setting-up-projects that way in a finished report.
+waiting() { awk 'NF { l = $0 } NF && !/for the full setup/ { print } END { if (l ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
 runtime() { case $1 in Q|R|S|T|U|Z|AA) echo opencode ;; *) echo claude ;; esac; }
 needs() { for a in $arms; do [ "$(runtime "$a")" = "$1" ] && return 0; done; return 1; }
 if needs claude; then
@@ -185,7 +186,7 @@ for r in $(seq "$k"); do
         2> /dev/null | waiting
     }
     # Step briefs: a turn that leaves the repository as the step found it is not done either (protocol 1.21).
-    state() { (cd "$t/workspace" && find . \( -name node_modules -o -path ./.git/objects -o -path ./.git/logs -o -path ./.git/index \) -prune -o -type f -print0 | sort -z | xargs -0 sha1sum) | sha1sum; }
+    state() { (cd "$t/workspace" && find . \( -name node_modules -o -path ./dist -o -path ./.git/objects -o -path ./.git/logs -o -path ./.git/index \) -prune -o -type f -print0 | sort -z | xargs -0 sha1sum) | sha1sum; }
     n=0
     if [ "$steps" = sessions ]; then
       # Step briefs (steps/<k>.md): each step in a new session on the same workspace, the follow-up rule within that

@@ -14,7 +14,7 @@
 #   AG Matt Pocock + BK v4 (bench/arms/bk-v4: the rules and skills of setup-v3.1, the recommended setup)
 #   AH Matt Pocock + BK v5 (bench/arms/bk-v5: setup-v3.3, Matt Pocock's own install and setup with the BenchKeeper additions)
 #   AL Matt Pocock + BK v6 (bench/arms/bk-v6: setup-v4.0, the BenchKeeper plugin with Ponytail and Matt Pocock's plugins, as setup.sh installs them)
-#   AM Matt Pocock + BK v7 (bench/arms/bk-v7: setup-v5.0, as AL with the setup-v5.0 settings: advisor, effort medium, auto-compact, subagents on Sonnet)
+#   AM Matt Pocock + BK v7 (bench/arms/bk-v7: setup-v5.0, as AL with the setup-v5.0 settings: advisor, effort high, auto-compact, subagents on Sonnet)
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
 # by /project-setup. Arms with a project start from ~/project-template (copied in by the runner as the first commit).
@@ -140,8 +140,8 @@ if [ "$bk" = v6 ] || [ "$bk" = v7 ]; then
   jq '.showClearContextOnPlanAccept = true | .autoCompactWindow = (.autoCompactWindow // 400000)
     | .attribution = {"commit": "Assisted-by: generative AI", "pr": "Created with the assistance of generative AI.", "sessionUrl": false}
     | .env = ((.env // {}) + {"DISABLE_ERROR_REPORTING": "1", "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"})' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-  # v7 (setup-v5.0) runs with its defaults (owner decision 2026-10-18: opusplan, effort medium): the Opus advisor, effort
-  # medium per model, auto-compact 400000, transcripts 14 days, /feedback off, subagents without a model on Sonnet. No
+  # v7 (setup-v5.0) runs with its defaults (owner decision 2026-10-18: opusplan, effort high): the Opus advisor, effort
+  # high per model, auto-compact 400000, transcripts 14 days, /feedback off, subagents without a model on Sonnet. No
   # remote control and no update channel in a container.
   [ "$bk" != v7 ] || { jq '.advisorModel = "opus" | .autoCompactWindow = 400000 | .cleanupPeriodDays = 14
     | .effortLevel = "high" | .modelSettings["claude-opus-5-5"].effortLevel = "high" | .modelSettings["claude-sonnet-5-5"].effortLevel = "high"

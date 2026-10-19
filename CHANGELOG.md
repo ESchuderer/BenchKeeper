@@ -1,6 +1,6 @@
 # Changelog
 
-Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>`; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
+Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
 ## setup-v5.1 (2026-10-19)
 

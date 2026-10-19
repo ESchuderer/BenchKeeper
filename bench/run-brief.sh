@@ -23,10 +23,9 @@ steps=$(jq -r '.steps // empty' "$conf" 2>/dev/null || true)
 py=$(jq -r '.python // false' "$conf" 2>/dev/null || echo false)
 img() { echo "benchkeeper-arm-$(echo "$1" | tr A-Z a-z)$([ "$py" != true ] || echo -py)"; }
 # Final-message phrases that wait for the user (follow-up rule, protocol v1.8); `bench/scripts/waits.test.sh` checks them.
-WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when'
-# Reads a final message on stdin; true when its last non-empty line ends with "?" or its last 5 lines match WAITS.
-waiting() { awk 'NF { l[++n] = $0 } END { for (i = (n > 5 ? n - 4 : 1); i <= n; i++) print l[i]; if (n && l[n] ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' \
-  | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
+WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when|answer the questions|once you answer|after you answer|i can.t (start|begin|continue|proceed) (yet|until)|which of these is (true|right|correct)|please run [^ ]*setting-up-projects|(i.ll|i will) wait for|not done yet|what i need from you|run [^ ]*setting-up-projects'
+# Reads a final message on stdin; true when its last non-empty line ends with "?" or any line matches WAITS.
+waiting() { awk 'NF { print; l = $0 } END { if (l ~ /\?[[:space:]]*$/) print "LAST-LINE-QUESTION" }' | grep -Eiq "LAST-LINE-QUESTION|$WAITS"; }
 runtime() { case $1 in Q|R|S|T|U|Z|AA) echo opencode ;; *) echo claude ;; esac; }
 needs() { for a in $arms; do [ "$(runtime "$a")" = "$1" ] && return 0; done; return 1; }
 if needs claude; then

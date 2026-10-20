@@ -110,8 +110,9 @@ export function summarizeRuns(trials, reports = []) {
 // Per brief, the trials of all its runs (models) that have a final score, ranked by total, then fewer minutes: the top 10,
 // and plain Claude Code (arm A) of each model with its place when it is not in the top 10.
 export function topByBrief(trials) {
+  trials = trials.filter((t) => t.validity?.ok !== false);
   return [...new Set(trials.filter((t) => t.final).map((t) => t.brief))].map((brief) => {
-    const ranked = trials.filter((t) => t.brief === brief && t.final && t.validity?.ok !== false).sort((a, b) => b.final.total - a.final.total || a.minutes - b.minutes);
+    const ranked = trials.filter((t) => t.brief === brief && t.final).sort((a, b) => b.final.total - a.final.total || a.minutes - b.minutes);
     const top = ranked.slice(0, 10);
     const baselines = ranked.filter((t) => t.arm === 'A' && t.runtime === 'Claude Code' && !top.includes(t)).map((t) => ({ ...t, place: ranked.indexOf(t) + 1 }));
     return { brief, of: ranked.length, top, baselines };

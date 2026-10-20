@@ -195,3 +195,14 @@ TOML
 cp "$HOME/.codex/config.toml" "$t/unsupported.toml"
 sh "$setup" --apply-all >"$t/unsupported.log" 2>&1 && fail "multiline string reported success" || true
 cmp -s "$t/unsupported.toml" "$HOME/.codex/config.toml" && pass "unsupported multiline string remains unchanged" || fail "unsupported multiline string changed"
+
+cat >"$HOME/.codex/config.toml" <<'TOML'
+custom = [
+  [1],
+  [2]
+]
+model_reasoning_effort = "low"
+TOML
+cp "$HOME/.codex/config.toml" "$t/unsupported.toml"
+sh "$setup" --apply-all >"$t/unsupported.log" 2>&1 && fail "multiline array reported success" || true
+cmp -s "$t/unsupported.toml" "$HOME/.codex/config.toml" && pass "unsupported multiline array remains unchanged" || fail "unsupported multiline array changed"

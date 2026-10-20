@@ -28,6 +28,7 @@ test('invalid trials remain inspectable but never enter rankings or medians', ()
   assert.equal(summarizeRuns(loaded)[0].groups[0].rows.length, 1);
   const withScores = loaded.map((t, i) => ({ ...t, final: { total: i === 0 ? 50 : 100 } }));
   assert.equal(topByBrief(withScores)[0].of, 1);
+  assert.deepEqual(topByBrief(withScores.slice(1)), []);
 });
 
 test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with Ponytail', () => {

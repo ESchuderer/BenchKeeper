@@ -12,7 +12,7 @@ pod=bk-score-$$
 trap 'podman pod rm -f "$pod" > /dev/null 2>&1; rm -rf "${app:-}" "${hid:-}" "${site:-}" "${cur:-}" "${prev:-}"' EXIT
 trap 'exit 130' INT TERM HUP
 # The built app as delivered (source and git history, without node_modules), for download and manual comparison.
-mkdir -p "$out/screenshots" && tar --exclude=node_modules --exclude=.venv --exclude=__pycache__ -czf "$out/app.tar.gz" -C "$ws" .
+mkdir -p "$out/screenshots" && tar --exclude=node_modules --exclude=.venv --exclude=__pycache__ -czf "$out/app.tar.gz" -C "$ws" . || exit 1
 # Step briefs (brief.json "steps": "sessions") are scored per step: on the snapshot bench/run-brief.sh saved after step <k>
 # (<out-dir>/../steps/<k>/repo.tar.gz), the step's checks, the repository's suite and, from step 2 on, the cross-step
 # checks against the previous step's snapshot, into steps/<k>/. The hash covers the hidden tests and the checks.
@@ -26,9 +26,14 @@ if [ "$(jq -r '.steps // empty' "$brief/brief.json" 2>/dev/null)" = sessions ]; 
   for k in $(ls "$(dirname "$out")/steps" 2>/dev/null | grep -E '^[0-9]+$' | sort -n); do
     s=$(dirname "$out")/steps/$k
     [ -f "$s/repo.tar.gz" ] || continue
-    cur=$(mktemp -d) && tar -xzf "$s/repo.tar.gz" -C "$cur"
     # A check that fails to start must not leave the results of an earlier scoring (cross.sh appends to checks.json).
     rm -f "$s/checks.json" "$s/suite.json" "$s/playwright.json" "$s/diff.json"
+    cur=$(mktemp -d) || exit 1
+    if ! tar -xzf "$s/repo.tar.gz" -C "$cur"; then
+      echo '{"infrastructure_error":"checkpoint archive extraction failed","checks":[]}' > "$s/checks.json"
+      echo 1 > "$s/checks.exit"
+      exit 1
+    fi
     "$brief/checks/step$k.sh" "$cur" "$s" > "$s/checks.log" 2>&1
     rc=$?
     echo "$rc" > "$s/checks.exit"

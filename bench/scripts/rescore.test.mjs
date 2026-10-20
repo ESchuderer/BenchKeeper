@@ -20,3 +20,22 @@ test('failed rescoring leaves prior checkpoint and final results intact', () => 
     for (const f of ['trial.json', 'score/score.json', 'steps/1/checks.json', 'steps/1/repo.tar.gz']) assert.equal(readFileSync(join(trial, f), 'utf8'), 'original');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('a corrupt checkpoint archive is a scoring error before any solution check', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bench-corrupt-'));
+  try {
+    for (const d of ['brief/checks', 'trial/steps/1', 'workspace', 'bin']) mkdirSync(join(dir, d), { recursive: true });
+    writeFileSync(join(dir, 'brief/brief.json'), '{"steps":"sessions"}');
+    writeFileSync(join(dir, 'trial/steps/1/repo.tar.gz'), 'not a gzip archive');
+    writeFileSync(join(dir, 'brief/checks/step1.sh'), '#!/bin/sh\necho ran > "$2/check-ran"\n', { mode: 0o755 });
+    writeFileSync(join(dir, 'bin/podman'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    const result = spawnSync('sh', [new URL('../scorer/score.sh', import.meta.url).pathname,
+      join(dir, 'brief'), join(dir, 'workspace'), join(dir, 'trial/score')], { encoding: 'utf8', env: { ...process.env, PATH: `${join(dir, 'bin')}:${process.env.PATH}` } });
+    assert.equal(result.status, 1);
+    const checks = JSON.parse(readFileSync(join(dir, 'trial/steps/1/checks.json'), 'utf8'));
+    assert.equal(checks.infrastructure_error, 'checkpoint archive extraction failed');
+    assert.deepEqual(checks.checks, []);
+    assert.throws(() => readFileSync(join(dir, 'trial/steps/1/check-ran')), /ENOENT/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

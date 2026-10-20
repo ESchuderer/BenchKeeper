@@ -77,16 +77,17 @@ tomlset() {
   input=$file
   [ -f "$input" ] || input=/dev/null
   awk -v table="$table" -v key="$key" -v value="$value" '
+    function literal(s) { return "(\"" s "\"|\047" s "\047|" s ")" }
     function finish() { if (section == table && !written) { print key " = " value; written=1 } }
     BEGIN { section="" }
     /"""/ || /\047\047\047/ { exit 2 }
     /^[[:space:]]*\[/ {
       finish()
-      section=(table != "" && $0 ~ "^[[:space:]]*\\[[[:space:]]*[\"\047]?" table "[\"\047]?[[:space:]]*\\][[:space:]]*(#.*)?$") ? table : "other"
+      section=(table != "" && $0 ~ "^[[:space:]]*\\[[[:space:]]*" literal(table) "[[:space:]]*\\][[:space:]]*(#.*)?$") ? table : "other"
     }
     {
-      if (table != "" && section == "" && $0 ~ "^[[:space:]]*[\"\047]?" table "[\"\047]?[[:space:]]*[.=]") exit 2
-      if (section == table && $0 ~ "^[[:space:]]*[\"\047]?" key "[\"\047]?[[:space:]]*=") { print key " = " value; written=1; next }
+      if (table != "" && section == "" && $0 ~ "^[[:space:]]*" literal(table) "[[:space:]]*[.=]") exit 2
+      if (section == table && $0 ~ "^[[:space:]]*" literal(key) "[[:space:]]*=") { print key " = " value; written=1; next }
       print
     }
     END { if (!written) { if (section != table) print "\n[" table "]"; print key " = " value } }

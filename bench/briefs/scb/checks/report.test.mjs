@@ -22,6 +22,9 @@ test('infrastructure failures and malformed counts cannot become scores', () => 
     { ...evaluated(), eval: { ...evaluated().eval, pytest_exit_code: 3 } },
     { ...evaluated(), eval: { ...evaluated().eval, total_counts: {} } },
     { ...evaluated(), eval: { ...evaluated().eval, total_counts: { Core: -1 } } },
+    { ...evaluated(), eval: { ...evaluated().eval, total_counts: { Core: "2" } } },
+    { ...evaluated(), eval: { ...evaluated().eval, pass_counts: { Core: "2" } } },
+    { ...evaluated(), eval: { ...evaluated().eval, total_counts: { Unknown: 2 }, pass_counts: { Unknown: 2 } } },
     evaluated(3),
   ]) {
     const r = report(value);

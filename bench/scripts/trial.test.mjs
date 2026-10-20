@@ -364,13 +364,13 @@ test('steps: checks, suite, minutes, waited, cost from the step\'s transcript li
   const s = steps(dir);
   const { workflow: w0, ...s0 } = s[0];
   assert.deepEqual([w0.tool_calls, w0.last_tool], [1, 'AskUserQuestion ']);
-  assert.deepEqual(s0, { k: 1, checks: [{ id: 'S1-a', ok: true }, { id: 'S1-b', ok: false }], passed: 1, total: 2, suite_ok: true, minutes: 10, waited: true, followups: 1, ask_user_calls: 1,
+  assert.deepEqual(s0, { k: 1, scb: null, scoring_error: null, checks: [{ id: 'S1-a', ok: true }, { id: 'S1-b', ok: false }], passed: 1, total: 2, suite_ok: true, minutes: 10, waited: true, followups: 1, ask_user_calls: 1,
     cost_usd_api_equivalent: 0.5, tokens: { input: 0, cache_creation: 0, cache_read: 0, output: 10, thinking: 0 },
     usage: { before: { five_hour: 0.1, five_hour_reset: 5000, weekly: 0.2, weekly_reset: 9000 }, after: { five_hour: 0.25, five_hour_reset: 5000, weekly: 0.21, weekly_reset: 9000 }, five_hour_share: 0.15, weekly_share: 0.01 } });
   assert.deepEqual([s[1].passed, s[1].total, s[1].suite_ok, s[1].minutes, s[1].waited, s[1].ask_user_calls, s[1].cost_usd_api_equivalent], [1, 1, false, 1.5, false, 0, 0.75]);
   // The 5-hour window reset between the readings.
   assert.deepEqual([s[1].usage.five_hour_share, s[1].usage.weekly_share], [null, 0.01]);
-  assert.deepEqual(s[2], { k: 3, checks: null, passed: null, total: null, suite_ok: null, minutes: null, waited: null, followups: null, ask_user_calls: null, workflow: null, cost_usd_api_equivalent: null, tokens: null, usage: null });
+  assert.deepEqual(s[2], { k: 3, scb: null, scoring_error: null, checks: null, passed: null, total: null, suite_ok: null, minutes: null, waited: null, followups: null, ask_user_calls: null, workflow: null, cost_usd_api_equivalent: null, tokens: null, usage: null });
 });
 
 test('workflow: plan before the first source edit, checks after the last edit', async () => {

@@ -10,8 +10,26 @@ for t in "$run"/round-*/*/; do
   [ -f "$t/agent.exit" ] && [ -f "$t/trial.json" ] || continue
   if [ "${MUTATION_ONLY:-}" = 1 ]; then "$bench/scorer/mutation.sh" "$t/workspace" "$t/score"
   else
-    rm -rf "$t/score.new" && "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$t/score.new" > /dev/null 2>&1 || true
-    rm -rf "$t/score" && mv "$t/score.new" "$t/score"
+    stage=$(mktemp -d "$t/.rescore-XXXXXX")
+    trap 'rm -rf "$stage"' EXIT
+    for snapshot in "$t"/steps/*/repo.tar.gz; do
+      [ -f "$snapshot" ] || continue
+      step=$(basename "$(dirname "$snapshot")")
+      mkdir -p "$stage/steps/$step"
+      ln -s "$snapshot" "$stage/steps/$step/repo.tar.gz"
+    done
+    [ ! -f "$t/scb-image" ] || export SCB_IMAGE=$(cat "$t/scb-image")
+    if ! "$bench/scorer/score.sh" "$bench/briefs/$brief" "$t/workspace" "$stage/score" > "$t/log/rescore.log" 2>&1; then
+      echo "scoring failed for $t, previous results kept (log/rescore.log)" >&2; exit 1
+    fi
+    for snapshot in "$stage"/steps/*/repo.tar.gz; do
+      [ -L "$snapshot" ] || continue
+      step=$(basename "$(dirname "$snapshot")")
+      rm "$snapshot"
+      cp -a "$stage/steps/$step/." "$t/steps/$step/"
+    done
+    rm -rf "$t/score" && mv "$stage/score" "$t/score"
+    rm -rf "$stage"; trap - EXIT
   fi
   podman run --rm --userns=keep-id -e HOME=/tmp -v "$repo":/repo:ro,Z -v "$t":/t:Z -w /repo "$NODE" node bench/scripts/trial.mjs /t "$arm"
   echo "$arm $(jq -c '{f: .score.features_passed, hidden: .score.hidden_tests, mutation: .score.mutation.score}' "$t/trial.json")"

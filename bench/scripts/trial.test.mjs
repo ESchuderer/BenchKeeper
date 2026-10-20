@@ -11,16 +11,81 @@ const ARMS = Object.keys(ARM_TABLE);
 test('each arm passes its own delivery audit and fails every other arm\'s', () => {
   for (const real of ARMS) {
     for (const claimed of ARMS) {
-      const r = audit(fixture(real), claimed);
-      // AD, AG and AH (v3, v4, v5), and AL and AM (v6, v7), differ only in the layer version, which the init event does not
+      const r = audit(fixture(real === 'AO' ? 'AM' : real), claimed);
+      // AO reuses AM marker events as a contract fixture, not a recorded AO runtime audit.
+      // AD, AG and AH, and AL, AM and AO, differ in layer version, which the init event does not
       // show: run-brief.sh records it in <trial>/bk.
-      const twins = [['AD', 'AG', 'AH'], ['AL', 'AM']].some((g) => g.includes(real) && g.includes(claimed));
+      const twins = [['AD', 'AG', 'AH'], ['AL', 'AM', 'AO']].some((g) => g.includes(real) && g.includes(claimed));
       assert.equal(r.ok, real === claimed || twins, `${real} audited as ${claimed}: ${r.problems.join('; ')}`);
     }
   }
 });
 
 const use = (name, input, parent = null) => ({ type: 'assistant', parent_tool_use_id: parent, message: { content: [{ type: 'tool_use', name, input }] } });
+
+test('Python source edits determine test, plan and verification order', () => {
+  const source = use('Write', { file_path: '/work/app.py' });
+  const tests = use('Write', { file_path: '/work/test_app.py' });
+  const plan = use('Write', { file_path: '/work/plan.md' });
+  const check = use('Bash', { command: 'python -m pytest' });
+  const late = workflow([check, source, tests, plan]);
+  assert.equal(late.tests_first, false);
+  assert.equal(late.plan_first, false);
+  assert.equal(late.verified, false);
+  const ordered = workflow([plan, tests, source, check]);
+  assert.equal(ordered.tests_first, true);
+  assert.equal(ordered.plan_first, true);
+  assert.equal(ordered.verified, true);
+});
+
+test('shell writes use the same planning and verification order as edit tools', () => {
+  const source = use('Bash', { command: "cat > src/app.py <<'EOF'\nprint('hello')\nEOF" });
+  const plan = use('Bash', { command: "printf 'Plan' > plan.md" });
+  const check = use('Bash', { command: 'pytest' });
+  assert.equal(workflow([check, source, plan]).plan_first, false);
+  assert.equal(workflow([check, source, plan]).verified, false);
+  assert.equal(workflow([plan, source, check]).plan_first, true);
+  assert.equal(workflow([plan, source, check]).verified, true);
+  assert.equal(workflow([use('Bash', { command: "cat > app.py <<'EOF'\n# run pytest\nEOF" })]).verified, false);
+});
+
+test('Python line counts exclude virtual environments and test dependencies', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { lines } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/python-lines-');
+  try {
+    writeFileSync(`${dir}/app.py`, 'def answer():\n    return 42\n');
+    writeFileSync(`${dir}/test_app.py`, 'assert answer() == 42\n');
+    mkdirSync(`${dir}/.venv/lib`, { recursive: true });
+    writeFileSync(`${dir}/.venv/lib/vendor.py`, 'vendor = True\n');
+    assert.deepEqual(lines(dir), { source: 2, test: 1, files: 2 });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('trial validity separates delivery and scoring failures from failed solutions', async () => {
+  const { validity } = await import('./trial.mjs');
+  const trial = { audit: { ok: true }, outcome: {}, steps: [{ checks: [{ id: 'C1-core', ok: false }], scoring_error: null }] };
+  assert.deepEqual(validity(trial), { ok: true, problems: [] });
+  assert.equal(validity({ ...trial, audit: { ok: false } }).ok, false);
+  assert.equal(validity({ ...trial, outcome: { infra_error: true } }).ok, false);
+  assert.equal(validity({ ...trial, steps: [{ k: 1, scoring_error: 'evaluator command failed' }] }).ok, false);
+  assert.equal(validity({}).ok, false);
+});
+
+test('step reports retain raw SCB counts and evaluator failures', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { steps } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/scb-steps-'), step = `${dir}/steps/1`;
+  try {
+    mkdirSync(step, { recursive: true });
+    writeFileSync(`${step}/checks.json`, JSON.stringify({ infrastructure_error: 'evaluator command failed', checks: [{ id: 'C1-core', ok: null }] }));
+    const scb = { evaluation_exit: 125, eval: null, quality: null };
+    writeFileSync(`${step}/scb.json`, JSON.stringify(scb));
+    const [result] = steps(dir);
+    assert.equal(result.scoring_error, 'evaluator command failed');
+    assert.deepEqual(result.scb, scb);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 
 test('workflow trace: skills, agents, plan files, tests first, review', () => {
   const w = workflow([
@@ -332,4 +397,28 @@ test('sessions table: one row per arm and step, and the main table is replaced f
   const out = sessionsTable([t([st(1, 3, true, true, 1), st(2, 2, true, false, 2)]), t([st(1, 1, false, false, 3)])]);
   assert.match(out, /\| L \| 1 \| 2 \| 2 \(1 to 3\) of 3 \| 1 of 2 \| 1 of 2 \| 0\.5 \(0 to 1\) \| 10 \(10 to 10\) \| 2 \(1 to 3\) \| 5 \(5 to 5\) \| n\/a \|/);
   assert.match(out, /\| L \| 2 \| 1 \| 2 \(2 to 2\) of 3 \| 1 of 1 \|/);
+});
+
+
+test('skill availability, invocation errors and tier evidence stay separate', () => {
+  const events = [
+    { type: 'system', subtype: 'init', skills: ['example:tdd', 'example:review'] },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 's1', name: 'Skill', input: { skill: 'example:tdd' } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 's1', is_error: true }] } },
+  ];
+  const w = workflow(events);
+  assert.deepEqual(w.available_skills, ['example:review', 'example:tdd']);
+  assert.deepEqual(w.skills, ['example:tdd']);
+  assert.deepEqual(w.skill_errors, ['example:tdd']);
+  assert.deepEqual(w.tiers, []);
+  assert.deepEqual(workflow(events.slice(0, 1)).skills, []);
+});
+
+
+test('SCB report preserves per-test denominators and missing regression groups', async () => {
+  const { scbTable, workflowTable } = await import('./summary.mjs');
+  const trial = { arm: 'AO', round: 2, audit: { ok: true }, workflow: { skills: [], tiers: [] }, steps: [{ k: 6,
+    scb: { eval: { pass_counts: { Core: 2, Error: 0 }, total_counts: { Core: 3, Error: 1 } }, quality: { verbosity: 0, erosion: 0.2 } } }] };
+  assert.match(scbTable([trial]), /AO \| 2 \| 6 \| 2\/3 \| n\/a \| 0\/1 \| n\/a \| 0 \| 0.2/);
+  assert.match(workflowTable([trial]), /AO \| 1 \| not observed \| not observed \| 0/);
 });

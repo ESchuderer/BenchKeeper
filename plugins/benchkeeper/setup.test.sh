@@ -101,3 +101,97 @@ rm -rf "$HOME" && mkdir -p "$HOME/.claude" "$HOME/.codex"
 out=$(sh "$setup" --apply-all </dev/null 2>&1) || true
 jq -e '.model == "opusplan" and .autoCompactWindow == 400000' "$HOME/.claude/settings.json" >/dev/null && pass "--apply-all applies without asking" || fail "--apply-all: $out"
 echo "$out" | grep -q '\[y/N\]' && fail "--apply-all asked" || pass "--apply-all prints no question"
+
+echo 'keep these rules' >"$HOME/.codex/AGENTS.md"
+stub mv 'case "$1" in */.codex/AGENTS.md) exit 1 ;; esac; exec /bin/mv "$@"'
+sh "$setup" --apply-all >"$t/backup-failure.log" 2>&1 && fail "failed backup reported success" || true
+[ "$(cat "$HOME/.codex/AGENTS.md")" = 'keep these rules' ] && pass "failed backup preserves existing rules" || fail "failed backup overwrote rules"
+rm "$t/bin/mv"
+
+printf 'export DO_NOT_TRACK=1 ANTHROPIC_API_KEY=dummy-secret-for-test\n' >"$HOME/.bashrc"
+mkdir -p "$HOME/.config/fish"
+printf 'set -gx DO_NOT_TRACK 1; set -gx API_TOKEN dummy-fish-secret\n' >"$HOME/.config/fish/config.fish"
+out=$(sh "$setup")
+echo "$out" | grep -qE 'dummy-secret-for-test|dummy-fish-secret' && fail "shell configuration secret printed" || pass "shell configuration values stay private"
+echo "$out" | grep -q 'DO_NOT_TRACK' && pass "shell variable location still reported" || fail "shell variable not reported"
+
+cat >"$HOME/.codex/config.toml" <<'TOML'
+model_reasoning_effort = "low"
+[profiles.fast]
+model_reasoning_effort = "high"
+[analytics] # existing
+ enabled = true
+[feedback]
+enabled = true
+TOML
+cp "$HOME/.codex/config.toml" "$t/original.toml"
+stub date 'echo codex-settings-test'
+sh "$setup" --apply-all >/dev/null
+[ "$(head -1 "$HOME/.codex/config.toml")" = 'model_reasoning_effort = "high"' ] &&
+  [ "$(grep -c '^enabled = false$' "$HOME/.codex/config.toml")" = 2 ] && pass "Codex existing tables and root effort updated" || fail "Codex settings not updated"
+cmp -s "$t/original.toml" "$HOME/.config/benchkeeper/backup/codex-settings-test/.codex/config.toml" && pass "Codex preimage backed up once" || fail "Codex backup"
+sh "$setup" --restore codex-settings-test >/dev/null
+cmp -s "$t/original.toml" "$HOME/.codex/config.toml" && pass "Codex settings restore exactly" || fail "Codex restore"
+printf '[profiles.fast]\nmodel_reasoning_effort = "low"\n' >"$HOME/.codex/config.toml"
+sh "$setup" --apply-all >/dev/null
+[ "$(head -1 "$HOME/.codex/config.toml")" = 'model_reasoning_effort = "high"' ] && grep -q '^model_reasoning_effort = "low"$' "$HOME/.codex/config.toml" && pass "Codex profile effort preserved" || fail "Codex profile changed"
+
+cat >"$HOME/.codex/config.toml" <<'TOML'
+[""]
+model_reasoning_effort = "low"
+["analytics]archive"]
+enabled = true
+[" analytics "]
+enabled = true
+['analytics']
+" enabled " = true
+"enabled=foo" = true
+"enabled" = true
+["feedback"]
+"enabled" = true
+TOML
+cat >"$t/quoted-expected.toml" <<'TOML'
+model_reasoning_effort = "high"
+[""]
+model_reasoning_effort = "low"
+["analytics]archive"]
+enabled = true
+[" analytics "]
+enabled = true
+['analytics']
+" enabled " = true
+"enabled=foo" = true
+enabled = false
+["feedback"]
+enabled = false
+TOML
+sh "$setup" --apply-all >/dev/null
+cmp -s "$t/quoted-expected.toml" "$HOME/.codex/config.toml" && pass "Codex quoted names remain distinct" || fail "Codex quoted names changed"
+
+printf 'model_reasoning_effort = "low"\n[analytics]\nenabled = true\n[feedback]\nenabled = true\n' >"$HOME/.codex/config.toml"
+cp "$HOME/.codex/config.toml" "$t/before-failed-backup.toml"
+stub date 'echo codex-backup-failure'
+stub cp 'for arg; do case "$arg" in */backup/codex-backup-failure/*) exit 1 ;; esac; done; exec /bin/cp "$@"'
+sh "$setup" --apply-all >"$t/toml-backup-failure.log" 2>&1 && fail "failed Codex backup reported success" || true
+cmp -s "$t/before-failed-backup.toml" "$HOME/.codex/config.toml" && pass "failed Codex backup preserves config" || fail "failed Codex backup changed config"
+rm "$t/bin/cp"
+
+cat >"$HOME/.codex/config.toml" <<'TOML'
+model_reasoning_effort = "high"
+analytics = { enabled = true }
+[feedback]
+enabled = false
+TOML
+cp "$HOME/.codex/config.toml" "$t/unsupported.toml"
+sh "$setup" --apply-all >"$t/unsupported.log" 2>&1 && fail "inline target table reported success" || true
+cmp -s "$t/unsupported.toml" "$HOME/.codex/config.toml" && pass "unsupported inline table remains unchanged" || fail "unsupported inline table changed"
+
+cat >"$HOME/.codex/config.toml" <<'TOML'
+instructions = """
+[analytics]
+enabled = true
+"""
+TOML
+cp "$HOME/.codex/config.toml" "$t/unsupported.toml"
+sh "$setup" --apply-all >"$t/unsupported.log" 2>&1 && fail "multiline string reported success" || true
+cmp -s "$t/unsupported.toml" "$HOME/.codex/config.toml" && pass "unsupported multiline string remains unchanged" || fail "unsupported multiline string changed"

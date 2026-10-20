@@ -4,6 +4,7 @@
 // Cost: the API-equivalent USD the transcript reports (owner decision 2026-10-18). Trials bill the subscription, not the API.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { validity } from '../../bench/scripts/trial.mjs';
 
 // Arm descriptors (bench/SCENARIOS.md). The BenchKeeper layer includes Ponytail.
 const FW = { F: 'agent-skills', G: 'Superpowers', H: 'ECC', V: 'Matt Pocock' };
@@ -15,7 +16,7 @@ const ARMS = {
   L: { fw: 'F', bk: true }, M: { fw: 'G', bk: true }, N: { fw: 'H', bk: true }, X: { fw: 'V', bk: true },
   C: { fw: 'F', bk: true, spec: 'OpenSpec' }, D: { fw: 'G', bk: true, spec: 'OpenSpec' },
   E: { fw: 'H', bk: true, spec: 'OpenSpec' }, Y: { fw: 'V', bk: true, spec: 'OpenSpec' },
-  AD: { fw: 'V', bk: true, label: 'BK v3 + Matt Pocock' }, AE: { fw: 'V', bk: true, spec: 'OpenSpec', label: 'BK v3 + Matt Pocock + OpenSpec' }, AF: { fw: 'V', ponytail: true }, AG: { fw: 'V', bk: true, label: 'BK v4 + Matt Pocock' }, AH: { fw: 'V', bk: true, label: 'BenchKeeper setup-v3.3 + Matt Pocock' }, AL: { fw: 'V', bk: true, label: 'BenchKeeper setup-v4.0 + Matt Pocock' }, AM: { fw: 'V', bk: true, label: 'BenchKeeper setup-v5.0 + Matt Pocock' }, AN: { fw: 'V', bk: true, ponytail: false, label: 'BenchKeeper setup-v4.0 + Matt Pocock, no Ponytail' },
+  AD: { fw: 'V', bk: true, label: 'BK v3 + Matt Pocock' }, AE: { fw: 'V', bk: true, spec: 'OpenSpec', label: 'BK v3 + Matt Pocock + OpenSpec' }, AF: { fw: 'V', ponytail: true }, AG: { fw: 'V', bk: true, label: 'BK v4 + Matt Pocock' }, AH: { fw: 'V', bk: true, label: 'BenchKeeper setup-v3.3 + Matt Pocock' }, AL: { fw: 'V', bk: true, label: 'BenchKeeper setup-v4.0 + Matt Pocock' }, AM: { fw: 'V', bk: true, label: 'BenchKeeper setup-v5.0 + Matt Pocock' }, AO: { fw: 'V', bk: true, label: 'BenchKeeper setup-v5.3 + Matt Pocock' }, AN: { fw: 'V', bk: true, ponytail: false, label: 'BenchKeeper setup-v4.0 + Matt Pocock, no Ponytail' },
   Q: { framework: 'targeted agent-skills', spec: 'OpenSpec' }, R: { fw: 'G' }, S: { fw: 'G', spec: 'OpenSpec', label: 'OpenSpec + Superpowers (oso)' },
   T: { fw: 'F' }, U: { fw: 'F', spec: 'OpenSpec' }, Z: { fw: 'V' }, AA: { fw: 'V', spec: 'OpenSpec' },
 };
@@ -63,6 +64,7 @@ export function loadTrials(results) {
         const r = json(join(dir, 'review.json'))?.review;
         const shots = join(dir, 'screenshots');
         trials.push({
+          validity: validity(t),
           key: `${run}/${round}/${id}`, run, round: Number(round.slice(6)), brief: meta.brief, model: MODELS[meta.model] || meta.model, effort: meta.effort, k: meta.k,
           runtime: t.runtime === 'opencode' ? 'OpenCode' : 'Claude Code', arm: id, setup: arm(id).setup,
           features: t.score?.features_passed ?? null, robustness: t.score?.robustness_passed ?? null,
@@ -96,7 +98,7 @@ export function summarizeRuns(trials, reports = []) {
       featuresOf: Math.max(0, ...ts.map((t) => t.featuresOf ?? 0)) || null, robustnessOf: Math.max(0, ...ts.map((t) => t.robustnessOf ?? 0)) || null,
       protocols: [...new Set(ts.map((t) => t.protocol).filter(Boolean))].sort(),
       groups: [...new Set(ts.map((t) => t.runtime))].sort().map((runtime) => {
-        const rows = ts.filter((t) => t.runtime === runtime).sort(rankOrder);
+        const rows = ts.filter((t) => t.runtime === runtime && t.validity?.ok !== false).sort(rankOrder);
         // Equal scores share a rank; minutes only order the rows.
         rows.forEach((t, i) => { const p = rows[i - 1]; t.rank = p && p.overall === t.overall && p.features === t.features && p.robustness === t.robustness ? p.rank : i + 1; });
         return { runtime, criteria: [...new Set(rows.map((t) => t.criteria).filter(Boolean))].sort((a, b) => a - b), rows };
@@ -109,7 +111,7 @@ export function summarizeRuns(trials, reports = []) {
 // and plain Claude Code (arm A) of each model with its place when it is not in the top 10.
 export function topByBrief(trials) {
   return [...new Set(trials.filter((t) => t.final).map((t) => t.brief))].map((brief) => {
-    const ranked = trials.filter((t) => t.brief === brief && t.final).sort((a, b) => b.final.total - a.final.total || a.minutes - b.minutes);
+    const ranked = trials.filter((t) => t.brief === brief && t.final && t.validity?.ok !== false).sort((a, b) => b.final.total - a.final.total || a.minutes - b.minutes);
     const top = ranked.slice(0, 10);
     const baselines = ranked.filter((t) => t.arm === 'A' && t.runtime === 'Claude Code' && !top.includes(t)).map((t) => ({ ...t, place: ranked.indexOf(t) + 1 }));
     return { brief, of: ranked.length, top, baselines };
@@ -126,6 +128,7 @@ const median = (v) => {
 // equal scores share a rank and are ordered by fewer minutes. Review ratings of different runtimes use other criteria:
 // with the review as score, each runtime is ranked apart (groups); otherwise one group with runtime null.
 export function rankArms(trials) {
+  trials = trials.filter((t) => t.validity?.ok !== false);
   const kind = trials.some((t) => t.final) ? 'final' : trials.some((t) => t.brownfield != null) ? 'brownfield' : 'review';
   const value = (t) => (kind === 'final' ? t.final?.total ?? null : kind === 'brownfield' ? t.brownfield : t.overall);
   const rank = (ts) => {

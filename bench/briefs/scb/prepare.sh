@@ -1,13 +1,13 @@
 #!/bin/sh
 # SlopCodeBench problem as a step brief: fetches gabeorlanski/scb-problems at the pinned commit into .cache/ (git-ignored:
 # the benchmark data carries a canary and stays out of this repository), writes the brief's steps/<k>.md (git-ignored, one
-# per checkpoint: the harness's just-solve prompt, then our workflow lines) and builds the baseline in <out-dir>: an empty
+# per checkpoint: the harness's just-solve prompt) and builds the baseline in <out-dir>: an empty
 # repository with one commit "chore: baseline" (fixed author and date).
 # Usage: bench/briefs/scb/prepare.sh <problem> <brief-dir> <out-dir>
 set -eu
 problem=$1 brief=$(realpath "$2") out=$(realpath -m "$3")
 here=$(dirname "$(realpath "$0")")
-PROBLEMS=9cd9ca3a51c3d3e2a99d2488a25baf73a2204451
+. "$here/config.sh"
 cache=$here/.cache/problems-$PROBLEMS
 if [ ! -d "$cache" ]; then
   rm -rf "$cache.tmp" && mkdir -p "$cache.tmp"
@@ -15,7 +15,7 @@ if [ ! -d "$cache" ]; then
   git -C "$cache.src" archive FETCH_HEAD | tar -x -C "$cache.tmp" && rm -rf "$cache.src"
   mv "$cache.tmp" "$cache"
 fi
-podman build -q -t benchkeeper-scb "$here" > /dev/null
+[ "${SKIP_BUILD:-}" = 1 ] || [ "${PROMPTS_ONLY:-}" = 1 ] || podman build -q -t benchkeeper-scb "$here" > /dev/null
 p=$cache/$problem
 entry=$(awk '$1 == "entry_file:" {print $2}' "$p/config.yaml").py
 rm -rf "$brief/steps" && mkdir -p "$brief/steps"
@@ -32,9 +32,10 @@ for k in $(seq "$n"); do
     echo 'Your task is:'
     sed -e "s/%%%ENTRYPOINT:entry_file%%%/$entry/g" -e "s/%%%ENTRYPOINT:entry_command%%%/python $entry/g" "$p/checkpoint_$k.md"
     echo
-    cat "$here/workflow.md"
+
   } > "$brief/steps/$k.md"
 done
+[ "${PROMPTS_ONLY:-}" != 1 ] || exit 0
 mkdir -p "$out"
 [ -z "$(ls -A "$out")" ] || { echo "prepare: $out is not empty" >&2; exit 1; }
 git -C "$out" init -q -b main

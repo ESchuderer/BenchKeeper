@@ -5,6 +5,31 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { arm, loadTrials, rankArms, summarizeRuns, topByBrief } from './bench-data.mjs';
 
+test('invalid trials remain inspectable but never enter rankings or medians', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bench-validity-'));
+  const run = join(root, '2026-10-21-scb');
+  mkdirSync(run);
+  writeFileSync(join(run, 'manifest.txt'), 'brief=scb-xjq model=claude-sonnet-5-5 effort=high k=3 seed=1\n');
+  const trials = [
+    { audit: { ok: true } },
+    { audit: { ok: false } },
+    { audit: { ok: true }, steps: [{ k: 1, scoring_error: 'evaluator failed' }] },
+  ];
+  trials.forEach((trial, i) => {
+    const dir = join(run, `round-${i + 1}`, 'A');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'trial.json'), JSON.stringify({ arm: 'A', ...trial }));
+    writeFileSync(join(dir, 'review.json'), JSON.stringify({ review: { overall: i === 0 ? 5 : 10 } }));
+  });
+  const loaded = loadTrials(root);
+  assert.equal(loaded.length, 3);
+  assert.deepEqual(loaded.map((t) => t.validity.ok), [true, false, false]);
+  assert.equal(rankArms(loaded).groups[0].rows[0].score, 5);
+  assert.equal(summarizeRuns(loaded)[0].groups[0].rows.length, 1);
+  const withScores = loaded.map((t, i) => ({ ...t, final: { total: i === 0 ? 50 : 100 } }));
+  assert.equal(topByBrief(withScores)[0].of, 1);
+});
+
 test('arm descriptors: setup label, framework, spec tool, BenchKeeper layer with Ponytail', () => {
   assert.deepEqual(arm('A'), { framework: 'none', spec: 'none', bk: false, ponytail: false, setup: 'plain' });
   assert.equal(arm('O').setup, 'Ponytail + OpenSpec');
@@ -30,6 +55,7 @@ test('trials: one per arm directory, model, effort and k from the manifest, revi
   const [x, ...rest] = loadTrials(root);
   assert.equal(rest.length, 0);
   assert.deepEqual(x, {
+    validity: { ok: false, problems: ['delivery audit missing or failed'] },
     key: 'run-1/round-1/B', run: 'run-1', round: 1, brief: 'winery-react', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime: 'Claude Code', arm: 'B',
     setup: 'Ponytail', features: 1, robustness: null, featuresOf: 2, robustnessOf: null, minutes: 10, cost: 1.23, overall: 8, protocol: '1.10', criteria: 2,
     final: null, mutation: null, drawings: null, brownfield: null, notes: { verdict: null, strengths: [], issues: [] }, screenshots: [],

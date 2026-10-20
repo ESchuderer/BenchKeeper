@@ -1,0 +1,13 @@
+{
+  "name": "benchkeeper",
+  "owner": { "name": "ESchuderer", "url": "https://github.com/ESchuderer" },
+  "description": "BenchKeeper: workflow and setup skills for Claude Code and Codex.",
+  "plugins": [
+    {
+      "name": "benchkeeper",
+      "source": "./plugins/benchkeeper",
+      "description": "Task tiers on top of Matt Pocock's skills and Ponytail, plus project setup and repository maintenance skills.",
+      "category": "development"
+    }
+  ]
+}

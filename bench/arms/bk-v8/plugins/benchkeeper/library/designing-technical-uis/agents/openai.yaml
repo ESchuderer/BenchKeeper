@@ -1,0 +1,5 @@
+interface:
+  display_name: "Designing technical UIs"
+  short_description: "Values first: units, selection, tables, text"
+policy:
+  allow_implicit_invocation: true

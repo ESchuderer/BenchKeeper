@@ -2,6 +2,13 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v5.3 (2026-10-21)
+
+- `setup.sh` stops a file replacement when its backup fails. Shell configuration diagnostics print variable names and locations, without values or surrounding commands.
+- Codex settings update existing analytics and feedback values, set effort at the root without changing profiles, and back up the original TOML for restore. Unsupported multiline, inline or dotted target forms require manual editing.
+- Plugin `version` 5.3.0. Benchmark arm AO pins this plugin, rules and library separately from historical arms.
+- Upgrade: update the plugin and run `sh plugins/benchkeeper/setup.sh --apply` from the clone.
+
 ## setup-v5.2 (2026-10-19)
 
 - `setting-up-projects` step 5: after Matt Pocock's repository setup, move its `## Agent skills` block from `CLAUDE.md` into `AGENTS.md` when Codex is selected, and write the triage labels when it skipped them. His setup looks for a skill named `triage` and missed the plugin's `mattpocock-skills:triage` in the BenchKeeper repository, so `docs/agents/triage-labels.md` and the GitHub labels were missing.

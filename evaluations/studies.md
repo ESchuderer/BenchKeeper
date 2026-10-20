@@ -2,6 +2,10 @@
 
 Findings that apply to several components, sources to follow, A/B test tools, and sources that are not evidence. Checked 2026-10-14.
 
+## Benchmark measurement corrections (2026-10-21)
+
+[Protocol 1.23](../bench/PROTOCOL.md#external-benchmark-pilot-slopcodebench-v123) records natural prompts, source and image fingerprints, raw SCB counts and metrics, and exclusions for infrastructure failures. The current setup has a new AO arm. Older arm snapshots and scores remain unchanged, with AN's layer metadata corrected to v6. No model trials or comparative claims were added. Skill calls and explicit tier lines are trace evidence, not measures of instruction compliance.
+
 ## Cross-tool findings
 
 - **Optional tools often go uncalled.** [JetBrains, IDE-native search](https://blog.jetbrains.com/ai/2026/05/what-happens-when-you-give-agents-ide-native-seach-tools/) (225 Java tasks, 3 runs, 2,700 trajectories; corrected after the first run had not called the tools): GPT-5.4-mini and GPT-5.5 made no IDE search calls in 675 trajectories each. GPT-5.6 used them and median cost rose about 6 to 7%. Not recommended as a default. [Vercel](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals) (Next.js 16 APIs, agent and task count not stated, vendor of both arms): docs skill never invoked in 56% of cases, pass rate 53% (same as no docs), 79% with an explicit instruction to use it. Also Marginlab ([Context7](context-tools/context7.md), 6 of 89 tasks) and arXiv 2608.13568 ([LSP plugins](context-tools/lsp-plugins.md)).

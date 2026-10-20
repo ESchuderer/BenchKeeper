@@ -70,9 +70,41 @@ jqset() {
     mkdir -p "$(dirname "$1")" && echo '{}' | jq "$2" >"$tmp/set.json"
   fi && cp "$tmp/set.json" "$1"
 }
+# tomlset <file> <table or empty> <key> <literal>: update one scalar, preserving the original for restore.
+# shortcut: multiline strings, inline and dotted target tables need manual editing, until a TOML editor is a prerequisite.
+tomlset() {
+  file=$1 table=$2 key=$3 value=$4
+  input=$file
+  [ -f "$input" ] || input=/dev/null
+  awk -v table="$table" -v key="$key" -v value="$value" '
+    function finish() { if (section == table && !written) { print key " = " value; written=1 } }
+    BEGIN { section="" }
+    /"""/ || /\047\047\047/ { exit 2 }
+    /^[[:space:]]*\[/ {
+      finish()
+      section=(table != "" && $0 ~ "^[[:space:]]*\\[[[:space:]]*[\"\047]?" table "[\"\047]?[[:space:]]*\\][[:space:]]*(#.*)?$") ? table : "other"
+    }
+    {
+      if (table != "" && section == "" && $0 ~ "^[[:space:]]*[\"\047]?" table "[\"\047]?[[:space:]]*[.=]") exit 2
+      if (section == table && $0 ~ "^[[:space:]]*[\"\047]?" key "[\"\047]?[[:space:]]*=") { print key " = " value; written=1; next }
+      print
+    }
+    END { if (!written) { if (section != table) print "\n[" table "]"; print key " = " value } }
+  ' "$input" >"$tmp/set.toml" || { echo "unsupported TOML form in $file: edit $key manually" >&2; return 1; }
+  if cmp -s "$input" "$tmp/set.toml"; then ok "Codex ${table:+[$table] }$key in $file"; else
+    step "set ${table:+[$table] }$key = $value in $file (the old file goes to the backup)" tomlwrite "$file"
+  fi
+}
+tomlwrite() {
+  dest=$backups/$stamp/${1#"$HOME"/}
+  if [ -f "$1" ]; then
+    mkdir -p "$(dirname "$dest")" && { [ -e "$dest" ] || cp -p "$1" "$dest"; } || return 1
+  fi
+  mkdir -p "$(dirname "$1")" && cp "$tmp/set.toml" "$1"
+}
 # same <file> <filter>: the file exists and the filter changes nothing in it.
 same() { [ -f "$1" ] && [ "$(jq -S . "$1")" = "$(jq -S "$2" "$1")" ]; }
-put() { { [ ! -e "$2" ] && [ ! -L "$2" ]; } || stash "$2"; mkdir -p "$(dirname "$2")" && cp "$1" "$2"; }
+put() { { [ ! -e "$2" ] && [ ! -L "$2" ]; } || stash "$2" || return 1; mkdir -p "$(dirname "$2")" && cp "$1" "$2"; }
 # newest <pkg>: the highest release that has been public for at least 7 days, so a bad release is caught before it lands.
 # Prints nothing when npm cannot answer or no release qualifies.
 newest() {
@@ -225,18 +257,10 @@ if [ -n "$claude" ]; then
 fi
 if [ -n "$codex" ]; then
   f=$HOME/.codex/config.toml
+  tomlset "$f" '' model_reasoning_effort '"high"' || failed=1
   for s in analytics feedback; do
-    if [ -f "$f" ] && grep -q "^\[$s\]" "$f"; then ok "Codex [$s] in $f"; else
-      step "add [$s] enabled = false to $f" sh -c 'mkdir -p "$(dirname "$1")" && printf "\n[%s]\nenabled = false\n" "$2" >>"$1"' _ "$f" "$s"
-    fi
+    tomlset "$f" "$s" enabled false || failed=1
   done
-  # Top-level key: replaced in place, or prepended so it stays above the first table.
-  if [ -f "$f" ] && grep -qx 'model_reasoning_effort = "high"' "$f"; then ok "Codex default effort high"; else
-    step "set model_reasoning_effort = \"high\" in $f (now: $(sed -n 's/^model_reasoning_effort = //p' "$f" 2>/dev/null | grep . || echo unset))" sh -c '
-      mkdir -p "$(dirname "$1")" && touch "$1"
-      if grep -q "^model_reasoning_effort" "$1"; then sed -i "s/^model_reasoning_effort = .*/model_reasoning_effort = \"high\"/" "$1"
-      else { echo "model_reasoning_effort = \"high\""; cat "$1"; } >"$1.tmp" && mv "$1.tmp" "$1"; fi' _ "$f"
-  fi
 fi
 f=$HOME/.config/ponytail/config.json
 if same "$f" '.defaultMode = "full"'; then ok "Ponytail level full"; else
@@ -245,13 +269,13 @@ fi
 
 # Variables that switch off the advisor or Remote Control: reported with their place, edited by hand.
 vars='DISABLE_TELEMETRY|DO_NOT_TRACK|CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC|DISABLE_GROWTHBOOK|CLAUDE_CODE_DISABLE_ADVISOR_TOOL'
-env | grep -E "^($vars)=" | while IFS= read -r x; do info "set in this shell: $x (remove it where it is exported)"; done
+env | cut -d= -f1 | grep -E "^($vars)$" | while IFS= read -r x; do info "set in this shell: $x (remove it where it is exported)"; done
 [ -f "$HOME/.claude/settings.json" ] && jq -r '.env // {} | keys[]' "$HOME/.claude/settings.json" | grep -E "^($vars)$" |
   while IFS= read -r x; do info "set in ~/.claude/settings.json env: $x"; done
 for f in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile" /etc/environment; do
-  [ ! -f "$f" ] || grep -nE "$vars" "$f" | while IFS= read -r x; do info "$f:$x"; done
+  [ ! -f "$f" ] || grep -noE "$vars" "$f" | while IFS= read -r x; do info "$f:$x"; done
 done
-[ -d "$HOME/.config/fish" ] && grep -rnE "$vars" "$HOME/.config/fish" | while IFS= read -r x; do info "$x"; done
+[ -d "$HOME/.config/fish" ] && grep -rnoE "$vars" "$HOME/.config/fish" | while IFS= read -r x; do info "$x"; done
 
 # Host tools and checks.
 if command -v npm >/dev/null; then

@@ -22,6 +22,9 @@ RUN case "$ARM" in C|D|E|L|M|N|X|Y|AD|AE|AG|AH) npx -y playwright-core@1.64.0-al
 # Spec Kit arm: Python 3.11 and uv 0.13.1 for specify-cli.
 RUN if [ "$ARM" = P ] || [ "$ARM" = AC ]; then apt-get update && apt-get install -y --no-install-recommends python3 curl && rm -rf /var/lib/apt/lists/* \
     && curl -sSfL https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin --strip-components=1; fi
+# Python briefs (brief.json "python": true): Python 3 with venv and pip for the agent's own environment.
+ARG PY=
+RUN if [ "$PY" = 1 ]; then apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip && rm -rf /var/lib/apt/lists/*; fi
 USER node
 WORKDIR /home/node
 RUN BK="$BK" /opt/bench/install-arm.sh "$ARM"

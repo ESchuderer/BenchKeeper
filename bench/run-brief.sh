@@ -19,6 +19,9 @@ FOLLOWUP=$(jq -r '.followup // empty' "$conf" 2>/dev/null || true)
 serve=$(jq -r '.serve // "npm"' "$conf" 2>/dev/null || echo npm)
 # "steps": "sessions": the brief is steps/<k>.md on the baseline repository of its prepare.sh, one session per step.
 steps=$(jq -r '.steps // empty' "$conf" 2>/dev/null || true)
+# "python": true: the arm images also carry Python 3 with venv and pip (build argument PY=1, tag suffix -py).
+py=$(jq -r '.python // false' "$conf" 2>/dev/null || echo false)
+img() { echo "benchkeeper-arm-$(echo "$1" | tr A-Z a-z)$([ "$py" != true ] || echo -py)"; }
 # Final-message phrases that wait for the user (follow-up rule, protocol v1.8); `bench/scripts/waits.test.sh` checks them.
 WAITS='once you (confirm|approve)|after you (confirm|approve)|ready for your (approval|confirmation|review)|(shall|should) i (continue|proceed|start|go on|implement|build)|do you want me to (continue|proceed|start|implement|build)|would you like me to (continue|proceed|start|implement|build)|waiting for (your|approval|confirmation)|ready to (continue|proceed|implement|build) when|answer the questions|once you answer|after you answer|i can.t (start|begin|continue|proceed) (yet|until)|which of these is (true|right|correct)|please run [^ ]*setting-up-projects|(i.ll|i will) wait for|not done yet|what i need from you|run [^ ]*setting-up-projects'
 # Reads a final message on stdin; true when its last non-empty line ends with "?" or any line matches WAITS. Lines with
@@ -49,7 +52,7 @@ snap() { tar --exclude=node_modules -czf "$1" -C "$t/workspace" .; }
 
 # SKIP_BUILD=1 uses the existing images (for parallel runners after one build).
 [ "${SKIP_BUILD:-}" = 1 ] || for arm in $arms; do
-  podman build -q -f "$bench/image/Containerfile" --build-arg ARM="$arm" -t "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" "$repo" > /dev/null
+  podman build -q -f "$bench/image/Containerfile" --build-arg ARM="$arm" --build-arg PY="$([ "$py" != true ] || echo 1)" -t "$(img "$arm")" "$repo" > /dev/null
 done
 {
   echo "brief=$brief model=$model effort=$effort k=$k seed=$seed timeout=${TIMEOUT}s"
@@ -59,7 +62,7 @@ done
 } >> "$runs/manifest.txt"
 # A resumed run must use the same images as its first trials.
 for arm in $arms; do
-  id=$(podman image inspect "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" --format '{{.Id}}')
+  id=$(podman image inspect "$(img "$arm")" --format '{{.Id}}')
   first=$(awk -v a="$arm" '$1 == "image" && $2 == a {print $3; exit}' "$runs/manifest.txt")
   [ -z "$first" ] || [ "$first" = "$id" ] || { echo "image for arm $arm changed since the first trials of this run" >&2; exit 1; }
   echo "image $arm $id" >> "$runs/manifest.txt"
@@ -125,12 +128,12 @@ for r in $(seq "$k"); do
     [ "$steps" != sessions ] || { cp -a "$runs/baseline/." "$t/workspace/" && echo baseline > "$t/condition"; }
     # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first;
     # on a step brief's baseline only the template files the repository does not have, as a commit after the baseline.
-    podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
+    podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "$(img "$arm")" \
       sh -c '[ ! -d ~/project-template ] || [ -z "$(ls -A ~/project-template)" ] || { cp -an ~/project-template/. . && git init -q && git add -A -- . ":!.claude/settings.local.json" && { git diff --cached --quiet || git commit -qm "chore: project setup"; }; }' \
       || { echo "project setup for arm $arm failed" >&2; exit 1; }
     if [ "${SCAFFOLD:-}" = 1 ]; then
       cp -a "$bench/briefs/$brief/scaffold/." "$t/workspace/" && echo scaffold > "$t/condition"
-      podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" \
+      podman run --rm --userns=keep-id -e HOME=/home/node -v "$t/workspace":/work:Z -w /work "$(img "$arm")" \
         sh -c '[ ! -d .git ] || { git add -A && git commit -qm "chore: scaffold"; }' || { echo "scaffold for arm $arm failed" >&2; exit 1; }
     fi
     [ "$steps" != sessions ] || snap "$t/base.tar.gz"
@@ -142,7 +145,7 @@ for r in $(seq "$k"); do
     if [ "$rt" = opencode ]; then cred="-e ANTHROPIC_API_KEY $OC_ENV"; else cred="-e CLAUDE_CODE_OAUTH_TOKEN"; fi
     # shellcheck disable=SC2086 # $cred holds several flags
     podman run -d --rm --name "$c" --timeout "$((TIMEOUT + 300))" --userns=keep-id -e HOME=/home/node $cred \
-      -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "benchkeeper-arm-$(echo "$arm" | tr A-Z a-z)" sleep infinity > /dev/null
+      -v "$t/workspace":/work:Z -v "$t/log":/bench-log:Z -w /work "$(img "$arm")" sleep infinity > /dev/null
     # OpenCode has no init event: record the skills and configuration it resolves, for the delivery audit.
     [ "$rt" != opencode ] || podman exec "$c" sh -c 'opencode debug skill > /bench-log/opencode-skills.json && opencode debug config > /bench-log/opencode-config.json'
     turn() { # <prompt> [--continue]; runs one agent turn within the trial's remaining time

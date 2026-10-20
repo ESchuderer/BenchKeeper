@@ -1,0 +1,6 @@
+{
+  "steps": "sessions",
+  "serve": "none",
+  "followup": "Continue until the task of this step is complete in the repository. Do not wait for approval.",
+  "python": true
+}

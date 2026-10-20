@@ -70,7 +70,7 @@ function auditInit(init, events, arm) {
   return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins };
 }
 
-const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
 const SOURCE = /\.([cm]?[jt]sx?|html|css)$/;
 const CONFIG = /(^|\/)[^/]*\.config\.[cm]?[jt]s$/;
 
@@ -95,7 +95,7 @@ export function workflow(events, uses = claudeUses(events)) {
     || ((u.name === 'Agent' || u.name === 'Task') && /plan/i.test(String(u.input.subagent_type || ''))) || u.name === 'EnterPlanMode');
   const sourceIndex = uses.findIndex((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) && SOURCE.test(String(u.input.file_path || '')) && !TEST.test(String(u.input.file_path || '')) && !CONFIG.test(String(u.input.file_path || '')));
   const lastSource = uses.findLastIndex((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) && SOURCE.test(String(u.input.file_path || '')));
-  const CHECK = /\b(npm (run )?test|npx (mocha|vitest|jest|tsc)|mocha|vitest|jest|tsc\b|npm run (build|lint|typecheck))/;
+  const CHECK = /\b(npm (run )?test|npx (mocha|vitest|jest|tsc)|mocha|vitest|jest|tsc\b|npm run (build|lint|typecheck)|pytest|python3? -m unittest)/;
   const last = uses.at(-1);
   // Tier lines the agent wrote (`Tier: quick`), from the main thread's text.
   const tiers = events.filter((e) => e.type === 'assistant' && !e.parent_tool_use_id).flatMap((e) => (e.message?.content || [])

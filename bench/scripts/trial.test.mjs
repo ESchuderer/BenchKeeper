@@ -52,6 +52,9 @@ test('shell writes use the same planning and verification order as edit tools', 
   assert.equal(workflow([use('Bash', { command: "cat > src/app.py <<'EOF'\nx = 1\nEOF\npytest -q" })]).verified, true);
   assert.equal(workflow([source, use('Bash', { command: 'cat > a.txt <<EOF\nEOF\npytest -q\ncat > b.txt <<EOF\nx\nEOF' })]).verified, true);
   assert.equal(workflow([source, use('Bash', { command: "cat > notes.md <<'END-NOTES'\nRun pytest\nEND-NOTES" })]).verified, false);
+  assert.equal(workflow([source, use('Bash', { command: 'uv venv\npip install pytest' })]).verified, false);
+  assert.equal(workflow([source, use('Bash', { command: 'npm i -D vitest && npm test' })]).verified, true);
+  assert.equal(workflow([source, use('Bash', { command: 'mkdir -p t\ncat > pytest.ini <<EOF\n[pytest]\nEOF' })]).verified, false);
 });
 
 test('Python line counts exclude virtual environments and test dependencies', async () => {
@@ -263,6 +266,7 @@ test('phases: shell writes count by their target file, heredoc bodies are ignore
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'npm test 2>&1 | tee test.log' } }]), 'verify');
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: "cat > jest.config.js <<'EOF'\nexport default {}\nEOF" } }]), 'build');
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'cat > tests/vitest.config.ts << EOF\nEOF' } }]), 'test');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'npm install -D vitest' } }]), 'build');
 });
 
 test('phases: an OpenCode subagent session takes the phase of the task call that started it', async () => {

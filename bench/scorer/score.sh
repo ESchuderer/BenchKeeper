@@ -20,7 +20,7 @@ if [ "$(jq -r '.steps // empty' "$brief/brief.json" 2>/dev/null)" = sessions ]; 
   set -- checks
   [ ! -d "$brief/hidden" ] || set -- "$@" hidden
   case ${brief##*/} in scb-xjq|scb-mvvault) set -- "$@" ../scb/checks ../scb/config.sh ../scb/Containerfile ;; esac
-  (cd "$brief" && find -L "$@" -type f | sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
+  (cd "$brief" && find -L "$@" -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
   prev=
   failed=0
   for k in $(ls "$(dirname "$out")/steps" 2>/dev/null | grep -E '^[0-9]+$' | sort -n); do
@@ -49,7 +49,7 @@ app=$(mktemp -d) && cp -a "$ws/." "$app/" && rm -rf "$app/node_modules"
 # Hidden tests next to the scorer dependencies, so ESM imports resolve.
 hid=$(mktemp -d) && cp -rL "$brief/hidden/." "$hid/" && mkdir "$hid/node_modules"
 # Which version of the hidden tests scored this trial.
-(cd "$brief/hidden/" && find -L . -type f | sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
+(cd "$brief/hidden/" && find -L . -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
 # step <name> <seconds> <command...>: log and exit code per step; podman --timeout stops the container itself.
 step() { name=$1; T=$2; shift 2; "$@" > "$out/$name.log" 2>&1; echo $? > "$out/$name.exit"; }
 node_run() { podman run --rm --timeout "$T" --userns=keep-id -e HOME=/tmp -e CI=1 -v "$app":/app:Z -w /app "$NODE" "$@"; }

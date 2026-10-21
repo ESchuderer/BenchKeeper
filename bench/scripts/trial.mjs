@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
-import { claudePhases, opencodePhases, shellWriteTarget } from './phases.mjs';
+import { claudePhases, commandText, opencodePhases, shellWriteTarget } from './phases.mjs';
 
 // Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3' to 'v5': rules and the
 // following-dev-workflow skill, 'v6': the setup-v4.0 plugin, 'v7': the setup-v5.0 plugin), spec tool.
@@ -117,10 +117,8 @@ export function workflow(events, uses = claudeUses(events)) {
     tests_written: firstTest >= 0,
     tests_first: firstTest >= 0 && (firstSource < 0 || firstTest < firstSource),
     plan_first: planIndex >= 0 && (sourceIndex < 0 || planIndex < sourceIndex),
-    // Heredoc bodies are file contents, not commands; the lines around them are.
     // A check in the call that wrote the last source file ran after that write.
-    verified: uses.some((u, i) => i >= lastSource && u.name === 'Bash'
-      && CHECK.test(String(u.input.command || '').replace(/(<<-?[ \t]*\\?(['"]?)([\w.-]+)\2[^\n]*)\n(?:[\s\S]*?\n)??[ \t]*\3[ \t]*(?=\n|$)/g, '$1'))),
+    verified: uses.some((u, i) => i >= lastSource && u.name === 'Bash' && CHECK.test(commandText(u.input.command))),
     // A review skill or agent type, or a general subagent whose task description names a review.
     review: [...skills, ...agents].some((n) => /review/i.test(n))
       || uses.some((u) => (u.name === 'Agent' || u.name === 'Task') && /review/i.test(u.input.description || '')),

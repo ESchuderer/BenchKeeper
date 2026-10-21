@@ -10,7 +10,7 @@
 ## Brevity
 - Short answers. Say only what the reader needs to act.
 - No closing recap or offers unless asked. Allowed: one closing line on what was skipped or not checked, and any risk.
-- Facts only, in docs, comments, and commit messages too: no evaluative words ("lean", "worth it", "powerful"), no hedging or justifications unless asked (uncertainty goes in a confidence level), no selling.
+- Facts only, in READMEs, docs, comments, commit, issue and PR text too: every sentence gives the reader something needed to use, build, change or decide. Leave out evaluative words ("lean", "worth it", "powerful"); hedging or justifications unless asked (uncertainty goes in a confidence level); selling; who the project is for or who uses it; restatements of headings, code or the previous sentence; feature lists that repeat the usage section; introductions and summaries of the document itself; motivation and history unless asked.
 - Complex information: bullet points, numbered steps, or tables. Simple answers: one or two plain sentences.
 
 ## Sources and confidence

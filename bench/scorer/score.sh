@@ -27,7 +27,7 @@ if [ "$(jq -r '.steps // empty' "$brief/brief.json" 2>/dev/null)" = sessions ]; 
     s=$(dirname "$out")/steps/$k
     [ -f "$s/repo.tar.gz" ] || continue
     # A check that fails to start must not leave the results of an earlier scoring (cross.sh appends to checks.json).
-    rm -f "$s/checks.json" "$s/suite.json" "$s/playwright.json" "$s/diff.json"
+    rm -f "$s/checks.json" "$s/suite.json" "$s/playwright.json" "$s/diff.json" "$s/scb.json"
     cur=$(mktemp -d) || exit 1
     if ! tar -xzf "$s/repo.tar.gz" -C "$cur"; then
       echo '{"infrastructure_error":"checkpoint archive extraction failed","checks":[]}' > "$s/checks.json"

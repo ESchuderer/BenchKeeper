@@ -6,6 +6,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { validity } from './trial.mjs';
 
 const mean = (xs) => (xs.some((x) => typeof x !== 'number') ? undefined : xs.reduce((a, b) => a + b, 0) / xs.length);
 const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : undefined);
@@ -107,15 +108,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const args = process.argv.slice(2), opt = {}, runs = [];
   for (let i = 0; i < args.length; i++) (args[i].startsWith('--') ? (opt[args[i].slice(2)] = args[++i]) : runs.push(args[i]));
   const weights = JSON.parse(readFileSync(opt.weights ?? new URL('final-score.weights.json', import.meta.url), 'utf8'));
-  const rows = [];
+  const rows = [], excluded = [];
   for (const run of runs) {
     const model = /haiku|sonnet|opus/.exec(basename(run))?.[0] ?? basename(run);
     for (const arm of readdirSync(join(run, 'round-1')).sort()) {
       if (!existsSync(join(run, 'round-1', arm, 'trial.json'))) continue;
-      rows.push({ model, arm, ...score(loadTrial(run, arm, opt.measures ?? join(run, '..')), weights) });
+      const data = loadTrial(run, arm, opt.measures ?? join(run, '..')), state = validity(data.trial);
+      if (!state.ok) { excluded.push({ run: basename(run), model, arm, problems: state.problems }); continue; }
+      rows.push({ model, arm, ...score(data, weights) });
     }
   }
   rows.sort((a, b) => b.total - a.total);
-  writeFileSync(opt.out, JSON.stringify({ weights, trials: rows }, null, 2));
+  writeFileSync(opt.out, JSON.stringify({ weights, trials: rows, excluded }, null, 2));
   console.log(table(rows, weights));
 }

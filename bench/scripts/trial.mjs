@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
-import { claudePhases, opencodePhases, shellWriteTarget } from './phases.mjs';
+import { claudePhases, commandText, opencodePhases, shellWriteTarget } from './phases.mjs';
 
 // Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3' to 'v5': rules and the
 // following-dev-workflow skill, 'v6': the setup-v4.0 plugin, 'v7': the setup-v5.0 plugin), spec tool.
@@ -18,7 +18,7 @@ export const ARMS = {
   O: [null, 1, 0, 'openspec'], P: [null, 1, 0, 'speckit'], AB: [null, 0, 0, 'openspec'], AC: [null, 0, 0, 'speckit'],
   V: ['mp', 0, 0, null], W: ['mp', 0, 0, 'openspec'], X: ['mp', 1, 1, null], Y: ['mp', 1, 1, 'openspec'],
   AD: ['mp', 1, 'v3', null], AE: ['mp', 1, 'v3', 'openspec'], AF: ['mp', 1, 0, null], AG: ['mp', 1, 'v4', null], AH: ['mp', 1, 'v5', null],
-  AL: ['mp', 1, 'v6', null], AM: ['mp', 1, 'v7', null], AN: ['mp', 0, 'v6', null],
+  AL: ['mp', 1, 'v6', null], AM: ['mp', 1, 'v7', null], AN: ['mp', 0, 'v6', null], AO: ['mp', 1, 'v8', null],
 };
 
 // What the init event and hooks must show per arm; any other arm's marker in the listing invalidates the trial.
@@ -29,7 +29,7 @@ function expect(fw, pt, bk, spec) {
   if (fw === 'ecc') e.skills.push('tdd-workflow'), e.agents.push('planner', 'code-reviewer');
   if (fw === 'mp') e.plugins.push('mattpocock-skills'), e.skills.push('mattpocock-skills:tdd');
   if (pt) e.plugins.push('ponytail'), e.skills.push('ponytail:ponytail'), e.hooks.push('PONYTAIL MODE ACTIVE');
-  if (bk === 'v6' || bk === 'v7') e.plugins.push('benchkeeper'), e.skills.push('find-skills', 'benchkeeper:following-dev-workflow');
+  if (['v6', 'v7', 'v8'].includes(bk)) e.plugins.push('benchkeeper'), e.skills.push('find-skills', 'benchkeeper:following-dev-workflow');
   else if (bk) e.skills.push('find-skills', ['v3', 'v4', 'v5'].includes(bk) ? 'following-dev-workflow' : 'project-setup', 'playwright-best-practices'), e.mcp.push('playwright');
   if (spec === 'openspec') e.skills.push('openspec-propose');
   if (spec === 'speckit') e.skills.push('speckit-specify');
@@ -67,11 +67,11 @@ function auditInit(init, events, arm) {
   const mcp = (init.mcp_servers || []).map((s) => `${s.name}:${s.status === 'pending' ? 'connected' : s.status}`).sort();
   if (mcp.join() !== (want.mcp || []).map((n) => `${n}:connected`).join()) problems.push(`mcp ${(init.mcp_servers || []).map((s) => `${s.name}:${s.status}`).sort().join(',') || 'none'}`);
   if (!want.hooks.length && hookOut.trim()) problems.push('unexpected SessionStart output');
-  return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins };
+  return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins, available_skills: [...(init.skills || [])].sort() };
 }
 
-const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
-const SOURCE = /\.([cm]?[jt]sx?|html|css)$/;
+const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test_[^/]*|conftest)\.py$|_test\.py$/;
+const SOURCE = /\.([cm]?[jt]sx?|html|css|py)$/;
 const CONFIG = /(^|\/)[^/]*\.config\.[cm]?[jt]s$/;
 
 // Tool uses of a Claude Code stream-json transcript, main thread and subagents.
@@ -81,20 +81,25 @@ const claudeUses = (events) => events.filter((e) => e.type === 'assistant').flat
 // uses: [{ name, input: { file_path, skill, subagent_type, command }, sub }]; OpenCode trials pass theirs (opencode.mjs).
 export function workflow(events, uses = claudeUses(events)) {
   // Files written by edit tools or by shell commands (`cat > f <<EOF`, which OpenCode agents use often).
-  const writes = uses.flatMap((u) => (['Write', 'Edit', 'MultiEdit'].includes(u.name) ? [String(u.input.file_path || '')]
-    : u.name === 'Bash' && shellWriteTarget(u.input.command) ? [shellWriteTarget(u.input.command)] : []));
+  const targets = uses.map((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) ? String(u.input.file_path || '')
+    : u.name === 'Bash' ? shellWriteTarget(u.input.command) || '' : '');
+  const writes = targets.filter(Boolean);
   const firstTest = writes.findIndex((p) => TEST.test(p));
   const firstSource = writes.findIndex((p) => SOURCE.test(p) && !TEST.test(p) && !CONFIG.test(p));
   const skills = uses.filter((u) => u.name === 'Skill').map((u) => u.input.skill || u.input.command || '?');
+  const skillCalls = new Map(events.filter((e) => e.type === 'assistant').flatMap((e) => e.message?.content || [])
+    .filter((c) => c.type === 'tool_use' && c.name === 'Skill').map((c) => [c.id, c.input?.skill || c.input?.command || '?']));
+  const skillErrors = events.flatMap((e) => e.message?.content || [])
+    .filter((c) => c.type === 'tool_result' && c.is_error && skillCalls.has(c.tool_use_id)).map((c) => skillCalls.get(c.tool_use_id));
   const agents = uses.filter((u) => u.name === 'Agent' || u.name === 'Task').map((u) => u.input.subagent_type || 'general-purpose');
   // Planning before the first source edit: a plan or spec file (also a spec tool's artifacts), a planning skill or a
   // planning agent. Checks run after the last source edit: a test, build, lint or type check command.
   const PLAN_FILE = /(plan|spec|design|brainstorm|requirement|proposal|tasks|adr)[^/]*\.md$|(^|\/)(openspec|\.specify|specs|docs\/(adr|plans?|superpowers))\//i;
-  const planIndex = uses.findIndex((u) => (['Write', 'Edit', 'MultiEdit'].includes(u.name) && PLAN_FILE.test(String(u.input.file_path || '')))
+  const planIndex = uses.findIndex((u, i) => PLAN_FILE.test(targets[i])
     || (u.name === 'Skill' && /plan|spec|brainstorm|grill|propos|prd|design/i.test(String(u.input.skill || u.input.command || '')))
     || ((u.name === 'Agent' || u.name === 'Task') && /plan/i.test(String(u.input.subagent_type || ''))) || u.name === 'EnterPlanMode');
-  const sourceIndex = uses.findIndex((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) && SOURCE.test(String(u.input.file_path || '')) && !TEST.test(String(u.input.file_path || '')) && !CONFIG.test(String(u.input.file_path || '')));
-  const lastSource = uses.findLastIndex((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) && SOURCE.test(String(u.input.file_path || '')));
+  const sourceIndex = targets.findIndex((p) => SOURCE.test(p) && !TEST.test(p) && !CONFIG.test(p));
+  const lastSource = targets.findLastIndex((p) => SOURCE.test(p));
   const CHECK = /\b(npm (run )?test|npx (mocha|vitest|jest|tsc)|mocha|vitest|jest|tsc\b|npm run (build|lint|typecheck)|pytest|python3? -m unittest)/;
   const last = uses.at(-1);
   // Tier lines the agent wrote (`Tier: quick`), from the main thread's text.
@@ -104,13 +109,16 @@ export function workflow(events, uses = claudeUses(events)) {
     tool_calls: uses.length,
     subagent_tool_calls: uses.filter((u) => u.sub).length,
     skills,
+    skill_errors: skillErrors,
+    available_skills: [...new Set(events.filter((e) => e.type === 'system' && e.subtype === 'init').flatMap((e) => e.skills || []))].sort(),
     agents,
     tiers,
     plan_or_spec_files: writes.filter((p) => /\.md$/i.test(p) && /(plan|spec|design|brainstorm|requirement)/i.test(p)),
     tests_written: firstTest >= 0,
     tests_first: firstTest >= 0 && (firstSource < 0 || firstTest < firstSource),
     plan_first: planIndex >= 0 && (sourceIndex < 0 || planIndex < sourceIndex),
-    verified: uses.some((u, i) => i > lastSource && u.name === 'Bash' && CHECK.test(String(u.input.command || ''))),
+    // A check in the call that wrote the last source file ran after that write.
+    verified: uses.some((u, i) => i >= lastSource && u.name === 'Bash' && CHECK.test(commandText(u.input.command))),
     // A review skill or agent type, or a general subagent whose task description names a review.
     review: [...skills, ...agents].some((n) => /review/i.test(n))
       || uses.some((u) => (u.name === 'Agent' || u.name === 'Task') && /review/i.test(u.input.description || '')),
@@ -147,7 +155,15 @@ export function outcome(events) {
   };
 }
 
-const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage', 'test-results', 'playwright-report']);
+export function validity(trial) {
+  const problems = [];
+  if (trial?.audit?.ok !== true) problems.push('delivery audit missing or failed');
+  if (trial?.outcome?.infra_error) problems.push('agent infrastructure error');
+  for (const s of trial?.steps ?? []) if (s.scoring_error) problems.push(`step ${s.k}: ${s.scoring_error}`);
+  return { ok: problems.length === 0, problems };
+}
+
+const SKIP = new Set(['node_modules', '.venv', 'venv', '__pycache__', '.git', 'dist', 'build', '.next', 'coverage', 'test-results', 'playwright-report']);
 export function lines(dir) {
   const out = { source: 0, test: 0, files: 0 };
   const walk = (d, rel) => {
@@ -251,13 +267,17 @@ export function steps(dir) {
     const txt = (f) => { try { return readFileSync(join(d, f), 'utf8').trim(); } catch { return null; } };
     const json = (f) => { try { return JSON.parse(txt(f)); } catch { return null; } };
     const num = (f) => (txt(f) ? Number(txt(f)) : null);
-    const checks = json('checks.json')?.checks?.map(({ id, ok }) => ({ id, ok })) ?? null;
+    const report = json('checks.json');
+    const checks = report?.checks?.map(({ id, ok }) => ({ id, ok })) ?? null;
     const suite = json('suite.json');
     const [from, to] = (txt('lines') || '').split(' ').map(Number);
     const ev = Number.isInteger(to) ? lines.slice(from, to).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } }) : null;
     const o = ev && outcome(ev);
     return {
       k, checks,
+      scoring_error: report?.infrastructure_error || (num('checks.exit') ? `checkpoint checker exited ${num('checks.exit')}` : null)
+        || (existsSync(join(d, 'repo.tar.gz')) && !checks ? 'missing checkpoint checks' : null),
+      scb: json('scb.json'),
       passed: checks ? checks.filter((c) => c.ok === true).length : null,
       total: checks ? checks.filter((c) => c.ok !== null).length : null,
       suite_ok: suite ? suite.ok === true : null,
@@ -295,6 +315,11 @@ export function method(dir, protocolFile = new URL('../PROTOCOL.md', import.meta
   return {
     protocol: /^Version (\d+\.\d+)/m.exec(read(protocolFile) || '')?.[1] || null,
     hidden_tests: read(join(dir, 'score', 'hidden.sha256'))?.trim() || null,
+    ...(read(join(dir, 'inputs.sha256')) ? {
+      inputs_sha256: read(join(dir, 'inputs.sha256')).trim(),
+      prompt_condition: read(join(dir, 'prompt-condition'))?.trim() || null,
+      scb_image: read(join(dir, 'scb-image'))?.trim() || null,
+    } : {}),
     bk: read(join(dir, 'bk'))?.trim() || 'v1',
   };
 }
@@ -339,6 +364,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     steps_sent: wall('steps') ?? st?.length ?? null,
     method: method(dir),
   };
+  trial.validity = validity(trial);
   // Per-phase and per-subagent measurements, only for trials the runner marked (PHASES=1).
   if (existsSync(join(dir, 'log', 'phases'))) trial.phases = oc ? opencodePhases(all) : claudePhases(events, trial.outcome.cost_usd_api_equivalent || 0);
   writeFileSync(join(dir, 'trial.json'), JSON.stringify(trial, null, 2) + '\n');

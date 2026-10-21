@@ -9,7 +9,7 @@ copy=$(mktemp -d); trap 'rm -rf "$copy"' EXIT
 trap 'exit 130' INT TERM HUP
 tar -C "$ws" --exclude=.venv --exclude=.git -cf - . | tar -C "$copy" -xf -
 if ! find "$copy" -name 'test_*.py' -o -name '*_test.py' | grep -q .; then echo '{"ok":null,"exit":null}' > "$out/suite.json"; exit 0; fi
-podman run --rm --timeout 600 -v "$copy":/w:Z -w /w benchkeeper-scb \
+podman run --rm --timeout 600 -v "$copy":/w:Z -w /w "${SCB_IMAGE:-benchkeeper-scb}" \
   sh -c 'uv init -q --bare 2> /dev/null; [ ! -s requirements.txt ] || uv add -q -r requirements.txt && uv run --with pytest pytest -q' 2>&1
 rc=$?
 printf '{"ok":%s,"exit":%d}\n' "$([ "$rc" = 0 ] && echo true || echo false)" "$rc" > "$out/suite.json"

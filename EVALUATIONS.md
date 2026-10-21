@@ -2,6 +2,8 @@
 
 Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-17 (each file names its date).
 
+SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#external-benchmark-pilot-slopcodebench-v123) separates natural skill selection from delivery and scoring failures, and pins the current setup as AO. Reference calibration also exposed a missing MIME database in the scorer image, and an `sg` name clash that skipped scb-check's ast-grep rules. No new skill-effectiveness results.
+
 ## Rules
 
 - Search the [sources to follow](evaluations/studies.md#sources-to-follow) and arXiv first, then GitHub issues, Hacker News, forums and blogs (user reports checked 2026-10-13, mostly one repository and 1 to 4 runs per arm). Reddit cannot be fetched (access refused). Thread text supplied by the owner is labeled as such.

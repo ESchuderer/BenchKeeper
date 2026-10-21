@@ -24,6 +24,14 @@ export function shellWriteTarget(command) {
     || /(?:^|[;&|]\s*)tee\s+(?:-a\s+)?['"]?([^\s'"<>;&|]+)/.exec(c)?.[1] || null;
 }
 
+// A shell command as it runs: without heredoc bodies (file contents), written file names and the packages an install
+// command names, so `cat > vitest.config.ts`, `pip install pytest` and a README that mentions `npm test` are no checks.
+export function commandText(command) {
+  return String(command || '').replace(/(<<-?[ \t]*\\?(['"]?)([\w.-]+)\2[^\n]*)\n(?:[\s\S]*?\n)??[ \t]*\3[ \t]*(?=\n|$)/g, '$1')
+    .replace(/(>{1,2}|\btee\s+(-a\s+)?)\s*['"]?[^\s'"<>;&|]+/g, '')
+    .replace(/\b(npm (?:i|install|add)|pnpm (?:i|install|add)|yarn add|pip3? install|uv (?:add|pip install|tool install)|python3? -m pip install)\b[^;&|\n]*/g, '$1');
+}
+
 export function phaseOfSkill(name) {
   const n = String(name).toLowerCase();
   if (/review|audit|secur/.test(n)) return 'review';
@@ -42,12 +50,11 @@ export function phaseOfCall(tools) {
     const path = String(t.input?.file_path || t.input?.filePath || '');
     if (['Write', 'Edit', 'MultiEdit'].includes(t.name)) set(SPEC_FILE.test(path) ? 'spec' : TEST_FILE.test(path) ? 'test' : 'build');
     else if (t.name === 'Bash') {
-      // Only the first line counts (a heredoc body is file content, not a command); `cat > f`, `tee f` write a file.
-      const c = String(t.input?.command || '').split('\n')[0];
-      // A check command stays verify when its output is also written (`npm test | tee test.log`); the written file's
-      // name does not count as a command (`cat > jest.config.js` is a write).
-      const w = shellWriteTarget(c);
-      if (VERIFY_CMD.test(c.replace(/(>{1,2}|\btee\s+(-a\s+)?)\s*['"]?[^\s'"<>;&|]+/g, ''))) set('verify');
+      // Only the first line counts, so phase splits stay comparable with the published ones (owner decision 2026-10-21;
+      // reading later lines moved about 300 of 4800 calls to verify). A check stays verify when its output is also
+      // written (`npm test | tee test.log`); `cat > f`, `tee f` write a file.
+      const raw = String(t.input?.command || '').split('\n')[0], c = commandText(raw), w = shellWriteTarget(raw);
+      if (VERIFY_CMD.test(c)) set('verify');
       else if (w) set(SPEC_FILE.test(w) ? 'spec' : TEST_FILE.test(w) ? 'test' : 'build');
       else set(BUILD_CMD.test(c) ? 'build' : null);
     }

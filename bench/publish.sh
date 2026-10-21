@@ -21,6 +21,7 @@ fi
 [ -s "$pats" ] || { echo "no credential to scan for" >&2; exit 1; }
 found() { grep -aqF -f "$pats" -- "$1"; }
 cp "$run/manifest.txt" "$tmp/"
+[ ! -f "$run/inputs.sha256" ] || cp "$run/inputs.sha256" "$tmp/"
 [ ! -f "$run/brownfield-score.json" ] || cp "$run/brownfield-score.json" "$tmp/"
 for t in "$run"/round-*/*/; do
   [ -f "$t/trial.json" ] || continue

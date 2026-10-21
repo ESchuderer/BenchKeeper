@@ -3,6 +3,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { validity } from './trial.mjs';
 
 const median = (xs) => {
   const s = xs.filter(Number.isFinite).sort((a, b) => a - b);
@@ -20,7 +21,7 @@ const round = (d) => (x) => (Number.isFinite(x) ? Math.round(x * 10 ** d) / 10 *
 export function stepsTable(trials) {
   const arms = [...new Set(trials.filter((t) => t.checkpoints).map((t) => t.arm))].sort();
   const rows = arms.map((arm) => {
-    const ts = trials.filter((t) => t.arm === arm && t.checkpoints && t.audit.ok && !t.outcome.infra_error);
+    const ts = trials.filter((t) => t.arm === arm && t.checkpoints && validity(t).ok);
     const col = (f, d = 1) => range(ts.map(f).map(round(d)));
     return `| ${arm} | ${ts.length} | ${col((t) => t.checkpoints.filter((c) => c.strict).length)} of ${ts[0]?.checkpoints.length ?? 'n/a'} | ${col((t) => t.checkpoints.at(-1).code?.erosion, 3)} | ${col((t) => t.checkpoints.at(-1).code?.duplication)} | ${col((t) => t.checkpoints.at(-1).code?.source_lines, 0)} |`;
   });
@@ -33,7 +34,7 @@ export function stepsTable(trials) {
 export function sessionsTable(trials) {
   const arms = [...new Set(trials.filter((t) => t.steps).map((t) => t.arm))].sort();
   const rows = arms.flatMap((arm) => {
-    const ts = trials.filter((t) => t.arm === arm && t.steps && t.audit.ok && !t.outcome.infra_error);
+    const ts = trials.filter((t) => t.arm === arm && t.steps && validity(t).ok);
     const ks = [...new Set(ts.flatMap((t) => t.steps.map((s) => s.k)))].sort((a, b) => a - b);
     return ks.map((k) => {
       const ss = ts.map((t) => t.steps.find((s) => s.k === k)).filter(Boolean);
@@ -47,11 +48,31 @@ export function sessionsTable(trials) {
     '|---|---|---|---|---|---|---|---|---|---|---|', ...rows].join('\n');
 }
 
+// Natural skill selection is evidence, never an eligibility condition.
+export function workflowTable(trials) {
+  const arms = [...new Set(trials.map((t) => t.arm))].sort();
+  const rows = arms.map((arm) => {
+    const ws = trials.filter((t) => t.arm === arm && validity(t).ok).map((t) => t.workflow || {});
+    const names = (key) => [...new Set(ws.flatMap((w) => w[key] || []))].sort().join(', ') || 'not observed';
+    return `| ${arm} | ${ws.length} | ${names('tiers')} | ${names('skills')} | ${ws.reduce((n, w) => n + (w.skill_errors?.length || 0), 0)} |`;
+  });
+  return ['| Arm | Valid trials | Tier lines observed | Skill calls observed | Skill tool errors |', '|---|---|---|---|---|', ...rows].join('\n');
+}
+
+export function scbTable(trials) {
+  const rows = trials.filter((t) => validity(t).ok).flatMap((t) => (t.steps || []).filter((s) => s.scb).map((s) => {
+    const e = s.scb.eval;
+    const counts = (group) => e?.total_counts?.[group] ? `${e.pass_counts?.[group] || 0}/${e.total_counts[group]}` : 'n/a';
+    return `| ${t.arm} | ${t.round ?? 'n/a'} | ${s.k} | ${['Core', 'Functionality', 'Error', 'Regression'].map(counts).join(' | ')} | ${s.scb.quality?.verbosity ?? 'n/a'} | ${s.scb.quality?.erosion ?? 'n/a'} |`;
+  }));
+  return ['| Arm | Round | Step | Core tests | Functionality tests | Error tests | Regression tests | Verbosity | Erosion |', '|---|---|---|---|---|---|---|---|---|', ...rows].join('\n');
+}
+
 export function table(trials) {
   const arms = [...new Set(trials.map((t) => t.arm))].sort();
   const rows = arms.map((arm) => {
     const ts = trials.filter((t) => t.arm === arm);
-    const valid = ts.filter((t) => t.audit.ok && !t.outcome.infra_error);
+    const valid = ts.filter((t) => validity(t).ok);
     const col = (f, d = 1) => range(valid.map(f).map(round(d)));
     return `| ${arm} | ${ts.length} | ${ts.length - valid.length} | ${col((t) => t.score.features_passed)} | ${col((t) => t.score.robustness_passed)} | ${col((t) => t.score.mutation?.score)} | ${col((t) => t.followups)} | ${col((t) => (t.score.lighthouse?.performance == null ? null : t.score.lighthouse.performance * 100))} | ${col((t) => (t.score.axe ? Object.values(t.score.axe).reduce((a, b) => a + b, 0) : null))} | ${valid.filter((t) => t.workflow.tests_written).length} | ${valid.filter((t) => t.workflow.review).length} | ${col((t) => t.lines.source)} | ${col((t) => t.wall_seconds / 60)} | ${col((t) => t.outcome.cost_usd_api_equivalent, 3)} |`;
   });
@@ -62,9 +83,15 @@ export function table(trials) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const dir = process.argv[2];
   const trials = readdirSync(dir).filter((d) => d.startsWith('round-')).flatMap((r) => readdirSync(join(dir, r))
-    .map((a) => join(dir, r, a, 'trial.json')).filter(existsSync).map((f) => JSON.parse(readFileSync(f, 'utf8'))));
-  console.log('Median (min to max) over valid trials; invalid = failed delivery audit or infrastructure error; n/a = not measured (for example the app did not start).\n');
+    .map((a) => join(dir, r, a, 'trial.json')).filter(existsSync).map((f) => ({ ...JSON.parse(readFileSync(f, 'utf8')), round: r.slice(6) })));
+  console.log('Median (min to max) over valid trials; invalid = missing/failed delivery audit, agent infrastructure error or checkpoint scoring error; n/a = not measured (for example the app did not start).\n');
+  for (const t of trials) {
+    const state = validity(t);
+    if (!state.ok) console.log(`Excluded ${t.arm}: ${state.problems.join(', ')}`);
+  }
   // Step briefs score per step, not by the features table.
   console.log(trials.some((t) => t.steps) ? sessionsTable(trials) : table(trials));
+  console.log(`\n${workflowTable(trials)}`);
+  if (trials.some((t) => t.steps?.some((s) => s.scb))) console.log(`\n${scbTable(trials)}`);
   if (trials.some((t) => t.checkpoints)) console.log(`\n${stepsTable(trials)}`);
 }

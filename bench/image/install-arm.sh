@@ -15,6 +15,7 @@
 #   AH Matt Pocock + BK v5 (bench/arms/bk-v5: setup-v3.3, Matt Pocock's own install and setup with the BenchKeeper additions)
 #   AL Matt Pocock + BK v6 (bench/arms/bk-v6: setup-v4.0, the BenchKeeper plugin with Ponytail and Matt Pocock's plugins, as setup.sh installs them)
 #   AM Matt Pocock + BK v7 (bench/arms/bk-v7: setup-v5.0, as AL with the setup-v5.0 settings: advisor, effort high, auto-compact, subagents on Sonnet)
+#   AO Matt Pocock + BK v8 (bench/arms/bk-v8: setup-v5.3, settings as AM)
 #   AN as AL without Ponytail (owner decision 2026-10-19)
 # BenchKeeper layer (BK): rules (agent-skills: bench/arms/bk-rules.md, the pinned rules; Superpowers, ECC: its variant with the framework's own
 # flow), candidate rules, Ponytail, find-skills, BenchKeeper skills, Playwright MCP with Chromium, and a project set up
@@ -105,6 +106,7 @@ case $arm in
   AF) fw=mp bk=no pt=yes spec=none ;;           AG) fw=mp bk=v4 pt=yes spec=none ;;
   AH) fw=mp bk=v5 pt=yes spec=none ;;          AL) fw=mp bk=v6 pt=yes spec=none ;;
   AM) fw=mp bk=v7 pt=yes spec=none ;;           AN) fw=mp bk=v6 pt=no spec=none ;;
+  AO) fw=mp bk=v8 pt=yes spec=none ;;
   Q|R|S|T|U|Z|AA) opencode_arm "$arm"; exit 0 ;;
   *) echo "unknown arm $arm" >&2; exit 1 ;;
 esac
@@ -129,7 +131,7 @@ if [ "$pt" = yes ]; then
 fi
 
 t=$HOME/project-template
-if [ "$bk" = v6 ] || [ "$bk" = v7 ]; then
+if [ "$bk" = v6 ] || [ "$bk" = v7 ] || [ "$bk" = v8 ]; then
   # setup-v4.0 (setup.sh): the rules file, the BenchKeeper plugin from its pinned copy, find-skills, and the Claude settings
   # without advisorModel and remoteControlAtStartup (an Opus advisor would mix a second model into a Sonnet run; no remote
   # control in a container). Project: Matt Pocock's repository setup like the other mp arms (mp_setup below), no devcontainer.
@@ -144,7 +146,7 @@ if [ "$bk" = v6 ] || [ "$bk" = v7 ]; then
   # v7 (setup-v5.0) runs with its defaults (owner decision 2026-10-18: opusplan, effort high): the Opus advisor, effort
   # high per model, auto-compact 400000, transcripts 14 days, /feedback off, subagents without a model on Sonnet. No
   # remote control and no update channel in a container.
-  [ "$bk" != v7 ] || { jq '.advisorModel = "opus" | .autoCompactWindow = 400000 | .cleanupPeriodDays = 14
+  [ "$bk" = v6 ] || { jq '.advisorModel = "opus" | .autoCompactWindow = 400000 | .cleanupPeriodDays = 14
     | .effortLevel = "high" | .modelSettings["claude-opus-5-5"].effortLevel = "high" | .modelSettings["claude-sonnet-5-5"].effortLevel = "high"
     | .env = ((.env // {}) + {"DISABLE_FEEDBACK_COMMAND": "1", "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"})' "$f" > "$f.tmp" && mv "$f.tmp" "$f"; }
 elif [ "$bk" != no ]; then

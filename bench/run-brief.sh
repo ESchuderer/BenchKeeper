@@ -47,8 +47,33 @@ mkdir -p "$runs"
 if [ "$steps" = sessions ] && [ ! -d "$runs/baseline" ]; then
   rm -rf "$runs/baseline.tmp" && "$bench/briefs/$brief/prepare.sh" "$runs/baseline.tmp" && mv "$runs/baseline.tmp" "$runs/baseline"
 fi
+# SCB: freeze the natural prompt condition, source, problem data and scoring image before trials.
+case $brief in scb-xjq|scb-mvvault)
+  PROMPTS_ONLY=1 "$bench/briefs/$brief/prepare.sh" "$runs/baseline"
+  SCB_IMAGE=$(podman image inspect benchkeeper-scb --format '{{.Id}}')
+  export SCB_IMAGE
+  . "$bench/briefs/scb/config.sh"
+  [ -f "$runs/inputs.sha256" ] || [ -z "$(find "$runs" -name agent.exit -print -quit)" ] || {
+    echo "SCB run has trials without an input manifest, use a new seed" >&2; exit 1;
+  }
+  input_tmp=$(mktemp)
+  (
+    set -e
+    [ -z "$(git -C "$runs/baseline" status --porcelain)" ] || { echo "SCB baseline is dirty" >&2; exit 1; }
+    printf 'baseline=%s\n' "$(git -C "$runs/baseline" rev-parse HEAD)"
+    cd "$bench" || exit 1
+    printf 'condition=natural model=%s effort=%s timeout=%s scorer=%s problems=%s\n' "$model" "$effort" "$TIMEOUT" "$SCB_IMAGE" "$PROBLEMS"
+    find "briefs/$brief" briefs/scb -path '*/.cache' -prune -o -type f -print | LC_ALL=C sort | xargs sha256sum
+    sha256sum PROTOCOL.md run-brief.sh scorer/score.sh scripts/trial.mjs scripts/phases.mjs scripts/opencode.mjs scripts/pin-inputs.sh || exit 1
+    cd "briefs/scb/.cache/problems-$PROBLEMS/${brief#scb-}" || exit 1
+    find . -type f -print | LC_ALL=C sort | xargs sha256sum
+  ) > "$input_tmp" || { rm -f "$input_tmp"; exit 1; }
+  sh "$bench/scripts/pin-inputs.sh" "$runs/inputs.sha256" < "$input_tmp" || { rm -f "$input_tmp"; exit 1; }
+  rm -f "$input_tmp"
+  ;;
+esac
 # The workspace without dependencies, with its git history (step briefs: before the first step and after each step).
-snap() { tar --exclude=node_modules -czf "$1" -C "$t/workspace" .; }
+snap() { tar --exclude=node_modules --exclude=.venv --exclude=__pycache__ -czf "$1" -C "$t/workspace" .; }
 
 # SKIP_BUILD=1 uses the existing images (for parallel runners after one build).
 [ "${SKIP_BUILD:-}" = 1 ] || for arm in $arms; do
@@ -67,6 +92,9 @@ for arm in $arms; do
   [ -z "$first" ] || [ "$first" = "$id" ] || { echo "image for arm $arm changed since the first trials of this run" >&2; exit 1; }
   echo "image $arm $id" >> "$runs/manifest.txt"
 done
+
+# Execute the inspected image IDs, so retagging during a run cannot change an arm.
+img() { awk -v a="$1" '$1 == "image" && $2 == a {print $3; exit}' "$runs/manifest.txt"; }
 
 # Subscription gate (Claude Code arms): before each trial, read the 5-hour window's utilization from the rate-limit
 # headers of a one-word request; at the threshold or above, wait until the window resets. Threshold: USAGE_MAX, else
@@ -120,10 +148,15 @@ for r in $(seq "$k"); do
     if [ ! -f "$t/agent.exit" ]; then
     gate "$arm"
     rm -rf "$t" && mkdir -p "$t/workspace" "$t/log"
+    if [ -f "$runs/inputs.sha256" ]; then
+      sha256sum "$runs/inputs.sha256" | cut -d " " -f1 > "$t/inputs.sha256"
+      printf '%s\n' "$SCB_IMAGE" > "$t/scb-image"
+      echo natural > "$t/prompt-condition"
+    fi
     # PHASES=1: per-phase and per-subagent measurements for this trial (bench/scripts/phases.mjs).
     [ "${PHASES:-}" != 1 ] || touch "$t/log/phases"
     # Arms AD and AE always carry layer v3 (bench/arms/bk-v3*), AG layer v4 (bench/arms/bk-v4), AH layer v5 (bench/arms/bk-v5), AL layer v6 (bench/arms/bk-v6, setup-v4.0), AM layer v7 (bench/arms/bk-v7, setup-v5.0); the other layer arms the BK build argument (default v1).
-    case $arm in AD|AE) echo v3 ;; AG) echo v4 ;; AH) echo v5 ;; AL) echo v6 ;; AM) echo v7 ;; *) echo "${BK:-v1}" ;; esac > "$t/bk"
+    case $arm in AD|AE) echo v3 ;; AG) echo v4 ;; AH) echo v5 ;; AL|AN) echo v6 ;; AM) echo v7 ;; AO) echo v8 ;; *) echo "${BK:-v1}" ;; esac > "$t/bk"
     echo "$(date -Is) round $r arm $arm start" | tee -a "$runs/manifest.txt"
     [ "$steps" != sessions ] || { cp -a "$runs/baseline/." "$t/workspace/" && echo baseline > "$t/condition"; }
     # Arms with a project (BenchKeeper layer or a spec tool) start from the image's ~/project-template, committed first;
@@ -189,7 +222,7 @@ for r in $(seq "$k"); do
         2> /dev/null | waiting
     }
     # Step briefs: a turn that leaves the repository as the step found it is not done either (protocol 1.21).
-    state() { (cd "$t/workspace" && find . \( -name node_modules -o -path ./dist -o -path ./.git/objects -o -path ./.git/logs -o -path ./.git/index \) -prune -o -type f -print0 | sort -z | xargs -0 sha1sum) | sha1sum; }
+    state() { (cd "$t/workspace" && find . \( -name node_modules -o -name .venv -o -name __pycache__ -o -path ./dist -o -path ./.git/objects -o -path ./.git/logs -o -path ./.git/index \) -prune -o -type f -print0 | sort -z | xargs -0 sha1sum) | sha1sum; }
     n=0
     if [ "$steps" = sessions ]; then
       # Step briefs (steps/<k>.md): each step in a new session on the same workspace, the follow-up rule within that

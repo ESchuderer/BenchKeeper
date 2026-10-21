@@ -41,9 +41,11 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
    - the plugins: BenchKeeper, Matt Pocock's skills and Ponytail (pinned to a tag, since it runs a `SessionStart` hook), in each agent
    - settings and telemetry (merged, other keys and hooks stay): error reporting, feedback survey and `/feedback` off, local transcripts kept 14 days instead of 30, the stable update channel (about one week behind latest), subagents without a model on Sonnet
    - the default model `opusplan` in Claude Code (Opus in plan mode, Sonnet otherwise), as its own question since it replaces the model you set. Orca starts `claude` without `--model`, so it applies there too. Not benchmarked.
-   - default effort `high` in Claude Code (also saved for Opus 5.5 and Sonnet 5.5, which ignore the global key) and in Codex, and the Claude Code auto-compact window at 400000 tokens (default about 967K on 1M models). A different value is shown and asked about. Neither is benchmarked. Anthropic gives no recommended window.
+   - default effort `high` in Claude Code (also saved for Opus 5.5 and Sonnet 5.5, which ignore the global key) and in Codex, and the Claude Code auto-compact window at 400000 tokens (default about 967K on 1M models). Changes are offered separately. Codex effort is set at the root, preserving profile settings. Neither is benchmarked. Anthropic gives no recommended window.
    - everything else installed globally, one item at a time: other rules files (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks. Files go to `~/.config/benchkeeper/backup/<date>/`, never deleted, and `setup.sh --restore <date>` moves them back. Plugins, marketplaces and MCP servers are removed with the agent's own command. Hooks are offered per event, and Orca's own entries are only reported.
    - the Dev Containers CLI at the newest release that is at least 7 days old
+
+   Existing Codex analytics and feedback values are set to false, and the original TOML is backed up for restore. Unsupported multiline, inline, dotted or array target forms and CRLF files require manual editing. A failed backup prevents replacement. Shell diagnostics show variable names and locations without values.
 
    It needs no root and writes only under `~/.claude`, `~/.claude.json`, `~/.codex`, `~/.agents/skills`, `~/.config` and the npm user prefix. It never runs on its own.
 5. Restart the agents.

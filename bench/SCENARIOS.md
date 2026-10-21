@@ -34,6 +34,9 @@ Comparison matrix of the arms in `bench/PROTOCOL.md`. Every arm gets the same br
 | AG | Matt Pocock's skills | yes | v4 | none | the recommended setup of setup-v3.1: its rules, `following-dev-workflow` and setup skills (`bench/arms/bk-v4/`) |
 | AH | Matt Pocock's skills | yes | v5 | none | setup-v3.3: Matt Pocock's own install and setup, with the BenchKeeper rules, `following-dev-workflow` and Ponytail on top (`bench/arms/bk-v5/`) |
 | AL | Matt Pocock's skills | yes | v6 | none | setup-v4.0: the BenchKeeper plugin and rules with Matt Pocock's and Ponytail's plugins, as `setup.sh` installs them (`bench/arms/bk-v6/`) |
+| AM | Matt Pocock's skills | yes | v7 | none | setup-v5.0 with the Opus advisor, high effort and Sonnet subagents (`bench/arms/bk-v7/`) |
+| AN | Matt Pocock's skills | no | v6 | none | AL without Ponytail |
+| AO | Matt Pocock's skills | yes | v8 | none | setup-v5.3 plugin, rules and library, settings as AM (`bench/arms/bk-v8/`) |
 
 BenchKeeper layer: rules (agent-skills: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`; Superpowers, ECC, Matt Pocock's skills: `bench/arms/superpowers.rules.md`, `ecc.rules.md`, `mattpocock.rules.md`), candidate rules, Ponytail v5.2.0 `full`, find-skills, BenchKeeper skills, Playwright MCP 0.0.83 with Chromium, and the project `/project-setup` leaves. Layer v3 (AD, AE): the rules and `following-dev-workflow` of setup-v2.9 (`bench/arms/bk-v3*`) instead of the pinned rules, candidate rules and old setup skills. Layer v4 (AG): the rules, `following-dev-workflow` and setup skills of setup-v3.1 (`bench/arms/bk-v4/`). Layer v5 (AH): the same of setup-v3.3 (`bench/arms/bk-v5/`). Layer v6 (AL): setup-v4.0 (`bench/arms/bk-v6/`): its rules file, the BenchKeeper plugin, find-skills and its Claude settings without `advisorModel` and `remoteControlAtStartup`; no candidate rules, no Playwright MCP.
 

@@ -11,16 +11,90 @@ const ARMS = Object.keys(ARM_TABLE);
 test('each arm passes its own delivery audit and fails every other arm\'s', () => {
   for (const real of ARMS) {
     for (const claimed of ARMS) {
-      const r = audit(fixture(real), claimed);
-      // AD, AG and AH (v3, v4, v5), and AL and AM (v6, v7), differ only in the layer version, which the init event does not
+      const r = audit(fixture(real === 'AO' ? 'AM' : real), claimed);
+      // AO reuses AM marker events as a contract fixture, not a recorded AO runtime audit.
+      // AD, AG and AH, and AL, AM and AO, differ in layer version, which the init event does not
       // show: run-brief.sh records it in <trial>/bk.
-      const twins = [['AD', 'AG', 'AH'], ['AL', 'AM']].some((g) => g.includes(real) && g.includes(claimed));
+      const twins = [['AD', 'AG', 'AH'], ['AL', 'AM', 'AO']].some((g) => g.includes(real) && g.includes(claimed));
       assert.equal(r.ok, real === claimed || twins, `${real} audited as ${claimed}: ${r.problems.join('; ')}`);
     }
   }
 });
 
 const use = (name, input, parent = null) => ({ type: 'assistant', parent_tool_use_id: parent, message: { content: [{ type: 'tool_use', name, input }] } });
+
+test('Python source edits determine test, plan and verification order', () => {
+  const source = use('Write', { file_path: '/work/app.py' });
+  const tests = use('Write', { file_path: '/work/test_app.py' });
+  const plan = use('Write', { file_path: '/work/plan.md' });
+  const check = use('Bash', { command: 'python -m pytest' });
+  const late = workflow([check, source, tests, plan]);
+  assert.equal(late.tests_first, false);
+  assert.equal(late.plan_first, false);
+  assert.equal(late.verified, false);
+  assert.equal(workflow([use('Write', { file_path: '/work/conftest.py' }), tests, source]).tests_first, true);
+  const ordered = workflow([plan, tests, source, check]);
+  assert.equal(ordered.tests_first, true);
+  assert.equal(ordered.plan_first, true);
+  assert.equal(ordered.verified, true);
+});
+
+test('shell writes use the same planning and verification order as edit tools', () => {
+  const source = use('Bash', { command: "cat > src/app.py <<'EOF'\nprint('hello')\nEOF" });
+  const plan = use('Bash', { command: "printf 'Plan' > plan.md" });
+  const check = use('Bash', { command: 'pytest' });
+  assert.equal(workflow([check, source, plan]).plan_first, false);
+  assert.equal(workflow([check, source, plan]).verified, false);
+  assert.equal(workflow([plan, source, check]).plan_first, true);
+  assert.equal(workflow([plan, source, check]).verified, true);
+  assert.equal(workflow([use('Bash', { command: "cat > app.py <<'EOF'\n# run pytest\nEOF" })]).verified, false);
+  assert.equal(workflow([source, use('Bash', { command: "python3 - <<'EOF'\nprint('npm test')\nEOF\npytest -q" })]).verified, true);
+  assert.equal(workflow([source, use('Bash', { command: "node -e '\nfix()' && npm test" })]).verified, true);
+  assert.equal(workflow([use('Bash', { command: "cat > src/app.py <<'EOF'\nx = 1\nEOF\npytest -q" })]).verified, true);
+  assert.equal(workflow([source, use('Bash', { command: 'cat > a.txt <<EOF\nEOF\npytest -q\ncat > b.txt <<EOF\nx\nEOF' })]).verified, true);
+  assert.equal(workflow([source, use('Bash', { command: "cat > notes.md <<'END-NOTES'\nRun pytest\nEND-NOTES" })]).verified, false);
+  assert.equal(workflow([source, use('Bash', { command: 'uv venv\npip install pytest' })]).verified, false);
+  assert.equal(workflow([source, use('Bash', { command: 'npm i -D vitest && npm test' })]).verified, true);
+  assert.equal(workflow([source, use('Bash', { command: 'mkdir -p t\ncat > pytest.ini <<EOF\n[pytest]\nEOF' })]).verified, false);
+});
+
+test('Python line counts exclude virtual environments and test dependencies', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { lines } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/python-lines-');
+  try {
+    writeFileSync(`${dir}/app.py`, 'def answer():\n    return 42\n');
+    writeFileSync(`${dir}/test_app.py`, 'assert answer() == 42\n');
+    mkdirSync(`${dir}/.venv/lib`, { recursive: true });
+    writeFileSync(`${dir}/.venv/lib/vendor.py`, 'vendor = True\n');
+    assert.deepEqual(lines(dir), { source: 2, test: 1, files: 2 });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('trial validity separates delivery and scoring failures from failed solutions', async () => {
+  const { validity } = await import('./trial.mjs');
+  const trial = { audit: { ok: true }, outcome: {}, steps: [{ checks: [{ id: 'C1-core', ok: false }], scoring_error: null }] };
+  assert.deepEqual(validity(trial), { ok: true, problems: [] });
+  assert.equal(validity({ ...trial, audit: { ok: false } }).ok, false);
+  assert.equal(validity({ ...trial, outcome: { infra_error: true } }).ok, false);
+  assert.equal(validity({ ...trial, steps: [{ k: 1, scoring_error: 'evaluator command failed' }] }).ok, false);
+  assert.equal(validity({}).ok, false);
+});
+
+test('step reports retain raw SCB counts and evaluator failures', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { steps } = await import('./trial.mjs');
+  const dir = mkdtempSync('/tmp/scb-steps-'), step = `${dir}/steps/1`;
+  try {
+    mkdirSync(step, { recursive: true });
+    writeFileSync(`${step}/checks.json`, JSON.stringify({ infrastructure_error: 'evaluator command failed', checks: [{ id: 'C1-core', ok: null }] }));
+    const scb = { evaluation_exit: 125, eval: null, quality: null };
+    writeFileSync(`${step}/scb.json`, JSON.stringify(scb));
+    const [result] = steps(dir);
+    assert.equal(result.scoring_error, 'evaluator command failed');
+    assert.deepEqual(result.scb, scb);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 
 test('workflow trace: skills, agents, plan files, tests first, review', () => {
   const w = workflow([
@@ -193,6 +267,7 @@ test('phases: shell writes count by their target file, heredoc bodies are ignore
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'npm test 2>&1 | tee test.log' } }]), 'verify');
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: "cat > jest.config.js <<'EOF'\nexport default {}\nEOF" } }]), 'build');
   assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'cat > tests/vitest.config.ts << EOF\nEOF' } }]), 'test');
+  assert.equal(phaseOfCall([{ name: 'Bash', input: { command: 'npm install -D vitest' } }]), 'build');
 });
 
 test('phases: an OpenCode subagent session takes the phase of the task call that started it', async () => {
@@ -299,13 +374,13 @@ test('steps: checks, suite, minutes, waited, cost from the step\'s transcript li
   const s = steps(dir);
   const { workflow: w0, ...s0 } = s[0];
   assert.deepEqual([w0.tool_calls, w0.last_tool], [1, 'AskUserQuestion ']);
-  assert.deepEqual(s0, { k: 1, checks: [{ id: 'S1-a', ok: true }, { id: 'S1-b', ok: false }], passed: 1, total: 2, suite_ok: true, minutes: 10, waited: true, followups: 1, ask_user_calls: 1,
+  assert.deepEqual(s0, { k: 1, scb: null, scoring_error: null, checks: [{ id: 'S1-a', ok: true }, { id: 'S1-b', ok: false }], passed: 1, total: 2, suite_ok: true, minutes: 10, waited: true, followups: 1, ask_user_calls: 1,
     cost_usd_api_equivalent: 0.5, tokens: { input: 0, cache_creation: 0, cache_read: 0, output: 10, thinking: 0 },
     usage: { before: { five_hour: 0.1, five_hour_reset: 5000, weekly: 0.2, weekly_reset: 9000 }, after: { five_hour: 0.25, five_hour_reset: 5000, weekly: 0.21, weekly_reset: 9000 }, five_hour_share: 0.15, weekly_share: 0.01 } });
   assert.deepEqual([s[1].passed, s[1].total, s[1].suite_ok, s[1].minutes, s[1].waited, s[1].ask_user_calls, s[1].cost_usd_api_equivalent], [1, 1, false, 1.5, false, 0, 0.75]);
   // The 5-hour window reset between the readings.
   assert.deepEqual([s[1].usage.five_hour_share, s[1].usage.weekly_share], [null, 0.01]);
-  assert.deepEqual(s[2], { k: 3, checks: null, passed: null, total: null, suite_ok: null, minutes: null, waited: null, followups: null, ask_user_calls: null, workflow: null, cost_usd_api_equivalent: null, tokens: null, usage: null });
+  assert.deepEqual(s[2], { k: 3, scb: null, scoring_error: null, checks: null, passed: null, total: null, suite_ok: null, minutes: null, waited: null, followups: null, ask_user_calls: null, workflow: null, cost_usd_api_equivalent: null, tokens: null, usage: null });
 });
 
 test('workflow: plan before the first source edit, checks after the last edit', async () => {
@@ -332,4 +407,28 @@ test('sessions table: one row per arm and step, and the main table is replaced f
   const out = sessionsTable([t([st(1, 3, true, true, 1), st(2, 2, true, false, 2)]), t([st(1, 1, false, false, 3)])]);
   assert.match(out, /\| L \| 1 \| 2 \| 2 \(1 to 3\) of 3 \| 1 of 2 \| 1 of 2 \| 0\.5 \(0 to 1\) \| 10 \(10 to 10\) \| 2 \(1 to 3\) \| 5 \(5 to 5\) \| n\/a \|/);
   assert.match(out, /\| L \| 2 \| 1 \| 2 \(2 to 2\) of 3 \| 1 of 1 \|/);
+});
+
+
+test('skill availability, invocation errors and tier evidence stay separate', () => {
+  const events = [
+    { type: 'system', subtype: 'init', skills: ['example:tdd', 'example:review'] },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 's1', name: 'Skill', input: { skill: 'example:tdd' } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 's1', is_error: true }] } },
+  ];
+  const w = workflow(events);
+  assert.deepEqual(w.available_skills, ['example:review', 'example:tdd']);
+  assert.deepEqual(w.skills, ['example:tdd']);
+  assert.deepEqual(w.skill_errors, ['example:tdd']);
+  assert.deepEqual(w.tiers, []);
+  assert.deepEqual(workflow(events.slice(0, 1)).skills, []);
+});
+
+
+test('SCB report preserves per-test denominators and missing regression groups', async () => {
+  const { scbTable, workflowTable } = await import('./summary.mjs');
+  const trial = { arm: 'AO', round: 2, audit: { ok: true }, workflow: { skills: [], tiers: [] }, steps: [{ k: 6,
+    scb: { eval: { pass_counts: { Core: 2, Error: 0 }, total_counts: { Core: 3, Error: 1 } }, quality: { verbosity: 0, erosion: 0.2 } } }] };
+  assert.match(scbTable([trial]), /AO \| 2 \| 6 \| 2\/3 \| n\/a \| 0\/1 \| n\/a \| 0 \| 0.2/);
+  assert.match(workflowTable([trial]), /AO \| 1 \| not observed \| not observed \| 0/);
 });

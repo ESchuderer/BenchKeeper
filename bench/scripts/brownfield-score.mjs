@@ -6,6 +6,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { validity } from './trial.mjs';
 
 // Step checks per step (bench/briefs/openballistics/checks/step<k>.sh): a step not reached counts all of them as failed.
 export const STEP_CHECKS = { 1: 14, 2: 7, 3: 3 };
@@ -96,15 +97,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const run = process.argv[2];
   const brief = /brief=(\S+)/.exec(readFileSync(join(run, 'manifest.txt'), 'utf8'))?.[1];
   const conf = json(new URL(`../briefs/${brief}/brief.json`, import.meta.url).pathname)?.score ?? null;
-  const rows = [];
+  const rows = [], excluded = [];
   for (const round of readdirSync(run).filter((d) => /^round-\d+$/.test(d)).sort()) {
     for (const arm of readdirSync(join(run, round)).sort()) {
       const t = join(run, round, arm);
       if (!existsSync(join(t, 'trial.json'))) continue;
+      const trial = json(join(t, 'trial.json')), state = validity(trial);
+      if (!state.ok) { excluded.push({ round, arm, problems: state.problems }); continue; }
       const reviews = readdirSync(t).filter((f) => /^review(-\d+)?\.json$/.test(f)).map((f) => json(join(t, f)));
-      rows.push({ round, arm, ...(conf ? scoreBrief(json(join(t, 'trial.json')), reviews, conf) : score(json(join(t, 'trial.json')), reviews)) });
+      rows.push({ round, arm, ...(conf ? scoreBrief(trial, reviews, conf) : score(trial, reviews)) });
     }
   }
-  writeFileSync(join(run, 'brownfield-score.json'), JSON.stringify({ weights: conf?.weights ?? WEIGHTS, trials: rows }, null, 2));
+  writeFileSync(join(run, 'brownfield-score.json'), JSON.stringify({ weights: conf?.weights ?? WEIGHTS, trials: rows, excluded }, null, 2));
   for (const r of rows) console.log(`${r.round} ${r.arm.padEnd(3)} total ${r.total ?? 'n/a (no review)'}  ${Object.entries(r.parts).map(([k, v]) => `${k} ${v}`).join(' ')}  ${r.minutes} min`);
 }

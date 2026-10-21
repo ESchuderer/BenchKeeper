@@ -26,6 +26,8 @@ for t in "$run"/round-*/*/; do
       [ -L "$snapshot" ] || continue
       step=$(basename "$(dirname "$snapshot")")
       rm "$snapshot"
+      # Results score.sh writes only on some paths, so an earlier scoring's copy cannot remain.
+      (cd "$t/steps/$step" && rm -f checks.json checks.exit suite.json playwright.json diff.json scb.json)
       cp -a "$stage/steps/$step/." "$t/steps/$step/"
     done
     rm -rf "$t/score" && mv "$stage/score" "$t/score"

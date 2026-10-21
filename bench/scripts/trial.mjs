@@ -117,7 +117,9 @@ export function workflow(events, uses = claudeUses(events)) {
     tests_written: firstTest >= 0,
     tests_first: firstTest >= 0 && (firstSource < 0 || firstTest < firstSource),
     plan_first: planIndex >= 0 && (sourceIndex < 0 || planIndex < sourceIndex),
-    verified: uses.some((u, i) => i > lastSource && u.name === 'Bash' && CHECK.test(String(u.input.command || '').split('\n')[0])),
+    // Heredoc bodies are file contents, not commands; the lines around them are.
+    verified: uses.some((u, i) => i > lastSource && u.name === 'Bash'
+      && CHECK.test(String(u.input.command || '').replace(/(<<-?[ \t]*(['"]?)(\w+)\2[^\n]*)\n[\s\S]*?\n[ \t]*\3[ \t]*(?=\n|$)/g, '$1'))),
     // A review skill or agent type, or a general subagent whose task description names a review.
     review: [...skills, ...agents].some((n) => /review/i.test(n))
       || uses.some((u) => (u.name === 'Agent' || u.name === 'Task') && /review/i.test(u.input.description || '')),

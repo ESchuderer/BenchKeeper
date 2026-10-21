@@ -47,7 +47,7 @@ mkdir -p "$runs"
 if [ "$steps" = sessions ] && [ ! -d "$runs/baseline" ]; then
   rm -rf "$runs/baseline.tmp" && "$bench/briefs/$brief/prepare.sh" "$runs/baseline.tmp" && mv "$runs/baseline.tmp" "$runs/baseline"
 fi
-# SCB has never run: freeze the natural prompt condition, source, problem data and scoring image before trials.
+# SCB: freeze the natural prompt condition, source, problem data and scoring image before trials.
 case $brief in scb-xjq|scb-mvvault)
   PROMPTS_ONLY=1 "$bench/briefs/$brief/prepare.sh" "$runs/baseline"
   SCB_IMAGE=$(podman image inspect benchkeeper-scb --format '{{.Id}}')

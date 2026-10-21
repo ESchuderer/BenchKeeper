@@ -7,4 +7,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends git jq && rm -r
   && git clone -q https://github.com/SprocketLab/slop-code-bench /opt/scb && git -C /opt/scb checkout -q 31ceea3add480edb33431e70475c4c70597e6b31
 # Reference HTTP responses use the system MIME database, including image/webp.
 RUN apt-get update && apt-get install -y --no-install-recommends media-types && rm -rf /var/lib/apt/lists/*
+# scb-check runs ast-grep as `sg` from PATH, where /usr/bin/sg (login) would answer and its rules would be skipped silently.
+RUN ln -s "$(uv tool dir)/scb-check/bin/sg" /usr/local/bin/sg
 ENV PATH=/root/.local/bin:$PATH

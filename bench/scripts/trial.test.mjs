@@ -47,6 +47,8 @@ test('shell writes use the same planning and verification order as edit tools', 
   assert.equal(workflow([plan, source, check]).plan_first, true);
   assert.equal(workflow([plan, source, check]).verified, true);
   assert.equal(workflow([use('Bash', { command: "cat > app.py <<'EOF'\n# run pytest\nEOF" })]).verified, false);
+  assert.equal(workflow([source, use('Bash', { command: "python3 - <<'EOF'\nprint('npm test')\nEOF\npytest -q" })]).verified, true);
+  assert.equal(workflow([source, use('Bash', { command: "node -e '\nfix()' && npm test" })]).verified, true);
 });
 
 test('Python line counts exclude virtual environments and test dependencies', async () => {

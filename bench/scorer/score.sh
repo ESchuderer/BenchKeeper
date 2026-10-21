@@ -20,7 +20,7 @@ if [ "$(jq -r '.steps // empty' "$brief/brief.json" 2>/dev/null)" = sessions ]; 
   set -- checks
   [ ! -d "$brief/hidden" ] || set -- "$@" hidden
   case ${brief##*/} in scb-xjq|scb-mvvault) set -- "$@" ../scb/checks ../scb/config.sh ../scb/Containerfile ;; esac
-  (cd "$brief" && find -L "$@" -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
+  (cd "$brief" && find -L "$@" -type f | sort | xargs sha256sum | sha256sum | cut -c1-16) > "$out/hidden.sha256"
   prev=
   failed=0
   for k in $(ls "$(dirname "$out")/steps" 2>/dev/null | grep -E '^[0-9]+$' | sort -n); do

@@ -32,6 +32,7 @@ test('Python source edits determine test, plan and verification order', () => {
   assert.equal(late.tests_first, false);
   assert.equal(late.plan_first, false);
   assert.equal(late.verified, false);
+  assert.equal(workflow([use('Write', { file_path: '/work/conftest.py' }), tests, source]).tests_first, true);
   const ordered = workflow([plan, tests, source, check]);
   assert.equal(ordered.tests_first, true);
   assert.equal(ordered.plan_first, true);

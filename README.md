@@ -45,7 +45,7 @@ Not installed by BenchKeeper. The generated blocks in this README come from [web
    - everything else installed globally, one item at a time: other rules files (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks. Files go to `~/.config/benchkeeper/backup/<date>/`, never deleted, and `setup.sh --restore <date>` moves them back. Plugins, marketplaces and MCP servers are removed with the agent's own command. Hooks are offered per event, and Orca's own entries are only reported.
    - the Dev Containers CLI at the newest release that is at least 7 days old
 
-   Existing Codex analytics and feedback values are set to false, and the original TOML is backed up for restore. Unsupported multiline, inline or dotted target forms require manual editing. A failed backup prevents replacement. Shell diagnostics show variable names and locations without values.
+   Existing Codex analytics and feedback values are set to false, and the original TOML is backed up for restore. Unsupported multiline, inline, dotted or array target forms and CRLF files require manual editing. A failed backup prevents replacement. Shell diagnostics show variable names and locations without values.
 
    It needs no root and writes only under `~/.claude`, `~/.claude.json`, `~/.codex`, `~/.agents/skills`, `~/.config` and the npm user prefix. It never runs on its own.
 5. Restart the agents.

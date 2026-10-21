@@ -5,7 +5,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 ## setup-v5.3 (2026-10-21)
 
 - `setup.sh` stops a file replacement when its backup fails. Shell configuration diagnostics print variable names and locations, without values or surrounding commands.
-- Codex settings update existing analytics and feedback values, set effort at the root without changing profiles, and back up the original TOML for restore. Unsupported multiline, inline or dotted target forms require manual editing.
+- Codex settings update existing analytics and feedback values, set effort at the root without changing profiles, and back up the original TOML for restore. Unsupported multiline, inline, dotted or array target forms and CRLF files require manual editing.
 - Plugin `version` 5.3.0. Benchmark arm AO pins this plugin, rules and library separately from historical arms.
 - Upgrade: update the plugin and run `sh plugins/benchkeeper/setup.sh --apply` from the clone.
 

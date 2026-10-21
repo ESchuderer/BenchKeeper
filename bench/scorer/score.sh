@@ -36,7 +36,7 @@ if [ "$(jq -r '.steps // empty' "$brief/brief.json" 2>/dev/null)" = sessions ]; 
     fi
     "$brief/checks/step$k.sh" "$cur" "$s" > "$s/checks.log" 2>&1
     rc=$?
-    echo "$rc" > "$s/checks.exit"
+    rm -f "$s/checks.exit" && echo "$rc" > "$s/checks.exit"
     [ "$rc" = 0 ] || failed=1
     "$brief/checks/suite.sh" "$cur" "$s" > "$s/suite.log" 2>&1
     [ -z "$prev" ] || [ ! -f "$brief/checks/cross.sh" ] || "$brief/checks/cross.sh" "$cur" "$s" "$prev" > "$s/cross.log" 2>&1

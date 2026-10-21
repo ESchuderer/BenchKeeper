@@ -70,7 +70,7 @@ function auditInit(init, events, arm) {
   return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins, available_skills: [...(init.skills || [])].sort() };
 }
 
-const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$/;
+const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test_[^/]*|conftest)\.py$|_test\.py$/;
 const SOURCE = /\.([cm]?[jt]sx?|html|css|py)$/;
 const CONFIG = /(^|\/)[^/]*\.config\.[cm]?[jt]s$/;
 

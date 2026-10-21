@@ -206,3 +206,13 @@ TOML
 cp "$HOME/.codex/config.toml" "$t/unsupported.toml"
 sh "$setup" --apply-all >"$t/unsupported.log" 2>&1 && fail "multiline array reported success" || true
 cmp -s "$t/unsupported.toml" "$HOME/.codex/config.toml" && pass "unsupported multiline array remains unchanged" || fail "unsupported multiline array changed"
+
+printf '[analytics]\r\nenabled = true\r\n' >"$HOME/.codex/config.toml"
+cp "$HOME/.codex/config.toml" "$t/unsupported.toml"
+sh "$setup" --apply-all >"$t/unsupported.log" 2>&1 && fail "CRLF config reported success" || true
+cmp -s "$t/unsupported.toml" "$HOME/.codex/config.toml" && pass "unsupported CRLF config remains unchanged" || fail "unsupported CRLF config changed"
+
+printf 'model_reasoning_effort = "high"\n[[analytics]]\nenabled = true\n[feedback]\nenabled = false\n' >"$HOME/.codex/config.toml"
+cp "$HOME/.codex/config.toml" "$t/unsupported.toml"
+sh "$setup" --apply-all >"$t/unsupported.log" 2>&1 && fail "array target table reported success" || true
+cmp -s "$t/unsupported.toml" "$HOME/.codex/config.toml" && pass "unsupported array target table remains unchanged" || fail "unsupported array target table changed"

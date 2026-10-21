@@ -71,7 +71,7 @@ jqset() {
   fi && cp "$tmp/set.json" "$1"
 }
 # tomlset <file> <table or empty> <key> <literal>: update one scalar, preserving the original for restore.
-# shortcut: multiline values, inline and dotted target tables need manual editing, until a TOML editor is a prerequisite.
+# shortcut: multiline values, CRLF files, inline, dotted and array target tables need manual editing, until a TOML editor is a prerequisite.
 tomlset() {
   file=$1 table=$2 key=$3 value=$4
   input=$file
@@ -80,7 +80,8 @@ tomlset() {
     function literal(s) { return "(\"" s "\"|\047" s "\047|" s ")" }
     function finish() { if (section == table && !written) { print key " = " value; written=1 } }
     BEGIN { section="" }
-    /"""/ || /\047\047\047/ { exit 2 }
+    /"""/ || /\047\047\047/ || /\r$/ { exit 2 }
+    table != "" && $0 ~ "^[[:space:]]*\\[\\[[[:space:]]*" literal(table) "[[:space:]]*\\]\\]" { exit 2 }
     /^[^#=]+=[[:space:]]*\[/ && !/\][[:space:]]*(#.*)?$/ { exit 2 }
     /^[[:space:]]*\[/ {
       finish()

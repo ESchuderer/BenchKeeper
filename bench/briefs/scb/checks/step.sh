@@ -26,9 +26,12 @@ podman run --rm --timeout 900 -e SCBENCH_PROBLEMS_PATH=/problems -e K="$K" -e PR
   jq -n --argjson erc "$erc" --argjson qrc "$qrc" --slurpfile e /tmp/eval.json --slurpfile q /tmp/quality.json "{evaluation_exit: \$erc, quality_exit: \$qrc, eval: (\$e[0] // null | if . then {pass_counts, total_counts, pytest_exit_code, infrastructure_failure, test_collection_hash} else null end), quality: (if \$qrc == 0 then \$q[0] else null end)}"
 ' > "$out/scb.json" 2> "$out/checks.err"
 rc=$?
-if [ "$rc" -ne 0 ] || ! jq -e 'type == "object"' "$out/scb.json" > /dev/null 2>&1; then
+# The container could leave links in /out: the host reads and writes only regular files it created.
+rm -f "$out/checks.json"
+if [ "$rc" -ne 0 ] || [ -L "$out/scb.json" ] || ! jq -e 'type == "object"' "$out/scb.json" > /dev/null 2>&1; then
+  rm -f "$out/scb.json"
   printf '{"evaluation_exit":%s,"eval":null,"quality":null}\n' "$rc" > "$out/scb.json"
 fi
-jq --arg image "$SCB_IMAGE" '. + {scorer_image: $image}' "$out/scb.json" > "$out/scb.tmp" && mv "$out/scb.tmp" "$out/scb.json" || exit 1
+tmp=$(mktemp) && jq --arg image "$SCB_IMAGE" '. + {scorer_image: $image}' "$out/scb.json" > "$tmp" && mv "$tmp" "$out/scb.json" || exit 1
 jq --argjson k "$K" -f "$scb/checks/report.jq" "$out/scb.json" > "$out/checks.json" || exit 1
 jq -e '.infrastructure_error == null' "$out/checks.json" > /dev/null

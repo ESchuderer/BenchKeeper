@@ -8,5 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends git jq && rm -r
 # Reference HTTP responses use the system MIME database, including image/webp.
 RUN apt-get update && apt-get install -y --no-install-recommends media-types && rm -rf /var/lib/apt/lists/*
 # scb-check runs ast-grep as `sg` from PATH, where /usr/bin/sg (login) would answer and its rules would be skipped silently.
-RUN sg="$(uv tool dir)/scb-check/bin/sg" && test -x "$sg" && ln -s "$sg" /usr/local/bin/sg
+# The venv's own sg launcher fails (it does not find ast-grep), so sg links to the ast-grep binary.
+RUN sg="$(uv tool dir)/scb-check/bin/ast-grep" && test -x "$sg" && ln -s "$sg" /usr/local/bin/sg
 ENV PATH=/root/.local/bin:$PATH

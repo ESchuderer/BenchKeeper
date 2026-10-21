@@ -6,7 +6,7 @@ here=$(dirname "$(realpath "$0")")
 cache=$here/.cache/problems-$PROBLEMS
 SCB_IMAGE=$(podman image inspect "${SCB_IMAGE:-benchkeeper-scb}" --format '{{.Id}}')
 export SCB_IMAGE
-podman run --rm --network none "$SCB_IMAGE" python3 -c 'import mimetypes; assert mimetypes.guess_type("preview.webp")[0] == "image/webp"'
+podman run --rm --network none "$SCB_IMAGE" sh -c 'python3 -c "import mimetypes; assert mimetypes.guess_type(\"preview.webp\")[0] == \"image/webp\"" && sg --version | grep -q ast-grep'
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 130' INT TERM HUP

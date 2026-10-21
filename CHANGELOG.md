@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v5.4 (2026-10-21)
+
+- Rules, Brevity: the facts-only line covers READMEs, docs, comments, commit, issue and PR text. Every sentence gives the reader something needed to use, build, change or decide. It also leaves out who the project is for or who uses it, restatements of headings, code or the previous sentence, feature lists that repeat the usage section, introductions and summaries of the document itself, and motivation and history unless asked.
+- Plugin `version` 5.4.0.
+- Upgrade: update the plugin and run `sh plugins/benchkeeper/setup.sh --apply` from the clone.
+
 ## setup-v5.3 (2026-10-21)
 
 - `setup.sh` stops a file replacement when its backup fails. Shell configuration diagnostics print variable names and locations, without values or surrounding commands.

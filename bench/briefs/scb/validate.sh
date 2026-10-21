@@ -6,6 +6,7 @@ here=$(dirname "$(realpath "$0")")
 cache=$here/.cache/problems-$PROBLEMS
 SCB_IMAGE=$(podman image inspect "${SCB_IMAGE:-benchkeeper-scb}" --format '{{.Id}}')
 export SCB_IMAGE
+podman run --rm --network none "$SCB_IMAGE" python3 -c 'import mimetypes; assert mimetypes.guess_type("preview.webp")[0] == "image/webp"'
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 130' INT TERM HUP
@@ -24,7 +25,12 @@ for problem in xjq mvvault; do
         .infrastructure_error == null and
         ([.checks[] | select(.ok != null)] | length > 0 and all(.[]; .ok == ($kind == "reference")))
       ' "$out/checks.json" > /dev/null || { echo "FAIL $problem checkpoint $k $kind" >&2; exit 1; }
-      jq -e '.quality_exit == 0 and (.quality | type) == "object"' "$out/scb.json" > /dev/null
+      if [ "$kind" = reference ]; then
+        jq -e '.quality_exit == 0 and (.quality | type) == "object"' "$out/scb.json" > /dev/null
+      else
+        jq -e '.quality_exit == 2 and .quality == null' "$out/scb.json" > /dev/null
+        grep -qx 'no Python files found at /snap' "$out/quality.err"
+      fi
       echo "PASS $problem checkpoint $k $kind"
     done
   done

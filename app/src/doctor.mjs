@@ -50,21 +50,24 @@ export function globalDrift(ctx, agents, devcontainerCli) {
 const frontMatter = (text) => text?.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
 const description = (text) => frontMatter(text).match(/^description:\s*"?(.*?)"?\s*$/m)?.[1] ?? '';
 
+// The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
+// Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
+export function skillFiles(dir) {
+  return ['.claude/skills', '.agents/skills', '.github/skills', '.gemini/skills'].map((x) => join(dir, x)).filter(exists)
+    .flatMap((d) => readdirSync(d).map((name) => ({ name, file: join(d, name, 'SKILL.md') })))
+    .flatMap((f) => { const text = readText(f.file); return text == null ? [] : [{ ...f, text }]; });
+}
+
 export function projectChecks(ctx, dir) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
   const heading = agentsMd?.match(SUMMARY)?.[0];
   if (heading) out.push(issue('warning', 'agents-md', `AGENTS.md has a summary or layout section (${heading.trim()})`, 'remove it: agents read the code, and the section goes stale'));
   const skills = new Map();
-  for (const d of ['.claude/skills', '.agents/skills', '.github/skills', '.gemini/skills'].map((x) => join(dir, x)).filter(exists)) {
-    for (const name of readdirSync(d)) {
-      const file = join(d, name, 'SKILL.md');
-      const text = readText(file);
-      if (text == null) continue;
-      skills.set(name, description(text));
-      for (const [, target] of text.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)/g)) {
-        if (!exists(resolve(dirname(file), decodeURI(target)))) out.push(issue('error', 'skills', `${file.slice(dir.length + 1)} links ${target}, which does not exist`, 'restore the file or fix the link'));
-      }
+  for (const { name, file, text } of skillFiles(dir)) {
+    skills.set(name, description(text));
+    for (const [, target] of text.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)/g)) {
+      if (!exists(resolve(dirname(file), decodeURI(target)))) out.push(issue('error', 'skills', `${file.slice(dir.length + 1)} links ${target}, which does not exist`, 'restore the file or fix the link'));
     }
   }
   for (const w of warnings([...skills.keys()], { skills: [...skills].map(([name, pickWhen]) => ({ name, pickWhen })) })) out.push(issue('warning', 'skills', w, 'turn skills off with benchkeeper project apply --disable <skill>'));

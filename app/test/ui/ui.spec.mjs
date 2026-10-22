@@ -180,6 +180,11 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Projects' })).toContainText('no state file');
   });
 
+  test('Projects: installed skills against the limit per project', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1)).toContainText(/\d+ of 5/);
+  });
+
   test('Projects: a project without a state file is set up step by step on a branch', async ({ page }) => {
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'other', exact: true }).click();
@@ -259,9 +264,20 @@ test.describe('views', () => {
     await expect(runs).toHaveCount(before + 1);
   });
 
-  test('Evals: the fixture target, its chart and runs table', async ({ page }) => {
+  test('Evals: one agent at a time, targets worst first, the chart and runs table of one target', async ({ page }) => {
     await nav(page, 'Evals').click();
-    await page.getByRole('table', { name: 'Eval targets' }).getByRole('link', { name: 'skill:designing-technical-uis' }).click();
+    const targets = page.getByRole('table', { name: 'Eval targets' });
+    // The newest result is Codex's: its one target, no overview chart for a single target.
+    await expect(targets.getByRole('link')).toHaveText(['skill:workflow']);
+    await expect(page.getByRole('region', { name: 'Latest rates per target' })).toHaveCount(0);
+    await page.getByRole('combobox', { name: 'Agent and model' }).click();
+    await page.getByRole('option', { name: 'claude' }).click();
+    // Worst first by the higher rate; a target without rates last, shown as -, never 0%.
+    await expect(targets.getByRole('link')).toHaveText(['skill:designing-technical-uis', 'skill:workflow', 'rule:global']);
+    await expect(targets.getByRole('row').last()).toContainText('rule:global6--');
+    await expect(page.getByRole('region', { name: 'Latest rates per target' }).locator('.recharts-surface')).toBeVisible();
+    await noAxe(page);
+    await targets.getByRole('link', { name: 'skill:designing-technical-uis' }).click();
     const detail = page.getByRole('region', { name: 'Eval skill:designing-technical-uis' });
     await expect(detail.locator('.recharts-surface').first()).toBeVisible();
     await expect(detail.getByRole('table', { name: 'Eval runs' })).toContainText('25%');

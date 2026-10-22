@@ -1,7 +1,8 @@
-import { Alert, Anchor, Badge, Button, Checkbox, Code, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
+import { IconPlayerPlay } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
-import { Dot, STATE_COLOR, href } from './shell.jsx';
+import { Dot, Note, STATE_COLOR, href, icon } from './shell.jsx';
 
 // Loads a GET endpoint; reload() fetches it again and keeps the data meanwhile, another path drops it. A request for
 // an older path or load is aborted; no path clears it.
@@ -21,7 +22,7 @@ export function useApi(path) {
 }
 
 export function Loading({ state, label, children }) {
-  if (state.error) return <Alert color="red" title={`${label} failed`}>{state.error}</Alert>;
+  if (state.error) return <Note color="red" title={`${label} failed`}>{state.error}</Note>;
   // No data yet also covers the first render after the path changes, before the effect marks it loading.
   if (state.data == null) return <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
   return children(state.data);
@@ -61,7 +62,7 @@ export function Plan({ plan, onDone }) {
   if (job) return <RunProgress job={job.job} total={job.total} onDone={onDone} />;
   return (
     <Stack gap="sm">
-      {error && <Alert color="red" title="Apply failed">{error}</Alert>}
+      {error && <Note color="red" title="Apply failed">{error}</Note>}
       {plan.changes.map((c) => (
         <Stack key={c.id} gap={4}>
           <Group gap="xs" wrap="nowrap" align="flex-start">
@@ -73,7 +74,7 @@ export function Plan({ plan, onDone }) {
           {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff ? <Code block tabIndex={0}>{c.diff}</Code> : null}
         </Stack>
       ))}
-      <Group><Button onClick={run} loading={busy} disabled={!select.length}>Apply {select.length} changes</Button></Group>
+      <Group><Button leftSection={icon(IconPlayerPlay)} onClick={run} loading={busy} disabled={!select.length}>Apply {select.length} changes</Button></Group>
     </Stack>
   );
 }
@@ -126,7 +127,7 @@ export function RunProgress({ job, total, onDone }) {
         {state?.done ? <>Run <Code>{state.run?.id ?? job}</Code>: {state.error ?? state.run?.status} ({finished} of {total} changes). <Anchor href={href('history', { run: state.run?.id })}>Open in History</Anchor></>
           : running ? `${finished} of ${total} done. Running: ${running.title}` : `${finished} of ${total} done`}
       </Text>
-      {state?.error && <Alert color="red" title="Apply failed">{state.error}</Alert>}
+      {state?.error && <Note color="red" title="Apply failed">{state.error}</Note>}
       <Table aria-label="Changes">
         <Table.Thead><Table.Tr><Table.Th>Status</Table.Th><Table.Th>Change</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>

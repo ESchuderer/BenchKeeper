@@ -1,17 +1,21 @@
-import { Anchor, AppShell, Badge, Burger, Button, Drawer, Group, Kbd, MantineProvider, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Anchor, AppShell, Badge, Burger, Button, Drawer, Group, Kbd, MantineProvider, NavLink, Stack, Text, ThemeIcon, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
+import { IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconRobot, IconSearch, IconSettings, IconStack2, IconSun } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { RunProgress, useApi } from './parts.jsx';
-import { Dot, MOD, go, href, useRoute } from './shell.jsx';
+import { Dot, MOD, go, href, icon, useRoute } from './shell.jsx';
 import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Settings } from './views.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
 const theme = createTheme({ primaryColor: 'teal', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md',
   components: { Checkbox: described, Radio: described, Switch: described, InputWrapper: described } });
-const VIEWS = [['dashboard', 'Dashboard', Dashboard], ['catalog', 'Catalog', Catalog], ['agents', 'Agents', Agents], ['projects', 'Projects', Projects], ['history', 'History', History], ['evals', 'Evals', Evals], ['settings', 'Settings', Settings]];
+// Chart colors per scheme, checked with the dataviz palette validator: shade 9 is too dark on the dark surface.
+const chartColors = (t) => ({ variables: {}, light: { '--bk-miss': t.colors.teal[9], '--bk-false-trigger': t.colors.indigo[9] }, dark: { '--bk-miss': t.colors.teal[7], '--bk-false-trigger': t.colors.indigo[6] } });
+const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot], ['projects', 'Projects', Projects, IconFolders],
+  ['history', 'History', History, IconHistory], ['evals', 'Evals', Evals, IconChartBar], ['settings', 'Settings', Settings, IconSettings]];
 
 function DoctorBadge({ doctor }) {
   if (!doctor.data) return <Badge variant="default">Doctor: {doctor.error ? 'failed' : 'checking'}</Badge>;
@@ -99,20 +103,20 @@ function Shell() {
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap">
             <Burger opened={nav} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Views" />
-            <Title order={1} size="h4">BenchKeeper</Title>
+            <Group gap={8} wrap="nowrap"><ThemeIcon variant="filled" size="md" aria-hidden>{icon(IconStack2, 18)}</ThemeIcon><Title order={1} size="h4">BenchKeeper</Title></Group>
             {o && <Badge variant="outline" visibleFrom="xs">{o.version}</Badge>}
             <Group visibleFrom="md"><DoctorBadge doctor={doctor} /></Group>
           </Group>
           <Group gap="xs" wrap="nowrap">
             <RunningJobs onDone={() => refresh()} />
-            <Button variant="default" onClick={spotlight.open} rightSection={<Kbd visibleFrom="sm">{MOD}+K</Kbd>}>Search</Button>
-            <Button variant="default" onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{scheme === 'dark' ? 'Light' : 'Dark'}</Button>
+            <Button leftSection={icon(IconSearch)} variant="default" onClick={spotlight.open} rightSection={<Kbd visibleFrom="sm">{MOD}+K</Kbd>}>Search</Button>
+            <ActionIcon variant="default" size={36} onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{icon(scheme === 'dark' ? IconSun : IconMoon, 18)}</ActionIcon>
           </Group>
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="xs" aria-label="Views">
-        {VIEWS.map(([id, label]) => (
-          <NavLink key={id} component="a" href={href(id)} label={label} active={view === id} variant="filled" color="dark" aria-current={view === id ? 'page' : undefined}
+        {VIEWS.map(([id, label, , Icon]) => (
+          <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} variant="filled" color="dark" aria-current={view === id ? 'page' : undefined}
             rightSection={counts[id] ? <Badge variant="default" size="sm">{counts[id]}</Badge> : null} />
         ))}
         <Text size="xs" mt="auto" p="xs">{MOD}+1 to {MOD}+{VIEWS.length}: views</Text>
@@ -127,5 +131,5 @@ function Shell() {
 }
 
 export default function App() {
-  return <MantineProvider theme={theme} defaultColorScheme="auto"><Shell /></MantineProvider>;
+  return <MantineProvider theme={theme} defaultColorScheme="auto" cssVariablesResolver={chartColors}><Shell /></MantineProvider>;
 }

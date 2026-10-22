@@ -1,7 +1,9 @@
-import { Alert, Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Modal, MultiSelect, Paper, Radio, Stack, Stepper, Switch, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Modal, MultiSelect, Paper, Radio, Stack, Stepper, Switch, Text, Title } from '@mantine/core';
+import { IconBulb, IconPlayerPlay } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Loading, useApi, useJob } from './parts.jsx';
+import { Note, icon } from './shell.jsx';
 
 const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
 const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
@@ -29,9 +31,9 @@ function AgentAdvice({ dir, advisers, onAdvice }) {
   if (!advisers.length) return null;
   return (
     <Stack gap="xs" mb="md">
-      <Group><Button variant="default" disabled={!!job} onClick={() => setOpen(true)}>Suggest with an agent</Button></Group>
+      <Group><Button leftSection={icon(IconBulb)} variant="default" disabled={!!job} onClick={() => setOpen(true)}>Suggest with an agent</Button></Group>
       {job && <AdviceJob job={job} name={name} onDone={(s) => { setJob(null); if (s.error) setError(s.error); else onAdvice(s.results, name); }} />}
-      {error && <Alert color="red" title="No suggestion">{error}</Alert>}
+      {error && <Note color="red" title="No suggestion">{error}</Note>}
       <Modal opened={open} onClose={() => setOpen(false)} withCloseButton={false} attributes={{ content: { 'aria-label': 'Start an agent session?' } }}>
         <Stack gap="sm">
           <Title order={2} size="h4">Start an agent session?</Title>
@@ -47,7 +49,7 @@ function AgentAdvice({ dir, advisers, onAdvice }) {
           </List>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={begin}>Start {name}</Button>
+            <Button leftSection={icon(IconPlayerPlay)} onClick={begin}>Start {name}</Button>
           </Group>
         </Stack>
       </Modal>
@@ -99,7 +101,7 @@ function SetupSteps({ dir, push, onFinish }) {
                 {(s.state?.agents ?? []).filter((id) => !s.agents.some((x) => x.id === id)).map((id) => <Checkbox key={id} value={id} label={`${id} (not installed here)`} />)}
               </Stack>
             </Checkbox.Group>
-            {!s.agents.length && <Alert color="yellow" mt="sm">No agent is installed on this machine.</Alert>}
+            {!s.agents.length && <Note color="yellow" mt="sm">No agent is installed on this machine.</Note>}
           </Stepper.Step>
           <Stepper.Step label="Environment">
             <Radio.Group label="Where the agent and the project's commands run" value={a.env} onChange={set('env')}>
@@ -113,14 +115,14 @@ function SetupSteps({ dir, push, onFinish }) {
           <Stepper.Step label="Skills">
             <AgentAdvice dir={dir} advisers={s.advisers} onAdvice={applyAdvice} />
             {advice && (
-              <Alert color="blue" mb="md" title={`Suggested by ${advice.name}`} withCloseButton onClose={() => setAdvice(null)}>
+              <Note color="blue" mb="md" title={`Suggested by ${advice.name}`} withCloseButton onClose={() => setAdvice(null)}>
                 <List size="sm">
                   {advice.env && <List.Item>Environment {ENV_TITLE[advice.env.id] ?? advice.env.id}: {advice.env.reason}</List.Item>}
                   {advice.packs.map((p) => <List.Item key={p.id}>Pack {p.id}: {p.reason}</List.Item>)}
                   {advice.skills.map((k) => <List.Item key={k.name}>Skill {k.name}: {k.reason}</List.Item>)}
                   {!advice.env && !advice.packs.length && !advice.skills.length && <List.Item>No pack or skill from the library fits; your choices stay.</List.Item>}
                 </List>
-              </Alert>
+              </Note>
             )}
             <Checkbox.Group label="Packs" value={a.packs} onChange={set('packs')}>
               <Stack gap="xs" mt="xs">
@@ -146,7 +148,7 @@ function SetupSteps({ dir, push, onFinish }) {
           <Stepper.Step label="Review">
             <Loading state={review} label="changes">{(p) => (
               <Stack gap="sm">
-                {p.warnings.map((w) => <Alert key={w} color="yellow">{w}</Alert>)}
+                {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
                 <Text size="sm">{p.changes.length} changes on branch <Code>chore/agent-setup</Code>, nothing in your working tree.</Text>
                 {p.changes.map((c) => (
                   <Stack key={c.id} gap={4}>
@@ -165,13 +167,13 @@ function SetupSteps({ dir, push, onFinish }) {
           </Stepper.Step>
           <Stepper.Completed>
             {result ? (
-              <Alert color={result.status === 'stopped' ? 'red' : 'teal'} title={result.status}>
+              <Note color={result.status === 'stopped' ? 'red' : 'teal'} title={result.status}>
                 {result.reason ?? <>Branch <Code>{result.branch}</Code>{result.pr && <>, pull request <Anchor href={result.pr} target="_blank" rel="noreferrer">{result.pr}</Anchor></>}</>}
-              </Alert>
+              </Note>
             ) : <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>}
           </Stepper.Completed>
         </Stepper>
-        {error && <Alert color="red" title="Failed">{error}</Alert>}
+        {error && <Note color="red" title="Failed">{error}</Note>}
         <Group justify="space-between">
           <Button variant="default" disabled={step === 0 || !!result || busy} onClick={() => setStep(step - 1)}>Back</Button>
           {step < 5 && <Button disabled={!a.agents.length || (step === 4 && !review.data)} onClick={() => setStep(step + 1)}>{step === 4 ? 'Continue' : 'Next'}</Button>}

@@ -40,8 +40,11 @@ apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 
 addProject(ctx, dir);
 // Two eval runs of one skill for the Evals chart.
 mkdirSync(join(ctx.config, 'evals'), { recursive: true });
-const result = (time, missRate, falseTriggerRate) => ({ time, target: 'skill:designing-technical-uis', agent: 'claude', agentVersion: '2.1.0', model: null, hash: 'x', appVersion: '6.0.0', cases: 6, missRate, falseTriggerRate, details: [] });
-writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00:00Z', 0.5, 0), result('2026-10-08T10:00:00Z', 0.25, 0.33)].map((r) => JSON.stringify(r)).join('\n') + '\n');
+// Two agents, three targets; a rule target has no rates, and Codex's workflow run had no should-not cases.
+const result = (time, missRate, falseTriggerRate, target = 'skill:designing-technical-uis', agent = 'claude') => ({ time, target, agent, agentVersion: agent === 'claude' ? '2.1.0' : '0.50.0', model: null, hash: 'x', appVersion: '6.0.0', cases: 6, missRate, falseTriggerRate, details: [] });
+writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00:00Z', 0.5, 0), result('2026-10-08T10:00:00Z', 0.25, 0.33),
+  result('2026-10-08T11:00:00Z', 0, 0.17, 'skill:workflow'), result('2026-10-08T12:00:00Z', null, null, 'rule:global'),
+  result('2026-10-09T10:00:00Z', 0.33, null, 'skill:workflow', 'codex')].map((r) => JSON.stringify(r)).join('\n') + '\n');
 
 // The agents are stubs, so the eval plan may show in CI too.
 delete process.env.CI;

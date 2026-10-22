@@ -1,11 +1,12 @@
-import { LineChart } from '@mantine/charts';
-import { Alert, Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
+import { BarChart, LineChart } from '@mantine/charts';
+import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
+import { IconAdjustments, IconAlertTriangle, IconArrowBackUp, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTool, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi, useJob } from './parts.jsx';
 import { sideBySide } from './diff.js';
 import { ProjectSetup } from './setup.jsx';
-import { Dot, MOD, RANK, STATE_COLOR, SplitView, download, go, href } from './shell.jsx';
+import { Dot, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, href, icon } from './shell.jsx';
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
@@ -107,7 +108,7 @@ export function DoctorTable({ found }) {
               <Table.Tr key={n}>
                 <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.level}</Badge></Table.Td>
                 <Table.Td>{i.message}</Table.Td>
-                <Table.Td><Stack gap={4} align="flex-start">{!(action && i.fix.startsWith('benchkeeper ')) && <Text size="sm">{i.fix}</Text>}{action && <Button component="a" href={action[0]} size="xs" variant="default">{action[1]}</Button>}</Stack></Table.Td>
+                <Table.Td><Stack gap={4} align="flex-start">{!(action && i.fix.startsWith('benchkeeper ')) && <Text size="sm">{i.fix}</Text>}{action && <Button component="a" href={action[0]} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>}</Stack></Table.Td>
               </Table.Tr>
             );
           })}
@@ -185,11 +186,11 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
         <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
         <Text fw={600}>Skills ({skills.length})</Text>
         {skills.length ? skills.map((n) => (
-          <Group key={n} justify="space-between" wrap="nowrap"><Text size="sm">{n}</Text><Button size="xs" variant="default" onClick={() => onRemove(n)} aria-label={`Remove ${n}`}>Remove</Button></Group>
+          <Group key={n} justify="space-between" wrap="nowrap"><Text size="sm">{n}</Text><Button leftSection={icon(IconTrash)} size="xs" variant="default" onClick={() => onRemove(n)} aria-label={`Remove ${n}`}>Remove</Button></Group>
         )) : <Text size="sm">Choose skills with the checkboxes in the list.</Text>}
-        {warn.data?.map((w) => <Alert key={w} color="yellow">{w}</Alert>)}
-        {error && <Alert color="red" title="Save failed">{error}</Alert>}
-        <Group><Button onClick={save} disabled={!id || !skills.length}>Save pack</Button></Group>
+        {warn.data?.map((w) => <Note key={w} color="yellow">{w}</Note>)}
+        {error && <Note color="red" title="Save failed">{error}</Note>}
+        <Group><Button leftSection={icon(IconDeviceFloppy)} onClick={save} disabled={!id || !skills.length}>Save pack</Button></Group>
         <Cli>{`benchkeeper packs save ${id || '<id>'} ${skills.map((n) => `--skill ${n}`).join(' ')}`}</Cli>
       </Stack>
     </Drawer>
@@ -202,7 +203,7 @@ function Packs({ packs, onChange }) {
   const run = (f) => async (...a) => { setError(null); try { await f(...a); onChange(); } catch (e) { setError(e.message); } };
   return (
     <Section title="Packs">
-      {error && <Alert color="red" title="Failed">{error}</Alert>}
+      {error && <Note color="red" title="Failed">{error}</Note>}
       <Table.ScrollContainer minWidth={520}>
         <Table aria-label="Packs">
           <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Contents</Table.Th><Table.Th>Source</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
@@ -214,8 +215,8 @@ function Packs({ packs, onChange }) {
                 <Table.Td>{p.own ? 'own' : 'library'}</Table.Td>
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
-                    {p.skills && <Button size="xs" variant="default" aria-label={`Export ${p.id}`} onClick={run(async () => { const r = await api(`/api/pack-export?id=${encodeURIComponent(p.id)}`); download(r.name, r.text); })}>Export</Button>}
-                    {p.own && <Button size="xs" variant="subtle" aria-label={`Remove ${p.id}`} onClick={run(() => api('/api/packs', { action: 'remove', id: p.id }))}>Remove</Button>}
+                    {p.skills && <Button leftSection={icon(IconDownload)} size="xs" variant="default" aria-label={`Export ${p.id}`} onClick={run(async () => { const r = await api(`/api/pack-export?id=${encodeURIComponent(p.id)}`); download(r.name, r.text); })}>Export</Button>}
+                    {p.own && <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${p.id}`} onClick={run(() => api('/api/packs', { action: 'remove', id: p.id }))}>Remove</Button>}
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -226,7 +227,7 @@ function Packs({ packs, onChange }) {
       <Group>
         <FileButton key={file} accept="application/json,.json"
           onChange={run(async (f) => { if (!f) return; await api('/api/packs', { action: 'import', text: await f.text() }); setFile((n) => n + 1); })}>
-          {(props) => <Button variant="default" {...props}>Import pack file</Button>}
+          {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import pack file</Button>}
         </FileButton>
       </Group>
     </Section>
@@ -257,7 +258,7 @@ export function Catalog({ catalog, params, refresh }) {
             <Select label="Pack" placeholder="All packs" clearable value={pack} onChange={setPack} data={c.packs.filter((p) => p.skills).map((p) => ({ value: p.id, label: `${p.title ?? p.id}${p.own ? ' (own)' : ''}` }))} />
             <Select label="Agent" placeholder="All agents" clearable value={agent} onChange={setAgent} data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} />
             <Select label="Install state" placeholder="Any" clearable value={used} onChange={setUsed} data={[{ value: 'used', label: 'In a project' }, { value: 'unused', label: 'In no project' }]} />
-            <Button variant="default" onClick={() => setBuilder(true)}>Build pack ({picked.length})</Button>
+            <Button leftSection={icon(IconPackage)} variant="default" onClick={() => setBuilder(true)}>Build pack ({picked.length})</Button>
           </Group>
           <SplitView empty="Choose a skill for its source, pin and eval results." list={
             <Table aria-label="Skills">
@@ -297,17 +298,50 @@ function SkillDetail({ skill, results }) {
 }
 
 const pct = (v) => (v == null ? null : Math.round(v * 100));
+const rate = (v) => (v == null ? '-' : `${pct(v)}%`);
 const seriesOf = (r) => `${r.agent}${r.model ? ` ${r.model}` : ''}`;
-const COLORS = ['teal.9', 'indigo.9', 'grape.9', 'orange.9', 'cyan.9', 'pink.9', 'lime.9', 'violet.9'];
+// One color per measure everywhere; the shades per scheme are set in App.jsx.
+const MEASURES = [{ name: 'Miss', key: 'missRate', color: 'var(--bk-miss)' }, { name: 'False trigger', key: 'falseTriggerRate', color: 'var(--bk-false-trigger)', strokeDasharray: '5 5' }];
 
-// Miss and false-trigger rates over time, one series pair per agent and model; the table holds the same numbers.
+// The latest result per target, worst first: the higher of its two rates, then the name.
+function latestPerTarget(results) {
+  const last = new Map(results.map((r) => [r.target, r]));
+  const worst = (r) => Math.max(r.missRate ?? -1, r.falseTriggerRate ?? -1);
+  return [...last.values()].sort((a, b) => worst(b) - worst(a) || a.target.localeCompare(b.target));
+}
+
+function RatesTip({ payload, label }) {
+  if (!payload?.length) return null;
+  return (
+    <Paper px="sm" py={6} withBorder shadow="sm">
+      <Text size="sm" fw={600}>{label}</Text>
+      {MEASURES.map((m) => <Text key={m.name} size="sm">{m.name}: {payload[0].payload[m.name] == null ? 'no cases' : `${payload[0].payload[m.name]}%`}</Text>)}
+      <Text size="xs">{payload[0].payload.cases} cases, {when(payload[0].payload.time)}</Text>
+    </Paper>
+  );
+}
+
+// Which skill descriptions need work, and in which direction. A rate without cases gets no bar, not 0%.
+function TargetRates({ latest }) {
+  const rated = latest.filter((r) => r.missRate != null || r.falseTriggerRate != null);
+  if (rated.length < 2) return null;
+  const data = rated.map((r) => ({ target: r.target.replace(/^skill:/, ''), cases: r.cases, time: r.time, ...Object.fromEntries(MEASURES.map((m) => [m.name, pct(r[m.key])])) }));
+  return (
+    <Section title="Latest rates per target">
+      <Text size="sm">Miss: the skill did not load where it should. False trigger: it loaded where it should not. One case of about 6 per side moves a rate by about 17 points.</Text>
+      <BarChart h={70 + data.length * 64} data={data} dataKey="target" orientation="vertical" series={MEASURES.map(({ name, color }) => ({ name, color }))}
+        xAxisProps={{ domain: [0, 100], tickFormatter: (v) => `${v}%` }} yAxisProps={{ width: 150 }} withLegend withBarValueLabel valueFormatter={(v) => (v == null ? '' : `${v}%`)}
+        barProps={{ radius: [0, 4, 4, 0] }} tooltipProps={{ content: RatesTip }} aria-label="Latest miss and false-trigger rate per target" />
+    </Section>
+  );
+}
+
+// Miss and false-trigger rates of one target over time; the table holds the same numbers.
 function EvalResults({ results }) {
-  const keys = [...new Set(results.map(seriesOf))];
-  const data = results.map((r) => ({ time: when(r.time), [`${seriesOf(r)} miss`]: pct(r.missRate), [`${seriesOf(r)} false trigger`]: pct(r.falseTriggerRate) }));
-  const series = keys.flatMap((k, i) => [{ name: `${k} miss`, color: COLORS[(2 * i) % COLORS.length] }, { name: `${k} false trigger`, color: COLORS[(2 * i + 1) % COLORS.length], strokeDasharray: '5 5' }]);
+  const data = results.map((r) => ({ time: when(r.time), ...Object.fromEntries(MEASURES.map((m) => [m.name, pct(r[m.key])])) }));
   return (
     <Stack gap="sm">
-      <LineChart h={240} data={data} dataKey="time" series={series} unit="%" yAxisProps={{ domain: [0, 100] }} withLegend connectNulls />
+      <LineChart h={240} data={data} dataKey="time" series={MEASURES.map(({ key, ...m }) => m)} unit="%" yAxisProps={{ domain: [0, 100] }} withLegend connectNulls />
       <Table.ScrollContainer minWidth={560}>
         <Table aria-label="Eval runs">
           <Table.Thead><Table.Tr><Table.Th>Time</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Model</Table.Th><Table.Th>App</Table.Th><Table.Th>Cases</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
@@ -315,7 +349,7 @@ function EvalResults({ results }) {
             {results.map((r, i) => (
               <Table.Tr key={i}>
                 <Table.Td>{when(r.time)}</Table.Td><Table.Td>{r.agent} {r.agentVersion}</Table.Td><Table.Td>{r.model ?? 'default'}</Table.Td><Table.Td>{r.appVersion}</Table.Td>
-                <Table.Td>{r.cases}</Table.Td><Table.Td>{r.missRate == null ? '-' : `${pct(r.missRate)}%`}</Table.Td><Table.Td>{r.falseTriggerRate == null ? '-' : `${pct(r.falseTriggerRate)}%`}</Table.Td>
+                <Table.Td>{r.cases}</Table.Td><Table.Td>{rate(r.missRate)}</Table.Td><Table.Td>{rate(r.falseTriggerRate)}</Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -360,55 +394,61 @@ function RunEvals({ onDone }) {
         </Checkbox.Group>
         <Switch label="All targets, also unchanged ones" checked={all} onChange={(e) => { setAll(e.currentTarget.checked); setPlan(null); }} />
       </Group>
-      {error && <Alert color="red" title="Failed">{error}</Alert>}
-      {!job && <Group><Button variant="default" disabled={!agents.length} onClick={act(async () => setPlan(await api(`/api/eval-plan?${query}`)))}>Plan evals</Button></Group>}
+      {error && <Note color="red" title="Failed">{error}</Note>}
+      {!job && <Group><Button leftSection={icon(IconListCheck)} variant="default" disabled={!agents.length} onClick={act(async () => setPlan(await api(`/api/eval-plan?${query}`)))}>Plan evals</Button></Group>}
       {plan && !job && (plan.targets.length ? (
         <Stack gap="xs">
           <Table aria-label="Planned evals">
             <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Cases</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>{plan.targets.map((t) => <Table.Tr key={`${t.target}${t.agent}`}><Table.Td>{t.target}</Table.Td><Table.Td>{t.agent}</Table.Td><Table.Td>{t.cases}</Table.Td></Table.Tr>)}</Table.Tbody>
           </Table>
-          <Group><Button onClick={act(async () => setJob(await api('/api/eval', { agents: agents.join(','), all })))}>Start {plan.sessions} agent sessions</Button></Group>
+          <Group><Button leftSection={icon(IconPlayerPlay)} onClick={act(async () => setJob(await api('/api/eval', { agents: agents.join(','), all })))}>Start {plan.sessions} agent sessions</Button></Group>
         </Stack>
       ) : <Text>Every target is unchanged since its last result. Turn on all targets to run them again.</Text>)}
       {job && <EvalJob job={job.job} total={job.total} onDone={() => { setPlan(null); onDone(); }} />}
-      {job && <Group><Button variant="default" onClick={() => setJob(null)}>Plan more evals</Button></Group>}
+      {job && <Group><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setJob(null)}>Plan more evals</Button></Group>}
     </Section>
   );
 }
 
 export function Evals({ params }) {
   const evals = useApi('/api/evals');
+  const [picked, setPicked] = useState(null);
   const open = params.get('target');
   return (
     <Stack gap="lg">
       <Loading state={evals} label="eval results">{(all) => {
-        const targets = [...new Set(all.map((r) => r.target))];
-        return targets.length ? (
-          <SplitView empty="Choose a target for its rates over time." list={
-            <Table aria-label="Eval targets">
-              <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Latest</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
-              <Table.Tbody>
-                {targets.map((t) => {
-                  const last = all.filter((r) => r.target === t).at(-1);
-                  return (
-                    <Table.Tr key={t}>
-                      <Table.Td><Anchor href={href('evals', { target: t })} aria-current={t === open ? 'true' : undefined} fw={t === open ? 700 : undefined}>{t}</Anchor></Table.Td>
-                      <Table.Td>{seriesOf(last)}</Table.Td>
-                      <Table.Td>{last.missRate == null ? '-' : `${pct(last.missRate)}%`}</Table.Td>
-                      <Table.Td>{last.falseTriggerRate == null ? '-' : `${pct(last.falseTriggerRate)}%`}</Table.Td>
+        if (!all.length) return <Text>No eval results yet.</Text>;
+        // Rates of different agents and models do not compare: one of them at a time, the newest by default.
+        const keys = [...new Set(all.map(seriesOf))];
+        const series = keys.includes(picked) ? picked : seriesOf(all.at(-1));
+        const mine = all.filter((r) => seriesOf(r) === series);
+        const latest = latestPerTarget(mine);
+        return (
+          <>
+            {keys.length > 1 && <Group><Select label="Agent and model" value={series} onChange={(v) => v && setPicked(v)} data={keys} allowDeselect={false} /></Group>}
+            <TargetRates latest={latest} />
+            <SplitView empty="Choose a target for its rates over time." list={
+              <Table aria-label="Eval targets">
+                <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Cases</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
+                <Table.Tbody>
+                  {latest.map((r) => (
+                    <Table.Tr key={r.target}>
+                      <Table.Td><Anchor href={href('evals', { target: r.target })} aria-current={r.target === open ? 'true' : undefined} fw={r.target === open ? 700 : undefined}>{r.target}</Anchor></Table.Td>
+                      <Table.Td>{r.cases}</Table.Td><Table.Td>{rate(r.missRate)}</Table.Td><Table.Td>{rate(r.falseTriggerRate)}</Table.Td>
                     </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          } detail={targets.includes(open) ? (
-            <Stack gap="sm" component="section" aria-label={`Eval ${open}`}>
-              <Title order={2} size="h3">{open}</Title>
-              <EvalResults results={all.filter((r) => r.target === open)} />
-            </Stack>
-          ) : null} />
-        ) : <Text>No eval results yet.</Text>;
+                  ))}
+                </Table.Tbody>
+              </Table>
+            } detail={latest.some((r) => r.target === open) ? (
+              <Stack gap="sm" component="section" aria-label={`Eval ${open}`}>
+                <Title order={2} size="h3">{open}</Title>
+                <Text size="sm">{series}</Text>
+                <EvalResults results={mine.filter((r) => r.target === open)} />
+              </Stack>
+            ) : null} />
+          </>
+        );
       }}</Loading>
       <RunEvals onDone={evals.reload} />
       <Cli>{`benchkeeper eval${open ? ` --target ${open}` : ''}\nbenchkeeper eval --all`}</Cli>
@@ -451,8 +491,8 @@ export function Agents({ overview, params, refresh }) {
             </Table.Tbody>
           </Table>
           </Table.ScrollContainer>
-          <Group><Button onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
-          {error && <Alert color="red" title="Plan failed">{error}</Alert>}
+          <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
+          {error && <Note color="red" title="Plan failed">{error}</Note>}
           {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={refresh} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
           <Cli>{`benchkeeper plan --agents ${chosen.join(',')}\nbenchkeeper apply --agents ${chosen.join(',')}`}</Cli>
@@ -476,15 +516,15 @@ function ProjectDetail({ project, onChange }) {
       <Group justify="space-between" align="flex-start">
         <Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{project.path}</Title>
         <Group gap="xs">
-          <Button variant="default" onClick={() => api('/api/reveal', { path: project.path }).catch(() => {})}>Open folder</Button>
-          {project.setupVersion && <Button variant="default" onClick={onChange.setup}>Change setup</Button>}
-          <Button variant="subtle" onClick={onChange.remove}>Remove from list</Button>
+          <Button leftSection={icon(IconFolderOpen)} variant="default" onClick={() => api('/api/reveal', { path: project.path }).catch(() => {})}>Open folder</Button>
+          {project.setupVersion && <Button leftSection={icon(IconAdjustments)} variant="default" onClick={onChange.setup}>Change setup</Button>}
+          <Button leftSection={icon(IconTrash)} variant="subtle" onClick={onChange.remove}>Remove from list</Button>
         </Group>
       </Group>
       {!project.setupVersion ? (
         <Stack gap="xs" align="flex-start">
           <Text>Not set up yet: no <Code>.benchkeeper/state.json</Code>.</Text>
-          <Button onClick={onChange.setup}>Set up this project</Button>
+          <Button leftSection={icon(IconListNumbers)} onClick={onChange.setup}>Set up this project</Button>
         </Stack>
       ) : (
         <Loading state={plan} label="project plan">{(p) => (
@@ -496,7 +536,7 @@ function ProjectDetail({ project, onChange }) {
               </Section>
             )}
             <Section title={`Changes in ${project.path}`}>
-              {p.warnings.map((w) => <Alert key={w} color="yellow">{w}</Alert>)}
+              {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
               <Plan key={p.planId} plan={p} onDone={() => { setToggles({ disable: [], enable: [] }); onChange.done(); }} />
             </Section>
           </>
@@ -508,10 +548,22 @@ function ProjectDetail({ project, onChange }) {
 }
 
 const SetupBadge = ({ p, version }) => (
-  <Badge variant="default" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.setupVersion === version ? 'teal' : 'yellow'} />}>
+  <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.setupVersion === version ? 'teal' : 'yellow'} />}>
     {p.setupVersion ? `${p.setupVersion} ${p.setupVersion === version ? 'current' : 'behind'}` : 'no state file'}
   </Badge>
 );
+
+// Installed skills against the doctor's limit: past it, skills start to crowd each other out of the context.
+function SkillMeter({ n, max }) {
+  const over = n > max;
+  return (
+    <Group gap={6} wrap="nowrap">
+      <Progress w={48} value={Math.min(n / max, 1) * 100} color={over ? 'yellow' : 'teal'} aria-hidden />
+      {over && <Text c="yellow.8" lh={0}>{icon(IconAlertTriangle)}</Text>}
+      <Text size="sm" style={{ whiteSpace: 'nowrap' }}>{n} of {max}{over ? ', too many' : ''}</Text>
+    </Group>
+  );
+}
 
 export function Projects({ params, overview, refresh }) {
   const projects = useApi('/api/projects');
@@ -561,12 +613,12 @@ export function Projects({ params, overview, refresh }) {
       <form onSubmit={(e) => { e.preventDefault(); act('add', async () => { await add(path); setPath(''); reload(); })(); }}>
         <Group align="flex-end">
           <TextInput label="Project folder" placeholder="/home/me/code/app" value={path} onChange={(e) => setPath(e.currentTarget.value)} w={{ base: '100%', sm: 420 }} />
-          <Button variant="default" loading={busy === 'choose'} onClick={act('choose', async () => { const p = await choose(); if (p) setPath(p); })}>Choose folder</Button>
-          <Button type="submit" disabled={!path} loading={busy === 'add'}>Add project</Button>
-          <Button variant="default" loading={busy === 'scan'} onClick={scanRoot}>Scan for projects</Button>
+          <Button leftSection={icon(IconFolderSearch)} variant="default" loading={busy === 'choose'} onClick={act('choose', async () => { const p = await choose(); if (p) setPath(p); })}>Choose folder</Button>
+          <Button leftSection={icon(IconPlus)} type="submit" disabled={!path} loading={busy === 'add'}>Add project</Button>
+          <Button leftSection={icon(IconFolders)} variant="default" loading={busy === 'scan'} onClick={scanRoot}>Scan for projects</Button>
         </Group>
       </form>
-      {error && <Alert color="red" title="Failed">{error}</Alert>}
+      {error && <Note color="red" title="Failed">{error}</Note>}
       {found && (
         <Section title="Found projects">
           {found.length ? (
@@ -574,23 +626,23 @@ export function Projects({ params, overview, refresh }) {
               <Checkbox.Group value={pick} onChange={setPick} label={`Folders with an agent setup below ${path}, not registered yet`}>
                 <Stack gap={4} mt="xs">{found.map((d) => <Checkbox key={d} value={d} label={d} />)}</Stack>
               </Checkbox.Group>
-              <Group><Button disabled={!pick.length} loading={busy === 'add-found'} onClick={act('add-found', async () => { for (const d of pick) await add(d); setFound(null); reload(); })}>Add selected ({pick.length})</Button></Group>
+              <Group><Button leftSection={icon(IconPlus)} disabled={!pick.length} loading={busy === 'add-found'} onClick={act('add-found', async () => { for (const d of pick) await add(d); setFound(null); reload(); })}>Add selected ({pick.length})</Button></Group>
             </>
           ) : <Text>No unregistered folders with AGENTS.md, skills-lock.json or a state file below {path}.</Text>}
         </Section>
       )}
       <Loading state={projects} label="projects">{(list) => (list.length ? (
         <SplitView empty="Choose a project for its plan, skills and doctor findings." list={
-          <Table.ScrollContainer minWidth={520}>
+          <Table.ScrollContainer minWidth={460}>
           <Table aria-label="Projects">
-            <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th miw={140}>Setup</Table.Th><Table.Th>Changes</Table.Th><Table.Th>Tree</Table.Th></Table.Tr></Table.Thead>
+            <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Changes</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>
               {list.map((p) => (
                 <Table.Tr key={p.path}>
-                  <Table.Td><Anchor href={href('projects', { path: p.path })} aria-current={p.path === open ? 'true' : undefined} fw={p.path === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{p.path.split('/').pop()}</Anchor><Text size="xs" style={{ overflowWrap: 'anywhere' }}>{p.path}{p.branch && `, ${p.branch}`}</Text></Table.Td>
+                  <Table.Td><Anchor href={href('projects', { path: p.path })} aria-current={p.path === open ? 'true' : undefined} fw={p.path === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{p.path.split('/').pop()}</Anchor><Text size="xs" style={{ overflowWrap: 'anywhere' }}>{[p.path, p.branch, p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository'].filter(Boolean).join(', ')}</Text></Table.Td>
                   <Table.Td><SetupBadge p={p} version={version} /></Table.Td>
+                  <Table.Td><SkillMeter n={p.skills} max={p.maxSkills} /></Table.Td>
                   <Table.Td>{p.error ? <Text size="sm" c="red">{p.error}</Text> : p.changes ? <Text size="sm" style={{ whiteSpace: 'nowrap' }}>{p.changes.length} pending</Text> : '-'}</Table.Td>
-                  <Table.Td>{p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository'}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -604,7 +656,7 @@ export function Projects({ params, overview, refresh }) {
         <Text size="sm">Per project: branch chore/agent-setup-&lt;version&gt; in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first, on the same kind of branch.</Text>
         <Group>
           <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
-          <Button loading={busy === 'update'} disabled={!projects.data?.length} onClick={updateAll}>Update all</Button>
+          <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!projects.data?.length} onClick={updateAll}>Update all</Button>
           <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths({ paths: fresh })}>Set up {fresh.length} new projects</Button>
         </Group>
         {progress && (
@@ -660,14 +712,14 @@ function RunDetail({ id, onUndo }) {
           <>
             <Group justify="space-between" wrap="nowrap">
               <Title order={2} size="h3">{r.kind} {r.scope}</Title>
-              <Button variant="default" disabled={!r.entries.some(undoable)} onClick={() => onUndo({ run: id })}>Undo run</Button>
+              <Button leftSection={icon(IconArrowBackUp)} variant="default" disabled={!r.entries.some(undoable)} onClick={() => onUndo({ run: id })}>Undo run</Button>
             </Group>
             <Text size="sm"><Code>{r.id}</Code>, {r.status ?? 'interrupted'}, {when(r.time)}{note(r) && `, ${note(r)}`}</Text>
             {r.entries.map((e, i) => (
               <Stack key={i} gap={4}>
                 <Group justify="space-between" wrap="nowrap" align="flex-start">
                   <Text size="sm"><b>{e.status}</b> {e.title}{e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}{e.undone ? ` (undone by ${e.undone})` : ''}</Text>
-                  {firstOfStep(e, i) && undoable(e) && <Button size="xs" variant="subtle" style={{ flexShrink: 0 }} aria-label={`Undo step ${e.step}`} onClick={() => onUndo({ run: id, step: e.step })}>Undo step</Button>}
+                  {firstOfStep(e, i) && undoable(e) && <Button leftSection={icon(IconArrowBackUp)} size="xs" variant="subtle" style={{ flexShrink: 0 }} aria-label={`Undo step ${e.step}`} onClick={() => onUndo({ run: id, step: e.step })}>Undo step</Button>}
                 </Group>
                 {e.diff && <SideBySide diff={e.diff} label={`Diff of ${e.path}`} />}
                 {e.argv && <Code block tabIndex={0}>{`$ ${e.argv.join(' ')}`}</Code>}
@@ -688,7 +740,7 @@ export function History({ history, params, refresh }) {
   const undo = async (body) => { setError(null); try { setResult(await api('/api/undo', body)); setN((x) => x + 1); refresh(); } catch (e) { setError(e.message); } };
   return (
     <Stack gap="lg">
-      {error && <Alert color="red" title="Undo failed">{error}</Alert>}
+      {error && <Note color="red" title="Undo failed">{error}</Note>}
       {result && <Section title="Undo"><RunEntries run={result} /></Section>}
       <Loading state={history} label="history">{(runs) => {
         const days = [...new Set(runs.map((r) => new Date(r.time).toLocaleDateString()))];
@@ -729,12 +781,12 @@ function Profile({ overview, refresh }) {
   return (
     <Section title="Profile">
       <Text size="sm">Agents, packs, own packs and registered projects with their answers as one file. It holds no file contents, environment values or tokens.</Text>
-      {error && <Alert color="red" title="Failed">{error}</Alert>}
+      {error && <Note color="red" title="Failed">{error}</Note>}
       <Group>
-        <Button variant="default" disabled={!agents.length} onClick={run(async () => download('benchkeeper-profile.json', (await api(`/api/profile-export?agents=${agents.join(',')}`)).text))}>Export profile</Button>
+        <Button leftSection={icon(IconDownload)} variant="default" disabled={!agents.length} onClick={run(async () => download('benchkeeper-profile.json', (await api(`/api/profile-export?agents=${agents.join(',')}`)).text))}>Export profile</Button>
         <FileButton key={file?.name ?? 'none'} accept="application/json,.json"
           onChange={run(async (f) => { setPlans(null); setFile(null); if (!f) return; const text = await f.text(); setFile({ name: f.name, text, ...(await api('/api/profile-import', { text })) }); })}>
-          {(props) => <Button variant="default" {...props}>Import profile</Button>}
+          {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import profile</Button>}
         </FileButton>
       </Group>
       {file && !plans && (

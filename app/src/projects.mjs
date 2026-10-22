@@ -4,7 +4,9 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
+import { skillFiles } from './doctor.mjs';
 import { clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
+import { MAX_SKILLS } from './packs.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, projectPlan, readState, tryState } from './steps/project.mjs';
 
@@ -63,7 +65,9 @@ export function status(ctx, path) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
     try { changes = projectChanges(ctx, path).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
-  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error };
+  // Counted as the doctor counts them, against the same limit.
+  const skills = new Set(skillFiles(path).map((f) => f.name)).size;
+  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills, maxSkills: MAX_SKILLS };
 }
 
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.

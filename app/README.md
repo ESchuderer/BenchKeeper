@@ -39,9 +39,9 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | Dashboard | install health of the global items, coverage per setup part and agent (a cell opens that agent's plan), setup flow, the last 6 runs, doctor findings with a link to the plan that fixes them |
 | Catalog | library skills with filters, skill detail with eval results, pack builder (warns at more than 5 skills or overlapping descriptions), packs with export, import and removal |
 | Agents | detected agents and the global plan for the chosen ones; Apply shows each change as it runs, with the command output |
-| Projects | registered projects with setup version, pending changes, tree state and branch; per project its plan, skill switches and doctor findings; add, scan a parent folder, Update all with progress per project. A project without a state file is set up step by step (agents, environment with the dev container as default, packs and skills with suggestions from its files, tier, review) on a branch with one commit and a pull request, one project after the other; Change setup reopens these steps from the state file; Open folder shows the project in the file manager. Suggest with an agent asks first, then runs one read-only session (Claude Code `-p --restricted --strict-mcp-config` with Read, Grep and Glob; Codex `exec --sandbox read-only`) in the project on your subscription; only library packs, skills and environments from its answer are taken |
+| Projects | registered projects with setup version, installed skills against the doctor's limit of 5, pending changes, tree state and branch; per project its plan, skill switches and doctor findings; add, scan a parent folder, Update all with progress per project. A project without a state file is set up step by step (agents, environment with the dev container as default, packs and skills with suggestions from its files, tier, review) on a branch with one commit and a pull request, one project after the other; Change setup reopens these steps from the state file; Open folder shows the project in the file manager. Suggest with an agent asks first, then runs one read-only session (Claude Code `-p --restricted --strict-mcp-config` with Read, Grep and Glob; Codex `exec --sandbox read-only`) in the project on your subscription; only library packs, skills and environments from its answer are taken |
 | History | runs by day; per run its entries with side-by-side diffs, undo of a step or the whole run |
-| Evals | miss and false-trigger rates per target over time; Run evals plans the targets and the number of agent sessions, then starts them with progress per session |
+| Evals | per agent and model (the newest by default): the latest miss and false-trigger rate of each target, worst first, and each target's rates over time; Run evals plans the targets and the number of agent sessions, then starts them with progress per session |
 | Settings | profile export and import, keyboard shortcuts, config files |
 
 The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Choose folder" opens the system dialog: `osascript` on macOS, `zenity`, then `kdialog` on Linux. With none of them, on Windows, on Linux without a display, or after a cancel, type the path. The server blocks other requests while the dialog is open.
@@ -54,7 +54,7 @@ The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Ch
 
 Where the browser handles one of these keys itself, the sidebar, the palette and the header buttons do the same.
 
-The UI is built from dev dependencies (Mantine core, charts and spotlight, Recharts, React) into `dist/`. The published package has no extra runtime dependencies.
+The UI is built from dev dependencies (Mantine core, charts and spotlight, Recharts, Tabler icons, React) into `dist/`. The published package has no extra runtime dependencies.
 
 ## Configuration
 

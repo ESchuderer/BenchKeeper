@@ -1,4 +1,5 @@
-import { Box, Grid, Paper, ScrollArea, Text } from '@mantine/core';
+import { Alert, Box, Grid, Paper, ScrollArea, Text } from '@mantine/core';
+import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 
 export { RANK } from '../src/states.mjs';
@@ -53,3 +54,9 @@ export function download(name, text) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+// Decorative: the text next to an icon names the action, so screen readers skip the icon.
+export const icon = (Icon, size = 16) => <Icon size={size} stroke={1.75} aria-hidden="true" />;
+const ALERT_ICON = { red: IconAlertCircle, yellow: IconAlertTriangle, teal: IconCircleCheck };
+// An Alert with the icon of its color.
+export const Note = ({ color = 'blue', ...props }) => <Alert color={color} icon={icon(ALERT_ICON[color] ?? IconInfoCircle, 20)} {...props} />;

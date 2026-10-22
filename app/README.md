@@ -38,8 +38,8 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 |---|---|
 | Dashboard | install health of the global items, coverage per setup part and agent (a cell opens that agent's plan), setup flow, the last 6 runs, doctor findings with a link to the plan that fixes them |
 | Catalog | library skills with filters, skill detail with eval results, pack builder (warns at more than 5 skills or overlapping descriptions), packs with export, import and removal |
-| Agents | detected agents and the global plan for the chosen ones |
-| Projects | registered projects with setup version, pending changes, tree state and branch; per project its plan, skill switches and doctor findings; add, scan a parent folder, Update all with progress per project |
+| Agents | detected agents and the global plan for the chosen ones; Apply shows each change as it runs, with the command output |
+| Projects | registered projects with setup version, pending changes, tree state and branch; per project its plan, skill switches and doctor findings; add, scan a parent folder, Update all with progress per project. A project without a state file is set up step by step (agents, environment, packs and skills with suggestions from its files, tier, review) on a branch with one commit and a pull request, one project after the other |
 | History | runs by day; per run its entries with side-by-side diffs, undo of a step or the whole run |
 | Evals | miss and false-trigger rates per target over time (read only, `benchkeeper eval` runs them) |
 | Settings | profile export and import, keyboard shortcuts, config files |

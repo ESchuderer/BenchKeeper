@@ -20,7 +20,7 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, undo } from './runner.mjs';
 import { globalPlan } from './steps/global.mjs';
-import { chosenSkills, projectPlan, resolveAnswers, tryState } from './steps/project.mjs';
+import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
 const COOKIE = 'bk_session';
@@ -65,8 +65,19 @@ function serialize(changes, ctx) {
   return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
 }
 
+// First-setup answers from a query or a request body: only these keys, as strings and string lists.
+function setupAnswers(src) {
+  if (!src || typeof src !== 'object') return {};
+  const get = (k) => (src instanceof URLSearchParams ? src.get(k) : src[k]);
+  const all = (k) => (src instanceof URLSearchParams ? src.getAll(k) : [src[k] ?? []].flat()).filter((x) => typeof x === 'string');
+  const list = (k) => (src instanceof URLSearchParams ? all(k).flatMap((x) => x.split(',')).filter(Boolean) : all(k));
+  return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'), tier: get('tier') || undefined };
+}
+
 export function api(ctx) {
   const plans = new Map(), jobs = new Map();
+  // Changes wait while an apply runs: an undo or Update all in between would edit files and runs it still writes.
+  const idle = () => { if ([...jobs.values()].some((j) => !j.done)) throw Object.assign(new Error('an apply is still running: wait for it to finish'), { status: 409 }); };
   const keep = (changes, pctx, scope) => { const id = randomBytes(8).toString('hex'); plans.set(id, { changes, ctx: pctx, scope }); return id; };
   const agentsNow = () => detect(ctx);
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
@@ -81,12 +92,14 @@ export function api(ctx) {
     },
     // Starts the apply and answers at once; GET /api/job shows each change as it runs. One apply at a time.
     'POST /api/apply': (b) => {
-      if ([...jobs.values()].some((j) => !j.done)) throw Object.assign(new Error('another apply is still running'), { status: 409 });
+      idle();
       const p = plans.get(b.planId);
       if (!p) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       plans.delete(b.planId);
       const job = { id: randomBytes(8).toString('hex'), total: b.select?.length ?? p.changes.filter((c) => c.selected).length, run: null, output: {}, done: false };
       jobs.set(job.id, job);
+      // Finished jobs beyond the newest 20 are dropped.
+      for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
       // Output is kept per change, its last 8 kB.
       applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select }, (e) => {
         if (e.run) job.run = e.run;
@@ -101,21 +114,37 @@ export function api(ctx) {
     },
     'GET /api/projects': () => listProjects(ctx).map((p) => { const s = status(ctx, p.path); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(p.path)) }; }),
     'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),
+    // With setup=1 the answers come from the query (a project's first setup), else from its state file.
     'GET /api/project-plan': (q) => {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw bad('register the project first');
+      const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
       // Skill toggles name skills of this project only.
-      const own = chosenSkills(resolveAnswers(dir, {}), libraryWith(ctx)).map((s) => s.name);
+      const own = input(() => chosenSkills(resolveAnswers(dir, setup), libraryWith(ctx)).map((s) => s.name));
       const disable = q.getAll('disable'), enable = q.getAll('enable');
       const unknown = [...disable, ...enable].filter((n) => !own.includes(n));
       if (unknown.length) throw bad(`not a skill of this project: ${unknown.join(', ')}`);
-      const p = projectPlan({ ctx: projectCtx(dir), dir, answers: { disable, enable } });
+      const p = input(() => projectPlan({ ctx: projectCtx(dir), dir, answers: { ...setup, disable, enable } }));
       // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
       const changes = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
       return { planId: keep(changes, projectCtx(dir), dir), changes: serialize(changes, projectCtx(dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
         chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })) };
     },
-    'POST /api/update-all': (b) => updateAll(ctx, { paths: (b.paths ?? []).filter(registered), push: b.push !== false }),
+    // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the
+    // packs its files point to.
+    'GET /api/project-setup': (q) => {
+      const dir = resolve(q.get('dir') ?? '');
+      if (!registered(dir)) throw bad('register the project first');
+      const lib = libraryWith(ctx);
+      return { agents: agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name })), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
+        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })) };
+    },
+    'POST /api/update-all': (b) => {
+      idle();
+      const paths = (b.paths ?? []).filter(registered);
+      const answers = Object.fromEntries(Object.entries(b.answers ?? {}).filter(([p]) => paths.includes(p)).map(([p, a]) => [p, setupAnswers(a)]));
+      return updateAll(ctx, { paths, push: b.push !== false, answers });
+    },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
     // One run with the diff of each file it wrote: its backup (or nothing) against the file as the run left it.
     'GET /api/run': (q) => {
@@ -127,6 +156,7 @@ export function api(ctx) {
       }) };
     },
     'POST /api/undo': (b) => {
+      idle();
       const scope = ctx.ledger.get(b.run).scope;
       return undo(b.run, scope === 'global' ? ctx : projectCtx(scope), { step: b.step || undefined });
     },

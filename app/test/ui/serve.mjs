@@ -17,6 +17,8 @@ const home = mkdtempSync(join(tmpdir(), 'bk-ui-'));
 const parent = mkdtempSync(join(tmpdir(), 'bk-ui-scan-'));
 mkdirSync(join(parent, 'other'));
 writeFileSync(join(parent, 'other/AGENTS.md'), '# Other\n');
+// A repository without a state file, for the step-by-step first setup.
+for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', join(parent, 'other'), ...a]);
 const run = (argv, o = {}) => {
   if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }
   if (argv[0] === 'zenity') return { code: 0, stdout: `${parent}\n`, stderr: '' };

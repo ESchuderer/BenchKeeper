@@ -165,6 +165,32 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Projects' })).toContainText('no state file');
   });
 
+  test('Projects: a project without a state file is set up step by step on a branch', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: /\/other$/ }).click();
+    await page.getByRole('button', { name: 'Set up this project' }).click();
+    const drawer = page.getByRole('dialog', { name: 'Set up projects' });
+    await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Next' }).click();
+    await expect(drawer.getByRole('radio', { name: /^Agent in the dev container/ })).toBeChecked();
+    await drawer.getByRole('button', { name: 'Next' }).click();
+    // Community skills need npx, which the fixture lacks: no pack here.
+    await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).not.toBeChecked();
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Next' }).click();
+    await drawer.getByRole('radio', { name: /^Standard/ }).check();
+    await drawer.getByRole('button', { name: 'Next' }).click();
+    await expect(drawer).toContainText(/\d+ changes on branch/);
+    await expect(drawer).toContainText('AGENTS.md');
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Continue' }).click();
+    await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();
+    await expect(drawer.getByRole('alert')).toContainText('committed');
+    await drawer.getByRole('button', { name: 'Next project' }).click();
+    await expect(drawer).toBeHidden();
+  });
+
   test('History: a run shows side-by-side diffs; undo of one step, then of the run', async ({ page }) => {
     await nav(page, 'History').click();
     await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: 'apply global' }).first().click();
@@ -174,7 +200,8 @@ test.describe('views', () => {
     await expect(diff.getByRole('columnheader')).toHaveText(['Before', 'After']);
     await expect(diff).toContainText('+');
     await noAxe(page);
-    await run.getByRole('button', { name: 'Undo step settings:claude', exact: true }).click();
+    // A step whose file no later step changed (settings.json gets later edits, so its step alone is refused).
+    await run.getByRole('button', { name: 'Undo step settings:ponytail', exact: true }).click();
     await expect(page.getByRole('region', { name: 'Undo' })).toContainText(/done/);
     await expect(run).toContainText('undone by');
     await run.getByRole('button', { name: 'Undo run' }).click();

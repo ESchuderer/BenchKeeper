@@ -91,6 +91,26 @@ test('a project with changes, without a state file or outside git stops alone; t
   assert.equal(readFileSync(join(dirty.dir, 'README.md'), 'utf8'), 'edited\n');
 });
 
+test('a project without a state file is set up on the branch from answers; the checkout stays as it was', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const dir = mkdtempSync(join(tmpdir(), 'bk-fresh-'));
+  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe', encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 't');
+  writeFileSync(join(dir, 'README.md'), '# Fresh\n');
+  git('add', '-A');
+  git('commit', '-qm', 'init');
+  assert.match(updateAll(ctx, { paths: [dir] })[0].reason, /no \.benchkeeper\/state\.json: set the project up first/);
+  const [r] = updateAll(ctx, { paths: [dir], answers: { [dir]: { agents: ['claude'], env: 'host-agent', tier: 'standard' } } });
+  assert.equal(r.status, 'committed');
+  const state = JSON.parse(git('show', `${r.branch}:${STATE}`));
+  assert.deepEqual([state.agents, state.env, state.tier], [['claude'], 'host-agent', 'standard']);
+  assert.equal(existsSync(join(dir, STATE)), false);
+  assert.equal(git('branch', '--show-current').trim(), 'main');
+});
+
 test('a GitHub origin gets a push and a pull request', () => {
   const h = home();
   const p = project(h);

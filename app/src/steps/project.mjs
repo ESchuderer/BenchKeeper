@@ -18,7 +18,7 @@ export const ENVS = {
   host: null,
 };
 const SKILLS_FLAG = { claude: 'claude-code', codex: 'codex', gemini: 'gemini-cli', copilot: 'github-copilot' };
-const TIERS = ['quick', 'standard', 'full', 'research'];
+export const TIERS = ['quick', 'standard', 'full', 'research'];
 // The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
 const NPX_ENV = { DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/' };
 
@@ -42,6 +42,27 @@ export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = 
   // paths values go into SKILL.md front matter.
   for (const [k, v] of Object.entries(a.paths)) if (typeof v !== 'string' || /[\r\n]/.test(v)) throw new Error(`paths for ${k}: one line of globs`);
   return a;
+}
+
+// Packs a project's files point to, each with its reason; the setup step offers them chosen.
+export function suggest(dir) {
+  const has = (p) => exists(join(dir, p));
+  let pkg = {};
+  try { pkg = JSON.parse(readText(join(dir, 'package.json')) ?? '{}'); } catch { /* no hints from a broken package.json */ }
+  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+  const dep = (re) => deps.find((d) => re.test(d));
+  const py = ['pyproject.toml', 'requirements.txt', 'environment.yml'].map((f) => readText(join(dir, f)) ?? '').join('\n');
+  const pyDep = (re) => py.match(re)?.[1];
+  const hints = [
+    ['frontend', dep(/^(react|vue|svelte|astro|next|preact|solid-js|@angular\/core)$/) && `package.json uses ${dep(/^(react|vue|svelte|astro|next|preact|solid-js|@angular\/core)$/)}`],
+    ['testing', (dep(/^(@playwright\/test|playwright|cypress)$/) && `package.json uses ${dep(/^(@playwright\/test|playwright|cypress)$/)}`) || (['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs'].some(has) && 'a Playwright config')],
+    ['security', has('.github/workflows') && 'CI workflows in .github/workflows'],
+    ['docs', (has('docs') && 'a docs folder') || (has('mkdocs.yml') && 'mkdocs.yml')],
+    ['science', pyDep(/\b(numpy|scipy|jupyter|matplotlib|sympy)\b/) && `Python uses ${pyDep(/\b(numpy|scipy|jupyter|matplotlib|sympy)\b/)}`],
+    ['data', pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/) && `Python uses ${pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/)}`],
+    ['operations', ['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has) && `${['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has)} in the repository`],
+  ];
+  return { packs: hints.filter(([, r]) => r).map(([id, reason]) => ({ id, reason })), devcontainer: has('.devcontainer') };
 }
 
 // Skills a project gets: the chosen packs' skills plus single skills, minus those the catalog limits to other agents.

@@ -16,15 +16,17 @@ export function context({ home, config = `${home}/.config/benchkeeper`, roots = 
   return { home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
 }
 
-// runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved.
-export function runCommandAsync(argv, { cwd, env, onOutput = () => {} } = {}) {
+// runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last 64 kB,
+// and a command still running after timeout ms is stopped and fails.
+export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout = 15 * 60e3 } = {}) {
   return new Promise((done) => {
     let stdout = '', stderr = '';
-    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-    p.stdout.setEncoding('utf8').on('data', (d) => { stdout += d; onOutput(d); });
-    p.stderr.setEncoding('utf8').on('data', (d) => { stderr += d; onOutput(d); });
+    const tail = (t) => t.slice(-65536);
+    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'], timeout, killSignal: 'SIGTERM' });
+    p.stdout.setEncoding('utf8').on('data', (d) => { stdout = tail(stdout + d); onOutput(d); });
+    p.stderr.setEncoding('utf8').on('data', (d) => { stderr = tail(stderr + d); onOutput(d); });
     p.on('error', (e) => done({ code: 127, stdout, stderr: e.message }));
-    p.on('close', (code) => done({ code: code ?? 1, stdout, stderr }));
+    p.on('close', (code, signal) => done(signal ? { code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes (${signal})` } : { code: code ?? 1, stdout, stderr }));
   });
 }
 

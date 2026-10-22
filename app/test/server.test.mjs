@@ -139,6 +139,9 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.equal(s.output[command.id], 'installing\n');
   const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
   assert.equal(status(() => routes['POST /api/apply']({ planId: again.planId })), 409);
+  // Undo and Update all wait too: they would edit the files and the run the apply still writes.
+  assert.equal(status(() => routes['POST /api/undo']({ run: s.run.id })), 409);
+  assert.equal(status(() => routes['POST /api/update-all']({ paths: [] })), 409);
   release();
   await new Promise((r) => setTimeout(r, 20));
   s = routes['GET /api/job'](new URLSearchParams({ id: job }));

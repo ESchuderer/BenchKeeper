@@ -6,7 +6,7 @@ import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
-import { ENVS, STATE, projectPlan, readState, tryState } from '../src/steps/project.mjs';
+import { ENVS, STATE, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
 
 function repo() {
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
@@ -61,6 +61,20 @@ test('a community skill the state file records at another commit is added again 
   state.skills.find((s) => s.name === 'frontend-design').ref = '../../x';
   writeFileSync(f, JSON.stringify(state));
   assert.deepEqual(titles(), [], 'a ref that is not a commit id is ignored');
+});
+
+test('suggestions name the packs the files of a project point to, with the reason', () => {
+  const r = repo();
+  assert.deepEqual(suggest(r.dir), { packs: [], devcontainer: false });
+  writeFileSync(join(r.dir, 'package.json'), JSON.stringify({ dependencies: { react: '19' }, devDependencies: { '@playwright/test': '1' } }));
+  writeFileSync(join(r.dir, 'requirements.txt'), 'pandas==2\nnumpy\n');
+  mkdirSync(join(r.dir, '.github/workflows'), { recursive: true });
+  mkdirSync(join(r.dir, '.devcontainer'));
+  assert.deepEqual(suggest(r.dir), { devcontainer: true, packs: [
+    { id: 'frontend', reason: 'package.json uses react' }, { id: 'testing', reason: 'package.json uses @playwright/test' },
+    { id: 'security', reason: 'CI workflows in .github/workflows' }, { id: 'science', reason: 'Python uses numpy' }, { id: 'data', reason: 'Python uses pandas' }] });
+  writeFileSync(join(r.dir, 'package.json'), '{broken');
+  assert.ok(!suggest(r.dir).packs.some((p) => p.id === 'frontend'));
 });
 
 test('a second plan reads the answers from the state file', () => {

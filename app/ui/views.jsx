@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi } from './parts.jsx';
 import { sideBySide } from './diff.js';
+import { ProjectSetup } from './setup.jsx';
 import { Dot, MOD, RANK, STATE_COLOR, SplitView, download, go, href } from './shell.jsx';
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
@@ -428,7 +429,12 @@ function ProjectDetail({ project, onChange }) {
         <Title order={2} size="h3" style={{ wordBreak: 'break-all' }}>{project.path}</Title>
         <Button variant="subtle" onClick={onChange.remove}>Remove from list</Button>
       </Group>
-      {!project.setupVersion ? <Text>No state file: run <Code>benchkeeper project apply</Code> there first.</Text> : (
+      {!project.setupVersion ? (
+        <Stack gap="xs" align="flex-start">
+          <Text>Not set up yet: no <Code>.benchkeeper/state.json</Code>.</Text>
+          <Button onClick={onChange.setup}>Set up this project</Button>
+        </Stack>
+      ) : (
         <Loading state={plan} label="project plan">{(p) => (
           <>
             {!!p.chosen.length && (
@@ -465,7 +471,9 @@ export function Projects({ params, overview, refresh }) {
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
+  const [setupPaths, setSetupPaths] = useState(null);
   const version = overview.data?.version;
+  const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error).map((p) => p.path);
   const reload = () => { projects.reload(); refresh(); };
   const act = (name, f) => async () => { setError(null); setBusy(name); try { await f(); } catch (e) { setError(e.message); } setBusy(null); };
   // The OS dialog; when there is none or it is cancelled, the typed path stays.
@@ -535,25 +543,35 @@ export function Projects({ params, overview, refresh }) {
             </Table.Tbody>
           </Table>
         } detail={open && list.some((p) => p.path === open) ? (
-          <ProjectDetail key={open} project={list.find((p) => p.path === open)} onChange={{ done: reload, remove: act('remove', async () => { await api('/api/projects', { action: 'remove', path: open }); go('projects'); reload(); }) }} />
+          <ProjectDetail key={open} project={list.find((p) => p.path === open)} onChange={{ done: reload, setup: () => setSetupPaths([open]), remove: act('remove', async () => { await api('/api/projects', { action: 'remove', path: open }); go('projects'); reload(); }) }} />
         ) : null} />
       ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
-        <Text size="sm">Per project: branch chore/agent-setup-&lt;version&gt; in a worktree, one commit. Projects with uncommitted changes are skipped.</Text>
+        <Text size="sm">Per project: branch chore/agent-setup-&lt;version&gt; in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first, on the same kind of branch.</Text>
         <Group>
           <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
           <Button loading={busy === 'update'} disabled={!projects.data?.length} onClick={updateAll}>Update all</Button>
+          <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths(fresh)}>Set up {fresh.length} new projects</Button>
         </Group>
         {progress && (
           <>
             <Progress.Root size="lg"><Progress.Section value={(done / progress.length) * 100} aria-label={`Update all: ${done} of ${progress.length} projects`} /></Progress.Root>
             <Table aria-label="Update all results">
               <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Result</Table.Th></Table.Tr></Table.Thead>
-              <Table.Tbody>{progress.map((r) => <Table.Tr key={r.path}><Table.Td><Code>{r.path}</Code></Table.Td><Table.Td>{r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}</Table.Td></Table.Tr>)}</Table.Tbody>
+              <Table.Tbody>{progress.map((r) => (
+                <Table.Tr key={r.path}>
+                  <Table.Td><Code>{r.path}</Code></Table.Td>
+                  <Table.Td>
+                    {r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}
+                    {fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths([r.path])}>Set up</Button>}
+                  </Table.Td>
+                </Table.Tr>
+              ))}</Table.Tbody>
             </Table>
           </>
         )}
       </Section>
+      {setupPaths && <ProjectSetup paths={setupPaths} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
       <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );

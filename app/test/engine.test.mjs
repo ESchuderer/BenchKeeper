@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { diffLines } from '../src/diff.mjs';
 import { MergeError, getBlock, mergeJson, setBlock, setToml } from '../src/merge.mjs';
-import { apply, context, itemState, legacyBackups, preview, restoreLegacy, undo } from '../src/runner.mjs';
+import { apply, context, itemState, legacyBackups, preview, restoreLegacy, runCommandAsync, undo } from '../src/runner.mjs';
 
 const home = () => mkdtempSync(join(tmpdir(), 'bk-home-'));
 const write = (c, path, after, extra = {}) => ({ id: `w-${path}`, step: 's', title: path, kind: 'write', path: join(c.home, path), after, ...extra });
@@ -107,6 +107,14 @@ test('undo refuses a file changed after the change, and a missing backup; a whol
   rmSync(c.ledger.get(third.id).entries[0].backup);
   assert.match(undo(third.id, c).entries[0].error, /backup .* is missing/);
   assert.equal(readFileSync(join(c.home, 'f'), 'utf8'), 'mine!');
+});
+
+test('an async command keeps its last 64 kB and is stopped after its deadline', async () => {
+  const big = await runCommandAsync(['node', '-e', 'process.stdout.write("x".repeat(200000))']);
+  assert.deepEqual([big.code, big.stdout.length], [0, 65536]);
+  const slow = await runCommandAsync(['node', '-e', 'setTimeout(() => {}, 5000)'], { timeout: 100 });
+  assert.equal(slow.code, 124);
+  assert.match(slow.stderr, /stopped after/);
 });
 
 test('remove moves to the backup, undo moves back', () => {

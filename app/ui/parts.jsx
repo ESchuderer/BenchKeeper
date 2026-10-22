@@ -20,7 +20,8 @@ export function useApi(path) {
 
 export function Loading({ state, label, children }) {
   if (state.error) return <Alert color="red" title={`${label} failed`}>{state.error}</Alert>;
-  if (state.loading && !state.data) return <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
+  // No data yet also covers the first render after the path changes, before the effect marks it loading.
+  if (state.data == null) return <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
   return children(state.data);
 }
 
@@ -79,14 +80,19 @@ const StatusBadge = ({ status }) => <Badge variant="default" leftSection={<Dot c
 export function RunProgress({ job, total, onDone }) {
   const [state, setState] = useState(null);
   useEffect(() => {
-    let live = true, timer;
+    let live = true, timer, misses = 0;
+    // A failed poll is retried; only a lost job (404) or ten misses in a row end the view, the apply itself goes on.
     const poll = async () => {
       try {
         const s = await api(`/api/job?id=${job}`);
         if (!live) return;
+        misses = 0;
         setState(s);
         if (s.done) { onDone?.(s.run); return; }
-      } catch (e) { if (live) setState((x) => ({ ...x, done: true, error: e.message })); return; }
+      } catch (e) {
+        if (!live) return;
+        if (e.status === 404 || ++misses >= 10) { setState((x) => ({ ...x, done: true, error: `${e.message}: see History for the run` })); return; }
+      }
       timer = setTimeout(poll, 400);
     };
     poll();

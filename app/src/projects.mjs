@@ -44,7 +44,7 @@ export function scan(root, depth = 3) {
 }
 
 // The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
-const projectChanges = (ctx, dir) => preview(projectPlan({ ctx: { ...ctx, roots: [dir] }, dir, answers: {} }).changes).filter((c) => c.kind !== 'command' || c.cwd);
+const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: { ...ctx, roots: [dir] }, dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
 
 // Per project: setup version, branch, clean tree, and the changes Update all would make.
 export function status(ctx, path) {
@@ -60,12 +60,13 @@ export function status(ctx, path) {
 }
 
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
-export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), push = true } = {}) {
+// answers[path] sets up a project without a state file the same way: its first setup lands on the branch too.
+export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), push = true, answers = {} } = {}) {
   const branch = `chore/agent-setup-${appVersion}`;
   return paths.map((path) => {
     const result = { path, branch };
     try {
-      if (!readState(path)) throw new Error(`no ${STATE}: run benchkeeper project apply there first`);
+      if (!readState(path) && !answers[path]) throw new Error(`no ${STATE}: set the project up first`);
       if (!isRepo(ctx, path)) throw new Error('not a git repository');
       if (!clean(ctx, path)) throw new Error('working tree has changes');
       const base = defaultBranch(ctx, path);
@@ -83,7 +84,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       const wt = git(ctx, path, ['worktree', 'add', '-q', '-B', branch, tree, start]);
       if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
       try {
-        const run = apply(projectChanges(ctx, tree), { ...ctx, roots: [tree] }, { scope: tree, note: { updateAll: path, branch } });
+        const run = apply(projectChanges(ctx, tree, answers[path]), { ...ctx, roots: [tree] }, { scope: tree, note: { updateAll: path, branch } });
         result.run = run.id;
         if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
         git(ctx, tree, ['add', '-A']);

@@ -6,7 +6,10 @@ import { useApi } from './parts.jsx';
 import { Dot, MOD, go, href, useRoute } from './shell.jsx';
 import { Agents, Catalog, Dashboard, Evals, History, Projects, Settings } from './views.jsx';
 
-const theme = createTheme({ primaryColor: 'teal', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md' });
+// Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
+const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
+const theme = createTheme({ primaryColor: 'teal', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md',
+  components: { Checkbox: described, Radio: described, Switch: described, InputWrapper: described } });
 const VIEWS = [['dashboard', 'Dashboard', Dashboard], ['catalog', 'Catalog', Catalog], ['agents', 'Agents', Agents], ['projects', 'Projects', Projects], ['history', 'History', History], ['evals', 'Evals', Evals], ['settings', 'Settings', Settings]];
 
 function DoctorBadge({ doctor }) {

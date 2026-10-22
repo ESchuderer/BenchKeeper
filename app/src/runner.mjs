@@ -81,12 +81,14 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
     if (unit && unit.some(picked) && !unit.every(picked)) throw new Error(`${unit.map((x) => x.title).join(' and ')} go together: choose all of them or none`);
   }
   yield { run };
-  const failedSteps = new Set();
+  const failedSteps = new Set(), startedUnits = new Set();
   for (const c of changes) {
     if (!picked(c)) continue;
     const entry = { id: c.id, step: c.step, title: c.title, kind: c.kind };
     run.entries.push(entry);
-    if (stop?.()) { entry.status = 'skipped'; entry.reason = 'cancelled'; continue; }
+    // A cancel finishes the unit it lands in: half a unit is worse than all of it.
+    if (stop?.() && !startedUnits.has(c.unit)) { entry.status = 'skipped'; entry.reason = 'cancelled'; continue; }
+    if (c.unit) startedUnits.add(c.unit);
     if (failedSteps.has(c.step)) { entry.status = 'skipped'; entry.reason = 'an earlier change of this step failed'; continue; }
     try {
       if (c.kind === 'command') {
@@ -106,8 +108,6 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
         const r = yield { argv: c.argv, opts: { cwd: c.cwd, env: c.env && { ...process.env, ...c.env } }, entry };
         // Ended with an exit code: undone only when it succeeded, as before the journal.
         entry.exit = r.code;
-        // The end of what it printed, for the run report.
-        entry.output = `${r.stdout}${r.stderr ? `\n${r.stderr}` : ''}`.trim().slice(-2000);
         delete entry.touched;
         for (const x of entry.snapshot ?? []) x.hashAfter = hashPath(x.path);
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ') || `exit ${r.code}`);

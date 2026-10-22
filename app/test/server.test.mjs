@@ -161,10 +161,11 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.deepEqual(s.run.entries.map((e) => e.status), ['done', 'done']);
   assert.deepEqual(routes['GET /api/jobs'](), []);
   assert.equal(ctx.ledger.get(s.run.id).status, 'done');
-  // The run report: the written file's diff, the command's output.
+  // The run report: the written file's diff; command output stays in the job, out of the ledger.
   const report = routes['GET /api/run'](new URLSearchParams({ id: s.run.id }));
   assert.match(report.entries[0].diff, /^--- .*\n\+\+\+ .*\n@@ -/);
-  assert.equal(report.entries[1].output, 'ok');
+  assert.equal(report.entries[1].output, undefined);
+  assert.deepEqual(routes['POST /api/job-cancel']({ id: job }), { cancelled: false });
   assert.equal(status(() => routes['GET /api/job'](new URLSearchParams({ id: 'nope' }))), 404);
 });
 
@@ -381,4 +382,12 @@ test('run report: the undo of a created file shows its removal as a diff', () =>
   const [e] = routes['GET /api/run'](new URLSearchParams({ id: u.id })).entries;
   assert.equal(e.removed, true);
   assert.match(e.diff, /\n@@ -1,3 \+0,0 @@\n-x\n-y/);
+});
+
+test('run report: a failed session undo (no files recorded) still opens', () => {
+  const { ctx, routes } = fixture();
+  const run = apply([], ctx);
+  run.entries.push({ id: 'session', step: 'session', title: 'undo: agent session', kind: 'session', status: 'failed', error: 'changed after the session' });
+  ctx.ledger.save(run);
+  assert.equal(routes['GET /api/run'](new URLSearchParams({ id: run.id })).entries[0].status, 'failed');
 });

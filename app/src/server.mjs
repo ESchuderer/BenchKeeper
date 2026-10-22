@@ -153,6 +153,7 @@ export function api(ctx) {
     'POST /api/job-cancel': (b) => {
       const job = jobs.get(b.id ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
+      if (job.done) return { cancelled: false };
       job.ctl.abort();
       return { cancelled: true };
     },
@@ -229,10 +230,10 @@ export function api(ctx) {
       const run = ctx.ledger.get(q.get('id') ?? '');
       return { ...run, entries: run.entries.map((e, i) => {
         // shortcut: git runs twice per file and blocks the server, so only the first 50 files get a diff; stream them when sessions get larger.
-        if (e.kind === 'session') return { ...e, files: e.files.map((f, n) => ({ ...f, diff: n < 50 ? sessionDiff(ctx, e, f) : null })) };
+        if (e.kind === 'session' && e.files) return { ...e, files: e.files.map((f, n) => ({ ...f, diff: n < 50 ? sessionDiff(ctx, e, f) : null })) };
         if (!e.path || e.kind !== 'write' || e.status !== 'done') return e;
         // Deleted, for example the undo of a file the run created: the backup against nothing.
-        if (e.hashAfter == null && !exists(e.path)) return { ...e, removed: true, diff: e.backup && !isDir(e.backup) ? diffLines(readText(e.backup), null, e.path) : null };
+        if (e.hashAfter === null && !exists(e.path)) return { ...e, removed: true, diff: e.backup && !isDir(e.backup) ? diffLines(readText(e.backup), null, e.path) : null };
         if (isDir(e.path)) return { ...e, folder: true };
         const next = run.entries.slice(i + 1).find((x) => x.path === e.path && x.backup && x.hashBefore === e.hashAfter);
         const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : null;

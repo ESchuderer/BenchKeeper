@@ -6,7 +6,7 @@ import { api } from './api.js';
 import { CancelJob, Cli, Loading, Plan, Section, StateBadge, useApi, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
 import { ProjectSetup } from './setup.jsx';
-import { Dot, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, href, icon } from './shell.jsx';
+import { Dot, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon } from './shell.jsx';
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
@@ -529,8 +529,8 @@ function ProjectDetail({ project, onChange }) {
         </Stack>
       ) : applied ? (
         <Section title={`Changes in ${project.path}`}>
-          <Group justify="space-between"><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setApplied(null)}>Plan again</Button><Anchor href={href('history', { run: applied })}>Open in History</Anchor></Group>
-          <RunPanel id={applied} order={3} onChanged={onChange.done} />
+          <Group justify="space-between"><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setApplied(null)}>Plan again</Button><Anchor href={href('history', { run: applied.id })}>Open in History</Anchor></Group>
+          <RunPanel id={applied.id} output={applied.output} order={3} onChanged={onChange.done} />
         </Section>
       ) : (
         <Loading state={plan} label="project plan">{(p) => (
@@ -543,7 +543,7 @@ function ProjectDetail({ project, onChange }) {
             )}
             <Section title={`Changes in ${project.path}`}>
               {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-              <Plan key={p.planId} plan={p} onDone={(run) => { if (run) setApplied(run.id); setToggles({ disable: [], enable: [] }); onChange.done(); }} />
+              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles({ disable: [], enable: [] }); onChange.done(); }} />
             </Section>
           </>
         )}</Loading>
@@ -695,7 +695,7 @@ export function History({ history, params, refresh }) {
   return (
     <Stack gap="lg">
       <Loading state={history} label="history">{(runs) => {
-        const days = Object.entries(Object.groupBy(runs, (r) => new Date(r.time).toLocaleDateString()));
+        const days = Object.entries(groupBy(runs, (r) => new Date(r.time).toLocaleDateString()));
         return runs.length ? (
           <SplitView span={4} empty="Choose a run for what it changed and undo." list={
             <Stack gap="md" component="nav" aria-label="Runs">

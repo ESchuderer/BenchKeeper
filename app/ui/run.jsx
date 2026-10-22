@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { api } from './api.js';
 import { parseDiff, sideBySide } from './diff.js';
 import { Loading, StatusBadge, useApi } from './parts.jsx';
-import { Dot, Note, href, icon } from './shell.jsx';
+import { Dot, Note, groupBy, href, icon } from './shell.jsx';
 import './run.css';
 
 export const note = (r) => (r.note?.case ? `eval case ${r.note.case} for ${r.note.target}` : r.note?.updateAll ? `Update all of ${r.note.updateAll}` : r.of ? `undo of ${r.of}` : '');
@@ -69,7 +69,7 @@ export function DiffView({ diff, path, mode = 'unified' }) {
 const FILE_STATUS = { A: 'added', D: 'deleted', M: 'changed' };
 const undoable = (e) => (e.status === 'done' || e.touched) && !e.undone;
 
-function EntryBody({ e, mode }) {
+function EntryBody({ e, mode, out }) {
   if (e.diff) return <DiffView diff={e.diff} path={e.path} mode={mode} />;
   if (e.kind === 'write' && e.status === 'done') {
     return <Text size="sm">{e.removed ? <>Removed <Code>{e.path}</Code>.</> : e.folder ? <>Copied the folder <Code>{e.path}</Code>.</> : <><Code>{e.path}</Code> changed since, so its diff is not shown.</>}</Text>;
@@ -78,12 +78,12 @@ function EntryBody({ e, mode }) {
   if (e.argv) {
     return (
       <Stack gap={4}>
-        <Code block tabIndex={0}>{`$ ${e.argv.join(' ')}${e.output ? `\n${e.output}` : ''}`}</Code>
+        <Code block tabIndex={0}>{`$ ${e.argv.join(' ')}${out ? `\n${out.trimEnd()}` : ''}`}</Code>
         {e.exit != null && <Text size="xs">Exit code {e.exit}</Text>}
       </Stack>
     );
   }
-  if (e.kind === 'session') {
+  if (e.kind === 'session' && e.files) {
     return e.files.length ? (
       <Stack gap="xs">
         {e.files.map((f) => (f.diff ? <DiffView key={f.path} diff={f.diff} path={f.path} mode={mode} /> : <Text key={f.path} size="sm"><Code>{f.path}</Code> {FILE_STATUS[f.status] ?? f.status}, no text diff</Text>))}
@@ -95,11 +95,12 @@ function EntryBody({ e, mode }) {
 }
 
 // One run as a report: what it did to each file and command, with undo per step and for the run.
-export function RunReport({ run: r, onUndo, busy, order = 2 }) {
+// output: what the commands printed, by change id, while the apply's job is known; the ledger does not keep it.
+export function RunReport({ run: r, onUndo, busy, order = 2, output }) {
   const [mode, setMode] = useDiffMode();
   const diffs = r.entries.flatMap((e) => [e.diff, ...(e.files ?? []).map((f) => f.diff)]).filter(Boolean);
   const lines = useMemo(() => diffs.map(parseDiff).reduce((s, d) => ({ added: s.added + d.added, removed: s.removed + d.removed }), { added: 0, removed: 0 }), [r]);
-  const statuses = Object.entries(Object.groupBy(r.entries, (e) => e.reason === 'cancelled' ? 'cancelled' : e.status ?? 'running'));
+  const statuses = Object.entries(groupBy(r.entries, (e) => e.reason === 'cancelled' ? 'cancelled' : e.status ?? 'running'));
   const firstOfStep = (e, i) => r.entries.findIndex((x) => x.step === e.step) === i;
   // Update all committed in a worktree that is gone: its branch and pull request are the undo.
   if (r.note?.updateAll) onUndo = null;
@@ -137,7 +138,7 @@ export function RunReport({ run: r, onUndo, busy, order = 2 }) {
               </Group>
             </Group>
             {(e.error || e.reason) && <Text size="sm" c={e.error ? 'red' : undefined}>{e.error ?? e.reason}</Text>}
-            <EntryBody e={e} mode={mode} />
+            <EntryBody e={e} mode={mode} out={output?.[e.id]} />
           </Stack>
         </Paper>
       ))}
@@ -146,7 +147,7 @@ export function RunReport({ run: r, onUndo, busy, order = 2 }) {
 }
 
 // A run loaded by id, with undo. onChanged runs after an undo, for counts elsewhere.
-export function RunPanel({ id, onChanged, order }) {
+export function RunPanel({ id, onChanged, order, output }) {
   const run = useApi(`/api/run?id=${encodeURIComponent(id)}`);
   const [undone, setUndone] = useState(null);
   const [error, setError] = useState(null);
@@ -165,7 +166,7 @@ export function RunPanel({ id, onChanged, order }) {
           {undone.entries.filter((e) => e.status === 'done').length} of {undone.entries.length} changes undone, see run <Anchor href={href('history', { run: undone.id })}>{undone.id}</Anchor>.
         </Note>
       )}
-      <Loading state={run} label="run">{(r) => <RunReport run={r} onUndo={undo} busy={busy} order={order} />}</Loading>
+      <Loading state={run} label="run">{(r) => <RunReport run={r} onUndo={undo} busy={busy} order={order} output={output} />}</Loading>
     </Stack>
   );
 }

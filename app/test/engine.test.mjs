@@ -175,10 +175,21 @@ test('failed commands skip the rest of their step; command undo runs its undo ar
     { id: '4', step: 'q', title: 'no undo', kind: 'command', argv: ['x', 'add'] },
   ], c);
   assert.deepEqual(run.entries.map((e) => e.status), ['failed', 'skipped', 'done', 'done']);
-  assert.equal(run.entries[0].output, 'boom');
   const u = undo(run.id, c);
   assert.deepEqual(u.entries.map((e) => e.status), ['manual', 'done']);
   assert.ok(calls.includes('x uninstall'));
+});
+
+test('a cancel finishes the unit it lands in, then skips the rest', () => {
+  const c = context({ home: home(), run: () => ({ code: 0, stdout: '', stderr: '' }) });
+  let n = 0;
+  const run = apply([
+    { id: '1', step: 'm', title: 'marketplace', kind: 'command', argv: ['x', 'm'], unit: 'u' },
+    { id: '2', step: 'p', title: 'plugin', kind: 'command', argv: ['x', 'p'], unit: 'u' },
+    { id: '3', step: 'q', title: 'other', kind: 'command', argv: ['x', 'q'] },
+  ], c, { stop: () => n++ > 0 });
+  assert.deepEqual(run.entries.map((e) => e.status), ['done', 'done', 'skipped']);
+  assert.equal(run.status, 'cancelled');
 });
 
 test('item states', () => {

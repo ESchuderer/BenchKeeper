@@ -55,8 +55,8 @@ export function Plan({ plan, onDone }) {
   if (applied) {
     return (
       <Stack gap="sm">
-        <Group justify="flex-end"><Anchor href={href('history', { run: applied })}>Open in History</Anchor></Group>
-        <RunPanel id={applied} order={3} onChanged={() => onDone?.()} />
+        <Group justify="flex-end"><Anchor href={href('history', { run: applied.id })}>Open in History</Anchor></Group>
+        <RunPanel id={applied.id} output={applied.output} order={3} onChanged={() => onDone?.()} />
       </Stack>
     );
   }
@@ -69,7 +69,7 @@ export function Plan({ plan, onDone }) {
     try { setJob(await api('/api/apply', { planId: plan.planId, select })); } catch (e) { setError(e.message); }
     setBusy(false);
   };
-  if (job) return <RunProgress job={job.job} total={job.total} onDone={(run) => { if (run) setApplied(run.id); onDone?.(run); }} />;
+  if (job) return <RunProgress job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onDone?.(run); }} />;
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Apply failed">{error}</Note>}
@@ -137,7 +137,7 @@ export function CancelJob({ job, state, what }) {
 
 // A started apply: each change with its status, the running command's output, then the run.
 export function RunProgress({ job, total, onDone }) {
-  const state = useJob(job, (s) => onDone?.(s.run));
+  const state = useJob(job, (s) => onDone?.(s.run, s.output));
   const entries = state?.run?.entries ?? [];
   // Each change is journaled as running before it starts.
   const finished = entries.filter((e) => e.status && e.status !== 'running').length;

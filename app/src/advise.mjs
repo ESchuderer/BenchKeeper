@@ -42,7 +42,8 @@ export async function adviseSetup(ctx, { dir, agent, lib, signal }) {
   const out = join(tmp, 'answer.txt');
   try {
     const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](advicePrompt(lib), out), { cwd: dir, timeout: 5 * 60e3, signal });
-    if (signal?.aborted) throw new Error('cancelled');
+    // A session that ended on its own before the cancel keeps its answer.
+    if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
     if (r.code !== 0) throw new Error(`${agent} exited with ${r.code}: ${(r.stderr || r.stdout || '').trim().slice(-300)}`);
     let text;
     try { text = agent === 'claude' ? JSON.parse(r.stdout).result : readFileSync(out, 'utf8'); } catch { throw new Error(`${agent} gave no answer`); }

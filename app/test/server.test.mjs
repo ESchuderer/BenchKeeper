@@ -244,6 +244,7 @@ test('cancel: an apply skips the changes not started yet; an eval stops and stor
     const es = await finished(routes, e.job);
     assert.equal(es.error, 'cancelled');
     assert.equal(routes['GET /api/evals']().length, before);
+    assert.equal(es.results, null);
   } finally {
     if (ci === undefined) delete process.env.CI; else process.env.CI = ci;
   }
@@ -395,8 +396,14 @@ test('run report: a failed session undo (no files recorded) still opens', () => 
 
 test('the browser opens a file only this user can read, which forwards to the URL; the URL stays out of the arguments', () => {
   let opened;
-  const file = openBrowser('http://127.0.0.1:1/?token=a&b', { wait: 0, open: (f) => { opened = f; } });
+  const file = openBrowser('http://127.0.0.1:1/?token=a&b', { wait: 0, open: (f) => { opened = f; }, confined: () => false });
   assert.equal(opened, file);
   if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.match(readFileSync(file, 'utf8'), /content="0;url=http:\/\/127\.0\.0\.1:1\/\?token=a&#38;b"/);
+});
+
+test('a snap or Flatpak browser cannot read the file and gets the URL', () => {
+  let opened;
+  openBrowser('http://127.0.0.1:1/?token=a', { open: (f) => { opened = f; }, confined: () => true });
+  assert.equal(opened, 'http://127.0.0.1:1/?token=a');
 });

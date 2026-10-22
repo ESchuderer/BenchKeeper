@@ -18,20 +18,42 @@ export function context({ home, config = `${home}/.config/benchkeeper`, roots = 
 
 // runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last keep
 // characters. A command still running after timeout ms, or when signal aborts, gets SIGTERM, grace ms later SIGKILL, and fails.
+// Agents start helpers that outlive their parent, so each command runs in a process group of its own and a stop reaches
+// the whole group. Groups still running when the app ends are killed: Ctrl+C no longer reaches them through the terminal.
+const groups = new Set();
+const ownGroup = process.platform !== 'win32';
+const signalTree = (p, sig) => {
+  try {
+    if (ownGroup) process.kill(-p.pid, sig);
+    else if (sig === 'SIGKILL') spawnSync('taskkill', ['/pid', String(p.pid), '/T', '/F']);
+    else p.kill(sig);
+  } catch { /* already gone */ }
+};
+let handlers = false;
+const watchExit = () => {
+  if (handlers) return;
+  handlers = true;
+  process.on('exit', () => { for (const p of groups) signalTree(p, 'SIGKILL'); });
+  for (const [sig, n] of [['SIGINT', 2], ['SIGTERM', 15], ['SIGHUP', 1]]) process.once(sig, () => process.exit(128 + n));
+};
+
 export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout = 15 * 60e3, keep = 65536, grace = 10e3, signal } = {}) {
   return new Promise((resolve) => {
-    let stdout = '', stderr = '', timedOut = false, settled = false;
-    const done = (r) => { if (!settled) { settled = true; clearTimeout(term); clearTimeout(kill); signal?.removeEventListener('abort', stop); resolve(r); } };
+    let stdout = '', stderr = '', timedOut = false, settled = false, cancelled = false;
+    const done = (r) => { if (!settled) { settled = true; groups.delete(p); clearTimeout(term); clearTimeout(kill); signal?.removeEventListener('abort', stop); resolve(r); } };
     const tail = (t) => t.slice(-keep);
-    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-    const stopped = () => (signal?.aborted ? { code: 130, stdout, stderr: `${stderr}\ncancelled` } : { code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes` });
+    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'], detached: ownGroup });
+    if (p.pid) { groups.add(p); watchExit(); }
+    const stopped = () => (cancelled ? { code: 130, stdout, stderr: `${stderr}\ncancelled` } : { code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes` });
     let kill;
     const stop = () => {
       if (timedOut) return;
       timedOut = true;
-      p.kill('SIGTERM');
+      // What stopped it first names the result: a cancel during a timeout's grace period stays a timeout.
+      cancelled = !!signal?.aborted;
+      signalTree(p, 'SIGTERM');
       // A child that ignores SIGTERM, or grandchildren that hold the pipes open, must not keep the job running.
-      kill = setTimeout(() => { p.kill('SIGKILL'); p.stdout.destroy(); p.stderr.destroy(); done(stopped()); }, grace);
+      kill = setTimeout(() => { signalTree(p, 'SIGKILL'); p.stdout.destroy(); p.stderr.destroy(); done(stopped()); }, grace);
     };
     const term = setTimeout(stop, timeout);
     if (signal?.aborted) stop(); else signal?.addEventListener('abort', stop);
@@ -42,8 +64,8 @@ export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout =
   });
 }
 
-export function runCommand(argv, { cwd, input, env, buffer, stdio } = {}) {
-  const r = spawnSync(argv[0], argv.slice(1), { cwd, input, env: env ?? process.env, stdio, encoding: buffer ? 'buffer' : 'utf8', maxBuffer: 64 * 1024 * 1024 });
+export function runCommand(argv, { cwd, input, env, buffer, stdio, timeout } = {}) {
+  const r = spawnSync(argv[0], argv.slice(1), { cwd, input, env: env ?? process.env, stdio, timeout, encoding: buffer ? 'buffer' : 'utf8', maxBuffer: 64 * 1024 * 1024 });
   return { code: r.error ? 127 : r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? r.error.message : String(r.stderr ?? '') };
 }
 

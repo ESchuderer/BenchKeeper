@@ -88,6 +88,9 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       // Per project path, so two projects with one folder name never share (and delete) a worktree.
       const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${appVersion}`);
       git(ctx, path, ['worktree', 'prune']);
+      // A relative core.hooksPath resolves in the worktree, which holds the fetched tree: the checkout's hooks run instead.
+      const hooksPath = git(ctx, path, ['config', '--get', 'core.hooksPath']).stdout.trim();
+      const hooks = hooksPath && !isAbsolute(hooksPath) && !hooksPath.startsWith('~') ? ['-c', `core.hooksPath=${resolve(path, hooksPath)}`] : [];
       // A worktree left by a failed run holds its partial work: it stays until the user removes it.
       if (existsSync(tree)) throw new Error(`a failed Update all left ${tree}: look at it, then git worktree remove --force ${tree}`);
       const previous = git(ctx, path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]).stdout.trim();
@@ -99,10 +102,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
         const other = git(ctx, path, ['log', '--format=%H %s', `${start}..${previous}`]).stdout.split('\n').filter(Boolean).filter((l) => !made.has(l.split(' ')[0]));
         if (other.length) throw new Error(`local branch ${branch} has other commits (${other[0].slice(41)}): merge or rename it first`);
       }
-      // A relative core.hooksPath resolves in the worktree, which holds the fetched tree: the checkout's hooks run instead.
-      const hooksPath = git(ctx, path, ['config', '--get', 'core.hooksPath']).stdout.trim();
-      const hooks = hooksPath && !isAbsolute(hooksPath) && !hooksPath.startsWith('~') ? ['-c', `core.hooksPath=${resolve(path, hooksPath)}`] : [];
-      const wt = git(ctx, path, open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start]);
+      const wt = git(ctx, path, [...hooks, ...(open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start])]);
       if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
       let keep = false, planned = false;
       try {

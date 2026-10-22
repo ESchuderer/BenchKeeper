@@ -5,10 +5,13 @@ import { delimiter, dirname, join } from 'node:path';
 import { ENVS, isEnv } from './steps/project.mjs';
 
 // The folder Codex is installed in: its sandbox starts a helper from there, so the profile must let it read it.
+// The npm package root, else the binary's own folder (never two levels up: for ~/bin/codex that is the home folder).
 function codexHome() {
   for (const d of (process.env.PATH ?? '').split(delimiter)) {
     const bin = join(d, 'codex');
-    if (d && existsSync(bin)) return dirname(dirname(realpathSync(bin)));
+    if (!d || !existsSync(bin)) continue;
+    const real = realpathSync(bin);
+    return real.match(/^(.*[\\/]node_modules[\\/]@openai[\\/]codex)[\\/]/)?.[1] ?? dirname(real);
   }
   return null;
 }
@@ -16,12 +19,17 @@ function codexHome() {
 // Codex: a permission profile that reads only the project, the system's minimal paths and Codex itself, writes
 // nothing, and has no network; no web search, and every MCP server the project or user config names turned off.
 function codexArgv(ctx, dir, q, out) {
-  const servers = (() => { try { return JSON.parse(ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir }).stdout).map((s) => s.name); } catch { return []; } })();
-  const odd = servers.find((n) => !/^[\w-]+$/.test(n));
-  if (odd) throw new Error(`the MCP server name ${JSON.stringify(odd)} cannot be turned off for this session`);
+  // Without the list no server can be turned off, so the session does not start.
+  const list = ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir, timeout: 30e3 });
+  let servers;
+  try { servers = JSON.parse(list.stdout).map((s) => s.name); } catch { throw new Error(`codex mcp list --json failed (${list.code}): ${(list.stderr || list.stdout).trim().slice(-200)}`); }
+  const odd = servers.findIndex((n) => typeof n !== 'string' || !/^[\w-]+$/.test(n));
+  if (odd >= 0) throw new Error(`the MCP server name ${JSON.stringify(servers[odd] ?? null)} cannot be turned off for this session`);
   const home = codexHome();
   const read = [':minimal', ':workspace_roots', ...(home ? [home] : [])].map((p) => `${JSON.stringify(p)}="read"`).join(', ');
-  return ['codex', 'exec', '-c', 'default_permissions="benchkeeper"', '-c', `permissions.benchkeeper.filesystem={${read}}`, '-c', 'web_search="disabled"',
+  // sandbox_mode read-only too: a Codex that ignores the profile still writes nothing. Codex 0.163 lets the profile win
+  // over any sandbox_mode, also one from the user's config.
+  return ['codex', 'exec', '-c', 'sandbox_mode="read-only"', '-c', 'default_permissions="benchkeeper-advice"', '-c', `permissions.benchkeeper-advice.filesystem={${read}}`, '-c', 'web_search="disabled"',
     ...servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]), '--skip-git-repo-check', '-o', out, q];
 }
 

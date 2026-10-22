@@ -23,7 +23,7 @@ import { inventory } from './inventory.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
-import { applyAsync, itemState, preview, undo } from './runner.mjs';
+import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
 
@@ -182,7 +182,7 @@ export function api(ctx) {
       idle();
       const plan = evalPlanFor(b);
       if (!plan.length) throw bad('every target is unchanged since its last result');
-      return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; }, signal: job.ctl.signal }).then((r) => { job.results = r.map(({ details, ...x }) => x); }), { kind: 'eval', title: 'evals' });
+      return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; }, onResult: ({ details, ...x }) => { (job.results ??= []).push(x); }, signal: job.ctl.signal }), { kind: 'eval', title: 'evals' });
     },
     // seen: the skills each chosen agent loads there, its global ones included.
     'GET /api/projects': () => listProjects(ctx).map((p) => {
@@ -363,16 +363,34 @@ function launch(target) {
   try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }
 }
 
+// A snap or Flatpak browser has its own /tmp and cannot read the file openBrowser writes there.
+export function confinedBrowser(run = runCommand, home = process.env.HOME ?? '') {
+  if (process.platform !== 'linux') return false;
+  const app = run(['xdg-settings', 'get', 'default-web-browser'], { timeout: 5e3 }).stdout.trim();
+  return !!app && !app.includes('/') && ['/var/lib/snapd/desktop/applications', '/var/lib/flatpak/exports/share/applications', join(home, '.local/share/flatpak/exports/share/applications')]
+    .some((d) => exists(join(d, app)));
+}
+
 // Other local users can read process arguments, so the opener and the browser get a file only this user can read,
-// which forwards to the URL with the token. It goes once the browser had time to load it.
-export function openBrowser(url, { wait = 120e3, open = launch } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'bk-open-'));
-  const file = join(dir, 'open.html');
-  const safe = url.replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`);
-  writeFileSync(file, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${safe}"><title>BenchKeeper</title><a href="${safe}">Open BenchKeeper</a>\n`, { mode: 0o600 });
-  open(file);
-  setTimeout(() => rmSync(dir, { recursive: true, force: true }), wait).unref();
-  return file;
+// which forwards to the URL with the token. It goes once the browser had time to load it, or when the app ends.
+// A confined browser, or a file that cannot be written, gets the URL itself, as before.
+export function openBrowser(url, { wait = 120e3, open = launch, confined = confinedBrowser } = {}) {
+  if (confined()) return open(url);
+  let dir;
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'bk-open-'));
+    const file = join(dir, 'open.html');
+    const safe = url.replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+    writeFileSync(file, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${safe}"><title>BenchKeeper</title><a href="${safe}">Open BenchKeeper</a>\n`, { mode: 0o600 });
+    const clean = () => rmSync(dir, { recursive: true, force: true });
+    process.once('exit', clean);
+    setTimeout(() => { clean(); process.off('exit', clean); }, wait).unref();
+    open(file);
+    return file;
+  } catch {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    return open(url);
+  }
 }
 // On Windows through explorer: cmd would read & or ^ in a folder name as its own syntax.
 export function openFolder(dir) {

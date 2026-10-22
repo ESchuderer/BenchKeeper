@@ -56,7 +56,7 @@ export function evalPlan(ctx, { agents = ['claude'], model, all = false, only } 
 // Each case runs in a fresh scratch repository holding the project skill under test; plugin skills come from the agent's global setup.
 // Sessions run through ctx.runAsync when there is one, so a server stays responsive; onCase gets each case before it starts.
 // signal aborts: the running session is stopped and the target it belongs to gets no result; finished targets keep theirs.
-export async function runEval(ctx, plan, { now = () => new Date().toISOString(), onCase = () => {}, signal } = {}) {
+export async function runEval(ctx, plan, { now = () => new Date().toISOString(), onCase = () => {}, onResult = () => {}, signal } = {}) {
   const out = [];
   const session = ctx.runAsync ?? ctx.run;
   const total = plan.reduce((n, p) => n + p.cases.length, 0);
@@ -93,6 +93,7 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
       cases: details.length, missRate: rate(pos, (d) => !d.triggered), falseTriggerRate: rate(neg, (d) => d.triggered), details };
     mkdirSync(userEvals(ctx), { recursive: true });
     appendFileSync(results(ctx), `${JSON.stringify(result)}\n`);
+    onResult(result);
     out.push(result);
   }
   return out;

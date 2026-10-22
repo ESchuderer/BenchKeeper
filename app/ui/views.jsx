@@ -545,7 +545,7 @@ function ProjectDetail({ project, onChange }) {
             )}
             <Section title={`Changes in ${project.path}`}>
               {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles({ disable: [], enable: [] }); onChange.done(); }} />
+              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles({ disable: [], enable: [] }); plan.reload(); onChange.done(); }} />
             </Section>
           </>
         )}</Loading>

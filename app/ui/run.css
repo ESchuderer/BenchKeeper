@@ -29,3 +29,4 @@
 .bk-diff tr.add td, .bk-diff td.add { background: var(--mantine-color-teal-light); }
 .bk-diff tr.del td, .bk-diff td.del { background: var(--mantine-color-red-light); }
 .bk-diff td.none { background: var(--mantine-color-default-hover); }
+.bk-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

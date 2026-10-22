@@ -54,19 +54,24 @@ test('Update all runs the hooks of the checkout, not those of the fetched tree',
   const ctx = context({ home: h });
   const p = project(h);
   const mark = join(h, 'hook-ran');
-  const hook = (who) => { mkdirSync(join(p.dir, '.githooks'), { recursive: true }); writeFileSync(join(p.dir, '.githooks/pre-commit'), `#!/bin/sh\necho ${who} > '${mark}'\n`, { mode: 0o755 }); };
+  const hook = (who, name = 'pre-commit') => { mkdirSync(join(p.dir, '.githooks'), { recursive: true }); writeFileSync(join(p.dir, '.githooks', name), `#!/bin/sh\necho ${who} > '${mark}-${name}'\n`, { mode: 0o755 }); };
   hook('fetched');
+  hook('fetched', 'post-checkout');
   p.git('add', '-A');
   p.git('commit', '-qm', 'hooks');
   p.git('push', '-q', 'origin', 'main');
   p.git('reset', '-q', '--hard', 'HEAD~1');
   hook('local');
+  hook('local', 'post-checkout');
   writeFileSync(join(p.dir, '.git/info/exclude'), '.githooks/\n');
   p.git('config', 'core.hooksPath', '.githooks');
   addProject(ctx, p.dir);
   const [r] = updateAll(ctx, { push: false });
   assert.equal(r.status, 'committed', r.reason);
-  assert.equal(readFileSync(mark, 'utf8'), 'local\n');
+  assert.equal(readFileSync(`${mark}-pre-commit`, 'utf8'), 'local\n');
+  // git finds a relative hook from the checkout but runs it in the new worktree: without the override, worktree add
+  // would run the fetched post-checkout.
+  assert.equal(readFileSync(`${mark}-post-checkout`, 'utf8'), 'local\n');
 });
 
 test('Update all commits the new setup on a branch in a worktree and leaves the checkout alone', () => {

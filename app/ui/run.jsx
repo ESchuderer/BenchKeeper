@@ -10,7 +10,8 @@ import './run.css';
 export const note = (r) => (r.note?.case ? `eval case ${r.note.case} for ${r.note.target}` : r.note?.updateAll ? `Update all of ${r.note.updateAll}` : r.of ? `undo of ${r.of}` : '');
 export const when = (t) => new Date(t).toLocaleString();
 const base = (p) => p.split(/[\\/]/).filter(Boolean).at(-1) ?? p;
-export const runTitle = (r) => `${r.kind === 'undo' ? 'Undo' : r.kind === 'session' ? 'Agent session' : 'Apply'}: ${r.scope === 'global' ? 'global setup' : base(r.scope)}`;
+// Update all runs in a worktree: the title names the project.
+export const runTitle = (r) => `${r.kind === 'undo' ? 'Undo' : r.kind === 'session' ? 'Agent session' : r.note?.updateAll ? 'Update all' : 'Apply'}: ${r.scope === 'global' ? 'global setup' : base(r.note?.updateAll ?? r.scope)}`;
 
 const STATUS = { done: [IconCircleCheck, 'teal'], failed: [IconCircleX, 'red'], skipped: [IconPlayerSkipForward, 'gray'], cancelled: [IconPlayerSkipForward, 'gray'], manual: [IconHandStop, 'yellow'], running: [IconProgress, 'blue'] };
 export const StatusIcon = ({ status }) => {
@@ -45,6 +46,9 @@ export function DiffView({ diff, path, mode = 'unified' }) {
       </Group>
       <div className="bk-diff-body" tabIndex={0} role="group" aria-label={`Diff of ${path}`}>
         <table>
+          <thead className="bk-sr">
+            <tr>{(split ? ['Old line', 'Before', 'New line', 'After'] : ['Old line', 'New line', 'Change']).map((h) => <th key={h} scope="col">{h}</th>)}</tr>
+          </thead>
           <tbody>
             {shown.map((r, i) => (r.head ? <tr key={i} className="hunk"><td colSpan={split ? 4 : 3}>{r.head}</td></tr>
               : split ? (
@@ -74,21 +78,22 @@ function EntryBody({ e, mode, out }) {
     return <Text size="sm">{e.removed ? <>Removed <Code>{e.path}</Code>.</> : e.commit ? <>Committed in <Code>{e.commit.slice(0, 12)}</Code>.</> : e.folder ? <>Copied the folder <Code>{e.path}</Code>.</> : <><Code>{e.path}</Code> changed since, so its diff is not shown.</>}</Text>;
   }
   if (e.kind === 'remove' && e.status === 'done') return <Text size="sm">Moved <Code>{e.path}</Code> to the run's backup.</Text>;
-  if (e.argv) {
+  const command = e.argv && (
+    <Stack gap={4}>
+      <Code block tabIndex={0}>{`$ ${e.argv.join(' ')}${out ? `\n${out.trimEnd()}` : ''}`}</Code>
+      {e.exit != null && <Text size="xs">Exit code {e.exit}</Text>}
+    </Stack>
+  );
+  if (e.kind === 'session' && e.files) {
     return (
-      <Stack gap={4}>
-        <Code block tabIndex={0}>{`$ ${e.argv.join(' ')}${out ? `\n${out.trimEnd()}` : ''}`}</Code>
-        {e.exit != null && <Text size="xs">Exit code {e.exit}</Text>}
+      <Stack gap="xs">
+        {command}
+        {e.files.length ? e.files.map((f) => (f.diff ? <DiffView key={f.path} diff={f.diff} path={f.path} mode={mode} /> : <Text key={f.path} size="sm"><Code>{f.path}</Code> {FILE_STATUS[f.status] ?? f.status}, no text diff</Text>))
+          : <Text size="sm">The session changed no files.</Text>}
       </Stack>
     );
   }
-  if (e.kind === 'session' && e.files) {
-    return e.files.length ? (
-      <Stack gap="xs">
-        {e.files.map((f) => (f.diff ? <DiffView key={f.path} diff={f.diff} path={f.path} mode={mode} /> : <Text key={f.path} size="sm"><Code>{f.path}</Code> {FILE_STATUS[f.status] ?? f.status}, no text diff</Text>))}
-      </Stack>
-    ) : <Text size="sm">The session changed no files.</Text>;
-  }
+  if (command) return command;
   if (e.files?.length) return <List size="sm" spacing={2}>{e.files.map((f) => <List.Item key={f.path}>Restored <Code>{f.path}</Code></List.Item>)}</List>;
   return null;
 }

@@ -18,15 +18,16 @@ async function noAxe(page) {
 }
 const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 
-test.beforeEach(async ({ page, context }) => {
-  // The URL token works once per server, so later tests reuse the cookie from the first. It comes through the file
-  // the app opens the browser with, so the cookie must survive that cross-site start.
-  const cookies = await context.cookies();
-  if (!cookies.length) await page.goto(pathToFileURL(openBrowser(`http://127.0.0.1:4410/?token=${TOKEN}`, { open: () => {} })).href);
-});
-
 test.describe.configure({ mode: 'serial' });
 let cookie, key;
+
+test.beforeEach(async ({ page }) => {
+  // The URL token works once per server, so later tests reuse the cookie from the first. It comes through the file
+  // the app opens the browser with, so the cookie must survive that cross-site start.
+  if (cookie) return;
+  await page.goto(pathToFileURL(openBrowser(`http://127.0.0.1:4410/?token=${TOKEN}`, { open: () => {}, confined: () => false })).href);
+  await page.waitForURL('http://127.0.0.1:4410/');
+});
 test('the token becomes a cookie and an API key; both leave the address bar', async ({ page, context }) => {
   await expect(page).toHaveURL('http://127.0.0.1:4410/');
   [cookie] = await context.cookies();
@@ -246,8 +247,10 @@ test.describe('views', () => {
     const created = diffs.filter({ hasText: '@@ -0,0 ' }).first(), edited = diffs.filter({ hasNotText: '@@ -0,0 ' }).first();
     await expect(edited).toContainText(/@@ -\d+,\d+ \+\d+,\d+ @@/);
     await run.getByText('Split', { exact: true }).click();
-    await expect(edited.locator('tr:not(.hunk)').first().locator('td')).toHaveCount(4);
-    await expect(created.locator('tr:not(.hunk)').first().locator('td')).toHaveCount(3);
+    await expect(edited.locator('tbody tr:not(.hunk)').first().locator('td')).toHaveCount(4);
+    await expect(edited.getByRole('columnheader')).toHaveText(['Old line', 'Before', 'New line', 'After']);
+    await expect(created.locator('tbody tr:not(.hunk)').first().locator('td')).toHaveCount(3);
+    await expect(created.getByRole('columnheader')).toHaveText(['Old line', 'New line', 'Change']);
     await noAxe(page);
     await run.getByText('Unified', { exact: true }).click();
     // A step whose file no later step changed (settings.json gets later edits, so its step alone is refused).

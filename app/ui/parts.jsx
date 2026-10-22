@@ -45,7 +45,7 @@ export function Plan({ plan, onDone }) {
     try { setJob(await api('/api/apply', { planId: plan.planId, select })); } catch (e) { setError(e.message); }
     setBusy(false);
   };
-  if (job) return <RunProgress job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onDone?.(run); }} />;
+  if (job) return <RunProgress job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onDone?.(run, output); }} />;
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Apply failed">{error}</Note>}

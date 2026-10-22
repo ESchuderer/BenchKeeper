@@ -1,10 +1,10 @@
 import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Modal, MultiSelect, Paper, Radio, Stack, Stepper, Switch, Text, Title } from '@mantine/core';
 import { IconBulb, IconPlayerPlay } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { CancelJob, ChangeList, useJob, usePrerun } from './parts.jsx';
 import { RunPanel } from './run.jsx';
-import { Loading, Note, icon, useApi } from './shell.jsx';
+import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
 const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
@@ -18,15 +18,44 @@ const planQuery = (dir, a) => {
   return q;
 };
 
+// Asks before agent sessions start: count read-only sessions, one after the other, on the chosen agent's login.
+function AdviceConsent({ opened, onClose, advisers, count = 1, onStart }) {
+  // The advisers may load after the dialog mounts: the first one until the user picks.
+  const [picked, setAgent] = useState(null);
+  const agent = picked ?? advisers[0]?.id ?? null;
+  const name = advisers.find((x) => x.id === agent)?.name ?? agent;
+  const title = count > 1 ? `Start ${count} agent sessions?` : 'Start an agent session?';
+  return (
+    <Modal opened={opened} onClose={onClose} withCloseButton={false} attributes={{ content: { 'aria-label': title } }}>
+      <Stack gap="sm">
+        <Title order={2} size="h4">{title}</Title>
+        {advisers.length > 1 && (
+          <Radio.Group label="Agent" value={agent} onChange={setAgent}>
+            <Group mt="xs">{advisers.map((x) => <Radio key={x.id} value={x.id} label={x.name} />)}</Group>
+          </Radio.Group>
+        )}
+        <Text size="sm">{count > 1 ? `${name} reads each of the ${count} repositories` : `${name} reads this repository`} and suggests the environment, packs and skills. You review them in these steps before anything is written.</Text>
+        <List size="sm">
+          <List.Item>Read only: {agent === 'codex' ? 'Codex in its read-only sandbox' : 'Claude Code in restricted mode with read tools only, without the project\'s hooks and MCP servers'}.</List.Item>
+          <List.Item>{count > 1 ? `${count} sessions, one after the other,` : 'One session'} on your {name} login and its usage limits, usually a minute or two each.</List.Item>
+        </List>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>Cancel</Button>
+          <Button leftSection={icon(IconPlayerPlay)} onClick={() => onStart(agent, name)}>Start {name}</Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
 // An agent suggests env, packs and skills: it starts only after the user agreed to the session in the dialog.
 function AgentAdvice({ dir, advisers, onAdvice }) {
   const [open, setOpen] = useState(false);
-  const [agent, setAgent] = useState(advisers[0]?.id ?? null);
   const [job, setJob] = useState(null);
+  const [name, setName] = useState(null);
   const [error, setError] = useState(null);
-  const name = advisers.find((x) => x.id === agent)?.name ?? agent;
-  const begin = async () => {
-    setOpen(false); setError(null);
+  const begin = async (agent, agentName) => {
+    setOpen(false); setError(null); setName(agentName);
     try { setJob((await api('/api/setup-advice', { dir, agent })).job); } catch (e) { setError(e.message); }
   };
   if (!advisers.length) return null;
@@ -35,25 +64,7 @@ function AgentAdvice({ dir, advisers, onAdvice }) {
       <Group><Button leftSection={icon(IconBulb)} variant="default" disabled={!!job} onClick={() => setOpen(true)}>Suggest with an agent</Button></Group>
       {job && <AdviceJob job={job} name={name} onDone={(s) => { setJob(null); if (s.error === 'cancelled') return; if (s.error) setError(s.error); else onAdvice(s.results, name); }} />}
       {error && <Note color="red" title="No suggestion">{error}</Note>}
-      <Modal opened={open} onClose={() => setOpen(false)} withCloseButton={false} attributes={{ content: { 'aria-label': 'Start an agent session?' } }}>
-        <Stack gap="sm">
-          <Title order={2} size="h4">Start an agent session?</Title>
-          {advisers.length > 1 && (
-            <Radio.Group label="Agent" value={agent} onChange={setAgent}>
-              <Group mt="xs">{advisers.map((x) => <Radio key={x.id} value={x.id} label={x.name} />)}</Group>
-            </Radio.Group>
-          )}
-          <Text size="sm">{name} reads this repository and suggests the environment, packs and skills. You review them in these steps before anything is written.</Text>
-          <List size="sm">
-            <List.Item>Read only: {agent === 'codex' ? 'Codex in its read-only sandbox' : 'Claude Code in restricted mode with read tools only, without the project\'s hooks and MCP servers'}.</List.Item>
-            <List.Item>One session on your {name} login and its usage limits, usually a minute or two.</List.Item>
-          </List>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button leftSection={icon(IconPlayerPlay)} onClick={begin}>Start {name}</Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <AdviceConsent opened={open} onClose={() => setOpen(false)} advisers={advisers} onStart={begin} />
     </Stack>
   );
 }
@@ -73,7 +84,7 @@ const Rehearsed = ({ plan }) => <ChangeList plan={plan} prerun={usePrerun(plan)}
 
 // One project's setup, step by step: agents, where commands run, packs and skills, tier, review, then a branch
 // with one commit (and a pull request when origin is on GitHub), as Update all makes them.
-function SetupSteps({ dir, push, onFinish }) {
+function SetupSteps({ dir, push, onFinish, prefill }) {
   const setup = useApi(`/api/project-setup?dir=${encodeURIComponent(dir)}`);
   const [a, setA] = useState(null);
   const [step, setStep] = useState(0);
@@ -88,10 +99,17 @@ function SetupSteps({ dir, push, onFinish }) {
     setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '' }
       : { agents: setup.data.agents.map((x) => x.id), env: 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '' });
   }, [setup.data]);
-  const applyAdvice = (r, name) => {
-    setAdvice({ ...r, name });
+  const applyAdvice = (r, name, prefilled = false) => {
+    setAdvice({ ...r, name, prefilled });
     setA((x) => ({ ...x, env: r.env?.id ?? x.env, packs: r.packs.length || r.skills.length ? r.packs.map((p) => p.id) : x.packs, skills: r.packs.length || r.skills.length ? r.skills.map((k) => k.name) : x.skills }));
   };
+  // A batch suggestion fills the form once, when it is ready and the form has its starting values.
+  const filled = useRef(false);
+  useEffect(() => {
+    if (!prefill || !a || filled.current) return;
+    filled.current = true;
+    applyAdvice(prefill.result, prefill.name, true);
+  }, [prefill, a]);
   const review = useApi(step === 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
   const create = async () => {
@@ -102,6 +120,7 @@ function SetupSteps({ dir, push, onFinish }) {
   return (
     <Loading state={setup} label="setup choices">{(s) => (!a ? null : (
       <Stack gap="md">
+        {advice?.prefilled && <Note color="blue">Prefilled from {advice.name}'s suggestion: environment, packs and skills. Review each step before you apply.</Note>}
         <Stepper active={step} onStepClick={result ? undefined : setStep} size="sm" allowNextStepsSelect={false}>
           <Stepper.Step label="Agents">
             <Checkbox.Group label="Agents that work in this project" value={a.agents} onChange={set('agents')}>
@@ -124,7 +143,7 @@ function SetupSteps({ dir, push, onFinish }) {
           <Stepper.Step label="Skills">
             <AgentAdvice dir={dir} advisers={s.advisers} onAdvice={applyAdvice} />
             {advice && (
-              <Note color="blue" mb="md" title={`Suggested by ${advice.name}`} withCloseButton onClose={() => setAdvice(null)}>
+              <Note color="blue" mb="md" title={advice.prefilled ? `Prefilled from ${advice.name}'s suggestion` : `Suggested by ${advice.name}`} withCloseButton onClose={() => setAdvice(null)}>
                 <List size="sm">
                   {advice.env && <List.Item>Environment {ENV_TITLE[advice.env.id] ?? advice.env.id}: {advice.env.reason}</List.Item>}
                   {advice.packs.map((p) => <List.Item key={p.id}>Pack {p.id}: {p.reason}</List.Item>)}
@@ -191,11 +210,42 @@ function SetupSteps({ dir, push, onFinish }) {
   );
 }
 
+const BATCH_COLOR = { waiting: 'gray', running: 'blue', ready: 'teal', failed: 'red', cancelled: 'gray' };
+
+// Watches one batch suggestion session.
+function BatchJob({ job, onDone }) {
+  useJob(job, onDone);
+  return null;
+}
+
 // First setup of one or more projects in a drawer, one after the other; a project can be skipped.
+// Prefill all: one read-only suggestion session per project, one at a time; each project's form starts from its
+// suggestion once it is ready. Nothing is applied until the user does so per project.
+// shortcut: suggestions live in this page's memory, a reload loses them; keep them on the server if that matters.
 export function ProjectSetup({ paths, push, onClose, change = false }) {
   const [i, setI] = useState(0);
+  const [batch, setBatch] = useState(null);
+  const [ask, setAsk] = useState(false);
+  const first = useApi(paths.length > 1 && !change ? `/api/project-setup?dir=${encodeURIComponent(paths[0])}` : null);
+  const advisers = first.data?.advisers ?? [];
   const dir = paths[i];
   const next = () => (i + 1 < paths.length ? setI(i + 1) : onClose());
+  const update = (p, patch) => setBatch((b) => ({ ...b, items: { ...b.items, [p]: { ...b.items[p], ...patch } } }));
+  useEffect(() => {
+    if (!batch || batch.stopped || Object.values(batch.items).some((x) => x.status === 'running')) return;
+    const p = paths.find((x) => batch.items[x].status === 'waiting');
+    if (!p) return;
+    update(p, { status: 'running' });
+    api('/api/setup-advice', { dir: p, agent: batch.agent }).then((r) => update(p, { job: r.job }), (e) => update(p, { status: 'failed', reason: e.message }));
+  }, [batch]);
+  const start = (agent, name) => { setAsk(false); setBatch({ agent, name, items: Object.fromEntries(paths.map((p) => [p, { status: 'waiting' }])) }); };
+  const stop = () => {
+    const running = Object.values(batch.items).find((x) => x.status === 'running' && x.job);
+    if (running) api('/api/job-cancel', { id: running.job }).catch(() => {});
+    setBatch((b) => ({ ...b, stopped: true }));
+  };
+  const status = (x) => (batch.stopped && ['waiting', 'running'].includes(x.status) ? 'cancelled' : x.status);
+  const item = batch?.items[dir];
   return (
     <Drawer opened={!!dir} onClose={onClose} position="right" size="xl" withCloseButton={false} attributes={{ content: { 'aria-label': 'Set up projects' } }}>
       {dir && (
@@ -210,7 +260,34 @@ export function ProjectSetup({ paths, push, onClose, change = false }) {
               <Button variant="default" onClick={onClose}>Close</Button>
             </Group>
           </Group>
-          <SetupSteps key={dir} dir={dir} push={push} onFinish={next} />
+          {i === 0 && !batch && advisers.length > 0 && (
+            <Group>
+              <Button leftSection={icon(IconBulb)} variant="default" onClick={() => setAsk(true)}>Prefill all with {advisers.length === 1 ? advisers[0].name : 'an agent'}</Button>
+            </Group>
+          )}
+          {batch && (
+            <Stack gap="xs" component="section" aria-label="Suggestions">
+              <Group justify="space-between">
+                <Text size="sm" fw={600}>Suggestions by {batch.name}</Text>
+                {!batch.stopped && Object.values(batch.items).some((x) => ['waiting', 'running'].includes(x.status)) && <Button size="xs" variant="default" onClick={stop}>Cancel suggestions</Button>}
+              </Group>
+              <List size="sm" listStyleType="none" spacing={4}>
+                {paths.map((p) => (
+                  <List.Item key={p}>
+                    <Group gap="xs" wrap="nowrap">
+                      <Badge variant="default" miw="max-content" leftSection={<Dot color={BATCH_COLOR[status(batch.items[p])]} />}>{status(batch.items[p])}</Badge>
+                      <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{p.split('/').pop()}{batch.items[p].reason ? `: ${batch.items[p].reason}` : ''}</Text>
+                    </Group>
+                  </List.Item>
+                ))}
+              </List>
+              {Object.entries(batch.items).filter(([, x]) => x.status === 'running' && x.job).map(([p, x]) => (
+                <BatchJob key={x.job} job={x.job} onDone={(s) => update(p, s.error ? { status: s.error === 'cancelled' ? 'cancelled' : 'failed', reason: s.error === 'cancelled' ? undefined : s.error } : { status: 'ready', result: s.results })} />
+              ))}
+            </Stack>
+          )}
+          <AdviceConsent opened={ask} onClose={() => setAsk(false)} advisers={advisers} count={paths.length} onStart={start} />
+          <SetupSteps key={dir} dir={dir} push={push} onFinish={next} prefill={item?.status === 'ready' ? { result: item.result, name: batch.name } : null} />
         </Stack>
       )}
     </Drawer>

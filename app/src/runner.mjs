@@ -5,8 +5,8 @@
 //   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists
 // Every change has id, step, title, and destructive (confirmed separately, off by default).
 import { spawn, spawnSync } from 'node:child_process';
-import { readdirSync, rmSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { mkdirSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { diffLines } from './diff.mjs';
 import { copy, exists, hashPath, hashText, inside, isDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
 import { blob, fileMode } from './git.mjs';
@@ -67,9 +67,13 @@ function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
     if (failedSteps.has(c.step)) { entry.status = 'skipped'; entry.reason = 'an earlier change of this step failed'; continue; }
     try {
       if (c.kind === 'command') {
-        Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null });
+        // Journaled before it starts: a command cut off by a crash shows in history and can be undone.
+        Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null, status: 'running', touched: true });
+        ctx.ledger.save(run);
         const r = yield { argv: c.argv, opts: { cwd: c.cwd, env: c.env && { ...process.env, ...c.env } }, entry };
+        // Ended with an exit code: undone only when it succeeded, as before the journal.
         entry.exit = r.code;
+        delete entry.touched;
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ') || `exit ${r.code}`);
       } else {
         const path = c.kind === 'write' && !c.from ? real(c.path) : resolve(c.path);
@@ -77,8 +81,11 @@ function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
         Object.assign(entry, { path, existed: exists(path), hashBefore: hashPath(path) });
         // Edits apply to the file as it is now, so a deselected earlier edit is not carried along.
         const after = c.kind === 'write' && c.edit ? c.edit(readText(path)) : c.after;
+        if (entry.existed) entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, path);
+        // Journaled before the first change: after a crash undo finds the backup (or refuses a missing one).
+        Object.assign(entry, { status: 'running', touched: true });
+        ctx.ledger.save(run);
         if (entry.existed) {
-          entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, path);
           // A failed backup stops the step before any write.
           if (c.kind === 'remove') move(path, entry.backup);
           else {
@@ -86,8 +93,6 @@ function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
             if (hashPath(entry.backup) !== entry.hashBefore) throw new Error(`backup of ${path} differs from the original`);
           }
         }
-        // From here the original is only in the backup, so a failure is undone too.
-        entry.touched = true;
         if (c.kind === 'write') {
           if (entry.existed && (c.from || isDir(path) || after == null)) rmSync(path, { recursive: true, force: true });
           if (c.from) copy(c.from, path);
@@ -132,59 +137,95 @@ export async function applyAsync(changes, ctx, opts, onEvent = () => {}) {
   }
 }
 
+// Hash of a path as a git tree holds it (hashPath's form), or null when the tree does not have it.
+function treeHash(ctx, root, tree, path) {
+  const mode = fileMode(ctx, root, tree, path);
+  if (!mode) return null;
+  const content = blob(ctx, root, tree, path);
+  return hashText(mode === '120000' ? `link:${content.toString()}` : content);
+}
+
+// Puts a path back as a git tree holds it: a file with its mode, a link, or nothing.
+function restoreFromTree(ctx, root, tree, rel, path) {
+  const mode = fileMode(ctx, root, tree, rel);
+  rmSync(path, { recursive: true, force: true });
+  if (!mode) return;
+  const content = blob(ctx, root, tree, rel);
+  if (mode === '120000') { mkdirSync(dirname(path), { recursive: true }); symlinkSync(content.toString(), path); } else writeAtomic(path, content, mode === '100755' ? 0o755 : 0o644);
+}
+
+const doneOrTouched = (e) => e.status === 'done' || ((e.status === 'failed' || e.status === 'running') && e.touched);
+
 // Undoes a run, or one step of it, newest change first. Undo is a run of its own, so it can be undone too.
+// Each entry is checked before it changes anything, journaled before the first change, and saved when it ends.
 export function undo(id, ctx, { step } = {}) {
   const source = ctx.ledger.get(id);
   // Update all worked in a worktree that is gone; its result is a branch and a pull request.
   if (source.note?.updateAll) throw new Error(`run ${id} is an Update all commit on ${source.note.branch} in ${source.note.updateAll}: close its pull request or delete the branch`);
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'undo', of: id, scope: source.scope, entries: [] };
+  const save = () => { ctx.ledger.save(run); ctx.ledger.save(source); };
+  const begin = (entry) => { Object.assign(entry, { status: 'running', touched: true }); save(); };
+  const within = (path) => { if (!inside(path, ctx.roots)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`); };
   for (const e of [...source.entries].reverse()) {
-    if (!(e.status === 'done' || (e.status === 'failed' && e.touched)) || e.undone || (step && e.step !== step)) continue;
+    if (!doneOrTouched(e) || e.undone || (step && e.step !== step)) continue;
     const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind };
     run.entries.push(entry);
     try {
       if (e.kind === 'session') {
-        // Files the session added are removed, changed or deleted ones come back from the snapshot before it.
-        entry.files = [];
-        for (const f of e.files) {
-          const path = join(e.cwd, f.path);
-          if (!inside(path, ctx.roots)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
-          const backup = exists(path) ? ctx.ledger.backupPath(run.id, run.entries.length, path) : null;
-          if (backup) copy(path, backup);
-          const content = f.status === 'A' ? null : blob(ctx, e.cwd, e.before, f.path);
-          if (content == null) rmSync(path, { force: true });
-          else writeAtomic(path, content, fileMode(ctx, e.cwd, e.before, f.path) === '100755' ? 0o755 : undefined);
-          entry.files.push({ path, backup });
+        // Files the session added are removed, changed or deleted ones come back from the snapshot before it, each
+        // only while it is as the session left it.
+        const files = e.files.map((f) => ({ f, path: join(e.cwd, f.path) }));
+        for (const { f, path } of files) {
+          within(path);
+          if (hashPath(path) !== treeHash(ctx, e.cwd, e.after, f.path)) throw new Error(`${path} changed after the session: undo what changed it later first`);
         }
-        entry.kind = 'restore';
+        Object.assign(entry, { kind: 'restore', files: [] });
+        begin(entry);
+        for (const { f, path } of files) {
+          const backup = exists(path) ? ctx.ledger.backupPath(run.id, run.entries.length, path) : null;
+          const rec = { path, backup };
+          entry.files.push(rec);
+          if (backup) { copy(path, backup); rec.hashBackup = hashPath(backup); if (rec.hashBackup !== hashPath(path)) throw new Error(`backup of ${path} differs from the original`); }
+          restoreFromTree(ctx, e.cwd, e.before, f.path, path);
+          rec.hashAfter = hashPath(path);
+        }
       } else if (e.kind === 'restore') {
-        // Undo of a session undo: the files go back to their state from that run's backups.
-        entry.files = [];
+        // Undo of a session undo: the files go back to that run's backups, while they are as it left them.
+        for (const f of e.files) {
+          within(f.path);
+          if (e.status === 'done' ? !('hashAfter' in f) || hashPath(f.path) !== f.hashAfter : false) throw new Error(`${f.path} changed after this change: undo what changed it later first`);
+          if (f.backup && (!('hashBackup' in f) || hashPath(f.backup) !== f.hashBackup)) throw new Error(`the backup ${f.backup} is missing or changed`);
+        }
+        Object.assign(entry, { kind: 'restore', files: [] });
+        begin(entry);
         for (const f of e.files) {
           const backup = exists(f.path) ? ctx.ledger.backupPath(run.id, run.entries.length, f.path) : null;
-          if (backup) move(f.path, backup);
+          const rec = { path: f.path, backup };
+          entry.files.push(rec);
+          if (backup) { move(f.path, backup); rec.hashBackup = hashPath(backup); }
           if (f.backup) copy(f.backup, f.path);
-          entry.files.push({ path: f.path, backup });
+          rec.hashAfter = hashPath(f.path);
         }
-        entry.kind = 'restore';
       } else if (e.kind === 'command') {
         if (!e.undoArgv) { entry.status = 'manual'; entry.reason = `no undo command for ${e.argv.join(' ')}`; continue; }
         Object.assign(entry, { argv: e.undoArgv, cwd: e.cwd });
+        begin(entry);
         const r = ctx.run(e.undoArgv, { cwd: e.cwd });
         entry.exit = r.code;
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || `exit ${r.code}`);
       } else {
-        if (!inside(e.path, ctx.roots)) throw new Error(`${e.path} is outside ${ctx.roots.join(', ')}`);
+        within(e.path);
         // Only a file as the run left it goes back, so a later change (another step's, or the user's) is not lost.
         // A whole run is undone newest first, so its own later edits of the file are undone before.
         if (e.status === 'done' && hashPath(e.path) !== e.hashAfter) throw new Error(`${e.path} changed after this change: undo what changed it later first`);
         if (e.existed && hashPath(e.backup) !== e.hashBefore) throw new Error(`the backup ${e.backup} is missing or changed`);
-        Object.assign(entry, { path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path) });
+        Object.assign(entry, { kind: 'write', path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path) });
         // The current state goes to this run's backup, so the undo is reversible as well.
-        if (entry.existed) { entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, e.path); move(e.path, entry.backup); entry.touched = true; }
+        if (entry.existed) entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, e.path);
+        begin(entry);
+        if (entry.existed) move(e.path, entry.backup);
         if (e.existed) copy(e.backup, e.path);
         entry.hashAfter = hashPath(e.path);
-        entry.kind = 'write';
       }
       entry.status = 'done';
       e.undone = run.id;
@@ -192,10 +233,10 @@ export function undo(id, ctx, { step } = {}) {
       entry.status = 'failed';
       entry.error = err.message;
     }
+    save();
   }
   run.status = run.entries.some((x) => x.status === 'failed') ? 'failed' : 'done';
-  ctx.ledger.save(run);
-  ctx.ledger.save(source);
+  save();
   return run;
 }
 

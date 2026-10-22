@@ -140,7 +140,9 @@ test('apply: answers at once with a job; the job shows the running command and i
   let s = routes['GET /api/job'](new URLSearchParams({ id: job }));
   assert.equal(s.done, false);
   assert.equal(s.run.entries.at(-1).id, command.id);
-  assert.equal(s.run.entries.at(-1).status, undefined);
+  assert.equal(s.run.entries.at(-1).status, 'running');
+  // Journaled before the command started, so a crash leaves it in history.
+  assert.equal(ctx.ledger.get(s.run.id).entries.at(-1).status, 'running');
   assert.equal(s.output[command.id], 'installing\n');
   const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
   assert.equal(status(() => routes['POST /api/apply']({ planId: again.planId })), 409);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
@@ -160,6 +160,42 @@ test('a recorded session lists its files; undo restores them, undo of the undo r
   undo(u.id, r.ctx);
   assert.equal(read(join(r.dir, 'README.md')), '# P\nmore\n');
   assert.equal(read(join(r.dir, 'added.txt')), 'new\n');
+});
+
+test('session undo refuses a file changed after the session and leaves every file as it was; links and modes come back', () => {
+  const r = repo();
+  r.ctx.run = runCommand;
+  symlinkSync('README.md', join(r.dir, 'link'));
+  writeFileSync(join(r.dir, 'plain.sh'), 'x\n');
+  r.git('add', '-A');
+  r.git('commit', '-qm', 'link');
+  const run = recordSession(r.ctx, r.dir, ['sh', '-c', 'rm link && echo y > plain.sh && chmod +x plain.sh && echo z > other.txt']);
+  writeFileSync(join(r.dir, 'other.txt'), 'edited by hand\n');
+  const refused = undo(run.id, r.ctx);
+  assert.equal(refused.status, 'failed');
+  assert.match(refused.entries[0].error, /other\.txt changed after the session/);
+  assert.equal(read(join(r.dir, 'plain.sh')), 'y\n');
+  writeFileSync(join(r.dir, 'other.txt'), 'z\n');
+  const u = undo(run.id, r.ctx);
+  assert.equal(u.status, 'done', JSON.stringify(u.entries));
+  assert.equal(readlinkSync(join(r.dir, 'link')), 'README.md');
+  assert.equal(statSync(join(r.dir, 'plain.sh')).mode & 0o111, 0);
+  // Undo of that undo: refused while a file differs from how the undo left it.
+  writeFileSync(join(r.dir, 'plain.sh'), 'changed\n');
+  assert.match(undo(u.id, r.ctx).entries[0].error, /plain\.sh changed after this change/);
+});
+
+test('a change journaled as running (a crash) can be undone from its backup', () => {
+  const r = repo();
+  const path = join(r.dir, 'README.md');
+  const run = apply([{ id: 'w', step: 's', title: 'w', kind: 'write', path, after: 'new\n' }], r.ctx, { scope: r.dir });
+  const saved = r.ctx.ledger.get(run.id);
+  Object.assign(saved.entries[0], { status: 'running' });
+  delete saved.entries[0].hashAfter;
+  delete saved.status;
+  r.ctx.ledger.save(saved);
+  assert.equal(undo(run.id, r.ctx).status, 'done');
+  assert.equal(read(path), '# P\n');
 });
 
 test('recording needs a git repository', () => {

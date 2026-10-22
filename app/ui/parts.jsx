@@ -122,6 +122,8 @@ export function Plan({ plan, onDone }) {
 export function useJob(job, onDone) {
   const [state, setState] = useState(null);
   useEffect(() => {
+    // Another job's state must not show under this one.
+    setState(null);
     if (!job) return undefined;
     let live = true, timer, misses = 0;
     const poll = async () => {
@@ -163,7 +165,7 @@ export function CancelJob({ job, state, what }) {
 
 // A started apply: each change with its status, the running command's output, then the run.
 export function RunProgress({ job, total, onDone }) {
-  const state = useJob(job, (s) => onDone?.(s.run, s.output));
+  const state = useJob(job, (s) => onDone?.(s.run, s.output, s));
   const entries = state?.run?.entries ?? [];
   // Each change is journaled as running before it starts.
   const finished = entries.filter((e) => e.status && e.status !== 'running').length;

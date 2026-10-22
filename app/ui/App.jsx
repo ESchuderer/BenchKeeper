@@ -9,6 +9,7 @@ import { api } from './api.js';
 import { RunProgress } from './parts.jsx';
 import { Dot, MOD, go, href, icon, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
+import { FixEverything } from './fix.jsx';
 import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Settings } from './views.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
@@ -111,35 +112,37 @@ function Shell() {
   ];
   const View = (VIEWS.find(([id]) => id === view) ?? VIEWS[0])[2];
   return (
-    <AppShell header={{ height: 60 }} navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !nav } }} padding="md">
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Burger opened={nav} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Views" />
-            <Group gap={8} wrap="nowrap"><img src={logo} alt="" width={30} height={30} style={scheme === 'dark' ? { filter: 'invert(1)' } : undefined} /><Title order={1} size="h4">BenchKeeper</Title></Group>
-            {o && <Badge variant="outline" visibleFrom="xs">{o.version}</Badge>}
-            <Group visibleFrom="md"><DoctorBadge doctor={doctor} /></Group>
+    <FixEverything version={o?.version} doctor={doctor} onClose={refresh}>
+      <AppShell header={{ height: 60 }} navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !nav } }} padding="md">
+        <AppShell.Header>
+          <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+            <Group gap="sm" wrap="nowrap">
+              <Burger opened={nav} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Views" />
+              <Group gap={8} wrap="nowrap"><img src={logo} alt="" width={30} height={30} style={scheme === 'dark' ? { filter: 'invert(1)' } : undefined} /><Title order={1} size="h4">BenchKeeper</Title></Group>
+              {o && <Badge variant="outline" visibleFrom="xs">{o.version}</Badge>}
+              <Group visibleFrom="md"><DoctorBadge doctor={doctor} /></Group>
+            </Group>
+            <Group gap="xs" wrap="nowrap">
+              <RunningJobs onDone={() => refresh()} />
+              <Button leftSection={icon(IconSearch)} variant="default" onClick={spotlight.open} rightSection={<Kbd visibleFrom="sm">{MOD}+K</Kbd>}>Search</Button>
+              <ActionIcon variant="default" size={36} onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{icon(scheme === 'dark' ? IconSun : IconMoon, 18)}</ActionIcon>
+            </Group>
           </Group>
-          <Group gap="xs" wrap="nowrap">
-            <RunningJobs onDone={() => refresh()} />
-            <Button leftSection={icon(IconSearch)} variant="default" onClick={spotlight.open} rightSection={<Kbd visibleFrom="sm">{MOD}+K</Kbd>}>Search</Button>
-            <ActionIcon variant="default" size={36} onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{icon(scheme === 'dark' ? IconSun : IconMoon, 18)}</ActionIcon>
-          </Group>
-        </Group>
-      </AppShell.Header>
-      <AppShell.Navbar p="xs" aria-label="Views">
-        {VIEWS.map(([id, label, , Icon]) => (
-          <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} variant="filled" color="dark" aria-current={view === id ? 'page' : undefined}
-            rightSection={counts[id] ? <Badge variant="default" size="sm">{counts[id]}</Badge> : null} />
-        ))}
-        <Text size="xs" mt="auto" p="xs">{MOD}+1 to {MOD}+{VIEWS.length}: views</Text>
-      </AppShell.Navbar>
-      <AppShell.Main>
-        <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} />
-      </AppShell.Main>
-      <Spotlight actions={actions} shortcut={['mod + K', '/']} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
-        scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />
-    </AppShell>
+        </AppShell.Header>
+        <AppShell.Navbar p="xs" aria-label="Views">
+          {VIEWS.map(([id, label, , Icon]) => (
+            <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} variant="filled" color="dark" aria-current={view === id ? 'page' : undefined}
+              rightSection={counts[id] ? <Badge variant="default" size="sm">{counts[id]}</Badge> : null} />
+          ))}
+          <Text size="xs" mt="auto" p="xs">{MOD}+1 to {MOD}+{VIEWS.length}: views</Text>
+        </AppShell.Navbar>
+        <AppShell.Main>
+          <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} />
+        </AppShell.Main>
+        <Spotlight actions={actions} shortcut={['mod + K', '/']} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
+          scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />
+      </AppShell>
+    </FixEverything>
   );
 }
 

@@ -68,11 +68,11 @@ export function AdviceJob({ job, name, onDone }) {
   );
 }
 
-// One project's setup, step by step: agents, where commands run, packs and skills, tier, review, then a branch
-// with one commit (and a pull request when origin is on GitHub), as Update all makes them.
 // A plan shown for review only, its skill installs rehearsed.
 const Rehearsed = ({ plan }) => <ChangeList plan={plan} prerun={usePrerun(plan)} />;
 
+// One project's setup, step by step: agents, where commands run, packs and skills, tier, review, then a branch
+// with one commit (and a pull request when origin is on GitHub), as Update all makes them.
 function SetupSteps({ dir, push, onFinish }) {
   const setup = useApi(`/api/project-setup?dir=${encodeURIComponent(dir)}`);
   const [a, setA] = useState(null);

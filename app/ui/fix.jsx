@@ -1,9 +1,9 @@
 import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Progress, Stack, Stepper, Table, Text, Title } from '@mantine/core';
 import { IconPlayerPlay, IconTool, IconWand } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { ChangeList, RunProgress, defaultSelect, usePrerun } from './parts.jsx';
-import { Dot, Loading, Note, href, icon, useApi } from './shell.jsx';
+import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
 
 // Doctor findings the setup can fix open the plan that fixes them; the others keep their fix text only.
 export function fixAction(i) {
@@ -13,7 +13,7 @@ export function fixAction(i) {
   return null;
 }
 
-export function DoctorTable({ found }) {
+export function DoctorTable({ found, onAction }) {
   if (!found.length) return <Text>No problems found.</Text>;
   return (
     <Table.ScrollContainer minWidth={560}>
@@ -26,7 +26,7 @@ export function DoctorTable({ found }) {
               <Table.Tr key={n}>
                 <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.level}</Badge></Table.Td>
                 <Table.Td>{i.message}</Table.Td>
-                <Table.Td><Stack gap={4} align="flex-start">{!(action && i.fix.startsWith('benchkeeper ')) && <Text size="sm">{i.fix}</Text>}{action && <Button component="a" href={action[0]} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>}</Stack></Table.Td>
+                <Table.Td><Stack gap={4} align="flex-start">{!(action && i.fix.startsWith('benchkeeper ')) && <Text size="sm">{i.fix}</Text>}{action && <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>}</Stack></Table.Td>
               </Table.Tr>
             );
           })}
@@ -51,8 +51,10 @@ export async function updateProjects(paths, push, onProgress) {
 
 export function UpdateResults({ progress, extra }) {
   const done = progress.filter((r) => !['pending', 'running'].includes(r.status)).length;
+  const by = Object.entries(groupBy(progress.slice(0, done), (r) => r.status)).map(([s, rs]) => `${rs.length} ${s}`).join(', ');
   return (
     <>
+      <Text size="sm" role="status">{done < progress.length ? `${done} of ${progress.length} projects done${by ? `: ${by}` : ''}` : `Update all finished: ${by}`}</Text>
       <Progress.Root size="lg"><Progress.Section value={(done / progress.length) * 100} aria-label={`Update all: ${done} of ${progress.length} projects`} /></Progress.Root>
       <Table aria-label="Update all results">
         <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Result</Table.Th></Table.Tr></Table.Thead>
@@ -70,10 +72,10 @@ export function UpdateResults({ progress, extra }) {
   );
 }
 
-// Projects Update all can take: set up before, readable, behind this version or with changes pending. Uncommitted
-// changes or no repository: shown, not offered, as Update all would skip them.
-const offered = (p) => p.setupVersion && !p.error && (!p.current || p.changes?.length);
-const blocked = (p) => (!p.repo ? 'no repository' : !p.clean ? 'uncommitted changes' : null);
+// Projects Update all can take: set up before, behind this version or with changes pending. A state file that cannot be
+// read, uncommitted changes or no repository: shown, not offered, as Update all would stop or skip them.
+const offered = (p) => p.error || (p.setupVersion && (!p.current || p.changes?.length));
+const blocked = (p) => (p.error ? p.error : !p.repo ? 'no repository' : !p.clean ? 'uncommitted changes' : null);
 
 // The global plan, then the projects to update, then what is left to do by hand; Apply runs both at the end.
 function FixSteps({ version, doctor, onClose, setBusy }) {
@@ -85,7 +87,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
   const [running, setRunning] = useState(false);
   const prerun = usePrerun(global.data);
   useEffect(() => { if (global.data && !select) setSelect(defaultSelect(global.data)); }, [global.data]);
-  const manual = (doctor.data ?? []).filter((i) => !fixAction(i));
+  const manual = (doctor.data ?? []).filter((i) => !fixAction(i)), covered = (doctor.data?.length ?? 0) - manual.length;
   const list = (projects.data ?? []).filter(offered);
   const open = list.filter((p) => !blocked(p)).map((p) => p.path);
   const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error).length;
@@ -116,19 +118,19 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
                     <Stack gap="xs" mt="xs">
                       {list.map((p) => (
                         <Checkbox key={p.path} value={p.path} disabled={!!blocked(p)} label={p.path.split('/').pop()}
-                          description={[p.path, `setup ${p.setupVersion}${p.current ? '' : `, ${version} available`}`, `${p.changes?.length ?? 0} pending`, p.branch, blocked(p) && `skipped: ${blocked(p)}`].filter(Boolean).join(', ')} />
+                          description={[p.path, p.setupVersion && `setup ${p.setupVersion}${p.current ? '' : `, ${version} available`}`, `${p.changes?.length ?? 0} pending`, p.branch, blocked(p) && `skipped: ${blocked(p)}`].filter(Boolean).join(', ')} />
                       ))}
                     </Stack>
                   </Checkbox.Group>
                 </>
-              ) : <Text>Every registered project is current.</Text>}
+              ) : <Text>Every registered project set up before is current.</Text>}
               {fresh > 0 && <Text size="sm">{fresh} registered project{fresh > 1 ? 's have' : ' has'} no setup yet: set {fresh > 1 ? 'them' : 'it'} up step by step in <Anchor href={href('projects')} underline="always" onClick={onClose}>Projects</Anchor>.</Text>}
             </Stack>
           )}</Loading>
         </Stepper.Step>
         <Stepper.Step label="By hand">
           <Stack gap="sm">
-            <Text size="sm">Doctor findings the setup cannot fix. They stay until you do what the fix column says.</Text>
+            <Text size="sm">Doctor findings the setup cannot fix. They stay until you do what the fix column says.{covered > 0 && ` The ${covered} other finding${covered > 1 ? 's' : ''} the global plan or a project update fixes; whatever is still open shows after the run.`}</Text>
             <Loading state={doctor} label="doctor">{() => <DoctorTable found={manual} />}</Loading>
           </Stack>
         </Stepper.Step>
@@ -136,11 +138,11 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
           <List spacing={4} aria-label="What Apply does">
             <List.Item>Global setup: {select?.length ? `${select.length} of ${global.data.changes.length} changes` : 'nothing'}</List.Item>
             <List.Item>Projects: {picked.length ? `${picked.length}, one branch and pull request each` : 'none'}</List.Item>
-            <List.Item>By hand: {manual.length ? `${manual.length} left to you` : 'nothing'}</List.Item>
+            <List.Item>By hand: {manual.length ? `${manual.length} left to you` : 'nothing'}; the doctor runs again after the run</List.Item>
           </List>
         </Stepper.Step>
         <Stepper.Completed>
-          {running && <FixRun plan={global.data} select={select} paths={picked} onFinished={() => setBusy(false)} />}
+          {running && <FixRun plan={global.data} select={select} paths={picked} setBusy={setBusy} onClose={onClose} />}
         </Stepper.Completed>
       </Stepper>
       {!running && (
@@ -154,16 +156,21 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
   );
 }
 
-// The global apply first, then each project in turn; a cancelled apply leaves the projects as they are.
-function FixRun({ plan, select, paths, onFinished }) {
+// The global apply first, then each project in turn: only after a global run that is done, else when the user says so.
+// Then the doctor again, for what is still open.
+function FixRun({ plan, select, paths, setBusy, onClose }) {
   const [job, setJob] = useState(null);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
-  const [stopped, setStopped] = useState(false);
-  const projects = () => (paths.length ? updateProjects(paths, true, setProgress) : Promise.resolve()).then(onFinished);
+  const [stopped, setStopped] = useState(null);
+  const [finished, setFinished] = useState(false);
+  const after = useApi(finished ? '/api/doctor' : null);
+  const finish = () => { setFinished(true); setBusy(false); };
+  const projects = () => { setStopped(null); (paths.length ? updateProjects(paths, true, setProgress) : Promise.resolve()).then(finish); };
+  const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
     if (!select?.length) { projects(); return; }
-    api('/api/apply', { planId: plan.planId, select }).then(setJob, (e) => { setError(e.message); projects(); });
+    api('/api/apply', { planId: plan.planId, select }).then(setJob, (e) => { setError(e.message); halt('failed to start'); });
   }, []);
   return (
     <Stack gap="md">
@@ -171,28 +178,46 @@ function FixRun({ plan, select, paths, onFinished }) {
       {job && (
         <Stack gap="xs">
           <Title order={3} size="h5">Global setup</Title>
-          <RunProgress job={job.job} total={job.total} onDone={(run) => { if (run?.status === 'cancelled') { setStopped(true); onFinished(); } else projects(); }} />
+          {/* A cancel during the last change still ends the run done: the job's flag says it was cancelled. */}
+          <RunProgress job={job.job} total={job.total} onDone={(run, _, s) => (run?.status === 'done' && !s.cancelled ? projects() : halt(s.cancelled ? 'cancelled' : run?.status ?? 'without a status, see History'))} />
         </Stack>
       )}
-      {stopped && paths.length > 0 && <Note color="yellow" title="Projects not updated">The global setup was cancelled, so the projects were left as they are.</Note>}
+      {stopped && (
+        <Note color="yellow" title="Projects not updated">
+          <Stack gap="xs" align="flex-start">
+            <Text size="sm">The global setup {stopped === 'failed to start' ? 'failed to start' : `ended ${stopped}`}, so the {paths.length} checked project{paths.length > 1 ? 's were' : ' was'} left as they are.</Text>
+            <Button size="xs" variant="default" onClick={() => { setFinished(false); setBusy(true); projects(); }}>Update the projects anyway</Button>
+          </Stack>
+        </Note>
+      )}
       {progress && (
         <Stack gap="xs">
           <Title order={3} size="h5">Projects</Title>
           <UpdateResults progress={progress} />
         </Stack>
       )}
+      {finished && (
+        <Stack gap="xs">
+          <Title order={3} size="h5">Still open</Title>
+          <Loading state={after} label="doctor">{(found) => <DoctorTable found={found} onAction={onClose} />}</Loading>
+        </Stack>
+      )}
     </Stack>
   );
 }
 
-export function FixEverything({ version, doctor, onClose }) {
+// The wizard lives in the app shell, above the views: a view change (a shortcut, the palette) must not end the project
+// updates still to come. Open until the run is over.
+const OpenFix = createContext(() => {});
+export const FixEverythingButton = () => <Button leftSection={icon(IconWand)} onClick={useContext(OpenFix)}>Fix everything</Button>;
+
+export function FixEverything({ version, doctor, onClose, children }) {
   const [opened, setOpened] = useState(false);
-  // Open until the run is over: closing it would end the project updates still to come.
   const [busy, setBusy] = useState(false);
   const close = () => { if (busy) return; setOpened(false); onClose?.(); };
   return (
-    <>
-      <Button leftSection={icon(IconWand)} onClick={() => setOpened(true)}>Fix everything</Button>
+    <OpenFix.Provider value={() => setOpened(true)}>
+      {children}
       <Drawer opened={opened} onClose={close} position="right" size="xl" withCloseButton={false} closeOnEscape={!busy} closeOnClickOutside={!busy} attributes={{ content: { 'aria-label': 'Fix everything' } }}>
         {opened && (
           <Stack gap="md">
@@ -204,6 +229,6 @@ export function FixEverything({ version, doctor, onClose }) {
           </Stack>
         )}
       </Drawer>
-    </>
+    </OpenFix.Provider>
   );
 }

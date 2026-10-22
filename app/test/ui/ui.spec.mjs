@@ -282,7 +282,11 @@ test.describe('views', () => {
     await expect(fix.getByRole('list', { name: 'What Apply does' })).toContainText('Projects: none');
     await noAxe(page);
     await fix.getByRole('button', { name: 'Apply', exact: true }).click();
+    // The wizard sits above the views: a view shortcut leaves it open, so the run goes on.
+    await page.keyboard.press('ControlOrMeta+2');
+    await expect(nav(page, 'Projects')).toHaveAttribute('aria-current', 'page');
     await expect(fix.getByRole('status').filter({ hasText: /^Run / })).toContainText(/done|failed/);
+    await expect(fix.getByRole('heading', { name: 'Still open' })).toBeVisible();
     await expect(fix.getByRole('button', { name: 'Close' })).toBeEnabled();
     await noAxe(page);
   });

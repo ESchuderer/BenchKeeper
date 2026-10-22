@@ -102,9 +102,15 @@ function setupAnswers(src) {
 }
 
 export function api(ctx) {
-  const plans = new Map(), jobs = new Map();
+  const plans = new Map(), jobs = new Map(), rehearsals = new Map();
   // Changes wait while a job runs: an undo or Update all in between would edit files and runs an apply still writes.
-  const idle = () => { if ([...jobs.values()].some((j) => !j.done && !j.readOnly)) throw Object.assign(new Error('an apply or eval is still running: wait for it to finish'), { status: 409 }); };
+  // Every route that changes files calls it first: rehearsals still running would diff against the files it changes,
+  // and rehearsed results from before are out of date.
+  const idle = () => {
+    if ([...jobs.values()].some((j) => !j.done && !j.readOnly)) throw Object.assign(new Error('an apply or eval is still running: wait for it to finish'), { status: 409 });
+    for (const j of jobs.values()) if (j.kind === 'prerun') j.ctl.abort();
+    rehearsals.clear();
+  };
   // A job runs work(job) in the background; the newest 20 finished jobs are kept.
   const start = (total, work, { kind, title, readOnly = false }) => {
     const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly, ctl: new AbortController() };
@@ -159,7 +165,8 @@ export function api(ctx) {
         if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
       }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
     },
-    // Each skills CLI command of a plan, rehearsed in a scratch folder: the files it would write, per change id.
+    // Each skills CLI command of a plan, rehearsed in a scratch folder: the files it would write, per change id. Three
+    // run at a time; a result is kept 10 minutes or until files change through the app.
     'POST /api/prerun': (b) => {
       const p = plans.get(b.planId);
       if (!p) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
@@ -167,11 +174,18 @@ export function api(ctx) {
       if (!list.length) return { job: null, total: 0 };
       return start(list.length, async (job) => {
         job.results = {};
-        for (const c of list) {
-          if (job.ctl.signal.aborted) break;
-          job.progress = { title: c.title };
-          job.results[c.id] = await rehearse(p.ctx, c, { signal: job.ctl.signal });
-        }
+        const queue = [...list];
+        const worker = async () => {
+          for (let c; (c = queue.shift()) && !job.ctl.signal.aborted;) {
+            const key = JSON.stringify([c.argv, c.cwd ?? null, c.snapshot ?? null]), hit = rehearsals.get(key);
+            if (hit && Date.now() - hit.at < 10 * 60e3) { job.results[c.id] = hit.result; continue; }
+            let result;
+            try { result = await rehearse(p.ctx, c, { signal: job.ctl.signal }); } catch (e) { result = { files: [], error: e.message }; }
+            job.results[c.id] = result;
+            if (!result.error) rehearsals.set(key, { at: Date.now(), result });
+          }
+        };
+        await Promise.all([1, 2, 3].map(worker));
       }, { kind: 'prerun', title: 'skill install preview', readOnly: true });
     },
     // An apply stops after the change that runs (a half-done install is worse); evals and suggestions stop their session.
@@ -182,8 +196,8 @@ export function api(ctx) {
       job.ctl.abort();
       return { cancelled: true };
     },
-    // Running jobs, so a reloaded page finds them again.
-    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
+    // Running jobs, so a reloaded page finds them again; a plan starts its rehearsal itself.
+    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && j.kind !== 'prerun').map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });

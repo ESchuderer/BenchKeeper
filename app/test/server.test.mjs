@@ -149,6 +149,21 @@ test('prerun: the global skill install is rehearsed in a job, its file diff per 
   assert.deepEqual(s.results[skill.id].files.map((f) => f.path), [join(ctx.home, '.claude/skills/find-skills/SKILL.md')]);
   assert.ok(!existsSync(join(ctx.home, '.claude/skills/find-skills')));
   assert.equal(status(() => routes['POST /api/prerun']({ planId: 'gone' })), 409);
+  // A result is kept: the same command again needs no second run.
+  ctx.runAsync = (argv, o) => new Promise((r) => o.signal.addEventListener('abort', () => r({ code: 130, stdout: '', stderr: 'cancelled' })));
+  const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  assert.deepEqual((await finished(routes, routes['POST /api/prerun']({ planId: again.planId }).job)).results[skill.id], s.results[skill.id]);
+  // An apply drops kept results and stops a running rehearsal, whose files it changes; a rehearsal is not a running job.
+  const write = (plan) => routes['POST /api/apply']({ planId: plan.planId, select: [plan.changes.find((c) => c.kind === 'write').id] }).job;
+  await finished(routes, write(again));
+  const next = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const pre = routes['POST /api/prerun']({ planId: next.planId });
+  assert.deepEqual(routes['GET /api/jobs'](), []);
+  const applied = write(next);
+  const stopped = await finished(routes, pre.job);
+  assert.equal(stopped.cancelled, true);
+  assert.match(stopped.results[skill.id].error, /cancelled/);
+  await finished(routes, applied);
 });
 
 test('apply: answers at once with a job; the job shows the running command and its output, then the run; one at a time', async () => {

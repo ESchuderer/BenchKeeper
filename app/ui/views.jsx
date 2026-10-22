@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { CancelJob, Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
-import { DoctorTable, FixEverything, UpdateResults, updateProjects } from './fix.jsx';
+import { DoctorTable, FixEverythingButton, UpdateResults, updateProjects } from './fix.jsx';
 import { ProjectSetup } from './setup.jsx';
 import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
 
@@ -86,10 +86,12 @@ function Flow({ nodes }) {
   );
 }
 
-export function Dashboard({ overview, doctor, history, params, refresh }) {
+export function Dashboard({ overview, doctor, history, params }) {
   const inv = useApi('/api/inventory');
   const panel = params.get('panel');
   useEffect(() => { if (panel) document.getElementById(panel)?.scrollIntoView(); }, [panel, doctor.data]);
+  // A new run (Fix everything, the header's jobs) changes what the inventory shows.
+  useEffect(() => { if (history.data) inv.reload(); }, [history.data?.length]);
   const o = overview.data, items = inv.data ?? [];
   const agents = o?.agents.filter((a) => a.installed) ?? [];
   const attention = items.filter((i) => ATTENTION.includes(i.state));
@@ -105,7 +107,7 @@ export function Dashboard({ overview, doctor, history, params, refresh }) {
     <Stack gap="xl">
       <Group justify="space-between" align="flex-start">
         <Text size="sm" maw={560}>Fix everything walks through the global setup, the projects that are behind and what is left to do by hand, then applies what you checked.</Text>
-        <FixEverything version={o?.version} doctor={doctor} onClose={() => { refresh(); inv.reload(); }} />
+        <FixEverythingButton />
       </Group>
       <Section title="Setup flow"><Flow nodes={nodes} /></Section>
       <Grid gutter="xl">

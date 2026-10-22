@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -32,11 +32,10 @@ test('prerun: a skills CLI command writes only in its scratch folder; the plan g
   put(join(home, '.agents/.skill-lock.json'), '{"old":1}\n');
   put(join(dir, 'skills-lock.json'), 'old\n');
   put(join(dir, '.claude/skills/gone/SKILL.md'), '# gone\n');
-  // The user's own folder variables point at real folders: the rehearsal must not reach them.
   const saved = { ...process.env };
   t.after(() => { process.env = saved; });
-  for (const [k, d] of [['CODEX_HOME', 'codex'], ['CLAUDE_CONFIG_DIR', 'claude'], ['XDG_STATE_HOME', 'state']]) { process.env[k] = join(real, d); mkdirSync(join(real, d)); }
-  const before = hashPath(real);
+  for (const k of ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'XDG_STATE_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME']) delete process.env[k];
+  const homeBefore = hashPath(home), dirBefore = hashPath(dir);
   const ctx = { home, run: cli };
 
   const global = { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '-a', 'claude-code', '--copy', '-y'] };
@@ -48,6 +47,14 @@ test('prerun: a skills CLI command writes only in its scratch folder; the plan g
   // The lock was seeded: the diff adds one entry instead of replacing the user's.
   assert.match(g.files[0].diff, /^-\{"old":1\}$/m);
   assert.match(g.files[0].diff, /^\+\{"old":1,"x":1\}$/m);
+  // The user's own folder variables: the rehearsal stays in its scratch home, the diff names the folders they point to.
+  for (const [k, d] of [['CODEX_HOME', 'codex'], ['CLAUDE_CONFIG_DIR', 'claude'], ['XDG_STATE_HOME', 'state']]) { process.env[k] = join(real, d); mkdirSync(join(real, d)); }
+  put(join(real, 'state/skills/.skill-lock.json'), '{"mine":1}\n');
+  const moved = hashPath(real);
+  const m = await rehearse(ctx, global);
+  assert.deepEqual(m.files.map((f) => f.path), [join(real, 'state/skills/.skill-lock.json'), join(real, 'claude/skills/x/SKILL.md'), join(real, 'codex/skills/x/SKILL.md')]);
+  assert.match(m.files[0].diff, /^\+\{"mine":1,"x":1\}$/m);
+  assert.equal(hashPath(real), moved);
 
   const add = await rehearse(ctx, { kind: 'command', cwd: dir, argv: ['npx', '-y', SKILLS_SPEC, 'add', 'u', '-s', 'y', '--copy', '-y'], snapshot: [join(dir, '.claude/skills/y'), join(dir, 'skills-lock.json')] });
   assert.deepEqual(add.files.map((f) => f.path), [join(dir, '.claude/skills/y/SKILL.md'), join(dir, 'skills-lock.json')]);
@@ -55,6 +62,15 @@ test('prerun: a skills CLI command writes only in its scratch folder; the plan g
   assert.deepEqual(rm.files.map((f) => f.path), [join(dir, '.claude/skills/gone/SKILL.md')]);
   assert.match(rm.files[0].diff, /^-# gone$/m);
 
-  assert.equal(hashPath(real), before);
+  // A seeded link is copied as what it points to: the command cannot write through it.
+  const linked = join(real, 'linked'), outside = join(real, 'outside-lock.json');
+  put(outside, 'mine\n');
+  mkdirSync(linked);
+  symlinkSync(outside, join(linked, 'skills-lock.json'));
+  const l = await rehearse(ctx, { kind: 'command', cwd: linked, argv: ['npx', '-y', SKILLS_SPEC, 'add', 'u', '-s', 'z', '--copy', '-y'], snapshot: [join(linked, '.claude/skills/z'), join(linked, 'skills-lock.json')] });
+  assert.deepEqual(l.files.map((f) => f.path), [join(linked, '.claude/skills/z/SKILL.md'), join(linked, 'skills-lock.json')]);
+  assert.equal(readFileSync(outside, 'utf8'), 'mine\n');
+  assert.equal(hashPath(home), homeBefore);
+  assert.equal(hashPath(dir), dirBefore);
   assert.deepEqual(await rehearse({ home, run: () => ({ code: 1, stdout: '', stderr: 'no network\n' }) }, global), { files: [], error: 'no network' });
 });

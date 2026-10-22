@@ -485,7 +485,7 @@ function ProjectDetail({ project, onChange }) {
   const [applied, setApplied] = useState(null);
   const q = new URLSearchParams({ dir: project.path });
   for (const k of ['disable', 'enable']) for (const n of toggles[k]) q.append(k, n);
-  const plan = useApi(project.setupVersion ? `/api/project-plan?${q}` : null);
+  const plan = useApi(project.setupVersion && !lags(project) ? `/api/project-plan?${q}` : null);
   const found = useApi(`/api/doctor?dir=${encodeURIComponent(project.path)}`);
   const flip = (s) => setToggles(({ disable, enable }) => (s.disabled
     ? { disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
@@ -496,7 +496,7 @@ function ProjectDetail({ project, onChange }) {
         <Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{project.path}</Title>
         <Group gap="xs">
           <Button leftSection={icon(IconFolderOpen)} variant="default" onClick={() => api('/api/reveal', { path: project.path }).catch(() => {})}>Open folder</Button>
-          {project.setupVersion && <Button leftSection={icon(IconAdjustments)} variant="default" onClick={onChange.setup}>Change setup</Button>}
+          {project.setupVersion && !lags(project) && <Button leftSection={icon(IconAdjustments)} variant="default" onClick={onChange.setup}>Change setup</Button>}
           <Button leftSection={icon(IconTrash)} variant="subtle" onClick={onChange.remove}>Remove from list</Button>
         </Group>
       </Group>
@@ -505,6 +505,8 @@ function ProjectDetail({ project, onChange }) {
           <Text>Not set up yet: no <Code>.benchkeeper/state.json</Code>.</Text>
           <Button leftSection={icon(IconListNumbers)} onClick={onChange.setup}>Set up this project</Button>
         </Stack>
+      ) : lags(project) ? (
+        <Text>Setup {project.setupVersion} is on <Code>{project.origin}</Code>; this checkout has {project.checkout ? `setup ${project.checkout}` : 'no state file'}. Pull <Code>{project.origin}</Code> to see or change the setup here.</Text>
       ) : applied ? (
         <Section title={`Changes in ${project.path}`}>
           <Group justify="space-between"><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setApplied(null)}>Plan again</Button><Anchor href={href('history', { run: applied.id })}>Open in History</Anchor></Group>
@@ -531,9 +533,11 @@ function ProjectDetail({ project, onChange }) {
   );
 }
 
+// Origin's setup counts when the checkout's is older or missing: the checkout needs a pull.
+const lags = (p) => p.setupVersion && p.checkout !== p.setupVersion;
 const SetupBadge = ({ p, version }) => (
   <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.setupVersion === version ? 'teal' : 'yellow'} />}>
-    {p.setupVersion ? `${p.setupVersion} ${p.setupVersion === version ? 'current' : 'behind'}` : 'no state file'}
+    {p.setupVersion ? `${p.setupVersion} ${p.setupVersion === version ? 'current' : 'behind'}${lags(p) ? ` on ${p.origin}` : ''}` : 'no state file'}
   </Badge>
 );
 

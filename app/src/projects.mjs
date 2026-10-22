@@ -6,7 +6,7 @@ import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
-import { clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
+import { blob, clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, projectPlan, readState, tryState } from './steps/project.mjs';
 
@@ -54,21 +54,44 @@ export function scan(root, depth = 3) {
 // The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
 const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: { ...ctx, roots: [dir] }, dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
 
-// Per project: setup version, branch, clean tree, and the changes Update all would make.
+// The state file on origin's default branch, fetched at most every 5 minutes per project; null without origin or
+// that branch. Update all starts there, so a setup merged on origin counts before the checkout is pulled.
+const fetched = new Map();
+function originState(ctx, path) {
+  const base = isRepo(ctx, path) && git(ctx, path, ['remote', 'get-url', 'origin']).code === 0 && defaultBranch(ctx, path);
+  if (!base) return null;
+  if (!(Date.now() - fetched.get(path) < 5 * 60e3)) {
+    git(ctx, path, ['fetch', '-q', 'origin', base], { env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, timeout: 20e3 });
+    fetched.set(path, Date.now());
+  }
+  const ref = `origin/${base}`;
+  if (git(ctx, path, ['rev-parse', '--verify', '-q', ref]).code !== 0) return null;
+  try { return { ref, state: JSON.parse(blob(ctx, path, ref, STATE).toString('utf8')) }; } catch { return { ref, state: null }; }
+}
+// The setup that counts: the checkout's when current, else the one on origin's default branch when it has one.
+export function setupOf(ctx, path, checkout = tryState(path)) {
+  const origin = checkout?.setupVersion === appVersion ? null : originState(ctx, path);
+  const state = origin?.state && origin.state.setupVersion !== checkout?.setupVersion ? origin.state : checkout;
+  return { state, checkout: checkout?.setupVersion ?? null, origin: origin?.ref ?? null };
+}
+
+// Per project: setup version (checkout: the checked-out one, when origin's counts instead), branch, clean tree, and
+// the changes Update all would make, from the checkout's state file only when that is the one that counts.
 export function status(ctx, path) {
-  let state = null, error = null;
-  try { state = readState(path); } catch (e) { error = e.message; }
+  let local = null, error = null;
+  try { local = readState(path); } catch (e) { error = e.message; }
+  const { state, checkout, origin } = setupOf(ctx, path, local);
   const repo = isRepo(ctx, path);
   const branch = repo ? git(ctx, path, ['branch', '--show-current']).stdout.trim() : null;
   let changes = null;
-  if (state) {
+  if (state && state === local) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
     try { changes = projectChanges(ctx, path).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
   // Per chosen agent, the skills in the project folder it reads.
   const files = skillFiles(path);
   const skills = Object.fromEntries((state?.agents ?? []).map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
-  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills };
+  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills };
 }
 
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
@@ -78,7 +101,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
   return paths.map((path) => {
     const result = { path, branch };
     try {
-      if (!readState(path) && !answers[path]) throw new Error(`no ${STATE}: set the project up first`);
+      if (!answers[path] && !readState(path) && !setupOf(ctx, path, null).state) throw new Error(`no ${STATE}: set the project up first`);
       if (!isRepo(ctx, path)) throw new Error('not a git repository');
       if (!clean(ctx, path)) throw new Error('working tree has changes');
       const base = defaultBranch(ctx, path);

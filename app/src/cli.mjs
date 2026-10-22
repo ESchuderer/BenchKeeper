@@ -190,11 +190,13 @@ async function command(argv, { out, ask, ctx }) {
     const projects = listProjects(ctx).map((p) => status(ctx, p.path));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
     for (const p of projects) {
-      const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean ? 'working tree has changes, skipped' : `${p.changes.length} changes`);
+      const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean ? 'working tree has changes, skipped'
+        : p.changes ? `${p.changes.length} changes` : `setup ${p.setupVersion} on ${p.origin}, checkout ${p.checkout ?? 'without one'}${p.current ? ': pull it' : ''}`);
       out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
       if (p.clean && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
     }
-    const ready = projects.filter((p) => p.repo && p.clean && p.changes?.length);
+    // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
+    const ready = projects.filter((p) => p.repo && p.clean && (p.changes?.length || (p.setupVersion && !p.changes && !p.current)));
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
     const what = `${ready.length} projects: branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}`;
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;

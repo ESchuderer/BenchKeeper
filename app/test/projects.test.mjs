@@ -242,3 +242,23 @@ test('status counts the skills each chosen agent reads in the project; turned-of
   writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ agents: ['claude', 'codex'] }));
   assert.deepEqual(status(context({ home: home() }), dir).skills, { claude: 1, codex: 2 });
 });
+
+test('status and Update all read the state file on the fetched default branch when the checkout is not current', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  // The setup merged on origin from another clone; this checkout has not fetched or pulled it.
+  const other = mkdtempSync(join(tmpdir(), 'bk-clone-'));
+  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, setupVersion: appVersion }));
+  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
+  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  const s = status(ctx, p.dir);
+  assert.deepEqual([s.setupVersion, s.current, s.checkout, s.origin, s.changes], [appVersion, true, '5.0.0', 'origin/main', null]);
+  // A checkout without a state file: the one on origin counts, so Update all builds on it without answers.
+  p.git('rm', '-q', STATE);
+  p.git('commit', '-qm', 'drop state');
+  assert.deepEqual([status(ctx, p.dir).setupVersion, status(ctx, p.dir).checkout], [appVersion, null]);
+  assert.equal(updateAll(ctx, { paths: [p.dir], push: false })[0].status, 'committed');
+});

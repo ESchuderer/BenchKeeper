@@ -2,9 +2,9 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Mod
 import { IconBulb, IconPlayerPlay } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { CancelJob, Loading, useApi, useJob } from './parts.jsx';
-import { DiffView } from './run.jsx';
-import { Note, icon } from './shell.jsx';
+import { CancelJob, useJob } from './parts.jsx';
+import { DiffView, RunPanel } from './run.jsx';
+import { Loading, Note, icon, useApi } from './shell.jsx';
 
 const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
 const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
@@ -172,11 +172,13 @@ function SetupSteps({ dir, push, onFinish }) {
             )}</Loading>
           </Stepper.Step>
           <Stepper.Completed>
-            {result ? (
+            {result && (
               <Note color={result.status === 'stopped' ? 'red' : 'teal'} title={result.status}>
                 {result.reason ?? <>Branch <Code>{result.branch}</Code>{result.pr && <>, pull request <Anchor href={result.pr} target="_blank" rel="noreferrer">{result.pr}</Anchor></>}</>}
               </Note>
-            ) : <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>}
+            )}
+            {result?.run && <RunPanel id={result.run} order={3} />}
+            {!result && <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>}
           </Stepper.Completed>
         </Stepper>
         {error && <Note color="red" title="Failed">{error}</Note>}

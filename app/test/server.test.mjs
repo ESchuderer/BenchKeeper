@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
-import { api, pickFolder, rejectReason, startServer } from '../src/server.mjs';
+import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
 
@@ -42,8 +42,9 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
   assert.equal((await req('GET', '/api/overview')).status, 401);
   assert.equal((await req('GET', '/?token=wrong')).status, 401);
   const r = await req('GET', '/?token=secret-token-123');
-  assert.equal(r.status, 303);
-  key = r.headers.location.match(/^\/#k=([\w-]{43})$/)[1];
+  // A page of this origin moves on to the app, so the next request is same-origin even after a file opened the link.
+  assert.equal(r.status, 200);
+  key = r.body.match(/<meta http-equiv="refresh" content="0;url=\/#k=([\w-]{43})">/)[1];
   assert.match(r.headers['set-cookie'][0], new RegExp(`^bk_session_${port}=[\\w-]{43}; HttpOnly; SameSite=Strict; Path=/$`));
   assert.ok(!r.headers['set-cookie'][0].includes('secret-token-123'));
   cookie = r.headers['set-cookie'][0].split(';')[0];
@@ -390,4 +391,12 @@ test('run report: a failed session undo (no files recorded) still opens', () => 
   run.entries.push({ id: 'session', step: 'session', title: 'undo: agent session', kind: 'session', status: 'failed', error: 'changed after the session' });
   ctx.ledger.save(run);
   assert.equal(routes['GET /api/run'](new URLSearchParams({ id: run.id })).entries[0].status, 'failed');
+});
+
+test('the browser opens a file only this user can read, which forwards to the URL; the URL stays out of the arguments', () => {
+  let opened;
+  const file = openBrowser('http://127.0.0.1:1/?token=a&b', { wait: 0, open: (f) => { opened = f; } });
+  assert.equal(opened, file);
+  if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
+  assert.match(readFileSync(file, 'utf8'), /content="0;url=http:\/\/127\.0\.0\.1:1\/\?token=a&#38;b"/);
 });

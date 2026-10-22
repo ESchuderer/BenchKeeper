@@ -5,11 +5,21 @@ import { adviseSetup, parseAdvice } from '../src/advise.mjs';
 
 const lib = { packs: [{ id: 'frontend', skills: ['a'] }], skills: [{ name: 'a' }, { name: 'b' }] };
 
-test('Codex answers through its output file in a read-only sandbox', async () => {
-  let argv;
-  const ctx = { run: (a) => { argv = a; writeFileSync(a[a.indexOf('-o') + 1], '{"skills": [{"name": "b", "reason": "x"}]}'); return { code: 0, stdout: '', stderr: '' }; } };
+test('Codex answers through its output file; it reads only the project, without web search or MCP servers', async () => {
+  let argv, servers = [{ name: 'playwright' }];
+  const ctx = { run: (a) => {
+    if (a[1] === 'mcp') return { code: 0, stdout: JSON.stringify(servers), stderr: '' };
+    argv = a;
+    writeFileSync(a[a.indexOf('-o') + 1], '{"skills": [{"name": "b", "reason": "x"}]}');
+    return { code: 0, stdout: '', stderr: '' };
+  } };
   assert.deepEqual(await adviseSetup(ctx, { dir: '/p', agent: 'codex', lib }), { env: null, packs: [], skills: [{ name: 'b', reason: 'x' }] });
-  assert.deepEqual(argv.slice(0, 4), ['codex', 'exec', '--sandbox', 'read-only']);
+  const config = argv.flatMap((a, i) => (argv[i - 1] === '-c' ? [a] : []));
+  assert.deepEqual(config.filter((c) => !c.startsWith('permissions.')), ['default_permissions="benchkeeper"', 'web_search="disabled"', 'mcp_servers.playwright.enabled=false']);
+  assert.match(config.find((c) => c.startsWith('permissions.')), /^permissions\.benchkeeper\.filesystem=\{":minimal"="read", ":workspace_roots"="read"/);
+  assert.ok(!argv.includes('--sandbox'));
+  servers = [{ name: 'a.b' }];
+  await assert.rejects(adviseSetup(ctx, { dir: '/p', agent: 'codex', lib }), /cannot be turned off/);
   await assert.rejects(adviseSetup({ run: () => ({ code: 1, stdout: '', stderr: 'not logged in' }) }, { dir: '/p', agent: 'claude', lib }), /not logged in/);
   await assert.rejects(adviseSetup(ctx, { dir: '/p', agent: 'gemini', lib }), /agent must be/);
 });

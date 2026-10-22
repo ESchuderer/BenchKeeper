@@ -3,10 +3,10 @@ import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, G
 import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTool, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { CancelJob, Cli, Loading, Plan, Section, StateBadge, useApi, useJob } from './parts.jsx';
+import { CancelJob, Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
 import { ProjectSetup } from './setup.jsx';
-import { Dot, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon } from './shell.jsx';
+import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
@@ -675,7 +675,7 @@ export function Projects({ params, overview, refresh }) {
                 <Table.Tr key={r.path}>
                   <Table.Td><Code>{r.path}</Code></Table.Td>
                   <Table.Td>
-                    {r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}
+                    {r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}{r.run && <> <Anchor href={href('history', { run: r.run })}>Open report</Anchor></>}
                     {fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>}
                   </Table.Td>
                 </Table.Tr>

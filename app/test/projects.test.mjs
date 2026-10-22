@@ -9,6 +9,7 @@ import { main } from '../src/cli.mjs';
 import { appVersion } from '../src/content.mjs';
 import { addProject, listProjects, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
+import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
 
 const home = () => mkdtempSync(join(tmpdir(), 'bk-home-'));
@@ -48,6 +49,26 @@ test('registry: add, list, remove; scan finds folders with an agent setup', () =
   assert.throws(() => addProject(ctx, join(root, 'missing')), /does not exist/);
 });
 
+test('Update all runs the hooks of the checkout, not those of the fetched tree', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const mark = join(h, 'hook-ran');
+  const hook = (who) => { mkdirSync(join(p.dir, '.githooks'), { recursive: true }); writeFileSync(join(p.dir, '.githooks/pre-commit'), `#!/bin/sh\necho ${who} > '${mark}'\n`, { mode: 0o755 }); };
+  hook('fetched');
+  p.git('add', '-A');
+  p.git('commit', '-qm', 'hooks');
+  p.git('push', '-q', 'origin', 'main');
+  p.git('reset', '-q', '--hard', 'HEAD~1');
+  hook('local');
+  writeFileSync(join(p.dir, '.git/info/exclude'), '.githooks/\n');
+  p.git('config', 'core.hooksPath', '.githooks');
+  addProject(ctx, p.dir);
+  const [r] = updateAll(ctx, { push: false });
+  assert.equal(r.status, 'committed', r.reason);
+  assert.equal(readFileSync(mark, 'utf8'), 'local\n');
+});
+
 test('Update all commits the new setup on a branch in a worktree and leaves the checkout alone', () => {
   const h = home();
   const ctx = context({ home: h });
@@ -64,6 +85,9 @@ test('Update all commits the new setup on a branch in a worktree and leaves the 
   assert.equal(p.git('log', '--format=%s', '-1', r.branch).trim(), `chore: agent setup ${appVersion}`);
   assert.equal(p.git('worktree', 'list').trim().split('\n').length, 1);
   assert.equal(existsSync(join(h, '.cache/benchkeeper/worktrees')) && p.git('worktree', 'list').includes('.cache'), false);
+  // Its report diffs from the commit: the worktree is gone.
+  const report = api(ctx)['GET /api/run'](new URLSearchParams({ id: r.run }));
+  assert.match(report.entries.find((e) => e.path?.endsWith(STATE)).diff, new RegExp(`\\+  "setupVersion": "${appVersion}"`));
   // A second run finds the branch current; a branch with commits of its own stops that project.
   assert.equal(updateAll(ctx)[0].status, 'current');
   p.git('checkout', '-q', r.branch);

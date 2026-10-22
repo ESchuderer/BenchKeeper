@@ -4,9 +4,11 @@
 // one local user is fine.
 import { spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { agent, detect } from './agents.mjs';
@@ -74,6 +76,13 @@ function sessionDiff(ctx, e, f) {
     if (a.length + b.length > 1e6 || a.includes(0) || b.includes(0)) return null;
     return diffLines(f.status === 'A' ? null : a.toString('utf8'), f.status === 'D' ? null : b.toString('utf8'), f.path);
   } catch { return null; }
+}
+
+// An Update all change as its commit holds it: the run's worktree is gone. null for a folder or an older run.
+function committed(ctx, run, e) {
+  const { updateAll, commit } = run.note ?? {};
+  if (!updateAll || !commit || !inside(e.path, [run.scope])) return null;
+  try { return blob(ctx, updateAll, commit, relative(run.scope, e.path).split(sep).join('/')).toString('utf8'); } catch { return null; }
 }
 
 // Changes without their edit functions, with the item state the Dashboard groups by.
@@ -236,7 +245,7 @@ export function api(ctx) {
         if (e.hashAfter === null && !exists(e.path)) return { ...e, removed: true, diff: e.backup && !isDir(e.backup) ? diffLines(readText(e.backup), null, e.path) : null };
         if (isDir(e.path)) return { ...e, folder: true };
         const next = run.entries.slice(i + 1).find((x) => x.path === e.path && x.backup && x.hashBefore === e.hashAfter);
-        const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : null;
+        const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : committed(ctx, run, e);
         return { ...e, diff: now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path) };
       }) };
     },
@@ -325,7 +334,9 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
       urlToken = null;
       session = randomBytes(32).toString('base64url');
       key = randomBytes(32).toString('base64url');
-      return send(303, '', 'text/plain', { location: `/#k=${key}`, 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
+      // A page of this origin moves on, not a redirect: after the file openBrowser hands the browser, a redirect would
+      // count as cross-site, and the browser would hold back the SameSite=Strict cookie.
+      return send(200, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/#k=${key}"><title>BenchKeeper</title>`, 'text/html; charset=utf-8', { 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
     }
     const why = rejectReason(req, { port: p, session, key, api: url.pathname.startsWith('/api/') });
     if (why) return send(why[0], { error: why[1] });
@@ -347,12 +358,24 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
   return new Promise((ok) => server.listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
 }
 
-export function openBrowser(url) {
-  const argv = process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/c', 'start', '""', url] : ['xdg-open', url];
+function launch(target) {
+  const argv = process.platform === 'darwin' ? ['open', target] : process.platform === 'win32' ? ['cmd', '/c', 'start', '""', target] : ['xdg-open', target];
   try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }
+}
+
+// Other local users can read process arguments, so the opener and the browser get a file only this user can read,
+// which forwards to the URL with the token. It goes once the browser had time to load it.
+export function openBrowser(url, { wait = 120e3, open = launch } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-open-'));
+  const file = join(dir, 'open.html');
+  const safe = url.replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+  writeFileSync(file, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${safe}"><title>BenchKeeper</title><a href="${safe}">Open BenchKeeper</a>\n`, { mode: 0o600 });
+  open(file);
+  setTimeout(() => rmSync(dir, { recursive: true, force: true }), wait).unref();
+  return file;
 }
 // On Windows through explorer: cmd would read & or ^ in a folder name as its own syntax.
 export function openFolder(dir) {
-  if (process.platform !== 'win32') return openBrowser(dir);
+  if (process.platform !== 'win32') return launch(dir);
   try { spawn('explorer', [dir], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* nothing to open */ }
 }

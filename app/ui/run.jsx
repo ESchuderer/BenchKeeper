@@ -4,8 +4,7 @@ import { IconArrowBackUp, IconCircleCheck, IconCircleX, IconHandStop, IconPlayer
 import { useMemo, useState } from 'react';
 import { api } from './api.js';
 import { parseDiff, sideBySide } from './diff.js';
-import { Loading, StatusBadge, useApi } from './parts.jsx';
-import { Dot, Note, groupBy, href, icon } from './shell.jsx';
+import { Dot, Loading, Note, StatusBadge, groupBy, href, icon, useApi } from './shell.jsx';
 import './run.css';
 
 export const note = (r) => (r.note?.case ? `eval case ${r.note.case} for ${r.note.target}` : r.note?.updateAll ? `Update all of ${r.note.updateAll}` : r.of ? `undo of ${r.of}` : '');
@@ -72,7 +71,7 @@ const undoable = (e) => (e.status === 'done' || e.touched) && !e.undone;
 function EntryBody({ e, mode, out }) {
   if (e.diff) return <DiffView diff={e.diff} path={e.path} mode={mode} />;
   if (e.kind === 'write' && e.status === 'done') {
-    return <Text size="sm">{e.removed ? <>Removed <Code>{e.path}</Code>.</> : e.folder ? <>Copied the folder <Code>{e.path}</Code>.</> : <><Code>{e.path}</Code> changed since, so its diff is not shown.</>}</Text>;
+    return <Text size="sm">{e.removed ? <>Removed <Code>{e.path}</Code>.</> : e.commit ? <>Committed in <Code>{e.commit.slice(0, 12)}</Code>.</> : e.folder ? <>Copied the folder <Code>{e.path}</Code>.</> : <><Code>{e.path}</Code> changed since, so its diff is not shown.</>}</Text>;
   }
   if (e.kind === 'remove' && e.status === 'done') return <Text size="sm">Moved <Code>{e.path}</Code> to the run's backup.</Text>;
   if (e.argv) {
@@ -138,7 +137,7 @@ export function RunReport({ run: r, onUndo, busy, order = 2, output }) {
               </Group>
             </Group>
             {(e.error || e.reason) && <Text size="sm" c={e.error ? 'red' : undefined}>{e.error ?? e.reason}</Text>}
-            <EntryBody e={e} mode={mode} out={output?.[e.id]} />
+            <EntryBody e={r.note?.commit ? { ...e, commit: r.note.commit } : e} mode={mode} out={output?.[e.id]} />
           </Stack>
         </Paper>
       ))}

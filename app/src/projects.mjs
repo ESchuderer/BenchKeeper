@@ -1,7 +1,7 @@
 // Registered projects and Update all: one branch, one commit and one pull request per project, built in a git
 // worktree so the user's checkout stays as it is.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
@@ -99,6 +99,9 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
         const other = git(ctx, path, ['log', '--format=%H %s', `${start}..${previous}`]).stdout.split('\n').filter(Boolean).filter((l) => !made.has(l.split(' ')[0]));
         if (other.length) throw new Error(`local branch ${branch} has other commits (${other[0].slice(41)}): merge or rename it first`);
       }
+      // A relative core.hooksPath resolves in the worktree, which holds the fetched tree: the checkout's hooks run instead.
+      const hooksPath = git(ctx, path, ['config', '--get', 'core.hooksPath']).stdout.trim();
+      const hooks = hooksPath && !isAbsolute(hooksPath) && !hooksPath.startsWith('~') ? ['-c', `core.hooksPath=${resolve(path, hooksPath)}`] : [];
       const wt = git(ctx, path, open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start]);
       if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
       let keep = false, planned = false;
@@ -110,7 +113,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
         if (run.status !== 'done') throw new Error(`${run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ')} (the worktree stays at ${tree})`);
         git(ctx, tree, ['add', '-A']);
         if (clean(ctx, tree)) { result.status = 'current'; keep = false; return result; }
-        const commit = git(ctx, tree, ['commit', '-q', '-m', `chore: agent setup ${appVersion}`, '-m', `BenchKeeper setup ${appVersion}, applied by benchkeeper update-all from ${STATE}.`]);
+        const commit = git(ctx, tree, [...hooks, 'commit', '-q', '-m', `chore: agent setup ${appVersion}`, '-m', `BenchKeeper setup ${appVersion}, applied by benchkeeper update-all from ${STATE}.`]);
         if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
         ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim() } });
         // The commit is on the branch: the worktree is not needed for pushing.
@@ -120,7 +123,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
           const head = git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim();
           const remote = git(ctx, path, ['ls-remote', 'origin', `refs/heads/${branch}`]).stdout.split(/\s/)[0];
           if (remote !== head) {
-            const p = git(ctx, tree, ['push', '-q', '-u', 'origin', branch]);
+            const p = git(ctx, tree, [...hooks, 'push', '-q', '-u', 'origin', branch]);
             if (p.code !== 0) throw new Error(`git push (origin may have ${branch} with other commits: merge or close its pull request first): ${p.stderr.trim()}`);
           }
           const pr = ctx.run(['gh', 'pr', 'create', '--base', base, '--head', branch, '--title', `chore: agent setup ${appVersion}`, '--body', `BenchKeeper setup ${appVersion}, applied by \`benchkeeper update-all\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`], { cwd: tree });

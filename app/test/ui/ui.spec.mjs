@@ -1,5 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { pathToFileURL } from 'node:url';
+import { openBrowser } from '../../src/server.mjs';
 
 const TOKEN = 'ui-test-token-0123456789';
 const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Evals', 'Settings'];
@@ -17,9 +19,10 @@ async function noAxe(page) {
 const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 
 test.beforeEach(async ({ page, context }) => {
-  // The URL token works once per server, so later tests reuse the cookie from the first.
+  // The URL token works once per server, so later tests reuse the cookie from the first. It comes through the file
+  // the app opens the browser with, so the cookie must survive that cross-site start.
   const cookies = await context.cookies();
-  if (!cookies.length) await page.goto(`/?token=${TOKEN}`);
+  if (!cookies.length) await page.goto(pathToFileURL(openBrowser(`http://127.0.0.1:4410/?token=${TOKEN}`, { open: () => {} })).href);
 });
 
 test.describe.configure({ mode: 'serial' });

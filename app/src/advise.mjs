@@ -1,13 +1,34 @@
 // Setup suggestions from an agent: one read-only session in the project, started only after the user agreed in the UI.
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { ENVS, isEnv } from './steps/project.mjs';
+
+// The folder Codex is installed in: its sandbox starts a helper from there, so the profile must let it read it.
+function codexHome() {
+  for (const d of (process.env.PATH ?? '').split(delimiter)) {
+    const bin = join(d, 'codex');
+    if (d && existsSync(bin)) return dirname(dirname(realpathSync(bin)));
+  }
+  return null;
+}
+
+// Codex: a permission profile that reads only the project, the system's minimal paths and Codex itself, writes
+// nothing, and has no network; no web search, and every MCP server the project or user config names turned off.
+function codexArgv(ctx, dir, q, out) {
+  const servers = (() => { try { return JSON.parse(ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir }).stdout).map((s) => s.name); } catch { return []; } })();
+  const odd = servers.find((n) => !/^[\w-]+$/.test(n));
+  if (odd) throw new Error(`the MCP server name ${JSON.stringify(odd)} cannot be turned off for this session`);
+  const home = codexHome();
+  const read = [':minimal', ':workspace_roots', ...(home ? [home] : [])].map((p) => `${JSON.stringify(p)}="read"`).join(', ');
+  return ['codex', 'exec', '-c', 'default_permissions="benchkeeper"', '-c', `permissions.benchkeeper.filesystem={${read}}`, '-c', 'web_search="disabled"',
+    ...servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]), '--skip-git-repo-check', '-o', out, q];
+}
 
 const ARGV = {
   // --restricted ignores the project's settings (hooks) and confines the file tools, --strict-mcp-config skips its MCP servers.
-  claude: (q) => ['claude', '-p', q, '--restricted', '--strict-mcp-config', '--tools', 'Read,Grep,Glob', '--output-format', 'json'],
-  codex: (q, out) => ['codex', 'exec', '--sandbox', 'read-only', '--skip-git-repo-check', '-o', out, q],
+  claude: (ctx, dir, q) => ['claude', '-p', q, '--restricted', '--strict-mcp-config', '--tools', 'Read,Grep,Glob', '--output-format', 'json'],
+  codex: codexArgv,
 };
 export const ADVISERS = Object.keys(ARGV);
 
@@ -41,7 +62,7 @@ export async function adviseSetup(ctx, { dir, agent, lib, signal }) {
   const tmp = mkdtempSync(join(tmpdir(), 'bk-advice-'));
   const out = join(tmp, 'answer.txt');
   try {
-    const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](advicePrompt(lib), out), { cwd: dir, timeout: 5 * 60e3, signal });
+    const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, advicePrompt(lib), out), { cwd: dir, timeout: 5 * 60e3, signal });
     // A session that ended on its own before the cancel keeps its answer.
     if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
     if (r.code !== 0) throw new Error(`${agent} exited with ${r.code}: ${(r.stderr || r.stdout || '').trim().slice(-300)}`);

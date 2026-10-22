@@ -1,33 +1,9 @@
-import { Anchor, Badge, Button, Checkbox, Code, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Group, Progress, Stack, Table, Text, Title } from '@mantine/core';
 import { IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { DiffView, RunPanel } from './run.jsx';
-import { Dot, Note, STATE_COLOR, href, icon } from './shell.jsx';
-
-// Loads a GET endpoint; reload() fetches it again and keeps the data meanwhile, another path drops it. A request for
-// an older path or load is aborted; no path clears it.
-export function useApi(path) {
-  const [state, setState] = useState({ data: null, error: null, loading: !!path, path });
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    if (!path) { setState({ data: null, error: null, loading: false, path }); return undefined; }
-    const ac = new AbortController();
-    setState((s) => (s.path === path ? { ...s, loading: true } : { data: null, error: null, loading: true, path }));
-    api(path, undefined, { signal: ac.signal }).then((data) => !ac.signal.aborted && setState({ data, error: null, loading: false, path }), (e) => !ac.signal.aborted && setState({ data: null, error: e.message, loading: false, path }));
-    return () => ac.abort();
-  }, [path, n]);
-  const reload = useCallback(() => setN((x) => x + 1), []);
-  // Until the effect runs for a new path, the old path's data must not show under it.
-  return { ...(state.path === path ? state : { data: null, error: null, loading: true }), reload };
-}
-
-export function Loading({ state, label, children }) {
-  if (state.error) return <Note color="red" title={`${label} failed`}>{state.error}</Note>;
-  // No data yet also covers the first render after the path changes, before the effect marks it loading.
-  if (state.data == null) return <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
-  return children(state.data);
-}
+import { Dot, Note, STATE_COLOR, StatusBadge, href, icon } from './shell.jsx';
 
 export const Cli = ({ children }) => (
   <Stack gap={4}>
@@ -89,8 +65,6 @@ export function Plan({ plan, onDone }) {
   );
 }
 
-const STATUS_COLOR = { done: 'teal', failed: 'red', skipped: 'gray', running: 'blue', waiting: 'gray', manual: 'yellow', cancelled: 'gray' };
-export const StatusBadge = ({ status }) => <Badge variant="default" leftSection={<Dot color={STATUS_COLOR[status] ?? 'gray'} />}>{status}</Badge>;
 
 // A started job (apply or eval), polled until it is done. A failed poll is retried; only a lost job (404) or ten
 // misses in a row end the view, the job itself goes on.

@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
 import { api } from './api.js';
-import { RunProgress, useApi } from './parts.jsx';
-import { Dot, MOD, go, href, icon, useRoute } from './shell.jsx';
+import { RunProgress } from './parts.jsx';
+import { Dot, MOD, go, href, icon, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
 import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Settings } from './views.jsx';
 

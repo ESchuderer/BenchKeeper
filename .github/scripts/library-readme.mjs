@@ -43,7 +43,7 @@ export function render(manifest) {
     const parts = [];
     if (p.skills) parts.push(code(p.skills));
     if (p.plugins) parts.push(`plugins ${code(Object.values(p.plugins).map((x) => x.id))}`);
-    if (p.prompts) parts.push(`then ${code(p.prompts.map((x) => x.claude))}`);
+    if (p.prompts) parts.push(`then ${p.prompts.map((x) => `\`${x.claude}\`${x.codex ? ` (Codex \`${x.codex}\`)` : ''}`).join(', ')}`);
     out.push(row([`\`${p.id}\``, parts.join('; '), p.pickWhen]));
   }
   return out.join('\n');

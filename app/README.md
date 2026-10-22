@@ -2,12 +2,14 @@
 
 Installs, updates and undoes the BenchKeeper agent setup for Claude Code, Codex, Gemini CLI and GitHub Copilot, globally and per project, from a CLI or a local web UI. What the setup contains: the [repository README](../README.md#setup-steps).
 
+First run: `npx benchkeeper@6.0.0` opens the browser on the Dashboard, with the doctor findings and Fix everything. In a terminal, `plan` shows the changes and `apply` makes them.
+
 ## Setup
 
 Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
 
 - From npm: `npx benchkeeper@6.0.0 <command>`. Until the first npm release, run it from a clone.
-- From a clone: `git clone --depth 1 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
+- From a clone: `git clone --depth 1 --branch setup-v6.0 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
 Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML). The web UI (React, Mantine) is built into `dist/` and ships in the package.
 
@@ -18,10 +20,10 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | Command | Does |
 |---|---|
 | `ui [--no-open] [--port N]` | the web UI (default command), see [Web UI](#web-ui) |
-| `plan`, `apply [--yes] [--all]` | global setup for the installed agents (`--agents a,b`, `--pack matt-pocock`): a diff per change, then a question per change. Plugins are pinned (BenchKeeper at this app's version from tag `setup-v<major>.<minor>`, Ponytail `PONYTAIL_REF`, Matt Pocock's skills `MATT_POCOCK_REF`); one older than its pin gets update steps, a newer one is kept. Plugin state is read from `~/.claude/plugins/` and `~/.codex/config.toml`, the agent CLIs only when those cannot be read. A plugin whose marketplace was added at another ref than the pin is a step by hand, with the commands: moving the marketplace removes it, which deletes the plugin's data. An installed pack plugin whose pack no registered project uses is offered for removal, not preselected (uninstalling deletes the plugin's data) |
-| `history`, `undo <run> [--step s]`, `restore <date>` | recorded runs, undo of a run or step, restore of a `setup.sh` backup. Undo puts a file back only while it is as the run (or the recorded session) left it and its backup is intact; otherwise it fails for that change and names the file. Each change is journaled before it starts, so a change cut off by a crash shows in history and can be undone |
+| `plan`, `apply [--yes] [--all]` | global setup for the installed agents (`--agents a,b`, `--pack matt-pocock`): each change (file changes as a diff, commands as their command line), then a question per change; `--yes` applies the default selection and `--all` every change including removals, both without questions. Plugins are pinned (BenchKeeper from the branch `stable`, which each release moves, at least at this app's version, Ponytail `PONYTAIL_REF`, Matt Pocock's skills `MATT_POCOCK_REF`); one older than its pin gets update steps, a newer one is kept. Plugin state is read from `~/.claude/plugins/` and `~/.codex/config.toml`, the agent CLIs only when those cannot be read. A plugin whose marketplace was added at another ref than the pin is a step by hand, with the commands: moving the marketplace removes it, which deletes the plugin's data. An installed pack plugin whose pack no registered project uses is offered for removal, not preselected (uninstalling deletes the plugin's data) |
+| `history`, `undo <run> [--step s]`, `restore <name>` | recorded runs, undo of a run or step, restore of a `setup.sh` backup folder. A command is undone with its recorded reverse command (an install with its uninstall); a command without one, such as removing a plugin you had, is reported as manual. Undo puts a file back only while it is as the run (or the recorded session) left it and its backup is intact; otherwise it fails for that change and names the file. Each change is journaled before it starts, so a change cut off by a crash shows in history and can be undone |
 | `project plan\|apply [dir]` | project setup: `--agents`, `--env container\|host-agent\|sandbox\|host`, `--sandbox`, `--pack`, `--skill`, `--tier`; `--disable <skill>` moves a skill to `.benchkeeper/disabled/`, `--enable` moves it back. Answers and each community skill's commit are kept in `.benchkeeper/state.json`; a skill recorded at another commit than the library pin is added again at the pin. Undo of a skills CLI command puts back the skill folders and `skills-lock.json` as they were before it, local edits included. A changed answer cleans up: sandbox off removes `sandbox.enabled` and BenchKeeper's excluded commands, a dropped agent loses the `CLAUDE.md` import, the Gemini CLI context setting and skill folders no chosen agent reads. A warning names hand-written AGENTS.md text on where commands run |
-| `record [--project dir] -- <agent> [args]` | runs an agent session and records the files it changed and its transcript, so `undo` restores them |
+| `record [--project dir] -- <agent> [args]` | runs an agent session in a Git repository and records the files it changed (tracked and untracked, not ignored ones) and its Claude Code or Codex transcript when found, so `undo` restores them |
 | `packs list\|save\|export\|import\|remove` | library packs and own packs; a pack file names library skills only |
 | `projects list\|add\|scan\|remove`, `update-all [--yes] [--no-push]` | registered projects; Update all builds branch `chore/agent-setup-<version>` per project in a worktree, commits, and pushes with a pull request when `origin` is on GitHub. An unmerged branch from an earlier run gets the new commit on top and may hold only commits Update all made (recorded by id in the ledger); a project whose apply or commit fails keeps its worktree under `~/.cache/benchkeeper/worktrees/` until you remove it |
 | `doctor [dir]` | reports without changing anything: variables that turn agent features off (`DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_GROWTHBOOK`, `CLAUDE_CODE_DISABLE_ADVISOR_TOOL`; name and file, never the value), rules and settings that differ from the setup, items outside it, a missing container engine, a newer skills CLI; in a project: summary or layout sections in `AGENTS.md`, overlapping skill descriptions, broken skill links. Exit 1 on an error |
@@ -49,8 +51,8 @@ The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Ch
 | Keys | Action |
 |---|---|
 | Ctrl+K (macOS: Cmd+K), / | command palette: views, projects, skills, the last 20 runs, plan global setup, run doctor, toggle theme |
-| Ctrl+1 to Ctrl+7 | views in sidebar order |
-| Ctrl+J | light or dark theme |
+| Ctrl+1 to Ctrl+7 (macOS: Cmd) | views in sidebar order |
+| Ctrl+J (macOS: Cmd+J) | light or dark theme |
 
 Where the browser handles one of these keys itself, the sidebar, the palette and the header buttons do the same.
 
@@ -61,7 +63,7 @@ The UI is built from dev dependencies (Mantine core, charts and spotlight, Recha
 | Name | Default | Effect |
 |---|---|---|
 | `BENCHKEEPER_HOME` | your home directory | the home the app reads and writes; tests point it at a temporary directory |
-| `BENCHKEEPER_NO_UPDATE_CHECK=1` | unset | no registry request for a newer version (it runs only in a terminal and never installs) |
+| `BENCHKEEPER_NO_UPDATE_CHECK=1` | unset | no registry request for a newer version (it runs only in a terminal, not when `CI` is set, and never installs) |
 
 Files below `~/.config/benchkeeper/`: `ledger/` (one JSON file per run), `backup/<run>/` (replaced and removed files), `projects.json`, `packs/`, `evals/` (own cases, `results.jsonl`, outputs of rule cases).
 

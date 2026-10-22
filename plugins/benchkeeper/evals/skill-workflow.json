@@ -40,6 +40,12 @@
       "expected": "the skill loads"
     },
     {
+      "id": "s7",
+      "query": "Check the README and the landing page against the current release and update what is out of date.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
       "id": "n1",
       "query": "What does the git command `git rebase --onto` do?",
       "should": false,

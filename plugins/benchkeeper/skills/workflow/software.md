@@ -17,7 +17,7 @@
 
 ## Matt Pocock's skills, when installed
 
-`mattpocock-skills:<name>`. Marked U: only the user starts them, so suggest and wait.
+`mattpocock-skills:<name>`. Marked U: only the user starts them, so suggest and wait. Without them, do the step directly.
 
 | Skill | When |
 |---|---|

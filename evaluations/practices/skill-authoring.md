@@ -28,7 +28,7 @@ BenchKeeper skills, checked 2026-10-16:
 | Body size, references | 14 to 156 lines. No nested reference files. |
 | Time-sensitive text | One dated install count in `project-setup` removed (setup-v2.5). |
 | MCP tool names | None used. |
-| Evaluations, model coverage | None for these skills. The benchmark measures the BenchKeeper layer as a whole (`bench/PROTOCOL.md`), not each skill's triggering or effect. Trigger evaluations were dropped (protocol 1.17). The targeted tasks in `bench/PROTOCOL.md` (not run yet) rate each skill's effect on one task per phase. |
+| Evaluations, model coverage | Trigger cases for `workflow` and `designing-technical-uis` in `plugins/benchkeeper/evals/` (setup-v6.0), run by the owner with `benchkeeper eval` as real agent sessions; no results are recorded in the repository yet. The benchmark measures the BenchKeeper layer as a whole (`bench/PROTOCOL.md`), not each skill's effect; its trigger evaluations were dropped (protocol 1.17). The targeted tasks in `bench/PROTOCOL.md` (not run yet) rate each skill's effect on one task per phase. |
 
 Library skill `designing-technical-uis` (setup-v5.0, installed per project): gerund name, description in third person with what and when, no reference files. Check of the text and units rules (as `writing-microcopy`, before the inputs, comparison and chart rules were added): 4 tasks on `web/` (a settings drawer; bench empty state, error, intro and tooltip; a review of `Page.tsx`; a technical results table), one Sonnet subagent with and one without the skill each, scored by the author against a checklist set before the runs. Restating or reassuring lines: 0 with, 14 without (9 of them header and status tooltips in the table). Invented facts: 0 with (missing facts marked `[NEED]`), 5 without. Units sat in the column headers in both table runs. With the skill, the review proposed mostly deletions of repeated text, without it mostly rewording. Confidence low to medium (n = 1 per task).
 
@@ -36,6 +36,6 @@ Benchmarked collections: all eight ranked in [bench/results/2026-10-16-skill-aut
 
 ## Decision
 
-In: the guide's checklist applies to `skills/`. Evaluations for the own skills: the targeted tasks in `bench/PROTOCOL.md`, not run yet.
+In: the guide's checklist applies to `skills/`. Evaluations for the own skills: the trigger cases above (no recorded results yet) and the targeted tasks in `bench/PROTOCOL.md`, not run yet.
 
 [All evaluations](../../EVALUATIONS.md)

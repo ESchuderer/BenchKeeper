@@ -1,6 +1,6 @@
 # Library exclusions
 
-Category: skill libraries, Checked 2026-10-18, Decision: Not in the library
+Category: skill libraries, Checked 2026-10-18 to 2026-10-22, Decision: Not in the library
 
 ## Decision
 

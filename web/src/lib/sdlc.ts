@@ -33,7 +33,7 @@ const humans = steps.map((s) => (s.human ? `${s.name} (${s.human})` : '')).filte
 
 const o: string[] = [
   '<svg class="ring" viewBox="-140 -90 920 750" role="group" aria-labelledby="ring-t ring-d">',
-  '<title id="ring-t">BenchKeeper SDLC loop</title>',
+  '<title id="ring-t">BenchKeeper workflow loop</title>',
   `<desc id="ring-d">${esc(`Requirements from people and from Maintain findings enter at step 1. ${steps.length} steps in a clockwise loop, in four phases: ${phases.map((p) => `${p.name}: ${steps.filter((s) => s.phase === p.key).map((s) => s.name).join(', ')}`).join('. ')}. Human in the loop: ${humans}.`)}</desc>`,
   '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5 0 10z"/></marker></defs>',
   `<circle class="track" cx="${C}" cy="${C}" r="${R}"/>`,

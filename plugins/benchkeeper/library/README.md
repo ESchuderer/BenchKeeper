@@ -1,9 +1,9 @@
 # Skill library
 
-Skills that `setting-up-projects` installs into a project, never globally. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. The source of these tables is `library.json` (`node .github/scripts/library-readme.mjs` writes them, CI checks them). Nothing here duplicates the global setup (Ponytail, the BenchKeeper skills, find-skills, and Matt Pocock's skills when installed) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
+Skills that the app (`npx benchkeeper@6.0.0 project apply --pack <id> --skill <name>`) or `setting-up-projects` installs into a project. A pack with a plugin (`matt-pocock`) installs that plugin globally, through the agent's plugin command. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. The source of these tables is `library.json` (`node .github/scripts/library-readme.mjs` writes them, CI checks them). Nothing here duplicates the global setup (Ponytail, the BenchKeeper skills, find-skills, and Matt Pocock's skills when installed) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
 
 Install, from the project root, for the selected agents only:
-- Own skill (folder next to this file): copy it to `.agents/skills/<name>/` (Codex) and `.claude/skills/<name>/` (Claude Code). With both agents selected, the Claude Code copy is a link to the Codex copy. Codex ignores the `paths` key.
+- Own skill (folder next to this file): copy it to `.agents/skills/<name>/` (Codex) and `.claude/skills/<name>/` (Claude Code). Codex ignores the `paths` key.
 - Community skill: `DO_NOT_TRACK=1 npx -y skills@npm:skills@1.7.2 add https://github.com/<source>/tree/<ref> -s <skill> <agent-flags> --copy -y`, with `ref` from `library.json` (the `npm:` alias runs the registry package, never a `skills` in the project's `node_modules`). The project's `skills-lock.json` records the ref and pins the content.
 
 <!-- generated:catalog -->
@@ -85,7 +85,7 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 
 | Pack | Contents | Pick when |
 | --- | --- | --- |
-| `matt-pocock` | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` | The project uses his grilling, spec, tickets, test-first and review skills |
+| `matt-pocock` | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, test-first and review skills |
 | `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
 | `testing` | `playwright-best-practices` | The repository has or adds browser tests |
 | `security` | `gha-security-review`, `fp-check`, `variant-analysis`, `sharp-edges` | CI workflows, a public API, or security findings to triage |

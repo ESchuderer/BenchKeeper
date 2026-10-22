@@ -8,6 +8,8 @@ disable-model-invocation: true
 
 Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, or `docs/agents/`, every step compares the current state with what it would create and proposes only the differences.
 
+The BenchKeeper app owns the deterministic part: `npx benchkeeper@6.0.0 project apply` writes the BenchKeeper block in `AGENTS.md` (where commands run, default tier, skill pointers), `CLAUDE.md`, the pack and library skills and `.benchkeeper/state.json`. With a state file, compare those parts and change an answer through `project apply` (`--env`, `--tier`, `--pack`, `--skill`). Without one, propose `npx benchkeeper@6.0.0 project plan` for them first. This skill does the steps that need judgement: the stack search, the commands in `AGENTS.md`, the dev container, cleanup.
+
 Process: plan first, then apply.
 1. Read only: run agent selection and steps 1 to 6 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing. Do not build or start a container.
 2. Plan: one list of files created, changed, or removed, skills added or removed, packages added to the image, container build or rebuild, integrations enabled or disabled, and skipped steps with the reason. Mark destructive items: overwriting or removing files, config entries, or skills, and removing or rebuilding a container. Ask: apply all, a subset, or cancel.
@@ -18,7 +20,7 @@ Never run sudo or AUR installs (give the user the command).
 
 ## Agent selection
 
-Detect `claude` and `codex` with `command -v`, then ask which installed agents the user uses for this project: Claude Code, Codex, both, or neither. Reuse an explicit selection already given for this project in the session. Do not install agent CLIs or infer usage from installation. Report missing requested agents. Proceed only for confirmed installed agents. If none are selected, stop without changes.
+Detect `claude` and `codex` with `command -v`, then ask which installed agents the user uses for this project: Claude Code, Codex, both, or neither. Reuse an explicit selection already given for this project in the session. Do not install agent CLIs or infer usage from installation. Report missing requested agents. Proceed only for confirmed installed agents. If none are selected, stop without changes. A state file that also names `gemini` or `copilot` (untested in the app): leave their files unchanged and report that this skill covers Claude Code and Codex.
 
 Scope every step, including updates and cleanup, to selected agents. Leave unselected agents' files and integrations in place. `<agent-flags>` means `-a claude-code`, `-a codex`, or both, matching that selection. Never omit agent flags and rely on auto-detection. If existing shared links would change skill content used by an unselected agent, report and skip that mutation.
 
@@ -31,6 +33,8 @@ Identify languages, frameworks, and infrastructure tools from build files, depen
 Ask where the agent runs, recommending the first:
 - **Agent in the container** (default): the agent CLIs selected above are installed in the image at exact versions, and the user starts them with `devcontainer exec --workspace-folder . claude` (or `codex`). Login: the subscription token from the host environment through `remoteEnv` (`"CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"`), never written into the image or the repository, or a login inside the container kept in a named volume for the agent's config folder.
 - **Agent on the host**: toolchains in the container, the agent on the host, project commands routed through `devcontainer exec`.
+  `project apply --sandbox` then turns on Claude Code's command sandbox, with `devcontainer exec` and `podman` excluded (state `sandbox: true`).
+- **Docker Sandboxes microVM** (`sbx`, untested): the agent and its builds and tests run inside it. Set with `project apply --env sandbox`, then skip the rest of this step.
 - **Host only**: no container. Skip the rest of this step.
 
 Reuse `.devcontainer/devcontainer.json`, `.devcontainer.json`, or an existing named configuration. Otherwise create `.devcontainer/devcontainer.json` and only the Dockerfile or Compose services the confirmed stack needs. Preserve existing settings and services. Use an exact image version or digest and pin installed CLI/package versions. [Configuration reference](https://containers.dev/implementors/json_reference/)
@@ -58,7 +62,7 @@ After changing the image, Dockerfile, or container creation settings, rebuild in
 
 ## 3. AGENTS.md and CLAUDE.md
 
-- `AGENTS.md`: where project commands run (in the container, with the container command prefix when the agent runs on the host), the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), conventions found in the code that differ from the stack defaults. No project summary or layout. Update: remove a project summary or layout section after asking, fix failing or changed commands.
+- `AGENTS.md`: where project commands run sits in the BenchKeeper block (`project apply --env`). Outside the block: the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), conventions found in the code that differ from the stack defaults. No project summary or layout. Update: remove a project summary or layout section after asking, fix failing or changed commands.
 - `CLAUDE.md`, only when Claude Code is selected: `@AGENTS.md`, plus the `## Agent skills` block that Matt Pocock's setup writes there when Codex is not selected. Move any other content into `AGENTS.md` first. Otherwise leave an existing file unchanged and do not create one.
 
 ## 4. Skills
@@ -91,18 +95,18 @@ Update or restore missing skills by reinstalling each selected skill from its re
 
 ## 5. Workflow setup and default tier (ask)
 
-The workflow itself (`benchkeeper:workflow`, Ponytail, optionally Matt Pocock's skills) is installed once per machine as plugins, by the user (README setup steps, `npx benchkeeper@6.0.0 apply`). Ask whether this project uses Matt Pocock's skills. Not installed on the machine: say so and skip the rest of this list.
+The workflow itself (`benchkeeper:workflow`, Ponytail, optionally Matt Pocock's skills) is installed once per machine as plugins, by the user (README setup steps, `npx benchkeeper@6.0.0 apply`). Ask whether this project uses Matt Pocock's skills. Not installed on the machine: offer `npx benchkeeper@6.0.0 apply --pack matt-pocock` and continue once it is installed; declined, skip the rest of this list.
 
 - A project copy of Matt Pocock's skills loads twice (step 6). Do not install a skill named `code-review` into `.claude/skills/`: it would replace Claude Code's `/code-review`.
 - Matt Pocock's repository setup: ask the user to run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$mattpocock-skills:setup-matt-pocock-skills`) once. It asks for the issue tracker and where docs go, and writes `docs/agents/` and its `## Agent skills` block. Afterwards fix its two gaps:
   - It edits `CLAUDE.md` when that exists. With Codex selected, move the block into `AGENTS.md`, which Codex reads, and leave `CLAUDE.md` at `@AGENTS.md`.
   - It skips the triage labels when it does not recognize the plugin skill `mattpocock-skills:triage`. Then write `docs/agents/triage-labels.md` from its `triage-labels.md` template with the default labels, add its `### Triage labels` sub-block, and create the labels the tracker lacks (`gh label create`).
 
-Ask for the default task tier of `benchkeeper:workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions. None writes nothing and removes an existing line after asking.
+Ask for the default task tier of `benchkeeper:workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Set the choice with `npx benchkeeper@6.0.0 project apply --tier <tier>`, which writes the `Default tier:` line into the BenchKeeper block. For none, leave `--tier` unset and remove a `Default tier:` line outside the block after asking.
 
 ### State file
 
-`.benchkeeper/state.json` (committed) holds the answers, so a later run and the BenchKeeper app read the same: `schemaVersion` 1, `setupVersion` (the plugin `version`), `agents`, `env` (`container`, `host-agent`, `sandbox`, `host`), `sandbox` (true or false), `packs` (library or own pack ids), `singles` (skills chosen besides the packs'), `tier`, `paths` (skill name to globs), `disabled` (skills turned off, their folders kept in `.benchkeeper/disabled/`), `skills` (`name`, `source`, `ref`). When it exists, its answers are the defaults of every question above.
+`.benchkeeper/state.json` (committed) holds the answers, so a later run and the BenchKeeper app read the same: `schemaVersion` 1, `setupVersion` (the plugin `version`), `agents`, `env` (`container`, `host-agent`, `sandbox`, `host`), `sandbox` (true or false), `packs` (library or own pack ids), `singles` (skills chosen besides the packs'), `tier`, `paths` (skill name to globs), `disabled` (skills turned off, their folders kept in `.benchkeeper/disabled/`), `skills` (`name`, `source`, `ref`). The app writes it; read it and leave it unchanged. When it exists, its answers are the defaults of every question above. After adding or removing a library skill by hand, run `npx benchkeeper@6.0.0 project apply` so the file matches. Update all covers registered projects with a state file: register this one with `npx benchkeeper@6.0.0 projects add .`.
 
 ## 6. Other configuration (ask)
 

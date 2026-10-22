@@ -8,7 +8,7 @@
 
 ## Independent evidence
 
-- [JetBrains](https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/) (v4.8.4, Claude Code, Sonnet 5 medium, 80 paired SkillsBench tasks): cost -10.3% (p=0.004), code about -15% (p=0.088), time -11%. 65 of 80 tasks identical score. Needs the SessionStart hook, the skill did not self-activate. Installed v5.2.0 is not re-measured.
+- [JetBrains](https://blog.jetbrains.com/ai/2026/07/ponytail-skill-claude-tested/) (v4.8.4, Claude Code, Sonnet 5 medium, 80 paired SkillsBench tasks): cost -10.3% (p=0.004), code about -15% (p=0.088), time -11%. 65 of 80 tasks identical score. Needs the SessionStart hook, the skill did not self-activate. The app installs v5.3.2 (`PONYTAIL_REF`), not re-measured.
 - [ponytail#685](https://github.com/DietrichGebert/ponytail/issues/685) (Claude Code 2.1.220, plugin installed, commit 14a0d79, Sonnet 5, 5 tasks x 8 runs, 3 arms): cost vs no skill +0.7% (CI -6.5 to +9.8), vs a one-sentence prompt +6.9% (p<1e-4). Lines -20%, output tokens -12%.
 - [Deepusleepy v3](https://github.com/Deepusleepy/ponytail-benchmark) (listed as KuldeepB19 in the Ponytail README, the github.com/KuldeepB19 repository URL redirects here; plugin installed, execution-graded, Opus 4.8, 24 tasks x 5 runs x 4 arms, 480 runs): full mode output tokens -43.8% (CI 36.2 to 50.8), statements -53.0%, correctness 99.2 vs 99.2, robustness 82.5 vs 96.7 (ultra 80.0), loss concentrated in 5 tasks.
 - [Soarr01/skillbench](https://github.com/Soarr01/skillbench) (system-prompt injection, Opus 4.8, 10 tasks x 5 runs): cost +10.7%, oracle checks unchanged.

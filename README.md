@@ -3,58 +3,65 @@
 # BenchKeeper
 
 <!-- generated:description -->
-BenchKeeper sets up Claude Code and Codex with short global rules, a workflow skill that sizes each task (quick, standard, full, research) and runs long checks once at the end, and a per-repository setup: devcontainer, AGENTS.md, stack skills at pinned versions. The app (`npx benchkeeper`), which you run yourself, installs the rules, settings and plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills), shows a diff before each change, and records every run for undo.
+BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.0.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.
 <!-- /generated:description -->
 
 <!-- generated:core -->
 **Optional: [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request).
 <!-- /generated:core -->
 
-One tool per job, exact versions for CLIs and MCP servers. BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](plugins/benchkeeper)), plus the [app](app) for what a plugin cannot carry: the global rules and settings, project setup, history and undo.
+BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](plugins/benchkeeper)), plus the [app](app) for what a plugin cannot carry: the global rules and settings, project setup, history and undo.
 
-Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional (Gemini CLI and Copilot untested). The app configures the agents it finds on `PATH`. It does not install agent CLIs.
+Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional (Gemini CLI and Copilot untested). The app configures the agents it finds on `PATH`. It does not install agent CLIs. Linux and macOS are tested; Windows runs only a CI smoke test.
 
 ## Prerequisites
 
-Not installed by BenchKeeper. The generated blocks in this README come from [web/src/data/facts.json](web/src/data/facts.json) (`devcontainer exec --docker-path podman --workspace-folder . node web/scripts/readme.mjs`).
+Not installed by BenchKeeper.
 
 <!-- generated:prerequisites -->
 | Tool | Needed for |
 |---|---|
-| [Claude Code](https://code.claude.com/docs/en/setup) | agent (one or both) |
-| [Codex CLI](https://developers.openai.com/codex/cli) | agent (one or both) |
+| [Claude Code](https://code.claude.com/docs/en/setup) | agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested) |
+| [Codex CLI](https://developers.openai.com/codex/cli) | agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested) |
 | [Git](https://git-scm.com/downloads) | clone, branches, commits |
 | [GitHub CLI](https://cli.github.com/) | issues and pull requests (optional, local branches without it) |
 | [Node.js and npm](https://nodejs.org/en/download) | the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `~/.local` |
-| [Docker Engine](https://docs.docker.com/engine/install/) | devcontainers |
+| [Docker Engine](https://docs.docker.com/engine/install/) | dev containers (`container` and `host-agent` modes; Podman works too) |
 | [VS Code](https://code.visualstudio.com/download) | optional, attach to the devcontainer |
 <!-- /generated:prerequisites -->
 
 ## Setup steps
 
+The examples write `benchkeeper` for `npx benchkeeper@6.0.0`. Until the first npm release, run the app from a clone: `git clone --depth 1 --branch setup-v6.0 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The browser UI from a clone needs a build first ([app/README.md](app/README.md#setup)).
+
 1. Install the [prerequisites](#prerequisites): at least one agent and Node.js 22.
-2. Review the plan: `npx benchkeeper@6.0.0 plan`. It lists each change with a diff and writes nothing. Until the first npm release, run the app from a clone: `git clone --depth 1 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs plan`.
-3. Apply: `npx benchkeeper@6.0.0 apply` asks before each change. `--yes` applies the default selection, `--all` adds the removals. `--pack matt-pocock` adds Matt Pocock's skills. Without a command, `npx benchkeeper@6.0.0` opens the same steps in the browser. The steps:
-   - the global rules: Claude Code `~/.claude/rules/00-global.md`; Codex, Gemini CLI and Copilot a marked block in `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, `~/.copilot/copilot-instructions.md` (text outside the block stays)
-   - ask before `gh pr merge`, force pushes, `git reset --hard`, `git branch -D` and `git clean`: added to the ask list in `~/.claude/settings.json` (it prompts in bypass and auto mode too), and `~/.codex/rules/benchkeeper.rules`
-   - the plugins BenchKeeper and Ponytail (pinned to a tag, since it runs a `SessionStart` hook) in Claude Code and Codex; Gemini CLI and Copilot get copies of the BenchKeeper skills in `~/.gemini/skills` and `~/.copilot/skills`
-   - settings and telemetry (merged, other keys and hooks stay): error reporting, feedback survey and `/feedback` off, local transcripts kept 14 days instead of 30, the stable update channel (about one week behind latest), subagents without a model on Sonnet
-   - the default model `opusplan` in Claude Code (Opus in plan mode, Sonnet otherwise), as its own change since it replaces the model you set. Orca starts `claude` without `--model`, so it applies there too. Not benchmarked.
-   - default effort `high` in Claude Code (also saved for Opus 5.5 and Sonnet 5.5, which ignore the global key) and in Codex, and the Claude Code auto-compact window at 400000 tokens (default about 967K on 1M models). Neither is benchmarked. Anthropic gives no recommended window.
-   - everything else installed globally, as removals that are off unless chosen: other rules files (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks (Orca's own entries stay)
-   - the Dev Containers CLI at the newest release that is at least 7 days old, and the `find-skills` skill (with Orca: `orca-cli` and `orchestration`)
-
-   Settings files are merged: JSON by key with comments kept, Codex TOML by key, checked by parsing the result. A form the app cannot merge is reported for manual editing. Each run is recorded in `~/.config/benchkeeper/ledger/`, replaced and removed files go to `~/.config/benchkeeper/backup/<run>/`, and a failed backup stops its step. `benchkeeper history` lists the runs, `benchkeeper undo <run>` restores them (`--step` for one step), `benchkeeper restore <date>` restores a backup made by the earlier `setup.sh`. Plugins, marketplaces and MCP servers are removed with the agent's own command, so their undo is a reinstall. Diagnostics (`doctor`), setup profiles, eval cases, harness tests and skill evals: [app/README.md](app/README.md#commands).
-
-   The app writes only below your home directory and the projects you choose, needs no root, sends no telemetry and never runs on its own. In a terminal it makes one request to the npm registry for a newer version and shows it (off with `BENCHKEEPER_NO_UPDATE_CHECK=1`).
+2. Review the plan: `npx benchkeeper@6.0.0 plan`. It lists each change, file changes with their diff and commands as the command line, and writes nothing.
+3. Apply: `npx benchkeeper@6.0.0 apply` asks per change. `--yes` applies the default selection without questions, `--all` applies every change including the removals. `--pack matt-pocock` adds Matt Pocock's skills. Without a command, `npx benchkeeper@6.0.0` opens the same steps in the browser: the Dashboard shows the doctor findings, and Fix everything walks through the global plan, the projects you pick and the steps left by hand. In the browser, each skills CLI install in a plan runs first in a scratch folder, so the plan lists the files it would write.
 4. Restart the agents.
 
-Skills only, without rules and settings: `claude plugin marketplace add ESchuderer/BenchKeeper --sparse .claude-plugin plugins && claude plugin install benchkeeper@benchkeeper` (Codex: `codex plugin marketplace add ESchuderer/BenchKeeper --sparse .claude-plugin --sparse plugins && codex plugin add benchkeeper@benchkeeper`).
+What `apply` writes:
+
+- the global rules: Claude Code `~/.claude/rules/00-global.md`; Codex, Gemini CLI and Copilot a marked block in `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, `~/.copilot/copilot-instructions.md` (text outside the block stays)
+- ask before `gh pr merge`, force pushes, `git reset --hard`, `git branch -D` and `git clean`: added to the ask list in `~/.claude/settings.json` (ask rules prompt in bypass and auto mode too, [docs](https://code.claude.com/docs/en/permission-modes)), and `~/.codex/rules/benchkeeper.rules`
+- the plugins BenchKeeper and Ponytail (pinned to a tag, since it runs a `SessionStart` hook; level `full` in `~/.config/ponytail/config.json`) in Claude Code and Codex; Gemini CLI and Copilot get copies of the BenchKeeper skills in `~/.gemini/skills` and `~/.copilot/skills`
+- Claude Code settings (merged, other keys and hooks stay): error reporting, feedback survey and `/feedback` off, local transcripts kept 14 days instead of 30, the stable update channel (typically about one week behind latest, [docs](https://code.claude.com/docs/en/setup#configure-release-channel)), subagents without a model on Sonnet, the advisor on Opus, Remote Control on at startup, the clear-context offer when you accept a plan, and attribution: commits end with `Assisted-by: generative AI`, pull requests with "Created with the assistance of generative AI.", without a session link
+- the default model `opusplan` in Claude Code (Opus in plan mode, Sonnet otherwise), as its own change since it replaces the model you set. Orca starts `claude` without `--model`, so it applies there too. Not benchmarked.
+- default effort `high` in Claude Code (also saved for Opus 5.5 and Sonnet 5.5, which ignore the global key) and in Codex, and the Claude Code auto-compact window at 400000 tokens (defaults per model: [docs](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds)). Neither is benchmarked.
+- everything else installed globally, as removals that are off unless chosen: other rules files (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks (Orca's own entries stay)
+- the Dev Containers CLI at the newest release that is at least 7 days old (`npm i -g`, into your npm prefix), and the `find-skills` skill (with Orca: `orca-cli` and `orchestration`)
+
+Settings files are merged: JSON by key with comments kept, Codex TOML by key, checked by parsing the result. A form the app cannot merge is reported for manual editing.
+
+Undo: each run is recorded in `~/.config/benchkeeper/ledger/`, and replaced and removed files go to `~/.config/benchkeeper/backup/<run>/` (a failed backup stops its step). `benchkeeper history` lists the runs, and `benchkeeper undo <run>` (`--step` for one step) restores the files and runs the recorded reverse command of each command, such as uninstalling a plugin it installed. A command without one (removing a plugin, marketplace or MCP server you had) is reported as manual: reinstall it yourself. `benchkeeper restore <name>` restores a backup folder made by the earlier `setup.sh`. Diagnostics (`doctor`), setup profiles, eval cases, harness tests and skill evals: [app/README.md](app/README.md#commands).
+
+The app writes its setup files below your home directory and in the projects you choose, plus scratch folders in the system temp folder and the Dev Containers CLI in your npm prefix. It needs no root, sends no telemetry and never runs on its own. In a terminal it makes one request to the npm registry for a newer version and shows it (off with `BENCHKEEPER_NO_UPDATE_CHECK=1`, and when `CI` is set).
+
+Skills only, without rules and settings: `claude plugin marketplace add ESchuderer/BenchKeeper#stable --sparse .claude-plugin plugins && claude plugin install benchkeeper@benchkeeper` (Codex: `codex plugin marketplace add ESchuderer/BenchKeeper@stable --sparse .claude-plugin --sparse plugins && codex plugin add benchkeeper@benchkeeper`).
 
 ## Per repo
 
 1. Project setup, in the repository root: `npx benchkeeper@6.0.0 project apply --agents claude,codex`, plus `--pack <id>` for the [library packs](plugins/benchkeeper/library/README.md#packs), `--tier` for the default tier, `--env` for where the agent runs. It writes a block in `AGENTS.md` (where commands run, default tier, skill pointers), `CLAUDE.md` with `@AGENTS.md`, the packs' skills at pinned commits, and `.benchkeeper/state.json`, whose answers later runs reuse. `project plan` shows the same changes without writing. It lists the skills a pack choice adds and removes, and warns when two skills' descriptions overlap. `--disable <skill>` moves a skill to `.benchkeeper/disabled/` and `--enable` moves it back. Own packs: `benchkeeper packs save <id> --skill <name>...`, shared as one file with `packs export <id>` and `packs import <file>`; a pack file names library skills only.
-2. The steps that need an agent, as a recorded session: `npx benchkeeper@6.0.0 record -- claude '/benchkeeper:setting-up-projects'` (Codex: `codex '$benchkeeper:setting-up-projects'`) for stack skills, the commands in `AGENTS.md` and the dev container. The app records the files the session changed and its transcript, and `benchkeeper undo <run>` restores them. With the `matt-pocock` pack, also `/mattpocock-skills:setup-matt-pocock-skills` (issue tracker, triage labels, domain docs in `docs/agents/`).
+2. The steps that need an agent, as a recorded session: `npx benchkeeper@6.0.0 record -- claude '/benchkeeper:setting-up-projects'` (Codex: `npx benchkeeper@6.0.0 record -- codex '$benchkeeper:setting-up-projects'`) for stack skills, the commands in `AGENTS.md` and the dev container. The repository must be a Git repository: the app snapshots it before and after, records the changed files (tracked and untracked, not ignored ones) and the Claude Code or Codex transcript when it finds one, and `benchkeeper undo <run>` restores those files. With the `matt-pocock` pack, also `/mattpocock-skills:setup-matt-pocock-skills` (issue tracker, triage labels, domain docs in `docs/agents/`).
 3. Commit the result.
 
 Where the agent runs (`--env`):
@@ -70,10 +77,9 @@ Setup scopes container mounts to the project: no host home, engine socket, privi
 
 ## Update
 
-- BenchKeeper's plugin: its `version` changes with each setup release ([CHANGELOG.md](CHANGELOG.md)). Claude Code: `claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper`, or turn on auto-update for the marketplace in `/plugin` (off by default for marketplaces outside Anthropic's, [docs](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)). Codex upgrades Git marketplaces at startup.
-- Rules and settings: after a release that changes them, `npx benchkeeper@<version> apply` (from a clone: `git -C BenchKeeper pull`, then the same command through `node BenchKeeper/app/bin/benchkeeper.mjs`).
-- Projects: `benchkeeper projects add <dir>` (or `projects scan <root>` to find them) registers projects set up by the app. `benchkeeper update-all` lists each project's changes, asks once, then per project creates branch `chore/agent-setup-<version>` in a worktree under `~/.cache/benchkeeper/worktrees/`, commits the new setup from `.benchkeeper/state.json`, and pushes and opens a pull request when `origin` is on GitHub (`--no-push` keeps it local). Projects with uncommitted changes or without a state file are skipped, and one project's failure does not stop the others. Plugin installs and agent sessions are not part of it: run `apply` and the recorded sessions yourself.
-- Matt Pocock's skills update through their marketplaces. After one of his releases, he recommends running his setup again in each repository. Ponytail's marketplace stays on the tag it was added with (the app adds `v5.3.2`). A newer tag means adding the marketplace again with the new `#ref` (Claude Code) or `@ref` (Codex).
+- BenchKeeper's plugin and the rules and settings: after a release ([CHANGELOG.md](CHANGELOG.md)), `npx benchkeeper@<version> plan`, then `apply` (from a clone: `git -C BenchKeeper fetch --tags && git -C BenchKeeper checkout setup-v<major>.<minor>`, then the same commands through `node BenchKeeper/app/bin/benchkeeper.mjs`). The app adds BenchKeeper's marketplace at the branch `stable`, which each release moves, so the plan updates the plugin with `claude plugin marketplace update benchkeeper` and `claude plugin update benchkeeper@benchkeeper` (Codex: `codex plugin marketplace upgrade benchkeeper`). A marketplace added at another ref, for example the default branch, stays there: the plan names the commands to move it by hand, since removing a marketplace uninstalls its plugins and deletes their options and data in Claude Code.
+- Projects: `benchkeeper projects add <dir>` (or `projects scan <root>` to find them) registers projects set up by the app. `benchkeeper update-all` (in the browser: Projects, or Dashboard > Fix everything) lists each project's changes, asks once, then per project creates branch `chore/agent-setup-<version>` in a worktree under `~/.cache/benchkeeper/worktrees/`, commits the new setup from `.benchkeeper/state.json`, and pushes and opens a pull request when `origin` is on GitHub (`--no-push` keeps it local). Projects with uncommitted changes or without a state file are skipped, and one project's failure does not stop the others. Plugin installs and agent sessions are not part of it: run `apply` and the recorded sessions yourself.
+- Matt Pocock's skills update through their marketplaces. Ponytail's marketplace stays on the tag it was added with (the app adds `v5.3.2`). A newer tag means adding the marketplace again with the new `#ref` (Claude Code) or `@ref` (Codex).
 - Repository skills (library and stack) are pinned in `skills-lock.json`, and `/benchkeeper:setting-up-projects` proposes their updates. `/benchkeeper:maintaining-repos` proposes bumps for pins in docs and scripts.
 
 ## Benchmarks
@@ -89,9 +95,9 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 | [plugins/benchkeeper/rules/codex.rules](plugins/benchkeeper/rules/codex.rules) | Codex asks before merging a pull request, force pushing, `git reset --hard`, `git branch -D`, `git clean` (Claude Code: the ask list the app adds to `~/.claude/settings.json`) | written by the app to `~/.codex/rules/benchkeeper.rules` |
 | [app](app) | the installer: global setup, project setup, history and undo, CLI and browser UI ([README](app/README.md)) | `npx benchkeeper@6.0.0` |
 | [plugins/benchkeeper/skills/setting-up-projects](plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, library and stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, other configuration to remove | plugin skill `benchkeeper:setting-up-projects` |
-| [plugins/benchkeeper/skills/workflow](plugins/benchkeeper/skills/workflow/SKILL.md) | task kind and tier, then the playbook for software changes or research, batch mode, long checks at the end | plugin skill `benchkeeper:workflow` |
+| [plugins/benchkeeper/skills/workflow](plugins/benchkeeper/skills/workflow/SKILL.md) | task kind and tier, then the playbook for software changes, docs passes or research, batch mode, long checks at the end | plugin skill `benchkeeper:workflow` |
 | [plugins/benchkeeper/skills/maintaining-repos](plugins/benchkeeper/skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code, debt, dependency audit, version pins, docs drift, unused skills | plugin skill `benchkeeper:maintaining-repos` |
-| [plugins/benchkeeper/library](plugins/benchkeeper/library/README.md) | skills installed per project: own (`designing-technical-uis`), Anthropic, science, marketing, security, docs and data, operations, legal, product | copied or installed into a project by `setting-up-projects` |
+| [plugins/benchkeeper/library](plugins/benchkeeper/library/README.md) | skills installed per project, grouped into packs (frontend, testing, security, science, docs, data, marketing, operations, Matt Pocock's) | installed into a project by `benchkeeper project apply` or `setting-up-projects` |
 | [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
 | [web](web) | the site (Astro, Mantine), deployed to GitHub Pages | not linked |
 
@@ -99,25 +105,25 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 
 | Component | Scope | Purpose |
 |---|---|---|
-| [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | the agent runs inside the container by default; `setting-up-projects` also offers the agent on the host with project commands in the container, or no container |
+| [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | the agent runs inside the container by default; `--env` also offers the agent on the host with project commands in the container, a Docker Sandboxes microVM (untested), or no container |
 | [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity |
 | [Matt Pocock's skills](https://github.com/mattpocock/skills), his install, optional | global plugin in both agents: Claude Code from the official marketplace (it pins a commit of his repository), Codex from his marketplace | workflow: grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull request, handoff. Per repo it reads the issue tracker, triage labels and domain docs from `docs/agents/` |
-| [workflow](plugins/benchkeeper/skills/workflow/SKILL.md) | global, Claude + Codex | task tier (quick, standard, full, research), issue and pull request flow, pre-push correctness review, security review for risky changes; uses Matt Pocock's skills when installed |
+| [workflow](plugins/benchkeeper/skills/workflow/SKILL.md) | global, Claude + Codex | task kind (software change, docs pass, research) and tier (quick, standard, full), issue and pull request flow, pre-push correctness review, security review for risky changes; uses Matt Pocock's skills when installed |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
 
 Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `docs/agents/` (with Matt Pocock's skills: from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`.
 
-Global (per machine): the rules, the plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills), find-skills, settings. Nothing is installed at both levels.
+Global (per machine): the rules, the plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills), find-skills, settings.
 
 Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
 
 ## How this stack was selected
 
-- Quality: on par with the best setups tested.
-- Time: less time per task with the BenchKeeper workflow.
-- Cost: lower with Ponytail.
-- Skills by level: small composable skills. The big flow runs only for big work, small tiers load targeted skills.
+- Quality: in BenchKeeper's brownfield runs no setup scored measurably above plain Claude Code (medians 82.9 to 86.2, Sonnet 5.5, k = 3, [report](bench/results/2026-10-17-openballistics.md)).
+- Time: it depends on the version. setup-v3.3 with Matt Pocock's skills took a median 8.1 minutes against 12.8 for plain Claude Code, setup-v5.0 took 17.7 (same report). setup-v6.0 is not measured yet ([#132](https://github.com/ESchuderer/BenchKeeper/issues/132)).
+- Cost: Ponytail cost less in all 6 recorded winery-react pairs (one trial each, [report](bench/results/2026-10-15-winery-react.md)); external results range from 10% less to 55% more ([evaluation](evaluations/behavior-modes/ponytail.md)).
+- Skills by level: small composable skills. The full flow runs only for full-tier work, small tiers load targeted skills.
 - Same setup everywhere: one machine install covers every repository. Each repository adds only its tracker, docs and stack.
 
 For details, check the full data: [EVALUATIONS.md](https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md) (Dev Containers and find-skills have no evaluation file), [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/).
@@ -126,7 +132,7 @@ For details, check the full data: [EVALUATIONS.md](https://github.com/ESchuderer
 
 | Tool | Setting |
 |---|---|
-| Claude Code | `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1` |
+| Claude Code | `DISABLE_ERROR_REPORTING=1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1`, `DISABLE_FEEDBACK_COMMAND=1` |
 | Claude Code, not set | `DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`: each disables feature flags and the advisor. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` also disables Remote Control ([docs](https://code.claude.com/docs/en/env-vars)) |
 | Codex | `[analytics] enabled = false` |
 | skills CLI | `DO_NOT_TRACK=1` per command only |

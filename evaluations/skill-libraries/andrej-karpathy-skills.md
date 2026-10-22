@@ -33,6 +33,6 @@ Thread "Karpathy-Inspired Claude Code Guidelines" (r/BestGitHubRepos, about 2026
 
 Not in: four principles that overlap Ponytail, the Claude Code system prompt and `rules/global.md`. Measured cost +6.6% to +11.5% with accuracy unchanged.
 
-Effect on BenchKeeper: `rules/global.md` was trimmed in setup-v2.3 (`CHANGELOG.md`): lines that repeat Claude Code defaults or other BenchKeeper files were removed. The ask-and-restate rule (owner decision) asks only where an open point would change the result (setup-v2.4), close to the extracted system prompt's "check in only when different readings would lead to materially different work". The restatement before work has no measurement.
+Effect on BenchKeeper: `rules/global.md` was trimmed in setup-v2.3 (`CHANGELOG.md`): lines that repeat Claude Code defaults or other BenchKeeper files were removed. The ask rule (owner decision) asks only where an open point would change the result (setup-v2.4), close to the extracted system prompt's "check in only when different readings would lead to materially different work"; since setup-v6.0 it asks all open questions in one round. The restatement before work was removed in setup-v6.0, without a measurement either way.
 
 [All evaluations](../../EVALUATIONS.md)

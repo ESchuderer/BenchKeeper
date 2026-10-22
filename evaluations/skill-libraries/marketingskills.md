@@ -14,6 +14,6 @@ The owner used nine of these skills, installed globally, in one marketing projec
 
 ## Decision
 
-Not global, per project: the BenchKeeper library (setup-v5.0) lists a core set (`product-marketing`, `copywriting`, `copy-editing`, `seo-audit`, `ai-seo`, `schema`, `launch`, `site-architecture`) and an optional set (`content-strategy`, `cro`, `directory-submissions`, `analytics`) for product sites and launches. Channel and funnel skills (ads, email, sales, paywalls) are left to the search.
+Not global, per project: the BenchKeeper library (setup-v5.0) lists a core set (`product-marketing`, `copywriting`, `copy-editing`, `seo-audit`, `ai-seo`, `schema`, `launch`, `site-architecture`) and an optional set (`content-strategy`, `cro`, `directory-submissions`, `analytics`) for product sites and launches. Channel and funnel skills (ads, email, sales, paywalls) are left to the search. The marketing pack (setup-v6.0) proposes `product-marketing`, `copywriting`, `copy-editing`, `seo-audit` and `launch` together; the other skills stay single choices. No new evidence for the pack.
 
 [All evaluations](../../EVALUATIONS.md)

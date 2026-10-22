@@ -1,5 +1,6 @@
 {
-  "description": "BenchKeeper sets up Claude Code and Codex with short global rules, a workflow skill that sizes each task (quick, standard, full, research) and runs long checks once at the end, and a per-repository setup: devcontainer, AGENTS.md, stack skills at pinned versions. The app (`npx benchkeeper`), which you run yourself, installs the rules, settings and plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills), shows a diff before each change, and records every run for undo.",
+  "description": "BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.0.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.",
+  "tagline": "Short rules, a workflow skill and a per-repository setup for Claude Code and Codex, installed by an app that shows each change first and can undo it.",
   "core": {
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
@@ -10,12 +11,12 @@
     {
       "name": "Claude Code",
       "url": "https://code.claude.com/docs/en/setup",
-      "for": "agent (one or both)"
+      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)"
     },
     {
       "name": "Codex CLI",
       "url": "https://developers.openai.com/codex/cli",
-      "for": "agent (one or both)"
+      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)"
     },
     {
       "name": "Git",
@@ -35,7 +36,7 @@
     {
       "name": "Docker Engine",
       "url": "https://docs.docker.com/engine/install/",
-      "for": "devcontainers"
+      "for": "dev containers (`container` and `host-agent` modes; Podman works too)"
     },
     {
       "name": "VS Code",
@@ -123,45 +124,45 @@
         "phase": "define",
         "sub": "request, issue, on-ramps",
         "human": "approve issue",
-        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the tier. Matt Pocock's on-ramps: triage for incoming issues, diagnosing-bugs for a broken behavior, wayfinder for work too big to see yet. Standard and full: plan mode, then a GitHub issue you approve.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the tier. Matt Pocock's on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers explore in plan mode first, then the agent drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval."
+        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: questions in rounds, plan mode, then a GitHub issue you approve.",
+        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, explores in plan mode, then drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval."
       },
       {
         "name": "Specify",
         "phase": "define",
-        "sub": "grilling, spec, tickets",
-        "human": "you run /to-spec, /to-tickets",
-        "tip": "Standard: a plan of a few lines that names the test seams. Full: grilling settles the open questions. Work for several sessions: /to-spec and /to-tickets, which you run.",
-        "text": "Standard tier: a plan of a few lines in the reply that names the test seams. Full tier: `grilling` until the open questions are settled, `domain-modeling` records terms and decisions in `GLOSSARY.md` and ADRs. Work for several sessions: the agent suggests `/to-spec`, then `/to-tickets`, and waits for you to run them."
+        "sub": "plan, spec, tickets",
+        "human": "approve the plan",
+        "tip": "Standard: a plan of a few lines that names the test seams. Full: the spec in the issue, terms and decisions recorded. Several sessions: one ticket per testable slice.",
+        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec in the issue (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them."
       },
       {
         "name": "Build",
         "phase": "build",
-        "sub": "branch, tests, tdd",
-        "tip": "Every tier: a branch off the default branch. Runs the existing tests for the touched code, then builds with tdd at the agreed seams.",
-        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. The existing tests that cover the touched code run first, then `tdd` at the agreed seams, ticket by ticket. Ponytail `full` for the smallest complete change. Targeted skills such as `diagnosing-bugs` load when the task matches. Full tier: work that drifts from the plan is discarded and restarted."
+        "sub": "branch, tests first",
+        "tip": "Every tier: a branch off the default branch. Standard and full: the existing tests of the touched code, then tests first at the agreed seams.",
+        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. Ponytail `full` for the smallest complete change. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts."
       },
       {
         "name": "Verify",
         "phase": "build",
-        "sub": "tests, browser, code-review",
-        "tip": "Every tier: build, types, lint and tests in the devcontainer, each with its command and result. UI changes also in a browser. Standard and full: Matt Pocock's code-review checks standards and spec.",
-        "text": "Every tier: build, types, lint and tests inside the devcontainer, each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them. Standard and full tiers: `mattpocock-skills:code-review` against the default branch with the issue as the spec (standards and spec), unless `/implement` just ran it with both of its sections."
+        "sub": "tests, browser, spec review",
+        "tip": "Every tier: build, types, lint and tests where AGENTS.md says, each with its command and result. UI changes also in a browser. Full: the branch reviewed against the spec.",
+        "text": "Every tier: the project's build, types, lint and tests, run where `AGENTS.md` says (the dev container by default), each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them. Long checks run once, after the last edit. Full tier: the branch is reviewed against the spec (`code-review` with Matt Pocock's skills)."
       },
       {
         "name": "Ship",
         "phase": "ship",
         "sub": "pr, /code-review, checks",
         "human": "you merge",
-        "tip": "Standard and full: /code-review for correctness before push. Risky: /security-review. Draft pull request with a body from pr, checks, ready. You merge.",
-        "text": "Standard and full tiers: `/code-review` before `git push` (correctness). Risky changes get `/security-review` in any tier. Findings outside the task stop the push until you decide. Every tier: draft pull request with a body from `pr`, checks, ready. Merge only on your instruction. Unfinished work for another harness or person: state and next step on the issue or pull request, `/handoff` for the next session."
+        "tip": "Standard, full and risky: /code-review before push. Risky: /security-review. Draft pull request, checks, ready. You merge.",
+        "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. Draft pull request with `Closes #<issue>` and the key decisions, checks, ready. Merge only on your instruction. Several tasks on one branch get one review and one pull request at the end."
       },
       {
         "name": "Maintain",
         "phase": "maintain",
         "sub": "retro, architecture, audit",
-        "tip": "After a session that went sideways: retro. On request: /maintaining-repos (audit, debt, dependencies, docs drift, unused skills) and improve-codebase-architecture. Findings become new requests.",
-        "text": "After a session that went sideways: `/retro`. On request (`/maintaining-repos`), suggested after a milestone or about every 10 merged pull requests: Ponytail's audit and debt, dependency audit, docs drift, `/doctor prompt-audit`, `/skill-doctor`, `/improve-codebase-architecture`, `/triage`, repository hygiene. Findings become new requests."
+        "tip": "After a session that went sideways: retro. On request: /maintaining-repos (audit, debt, dependencies, pins, docs drift, unused skills). benchkeeper doctor for setup drift. Findings become new requests.",
+        "text": "After a session that went sideways: `/retro` (Matt Pocock's skills). On request (`/maintaining-repos`): Ponytail's audit and debt, dependency audit, version pins, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene, and with Matt Pocock's skills `/improve-codebase-architecture` and `/triage`. `benchkeeper doctor` reports setup drift on the machine and in the project. Findings become new requests."
       }
     ]
   }

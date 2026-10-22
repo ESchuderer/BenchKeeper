@@ -54,6 +54,16 @@ test('global drift: rules changed after apply are an error, unexpected items a w
   assert.ok(found.some((i) => i.check === 'unexpected' && /\.claude\/skills\/stray/.test(i.message)));
 });
 
+test('an older plugin is outdated, a warning, once per agent', () => {
+  const ctx = { ...machine(), appVersion: '6.0.0' };
+  mkdirSync(join(ctx.home, '.claude/plugins'), { recursive: true });
+  writeFileSync(join(ctx.home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version: '0.1.0' }] } }));
+  writeFileSync(join(ctx.home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ benchkeeper: { source: { ref: 'stable' } } }));
+  writeFileSync(join(ctx.home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'benchkeeper@benchkeeper': true } }));
+  const found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).filter((i) => /benchkeeper@benchkeeper/.test(i.message));
+  assert.deepEqual(found.map((i) => [i.level, i.message]), [['warning', `outdated: Claude Code plugin benchkeeper@benchkeeper 0.1.0 to ${ctx.appVersion}`]]);
+});
+
 test('project: summary sections, overlapping descriptions, broken links; exit 1 on an error', async () => {
   const ctx = machine();
   const dir = mkdtempSync(join(tmpdir(), 'bk-doc-proj-'));

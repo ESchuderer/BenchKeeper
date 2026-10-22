@@ -137,7 +137,9 @@ test('apply: answers at once with a job; the job shows the running command and i
   const select = [plan.changes.find((c) => c.kind === 'write').id, command.id];
   const { job, total } = routes['POST /api/apply']({ planId: plan.planId, select });
   assert.equal(total, 2);
-  await new Promise((r) => setTimeout(r, 20));
+  // Polled, not a fixed wait: under a loaded test run the job may take longer to reach its command.
+  const until = async (f) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); };
+  await until(() => release && routes['GET /api/job'](new URLSearchParams({ id: job })).output[command.id]);
   let s = routes['GET /api/job'](new URLSearchParams({ id: job }));
   assert.equal(s.done, false);
   assert.equal(s.run.entries.at(-1).id, command.id);
@@ -153,7 +155,7 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.equal(status(() => routes['POST /api/undo']({ run: s.run.id })), 409);
   assert.equal(status(() => routes['POST /api/update-all']({ paths: [] })), 409);
   release();
-  await new Promise((r) => setTimeout(r, 20));
+  await until(() => routes['GET /api/job'](new URLSearchParams({ id: job })).done);
   s = routes['GET /api/job'](new URLSearchParams({ id: job }));
   assert.equal(s.done, true);
   assert.deepEqual(s.run.entries.map((e) => e.status), ['done', 'done']);
@@ -176,7 +178,7 @@ test('setup advice: one restricted, read-only agent session; only library ids pa
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir, agent: 'codex' })), 400);
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir: tmpdir(), agent: 'claude' })), 400);
     const { job } = routes['POST /api/setup-advice']({ dir, agent: 'claude' });
-    await new Promise((r) => setTimeout(r, 10));
+    for (let i = 0; i < 200 && !seen; i++) await new Promise((r) => setTimeout(r, 10));
     assert.ok(seen.cwd === dir && ['--restricted', '--strict-mcp-config', 'Read,Grep,Glob'].every((x) => seen.argv.includes(x)) && !seen.argv.includes('Bash'));
     // A read-only job does not block applies.
     assert.equal(status(() => routes['POST /api/update-all']({ paths: [] })), 200);

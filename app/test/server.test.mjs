@@ -44,13 +44,15 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
   const r = await req('GET', '/?token=secret-token-123');
   assert.equal(r.status, 303);
   assert.equal(r.headers.location, '/');
-  assert.match(r.headers['set-cookie'][0], /^bk_session=[\w-]{43}; HttpOnly; SameSite=Strict; Path=\/$/);
+  assert.match(r.headers['set-cookie'][0], new RegExp(`^bk_session_${port}=[\\w-]{43}; HttpOnly; SameSite=Strict; Path=/$`));
   assert.ok(!r.headers['set-cookie'][0].includes('secret-token-123'));
   cookie = r.headers['set-cookie'][0].split(';')[0];
   assert.equal((await req('GET', '/?token=secret-token-123')).status, 401);
   const ok = await req('GET', '/api/overview', auth());
   assert.deepEqual([ok.status, JSON.parse(ok.body)], [200, { ok: true }]);
-  assert.equal((await req('GET', '/api/overview', { cookie: 'bk_session=guess' })).status, 401);
+  assert.equal((await req('GET', '/api/overview', { cookie: `bk_session_${port}=guess` })).status, 401);
+  // The session of a server on another port does not count here.
+  assert.equal((await req('GET', '/api/overview', { cookie: cookie.replace(`bk_session_${port}=`, 'bk_session_1=') })).status, 401);
 });
 
 test('rejected: other Host, foreign or null Origin, cross-site fetches', async () => {
@@ -178,7 +180,7 @@ test('evals: the plan names targets and sessions; the job runs them and stores r
 
 test('a session cookie of other bytes but the same length in characters is refused, not thrown', () => {
   const session = 'a'.repeat(43);
-  const req = { method: 'GET', headers: { host: '127.0.0.1:9', cookie: `bk_session=${'\u00e9'.repeat(43)}` } };
+  const req = { method: 'GET', headers: { host: '127.0.0.1:9', cookie: `bk_session_9=${'\u00e9'.repeat(43)}` } };
   assert.deepEqual(rejectReason(req, { port: 9, session }), [401, 'no session']);
 });
 

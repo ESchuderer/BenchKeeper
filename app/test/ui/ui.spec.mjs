@@ -25,7 +25,7 @@ let cookie;
 test('the token becomes a cookie and leaves the address bar', async ({ page, context }) => {
   await expect(page).toHaveURL('http://127.0.0.1:4410/');
   [cookie] = await context.cookies();
-  expect(cookie).toMatchObject({ name: 'bk_session', httpOnly: true, sameSite: 'Strict' });
+  expect(cookie).toMatchObject({ name: "bk_session_4410", httpOnly: true, sameSite: 'Strict' });
   await expect(page.getByRole('heading', { level: 1, name: 'BenchKeeper' })).toBeVisible();
 });
 

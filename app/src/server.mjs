@@ -24,7 +24,8 @@ import { globalPlan } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
-const COOKIE = 'bk_session';
+// Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
+const cookieName = (port) => `bk_session_${port}`;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
 const distDir = fileURLToPath(new URL('../dist/', import.meta.url));
 // Byte lengths: timingSafeEqual throws on different lengths, and one character can be several bytes.
@@ -36,7 +37,8 @@ export function rejectReason(req, { port, session }) {
   if (req.headers.host !== self) return [421, 'wrong host'];
   if ('origin' in req.headers && req.headers.origin !== `http://${self}`) return [403, 'foreign origin'];
   if (req.headers['sec-fetch-site'] === 'cross-site') return [403, 'cross-site request'];
-  const cookie = (req.headers.cookie ?? '').split(/;\s*/).find((c) => c.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
+  const name = `${cookieName(port)}=`;
+  const cookie = (req.headers.cookie ?? '').split(/;\s*/).find((c) => c.startsWith(name))?.slice(name.length);
   if (!session || !same(cookie, session)) return [401, 'no session'];
   if (!['GET', 'HEAD', 'POST'].includes(req.method)) return [405, 'method not allowed'];
   if (req.method === 'POST' && req.headers[HEADER] !== '1') return [403, `missing ${HEADER} header`];
@@ -250,7 +252,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     if (req.method === 'GET' && url.pathname === '/' && url.searchParams.has('token') && req.headers.host === `127.0.0.1:${p}` && urlToken && same(url.searchParams.get('token'), urlToken)) {
       urlToken = null;
       session = randomBytes(32).toString('base64url');
-      return send(303, '', 'text/plain', { location: '/', 'set-cookie': `${COOKIE}=${session}; HttpOnly; SameSite=Strict; Path=/` });
+      return send(303, '', 'text/plain', { location: '/', 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
     }
     const why = rejectReason(req, { port: p, session });
     if (why) return send(why[0], { error: why[1] });

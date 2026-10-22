@@ -114,6 +114,9 @@ function fixture(extra = () => null) {
   return { ctx, routes: api(ctx) };
 }
 const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
+// Polled, not a fixed wait: under a loaded test run a job may take longer.
+const until = async (f) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); };
+const finished = async (routes, id) => { let s; await until(() => (s = routes['GET /api/job'](new URLSearchParams({ id }))).done); return s; };
 
 test('inventory: an edited rules file is modified, enabled plugins current, a missing tool missing', () => {
   const { ctx, routes } = fixture();
@@ -137,8 +140,6 @@ test('apply: answers at once with a job; the job shows the running command and i
   const select = [plan.changes.find((c) => c.kind === 'write').id, command.id];
   const { job, total } = routes['POST /api/apply']({ planId: plan.planId, select });
   assert.equal(total, 2);
-  // Polled, not a fixed wait: under a loaded test run the job may take longer to reach its command.
-  const until = async (f) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 10)); };
   await until(() => release && routes['GET /api/job'](new URLSearchParams({ id: job })).output[command.id]);
   let s = routes['GET /api/job'](new URLSearchParams({ id: job }));
   assert.equal(s.done, false);
@@ -155,8 +156,7 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.equal(status(() => routes['POST /api/undo']({ run: s.run.id })), 409);
   assert.equal(status(() => routes['POST /api/update-all']({ paths: [] })), 409);
   release();
-  await until(() => routes['GET /api/job'](new URLSearchParams({ id: job })).done);
-  s = routes['GET /api/job'](new URLSearchParams({ id: job }));
+  s = await finished(routes, job);
   assert.equal(s.done, true);
   assert.deepEqual(s.run.entries.map((e) => e.status), ['done', 'done']);
   assert.deepEqual(routes['GET /api/jobs'](), []);
@@ -178,13 +178,12 @@ test('setup advice: one restricted, read-only agent session; only library ids pa
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir, agent: 'codex' })), 400);
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir: tmpdir(), agent: 'claude' })), 400);
     const { job } = routes['POST /api/setup-advice']({ dir, agent: 'claude' });
-    for (let i = 0; i < 200 && !seen; i++) await new Promise((r) => setTimeout(r, 10));
+    await until(() => seen);
     assert.ok(seen.cwd === dir && ['--restricted', '--strict-mcp-config', 'Read,Grep,Glob'].every((x) => seen.argv.includes(x)) && !seen.argv.includes('Bash'));
     // A read-only job does not block applies.
     assert.equal(status(() => routes['POST /api/update-all']({ paths: [] })), 200);
     release();
-    let s;
-    for (let i = 0; i < 50 && !(s = routes['GET /api/job'](new URLSearchParams({ id: job }))).done; i++) await new Promise((r) => setTimeout(r, 10));
+    const s = await finished(routes, job);
     assert.deepEqual(s.results, { env: { id: 'container', reason: 'has .devcontainer/' }, packs: [{ id: 'frontend', reason: 'package.json uses react' }], skills: [] });
     process.env.CI = '1';
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir, agent: 'claude' })), 400);
@@ -203,8 +202,7 @@ test('evals: the plan names targets and sessions; the job runs them and stores r
     assert.equal(plan.sessions, plan.targets.reduce((n, t) => n + t.cases, 0));
     const { job, total } = routes['POST /api/eval']({ agents: 'claude' });
     assert.equal(total, plan.sessions);
-    let s;
-    for (let i = 0; i < 50 && !(s = routes['GET /api/job'](new URLSearchParams({ id: job }))).done; i++) await new Promise((r) => setTimeout(r, 10));
+    const s = await finished(routes, job);
     assert.equal(s.error, null);
     assert.deepEqual(s.results.map((r) => r.target).sort(), ['skill:designing-technical-uis', 'skill:workflow']);
     assert.ok(s.results.every((r) => !('details' in r)));

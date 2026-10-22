@@ -261,4 +261,10 @@ test('status and Update all read the state file on the fetched default branch wh
   p.git('commit', '-qm', 'drop state');
   assert.deepEqual([status(ctx, p.dir).setupVersion, status(ctx, p.dir).checkout], [appVersion, null]);
   assert.equal(updateAll(ctx, { paths: [p.dir], push: false })[0].status, 'committed');
+  // A checkout ahead of origin keeps its own setup and its pending changes.
+  const ahead = project(h);
+  writeFileSync(join(ahead.dir, STATE), JSON.stringify({ ...state, setupVersion: '5.9.0' }));
+  const a = status(ctx, ahead.dir);
+  assert.deepEqual([a.setupVersion, a.checkout, a.origin], ['5.9.0', '5.9.0', 'origin/main']);
+  assert.ok(a.changes.length);
 });

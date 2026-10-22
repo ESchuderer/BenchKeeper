@@ -196,7 +196,7 @@ async function command(argv, { out, ask, ctx }) {
       if (p.clean && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
     }
     // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
-    const ready = projects.filter((p) => p.repo && p.clean && (p.changes?.length || (p.setupVersion && !p.changes && !p.current)));
+    const ready = projects.filter((p) => p.repo && p.clean && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
     const what = `${ready.length} projects: branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}`;
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;

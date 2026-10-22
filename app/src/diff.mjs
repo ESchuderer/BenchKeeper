@@ -18,7 +18,8 @@ export function diffLines(before, after, label = 'file') {
   const changed = ops.map((o, k) => (o[0] !== ' ' ? k : -1)).filter((k) => k >= 0);
   let k = 0;
   while (k < changed.length) {
-    const start = Math.max(0, changed[k] - 3), end = Math.min(ops.length, changed[k] + 4);
+    const start = Math.max(0, changed[k] - 3);
+    let end = Math.min(ops.length, changed[k] + 4);
     while (k + 1 < changed.length && changed[k + 1] - 3 <= end) end = Math.min(ops.length, changed[++k] + 4);
     out.push('@@', ...ops.slice(start, end).map((o) => o[0] + o[1]));
     k++;

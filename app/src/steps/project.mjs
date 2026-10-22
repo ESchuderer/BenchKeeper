@@ -55,7 +55,7 @@ const AGENT_RUNS = /\bagents?\b([^.\n;]{0,40})\bruns? (on the host|(?:inside|in)
 // The first statement that is not negated ("does not run on the host").
 const agentPlace = (text) => {
   const m = [...text.matchAll(AGENT_RUNS)].find((x) => !/\b(not|never|cannot)\b|n't\b/i.test(x[1]));
-  return !m ? null : m[2].endsWith('host') ? 'host' : /container/i.test(m[3]) ? 'container' : 'sandbox';
+  return !m ? null : /host$/i.test(m[2]) ? 'host' : /container/i.test(m[3]) ? 'container' : 'sandbox';
 };
 // The project's commands go through the dev container: the text names it (devcontainer exec, dev container).
 const COMMANDS_IN_CONTAINER = /devcontainer exec|dev ?container/i;

@@ -125,12 +125,17 @@ test('inventory: an edited rules file is modified, enabled plugins current, a mi
 test('pick-folder: the first dialog found answers; a cancel is null; no tool is unavailable', () => {
   const calls = [];
   const answer = (byTool) => fixture((argv) => { calls.push(argv[0]); return byTool[argv[0]] ?? null; }).ctx;
-  assert.deepEqual(pickFolder(answer({ zenity: { code: 0, stdout: '/home/me/code/app\n' } }), 'linux'), { path: '/home/me/code/app' });
-  assert.deepEqual(pickFolder(answer({ zenity: { code: 1, stdout: '' } }), 'linux'), { path: null });
+  const desktop = { DISPLAY: ':0' };
+  assert.deepEqual(pickFolder(answer({ zenity: { code: 0, stdout: '/home/me/code/app\n' } }), 'linux', desktop), { path: '/home/me/code/app' });
+  assert.deepEqual(pickFolder(answer({ zenity: { code: 1, stdout: '' } }), 'linux', desktop), { path: null });
   calls.length = 0;
-  assert.deepEqual(pickFolder(answer({ kdialog: { code: 0, stdout: '/srv/x\n' } }), 'linux'), { path: '/srv/x' });
+  assert.deepEqual(pickFolder(answer({ kdialog: { code: 0, stdout: '/srv/x\n' } }), 'linux', { WAYLAND_DISPLAY: 'wayland-0' }), { path: '/srv/x' });
   assert.deepEqual(calls, ['zenity', 'kdialog']);
-  assert.deepEqual(pickFolder(answer({}), 'linux'), { path: null, unavailable: true });
+  assert.deepEqual(pickFolder(answer({}), 'linux', desktop), { path: null, unavailable: true });
+  // Without a display zenity exits 1 as on a cancel: no dialog is tried.
+  calls.length = 0;
+  assert.deepEqual(pickFolder(answer({ zenity: { code: 1, stdout: '' } }), 'linux', {}), { path: null, unavailable: true });
+  assert.deepEqual(calls, []);
   assert.deepEqual(pickFolder(answer({ osascript: { code: 0, stdout: '/Users/me/app/\n' } }), 'darwin'), { path: '/Users/me/app' });
   assert.deepEqual(pickFolder(answer({}), 'win32'), { path: null, unavailable: true });
 });
@@ -189,6 +194,9 @@ test('profile import: a bad kind is a 400; register saves packs and projects, th
   const imp = routes['POST /api/profile-import'];
   assert.equal(status(() => imp({ text: '{"kind":"benchkeeper-pack","schemaVersion":1}' })), 400);
   assert.equal(status(() => imp({ text: 'nope' })), 400);
+  // An unknown agent fails before any pack or project is saved.
+  assert.equal(status(() => imp({ register: true, text: JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['nope'] }, packs: [{ id: 'early', skills: ['x'] }], projects: [] }) })), 400);
+  assert.ok(!routes['GET /api/catalog']().packs.some((p) => p.id === 'early'));
   const dir = mkdtempSync(join(tmpdir(), 'bk-prof-'));
   const skill = routes['GET /api/catalog']().skills[0].name;
   const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] }, packs: [{ id: 'own', skills: [skill] }],

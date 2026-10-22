@@ -3,9 +3,8 @@
 import { agent } from './agents.mjs';
 import { readText } from './fsx.mjs';
 import { itemState } from './runner.mjs';
+import { RANK } from './states.mjs';
 import { PLUGINS, globalPlan } from './steps/global.mjs';
-
-export const RANK = ['current', 'absent', 'outdated', 'missing', 'modified', 'removed', 'foreign', 'error'];
 
 export function inventory(ctx, agents, { devcontainerCli } = {}) {
   const items = new Map();

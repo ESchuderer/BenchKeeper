@@ -3,15 +3,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Dot, STATE_COLOR } from './shell.jsx';
 
-// Loads a GET endpoint; reload() fetches it again.
+// Loads a GET endpoint; reload() fetches it again. A response for an older path or load is dropped; no path clears it.
 export function useApi(path) {
-  const [state, setState] = useState({ data: null, error: null, loading: true });
-  const reload = useCallback(() => {
-    if (!path) return;
+  const [state, setState] = useState({ data: null, error: null, loading: !!path });
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!path) { setState({ data: null, error: null, loading: false }); return undefined; }
+    let live = true;
     setState((s) => ({ ...s, loading: true }));
-    api(path).then((data) => setState({ data, error: null, loading: false }), (e) => setState({ data: null, error: e.message, loading: false }));
-  }, [path]);
-  useEffect(reload, [reload]);
+    api(path).then((data) => live && setState({ data, error: null, loading: false }), (e) => live && setState({ data: null, error: e.message, loading: false }));
+    return () => { live = false; };
+  }, [path, n]);
+  const reload = useCallback(() => setN((x) => x + 1), []);
   return { ...state, reload };
 }
 

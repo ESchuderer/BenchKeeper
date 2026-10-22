@@ -1,6 +1,8 @@
 import { Box, Grid, Paper, ScrollArea, Text } from '@mantine/core';
 import { useEffect, useState } from 'react';
 
+export { RANK } from '../src/states.mjs';
+
 // The view and its parameters live in the hash (#/projects?path=...), so reloads and the palette can deep-link.
 const parse = () => {
   const [view, query = ''] = window.location.hash.replace(/^#\/?/, '').split('?');
@@ -23,8 +25,6 @@ export function useRoute() {
   return route;
 }
 
-// Worst last, as in src/inventory.mjs.
-export const RANK = ['current', 'absent', 'outdated', 'missing', 'modified', 'removed', 'foreign', 'error'];
 // Status colors always come with a text label; the dot only repeats it.
 export const STATE_COLOR = { current: 'teal', absent: 'gray', outdated: 'yellow', missing: 'orange', modified: 'indigo', removed: 'red', foreign: 'grape', error: 'red', behind: 'yellow', ok: 'teal', attention: 'yellow', problem: 'red' };
 export const Dot = ({ color }) => <Box component="span" aria-hidden w={8} h={8} display="inline-block" style={{ borderRadius: 4, background: `var(--mantine-color-${color}-filled)` }} />;

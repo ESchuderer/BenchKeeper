@@ -44,7 +44,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | Evals | miss and false-trigger rates per target over time (read only, `benchkeeper eval` runs them) |
 | Settings | profile export and import, keyboard shortcuts, config files |
 
-The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Choose folder" opens the system dialog: `osascript` on macOS, `zenity`, then `kdialog` on Linux. With none of them, on Windows, or after a cancel, type the path. The server blocks other requests while the dialog is open.
+The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Choose folder" opens the system dialog: `osascript` on macOS, `zenity`, then `kdialog` on Linux. With none of them, on Windows, on Linux without a display, or after a cancel, type the path. The server blocks other requests while the dialog is open.
 
 | Keys | Action |
 |---|---|

@@ -10,7 +10,7 @@ export function sideBySide(unified) {
     add = [];
   };
   for (const line of unified.split('\n').slice(2)) {
-    if (line === '@@') { flush(); rows.push({ gap: true }); }
+    if (line === '@@') { flush(); if (rows.length) rows.push({ gap: true }); }
     else if (line[0] === '-') del.push(line);
     else if (line[0] === '+') add.push(line);
     else { flush(); rows.push({ old: line, new: line }); }

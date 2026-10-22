@@ -7,11 +7,10 @@ test('side by side: context on both sides, changed runs paired, extra lines agai
   const before = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].join('\n');
   const after = ['a', 'B', 'B2', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].join('\n');
   assert.deepEqual(sideBySide(diffLines(before, after, 'f')), [
-    { gap: true },
     { old: ' a', new: ' a' }, { old: '-b', new: '+B' }, { old: null, new: '+B2' }, { old: ' c', new: ' c' }, { old: ' d', new: ' d' }, { old: ' e', new: ' e' },
     { gap: true },
     { old: ' g', new: ' g' }, { old: ' h', new: ' h' }, { old: ' i', new: ' i' }, { old: '-j', new: null },
   ]);
-  assert.deepEqual(sideBySide(diffLines(null, 'x', 'f')), [{ gap: true }, { old: null, new: '+x' }]);
+  assert.deepEqual(sideBySide(diffLines(null, 'x', 'f')), [{ old: null, new: '+x' }]);
   assert.deepEqual(sideBySide(''), []);
 });

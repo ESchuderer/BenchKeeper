@@ -46,9 +46,11 @@ const bad = (message) => Object.assign(new Error(message), { status: 400 });
 const input = (f) => { try { return f(); } catch (e) { throw Object.assign(e, { status: e.status ?? 400 }); } };
 
 // The OS folder dialog, first tool found: exit 0 is the choice, 1 a cancel; other codes (127: not installed) try the next.
+// Without a display (SSH, container) zenity also exits 1, so Linux needs DISPLAY or WAYLAND_DISPLAY first.
 // shortcut: no xdg portal (needs async D-Bus); add it when zenity and kdialog are both missing on a target desktop.
-export function pickFolder(ctx, platform = process.platform) {
-  const tools = platform === 'darwin' ? [['osascript', '-e', 'POSIX path of (choose folder)']] : platform === 'win32' ? [] : [['zenity', '--file-selection', '--directory'], ['kdialog', '--getexistingdirectory']];
+export function pickFolder(ctx, platform = process.platform, env = process.env) {
+  const display = platform !== 'linux' || env.DISPLAY || env.WAYLAND_DISPLAY;
+  const tools = platform === 'darwin' ? [['osascript', '-e', 'POSIX path of (choose folder)']] : platform === 'win32' || !display ? [] : [['zenity', '--file-selection', '--directory'], ['kdialog', '--getexistingdirectory']];
   for (const argv of tools) {
     const r = ctx.run(argv);
     if (r.code === 0 && r.stdout.trim()) return { path: resolve(r.stdout.trim()) };

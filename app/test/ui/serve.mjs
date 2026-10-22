@@ -39,5 +39,7 @@ mkdirSync(join(ctx.config, 'evals'), { recursive: true });
 const result = (time, missRate, falseTriggerRate) => ({ time, target: 'skill:designing-technical-uis', agent: 'claude', agentVersion: '2.1.0', model: null, hash: 'x', appVersion: '6.0.0', cases: 6, missRate, falseTriggerRate, details: [] });
 writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00:00Z', 0.5, 0), result('2026-10-08T10:00:00Z', 0.25, 0.33)].map((r) => JSON.stringify(r)).join('\n') + '\n');
 
+// The folder dialog needs a display; the stubbed zenity answers without one.
+process.env.DISPLAY ??= ':99';
 await startServer(ctx, { port: PORT, token: TOKEN });
 console.log(`ready http://127.0.0.1:${PORT}/`);

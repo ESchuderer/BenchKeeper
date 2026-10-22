@@ -6,7 +6,7 @@ import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi } from './p
 import { sideBySide } from './diff.js';
 import { Dot, MOD, RANK, STATE_COLOR, SplitView, download, go, href } from './shell.jsx';
 
-const ATTENTION = ['outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
+const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
 const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
 const note = (r) => (r.note?.case ? `eval case ${r.note.case} for ${r.note.target}` : r.note?.updateAll ? `Update all of ${r.note.updateAll}` : r.of ? `undo of ${r.of}` : '');
@@ -302,13 +302,13 @@ function SkillDetail({ skill, results }) {
 
 const pct = (v) => (v == null ? null : Math.round(v * 100));
 const seriesOf = (r) => `${r.agent}${r.model ? ` ${r.model}` : ''}`;
-const COLORS = ['teal.9', 'indigo.9', 'grape.9', 'orange.9'];
+const COLORS = ['teal.9', 'indigo.9', 'grape.9', 'orange.9', 'cyan.9', 'pink.9', 'lime.9', 'violet.9'];
 
 // Miss and false-trigger rates over time, one series pair per agent and model; the table holds the same numbers.
 function EvalResults({ results }) {
   const keys = [...new Set(results.map(seriesOf))];
   const data = results.map((r) => ({ time: when(r.time), [`${seriesOf(r)} miss`]: pct(r.missRate), [`${seriesOf(r)} false trigger`]: pct(r.falseTriggerRate) }));
-  const series = keys.flatMap((k, i) => [{ name: `${k} miss`, color: COLORS[(2 * i) % 4] }, { name: `${k} false trigger`, color: COLORS[(2 * i + 1) % 4], strokeDasharray: '5 5' }]);
+  const series = keys.flatMap((k, i) => [{ name: `${k} miss`, color: COLORS[(2 * i) % COLORS.length] }, { name: `${k} false trigger`, color: COLORS[(2 * i + 1) % COLORS.length], strokeDasharray: '5 5' }]);
   return (
     <Stack gap="sm">
       <LineChart h={240} data={data} dataKey="time" series={series} unit="%" yAxisProps={{ domain: [0, 100] }} withLegend connectNulls />
@@ -469,7 +469,7 @@ export function Projects({ params, overview }) {
   // The OS dialog; when there is none or it is cancelled, the typed path stays.
   const choose = async () => {
     const r = await api('/api/pick-folder', {});
-    if (r.unavailable) setError('No folder dialog found (zenity, kdialog or osascript): type the path.');
+    if (r.unavailable) setError('No folder dialog: it needs osascript, or zenity or kdialog with a display. Type the path.');
     return r.path;
   };
   const add = (dir) => api('/api/projects', { action: 'add', path: dir });
@@ -488,7 +488,7 @@ export function Projects({ params, overview }) {
     for (const [i, row] of rows.entries()) {
       rows[i] = { ...row, status: 'running' };
       setProgress([...rows]);
-      try { [rows[i]] = await api('/api/update-all', { paths: [row.path], push }); } catch (e) { rows[i] = { path: row.path, status: 'stopped', reason: e.message }; }
+      try { rows[i] = (await api('/api/update-all', { paths: [row.path], push }))[0] ?? { path: row.path, status: 'stopped', reason: 'no longer registered' }; } catch (e) { rows[i] = { path: row.path, status: 'stopped', reason: e.message }; }
       setProgress([...rows]);
     }
     reload();

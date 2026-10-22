@@ -2,6 +2,7 @@
 // It holds choices only, no file contents, environment values or tokens.
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { ownPacks, savePack } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
@@ -33,6 +34,7 @@ export function readProfile(text) {
   if (p?.kind !== 'benchkeeper-profile') throw new Error('not a BenchKeeper profile');
   if (p.schemaVersion !== PROFILE_SCHEMA) throw new Error(`profile schemaVersion ${p.schemaVersion}, this app reads ${PROFILE_SCHEMA}`);
   if (!Array.isArray(p.global?.agents)) throw new Error('profile: global.agents missing');
+  for (const a of p.global.agents) agent(a);
   for (const x of p.projects ?? []) if (typeof x.path !== 'string' || !isAbsolute(x.path)) throw new Error(`profile: project path ${x.path} is not absolute`);
   return p;
 }

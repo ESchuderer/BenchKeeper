@@ -86,6 +86,29 @@ test('undo of one step leaves the others', () => {
   assert.equal(existsSync(join(c.home, 'b')), true);
 });
 
+test('undo refuses a file changed after the change, and a missing backup; a whole run goes newest first', () => {
+  const c = context({ home: home() });
+  writeFileSync(join(c.home, 'f'), '0');
+  const edit = (id, step, v) => ({ id, step, title: id, kind: 'write', path: join(c.home, 'f'), edit: (t) => `${t}${v}` });
+  const run = apply([edit('a', 'one', '1'), edit('b', 'two', '2')], c);
+  assert.equal(readFileSync(join(c.home, 'f'), 'utf8'), '012');
+  // Step one alone would put back '0' and lose step two's edit.
+  const one = undo(run.id, c, { step: 'one' });
+  assert.equal(one.status, 'failed');
+  assert.match(one.entries[0].error, /changed after this change/);
+  assert.equal(readFileSync(join(c.home, 'f'), 'utf8'), '012');
+  assert.equal(undo(run.id, c).status, 'done');
+  assert.equal(readFileSync(join(c.home, 'f'), 'utf8'), '0');
+  const again = apply([edit('a', 'one', '1')], c);
+  writeFileSync(join(c.home, 'f'), 'mine');
+  assert.equal(undo(again.id, c).status, 'failed', 'a user edit after the apply stays');
+  assert.equal(readFileSync(join(c.home, 'f'), 'utf8'), 'mine');
+  const third = apply([edit('a', 'one', '!')], c);
+  rmSync(c.ledger.get(third.id).entries[0].backup);
+  assert.match(undo(third.id, c).entries[0].error, /backup .* is missing/);
+  assert.equal(readFileSync(join(c.home, 'f'), 'utf8'), 'mine!');
+});
+
 test('remove moves to the backup, undo moves back', () => {
   const c = context({ home: home() });
   mkdirSync(join(c.home, 'skills/x'), { recursive: true });

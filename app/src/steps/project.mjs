@@ -99,7 +99,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   };
 
   // Library skills: own skills copied into each skill folder, community skills through the skills CLI at the pinned commit.
-  const installedRefs = new Map((readState(dir)?.skills ?? []).filter((x) => x.ref).map((x) => [x.name, x.ref]));
+  // The state file comes with the repository: only commit ids count.
+  const installedRefs = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{40}$/.test(x.ref ?? '')).map((x) => [x.name, x.ref]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
     const dirs = skillDirs(ids, 'project', dir);
@@ -128,7 +129,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
         kind: 'command', cwd: dir, env: NPX_ENV,
         argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
-        undoArgv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', s.name, ...flags, '-y'],
+        // A re-pin is undone by adding the skill again at its earlier commit, a new skill by removing it.
+        undoArgv: was && was !== s.ref
+          ? ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${was}`, '-s', s.name, ...flags, '--copy', '-y']
+          : ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', s.name, ...flags, '-y'],
       });
     }
   }

@@ -176,19 +176,20 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   mkdirSync(join(home, '.codex/plugins/cache/ponytail/ponytail/5.2.0'), { recursive: true });
   mkdirSync(join(home, '.codex/plugins/cache/benchkeeper/benchkeeper/6.0.0'), { recursive: true });
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
-    'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }], 'benchkeeper@benchkeeper': [{ scope: 'user', version: '5.4.0' }] } }));
+    'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }], 'benchkeeper@benchkeeper': [{ scope: 'user', version: '5.4.0' }], 'mattpocock-skills@claude-plugins-official': [{ scope: 'user', version: '1.2.0' }] } }));
   writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { repo: 'DietrichGebert/ponytail' } }, benchkeeper: { source: { ref: 'setup-v6.0' } } }));
-  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'benchkeeper@benchkeeper': true } }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'benchkeeper@benchkeeper': true, 'mattpocock-skills@claude-plugins-official': true } }));
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.3.2"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
   const steps = (id) => globalPlan({ ctx, agents: ['claude', 'codex'] }).filter((c) => c.step === id);
   const argv = (id) => steps(id).map((c) => c.argv.join(' '));
-  // Unpinned marketplace: added again at the pin, then installed.
-  assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), ['claude plugin marketplace remove ponytail', 'claude plugin marketplace add DietrichGebert/ponytail#v5.3.2', 'claude plugin install ponytail@ponytail']);
+  // Refresh and update; never a marketplace removal (it deletes the plugin's options and data).
+  assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), ['claude plugin marketplace update ponytail', 'claude plugin update ponytail@ponytail']);
   assert.ok(steps('plugin:claude:ponytail@ponytail').every((c) => c.outdated && c.title === 'Claude Code plugin ponytail@ponytail 5.2.0 to 5.3.2'));
-  // Marketplace already at the pin: refresh and update.
   assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
   assert.deepEqual(argv('plugin:codex:ponytail@ponytail'), ['codex plugin marketplace upgrade ponytail', 'codex plugin add ponytail@ponytail']);
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
+  // An installed pack plugin is checked without its pack chosen.
+  assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), ['claude plugin marketplace update claude-plugins-official', 'claude plugin update mattpocock-skills@claude-plugins-official']);
   const inv = inventory(ctx, ['claude', 'codex']);
   assert.equal(inv.find((i) => i.step === 'plugin:claude:ponytail@ponytail').state, 'outdated');
   assert.equal(inv.find((i) => i.step === 'plugin:codex:benchkeeper@benchkeeper').state, 'current');

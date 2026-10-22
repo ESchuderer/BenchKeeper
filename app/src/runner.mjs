@@ -173,9 +173,13 @@ export function undo(id, ctx, { step } = {}) {
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || `exit ${r.code}`);
       } else {
         if (!inside(e.path, ctx.roots)) throw new Error(`${e.path} is outside ${ctx.roots.join(', ')}`);
+        // Only a file as the run left it goes back, so a later change (another step's, or the user's) is not lost.
+        // A whole run is undone newest first, so its own later edits of the file are undone before.
+        if (e.status === 'done' && hashPath(e.path) !== e.hashAfter) throw new Error(`${e.path} changed after this change: undo what changed it later first`);
+        if (e.existed && hashPath(e.backup) !== e.hashBefore) throw new Error(`the backup ${e.backup} is missing or changed`);
         Object.assign(entry, { path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path) });
         // The current state goes to this run's backup, so the undo is reversible as well.
-        if (entry.existed) { entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, e.path); move(e.path, entry.backup); }
+        if (entry.existed) { entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, e.path); move(e.path, entry.backup); entry.touched = true; }
         if (e.existed) copy(e.backup, e.path);
         entry.hashAfter = hashPath(e.path);
         entry.kind = 'write';

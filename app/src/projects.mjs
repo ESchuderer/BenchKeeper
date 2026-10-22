@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { appVersion } from './content.mjs';
-import { writeAtomic } from './fsx.mjs';
+import { hashText, writeAtomic } from './fsx.mjs';
 import { clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, projectPlan, readState } from './steps/project.mjs';
@@ -72,7 +72,8 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       if (!base) throw new Error('no default branch (origin/HEAD, main or master)');
       // The branch starts at the remote's default branch when it can be fetched, else at the local one.
       const start = git(ctx, path, ['fetch', '-q', 'origin', base]).code === 0 ? `origin/${base}` : base;
-      const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${appVersion}`);
+      // Per project path, so two projects with one folder name never share (and delete) a worktree.
+      const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${appVersion}`);
       rmSync(tree, { recursive: true, force: true });
       git(ctx, path, ['worktree', 'prune']);
       const previous = git(ctx, path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]).stdout.trim();

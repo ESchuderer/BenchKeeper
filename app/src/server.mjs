@@ -26,7 +26,8 @@ export const HEADER = 'x-benchkeeper';
 const COOKIE = 'bk_session';
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
 const distDir = fileURLToPath(new URL('../dist/', import.meta.url));
-const same = (a, b) => typeof a === 'string' && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+// Byte lengths: timingSafeEqual throws on different lengths, and one character can be several bytes.
+const same = (a, b) => { if (typeof a !== 'string') return false; const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 
 // null when the request may go on, else [status, reason].
 export function rejectReason(req, { port, session }) {

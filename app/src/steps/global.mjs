@@ -11,7 +11,7 @@ import { mergeJson, parseJson, setToml } from '../merge.mjs';
 export const SKILLS_CLI = '1.7.2';
 export const PONYTAIL_REF = 'v5.3.2';
 export const MATT_POCOCK_REF = 'v1.3.1';
-// Pinned plugins: ref is the marketplace's git ref, version the plugin version it yields; 'app' is this app's version
+// Pinned plugins: ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version
 // (BenchKeeper's marketplace at tag setup-v<major>.<minor>). Matt Pocock's Claude Code plugin comes from the official
 // marketplace, which pins its own commit.
 export const PLUGINS = {
@@ -134,25 +134,22 @@ export function globalPlan(env) {
     const { listed, markets, refs } = pluginState(ctx, a);
     const name = agent(a).name;
     for (const p of PLUGINS[a]) {
-      if (p.pack && !options.packs?.includes(p.pack)) continue;
+      const have = listed.find((x) => x.id === p.id && x.enabled);
+      // An installed pack plugin is kept current without its pack being chosen again.
+      if (p.pack && !options.packs?.includes(p.pack) && !have) continue;
       const step = `plugin:${a}:${p.id}`;
       const { ref, version } = pin(p, ctx.appVersion);
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
       const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', `${p.source}${a === 'claude' ? '#' : '@'}${ref}`, ...sparse];
       const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
-      const have = listed.find((x) => x.id === p.id && x.enabled);
       if (have) {
-        // Older than the pin: update. Newer stays (Codex installs Ponytail from its main branch whatever the ref).
+        // Older than the pin: refresh the marketplace and update. Newer stays (Codex installs Ponytail from its main
+        // branch whatever the ref). Removing the marketplace to move its ref would delete the plugin's options and
+        // data in Claude Code, so a marketplace added at an older ref stays there and the plugin stays outdated.
         if (!have.version || bySemver(have.version, version) >= 0) continue;
         const title = `${name} plugin ${p.id} ${have.version} to ${version}`;
-        const cmd = (argv) => add(step, title, { kind: 'command', argv, outdated: true });
-        if (addMarket && refs[p.marketplace] !== ref) {
-          // A marketplace keeps the ref it was added with: add it again at the pin (the plugin entry stays), then install.
-          cmd([a, 'plugin', 'marketplace', 'remove', p.marketplace]); cmd(addMarket); cmd(install);
-        } else {
-          cmd([a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace]);
-          cmd(a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install);
-        }
+        add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace], outdated: true });
+        add(step, title, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install, outdated: true });
         continue;
       }
       if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace] });

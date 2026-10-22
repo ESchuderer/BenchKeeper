@@ -56,6 +56,11 @@ test('a community skill the state file records at another commit is added again 
   state.skills.find((s) => s.name === 'frontend-design').ref = 'a'.repeat(40);
   writeFileSync(f, JSON.stringify(state));
   assert.deepEqual(titles(), ['skill frontend-design from anthropics/skills at dbd4588f9e10 (was aaaaaaaaaaaa)']);
+  const repin = plan(r, {}).changes.find((c) => c.kind === 'command');
+  assert.ok(repin.undoArgv.includes(`https://github.com/anthropics/skills/tree/${'a'.repeat(40)}`), 'undo adds the earlier commit back');
+  state.skills.find((s) => s.name === 'frontend-design').ref = '../../x';
+  writeFileSync(f, JSON.stringify(state));
+  assert.deepEqual(titles(), [], 'a ref that is not a commit id is ignored');
 });
 
 test('a second plan reads the answers from the state file', () => {

@@ -19,7 +19,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 |---|---|
 | `ui [--no-open] [--port N]` | the web UI (default command), see [Web UI](#web-ui) |
 | `plan`, `apply [--yes] [--all]` | global setup for the installed agents (`--agents a,b`, `--pack matt-pocock`): a diff per change, then a question per change. Plugins are pinned (BenchKeeper at this app's version from tag `setup-v<major>.<minor>`, Ponytail `PONYTAIL_REF`, Matt Pocock's skills `MATT_POCOCK_REF`); one older than its pin gets update steps, a newer one is kept. Plugin state is read from `~/.claude/plugins/` and `~/.codex/config.toml`, the agent CLIs only when those cannot be read |
-| `history`, `undo <run> [--step s]`, `restore <date>` | recorded runs, undo of a run or step, restore of a `setup.sh` backup |
+| `history`, `undo <run> [--step s]`, `restore <date>` | recorded runs, undo of a run or step, restore of a `setup.sh` backup. Undo puts a file back only while it is as the run left it and its backup is intact; otherwise it fails for that file and names it |
 | `project plan\|apply [dir]` | project setup: `--agents`, `--env container\|host-agent\|sandbox\|host`, `--sandbox`, `--pack`, `--skill`, `--tier`; `--disable <skill>` moves a skill to `.benchkeeper/disabled/`, `--enable` moves it back. Answers and each community skill's commit are kept in `.benchkeeper/state.json`; a skill recorded at another commit than the library pin is added again at the pin |
 | `record [--project dir] -- <agent> [args]` | runs an agent session and records the files it changed and its transcript, so `undo` restores them |
 | `packs list\|save\|export\|import\|remove` | library packs and own packs; a pack file names library skills only |

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
-import { api, pickFolder, startServer } from '../src/server.mjs';
+import { api, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
 
@@ -146,6 +146,12 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.deepEqual(s.run.entries.map((e) => e.status), ['done', 'done']);
   assert.equal(ctx.ledger.get(s.run.id).status, 'done');
   assert.equal(status(() => routes['GET /api/job'](new URLSearchParams({ id: 'nope' }))), 404);
+});
+
+test('a session cookie of other bytes but the same length in characters is refused, not thrown', () => {
+  const session = 'a'.repeat(43);
+  const req = { method: 'GET', headers: { host: '127.0.0.1:9', cookie: `bk_session=${'\u00e9'.repeat(43)}` } };
+  assert.deepEqual(rejectReason(req, { port: 9, session }), [401, 'no session']);
 });
 
 test('pick-folder: the first dialog found answers; a cancel is null; no tool is unavailable', () => {

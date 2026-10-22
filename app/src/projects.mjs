@@ -1,6 +1,6 @@
 // Registered projects and Update all: one branch, one commit and one pull request per project, built in a git
 // worktree so the user's checkout stays as it is.
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
@@ -81,28 +81,33 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       const start = git(ctx, path, ['fetch', '-q', 'origin', base]).code === 0 ? `origin/${base}` : base;
       // Per project path, so two projects with one folder name never share (and delete) a worktree.
       const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${appVersion}`);
-      rmSync(tree, { recursive: true, force: true });
       git(ctx, path, ['worktree', 'prune']);
+      // A worktree left by a failed run holds its partial work: it stays until the user removes it.
+      if (existsSync(tree)) throw new Error(`a failed Update all left ${tree}: look at it, then git worktree remove --force ${tree}`);
       const previous = git(ctx, path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]).stdout.trim();
-      // The branch is rebuilt from the default branch; commits other than an earlier Update all would be lost.
-      const other = previous && git(ctx, path, ['log', '--format=%s', `${start}..${previous}`]).stdout.split('\n').filter((l) => l && l !== `chore: agent setup ${appVersion}`);
-      if (other?.length) throw new Error(`local branch ${branch} has other commits (${other[0]}): merge or rename it first`);
-      const wt = git(ctx, path, ['worktree', 'add', '-q', '-B', branch, tree, start]);
+      // An unmerged branch from earlier runs gets new commits on top, so its pushes stay fast-forward; it may hold
+      // only the commits those runs made (by id, from the ledger). A merged one starts again at the default branch.
+      const open = previous && git(ctx, path, ['merge-base', '--is-ancestor', previous, start]).code !== 0;
+      if (open) {
+        const made = new Set(ctx.ledger.list().filter((r) => r.note?.updateAll === path && r.note.branch === branch && r.note.commit).map((r) => r.note.commit));
+        const other = git(ctx, path, ['log', '--format=%H %s', `${start}..${previous}`]).stdout.split('\n').filter(Boolean).filter((l) => !made.has(l.split(' ')[0]));
+        if (other.length) throw new Error(`local branch ${branch} has other commits (${other[0].slice(41)}): merge or rename it first`);
+      }
+      const wt = git(ctx, path, open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start]);
       if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
+      let keep = true;
       try {
         const run = apply(projectChanges(ctx, tree, answers[path]), { ...ctx, roots: [tree] }, { scope: tree, note: { updateAll: path, branch } });
         result.run = run.id;
-        if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
+        if (run.status !== 'done') throw new Error(`${run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ')} (the worktree stays at ${tree})`);
         git(ctx, tree, ['add', '-A']);
-        if (clean(ctx, tree)) { result.status = 'current'; return result; }
+        if (clean(ctx, tree)) { result.status = 'current'; keep = false; return result; }
         const commit = git(ctx, tree, ['commit', '-q', '-m', `chore: agent setup ${appVersion}`, '-m', `BenchKeeper setup ${appVersion}, applied by benchkeeper update-all from ${STATE}.`]);
-        if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()}`);
+        if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
+        ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim() } });
+        // The commit is on the branch: the worktree is not needed for pushing.
+        keep = false;
         result.status = 'committed';
-        // A branch from an earlier run with the same files stays as it was.
-        if (previous && git(ctx, tree, ['diff', '--quiet', previous, 'HEAD']).code === 0) {
-          git(ctx, tree, ['reset', '-q', '--hard', previous]);
-          result.status = 'current';
-        }
         if (push && githubRemote(ctx, path)) {
           const head = git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim();
           const remote = git(ctx, path, ['ls-remote', 'origin', `refs/heads/${branch}`]).stdout.split(/\s/)[0];
@@ -117,7 +122,8 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
           result.status = 'pull request';
         }
       } finally {
-        git(ctx, path, ['worktree', 'remove', '--force', tree]);
+        if (keep) result.worktree = tree;
+        else git(ctx, path, ['worktree', 'remove', '--force', tree]);
       }
     } catch (e) {
       result.status = 'stopped';

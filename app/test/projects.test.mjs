@@ -77,6 +77,31 @@ test('Update all commits the new setup on a branch in a worktree and leaves the 
   assert.match(status(ctx, p.dir).error, /state\.json/);
 });
 
+test('Update all adds to its own unmerged branch, refuses an amended commit, and keeps a failed worktree', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const [r] = updateAll(ctx, { paths: [p.dir] });
+  const first = p.git('rev-parse', r.branch).trim();
+  // Changed answers: one more commit on top, so a push stays fast-forward.
+  const [r2] = updateAll(ctx, { paths: [p.dir], answers: { [p.dir]: { tier: 'quick' } } });
+  assert.equal(r2.status, 'committed', r2.reason);
+  assert.equal(p.git('rev-parse', `${r.branch}~1`).trim(), first);
+  // An amended commit keeps the subject but is not one Update all made.
+  p.git('checkout', '-q', r.branch);
+  writeFileSync(join(p.dir, 'mine.txt'), 'x\n');
+  p.git('add', '-A');
+  p.git('commit', '-q', '--amend', '--no-edit');
+  p.git('checkout', '-q', 'main');
+  assert.match(updateAll(ctx, { paths: [p.dir] })[0].reason, /has other commits \(chore: agent setup/);
+  p.git('branch', '-D', r.branch);
+  // A failed apply keeps its worktree, and the next run names it instead of deleting it.
+  const bad = updateAll({ ...ctx, run: (argv, o) => (argv[0] === 'npx' ? { code: 1, stdout: '', stderr: 'offline' } : ctx.run(argv, o)) }, { paths: [p.dir], answers: { [p.dir]: { agents: ['claude'], env: 'host-agent', packs: ['frontend'] } } })[0];
+  assert.equal(bad.status, 'stopped');
+  assert.ok(bad.worktree && existsSync(bad.worktree), bad.reason);
+  assert.match(updateAll(ctx, { paths: [p.dir] })[0].reason, /a failed Update all left/);
+});
+
 test('a project with changes, without a state file or outside git stops alone; the others continue', () => {
   const h = home();
   const ctx = context({ home: h });

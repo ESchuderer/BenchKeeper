@@ -255,7 +255,7 @@ async function command(argv, { out, ask, ctx }) {
     if (!plan.length) { out.write('every target is unchanged since its last result (--all runs them again)\n'); return 0; }
     for (const p of plan) out.write(`${p.target}  ${p.agent}${p.model ? ` ${p.model}` : ''}  ${p.cases.length} cases\n`);
     if (!o.yes && !(await ask(`Start ${sessions} agent sessions?`))) return 1;
-    for (const r of runEval(ctx, plan)) {
+    for (const r of await runEval(ctx, plan)) {
       const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
       out.write(`${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}${r.details.some((d) => d.review) ? `  review: ${r.details.find((d) => d.review).review.replace(/[^/]+$/, '')}` : ''}\n`);
     }

@@ -74,30 +74,36 @@ export function Plan({ plan, onDone }) {
 }
 
 const STATUS_COLOR = { done: 'teal', failed: 'red', skipped: 'gray', running: 'blue', waiting: 'gray', manual: 'yellow' };
-const StatusBadge = ({ status }) => <Badge variant="default" leftSection={<Dot color={STATUS_COLOR[status] ?? 'gray'} />}>{status}</Badge>;
+export const StatusBadge = ({ status }) => <Badge variant="default" leftSection={<Dot color={STATUS_COLOR[status] ?? 'gray'} />}>{status}</Badge>;
 
-// A started apply, polled until it is done: each change with its status, the running command's output, then the run.
-export function RunProgress({ job, total, onDone }) {
+// A started job (apply or eval), polled until it is done. A failed poll is retried; only a lost job (404) or ten
+// misses in a row end the view, the job itself goes on.
+export function useJob(job, onDone) {
   const [state, setState] = useState(null);
   useEffect(() => {
     let live = true, timer, misses = 0;
-    // A failed poll is retried; only a lost job (404) or ten misses in a row end the view, the apply itself goes on.
     const poll = async () => {
       try {
         const s = await api(`/api/job?id=${job}`);
         if (!live) return;
         misses = 0;
         setState(s);
-        if (s.done) { onDone?.(s.run); return; }
+        if (s.done) { onDone?.(s); return; }
       } catch (e) {
         if (!live) return;
-        if (e.status === 404 || ++misses >= 10) { setState((x) => ({ ...x, done: true, error: `${e.message}: see History for the run` })); return; }
+        if (e.status === 404 || ++misses >= 10) { setState((x) => ({ ...x, done: true, error: `${e.message}: see History` })); return; }
       }
       timer = setTimeout(poll, 400);
     };
     poll();
     return () => { live = false; clearTimeout(timer); };
   }, [job]);
+  return state;
+}
+
+// A started apply: each change with its status, the running command's output, then the run.
+export function RunProgress({ job, total, onDone }) {
+  const state = useJob(job, (s) => onDone?.(s.run));
   const entries = state?.run?.entries ?? [];
   const finished = entries.filter((e) => e.status).length;
   const running = !state?.done && entries.find((e) => !e.status);

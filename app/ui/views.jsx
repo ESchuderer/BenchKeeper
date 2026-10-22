@@ -2,7 +2,7 @@ import { LineChart } from '@mantine/charts';
 import { Alert, Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi } from './parts.jsx';
+import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi, useJob } from './parts.jsx';
 import { sideBySide } from './diff.js';
 import { ProjectSetup } from './setup.jsx';
 import { Dot, MOD, RANK, STATE_COLOR, SplitView, download, go, href } from './shell.jsx';
@@ -332,6 +332,58 @@ function EvalResults({ results }) {
   );
 }
 
+function EvalJob({ job, total, onDone }) {
+  const s = useJob(job, onDone);
+  const at = s?.progress ? s.progress.index + (s.done ? 1 : 0) : 0;
+  return (
+    <Stack gap="xs">
+      <Progress value={(s?.done ? total : at) / total * 100} aria-label="Eval sessions done" />
+      <Text role="status">{s?.done ? (s.error ? `Failed: ${s.error}` : `Done: ${total} sessions`) : s?.progress ? `Session ${at + 1} of ${total}: ${s.progress.target}, case ${s.progress.case} (${s.progress.agent})` : 'Starting'}</Text>
+      {s?.results && (
+        <Table aria-label="New eval results">
+          <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
+          <Table.Tbody>{s.results.map((r) => <Table.Tr key={`${r.target}${r.agent}`}><Table.Td>{r.target}</Table.Td><Table.Td>{r.agent} {r.agentVersion}</Table.Td><Table.Td>{r.missRate == null ? '-' : `${pct(r.missRate)}%`}</Table.Td><Table.Td>{r.falseTriggerRate == null ? '-' : `${pct(r.falseTriggerRate)}%`}</Table.Td></Table.Tr>)}</Table.Tbody>
+        </Table>
+      )}
+    </Stack>
+  );
+}
+
+// Plan first (targets and the number of agent sessions), then start them as a job.
+function RunEvals({ onDone }) {
+  const [agents, setAgents] = useState(['claude']);
+  const [all, setAll] = useState(false);
+  const [plan, setPlan] = useState(null);
+  const [job, setJob] = useState(null);
+  const [error, setError] = useState(null);
+  const query = new URLSearchParams({ agents: agents.join(','), all: all ? '1' : '0' });
+  const act = (f) => async () => { setError(null); try { await f(); } catch (e) { setError(e.message); } };
+  return (
+    <Section title="Run evals">
+      <Text size="sm">Each case is a real agent session (Claude Code in plan mode, Codex read-only) in a scratch repository, on your subscription.</Text>
+      <Group>
+        <Checkbox.Group label="Agents" value={agents} onChange={(v) => { setAgents(v); setPlan(null); }}>
+          <Group mt={4}><Checkbox value="claude" label="Claude Code" /><Checkbox value="codex" label="Codex" /></Group>
+        </Checkbox.Group>
+        <Switch label="All targets, also unchanged ones" checked={all} onChange={(e) => { setAll(e.currentTarget.checked); setPlan(null); }} />
+      </Group>
+      {error && <Alert color="red" title="Failed">{error}</Alert>}
+      {!job && <Group><Button variant="default" disabled={!agents.length} onClick={act(async () => setPlan(await api(`/api/eval-plan?${query}`)))}>Plan evals</Button></Group>}
+      {plan && !job && (plan.targets.length ? (
+        <Stack gap="xs">
+          <Table aria-label="Planned evals">
+            <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Cases</Table.Th></Table.Tr></Table.Thead>
+            <Table.Tbody>{plan.targets.map((t) => <Table.Tr key={`${t.target}${t.agent}`}><Table.Td>{t.target}</Table.Td><Table.Td>{t.agent}</Table.Td><Table.Td>{t.cases}</Table.Td></Table.Tr>)}</Table.Tbody>
+          </Table>
+          <Group><Button onClick={act(async () => setJob(await api('/api/eval', { agents: agents.join(','), all })))}>Start {plan.sessions} agent sessions</Button></Group>
+        </Stack>
+      ) : <Text>Every target is unchanged since its last result. Turn on all targets to run them again.</Text>)}
+      {job && <EvalJob job={job.job} total={job.total} onDone={() => { setPlan(null); onDone(); }} />}
+      {job && <Group><Button variant="default" onClick={() => setJob(null)}>Plan more evals</Button></Group>}
+    </Section>
+  );
+}
+
 export function Evals({ params }) {
   const evals = useApi('/api/evals');
   const open = params.get('target');
@@ -363,8 +415,9 @@ export function Evals({ params }) {
               <EvalResults results={all.filter((r) => r.target === open)} />
             </Stack>
           ) : null} />
-        ) : <Text>No eval results yet. Running evals starts real agent sessions, so it stays in the CLI.</Text>;
+        ) : <Text>No eval results yet.</Text>;
       }}</Loading>
+      <RunEvals onDone={evals.reload} />
       <Cli>{`benchkeeper eval${open ? ` --target ${open}` : ''}\nbenchkeeper eval --all`}</Cli>
     </Stack>
   );

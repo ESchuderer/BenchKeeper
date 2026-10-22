@@ -229,6 +229,10 @@ test.describe('views', () => {
     const detail = page.getByRole('region', { name: 'Eval skill:designing-technical-uis' });
     await expect(detail.locator('.recharts-surface').first()).toBeVisible();
     await expect(detail.getByRole('table', { name: 'Eval runs' })).toContainText('25%');
+    const run = page.getByRole('region', { name: 'Run evals' });
+    await run.getByRole('button', { name: 'Plan evals' }).click();
+    await expect(run.getByRole('table', { name: 'Planned evals' })).toContainText('skill:workflow');
+    await expect(run.getByRole('button', { name: /^Start \d+ agent sessions$/ })).toBeVisible();
     await noAxe(page);
   });
 

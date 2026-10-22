@@ -151,6 +151,31 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.equal(status(() => routes['GET /api/job'](new URLSearchParams({ id: 'nope' }))), 404);
 });
 
+test('evals: the plan names targets and sessions; the job runs them and stores results; CI refuses', async () => {
+  const ci = process.env.CI;
+  delete process.env.CI;
+  try {
+    const { routes } = fixture();
+    const plan = routes['GET /api/eval-plan'](new URLSearchParams('agents=claude'));
+    assert.deepEqual(plan.targets.map((t) => t.target).sort(), ['skill:designing-technical-uis', 'skill:workflow']);
+    assert.equal(plan.sessions, plan.targets.reduce((n, t) => n + t.cases, 0));
+    const { job, total } = routes['POST /api/eval']({ agents: 'claude' });
+    assert.equal(total, plan.sessions);
+    let s;
+    for (let i = 0; i < 50 && !(s = routes['GET /api/job'](new URLSearchParams({ id: job }))).done; i++) await new Promise((r) => setTimeout(r, 10));
+    assert.equal(s.error, null);
+    assert.deepEqual(s.results.map((r) => r.target).sort(), ['skill:designing-technical-uis', 'skill:workflow']);
+    assert.ok(s.results.every((r) => !('details' in r)));
+    assert.equal(routes['GET /api/evals']().length, 2);
+    assert.equal(routes['GET /api/eval-plan'](new URLSearchParams('agents=claude')).sessions, 0);
+    assert.equal(status(() => routes['POST /api/eval']({ agents: 'claude' })), 400);
+    process.env.CI = '1';
+    assert.equal(status(() => routes['GET /api/eval-plan'](new URLSearchParams())), 400);
+  } finally {
+    if (ci === undefined) delete process.env.CI; else process.env.CI = ci;
+  }
+});
+
 test('a session cookie of other bytes but the same length in characters is refused, not thrown', () => {
   const session = 'a'.repeat(43);
   const req = { method: 'GET', headers: { host: '127.0.0.1:9', cookie: `bk_session=${'\u00e9'.repeat(43)}` } };

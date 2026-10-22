@@ -10,6 +10,7 @@ import { extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { agent, detect } from './agents.mjs';
 import { userEvals } from './cases.mjs';
+import { evalPlan, runEval } from './eval.mjs';
 import { contentDir, appVersion } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { diffLines } from './diff.mjs';
@@ -76,8 +77,23 @@ function setupAnswers(src) {
 
 export function api(ctx) {
   const plans = new Map(), jobs = new Map();
-  // Changes wait while an apply runs: an undo or Update all in between would edit files and runs it still writes.
-  const idle = () => { if ([...jobs.values()].some((j) => !j.done)) throw Object.assign(new Error('an apply is still running: wait for it to finish'), { status: 409 }); };
+  // Changes wait while a job runs: an undo or Update all in between would edit files and runs an apply still writes.
+  const idle = () => { if ([...jobs.values()].some((j) => !j.done)) throw Object.assign(new Error('an apply or eval is still running: wait for it to finish'), { status: 409 }); };
+  // A job runs work(job) in the background; the newest 20 finished jobs are kept.
+  const start = (total, work) => {
+    const job = { id: randomBytes(8).toString('hex'), total, run: null, output: {}, done: false };
+    jobs.set(job.id, job);
+    for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
+    work(job).catch((e) => { job.error = e.message; }).finally(() => { job.done = true; });
+    return { job: job.id, total };
+  };
+  const evalPlanFor = (src) => {
+    if (process.env.CI) throw bad('evals start agent sessions on a subscription and do not run in CI');
+    const get = (k) => (src instanceof URLSearchParams ? src.get(k) : src[k]);
+    const agents = String(get('agents') ?? 'claude').split(',').filter((a) => ['claude', 'codex'].includes(a));
+    const only = src instanceof URLSearchParams ? src.getAll('target') : [src.targets ?? []].flat().filter((t) => typeof t === 'string');
+    return evalPlan(ctx, { agents: agents.length ? agents : ['claude'], all: get('all') === '1' || get('all') === true, only: only.length ? only : undefined });
+  };
   const keep = (changes, pctx, scope) => { const id = randomBytes(8).toString('hex'); plans.set(id, { changes, ctx: pctx, scope }); return id; };
   const agentsNow = () => detect(ctx);
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
@@ -90,27 +106,33 @@ export function api(ctx) {
       const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack') } }));
       return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
     },
-    // Starts the apply and answers at once; GET /api/job shows each change as it runs. One apply at a time.
+    // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.
     'POST /api/apply': (b) => {
       idle();
       const p = plans.get(b.planId);
       if (!p) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       plans.delete(b.planId);
-      const job = { id: randomBytes(8).toString('hex'), total: b.select?.length ?? p.changes.filter((c) => c.selected).length, run: null, output: {}, done: false };
-      jobs.set(job.id, job);
-      // Finished jobs beyond the newest 20 are dropped.
-      for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
       // Output is kept per change, its last 8 kB.
-      applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select }, (e) => {
+      return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select }, (e) => {
         if (e.run) job.run = e.run;
         if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
-      }).then((run) => { job.run = run; }, (e) => { job.error = e.message; }).finally(() => { job.done = true; });
-      return { job: job.id, total: job.total };
+      }).then((run) => { job.run = run; }));
     },
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
-      return { total: job.total, done: job.done, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] } };
+      return { total: job.total, done: job.done, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null };
+    },
+    // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.
+    'GET /api/eval-plan': (q) => {
+      const plan = evalPlanFor(q);
+      return { targets: plan.map((p) => ({ target: p.target, agent: p.agent, cases: p.cases.length })), sessions: plan.reduce((n, p) => n + p.cases.length, 0) };
+    },
+    'POST /api/eval': (b) => {
+      idle();
+      const plan = evalPlanFor(b);
+      if (!plan.length) throw bad('every target is unchanged since its last result');
+      return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; } }).then((r) => { job.results = r.map(({ details, ...x }) => x); }));
     },
     'GET /api/projects': () => listProjects(ctx).map((p) => { const s = status(ctx, p.path); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(p.path)) }; }),
     'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),

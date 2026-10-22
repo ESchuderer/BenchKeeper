@@ -64,12 +64,12 @@ function stubAgent(calls) {
   };
 }
 
-test('benchkeeper eval: rates per target, results stored, unchanged targets skipped, new cases rerun', () => {
+test('benchkeeper eval: rates per target, results stored, unchanged targets skipped, new cases rerun', async () => {
   const calls = [];
   const ctx = machine(stubAgent(calls));
   const plan = evalPlan(ctx, { model: 'sonnet' });
   assert.deepEqual(plan.map((p) => p.target).sort(), ['skill:designing-technical-uis', 'skill:workflow']);
-  const res = runEval(ctx, plan);
+  const res = await runEval(ctx, plan);
   const ui = res.find((r) => r.target === 'skill:designing-technical-uis');
   assert.deepEqual([ui.agentVersion, ui.model, ui.cases], ['9.9.9 (Claude Code)', 'sonnet', 12]);
   assert.equal(ui.missRate, 4 / 6);

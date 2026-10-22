@@ -54,8 +54,12 @@ export function evalPlan(ctx, { agents = ['claude'], model, all = false, only } 
 }
 
 // Each case runs in a fresh scratch repository holding the project skill under test; plugin skills come from the agent's global setup.
-export function runEval(ctx, plan, { now = () => new Date().toISOString() } = {}) {
+// Sessions run through ctx.runAsync when there is one, so a server stays responsive; onCase gets each case before it starts.
+export async function runEval(ctx, plan, { now = () => new Date().toISOString(), onCase = () => {} } = {}) {
   const out = [];
+  const session = ctx.runAsync ?? ctx.run;
+  const total = plan.reduce((n, p) => n + p.cases.length, 0);
+  let n = 0;
   for (const p of plan) {
     const a = AGENTS[p.agent];
     const [kind, name] = p.target.split(':');
@@ -69,7 +73,8 @@ export function runEval(ctx, plan, { now = () => new Date().toISOString() } = {}
         writeFileSync(join(dir, 'README.md'), '# Scratch project\n');
         const lib = join(contentDir, 'library', name);
         if (kind === 'skill' && exists(lib)) cpSync(lib, join(dir, a.skills, name), { recursive: true });
-        const r = ctx.run(a.argv(c.query, p.model), { cwd: dir });
+        onCase({ index: n++, total, target: p.target, agent: p.agent, case: c.id });
+        const r = await session(a.argv(c.query, p.model), { cwd: dir });
         if (kind === 'skill') details.push({ id: c.id, should: c.should, triggered: triggered(r.stdout, name), exit: r.code });
         else {
           mkdirSync(keep, { recursive: true });

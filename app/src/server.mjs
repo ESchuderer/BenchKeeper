@@ -20,6 +20,7 @@ import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, isDir, readText } from './fsx.mjs';
 import { blob } from './git.mjs';
 import { inventory } from './inventory.mjs';
+import { rehearsable, rehearse } from './prerun.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
@@ -87,7 +88,7 @@ function committed(ctx, run, e) {
 
 // Changes without their edit functions, with the item state the Dashboard groups by.
 function serialize(changes, ctx) {
-  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
+  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
 }
 
 // First-setup answers from a query or a request body: only these keys, as strings and string lists.
@@ -157,6 +158,21 @@ export function api(ctx) {
         if (e.run) job.run = e.run;
         if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
       }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
+    },
+    // Each skills CLI command of a plan, rehearsed in a scratch folder: the files it would write, per change id.
+    'POST /api/prerun': (b) => {
+      const p = plans.get(b.planId);
+      if (!p) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
+      const list = p.changes.filter(rehearsable);
+      if (!list.length) return { job: null, total: 0 };
+      return start(list.length, async (job) => {
+        job.results = {};
+        for (const c of list) {
+          if (job.ctl.signal.aborted) break;
+          job.progress = { title: c.title };
+          job.results[c.id] = await rehearse(p.ctx, c, { signal: job.ctl.signal });
+        }
+      }, { kind: 'prerun', title: 'skill install preview', readOnly: true });
     },
     // An apply stops after the change that runs (a half-done install is worse); evals and suggestions stop their session.
     'POST /api/job-cancel': (b) => {

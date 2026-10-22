@@ -2,8 +2,8 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Mod
 import { IconBulb, IconPlayerPlay } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { CancelJob, useJob } from './parts.jsx';
-import { DiffView, RunPanel } from './run.jsx';
+import { CancelJob, ChangeList, useJob, usePrerun } from './parts.jsx';
+import { RunPanel } from './run.jsx';
 import { Loading, Note, icon, useApi } from './shell.jsx';
 
 const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
@@ -70,6 +70,9 @@ export function AdviceJob({ job, name, onDone }) {
 
 // One project's setup, step by step: agents, where commands run, packs and skills, tier, review, then a branch
 // with one commit (and a pull request when origin is on GitHub), as Update all makes them.
+// A plan shown for review only, its skill installs rehearsed.
+const Rehearsed = ({ plan }) => <ChangeList plan={plan} prerun={usePrerun(plan)} />;
+
 function SetupSteps({ dir, push, onFinish }) {
   const setup = useApi(`/api/project-setup?dir=${encodeURIComponent(dir)}`);
   const [a, setA] = useState(null);
@@ -156,12 +159,7 @@ function SetupSteps({ dir, push, onFinish }) {
               <Stack gap="sm">
                 {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
                 <Text size="sm">{p.changes.length} changes on branch <Code>chore/agent-setup</Code>, nothing in your working tree.</Text>
-                {p.changes.map((c) => (
-                  <Stack key={c.id} gap={4}>
-                    <Text size="sm" fw={600}>{c.title}</Text>
-                    {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null}
-                  </Stack>
-                ))}
+                <Rehearsed plan={p} />
                 {!!p.prompts.length && (
                   <Stack gap={4}>
                     <Text size="sm" fw={600}>After merging, start in the project</Text>

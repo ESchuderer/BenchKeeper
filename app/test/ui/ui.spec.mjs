@@ -261,6 +261,32 @@ test.describe('views', () => {
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
   });
 
+  // After History, whose tests expect the fixture's first global run newest; before Agents, which installs the global skill.
+  test('Dashboard: Fix everything walks through global setup, projects and manual fixes, then applies', async ({ page }) => {
+    await page.getByRole('button', { name: 'Fix everything' }).click();
+    const fix = page.getByRole('dialog', { name: 'Fix everything' });
+    await expect(fix.getByRole('checkbox', { name: /^global skill find-skills/ })).toBeChecked();
+    // The global skill install was rehearsed in a scratch folder: its file shows as a diff before anything runs.
+    await expect(fix.getByRole('group', { name: /^Diff of .*\.claude\/skills\/find-skills\/SKILL\.md$/ })).toBeVisible();
+    await noAxe(page);
+    await fix.getByRole('button', { name: 'Next' }).click();
+    // Update all skips a project with uncommitted changes, so it is not offered.
+    const proj = fix.getByRole('checkbox', { name: 'bk-ui-proj' });
+    await expect(proj).toBeDisabled();
+    await expect(fix).toContainText('skipped: uncommitted changes');
+    await noAxe(page);
+    await fix.getByRole('button', { name: 'Next' }).click();
+    await expect(fix.getByRole('table', { name: 'Doctor findings' }).or(fix.getByText('No problems found.'))).toBeVisible();
+    await fix.getByRole('button', { name: 'Next' }).click();
+    await expect(fix.getByRole('list', { name: 'What Apply does' })).toContainText(/Global setup: \d+ of \d+ changes/);
+    await expect(fix.getByRole('list', { name: 'What Apply does' })).toContainText('Projects: none');
+    await noAxe(page);
+    await fix.getByRole('button', { name: 'Apply', exact: true }).click();
+    await expect(fix.getByRole('status').filter({ hasText: /^Run / })).toContainText(/done|failed/);
+    await expect(fix.getByRole('button', { name: 'Close' })).toBeEnabled();
+    await noAxe(page);
+  });
+
   test('an apply in Agents shows up in History and the header without a reload', async ({ page }) => {
     await nav(page, 'History').click();
     const runs = page.getByRole('navigation', { name: 'Runs' }).getByRole('link');
@@ -318,4 +344,5 @@ test.describe('views', () => {
     await expect(page.getByRole('region', { name: 'Global changes' })).toBeVisible();
     await noAxe(page);
   });
+
 });

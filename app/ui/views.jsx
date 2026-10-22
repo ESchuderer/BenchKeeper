@@ -1,10 +1,11 @@
 import { BarChart, LineChart } from '@mantine/charts';
 import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, NavLink, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
-import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTool, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { CancelJob, Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
+import { DoctorTable, FixEverything, UpdateResults, updateProjects } from './fix.jsx';
 import { ProjectSetup } from './setup.jsx';
 import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
 
@@ -85,38 +86,7 @@ function Flow({ nodes }) {
   );
 }
 
-// Doctor findings the setup can fix open the plan that fixes them; the others keep their fix text only.
-function fixAction(i) {
-  if (i.check === 'unexpected') return [href('agents', { plan: '1' }), 'Review removal'];
-  if (['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'global'].includes(i.check) && i.fix.startsWith('benchkeeper apply')) return [href('agents', { plan: '1' }), 'Plan fix'];
-  if (i.check === 'project') return [href('projects', i.dir ? { path: i.dir } : {}), 'Plan project'];
-  return null;
-}
-
-export function DoctorTable({ found }) {
-  if (!found.length) return <Text>No problems found.</Text>;
-  return (
-    <Table.ScrollContainer minWidth={560}>
-      <Table aria-label="Doctor findings">
-        <Table.Thead><Table.Tr><Table.Th w={110}>Level</Table.Th><Table.Th>Problem</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>
-          {found.map((i, n) => {
-            const action = fixAction(i);
-            return (
-              <Table.Tr key={n}>
-                <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.level}</Badge></Table.Td>
-                <Table.Td>{i.message}</Table.Td>
-                <Table.Td><Stack gap={4} align="flex-start">{!(action && i.fix.startsWith('benchkeeper ')) && <Text size="sm">{i.fix}</Text>}{action && <Button component="a" href={action[0]} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>}</Stack></Table.Td>
-              </Table.Tr>
-            );
-          })}
-        </Table.Tbody>
-      </Table>
-    </Table.ScrollContainer>
-  );
-}
-
-export function Dashboard({ overview, doctor, history, params }) {
+export function Dashboard({ overview, doctor, history, params, refresh }) {
   const inv = useApi('/api/inventory');
   const panel = params.get('panel');
   useEffect(() => { if (panel) document.getElementById(panel)?.scrollIntoView(); }, [panel, doctor.data]);
@@ -133,6 +103,10 @@ export function Dashboard({ overview, doctor, history, params }) {
   ];
   return (
     <Stack gap="xl">
+      <Group justify="space-between" align="flex-start">
+        <Text size="sm" maw={560}>Fix everything walks through the global setup, the projects that are behind and what is left to do by hand, then applies what you checked.</Text>
+        <FixEverything version={o?.version} doctor={doctor} onClose={() => { refresh(); inv.reload(); }} />
+      </Group>
       <Section title="Setup flow"><Flow nodes={nodes} /></Section>
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, md: 4 }}>
@@ -604,19 +578,7 @@ export function Projects({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  // One request per project, so the server's synchronous apply stays as it is and each row reports on its own.
-  const updateAll = act('update', async () => {
-    const rows = projects.data.map((p) => ({ path: p.path, status: 'pending' }));
-    setProgress([...rows]);
-    for (const [i, row] of rows.entries()) {
-      rows[i] = { ...row, status: 'running' };
-      setProgress([...rows]);
-      try { rows[i] = (await api('/api/update-all', { paths: [row.path], push }))[0] ?? { path: row.path, status: 'stopped', reason: 'no longer registered' }; } catch (e) { rows[i] = { path: row.path, status: 'stopped', reason: e.message }; }
-      setProgress([...rows]);
-    }
-    reload();
-  });
-  const done = progress?.filter((r) => !['pending', 'running'].includes(r.status)).length ?? 0;
+  const updateAll = act('update', async () => { await updateProjects(projects.data.map((p) => p.path), push, setProgress); reload(); });
   return (
     <Stack gap="lg">
       <form onSubmit={(e) => { e.preventDefault(); act('add', async () => { await add(path); setPath(''); reload(); })(); }}>
@@ -668,23 +630,7 @@ export function Projects({ params, overview, refresh }) {
           <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!projects.data?.length} onClick={updateAll}>Update all</Button>
           <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths({ paths: fresh })}>Set up {fresh.length} new projects</Button>
         </Group>
-        {progress && (
-          <>
-            <Progress.Root size="lg"><Progress.Section value={(done / progress.length) * 100} aria-label={`Update all: ${done} of ${progress.length} projects`} /></Progress.Root>
-            <Table aria-label="Update all results">
-              <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Result</Table.Th></Table.Tr></Table.Thead>
-              <Table.Tbody>{progress.map((r) => (
-                <Table.Tr key={r.path}>
-                  <Table.Td><Code>{r.path}</Code></Table.Td>
-                  <Table.Td>
-                    {r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}{r.run && <> <Anchor href={href('history', { run: r.run })}>Open report</Anchor></>}
-                    {fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>}
-                  </Table.Td>
-                </Table.Tr>
-              ))}</Table.Tbody>
-            </Table>
-          </>
-        )}
+        {progress && <UpdateResults progress={progress} extra={(r) => fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>} />}
       </Section>
       {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
       <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>

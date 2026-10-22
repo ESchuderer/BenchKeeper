@@ -1,12 +1,12 @@
 // Playwright's web server: the UI server with a fixture home and stubbed agent commands, never the real machine.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { addProject } from '../../src/projects.mjs';
 import { apply, context, preview } from '../../src/runner.mjs';
 import { startServer } from '../../src/server.mjs';
-import { globalPlan } from '../../src/steps/global.mjs';
+import { SKILLS_SPEC, globalPlan } from '../../src/steps/global.mjs';
 import { projectPlan } from '../../src/steps/project.mjs';
 
 export const PORT = 4410;
@@ -21,6 +21,14 @@ writeFileSync(join(parent, 'other/AGENTS.md'), '# Other\n');
 for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', join(parent, 'other'), ...a]);
 const run = (argv, o = {}) => {
   if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }
+  // The skills CLI adds a skill folder with one file: in a rehearsal's scratch home, else in the fixture home, never the real one.
+  if (argv[0] === 'npx' && argv[2] === SKILLS_SPEC) {
+    const name = argv.includes('-s') ? argv[argv.indexOf('-s') + 1] : argv[4];
+    const base = argv.includes('-g') ? (o.env?.HOME?.includes('bk-prerun-') ? o.env.HOME : home) : o.cwd;
+    const at = join(base, '.claude/skills', name);
+    if (argv[3] === 'add') { mkdirSync(at, { recursive: true }); writeFileSync(join(at, 'SKILL.md'), `---\nname: ${name}\n---\n`); } else rmSync(at, { recursive: true, force: true });
+    return { code: 0, stdout: '', stderr: '' };
+  }
   if (argv[0] === 'zenity') return { code: 0, stdout: `${parent}\n`, stderr: '' };
   if (argv[0] === 'claude' && argv[1] === '--version') return { code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' };
   // Setup advice: a restricted read-only session answers with one library skill.

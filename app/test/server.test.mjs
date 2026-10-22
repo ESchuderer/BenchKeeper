@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
-import { globalPlan } from '../src/steps/global.mjs';
+import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
 
 let srv, port, cookie, key;
@@ -130,6 +130,25 @@ test('inventory: an edited rules file is modified, enabled plugins current, a mi
   assert.deepEqual(state('plugin:claude:benchkeeper@benchkeeper'), ['current']);
   assert.deepEqual(state('tools:devcontainer'), ['missing']);
   assert.ok(items.every((i) => i.agent === (i.step.split(':')[1] === 'claude' ? 'claude' : 'machine')));
+});
+
+test('prerun: the global skill install is rehearsed in a job, its file diff per change id; the real home stays as it is', async () => {
+  const { ctx, routes } = fixture((argv, o) => {
+    if (argv[2] !== SKILLS_SPEC) return null;
+    mkdirSync(join(o.env.HOME, '.claude/skills/find-skills'), { recursive: true });
+    writeFileSync(join(o.env.HOME, '.claude/skills/find-skills/SKILL.md'), '# find-skills\n');
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const skill = plan.changes.find((c) => c.step === 'tools:skill:find-skills');
+  assert.equal(skill.prerun, true);
+  assert.ok(plan.changes.filter((c) => c.kind === 'write').every((c) => c.prerun === false));
+  const { job, total } = routes['POST /api/prerun']({ planId: plan.planId });
+  assert.equal(total, 1);
+  const s = await finished(routes, job);
+  assert.deepEqual(s.results[skill.id].files.map((f) => f.path), [join(ctx.home, '.claude/skills/find-skills/SKILL.md')]);
+  assert.ok(!existsSync(join(ctx.home, '.claude/skills/find-skills')));
+  assert.equal(status(() => routes['POST /api/prerun']({ planId: 'gone' })), 409);
 });
 
 test('apply: answers at once with a job; the job shows the running command and its output, then the run; one at a time', async () => {

@@ -287,6 +287,8 @@ test.describe('views', () => {
     await expect(targets.getByRole('link')).toHaveText(['skill:designing-technical-uis', 'skill:workflow', 'rule:global']);
     await expect(targets.getByRole('row').last()).toContainText('rule:global6--');
     await expect(page.getByRole('region', { name: 'Latest rates per target' }).locator('.recharts-surface')).toBeVisible();
+    // The legend follows the series order, as the table does.
+    await expect(page.getByRole('region', { name: 'Latest rates per target' }).locator('.recharts-legend-wrapper')).toHaveText(/^Miss\s*False trigger$/);
     await noAxe(page);
     await targets.getByRole('link', { name: 'skill:designing-technical-uis' }).click();
     const detail = page.getByRole('region', { name: 'Eval skill:designing-technical-uis' });

@@ -299,6 +299,8 @@ const pct = (v) => (v == null ? null : Math.round(v * 100));
 const rate = (v) => (v == null ? '-' : `${pct(v)}%`);
 const seriesOf = (r) => `${r.agent}${r.model ? ` ${r.model}` : ''}`;
 // One color per measure everywhere; the shades per scheme are set in App.jsx.
+// Recharts sorts legend items by name unless told not to; they follow this order, as the tables and tooltips do.
+const LEGEND = { itemSorter: null };
 const MEASURES = [{ name: 'Miss', key: 'missRate', color: 'var(--bk-miss)' }, { name: 'False trigger', key: 'falseTriggerRate', color: 'var(--bk-false-trigger)', strokeDasharray: '5 5' }];
 
 // The latest result per target, worst first: the higher of its two rates, then the name.
@@ -328,7 +330,7 @@ function TargetRates({ latest }) {
     <Section title="Latest rates per target">
       <Text size="sm">Miss: the skill did not load where it should. False trigger: it loaded where it should not. One case of about 6 per side moves a rate by about 17 points.</Text>
       <BarChart h={70 + data.length * 64} data={data} dataKey="target" orientation="vertical" series={MEASURES.map(({ name, color }) => ({ name, color }))}
-        xAxisProps={{ domain: [0, 100], tickFormatter: (v) => `${v}%` }} yAxisProps={{ width: 150 }} withLegend withBarValueLabel valueFormatter={(v) => (v == null ? '' : `${v}%`)}
+        xAxisProps={{ domain: [0, 100], tickFormatter: (v) => `${v}%` }} yAxisProps={{ width: 150 }} withLegend legendProps={LEGEND} withBarValueLabel valueFormatter={(v) => (v == null ? '' : `${v}%`)}
         barProps={{ radius: [0, 4, 4, 0] }} tooltipProps={{ content: RatesTip }} aria-label="Latest miss and false-trigger rate per target" />
     </Section>
   );
@@ -339,7 +341,7 @@ function EvalResults({ results }) {
   const data = results.map((r) => ({ time: when(r.time), ...Object.fromEntries(MEASURES.map((m) => [m.name, pct(r[m.key])])) }));
   return (
     <Stack gap="sm">
-      <LineChart h={240} data={data} dataKey="time" series={MEASURES.map(({ key, ...m }) => m)} unit="%" yAxisProps={{ domain: [0, 100] }} withLegend connectNulls />
+      <LineChart h={240} data={data} dataKey="time" series={MEASURES.map(({ key, ...m }) => m)} unit="%" yAxisProps={{ domain: [0, 100] }} withLegend legendProps={LEGEND} connectNulls />
       <Table.ScrollContainer minWidth={560}>
         <Table aria-label="Eval runs">
           <Table.Thead><Table.Tr><Table.Th>Time</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Model</Table.Th><Table.Th>App</Table.Th><Table.Th>Cases</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
@@ -640,8 +642,8 @@ export function Projects({ params, overview, refresh }) {
       )}
       <Loading state={projects} label="projects">{(list) => (list.length ? (
         <SplitView empty="Choose a project for its plan, skills and doctor findings." list={
-          <Table.ScrollContainer minWidth={460}>
-          <Table aria-label="Projects">
+          <Table.ScrollContainer minWidth={420}>
+          <Table aria-label="Projects" horizontalSpacing="xs">
             <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Changes</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>
               {list.map((p) => (

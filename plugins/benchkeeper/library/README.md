@@ -4,7 +4,7 @@ Skills that `setting-up-projects` installs into a project, never globally. It pr
 
 Install, from the project root, for the selected agents only:
 - Own skill (folder next to this file): copy it to `.agents/skills/<name>/` (Codex) and `.claude/skills/<name>/` (Claude Code). With both agents selected, the Claude Code copy is a link to the Codex copy. Codex ignores the `paths` key.
-- Community skill: `DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/<source>/tree/<ref> -s <skill> <agent-flags> --copy -y`, with `ref` from `library.json`. The project's `skills-lock.json` records the ref and pins the content.
+- Community skill: `DO_NOT_TRACK=1 npx -y skills@npm:skills@1.7.2 add https://github.com/<source>/tree/<ref> -s <skill> <agent-flags> --copy -y`, with `ref` from `library.json` (the `npm:` alias runs the registry package, never a `skills` in the project's `node_modules`). The project's `skills-lock.json` records the ref and pins the content.
 
 <!-- generated:catalog -->
 ## Own

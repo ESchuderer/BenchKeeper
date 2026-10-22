@@ -13,8 +13,17 @@ import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Settings
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
-const theme = createTheme({ primaryColor: 'teal', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md',
-  components: { Checkbox: described, Radio: described, Switch: described, InputWrapper: described } });
+const theme = createTheme({
+  primaryColor: 'teal', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md',
+  fontFamily: "'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
+  fontFamilyMonospace: "ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
+  headings: {
+    fontWeight: '650',
+    sizes: { h1: { fontSize: '1.375rem', lineHeight: '1.3' }, h2: { fontSize: '1.25rem', lineHeight: '1.35' }, h3: { fontSize: '1.0625rem', lineHeight: '1.4' },
+      h4: { fontSize: '1rem', lineHeight: '1.45' }, h5: { fontSize: '0.9375rem', lineHeight: '1.5' }, h6: { fontSize: '0.75rem', lineHeight: '1.5' } },
+  },
+  components: { Checkbox: described, Radio: described, Switch: described, InputWrapper: described, Paper: { defaultProps: { shadow: 'xs' } } },
+});
 // Chart colors per scheme, checked with the dataviz palette validator: shade 9 is too dark on the dark surface.
 const chartColors = (t) => ({ variables: {}, light: { '--bk-miss': t.colors.teal[9], '--bk-false-trigger': t.colors.indigo[9] }, dark: { '--bk-miss': t.colors.teal[7], '--bk-false-trigger': t.colors.indigo[6] } });
 // Dashboard and Projects first: the views used most.

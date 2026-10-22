@@ -435,7 +435,7 @@ const isFile = (f) => { try { return statSync(f).isFile(); } catch { return fals
 
 // Windows: start takes a quoted first argument as the window title, and Node would escape the quotes of an empty one,
 // so cmd gets the arguments as written; the target is a temporary file path or a URL without quotes.
-function launch(target) {
+export function launch(target) {
   const win = process.platform === 'win32';
   const argv = process.platform === 'darwin' ? ['open', target] : win ? ['cmd', '/c', 'start', '""', `"${target}"`] : ['xdg-open', target];
   try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true, windowsVerbatimArguments: win }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }

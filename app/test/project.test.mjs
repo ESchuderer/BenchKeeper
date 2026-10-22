@@ -183,6 +183,12 @@ test('hand-written text on where the agent runs: it sets the default environment
   assert.deepEqual([warned('container'), warned('host-agent')], [false, true]);
   writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nThe agent runs in a sandbox (microVM).\n');
   assert.equal(suggest(r.dir).env.id, 'sandbox');
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nThe agent runs in a Docker Sandboxes microVM.\n');
+  assert.equal(suggest(r.dir).env.id, 'sandbox');
+  // On the host with no word of the dev container: commands run on the host too, whatever folders exist.
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nThe agent and the tests run on the host.\n');
+  assert.equal(suggest(r.dir).env.id, 'host');
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nThe agent runs in a sandbox (microVM).\n');
   assert.deepEqual([warned('sandbox'), warned('container'), warned('host-agent')], [false, true, true]);
   // Commands on the host, with no word on where the agent runs: nothing to compare.
   writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nRun `scripts/check.sh` on the host.\n');

@@ -12,7 +12,7 @@ import { addCase } from './cases.mjs';
 import { doctor } from './doctor.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
-import { openBrowser, startServer } from './server.mjs';
+import { launch, openBrowser, startServer } from './server.mjs';
 import { writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
@@ -215,7 +215,8 @@ async function command(argv, { out, ask, ctx }) {
     const file = join(ctx.config, 'board.html');
     writeAtomic(file, boardHtml(rows), 0o600);
     out.write(`${rows.length} sessions: ${file}\n`);
-    if (!o['no-open']) openBrowser(pathToFileURL(file).href);
+    // A file URL carries no token: opened directly, as the CLI exits before a redirect file would be read.
+    if (!o['no-open']) launch(pathToFileURL(file).href);
     return 0;
   }
   if (cmd === 'record') {

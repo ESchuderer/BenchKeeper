@@ -744,7 +744,7 @@ export function Sessions() {
   const [error, setError] = useState(null);
   const [src, setSrc] = useState(null);
   const theme = useRef(scheme);
-  theme.current = scheme;
+  useEffect(() => { theme.current = scheme; }, [scheme]);
   // Each frame load takes a one-time ticket (the frame cannot send the API key), also after a theme change.
   const show = async () => {
     try { const { ticket } = await api('/api/board-ticket', {}); setSrc(`/board?theme=${theme.current}&ticket=${ticket}`); setShown((n) => n + 1); } catch (e) { setError(e.message); }

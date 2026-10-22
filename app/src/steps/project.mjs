@@ -51,8 +51,10 @@ export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = 
 }
 
 // Where hand-written AGENTS.md text (outside the BenchKeeper block) says the agent runs: host, sandbox, container or null.
-const AGENT_RUNS = /\bagents?\b[^.\n]{0,40}\bruns? (on the host|(?:inside|in) (?:the|a) (dev ?container|sandbox|microVM))/i;
-const agentPlace = (text) => { const m = text.match(AGENT_RUNS); return !m ? null : m[1].endsWith('host') ? 'host' : /dev ?container/i.test(m[2]) ? 'container' : 'sandbox'; };
+const AGENT_RUNS = /\bagents?\b[^.\n]{0,40}\bruns? (on the host|(?:inside|in) (?:the|a) (?:[\w-]+ ){0,2}(dev ?container|container|sandbox(?:es)?|microVM))/i;
+const agentPlace = (text) => { const m = text.match(AGENT_RUNS); return !m ? null : m[1].endsWith('host') ? 'host' : /container/i.test(m[2]) ? 'container' : 'sandbox'; };
+// The project's commands go through the dev container: the text names it (devcontainer exec, dev container).
+const COMMANDS_IN_CONTAINER = /devcontainer exec|dev ?container/i;
 const placeOf = (env) => (['host-agent', 'host'].includes(env) ? 'host' : env);
 const handWritten = (dir) => setBlock(readText(join(dir, 'AGENTS.md')) ?? '', 'project', null);
 
@@ -75,8 +77,9 @@ export function suggest(dir) {
     ['data', pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/) && `Python uses ${pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/)}`],
     ['operations', ['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has) && `${['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has)} in the repository`],
   ];
-  const place = agentPlace(handWritten(dir));
-  const env = !place ? null : { id: place === 'host' ? (has('.devcontainer') ? 'host-agent' : 'host') : place, reason: `AGENTS.md says the agent runs ${{ host: 'on the host', container: 'inside the dev container', sandbox: 'in a sandbox' }[place]}` };
+  const own = handWritten(dir);
+  const place = agentPlace(own);
+  const env = !place ? null : { id: place === 'host' ? (has('.devcontainer') && COMMANDS_IN_CONTAINER.test(own) ? 'host-agent' : 'host') : place, reason: `AGENTS.md says the agent runs ${{ host: 'on the host', container: 'inside the dev container', sandbox: 'in a sandbox' }[place]}` };
   return { packs: hints.filter(([, r]) => r).map(([id, reason]) => ({ id, reason })), devcontainer: has('.devcontainer'), env };
 }
 

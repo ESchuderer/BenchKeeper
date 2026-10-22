@@ -252,7 +252,7 @@ export function ProjectSetup({ paths, push, onClose, change = false }) {
     api('/api/setup-advice', { dir: p, agent: batch.agent }).then((r) => {
       if (stopped.current) api('/api/job-cancel', { id: r.job }).catch(() => {});
       else update(p, { job: r.job });
-    }, (e) => update(p, { status: 'failed', reason: e.message }));
+    }, (e) => { if (!stopped.current) update(p, { status: 'failed', reason: e.message }); });
   }, [batch]);
   const start = (agent, name) => { stopped.current = false; setAsk(false); setBatch({ agent, name, items: Object.fromEntries(paths.map((p) => [p, { status: 'waiting' }])) }); };
   const stopped = useRef(false);
@@ -300,7 +300,7 @@ export function ProjectSetup({ paths, push, onClose, change = false }) {
                 ))}
               </List>
               {Object.entries(batch.items).filter(([, x]) => x.status === 'running' && x.job).map(([p, x]) => (
-                <BatchJob key={x.job} job={x.job} onDone={(s) => update(p, s.error ? { status: s.error === 'cancelled' ? 'cancelled' : 'failed', reason: s.error === 'cancelled' ? undefined : s.error } : { status: 'ready', result: s.results })} />
+                <BatchJob key={x.job} job={x.job} onDone={(s) => update(p, stopped.current ? { status: 'cancelled' } : s.error ? { status: s.error === 'cancelled' ? 'cancelled' : 'failed', reason: s.error === 'cancelled' ? undefined : s.error } : { status: 'ready', result: s.results })} />
               ))}
             </Stack>
           )}

@@ -85,7 +85,7 @@ Setup scopes container mounts to the project: no host home, engine socket, privi
 
 ## Sessions board
 
-`benchkeeper board` writes `~/.config/benchkeeper/board.html` and opens it; the browser UI shows the same page under Sessions. Per Claude Code and Codex session on this machine: project, tier and change type (first and last tier line), the setup installed at the time (BenchKeeper version, Matt Pocock's skills, Ponytail, packs), the skills used, the last test run, pull request state, time, tokens and, for Claude Code, the API-equivalent cost its transcript records. Filters by project, agent, tier, setup and period; the charts have tables beside them. It reads the transcripts in `~/.claude/projects/` and `~/.codex/sessions/`, the app's run ledger and `gh pr view`, caches in `~/.cache/benchkeeper/`, and sends nothing.
+`benchkeeper board` writes `~/.config/benchkeeper/board.html` and opens it; the browser UI shows the same page under Sessions. Per Claude Code and Codex session on this machine: project, tier and change type (first and last tier line), the setup installed at the time (BenchKeeper version, Matt Pocock's skills, Ponytail, packs), the skills used, the last test run, pull request state, time, tokens and, for Claude Code, the API-equivalent cost its transcript records. Filters by project, agent, tier, setup and period; the charts have tables beside them. It reads the transcripts in `~/.claude/projects/` and `~/.codex/sessions/`, the app's run ledger and `gh pr view`, caches in `~/.cache/benchkeeper/`; only the `gh` requests leave the machine.
 
 ## Benchmarks
 

@@ -8,10 +8,12 @@ import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { doctor } from './doctor.mjs';
+import { writeAtomic } from './fsx.mjs';
+import { exportProfile, importChoices, importPlan, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
 import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
-import { globalPlan } from './steps/global.mjs';
+import { PLUGINS, globalPlan } from './steps/global.mjs';
 import { projectPlan } from './steps/project.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
@@ -23,6 +25,9 @@ Usage: benchkeeper <command> [options]
   apply [--agents a,b] [--pack p] [--yes] [--all]
                                     global setup: asks per change; --yes takes the default selection,
                                     --all also the removals
+  profile export [file] [--agents a,b]
+                                    agents, packs, own packs and registered projects with their answers as one file
+  profile import <file> [--yes]     shows the global and project changes, applies the chosen ones; missing paths are skipped
   doctor [dir] [--agents a,b]       setup problems with a fix each, nothing written; exit 1 on an error
   history                           runs, newest first
   undo <run> [--step <step>]        restores the files of a run or one of its steps
@@ -58,28 +63,28 @@ export function installedPlugins(ctx) {
   };
 }
 
-async function confirm(question, input, out) {
-  out.write(`${question} [y/N] `);
-  const rl = createInterface({ input, terminal: false });
-  const { value = '' } = await rl[Symbol.asyncIterator]().next();
-  rl.close();
-  return /^y$/i.test(value.trim());
+// One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
+// end early count as no.
+function asker(input, out) {
+  let rl, lines;
+  const ask = async (question) => {
+    out.write(`${question} [y/N] `);
+    rl ??= createInterface({ input, terminal: false });
+    lines ??= rl[Symbol.asyncIterator]();
+    const { value = '' } = await lines.next();
+    return /^y$/i.test(value.trim());
+  };
+  ask.close = () => rl?.close();
+  return ask;
 }
 
-async function choose(plan, o, input, out) {
+async function choose(plan, o, ask, out) {
   if (o.yes || o.all) return plan.filter((c) => !c.error && (o.all || c.selected)).map((c) => c.id);
-  // Lines, not rl.question: piped answers that end early count as no.
-  const rl = createInterface({ input, terminal: false });
-  const lines = rl[Symbol.asyncIterator]();
   const select = [];
   for (const c of plan) {
     show(c, out);
-    if (c.error) continue;
-    out.write('apply? [y/N] ');
-    const { value = '' } = await lines.next();
-    if (/^y$/i.test(value.trim())) select.push(c.id);
+    if (!c.error && (await ask('apply?'))) select.push(c.id);
   }
-  rl.close();
   return select;
 }
 
@@ -106,6 +111,11 @@ function show(c, out) {
 }
 
 export async function main(argv, { out = process.stdout, input = process.stdin, ctx = machineContext() } = {}) {
+  const ask = asker(input, out);
+  try { return await command(argv, { out, ask, ctx }); } finally { ask.close(); }
+}
+
+async function command(argv, { out, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   const [cmd = 'ui', arg] = positionals;
   if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
@@ -119,7 +129,7 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
       out.write(`${plan.length} changes. Apply: benchkeeper apply${o.agents ? ` --agents ${o.agents}` : ''}\n`);
       return 0;
     }
-    return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, input, out) }), out);
+    return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
   }
   if (cmd === 'project') {
     const dir = resolve(positionals[2] ?? '.');
@@ -133,7 +143,7 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
       plan.forEach((c) => show(c, out));
       out.write(`${plan.length} changes.\n`);
     } else if (arg === 'apply') {
-      const code = plan.length ? report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, input, out) }), out) : 0;
+      const code = plan.length ? report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out) : 0;
       if (code) return code;
     } else { out.write('project needs plan or apply\n'); return 2; }
     out.write('Then, in an agent session the app records:\n');
@@ -169,7 +179,7 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
     const ready = projects.filter((p) => p.repo && p.clean && p.changes?.length);
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
     const what = `${ready.length} projects: branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}`;
-    if (!o.yes && !(await confirm(`Update ${what}?`, input, out))) return 1;
+    if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
     const results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'] });
     for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
@@ -182,6 +192,29 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
     const e = run.entries[0];
     out.write(`session exit ${e.exit}, ${e.files.length} files changed${e.transcript ? `, transcript ${e.transcript}` : ''}\nrun ${run.id}: undo with benchkeeper undo ${run.id}\n`);
     return 0;
+  }
+  if (cmd === 'profile') {
+    if (arg === 'export') {
+      const installed = installedPlugins(ctx);
+      const packs = [...new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => p.pack && installed[a]?.includes(p.id)).map((p) => p.pack)))];
+      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs });
+      if (positionals[2]) { writeAtomic(resolve(positionals[2]), text); out.write(`wrote ${resolve(positionals[2])}\n`); } else out.write(text);
+      return 0;
+    }
+    if (arg !== 'import' || !positionals[2]) { out.write('profile needs export [file] or import <file>\n'); return 2; }
+    const p = readProfile(readFileSync(positionals[2], 'utf8'));
+    // Own packs first: the project plans can name them.
+    const done = importChoices(ctx, p);
+    out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
+    const plan = importPlan(ctx, p);
+    for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
+    let code = 0;
+    if (plan.global.length) code |= report(apply(plan.global, ctx, { scope: 'global', select: await choose(plan.global, o, ask, out) }), out);
+    for (const x of plan.projects.filter((y) => y.changes.length)) {
+      out.write(`project ${x.path}\n`);
+      code |= report(apply(x.changes, x.ctx, { scope: x.path, select: await choose(x.changes, o, ask, out) }), out);
+    }
+    return code;
   }
   if (cmd === 'doctor') {
     const found = doctor(ctx, { agents: selectedAgents(ctx, o.agents), dir: resolve(arg ?? '.') });

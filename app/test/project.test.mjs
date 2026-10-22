@@ -92,12 +92,12 @@ test('the state file records a community skill\'s commit only when its install r
 
 test('suggestions name the packs the files of a project point to, with the reason', () => {
   const r = repo();
-  assert.deepEqual(suggest(r.dir), { packs: [], devcontainer: false });
+  assert.deepEqual(suggest(r.dir), { packs: [], devcontainer: false, env: null });
   writeFileSync(join(r.dir, 'package.json'), JSON.stringify({ dependencies: { react: '19' }, devDependencies: { '@playwright/test': '1' } }));
   writeFileSync(join(r.dir, 'requirements.txt'), 'pandas==2\nnumpy\n');
   mkdirSync(join(r.dir, '.github/workflows'), { recursive: true });
   mkdirSync(join(r.dir, '.devcontainer'));
-  assert.deepEqual(suggest(r.dir), { devcontainer: true, packs: [
+  assert.deepEqual(suggest(r.dir), { devcontainer: true, env: null, packs: [
     { id: 'frontend', reason: 'package.json uses react' }, { id: 'testing', reason: 'package.json uses @playwright/test' },
     { id: 'security', reason: 'CI workflows in .github/workflows' }, { id: 'science', reason: 'Python uses numpy' }, { id: 'data', reason: 'Python uses pandas' }] });
   writeFileSync(join(r.dir, 'package.json'), '{broken');
@@ -169,12 +169,21 @@ test('a choice taken back cleans up: sandbox off, dropped agents lose their file
   assert.ok(!own.selected && own.title.includes('not turned on by BenchKeeper'));
 });
 
-test('hand-written instructions on where commands run get a warning', () => {
+test('hand-written text on where the agent runs: it sets the default environment, and only a contradiction warns', () => {
   const r = repo();
-  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nAgents run on the host; tests run in the dev container.\n');
-  assert.ok(plan(r, { agents: ['claude'], env: 'container' }).warnings.some((w) => w.includes('outside the BenchKeeper block')));
-  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nRun `devcontainer exec --workspace-folder . npm test`.\n');
-  assert.ok(!plan(r, { agents: ['claude'], env: 'container' }).warnings.some((w) => w.includes('outside the BenchKeeper block')));
+  const warned = (env) => plan(r, { agents: ['claude'], env }).warnings.some((w) => w.includes('outside the BenchKeeper block'));
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\n- Agents (Claude Code, Codex) run on the host; tests run in the dev container.\n- The gate runs on the host.\n');
+  assert.equal(suggest(r.dir).env.id, 'host');
+  mkdirSync(join(r.dir, '.devcontainer'));
+  assert.equal(suggest(r.dir).env.id, 'host-agent');
+  assert.equal(plan(r, { agents: ['claude'] }).answers.env, 'host-agent');
+  assert.deepEqual([warned('container'), warned('sandbox'), warned('host-agent'), warned('host')], [true, true, false, false]);
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nThe agent runs inside the dev container.\n');
+  assert.equal(suggest(r.dir).env.id, 'container');
+  assert.deepEqual([warned('container'), warned('host-agent')], [false, true]);
+  // Commands on the host, with no word on where the agent runs: nothing to compare.
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nRun `scripts/check.sh` on the host.\n');
+  assert.deepEqual([suggest(r.dir).env, warned('container')], [null, false]);
 });
 
 test('a recorded session lists its files; undo restores them, undo of the undo reapplies', () => {

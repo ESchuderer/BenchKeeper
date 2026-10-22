@@ -143,7 +143,7 @@ test.describe('views', () => {
 
   test('Catalog: search, then the detail panel with the skill text and its eval results', async ({ page }) => {
     await nav(page, 'Catalog').click();
-    await page.getByRole('textbox', { name: 'Search' }).fill('technical');
+    await page.getByRole('textbox', { name: 'Search' }).fill('technical-uis');
     await page.getByRole('table', { name: 'Skills' }).getByRole('link', { name: 'designing-technical-uis' }).click();
     const detail = page.getByRole('region', { name: 'Skill designing-technical-uis' });
     await expect(detail.getByText('# Designing technical UIs')).toBeVisible();
@@ -151,13 +151,14 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row')).toHaveCount(2);
   });
 
-  test('Catalog: the pack builder warns about overlapping descriptions and saves an own pack; export downloads it', async ({ page }) => {
+  test('Catalog: the pack builder finds no overlapping descriptions in the library and saves an own pack; export downloads it', async ({ page }) => {
     await nav(page, 'Catalog').click();
     const boxes = page.getByRole('table', { name: 'Skills' }).getByRole('checkbox');
     for (let i = 0; i < 6; i++) await boxes.nth(i).check();
     await page.getByRole('button', { name: 'Build pack (6)' }).click();
     const drawer = page.getByRole('dialog', { name: 'Build a pack' });
-    await expect(drawer.getByText('docx and pdf have overlapping descriptions')).toBeVisible();
+    await expect(drawer.getByLabel(/^Pack id/)).toBeVisible();
+    await expect(drawer.getByText(/overlapping descriptions/)).toHaveCount(0);
     await noAxe(page);
     await drawer.getByLabel(/^Pack id/).fill('my-pack');
     await drawer.getByRole('button', { name: 'Save pack' }).click();

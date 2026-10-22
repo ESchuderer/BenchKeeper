@@ -97,7 +97,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     // A project set up before starts from its state file, so only what the user changes is cleaned up.
     const st = setup.data.state;
     setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '' }
-      : { agents: setup.data.agents.map((x) => x.id), env: 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '' });
+      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '' });
   }, [setup.data]);
   const applyAdvice = (r, name, prefilled = false) => {
     setAdvice({ ...r, name, prefilled });
@@ -138,6 +138,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
               </Stack>
             </Radio.Group>
             {s.suggested.devcontainer && <Text size="sm" mt="xs">This project has a <Code>.devcontainer/</Code>.</Text>}
+            {s.suggested.env && <Text size="sm" mt="xs">Preselected {ENV_TITLE[s.suggested.env.id] ?? s.suggested.env.id}: {s.suggested.env.reason}.</Text>}
             <Switch mt="md" label="Claude Code sandbox for the agent's commands" checked={a.sandbox} onChange={(e) => set('sandbox')(e.currentTarget.checked)} />
           </Stepper.Step>
           <Stepper.Step label="Skills">

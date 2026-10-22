@@ -40,7 +40,7 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // paths: { skill: 'glob, glob' } }; missing answers come from the state file.
 export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
   if (!isEnv(a.env)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
@@ -51,6 +51,11 @@ export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = 
 }
 
 // Packs a project's files point to, each with its reason; the setup step offers them chosen.
+// Where hand-written AGENTS.md text (outside the BenchKeeper block) says the agent runs.
+const AGENT_ON_HOST = /\bagents?\b[^.\n]{0,40}\bruns? on the host\b/i;
+const AGENT_INSIDE = /\bagents?\b[^.\n]{0,40}\bruns? (inside|in) (the|a) (dev ?container|sandbox|microVM)/i;
+const handWritten = (dir) => setBlock(readText(join(dir, 'AGENTS.md')) ?? '', 'project', null);
+
 export function suggest(dir) {
   const has = (p) => exists(join(dir, p));
   let pkg = {};
@@ -68,7 +73,10 @@ export function suggest(dir) {
     ['data', pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/) && `Python uses ${pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/)}`],
     ['operations', ['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has) && `${['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has)} in the repository`],
   ];
-  return { packs: hints.filter(([, r]) => r).map(([id, reason]) => ({ id, reason })), devcontainer: has('.devcontainer') };
+  const own = handWritten(dir);
+  const env = AGENT_ON_HOST.test(own) ? { id: has('.devcontainer') ? 'host-agent' : 'host', reason: 'AGENTS.md says the agent runs on the host' }
+    : AGENT_INSIDE.test(own) ? { id: 'container', reason: 'AGENTS.md says the agent runs inside the container' } : null;
+  return { packs: hints.filter(([, r]) => r).map(([id, reason]) => ({ id, reason })), devcontainer: has('.devcontainer'), env };
 }
 
 // Skills a project gets: the chosen packs' skills plus single skills, minus those the catalog limits to other agents.
@@ -214,9 +222,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run) })) });
   add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), edit: (_, run) => `${JSON.stringify(state(run), null, 2)}\n` });
   const names = skills.map((s) => s.name);
-  // Where commands run, written by hand outside the block, may contradict the chosen environment; prose is not removed.
-  const outside = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);
-  const envWarning = /\b(on|from) the host\b|\bagents? runs? (inside |in )?(the|a) (dev ?container|sandbox|microVM)/i.test(outside) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
+  // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.
+  const outside = handWritten(dir);
+  const onHost = ['host-agent', 'host'].includes(a.env);
+  const envWarning = (onHost ? AGENT_INSIDE : AGENT_ON_HOST).test(outside) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
   return { changes, answers: a, prompts: promptsFor(a, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning] };
 }
 

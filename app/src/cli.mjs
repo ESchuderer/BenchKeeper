@@ -63,7 +63,7 @@ Usage: benchkeeper <command> [options]
                                     runs an agent session and records the files it changes (undo restores them)
 
 Agents: claude, codex, gemini, copilot (default: the installed ones). Packs: see plugins/benchkeeper/library/README.md.
-Env (where the agent runs): container (default), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
+Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
 
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },

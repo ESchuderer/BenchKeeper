@@ -91,7 +91,7 @@ Update or restore missing skills by reinstalling each selected skill from its re
 
 ## 5. Workflow setup and default tier (ask)
 
-The workflow itself (`benchkeeper:workflow`, Ponytail, optionally Matt Pocock's skills) is installed once per machine as plugins, by the user (README setup steps, `npx benchkeeper apply`). Ask whether this project uses Matt Pocock's skills. Not installed on the machine: say so and skip the rest of this list.
+The workflow itself (`benchkeeper:workflow`, Ponytail, optionally Matt Pocock's skills) is installed once per machine as plugins, by the user (README setup steps, `npx benchkeeper@6.0.0 apply`). Ask whether this project uses Matt Pocock's skills. Not installed on the machine: say so and skip the rest of this list.
 
 - A project copy of Matt Pocock's skills loads twice (step 6). Do not install a skill named `code-review` into `.claude/skills/`: it would replace Claude Code's `/code-review`.
 - Matt Pocock's repository setup: ask the user to run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$mattpocock-skills:setup-matt-pocock-skills`) once. It asks for the issue tracker and where docs go, and writes `docs/agents/` and its `## Agent skills` block. Afterwards fix its two gaps:

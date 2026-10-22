@@ -100,7 +100,7 @@ Ask for the default task tier of `benchkeeper:workflow`: none (the agent picks p
 
 ### State file
 
-`.benchkeeper/state.json` (committed) holds the answers, so a later run and the BenchKeeper app read the same: `schemaVersion` 1, `setupVersion` (the plugin `version`), `agents`, `env` (`container`, `host-agent`, `sandbox`, `host`), `sandbox` (true or false), `packs`, `tier`, `paths` (skill name to globs), `disabled`, `skills` (`name`, `source`, `ref`). When it exists, its answers are the defaults of every question above.
+`.benchkeeper/state.json` (committed) holds the answers, so a later run and the BenchKeeper app read the same: `schemaVersion` 1, `setupVersion` (the plugin `version`), `agents`, `env` (`container`, `host-agent`, `sandbox`, `host`), `sandbox` (true or false), `packs` (library or own pack ids), `singles` (skills chosen besides the packs'), `tier`, `paths` (skill name to globs), `disabled` (skills turned off, their folders kept in `.benchkeeper/disabled/`), `skills` (`name`, `source`, `ref`). When it exists, its answers are the defaults of every question above.
 
 ## 6. Other configuration (ask)
 

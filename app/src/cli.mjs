@@ -1,11 +1,13 @@
 // Command line: every UI action is also a command here.
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
+import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
 import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { globalPlan } from './steps/global.mjs';
@@ -24,7 +26,11 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
-                                    project setup; answers default to the project's .benchkeeper/state.json
+                    [--disable s] [--enable s]
+                                    project setup; answers default to the project's .benchkeeper/state.json;
+                                    --disable moves a skill to .benchkeeper/disabled/, --enable moves it back
+  packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
+                                    library packs and own packs (~/.config/benchkeeper/packs/)
   projects [list|add <dir>..|scan <root>|remove <dir>]
                                     projects Update all covers (~/.config/benchkeeper/projects.json)
   update-all [--yes] [--no-push]    per project: branch chore/agent-setup-<version> in a worktree, one commit,
@@ -39,7 +45,7 @@ const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
-  'no-push': { type: 'boolean' },
+  'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
 };
 
 export function installedPlugins(ctx) {
@@ -116,9 +122,11 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
   if (cmd === 'project') {
     const dir = resolve(positionals[2] ?? '.');
     const pctx = { ...ctx, roots: [...ctx.roots, dir] };
-    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, packs: o.pack, skills: o.skill, tier: o.tier };
-    const { changes, prompts } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
+    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable };
+    const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
     const plan = preview(changes);
+    if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
+    for (const w of warnings) out.write(`warning: ${w}\n`);
     if (arg === 'plan') {
       plan.forEach((c) => show(c, out));
       out.write(`${plan.length} changes.\n`);
@@ -128,6 +136,15 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
     } else { out.write('project needs plan or apply\n'); return 2; }
     out.write('Then, in an agent session the app records:\n');
     for (const p of prompts) out.write(`  benchkeeper record --project ${dir} -- ${p.agent} '${p.prompt}'   (${p.why})\n`);
+    return 0;
+  }
+  if (cmd === 'packs') {
+    if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
+    else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
+    else if (arg === 'import') out.write(`imported ${importPack(ctx, readFileSync(positionals[2], 'utf8'), o.id).id}\n`);
+    else if (arg === 'remove') { removePack(ctx, positionals[2]); out.write(`removed ${positionals[2]}\n`); }
+    else if (arg && arg !== 'list') { out.write(`unknown packs command ${arg}\n`); return 2; }
+    else for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
     return 0;
   }
   if (cmd === 'projects') {

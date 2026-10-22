@@ -2,11 +2,12 @@
 // Steps that need judgement (stack skills, AGENTS.md commands, the dev container, Matt Pocock's repository setup)
 // run in an agent session the app records (session.mjs).
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { agent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
+import { libraryWith, warnings } from '../packs.mjs';
 import { PLUGINS, SKILLS_CLI } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
@@ -24,10 +25,12 @@ export function readState(dir) {
   return text ? JSON.parse(text) : null;
 }
 
-// answers: { agents, env, sandbox, packs, skills, tier, paths: { skill: 'glob, glob' } }; missing answers come from the state file.
-export function resolveAnswers(dir, answers = {}) {
+// answers: { agents, env, sandbox, packs, skills (single skills besides the packs'), disable, enable, tier,
+// paths: { skill: 'glob, glob' } }; missing answers come from the state file.
+export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: (prev.skills ?? []).map((s) => s.name), disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
   if (!(a.env in ENVS)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
   if (a.tier && !TIERS.includes(a.tier)) throw new Error(`tier must be one of ${TIERS.join(', ')}`);
@@ -42,7 +45,7 @@ export function chosenSkills(a, lib = library()) {
 
 export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const a = resolveAnswers(dir, answers);
-  const lib = library();
+  const lib = libraryWith(ctx);
   for (const p of a.packs) if (!lib.packs.some((x) => x.id === p)) throw new Error(`unknown pack ${p}`);
   const at = (p) => join(dir, p);
   const changes = [];
@@ -80,12 +83,28 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     }
   }
 
+  // A skill turned off moves to .benchkeeper/disabled/<skill folder>/<name>; turned on, it moves back.
+  const rel = (p) => relative(dir, p);
+  const parked = (d, name) => join(dir, '.benchkeeper/disabled', rel(d), name);
+  const moveDir = (step, from, to) => {
+    add(step, `copy ${rel(from)} to ${rel(to)}`, { kind: 'write', path: to, from });
+    add(step, `remove ${rel(from)} (copied to ${rel(to)})`, { kind: 'remove', path: from, selected: true });
+  };
+
   // Library skills: own skills copied into each skill folder, community skills through the skills CLI at the pinned commit.
-  for (const s of skills.filter((x) => !a.disabled.includes(x.name))) {
+  for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
+    const dirs = skillDirs(ids, 'project', dir);
+    if (a.disabled.includes(s.name)) {
+      for (const { dir: d } of dirs) if (exists(join(d, s.name))) moveDir(`off:${s.name}`, join(d, s.name), parked(d, s.name));
+      continue;
+    }
+    const back = dirs.filter(({ dir: d }) => exists(parked(d, s.name)) && !exists(join(d, s.name)));
+    for (const { dir: d } of back) moveDir(`on:${s.name}`, parked(d, s.name), join(d, s.name));
+    const rest = dirs.filter((x) => !back.includes(x));
     if (s.source === 'own') {
       const src = join(contentDir, 'library', s.name);
-      for (const { dir: d } of skillDirs(ids, 'project', dir)) {
+      for (const { dir: d } of rest) {
         for (const f of listFiles(src)) {
           let text = readFileSync(join(src, f), 'utf8');
           if (f === 'SKILL.md' && a.paths[s.name]) text = text.replace(/^(description: .*)$/m, `$1\npaths: ${a.paths[s.name]}`);
@@ -93,7 +112,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
         }
       }
     } else {
-      const missing = skillDirs(ids, 'project', dir).filter(({ dir: d }) => !exists(join(d, s.name))).flatMap((x) => x.agents);
+      const missing = rest.filter(({ dir: d }) => !exists(join(d, s.name))).flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}`, {
@@ -104,11 +123,28 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     }
   }
 
+  // Skills of a pack or single skill no longer chosen: own copies and parked copies are removed, community skills through the skills CLI.
+  const before = (readState(dir)?.skills ?? []).map((s) => s.name);
+  const removed = before.filter((n) => !skills.some((s) => s.name === n));
+  for (const name of removed) {
+    const s = lib.skills.find((x) => x.name === name);
+    const dirs = skillDirs(a.agents, 'project', dir);
+    for (const { dir: d } of dirs) if (exists(parked(d, name))) add(`remove:${name}`, `remove ${rel(parked(d, name))}`, { kind: 'remove', path: parked(d, name), selected: true });
+    const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
+    if (s && s.source !== 'own' && present.length) {
+      const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
+      add(`remove:${name}`, `remove skill ${name}`, { kind: 'command', cwd: dir, env: { DO_NOT_TRACK: '1' }, selected: true,
+        argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', name, ...flags, '-y'],
+        undoArgv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', name, ...flags, '--copy', '-y'] });
+    } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}`, { kind: 'remove', path: join(d, name), selected: true });
+  }
+
   // The state file, read by Update all and by setting-up-projects.
-  const state = { schemaVersion: 1, setupVersion: appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, packs: a.packs, tier: a.tier, paths: a.paths, disabled: a.disabled,
+  const state = { schemaVersion: 1, setupVersion: appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...(s.ref ? { ref: s.ref } : {}) })) };
   add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), after: `${JSON.stringify(state, null, 2)}\n` });
-  return { changes, answers: a, prompts: promptsFor(a, lib) };
+  const names = skills.map((s) => s.name);
+  return { changes, answers: a, prompts: promptsFor(a, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: warnings(names.filter((n) => !a.disabled.includes(n)), lib) };
 }
 
 // What the user starts after the deterministic steps: the setup skill session, and the packs' own prompts.

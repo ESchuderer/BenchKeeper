@@ -236,7 +236,7 @@ function Packs({ packs, onChange }) {
   );
 }
 
-export function Catalog({ catalog, params }) {
+export function Catalog({ catalog, params, refresh }) {
   const evals = useApi('/api/evals');
   const [q, setQ] = useState('');
   const [pack, setPack] = useState(null);
@@ -277,8 +277,8 @@ export function Catalog({ catalog, params }) {
               </Table.Tbody>
             </Table>
           } detail={skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} /> : null} />
-          <Packs packs={c.packs} onChange={catalog.reload} />
-          <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); catalog.reload(); }} />
+          <Packs packs={c.packs} onChange={refresh} />
+          <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
           <Cli>{`benchkeeper packs list\nbenchkeeper project apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}`}</Cli>
         </Stack>
       );
@@ -367,7 +367,7 @@ export function Evals({ params }) {
   );
 }
 
-export function Agents({ overview, params }) {
+export function Agents({ overview, params, refresh }) {
   const [select, setSelect] = useState(null);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
@@ -402,7 +402,7 @@ export function Agents({ overview, params }) {
           </Table>
           <Group><Button onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agents</Button></Group>
           {error && <Alert color="red" title="Plan failed">{error}</Alert>}
-          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={overview.reload} /></Section>}
+          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={refresh} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
           <Cli>{`benchkeeper plan --agents ${chosen.join(',')}\nbenchkeeper apply --agents ${chosen.join(',')}`}</Cli>
         </Stack>
@@ -453,7 +453,7 @@ const SetupBadge = ({ p, version }) => (
   </Badge>
 );
 
-export function Projects({ params, overview }) {
+export function Projects({ params, overview, refresh }) {
   const projects = useApi('/api/projects');
   const open = params.get('path');
   const [path, setPath] = useState('');
@@ -464,7 +464,7 @@ export function Projects({ params, overview }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
   const version = overview.data?.version;
-  const reload = () => { projects.reload(); overview.reload(); };
+  const reload = () => { projects.reload(); refresh(); };
   const act = (name, f) => async () => { setError(null); setBusy(name); try { await f(); } catch (e) { setError(e.message); } setBusy(null); };
   // The OS dialog; when there is none or it is cancelled, the typed path stays.
   const choose = async () => {
@@ -606,12 +606,12 @@ function RunDetail({ id, onUndo }) {
   );
 }
 
-export function History({ history, params }) {
+export function History({ history, params, refresh }) {
   const open = params.get('run');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [n, setN] = useState(0);
-  const undo = async (body) => { setError(null); try { setResult(await api('/api/undo', body)); setN((x) => x + 1); history.reload(); } catch (e) { setError(e.message); } };
+  const undo = async (body) => { setError(null); try { setResult(await api('/api/undo', body)); setN((x) => x + 1); refresh(); } catch (e) { setError(e.message); } };
   return (
     <Stack gap="lg">
       {error && <Alert color="red" title="Undo failed">{error}</Alert>}
@@ -645,7 +645,7 @@ export function History({ history, params }) {
 
 const SHORTCUTS = [[`${MOD}+K`, 'command palette'], [`${MOD}+1 to ${MOD}+7`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
 
-function Profile({ overview }) {
+function Profile({ overview, refresh }) {
   const [file, setFile] = useState(null);
   const [plans, setPlans] = useState(null);
   const [error, setError] = useState(null);
@@ -665,14 +665,14 @@ function Profile({ overview }) {
         <Stack gap="xs" aria-label="Profile contents" component="section">
           <Text size="sm">Agents: {file.agents.join(', ')}. Global packs: {file.globalPacks.join(', ') || 'none'}. Own packs: {file.packs.join(', ') || 'none'}.</Text>
           <List spacing={2}>{file.projects.map((p) => <List.Item key={p.path}><Code>{p.path}</Code>{p.here ? '' : ': not on this machine, skipped'}</List.Item>)}</List>
-          <Group><Button loading={busy} onClick={run(async () => setPlans(await api('/api/profile-import', { text: file.text, register: true })))}>Register projects and packs</Button></Group>
+          <Group><Button loading={busy} onClick={run(async () => { setPlans(await api('/api/profile-import', { text: file.text, register: true })); refresh(); })}>Register projects and packs</Button></Group>
         </Stack>
       )}
       {plans && (
         <>
           <Text size="sm">Registered projects: {plans.projects.join(', ') || 'none'}. Own packs: {plans.packs.join(', ') || 'none'}.{plans.missing.length ? ` Skipped: ${plans.missing.join(', ')}.` : ''}</Text>
-          <Section title="Global changes"><Plan key={plans.global.planId} plan={plans.global} onDone={overview.reload} /></Section>
-          {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} /></Section>)}
+          <Section title="Global changes"><Plan key={plans.global.planId} plan={plans.global} onDone={refresh} /></Section>
+          {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} onDone={refresh} /></Section>)}
         </>
       )}
       <Cli>{`benchkeeper profile export benchkeeper-profile.json --agents ${agents.join(',') || '<a,b>'}\nbenchkeeper profile import benchkeeper-profile.json`}</Cli>
@@ -680,10 +680,10 @@ function Profile({ overview }) {
   );
 }
 
-export function Settings({ overview }) {
+export function Settings({ overview, refresh }) {
   return (
     <Stack gap="xl">
-      <Profile overview={overview} />
+      <Profile overview={overview} refresh={refresh} />
       <Section title="Keyboard shortcuts">
         <Table aria-label="Keyboard shortcuts" maw={520}>
           <Table.Thead><Table.Tr><Table.Th>Keys</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>

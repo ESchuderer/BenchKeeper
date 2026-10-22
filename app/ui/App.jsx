@@ -29,6 +29,8 @@ function Shell() {
   const catalog = useApi('/api/catalog');
   const { setColorScheme } = useMantineColorScheme();
   const scheme = useComputedColorScheme('light');
+  // After any change: the header, sidebar counts, palette and views read these.
+  const refresh = () => { overview.reload(); doctor.reload(); history.reload(); catalog.reload(); };
   const toggleTheme = () => setColorScheme(scheme === 'dark' ? 'light' : 'dark');
   // Spotlight binds mod+K itself.
   useHotkeys([...VIEWS.map(([id], i) => [`mod+${i + 1}`, () => go(id)]), ['mod+J', toggleTheme]]);
@@ -71,7 +73,7 @@ function Shell() {
         <Text size="xs" mt="auto" p="xs">{MOD}+1 to {MOD}+{VIEWS.length}: views</Text>
       </AppShell.Navbar>
       <AppShell.Main>
-        <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} />
+        <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} />
       </AppShell.Main>
       <Spotlight actions={actions} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
         scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />

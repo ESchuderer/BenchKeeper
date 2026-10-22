@@ -181,6 +181,21 @@ test.describe('views', () => {
     await expect(page.getByRole('region', { name: 'Undo' })).toContainText(/done|failed/);
   });
 
+  test('an apply in Agents shows up in History and the header without a reload', async ({ page }) => {
+    await nav(page, 'History').click();
+    const runs = page.getByRole('navigation', { name: 'Runs' }).getByRole('link');
+    await expect(runs.first()).toBeVisible();
+    const before = await runs.count();
+    await nav(page, 'Agents').click();
+    await page.getByRole('button', { name: /^Plan setup for/ }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(changes).toContainText(/Run \S+: (done|failed)/);
+    await expect(nav(page, 'History')).toContainText(String(before + 1));
+    await nav(page, 'History').click();
+    await expect(runs).toHaveCount(before + 1);
+  });
+
   test('Evals: the fixture target, its chart and runs table', async ({ page }) => {
     await nav(page, 'Evals').click();
     await page.getByRole('table', { name: 'Eval targets' }).getByRole('link', { name: 'skill:designing-technical-uis' }).click();

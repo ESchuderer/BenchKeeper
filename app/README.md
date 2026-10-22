@@ -54,7 +54,7 @@ The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Ch
 
 Where the browser handles one of these keys itself, the sidebar, the palette and the header buttons do the same.
 
-The UI is built from dev dependencies (Mantine core, charts and spotlight, Recharts, React) into `dist/`; the published package has no extra runtime dependencies.
+The UI is built from dev dependencies (Mantine core, charts and spotlight, Recharts, React) into `dist/`. The published package has no extra runtime dependencies.
 
 ## Configuration
 

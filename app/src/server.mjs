@@ -230,6 +230,13 @@ export function api(ctx) {
       return projectChecks(ctx, dir);
     },
     'POST /api/pick-folder': () => pickFolder(ctx),
+    // Opens a registered project in the file manager.
+    'POST /api/reveal': (b) => {
+      const dir = resolve(String(b.path ?? ''));
+      if (!registered(dir)) throw bad('register the project first');
+      (ctx.open ?? openBrowser)(dir);
+      return { opened: dir };
+    },
     // Eval results without the per-case details; lines that do not parse are left out.
     'GET /api/evals': () => (readText(join(userEvals(ctx), 'results.jsonl')) ?? '').split('\n').filter(Boolean).flatMap((l) => {
       try { const { details, ...r } = JSON.parse(l); return [r]; } catch { return []; }

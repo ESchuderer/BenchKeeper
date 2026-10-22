@@ -224,6 +224,17 @@ test('a session cookie of other bytes but the same length in characters is refus
   assert.deepEqual(rejectReason(req, { port: 9, session, key: 'k' }), [401, 'no session']);
 });
 
+test('reveal opens registered projects only', () => {
+  const { ctx, routes } = fixture();
+  const opened = [];
+  ctx.open = (p) => opened.push(p);
+  const dir = mkdtempSync(join(tmpdir(), 'bk-reveal-'));
+  assert.equal(status(() => routes['POST /api/reveal']({ path: dir })), 400);
+  routes['POST /api/projects']({ path: dir });
+  routes['POST /api/reveal']({ path: dir });
+  assert.deepEqual(opened, [dir]);
+});
+
 test('pick-folder: the first dialog found answers; a cancel is null; no tool is unavailable', () => {
   const calls = [];
   const answer = (byTool) => fixture((argv) => { calls.push(argv[0]); return byTool[argv[0]] ?? null; }).ctx;

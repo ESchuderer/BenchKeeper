@@ -94,6 +94,12 @@ test.describe('views', () => {
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
   });
 
+  test('slash opens the palette too', async ({ page }) => {
+    await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+    await page.keyboard.press('/');
+    await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+  });
+
   test('palette: mod+K, type a project, Enter opens it', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+K');
     const palette = page.getByRole('dialog', { name: 'Command palette' });

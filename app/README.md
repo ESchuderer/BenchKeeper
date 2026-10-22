@@ -39,7 +39,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | Dashboard | install health of the global items, coverage per setup part and agent (a cell opens that agent's plan), setup flow, the last 6 runs, doctor findings with a link to the plan that fixes them |
 | Catalog | library skills with filters, skill detail with eval results, pack builder (warns at more than 5 skills or overlapping descriptions), packs with export, import and removal |
 | Agents | detected agents and the global plan for the chosen ones; Apply shows each change as it runs, with the command output |
-| Projects | registered projects with setup version, pending changes, tree state and branch; per project its plan, skill switches and doctor findings; add, scan a parent folder, Update all with progress per project. A project without a state file is set up step by step (agents, environment with the dev container as default, packs and skills with suggestions from its files, tier, review) on a branch with one commit and a pull request, one project after the other; Change setup reopens these steps from the state file. Suggest with an agent asks first, then runs one read-only session (Claude Code `-p --restricted --strict-mcp-config` with Read, Grep and Glob; Codex `exec --sandbox read-only`) in the project on your subscription; only library packs, skills and environments from its answer are taken |
+| Projects | registered projects with setup version, pending changes, tree state and branch; per project its plan, skill switches and doctor findings; add, scan a parent folder, Update all with progress per project. A project without a state file is set up step by step (agents, environment with the dev container as default, packs and skills with suggestions from its files, tier, review) on a branch with one commit and a pull request, one project after the other; Change setup reopens these steps from the state file; Open folder shows the project in the file manager. Suggest with an agent asks first, then runs one read-only session (Claude Code `-p --restricted --strict-mcp-config` with Read, Grep and Glob; Codex `exec --sandbox read-only`) in the project on your subscription; only library packs, skills and environments from its answer are taken |
 | History | runs by day; per run its entries with side-by-side diffs, undo of a step or the whole run |
 | Evals | miss and false-trigger rates per target over time; Run evals plans the targets and the number of agent sessions, then starts them with progress per session |
 | Settings | profile export and import, keyboard shortcuts, config files |
@@ -48,7 +48,7 @@ The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Ch
 
 | Keys | Action |
 |---|---|
-| Ctrl+K (macOS: Cmd+K) | command palette: views, projects, skills, the last 20 runs, plan global setup, run doctor, toggle theme |
+| Ctrl+K (macOS: Cmd+K), / | command palette: views, projects, skills, the last 20 runs, plan global setup, run doctor, toggle theme |
 | Ctrl+1 to Ctrl+7 | views in sidebar order |
 | Ctrl+J | light or dark theme |
 

@@ -120,7 +120,7 @@ function Shell() {
       <AppShell.Main>
         <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} />
       </AppShell.Main>
-      <Spotlight actions={actions} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
+      <Spotlight actions={actions} shortcut={['mod + K', '/']} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
         scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />
     </AppShell>
   );

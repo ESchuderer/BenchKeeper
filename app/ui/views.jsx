@@ -481,6 +481,7 @@ function ProjectDetail({ project, onChange }) {
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Title order={2} size="h3" style={{ wordBreak: 'break-all' }}>{project.path}</Title>
         <Group gap="xs" wrap="nowrap">
+          <Button variant="default" onClick={() => api('/api/reveal', { path: project.path }).catch(() => {})}>Open folder</Button>
           {project.setupVersion && <Button variant="default" onClick={onChange.setup}>Change setup</Button>}
           <Button variant="subtle" onClick={onChange.remove}>Remove from list</Button>
         </Group>

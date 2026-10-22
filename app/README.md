@@ -32,7 +32,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 
 ## Web UI
 
-`benchkeeper ui` serves on `127.0.0.1` at a free port and opens the browser with a one-time link (`--no-open` prints it). The link's token becomes an HttpOnly, SameSite=Strict session cookie named per port (`bk_session_<port>`). The server rejects other Host headers, foreign or `null` origins, cross-site fetches, changes sent with GET, and POST requests without its own header. It stops with the CLI process (Ctrl+C). Recorded agent sessions and evals run from the CLI only.
+`benchkeeper ui` serves on `127.0.0.1` at a free port and opens the browser with a one-time link (`--no-open` prints it). The link's token becomes an HttpOnly, SameSite=Strict session cookie named per port (`bk_session_<port>`). The server rejects other Host headers, foreign or `null` origins, cross-site fetches, changes sent with GET, and POST requests without its own header. It stops with the CLI process (Ctrl+C). Recorded agent sessions run from the CLI only.
 
 | View | Contents |
 |---|---|

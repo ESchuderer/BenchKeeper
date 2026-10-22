@@ -111,6 +111,33 @@ test('a project without a state file is set up on the branch from answers; the c
   assert.equal(git('branch', '--show-current').trim(), 'main');
 });
 
+test('a changed setup lands on the branch with its cleanups; an empty tier clears the saved one', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const dir = mkdtempSync(join(tmpdir(), 'bk-change-'));
+  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe', encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 't');
+  const pctx = context({ home: h, roots: [dir] });
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude', 'codex'], env: 'container', sandbox: true, tier: 'quick' } }).changes), pctx, { scope: dir });
+  git('add', '-A');
+  git('commit', '-qm', 'setup');
+  const [r] = updateAll(ctx, { paths: [dir], answers: { [dir]: { agents: ['codex'], sandbox: false, tier: null } } });
+  assert.equal(r.status, 'committed');
+  const state = JSON.parse(git('show', `${r.branch}:${STATE}`));
+  assert.deepEqual([state.agents, state.sandbox, state.tier], [['codex'], false, null]);
+  assert.throws(() => git('show', `${r.branch}:CLAUDE.md`));
+  assert.deepEqual(JSON.parse(git('show', `${r.branch}:.claude/settings.json`)), {});
+  // A sandbox the user turned on is offered for removal, not counted as pending.
+  const own = mkdtempSync(join(tmpdir(), 'bk-own-'));
+  mkdirSync(join(own, '.claude'));
+  writeFileSync(join(own, '.claude/settings.json'), '{ "sandbox": { "enabled": true } }\n');
+  const octx = context({ home: h, roots: [own] });
+  apply(preview(projectPlan({ ctx: octx, dir: own, answers: { agents: ['claude'] } }).changes).filter((c) => c.selected), octx, { scope: own });
+  assert.deepEqual(status(ctx, own).changes, []);
+});
+
 test('a GitHub origin gets a push and a pull request', () => {
   const h = home();
   const p = project(h);

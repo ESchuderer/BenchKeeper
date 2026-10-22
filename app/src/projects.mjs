@@ -59,7 +59,8 @@ export function status(ctx, path) {
   const branch = repo ? git(ctx, path, ['branch', '--show-current']).stdout.trim() : null;
   let changes = null;
   if (state) {
-    try { changes = projectChanges(ctx, path); } catch (e) { error = e.message; }
+    // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
+    try { changes = projectChanges(ctx, path).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
   return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error };
 }

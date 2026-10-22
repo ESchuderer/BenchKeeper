@@ -11,7 +11,7 @@ const planQuery = (dir, a) => {
   const q = new URLSearchParams({ dir, setup: '1', agents: a.agents.join(','), env: a.env, sandbox: a.sandbox ? '1' : '0' });
   for (const p of a.packs) q.append('pack', p);
   for (const s of a.skills) q.append('skill', s);
-  if (a.tier) q.set('tier', a.tier);
+  q.set('tier', a.tier);
   return q;
 };
 
@@ -85,7 +85,7 @@ function SetupSteps({ dir, push, onFinish }) {
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
   const create = async () => {
     setBusy(true); setError(null);
-    try { setResult((await api('/api/update-all', { paths: [dir], push, answers: { [dir]: { ...a, tier: a.tier || undefined } } }))[0]); } catch (e) { setError(e.message); }
+    try { setResult((await api('/api/update-all', { paths: [dir], push, answers: { [dir]: a } }))[0]); } catch (e) { setError(e.message); }
     setBusy(false);
   };
   return (

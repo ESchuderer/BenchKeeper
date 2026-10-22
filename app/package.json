@@ -1,0 +1,34 @@
+{
+  "name": "benchkeeper",
+  "version": "6.0.0",
+  "description": "Installs, updates and undoes the BenchKeeper agent setup, globally and per project, for Claude Code, Codex, Gemini CLI and GitHub Copilot.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "benchkeeper": "bin/benchkeeper.mjs" },
+  "files": ["bin", "src", "dist", "content"],
+  "engines": { "node": ">=22" },
+  "repository": { "type": "git", "url": "git+https://github.com/ESchuderer/BenchKeeper.git", "directory": "app" },
+  "scripts": {
+    "build": "vite build",
+    "test": "node --test test/*.test.mjs",
+    "test:ui": "playwright test",
+    "prepack": "node scripts/content.mjs"
+  },
+  "dependencies": {
+    "jsonc-parser": "3.3.1",
+    "smol-toml": "1.9.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@mantine/core": "9.7.2",
+    "@mantine/hooks": "9.7.2",
+    "@playwright/test": "1.64.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "postcss": "8.5.30",
+    "postcss-preset-mantine": "1.18.0",
+    "postcss-simple-vars": "7.0.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vite": "8.3.4"
+  }
+}

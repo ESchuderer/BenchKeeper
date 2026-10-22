@@ -1,0 +1,62 @@
+import { createHash } from 'node:crypto';
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+
+export const exists = (p) => existsSync(p) || isLink(p);
+export const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return false; } };
+export const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
+export const readText = (p) => { try { return readFileSync(p, 'utf8'); } catch { return null; } };
+
+// Hash of a file, or of a folder's relative paths and file contents; null when missing.
+export function hashPath(p) {
+  if (!exists(p)) return null;
+  const h = createHash('sha256');
+  if (isDir(p) && !isLink(p)) {
+    for (const f of listFiles(p)) h.update(`${f}\0`).update(isLink(join(p, f)) ? `link:${readlinkSync(join(p, f))}` : readFileSync(join(p, f))).update('\0');
+  } else h.update(isLink(p) ? `link:${readlinkSync(p)}` : readFileSync(p));
+  return h.digest('hex');
+}
+export const hashText = (t) => (t == null ? null : createHash('sha256').update(t).digest('hex'));
+
+export function listFiles(dir, base = dir) {
+  return readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap((e) => {
+    const p = join(dir, e.name);
+    return e.isDirectory() ? listFiles(p, base) : [relative(base, p)];
+  });
+}
+
+export function writeAtomic(p, text) {
+  mkdirSync(dirname(p), { recursive: true });
+  const tmp = `${p}.benchkeeper-${process.pid}`;
+  writeFileSync(tmp, text);
+  renameSync(tmp, p);
+}
+
+// Moves a file or folder, across devices too.
+export function move(from, to) {
+  mkdirSync(dirname(to), { recursive: true });
+  try { renameSync(from, to); } catch (e) {
+    if (e.code !== 'EXDEV') throw e;
+    cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+    rmSync(from, { recursive: true, force: true });
+  }
+}
+
+export function copy(from, to) {
+  mkdirSync(dirname(to), { recursive: true });
+  // cpSync follows a top-level link, which fails for a dangling one.
+  if (isLink(from)) symlinkSync(readlinkSync(from), to);
+  else cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+}
+
+// True when p, after resolving the links of its existing ancestors, lies inside one of the roots.
+export function inside(p, roots) {
+  let probe = resolve(p);
+  const rest = [];
+  while (!existsSync(probe)) { rest.unshift(probe.split(sep).pop()); probe = dirname(probe); }
+  const real = join(realpathSync(probe), ...rest);
+  return roots.some((r) => {
+    const root = existsSync(r) ? realpathSync(r) : resolve(r);
+    return real === root || real.startsWith(root + sep);
+  });
+}

@@ -37,7 +37,8 @@ export function blob(ctx, dir, tree, path) {
 
 export function defaultBranch(ctx, dir) {
   const head = git(ctx, dir, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
-  if (head) return head.replace(/^origin\//, '');
+  // A name that starts with - would be read as an option by the git commands it goes into.
+  if (head && !head.startsWith('origin/-')) return head.replace(/^origin\//, '');
   for (const b of ['main', 'master']) if (git(ctx, dir, ['rev-parse', '--verify', '--quiet', `refs/heads/${b}`]).code === 0) return b;
   return null;
 }

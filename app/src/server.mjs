@@ -234,7 +234,7 @@ export function api(ctx) {
     'POST /api/reveal': (b) => {
       const dir = resolve(String(b.path ?? ''));
       if (!registered(dir)) throw bad('register the project first');
-      (ctx.open ?? openBrowser)(dir);
+      (ctx.open ?? openFolder)(dir);
       return { opened: dir };
     },
     // Eval results without the per-case details; lines that do not parse are left out.
@@ -318,4 +318,9 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
 export function openBrowser(url) {
   const argv = process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/c', 'start', '""', url] : ['xdg-open', url];
   try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }
+}
+// On Windows through explorer: cmd would read & or ^ in a folder name as its own syntax.
+export function openFolder(dir) {
+  if (process.platform !== 'win32') return openBrowser(dir);
+  try { spawn('explorer', [dir], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* nothing to open */ }
 }

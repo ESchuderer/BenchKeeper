@@ -19,4 +19,6 @@ test('advice: no JSON fails; reasons are one line of at most 200 characters', ()
   const r = parseAdvice(JSON.stringify({ packs: [{ id: 'frontend', reason: `a\n${'x'.repeat(300)}` }] }), lib);
   assert.equal(r.packs[0].reason.length, 200);
   assert.ok(!r.packs[0].reason.includes('\n'));
+  // Inherited keys and arrays are no environment.
+  for (const id of ['constructor', '__proto__', ['container']]) assert.equal(parseAdvice(JSON.stringify({ env: { id } }), lib).env, null);
 });

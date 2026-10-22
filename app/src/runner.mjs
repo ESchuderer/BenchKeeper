@@ -16,17 +16,26 @@ export function context({ home, config = `${home}/.config/benchkeeper`, roots = 
   return { home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
 }
 
-// runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last 64 kB,
-// and a command still running after timeout ms is stopped and fails.
-export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout = 15 * 60e3 } = {}) {
-  return new Promise((done) => {
-    let stdout = '', stderr = '';
-    const tail = (t) => t.slice(-65536);
-    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'], timeout, killSignal: 'SIGTERM' });
+// runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last keep
+// characters. A command still running after timeout ms gets SIGTERM, grace ms later SIGKILL, and fails.
+export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout = 15 * 60e3, keep = 65536, grace = 10e3 } = {}) {
+  return new Promise((resolve) => {
+    let stdout = '', stderr = '', timedOut = false, settled = false;
+    const done = (r) => { if (!settled) { settled = true; clearTimeout(term); clearTimeout(kill); resolve(r); } };
+    const tail = (t) => t.slice(-keep);
+    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const stopped = () => ({ code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes` });
+    let kill;
+    const term = setTimeout(() => {
+      timedOut = true;
+      p.kill('SIGTERM');
+      // A child that ignores SIGTERM, or grandchildren that hold the pipes open, must not keep the job running.
+      kill = setTimeout(() => { p.kill('SIGKILL'); p.stdout.destroy(); p.stderr.destroy(); done(stopped()); }, grace);
+    }, timeout);
     p.stdout.setEncoding('utf8').on('data', (d) => { stdout = tail(stdout + d); onOutput(d); });
     p.stderr.setEncoding('utf8').on('data', (d) => { stderr = tail(stderr + d); onOutput(d); });
     p.on('error', (e) => done({ code: 127, stdout, stderr: e.message }));
-    p.on('close', (code, signal) => done(signal ? { code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes (${signal})` } : { code: code ?? 1, stdout, stderr }));
+    p.on('close', (code, signal) => done(timedOut ? stopped() : signal ? { code: 128, stdout, stderr: `${stderr}\nended by ${signal}` } : { code: code ?? 1, stdout, stderr }));
   });
 }
 
@@ -47,7 +56,7 @@ export function preview(changes) {
       let after;
       try { after = c.edit ? c.edit(before) : c.after; } catch (e) { return { ...c, error: e.message, diff: '', noop: false, selected: false }; }
       planned.set(c.path, after);
-      return { ...c, after, diff: before === after ? '' : diffLines(before, after, c.path), noop: before === after };
+      return { ...c, after, diff: diffLines(before, after, c.path), noop: before === after };
     }
     if (c.kind === 'remove') return { ...c, destructive: true, noop: !exists(c.path) };
     return { ...c, noop: false };

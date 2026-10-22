@@ -8,7 +8,7 @@ import { appVersion, contentDir, library } from '../content.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
-import { PLUGINS, SKILLS_CLI, pin } from './global.mjs';
+import { PLUGINS, SKILLS_SPEC, pin } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
 // The skills CLI's lockfile: its commands change it next to the skill folders.
@@ -21,6 +21,8 @@ export const ENVS = {
 };
 const SKILLS_FLAG = { claude: 'claude-code', codex: 'codex', gemini: 'gemini-cli', copilot: 'github-copilot' };
 export const TIERS = ['quick', 'standard', 'full', 'research'];
+// Own keys only: "constructor" or ["container"] must not pass as an environment.
+export const isEnv = (id) => typeof id === 'string' && Object.hasOwn(ENVS, id);
 // The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
 const NPX_ENV = { DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/' };
 
@@ -41,7 +43,7 @@ export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = 
   const a = { agents: prev.agents ?? [], env: prev.env ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
-  if (!(a.env in ENVS)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
+  if (!isEnv(a.env)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
   if (a.tier && !TIERS.includes(a.tier)) throw new Error(`tier must be one of ${TIERS.join(', ')}`);
   // paths values go into SKILL.md front matter.
   for (const [k, v] of Object.entries(a.paths)) if (typeof v !== 'string' || /[\r\n]/.test(v)) throw new Error(`paths for ${k}: one line of globs`);
@@ -172,7 +174,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
         kind: 'command', cwd: dir, env: NPX_ENV, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
-        argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
+        argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }
   }
@@ -188,8 +190,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
-        argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', name, ...flags, '-y'] });
-    } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: true });
+        argv: ['npx', '-y', SKILLS_SPEC, 'remove', name, ...flags, '-y'] });
+    // A name the library does not know is not one BenchKeeper installed: offered, not preselected.
+    } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: !!s });
   };
   for (const name of removed) removeSkill(name, skillDirs(a.agents, 'project', dir));
   // Skill folders only dropped agents read (agents can share one folder).

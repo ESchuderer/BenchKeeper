@@ -203,6 +203,10 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   assert.ok(!mp(['matt-pocock'])[0].destructive && !mp(['frontend'], ['matt-pocock'])[0].destructive && !mp(null)[0].destructive);
   const inv = inventory(ctx, ['claude', 'codex']);
   assert.equal(inv.find((i) => i.step === 'plugin:claude:ponytail@ponytail').state, 'outdated');
+  // A version that is not x.y.z (a commit) cannot be compared and counts as current.
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
+    'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }], 'benchkeeper@benchkeeper': [{ scope: 'user', version: '5.4.0' }], 'mattpocock-skills@claude-plugins-official': [{ scope: 'user', version: '0a1b2c3d4e5f' }] } }));
+  assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), []);
   assert.equal(inv.find((i) => i.step === 'plugin:codex:benchkeeper@benchkeeper').state, 'current');
   assert.deepEqual(pin(PLUGINS.claude[0], '6.0.0'), { ref: 'setup-v6.0', version: '6.0.0' });
   // A marketplace added at another ref: a manual step with the commands, never applied.

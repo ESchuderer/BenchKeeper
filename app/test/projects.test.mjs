@@ -95,6 +95,11 @@ test('Update all adds to its own unmerged branch, refuses an amended commit, and
   p.git('checkout', '-q', 'main');
   assert.match(updateAll(ctx, { paths: [p.dir] })[0].reason, /has other commits \(chore: agent setup/);
   p.git('branch', '-D', r.branch);
+  // A plan that fails wrote nothing: no worktree and no branch stay.
+  const unplanned = updateAll(ctx, { paths: [p.dir], answers: { [p.dir]: { agents: ['claude'], env: 'host-agent', packs: ['nope'] } } })[0];
+  assert.equal(unplanned.status, 'stopped');
+  assert.equal(unplanned.worktree, undefined);
+  assert.equal(p.git('branch', '--list', r.branch), '');
   // A failed apply keeps its worktree, and the next run names it instead of deleting it.
   const bad = updateAll({ ...ctx, run: (argv, o) => (argv[0] === 'npx' ? { code: 1, stdout: '', stderr: 'offline' } : ctx.run(argv, o)) }, { paths: [p.dir], answers: { [p.dir]: { agents: ['claude'], env: 'host-agent', packs: ['frontend'] } } })[0];
   assert.equal(bad.status, 'stopped');

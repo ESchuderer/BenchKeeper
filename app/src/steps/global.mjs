@@ -9,6 +9,9 @@ import { exists, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
 
 export const SKILLS_CLI = '1.7.2';
+// As an npm alias: npx runs a package from the project's node_modules when its version satisfies a plain spec, so a
+// cloned repository could ship its own "skills" 1.7.2. An alias range never matches a local package (npm 10 libnpmexec).
+export const SKILLS_SPEC = `skills@npm:skills@${SKILLS_CLI}`;
 export const PONYTAIL_REF = 'v5.3.2';
 export const MATT_POCOCK_REF = 'v1.3.1';
 // Pinned plugins: ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version
@@ -94,6 +97,8 @@ export function installedPlugins(ctx) {
 }
 
 const bySemver = (a, b) => a.split('.').map(Number).reduce((d, x, i) => d || x - b.split('.')[i], 0);
+// A version that is not x.y.z (a commit, "unknown") cannot be compared: it counts as current.
+const semver = (v) => /^\d+\.\d+\.\d+$/.test(v ?? '');
 
 // The highest x.y.z release public for at least 7 days, or null.
 // The registry answer is kept per context, 6 hours, a failed one 1 minute, so a long-running server asks again.
@@ -166,11 +171,11 @@ export function globalPlan(env) {
       // The entry is there, its files are not: install again.
       if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
       if (have) {
-        if (stuck && have.version && bySemver(have.version, version) < 0) { manual(`${name} plugin ${p.id} ${have.version} to ${version}`, true); continue; }
+        if (stuck && semver(have.version) && bySemver(have.version, version) < 0) { manual(`${name} plugin ${p.id} ${have.version} to ${version}`, true); continue; }
         // Older than the pin: refresh the marketplace and update. Newer stays (Codex installs Ponytail from its main
         // branch whatever the ref). Removing the marketplace to move its ref would delete the plugin's options and
         // data in Claude Code, so a marketplace added at an older ref stays there and the plugin stays outdated.
-        if (!have.version || bySemver(have.version, version) >= 0) continue;
+        if (!semver(have.version) || bySemver(have.version, version) >= 0) continue;
         const title = `${name} plugin ${p.id} ${have.version} to ${version}`;
         add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace], outdated: true, unit: step });
         add(step, title, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install, outdated: true, unit: step });
@@ -244,7 +249,7 @@ export function globalPlan(env) {
   const want = env.devcontainerCli ?? newest(ctx, '@devcontainers/cli');
   const have = (ctx.run(['devcontainer', '--version']).stdout || '').trim();
   if (want && have !== want) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', `@devcontainers/cli@${want}`] });
-  const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, { kind: 'command', argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', repo, '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1' } });
+  const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', repo, '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1' } });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(ctx.run(['orca', '--version']).code === 0 ? [['https://github.com/stablyai/orca', 'orca-cli'], ['https://github.com/stablyai/orca', 'orchestration']] : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(repo, name, f); }

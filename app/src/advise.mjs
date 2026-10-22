@@ -2,7 +2,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ENVS } from './steps/project.mjs';
+import { ENVS, isEnv } from './steps/project.mjs';
 
 const ARGV = {
   // --restricted ignores the project's settings (hooks) and confines the file tools, --strict-mcp-config skips its MCP servers.
@@ -30,7 +30,7 @@ export function parseAdvice(text, lib) {
   const reason = (x) => String(x ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
   const list = (x) => (Array.isArray(x) ? x : []);
   return {
-    env: j?.env?.id in ENVS ? { id: j.env.id, reason: reason(j.env.reason) } : null,
+    env: isEnv(j?.env?.id) ? { id: j.env.id, reason: reason(j.env.reason) } : null,
     packs: list(j?.packs).filter((p) => lib.packs.some((x) => x.id === p?.id)).map((p) => ({ id: p.id, reason: reason(p.reason) })),
     skills: list(j?.skills).filter((s) => lib.skills.some((x) => x.name === s?.name)).map((s) => ({ name: s.name, reason: reason(s.reason) })),
   };

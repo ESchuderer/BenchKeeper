@@ -122,6 +122,11 @@ test('an async command keeps its last 64 kB and is stopped after its deadline', 
   const slow = await runCommandAsync(['node', '-e', 'setTimeout(() => {}, 5000)'], { timeout: 100 });
   assert.equal(slow.code, 124);
   assert.match(slow.stderr, /stopped after/);
+  const whole = await runCommandAsync(['node', '-e', 'process.stdout.write("x".repeat(200000))'], { keep: 1e6 });
+  assert.equal(whole.stdout.length, 200000);
+  // SIGTERM ignored: SIGKILL after the grace period.
+  const stubborn = await runCommandAsync(['node', '-e', 'process.on("SIGTERM", () => {}); setTimeout(() => {}, 5000)'], { timeout: 100, grace: 100 });
+  assert.equal(stubborn.code, 124);
 });
 
 test('remove moves to the backup, undo moves back', () => {

@@ -1,6 +1,6 @@
 // Registered projects and Update all: one branch, one commit and one pull request per project, built in a git
 // worktree so the user's checkout stays as it is.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
@@ -24,6 +24,7 @@ function save(ctx, projects) {
 export function addProject(ctx, path) {
   const p = resolve(path);
   if (!existsSync(p)) throw new Error(`${p} does not exist`);
+  if (!statSync(p).isDirectory()) throw new Error(`${p} is not a folder`);
   const list = listProjects(ctx);
   if (!list.some((x) => x.path === p)) save(ctx, [...list, { path: p, added: new Date().toISOString() }]);
   return p;
@@ -95,9 +96,11 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       }
       const wt = git(ctx, path, open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start]);
       if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
-      let keep = true;
+      let keep = false, planned = false;
       try {
-        const run = apply(projectChanges(ctx, tree, answers[path]), { ...ctx, roots: [tree] }, { scope: tree, note: { updateAll: path, branch } });
+        const changes = projectChanges(ctx, tree, answers[path]);
+        planned = keep = true;
+        const run = apply(changes, { ...ctx, roots: [tree] }, { scope: tree, note: { updateAll: path, branch } });
         result.run = run.id;
         if (run.status !== 'done') throw new Error(`${run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ')} (the worktree stays at ${tree})`);
         git(ctx, tree, ['add', '-A']);
@@ -124,6 +127,8 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       } finally {
         if (keep) result.worktree = tree;
         else git(ctx, path, ['worktree', 'remove', '--force', tree]);
+        // A plan that failed wrote nothing: a branch this run made goes too.
+        if (!planned && !previous) git(ctx, path, ['branch', '-D', branch]);
       }
     } catch (e) {
       result.status = 'stopped';

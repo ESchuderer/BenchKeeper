@@ -3,19 +3,21 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Dot, STATE_COLOR, href } from './shell.jsx';
 
-// Loads a GET endpoint; reload() fetches it again. A request for an older path or load is aborted; no path clears it.
+// Loads a GET endpoint; reload() fetches it again and keeps the data meanwhile, another path drops it. A request for
+// an older path or load is aborted; no path clears it.
 export function useApi(path) {
-  const [state, setState] = useState({ data: null, error: null, loading: !!path });
+  const [state, setState] = useState({ data: null, error: null, loading: !!path, path });
   const [n, setN] = useState(0);
   useEffect(() => {
-    if (!path) { setState({ data: null, error: null, loading: false }); return undefined; }
+    if (!path) { setState({ data: null, error: null, loading: false, path }); return undefined; }
     const ac = new AbortController();
-    setState((s) => ({ ...s, loading: true }));
-    api(path, undefined, { signal: ac.signal }).then((data) => !ac.signal.aborted && setState({ data, error: null, loading: false }), (e) => !ac.signal.aborted && setState({ data: null, error: e.message, loading: false }));
+    setState((s) => (s.path === path ? { ...s, loading: true } : { data: null, error: null, loading: true, path }));
+    api(path, undefined, { signal: ac.signal }).then((data) => !ac.signal.aborted && setState({ data, error: null, loading: false, path }), (e) => !ac.signal.aborted && setState({ data: null, error: e.message, loading: false, path }));
     return () => ac.abort();
   }, [path, n]);
   const reload = useCallback(() => setN((x) => x + 1), []);
-  return { ...state, reload };
+  // Until the effect runs for a new path, the old path's data must not show under it.
+  return { ...(state.path === path ? state : { data: null, error: null, loading: true }), reload };
 }
 
 export function Loading({ state, label, children }) {
@@ -94,7 +96,12 @@ export function useJob(job, onDone) {
         if (s.done) { onDone?.(s); return; }
       } catch (e) {
         if (!live) return;
-        if (e.status === 404 || ++misses >= 10) { setState((x) => ({ ...x, done: true, error: `${e.message}: see History` })); return; }
+        if (e.status === 404 || ++misses >= 10) {
+          const error = `${e.message}: see History`;
+          setState((x) => ({ ...x, done: true, error }));
+          onDone?.({ done: true, error });
+          return;
+        }
       }
       timer = setTimeout(poll, 400);
     };
@@ -108,8 +115,9 @@ export function useJob(job, onDone) {
 export function RunProgress({ job, total, onDone }) {
   const state = useJob(job, (s) => onDone?.(s.run));
   const entries = state?.run?.entries ?? [];
-  const finished = entries.filter((e) => e.status).length;
-  const running = !state?.done && entries.find((e) => !e.status);
+  // Each change is journaled as running before it starts.
+  const finished = entries.filter((e) => e.status && e.status !== 'running').length;
+  const running = !state?.done && entries.find((e) => e.status === 'running');
   const waiting = state?.done ? 0 : Math.max(total - entries.length, 0);
   return (
     <Stack gap="sm" component="section" aria-label="Apply progress">

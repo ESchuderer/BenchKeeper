@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
@@ -31,8 +31,9 @@ export const real = (p) => (isLink(p) && existsSync(p) && !isDir(p) ? realpathSy
 // Replaces a file in one rename and keeps the mode of the file it replaces.
 export function writeAtomic(p, text, mode = existsSync(p) ? statSync(p).mode & 0o7777 : null) {
   mkdirSync(dirname(p), { recursive: true });
-  const tmp = `${p}.benchkeeper-${process.pid}`;
-  writeFileSync(tmp, text);
+  // Random and created new (wx): a link planted at a guessable name must not be written through.
+  const tmp = `${p}.benchkeeper-${randomBytes(6).toString('hex')}`;
+  writeFileSync(tmp, text, { flag: 'wx' });
   if (mode != null) chmodSync(tmp, mode);
   renameSync(tmp, p);
 }

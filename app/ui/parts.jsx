@@ -39,7 +39,7 @@ export const Section = ({ title, children, id }) => (
   </Stack>
 );
 
-export const StateBadge = ({ state }) => (state ? <Badge variant="default" leftSection={<Dot color={STATE_COLOR[state] ?? 'gray'} />}>{state}</Badge> : null);
+export const StateBadge = ({ state }) => (state ? <Badge variant="default" style={{ flexShrink: 0 }} leftSection={<Dot color={STATE_COLOR[state] ?? 'gray'} />}>{state}</Badge> : null);
 
 // A plan from the server: one checkbox per change (removals off by default), its diff or command, then apply.
 export function Plan({ plan, onDone }) {

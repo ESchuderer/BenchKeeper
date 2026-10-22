@@ -473,9 +473,9 @@ function ProjectDetail({ project, onChange }) {
     : { disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
   return (
     <Stack gap="lg" component="section" aria-label={`Project ${project.path}`}>
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
+      <Group justify="space-between" align="flex-start">
         <Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{project.path}</Title>
-        <Group gap="xs" wrap="nowrap">
+        <Group gap="xs">
           <Button variant="default" onClick={() => api('/api/reveal', { path: project.path }).catch(() => {})}>Open folder</Button>
           {project.setupVersion && <Button variant="default" onClick={onChange.setup}>Change setup</Button>}
           <Button variant="subtle" onClick={onChange.remove}>Remove from list</Button>
@@ -667,7 +667,7 @@ function RunDetail({ id, onUndo }) {
               <Stack key={i} gap={4}>
                 <Group justify="space-between" wrap="nowrap" align="flex-start">
                   <Text size="sm"><b>{e.status}</b> {e.title}{e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}{e.undone ? ` (undone by ${e.undone})` : ''}</Text>
-                  {firstOfStep(e, i) && undoable(e) && <Button size="xs" variant="subtle" aria-label={`Undo step ${e.step}`} onClick={() => onUndo({ run: id, step: e.step })}>Undo step</Button>}
+                  {firstOfStep(e, i) && undoable(e) && <Button size="xs" variant="subtle" style={{ flexShrink: 0 }} aria-label={`Undo step ${e.step}`} onClick={() => onUndo({ run: id, step: e.step })}>Undo step</Button>}
                 </Group>
                 {e.diff && <SideBySide diff={e.diff} label={`Diff of ${e.path}`} />}
                 {e.argv && <Code block tabIndex={0}>{`$ ${e.argv.join(' ')}`}</Code>}

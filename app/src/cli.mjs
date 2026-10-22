@@ -11,6 +11,7 @@ import { addCase } from './cases.mjs';
 import { doctor } from './doctor.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
+import { openBrowser, startServer } from './server.mjs';
 import { writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
@@ -132,6 +133,13 @@ async function command(argv, { out, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   const [cmd = 'ui', arg] = positionals;
   if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
+  if (cmd === 'ui') {
+    const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });
+    out.write(`BenchKeeper UI: ${url}\nThe link works once. Ctrl+C stops the server.\n`);
+    if (!o['no-open']) openBrowser(url);
+    await new Promise((done) => server.on('close', done));
+    return 0;
+  }
   if (cmd === 'plan' || cmd === 'apply') {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) { out.write('no agent found (claude, codex, gemini, copilot); the app installs none\n'); return 1; }

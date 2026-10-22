@@ -38,3 +38,7 @@ jobs:
       # The installer app: engine, global and project steps against temporary home directories with stub agent commands.
       - name: App tests
         run: npm ci --prefix app --ignore-scripts --no-audit --no-fund && npm test --prefix app
+      # The web UI against a fixture home: request checks are in the app tests, views and axe (light, dark) here.
+      - name: App UI tests
+        working-directory: app
+        run: npx playwright install --with-deps chromium && npm run build && npm run test:ui

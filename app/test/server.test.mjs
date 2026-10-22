@@ -153,6 +153,35 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.equal(status(() => routes['GET /api/job'](new URLSearchParams({ id: 'nope' }))), 404);
 });
 
+test('setup advice: one restricted, read-only agent session; only library ids pass; applies do not wait for it; CI refuses', async () => {
+  const ci = process.env.CI;
+  delete process.env.CI;
+  try {
+    const dir = mkdtempSync(join(tmpdir(), 'bk-advice-proj-'));
+    const answer = { env: { id: 'container', reason: 'has .devcontainer/' }, packs: [{ id: 'frontend', reason: 'package.json uses react' }, { id: 'nope' }], skills: [{ name: '../x' }], extra: 1 };
+    let seen, release;
+    const { ctx, routes } = fixture();
+    ctx.runAsync = (argv, o) => { seen = { argv, cwd: o.cwd }; return new Promise((r) => { release = () => r({ code: 0, stdout: JSON.stringify({ result: `Here:\n${JSON.stringify(answer)}` }), stderr: '' }); }); };
+    routes['POST /api/projects']({ path: dir });
+    assert.deepEqual(routes['GET /api/project-setup'](new URLSearchParams({ dir })).advisers.map((a) => a.id), ['claude']);
+    assert.equal(status(() => routes['POST /api/setup-advice']({ dir, agent: 'codex' })), 400);
+    assert.equal(status(() => routes['POST /api/setup-advice']({ dir: tmpdir(), agent: 'claude' })), 400);
+    const { job } = routes['POST /api/setup-advice']({ dir, agent: 'claude' });
+    await new Promise((r) => setTimeout(r, 10));
+    assert.ok(seen.cwd === dir && ['--restricted', '--strict-mcp-config', 'Read,Grep,Glob'].every((x) => seen.argv.includes(x)) && !seen.argv.includes('Bash'));
+    // A read-only job does not block applies.
+    assert.equal(status(() => routes['POST /api/update-all']({ paths: [] })), 200);
+    release();
+    let s;
+    for (let i = 0; i < 50 && !(s = routes['GET /api/job'](new URLSearchParams({ id: job }))).done; i++) await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(s.results, { env: { id: 'container', reason: 'has .devcontainer/' }, packs: [{ id: 'frontend', reason: 'package.json uses react' }], skills: [] });
+    process.env.CI = '1';
+    assert.equal(status(() => routes['POST /api/setup-advice']({ dir, agent: 'claude' })), 400);
+  } finally {
+    if (ci === undefined) delete process.env.CI; else process.env.CI = ci;
+  }
+});
+
 test('evals: the plan names targets and sessions; the job runs them and stores results; CI refuses', async () => {
   const ci = process.env.CI;
   delete process.env.CI;

@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ADVISERS, adviseSetup } from './advise.mjs';
 import { agent, detect } from './agents.mjs';
 import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
@@ -80,10 +81,10 @@ function setupAnswers(src) {
 export function api(ctx) {
   const plans = new Map(), jobs = new Map();
   // Changes wait while a job runs: an undo or Update all in between would edit files and runs an apply still writes.
-  const idle = () => { if ([...jobs.values()].some((j) => !j.done)) throw Object.assign(new Error('an apply or eval is still running: wait for it to finish'), { status: 409 }); };
+  const idle = () => { if ([...jobs.values()].some((j) => !j.done && !j.readOnly)) throw Object.assign(new Error('an apply or eval is still running: wait for it to finish'), { status: 409 }); };
   // A job runs work(job) in the background; the newest 20 finished jobs are kept.
-  const start = (total, work) => {
-    const job = { id: randomBytes(8).toString('hex'), total, run: null, output: {}, done: false };
+  const start = (total, work, { readOnly = false } = {}) => {
+    const job = { id: randomBytes(8).toString('hex'), total, run: null, output: {}, done: false, readOnly };
     jobs.set(job.id, job);
     for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
     work(job).catch((e) => { job.error = e.message; }).finally(() => { job.done = true; });
@@ -160,8 +161,17 @@ export function api(ctx) {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw bad('register the project first');
       const lib = libraryWith(ctx);
-      return { agents: agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name })), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
+      const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
+      return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: tryState(dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
         packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })) };
+    },
+    // An agent reads the project and suggests env, packs and skills: one read-only session, after the user agreed in the UI.
+    'POST /api/setup-advice': (b) => {
+      if (process.env.CI) throw bad('setup advice starts an agent session on a subscription and does not run in CI');
+      const dir = resolve(String(b.dir ?? ''));
+      if (!registered(dir)) throw bad('register the project first');
+      if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
+      return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx) }).then((r) => { job.results = r; }), { readOnly: true });
     },
     'POST /api/update-all': (b) => {
       idle();

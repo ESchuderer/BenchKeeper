@@ -1,7 +1,7 @@
-import { Alert, Anchor, Badge, Button, Checkbox, Code, Drawer, Group, MultiSelect, Paper, Radio, Stack, Stepper, Switch, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Modal, MultiSelect, Paper, Radio, Stack, Stepper, Switch, Text, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { Loading, useApi } from './parts.jsx';
+import { Loading, useApi, useJob } from './parts.jsx';
 
 const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
 const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
@@ -15,7 +15,52 @@ const planQuery = (dir, a) => {
   return q;
 };
 
-// One project's first setup, step by step: agents, where commands run, packs and skills, tier, review, then a branch
+// An agent suggests env, packs and skills: it starts only after the user agreed to the session in the dialog.
+function AgentAdvice({ dir, advisers, onAdvice }) {
+  const [open, setOpen] = useState(false);
+  const [agent, setAgent] = useState(advisers[0]?.id ?? null);
+  const [job, setJob] = useState(null);
+  const [error, setError] = useState(null);
+  const name = advisers.find((x) => x.id === agent)?.name ?? agent;
+  const begin = async () => {
+    setOpen(false); setError(null);
+    try { setJob((await api('/api/setup-advice', { dir, agent })).job); } catch (e) { setError(e.message); }
+  };
+  if (!advisers.length) return null;
+  return (
+    <Stack gap="xs" mb="md">
+      <Group><Button variant="default" disabled={!!job} onClick={() => setOpen(true)}>Suggest with an agent</Button></Group>
+      {job && <AdviceJob job={job} name={name} onDone={(s) => { setJob(null); if (s.error) setError(s.error); else onAdvice(s.results, name); }} />}
+      {error && <Alert color="red" title="No suggestion">{error}</Alert>}
+      <Modal opened={open} onClose={() => setOpen(false)} withCloseButton={false} attributes={{ content: { 'aria-label': 'Start an agent session?' } }}>
+        <Stack gap="sm">
+          <Title order={2} size="h4">Start an agent session?</Title>
+          {advisers.length > 1 && (
+            <Radio.Group label="Agent" value={agent} onChange={setAgent}>
+              <Group mt="xs">{advisers.map((x) => <Radio key={x.id} value={x.id} label={x.name} />)}</Group>
+            </Radio.Group>
+          )}
+          <Text size="sm">{name} reads this repository and suggests the environment, packs and skills. You review them in these steps before anything is written.</Text>
+          <List size="sm">
+            <List.Item>Read only: {agent === 'codex' ? 'Codex in its read-only sandbox' : 'Claude Code in restricted mode with read tools only, without the project\'s hooks and MCP servers'}.</List.Item>
+            <List.Item>One session on your {name} login and its usage limits, usually a minute or two.</List.Item>
+          </List>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={begin}>Start {name}</Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Stack>
+  );
+}
+
+function AdviceJob({ job, name, onDone }) {
+  useJob(job, onDone);
+  return <Group gap="xs" role="status"><Loader size="xs" /><Text size="sm">{name} is reading the repository</Text></Group>;
+}
+
+// One project's setup, step by step: agents, where commands run, packs and skills, tier, review, then a branch
 // with one commit (and a pull request when origin is on GitHub), as Update all makes them.
 function SetupSteps({ dir, push, onFinish }) {
   const setup = useApi(`/api/project-setup?dir=${encodeURIComponent(dir)}`);
@@ -24,9 +69,18 @@ function SetupSteps({ dir, push, onFinish }) {
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [advice, setAdvice] = useState(null);
   useEffect(() => {
-    if (setup.data && !a) setA({ agents: setup.data.agents.map((x) => x.id), env: 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '' });
+    if (!setup.data || a) return;
+    // A project set up before starts from its state file, so only what the user changes is cleaned up.
+    const st = setup.data.state;
+    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '' }
+      : { agents: setup.data.agents.map((x) => x.id), env: 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '' });
   }, [setup.data]);
+  const applyAdvice = (r, name) => {
+    setAdvice({ ...r, name });
+    setA((x) => ({ ...x, env: r.env?.id ?? x.env, packs: r.packs.length || r.skills.length ? r.packs.map((p) => p.id) : x.packs, skills: r.packs.length || r.skills.length ? r.skills.map((k) => k.name) : x.skills }));
+  };
   const review = useApi(step === 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
   const create = async () => {
@@ -40,7 +94,10 @@ function SetupSteps({ dir, push, onFinish }) {
         <Stepper active={step} onStepClick={result ? undefined : setStep} size="sm" allowNextStepsSelect={false}>
           <Stepper.Step label="Agents">
             <Checkbox.Group label="Agents that work in this project" value={a.agents} onChange={set('agents')}>
-              <Stack gap={4} mt="xs">{s.agents.map((x) => <Checkbox key={x.id} value={x.id} label={x.name} />)}</Stack>
+              <Stack gap={4} mt="xs">
+                {s.agents.map((x) => <Checkbox key={x.id} value={x.id} label={x.name} />)}
+                {(s.state?.agents ?? []).filter((id) => !s.agents.some((x) => x.id === id)).map((id) => <Checkbox key={id} value={id} label={`${id} (not installed here)`} />)}
+              </Stack>
             </Checkbox.Group>
             {!s.agents.length && <Alert color="yellow" mt="sm">No agent is installed on this machine.</Alert>}
           </Stepper.Step>
@@ -54,6 +111,17 @@ function SetupSteps({ dir, push, onFinish }) {
             <Switch mt="md" label="Claude Code sandbox for the agent's commands" checked={a.sandbox} onChange={(e) => set('sandbox')(e.currentTarget.checked)} />
           </Stepper.Step>
           <Stepper.Step label="Skills">
+            <AgentAdvice dir={dir} advisers={s.advisers} onAdvice={applyAdvice} />
+            {advice && (
+              <Alert color="blue" mb="md" title={`Suggested by ${advice.name}`} withCloseButton onClose={() => setAdvice(null)}>
+                <List size="sm">
+                  {advice.env && <List.Item>Environment {ENV_TITLE[advice.env.id] ?? advice.env.id}: {advice.env.reason}</List.Item>}
+                  {advice.packs.map((p) => <List.Item key={p.id}>Pack {p.id}: {p.reason}</List.Item>)}
+                  {advice.skills.map((k) => <List.Item key={k.name}>Skill {k.name}: {k.reason}</List.Item>)}
+                  {!advice.env && !advice.packs.length && !advice.skills.length && <List.Item>No pack or skill from the library fits; your choices stay.</List.Item>}
+                </List>
+              </Alert>
+            )}
             <Checkbox.Group label="Packs" value={a.packs} onChange={set('packs')}>
               <Stack gap="xs" mt="xs">
                 {s.packs.map((p) => {
@@ -116,7 +184,7 @@ function SetupSteps({ dir, push, onFinish }) {
 }
 
 // First setup of one or more projects in a drawer, one after the other; a project can be skipped.
-export function ProjectSetup({ paths, push, onClose }) {
+export function ProjectSetup({ paths, push, onClose, change = false }) {
   const [i, setI] = useState(0);
   const dir = paths[i];
   const next = () => (i + 1 < paths.length ? setI(i + 1) : onClose());
@@ -126,7 +194,7 @@ export function ProjectSetup({ paths, push, onClose }) {
         <Stack gap="md">
           <Group justify="space-between" wrap="nowrap" align="flex-start">
             <Stack gap={2}>
-              <Title order={2} size="h3">Set up project {paths.length > 1 ? `${i + 1} of ${paths.length}` : ''}</Title>
+              <Title order={2} size="h3">{change ? 'Change project setup' : 'Set up project'} {paths.length > 1 ? `${i + 1} of ${paths.length}` : ''}</Title>
               <Code style={{ wordBreak: 'break-all' }}>{dir}</Code>
             </Stack>
             <Group gap="xs" wrap="nowrap">

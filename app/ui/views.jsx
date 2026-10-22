@@ -480,7 +480,10 @@ function ProjectDetail({ project, onChange }) {
     <Stack gap="lg" component="section" aria-label={`Project ${project.path}`}>
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Title order={2} size="h3" style={{ wordBreak: 'break-all' }}>{project.path}</Title>
-        <Button variant="subtle" onClick={onChange.remove}>Remove from list</Button>
+        <Group gap="xs" wrap="nowrap">
+          {project.setupVersion && <Button variant="default" onClick={onChange.setup}>Change setup</Button>}
+          <Button variant="subtle" onClick={onChange.remove}>Remove from list</Button>
+        </Group>
       </Group>
       {!project.setupVersion ? (
         <Stack gap="xs" align="flex-start">
@@ -596,7 +599,7 @@ export function Projects({ params, overview, refresh }) {
             </Table.Tbody>
           </Table>
         } detail={open && list.some((p) => p.path === open) ? (
-          <ProjectDetail key={open} project={list.find((p) => p.path === open)} onChange={{ done: reload, setup: () => setSetupPaths([open]), remove: act('remove', async () => { await api('/api/projects', { action: 'remove', path: open }); go('projects'); reload(); }) }} />
+          <ProjectDetail key={open} project={list.find((p) => p.path === open)} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: act('remove', async () => { await api('/api/projects', { action: 'remove', path: open }); go('projects'); reload(); }) }} />
         ) : null} />
       ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
@@ -604,7 +607,7 @@ export function Projects({ params, overview, refresh }) {
         <Group>
           <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
           <Button loading={busy === 'update'} disabled={!projects.data?.length} onClick={updateAll}>Update all</Button>
-          <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths(fresh)}>Set up {fresh.length} new projects</Button>
+          <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths({ paths: fresh })}>Set up {fresh.length} new projects</Button>
         </Group>
         {progress && (
           <>
@@ -616,7 +619,7 @@ export function Projects({ params, overview, refresh }) {
                   <Table.Td><Code>{r.path}</Code></Table.Td>
                   <Table.Td>
                     {r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}
-                    {fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths([r.path])}>Set up</Button>}
+                    {fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>}
                   </Table.Td>
                 </Table.Tr>
               ))}</Table.Tbody>
@@ -624,7 +627,7 @@ export function Projects({ params, overview, refresh }) {
           </>
         )}
       </Section>
-      {setupPaths && <ProjectSetup paths={setupPaths} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
+      {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
       <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );

@@ -5,7 +5,9 @@ const TOKEN = 'ui-test-token-0123456789';
 const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Evals', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  // A transition may start a frame after the dialog is visible: wait until dialogs and overlays are fully opaque.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running')
+    && [...document.querySelectorAll('[role=dialog], [class*="Overlay"]')].every((e) => getComputedStyle(e).opacity === '1'), null, { polling: 'raf' });
   for (const scheme of ['light', 'dark']) {
     await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
     const { violations } = await new AxeBuilder({ page }).analyze();
@@ -89,9 +91,12 @@ test.describe('views', () => {
   test('palette: mod+K, type a project, Enter opens it', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+K');
     const palette = page.getByRole('dialog', { name: 'Command palette' });
-    await palette.getByLabel('Search').fill('bk-ui-proj');
-    // Spotlight selects the first match after the list renders; Enter before that does nothing.
-    await expect(palette.locator('[data-selected]')).toContainText('bk-ui-proj');
+    // Spotlight selects the first match when the query changes; projects that load later need the query typed again.
+    await expect(async () => {
+      await palette.getByLabel('Search').fill('');
+      await palette.getByLabel('Search').fill('bk-ui-proj');
+      await expect(palette.locator('[data-selected]')).toContainText('bk-ui-proj', { timeout: 1000 });
+    }).toPass();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#\/projects\?path=/);
   });
@@ -178,17 +183,38 @@ test.describe('views', () => {
     // Community skills need npx, which the fixture lacks: no pack here.
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).not.toBeChecked();
     await noAxe(page);
+    // An agent suggests skills only after the user agrees to its session.
+    await drawer.getByRole('button', { name: 'Suggest with an agent' }).click();
+    const ask = page.getByRole('dialog', { name: 'Start an agent session?' });
+    await expect(ask).toContainText('Read only');
+    await noAxe(page);
+    await ask.getByRole('button', { name: 'Start Claude Code' }).click();
+    await expect(drawer.getByRole('alert')).toContainText('Skill designing-technical-uis: the project has a UI');
     await drawer.getByRole('button', { name: 'Next' }).click();
     await drawer.getByRole('radio', { name: /^Standard/ }).check();
     await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer).toContainText(/\d+ changes on branch/);
     await expect(drawer).toContainText('AGENTS.md');
+    await expect(drawer).toContainText('skill designing-technical-uis (own)');
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Continue' }).click();
     await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();
     await expect(drawer.getByRole('alert')).toContainText('committed');
     await drawer.getByRole('button', { name: 'Next project' }).click();
     await expect(drawer).toBeHidden();
+  });
+
+  test('Projects: Change setup starts from the state file', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: /bk-ui-proj$/ }).click();
+    await page.getByRole('button', { name: 'Change setup' }).click();
+    const drawer = page.getByRole('dialog', { name: 'Set up projects' });
+    await expect(drawer.getByRole('heading', { name: /Change project setup/ })).toBeVisible();
+    await drawer.getByRole('button', { name: 'Next' }).click();
+    await expect(drawer.getByRole('radio', { name: /^Agent on the host/ })).toBeChecked();
+    await drawer.getByRole('button', { name: 'Next' }).click();
+    await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).toBeChecked();
+    await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
   test('History: a run shows side-by-side diffs; undo of one step, then of the run', async ({ page }) => {

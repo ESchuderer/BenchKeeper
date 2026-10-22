@@ -55,27 +55,46 @@ export function scan(root, depth = 3) {
 // The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
 const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: { ...ctx, roots: [dir] }, dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
 
-// Fetches origin's default branch without waiting on a password or passphrase prompt; true when it worked.
-// shortcut: blocks the server like the other git reads here; move to ctx.runAsync if many slow remotes stall the UI.
-function fetchBase(ctx, path, base) {
-  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+// Git talks to origin without waiting on a password or passphrase prompt (terminal or askpass helper).
+function quiet(ctx, path) {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
   if (!env.GIT_SSH_COMMAND && !git(ctx, path, ['config', '--get', 'core.sshCommand']).stdout.trim()) env.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes';
-  return git(ctx, path, ['fetch', '-q', 'origin', base], { env, timeout: 20e3 }).code === 0;
+  return env;
 }
-// The state file on origin's default branch after a fetch (kept a minute per project once a fetch worked); null without
-// origin or that branch. Update all starts there, so a setup merged on origin counts before the checkout is pulled.
+// Fetches origin's default branch; true when it worked. One fetch per project and minute: the CLI's status and Update all
+// share it.
+// shortcut: blocks the server like the other git reads here; move to ctx.runAsync if many slow remotes stall the UI.
+const fetched = new Map();
+function fetchBase(ctx, path, base) {
+  const key = `${path}\0${base}`;
+  if (Date.now() - (fetched.get(key) ?? 0) < 60e3) return true;
+  const ok = git(ctx, path, ['fetch', '-q', 'origin', base], { env: quiet(ctx, path), timeout: 20e3 }).code === 0;
+  if (ok) fetched.set(key, Date.now());
+  return ok;
+}
+// Origin's default branch: origin/HEAD, or asked from origin when the clone has none (a local main or master may not be it).
+function remoteDefault(ctx, path) {
+  const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
+  if (head) return head.startsWith('origin/-') ? null : head.replace(/^origin\//, '');
+  const r = git(ctx, path, ['ls-remote', '--symref', 'origin', 'HEAD'], { env: quiet(ctx, path), timeout: 20e3 });
+  const name = r.code === 0 ? r.stdout.match(/^ref: refs\/heads\/(\S+)\tHEAD$/m)?.[1] : null;
+  if (name) return name.startsWith('-') ? null : name;
+  // Origin names none (no HEAD there, or unreachable): the local main or master.
+  return defaultBranch(ctx, path);
+}
+// The state file on origin's default branch, read only after a fetch worked (an old tracking ref is not origin's
+// state), kept a minute per project; null without origin, its default branch or a fetch. Update all starts there, so a
+// setup merged on origin counts before the checkout is pulled.
 const origins = new Map();
 function originState(ctx, path) {
   const hit = origins.get(path);
   if (hit && Date.now() - hit.at < 60e3) return hit.value;
-  const base = isRepo(ctx, path) && git(ctx, path, ['remote', 'get-url', 'origin']).code === 0 && defaultBranch(ctx, path);
-  if (!base) return null;
-  const ok = fetchBase(ctx, path, base);
+  const base = isRepo(ctx, path) && git(ctx, path, ['remote', 'get-url', 'origin']).code === 0 && remoteDefault(ctx, path);
+  if (!base || !fetchBase(ctx, path, base)) return null;
   const ref = `origin/${base}`;
-  if (git(ctx, path, ['rev-parse', '--verify', '-q', ref]).code !== 0) return null;
   let state = null;
   try { state = JSON.parse(blob(ctx, path, ref, STATE).toString('utf8')); } catch { /* none, or unreadable: the checkout's counts */ }
-  if (ok) origins.set(path, { at: Date.now(), value: { ref, state } });
+  origins.set(path, { at: Date.now(), value: { ref, state } });
   return { ref, state };
 }
 // The setup that counts: the checkout's, unless origin's default branch has a newer one (or the checkout none).

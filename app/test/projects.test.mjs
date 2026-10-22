@@ -28,7 +28,7 @@ function project(h) {
   git('add', '-A');
   git('commit', '-qm', 'init');
   const origin = mkdtempSync(join(tmpdir(), 'bk-origin-'));
-  execFileSync('git', ['init', '-q', '--bare', origin]);
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin]);
   git('remote', 'add', 'origin', origin);
   git('push', '-q', 'origin', 'main');
   return { dir, git };
@@ -267,4 +267,12 @@ test('status and Update all read the state file on the fetched default branch wh
   const a = status(ctx, ahead.dir);
   assert.deepEqual([a.setupVersion, a.checkout, a.origin], ['5.9.0', '5.9.0', 'origin/main']);
   assert.ok(a.changes.length);
+  // No origin/HEAD here (the remote was added, not cloned): origin is asked for its default branch.
+  const nohead = project(h);
+  assert.equal(status(ctx, nohead.dir).origin, 'origin/main');
+  // The fetch fails: an old tracking ref is not origin's state.
+  const offline = project(h);
+  offline.git('fetch', '-q', 'origin');
+  offline.git('remote', 'set-url', 'origin', join(h, 'gone.git'));
+  assert.deepEqual([status(ctx, offline.dir).origin, status(ctx, offline.dir).checkout], [null, '5.0.0']);
 });

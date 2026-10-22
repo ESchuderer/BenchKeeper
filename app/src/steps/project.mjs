@@ -51,8 +51,12 @@ export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = 
 }
 
 // Where hand-written AGENTS.md text (outside the BenchKeeper block) says the agent runs: host, sandbox, container or null.
-const AGENT_RUNS = /\bagents?\b[^.\n]{0,40}\bruns? (on the host|(?:inside|in) (?:the|a) (?:[\w-]+ ){0,2}(dev ?container|container|sandbox(?:es)?|microVM))/i;
-const agentPlace = (text) => { const m = text.match(AGENT_RUNS); return !m ? null : m[1].endsWith('host') ? 'host' : /container/i.test(m[2]) ? 'container' : 'sandbox'; };
+const AGENT_RUNS = /\bagents?\b([^.\n;]{0,40})\bruns? (on the host|(?:inside|in) (?:the|a) (?:[\w-]+ ){0,2}(dev ?container|container|sandbox(?:es)?|microVM))/gi;
+// The first statement that is not negated ("does not run on the host").
+const agentPlace = (text) => {
+  const m = [...text.matchAll(AGENT_RUNS)].find((x) => !/\b(not|never|cannot)\b|n't\b/i.test(x[1]));
+  return !m ? null : m[2].endsWith('host') ? 'host' : /container/i.test(m[3]) ? 'container' : 'sandbox';
+};
 // The project's commands go through the dev container: the text names it (devcontainer exec, dev container).
 const COMMANDS_IN_CONTAINER = /devcontainer exec|dev ?container/i;
 const placeOf = (env) => (['host-agent', 'host'].includes(env) ? 'host' : env);

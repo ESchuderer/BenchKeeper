@@ -44,6 +44,7 @@ test('global drift: rules changed after apply are an error, unexpected items a w
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
   let found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
   assert.deepEqual(levels(found, 'rules'), []);
+  assert.ok(!found.some((i) => /tier band/.test(i.message)), 'the optional tier band left off is not drift');
   assert.deepEqual(levels(found, 'plugin'), ['error', 'error', 'warning', 'warning']);
   assert.equal(found.find((i) => i.check === 'plugin').message, 'not installed: Claude Code marketplace benchkeeper');
   assert.ok(found.some((i) => i.message === 'no container engine (podman or docker)'));

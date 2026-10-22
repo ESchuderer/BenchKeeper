@@ -55,6 +55,9 @@ export function writeSessions(home) {
     ev('2026-10-21T11:00:01.000Z', 'response_item', { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Tier: quick. Looking at it.' }] }),
     cmd('2026-10-21T11:00:02.000Z', 'sed -n 1,80p /home/u/.agents/skills/tdd/SKILL.md', 0),
     cmd('2026-10-21T11:00:03.000Z', 'npm test', 1),
+    cmd('2026-10-21T11:00:03.200Z', 'npm test', 0),
+    // No exit code recorded: the last known result stays.
+    ev('2026-10-21T11:00:03.500Z', 'event_msg', { type: 'item_completed', item: { type: 'CommandExecution', command: ['/usr/bin/bash', '-lc', 'npm test'] } }),
     ev('2026-10-21T11:00:04.000Z', 'event_msg', { type: 'token_count', info: { total_token_usage: { total_tokens: 500 } } }),
     ev('2026-10-21T11:00:05.000Z', 'compacted', { replacement_history: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Tier: research' }] }] }),
     ev('2026-10-21T11:00:06.000Z', 'event_msg', { type: 'token_count', info: { total_token_usage: { total_tokens: 1000 } } }),

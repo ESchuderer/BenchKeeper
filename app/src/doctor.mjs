@@ -39,7 +39,8 @@ function featureVars(ctx, env) {
 export function globalDrift(ctx, agents, devcontainerCli) {
   let plan;
   try { plan = preview(globalPlan({ ctx, agents, devcontainerCli })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
-  const found = plan.map((c) => {
+  // An optional step left off is not drift.
+  const found = plan.filter((c) => !c.optional).map((c) => {
     if (c.error) return issue('error', 'global', `${c.title}: ${c.error}`, 'edit the file by hand; the app does not merge this form');
     if (c.destructive) return issue('warning', 'unexpected', c.title.replace(/^(remove|move) /, 'not part of the setup: '), 'benchkeeper apply --all offers its removal');
     // An older version is drift, not a missing part.

@@ -391,7 +391,11 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     if (why) return send(why[0], { error: why[1] });
     // The sessions board: a page of its own, framed by the app; only its script by hash runs there.
     if (req.method === 'GET' && url.pathname === '/board') {
-      try { return send(200, boardHtml(scans.get(ctx)?.rows ?? await scanSessions(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+      try {
+        // The last scan, or one now; the page says when it was read.
+        if (!scans.has(ctx)) scans.set(ctx, { rows: await scanSessions(ctx), at: Date.now() });
+        const { rows, at } = scans.get(ctx);
+        return send(200, boardHtml(rows, new Date(at).toISOString()), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) {

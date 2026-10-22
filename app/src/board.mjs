@@ -169,7 +169,8 @@ function draw() {
   }
 
   function render() {
-    const since = state.period === 'all' ? '' : new Date(now - Number(state.period) * 864e5).toISOString();
+    // Whole UTC days, the same ones the chart draws: today and the days before it.
+    const since = state.period === 'all' ? '' : day(new Date(now - (Number(state.period) - 1) * 864e5).toISOString());
     const list = rows.filter((r) => r.start >= since && FILTERS.every(([key, , f]) => !state[key] || f(r) === state[key]));
     const span = days(list);
     current = list;

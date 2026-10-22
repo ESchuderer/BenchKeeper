@@ -103,12 +103,17 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     setAdvice({ ...r, name, prefilled });
     setA((x) => ({ ...x, env: r.env?.id ?? x.env, packs: r.packs.length || r.skills.length ? r.packs.map((p) => p.id) : x.packs, skills: r.packs.length || r.skills.length ? r.skills.map((k) => k.name) : x.skills }));
   };
-  // A batch suggestion fills the form once, when it is ready and the form has its starting values.
-  const filled = useRef(false);
+  // A batch suggestion fills the form once, when it is ready and the form still has its starting values; after an
+  // edit it waits as a note with Use it, so the user's choices stay.
+  const filled = useRef(false), start = useRef(null);
+  const [waiting, setWaiting] = useState(null);
   useEffect(() => {
-    if (!prefill || !a || filled.current) return;
+    if (!a) return;
+    start.current ??= JSON.stringify(a);
+    if (!prefill || filled.current) return;
     filled.current = true;
-    applyAdvice(prefill.result, prefill.name, true);
+    if (JSON.stringify(a) === start.current) applyAdvice(prefill.result, prefill.name, true);
+    else setWaiting(prefill);
   }, [prefill, a]);
   const review = useApi(step === 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
@@ -121,6 +126,12 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     <Loading state={setup} label="setup choices">{(s) => (!a ? null : (
       <Stack gap="md">
         {advice?.prefilled && <Note color="blue">Prefilled from {advice.name}'s suggestion: environment, packs and skills. Review each step before you apply.</Note>}
+        {waiting && (
+          <Note color="blue">
+            {waiting.name}'s suggestion is ready; your changes are kept.{' '}
+            <Button size="xs" variant="default" onClick={() => { applyAdvice(waiting.result, waiting.name, true); setWaiting(null); }}>Use it</Button>
+          </Note>
+        )}
         <Stepper active={step} onStepClick={result ? undefined : setStep} size="sm" allowNextStepsSelect={false}>
           <Stepper.Step label="Agents">
             <Checkbox.Group label="Agents that work in this project" value={a.agents} onChange={set('agents')}>
@@ -237,10 +248,16 @@ export function ProjectSetup({ paths, push, onClose, change = false }) {
     const p = paths.find((x) => batch.items[x].status === 'waiting');
     if (!p) return;
     update(p, { status: 'running' });
-    api('/api/setup-advice', { dir: p, agent: batch.agent }).then((r) => update(p, { job: r.job }), (e) => update(p, { status: 'failed', reason: e.message }));
+    // Cancel pressed while the session was being started: it is cancelled once its id is known.
+    api('/api/setup-advice', { dir: p, agent: batch.agent }).then((r) => {
+      if (stopped.current) api('/api/job-cancel', { id: r.job }).catch(() => {});
+      else update(p, { job: r.job });
+    }, (e) => update(p, { status: 'failed', reason: e.message }));
   }, [batch]);
-  const start = (agent, name) => { setAsk(false); setBatch({ agent, name, items: Object.fromEntries(paths.map((p) => [p, { status: 'waiting' }])) }); };
+  const start = (agent, name) => { stopped.current = false; setAsk(false); setBatch({ agent, name, items: Object.fromEntries(paths.map((p) => [p, { status: 'waiting' }])) }); };
+  const stopped = useRef(false);
   const stop = () => {
+    stopped.current = true;
     const running = Object.values(batch.items).find((x) => x.status === 'running' && x.job);
     if (running) api('/api/job-cancel', { id: running.job }).catch(() => {});
     setBatch((b) => ({ ...b, stopped: true }));

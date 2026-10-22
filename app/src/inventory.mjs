@@ -15,7 +15,8 @@ export function inventory(ctx, agents, { devcontainerCli } = {}) {
     if (!items.has(key) || RANK.indexOf(state) > RANK.indexOf(items.get(key).state)) items.set(key, { step, agent: agentOf(step), title, state });
   };
   const plan = globalPlan({ ctx, agents, devcontainerCli });
-  for (const c of plan) {
+  // An optional step left off is not drift.
+  for (const c of plan.filter((x) => !x.optional)) {
     if (c.kind === 'command' || c.kind === 'remove' || c.destructive) { put(c.step, c.title, c.outdated ? 'outdated' : c.kind === 'command' && !c.destructive ? 'missing' : 'foreign'); continue; }
     // Each edit against the file as it is, so one pending edit of settings.json does not mark the others.
     let after;

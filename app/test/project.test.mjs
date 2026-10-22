@@ -37,7 +37,7 @@ test('AGENTS.md block, CLAUDE.md import, own skill copies, pinned community skil
   for (const d of ['.claude/skills', '.agents/skills']) assert.ok(existsSync(join(r.dir, d, 'designing-technical-uis/SKILL.md')), d);
   const cmd = changes.find((c) => c.title.startsWith('skill frontend-design'));
   assert.deepEqual(cmd.argv.slice(3, 9), ['add', 'https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44', '-s', 'frontend-design', '-a', 'claude-code']);
-  assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.env.npm_config_registry === 'https://registry.npmjs.org/' && cmd.undoArgv.includes('remove'));
+  assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.env.npm_config_registry === 'https://registry.npmjs.org/' && cmd.snapshot.includes(join(r.dir, 'skills-lock.json')));
   const state = readState(r.dir);
   assert.deepEqual([state.setupVersion, state.env, state.tier, state.packs], ['6.0.0', 'host-agent', 'quick', ['frontend']]);
   assert.deepEqual(state.skills.map((s) => s.name).sort(), ['accessibility', 'designing-technical-uis', 'frontend-design']);
@@ -56,8 +56,17 @@ test('a community skill the state file records at another commit is added again 
   state.skills.find((s) => s.name === 'frontend-design').ref = 'a'.repeat(40);
   writeFileSync(f, JSON.stringify(state));
   assert.deepEqual(titles(), ['skill frontend-design from anthropics/skills at dbd4588f9e10 (was aaaaaaaaaaaa)']);
-  const repin = plan(r, {}).changes.find((c) => c.kind === 'command');
-  assert.ok(repin.undoArgv.includes(`https://github.com/anthropics/skills/tree/${'a'.repeat(40)}`), 'undo adds the earlier commit back');
+  // Undo puts back the folder as it was before, local edits included, and the lockfile.
+  const skill = join(r.dir, '.claude/skills/frontend-design/SKILL.md');
+  writeFileSync(skill, 'old, edited locally\n');
+  writeFileSync(join(r.dir, 'skills-lock.json'), '{"old":true}\n');
+  const npx = { ...r.ctx, run: (argv) => { if (argv[0] === 'npx') { writeFileSync(skill, 'new\n'); writeFileSync(join(r.dir, 'skills-lock.json'), '{"new":true}\n'); } return { code: 0, stdout: '', stderr: '' }; } };
+  const repinRun = apply(preview(plan(r, {}).changes.filter((c) => c.kind === 'command')), npx, { scope: r.dir });
+  assert.equal(read(skill), 'new\n');
+  assert.equal(undo(repinRun.id, npx).status, 'done');
+  assert.equal(read(skill), 'old, edited locally\n');
+  assert.equal(read(join(r.dir, 'skills-lock.json')), '{"old":true}\n');
+  writeFileSync(f, JSON.stringify(state));
   state.skills.find((s) => s.name === 'frontend-design').ref = '../../x';
   writeFileSync(f, JSON.stringify(state));
   assert.deepEqual(titles(), [], 'a ref that is not a commit id is ignored');

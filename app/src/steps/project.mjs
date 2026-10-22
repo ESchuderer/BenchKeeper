@@ -11,6 +11,8 @@ import { libraryWith, warnings } from '../packs.mjs';
 import { PLUGINS, SKILLS_CLI, pin } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
+// The skills CLI's lockfile: its commands change it next to the skill folders.
+const LOCK = 'skills-lock.json';
 export const ENVS = {
   container: 'The agent runs inside the dev container (`.devcontainer/`): start it with `devcontainer exec --workspace-folder . <agent>`. Installs, builds, lint, tests and local MCP or browser tools run there too.',
   'host-agent': "The agent, Git and file edits run on the host. Installs, builds, lint, tests and local MCP or browser tools run in the dev container: prefix `devcontainer exec --workspace-folder .`, compound commands as `devcontainer exec --workspace-folder . sh -lc '...'`. If the container cannot start, report it and stop that command.",
@@ -135,7 +137,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     add(step, `remove ${rel(from)} (copied to ${rel(to)})`, { kind: 'remove', path: from, selected: true });
   };
 
-  // Library skills: own skills copied into each skill folder, community skills through the skills CLI at the pinned commit.
+  // Library skills: own skills copied into each skill folder, community skills through the skills CLI at the pinned commit
+// (undo puts back the copies of their folders and the lockfile taken before the command).
   // The state file comes with the repository: only commit ids count.
   const installedRefs = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{40}$/.test(x.ref ?? '')).map((x) => [x.name, x.ref]));
   for (const s of skills) {
@@ -160,16 +163,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     } else {
       // A skill the state file records at another commit is added again at the library's pin.
       const was = installedRefs.get(s.name);
-      const missing = rest.filter(({ dir: d }) => (was && was !== s.ref) || !exists(join(d, s.name))).flatMap((x) => x.agents);
+      const targets = rest.filter(({ dir: d }) => (was && was !== s.ref) || !exists(join(d, s.name)));
+      const missing = targets.flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
-        kind: 'command', cwd: dir, env: NPX_ENV,
+        kind: 'command', cwd: dir, env: NPX_ENV, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
         argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
-        // A re-pin is undone by adding the skill again at its earlier commit, a new skill by removing it.
-        undoArgv: was && was !== s.ref
-          ? ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${was}`, '-s', s.name, ...flags, '--copy', '-y']
-          : ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', s.name, ...flags, '-y'],
       });
     }
   }
@@ -184,9 +184,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, selected: true,
-        argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', name, ...flags, '-y'],
-        undoArgv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', name, ...flags, '--copy', '-y'] });
+      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
+        argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', name, ...flags, '-y'] });
     } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: true });
   };
   for (const name of removed) removeSkill(name, skillDirs(a.agents, 'project', dir));

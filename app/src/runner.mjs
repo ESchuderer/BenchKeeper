@@ -69,11 +69,22 @@ function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
       if (c.kind === 'command') {
         // Journaled before it starts: a command cut off by a crash shows in history and can be undone.
         Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null, status: 'running', touched: true });
+        // Paths the command changes (skill folders, a lockfile) are copied first; undo puts these copies back.
+        if (c.snapshot) {
+          entry.snapshot = c.snapshot.map((p, i) => {
+            const path = resolve(p);
+            if (!inside(path, ctx.roots)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
+            return { path, existed: exists(path), hashBefore: hashPath(path), backup: exists(path) ? ctx.ledger.backupPath(run.id, `${run.entries.length}-${i}`, path) : null };
+          });
+          ctx.ledger.save(run);
+          for (const x of entry.snapshot) if (x.backup) { copy(x.path, x.backup); if (hashPath(x.backup) !== x.hashBefore) throw new Error(`backup of ${x.path} differs from the original`); }
+        }
         ctx.ledger.save(run);
         const r = yield { argv: c.argv, opts: { cwd: c.cwd, env: c.env && { ...process.env, ...c.env } }, entry };
         // Ended with an exit code: undone only when it succeeded, as before the journal.
         entry.exit = r.code;
         delete entry.touched;
+        for (const x of entry.snapshot ?? []) x.hashAfter = hashPath(x.path);
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ') || `exit ${r.code}`);
       } else {
         const path = c.kind === 'write' && !c.from ? real(c.path) : resolve(c.path);
@@ -205,6 +216,23 @@ export function undo(id, ctx, { step } = {}) {
           if (backup) { move(f.path, backup); rec.hashBackup = hashPath(backup); }
           if (f.backup) copy(f.backup, f.path);
           rec.hashAfter = hashPath(f.path);
+        }
+      } else if (e.kind === 'command' && e.snapshot) {
+        // The paths come back from the copies taken before the command, while they are as it left them.
+        for (const x of e.snapshot) {
+          within(x.path);
+          if (e.status === 'done' && hashPath(x.path) !== x.hashAfter) throw new Error(`${x.path} changed after this change: undo what changed it later first`);
+          if (x.existed && hashPath(x.backup) !== x.hashBefore) throw new Error(`the backup ${x.backup} is missing or changed`);
+        }
+        Object.assign(entry, { kind: 'restore', files: [] });
+        begin(entry);
+        for (const x of e.snapshot) {
+          const backup = exists(x.path) ? ctx.ledger.backupPath(run.id, `${run.entries.length}-${entry.files.length}`, x.path) : null;
+          const rec = { path: x.path, backup };
+          entry.files.push(rec);
+          if (backup) { move(x.path, backup); rec.hashBackup = hashPath(backup); }
+          if (x.existed) copy(x.backup, x.path);
+          rec.hashAfter = hashPath(x.path);
         }
       } else if (e.kind === 'command') {
         if (!e.undoArgv) { entry.status = 'manual'; entry.reason = `no undo command for ${e.argv.join(' ')}`; continue; }

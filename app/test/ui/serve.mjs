@@ -8,6 +8,7 @@ import { apply, context, preview } from '../../src/runner.mjs';
 import { startServer } from '../../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../../src/steps/global.mjs';
 import { projectPlan } from '../../src/steps/project.mjs';
+import { writeSessions } from '../fixtures/sessions.mjs';
 
 export const PORT = 4410;
 export const TOKEN = 'ui-test-token-0123456789';
@@ -53,6 +54,9 @@ const result = (time, missRate, falseTriggerRate, target = 'skill:designing-tech
 writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00:00Z', 0.5, 0), result('2026-10-08T10:00:00Z', 0.25, 0.33),
   result('2026-10-08T11:00:00Z', 0, 0.17, 'skill:workflow'), result('2026-10-08T12:00:00Z', null, null, 'rule:global'),
   result('2026-10-09T10:00:00Z', 0.33, null, 'skill:workflow', 'codex')].map((r) => JSON.stringify(r)).join('\n') + '\n');
+
+// Claude Code and Codex transcripts for the Sessions board.
+writeSessions(home);
 
 // The agents are stubs, so the eval plan may show in CI too.
 delete process.env.CI;

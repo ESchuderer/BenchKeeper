@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { context } from '../src/runner.mjs';
+import { writeSessions } from './fixtures/sessions.mjs';
 
 function cli(answers = '') {
   const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
@@ -42,4 +43,14 @@ test('help and unknown commands', async () => {
   assert.equal(await c.exec(['--help']), 0);
   assert.match(c.text(), /Usage: benchkeeper/);
   assert.equal(await c.exec(['nope']), 2);
+});
+
+test('board writes the sessions page for this user only', async () => {
+  const c = cli();
+  writeSessions(c.home);
+  assert.equal(await c.exec(['board', '--no-open']), 0);
+  const file = join(c.home, '.config/benchkeeper/board.html');
+  assert.match(c.text(), /3 sessions: .*board\.html/);
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  assert.match(readFileSync(file, 'utf8'), /"id":"c1"/);
 });

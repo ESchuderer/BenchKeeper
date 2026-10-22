@@ -1,7 +1,7 @@
 import { ActionIcon, Anchor, AppShell, Badge, Burger, Button, Drawer, Group, Kbd, MantineProvider, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
-import { IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconRobot, IconSearch, IconSettings, IconSun } from '@tabler/icons-react';
+import { IconActivity, IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconRobot, IconSearch, IconSettings, IconSun } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
@@ -10,7 +10,7 @@ import { RunProgress } from './parts.jsx';
 import { Dot, MOD, go, href, icon, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
 import { FixEverything } from './fix.jsx';
-import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Settings } from './views.jsx';
+import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Sessions, Settings } from './views.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
@@ -29,7 +29,7 @@ const theme = createTheme({
 const chartColors = (t) => ({ variables: {}, light: { '--bk-miss': t.colors.teal[9], '--bk-false-trigger': t.colors.indigo[9] }, dark: { '--bk-miss': t.colors.teal[7], '--bk-false-trigger': t.colors.indigo[6] } });
 // Dashboard and Projects first: the views used most.
 const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot],
-  ['history', 'History', History, IconHistory], ['evals', 'Evals', Evals, IconChartBar], ['settings', 'Settings', Settings, IconSettings]];
+  ['history', 'History', History, IconHistory], ['sessions', 'Sessions', Sessions, IconActivity], ['evals', 'Evals', Evals, IconChartBar], ['settings', 'Settings', Settings, IconSettings]];
 
 function DoctorBadge({ doctor }) {
   if (!doctor.data) return <Badge variant="default">Doctor: {doctor.error ? 'failed' : 'checking'}</Badge>;

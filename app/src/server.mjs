@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADVISERS, adviseSetup } from './advise.mjs';
+import { CSP as BOARD_CSP, boardHtml } from './board.mjs';
 import { agent, detect } from './agents.mjs';
 import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
@@ -25,6 +26,7 @@ import { exportPack, importPack, libraryWith, removePack, savePack, warnings } f
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
+import { scanSessions } from './sessions.mjs';
 import { globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
 
@@ -197,7 +199,7 @@ export function api(ctx) {
       return { cancelled: true };
     },
     // Running jobs, so a reloaded page finds them again; a plan starts its rehearsal itself.
-    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && j.kind !== 'prerun').map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
+    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && !['prerun', 'scan'].includes(j.kind)).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
@@ -254,6 +256,12 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
       return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx), signal: job.ctl.signal }).then((r) => { job.results = r; }), { kind: 'advice', title: `setup suggestions for ${dir}`, readOnly: true });
+    },
+    // Reads the transcripts into the session cache, so GET /board answers at once; one scan at a time.
+    'POST /api/sessions-scan': () => {
+      const running = [...jobs.values()].find((j) => j.kind === 'scan' && !j.done);
+      if (running) return { job: running.id, total: 0 };
+      return start(0, async (job) => { job.results = { sessions: (await scanSessions(ctx, { onFile: (p) => { job.progress = p; } })).length }; }, { kind: 'scan', title: 'sessions', readOnly: true });
     },
     'POST /api/update-all': (b) => {
       idle();
@@ -370,6 +378,10 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     }
     const why = rejectReason(req, { port: p, session, key, api: url.pathname.startsWith('/api/') });
     if (why) return send(why[0], { error: why[1] });
+    // The sessions board: a page of its own, framed by the app; only its script by hash runs there.
+    if (req.method === 'GET' && url.pathname === '/board') {
+      try { return send(200, boardHtml(await scanSessions(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+    }
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) {
       try { return send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }

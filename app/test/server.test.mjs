@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
+import { CSP as BOARD_CSP } from '../src/board.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
@@ -57,6 +58,13 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
   // The cookie alone, as another server on 127.0.0.1 receives it, reaches no API route; the page still loads.
   for (const k of [undefined, '1', 'x'.repeat(43)]) assert.equal((await req('GET', '/api/overview', { cookie, ...(k ? { 'x-benchkeeper': k } : {}) })).status, 403);
   assert.equal((await req('GET', '/', { cookie })).status, 200);
+});
+
+test('the sessions board: the session cookie without the API key, and a CSP of its own that only this origin may frame', async () => {
+  assert.equal((await req('GET', '/board')).status, 401);
+  const r = await req('GET', '/board', { cookie });
+  assert.deepEqual([r.status, r.headers['content-type'], r.headers['content-security-policy']], [200, 'text/html; charset=utf-8', `${BOARD_CSP}; frame-ancestors 'self'`]);
+  assert.match(r.body, /<title>Sessions board<\/title>/);
 });
 
 test('rejected: other Host, foreign or null Origin, cross-site fetches', async () => {

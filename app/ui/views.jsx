@@ -1,5 +1,5 @@
 import { BarChart, LineChart } from '@mantine/charts';
-import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, NavLink, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, NavLink, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title, useComputedColorScheme } from '@mantine/core';
 import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
@@ -668,7 +668,7 @@ export function History({ history, params, refresh }) {
   );
 }
 
-const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+7`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
+const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+8`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
 
 function Profile({ overview, refresh }) {
   const [file, setFile] = useState(null);
@@ -727,6 +727,32 @@ export function Settings({ overview, refresh }) {
         </List>
         <Text size="sm"><Code>BENCHKEEPER_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>
       </Section>
+    </Stack>
+  );
+}
+
+// The sessions board in a frame: a scan job fills the session cache first (the first one reads every transcript), then
+// the board renders from it. The frame follows the app's theme.
+export function Sessions() {
+  const scheme = useComputedColorScheme('light');
+  const [job, setJob] = useState(null);
+  const [shown, setShown] = useState(0);
+  const [error, setError] = useState(null);
+  const scan = async () => { setError(null); try { setJob((await api('/api/sessions-scan', {})).job); } catch (e) { setError(e.message); } };
+  useEffect(() => { scan(); }, []);
+  const state = useJob(job, (s) => { if (s.error) setError(s.error); else setShown((n) => n + 1); setJob(null); });
+  const p = state?.progress;
+  return (
+    <Stack gap="lg">
+      <Group justify="space-between">
+        <Title order={2} size="h3">Sessions</Title>
+        <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={scan}>Rescan</Button>
+      </Group>
+      <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. Nothing leaves this machine except the pull request lookups through gh.</Text>
+      {error && <Note color="red">{error}</Note>}
+      {job && <Stack gap={4}><Text size="sm">Reading transcripts{p ? `: ${p.done} of ${p.total} files` : ''}</Text><Progress value={p?.total ? (p.done / p.total) * 100 : 0} aria-label="Transcripts read" /></Stack>}
+      {shown > 0 && <iframe key={shown} src={`/board?theme=${scheme}`} title="Sessions board" style={{ width: '100%', height: 'calc(100vh - 260px)', minHeight: 480, border: '1px solid var(--mantine-color-default-border)', borderRadius: 8 }} />}
+      <Cli>benchkeeper board</Cli>
     </Stack>
   );
 }

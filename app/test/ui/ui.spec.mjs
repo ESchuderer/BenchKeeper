@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { openBrowser } from '../../src/server.mjs';
 
 const TOKEN = 'ui-test-token-0123456789';
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Evals', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // A transition may start a frame after the dialog is visible: wait until dialogs and overlays are fully opaque.
@@ -55,6 +55,21 @@ test.describe('views', () => {
       });
     }
   }
+
+  test('Sessions: a scan fills the board frame; a title stays text; no axe violations in the frame, light and dark', async ({ page }) => {
+    await nav(page, 'Sessions').click();
+    const board = page.frameLocator('iframe[title="Sessions board"]');
+    await expect(board.getByRole('heading', { level: 1, name: 'Sessions board' })).toBeVisible();
+    await board.getByLabel('Period').selectOption('all');
+    await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Cart </script><img src=x onerror=alert(1)> fix');
+    await expect(board.getByRole('table', { name: /Sessions by tier/ })).toContainText('full');
+    await noAxe(page);
+    // The app's theme reloads the frame in that theme.
+    await page.getByRole('button', { name: 'Dark theme' }).click();
+    await expect(page.locator('iframe[title="Sessions board"]')).toHaveAttribute('src', '/board?theme=dark');
+    await expect(board.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await noAxe(page);
+  });
 
   test('no axe violations with the command palette open, light and dark', async ({ page }) => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();

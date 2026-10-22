@@ -2,7 +2,8 @@
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
@@ -17,6 +18,8 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
 import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
+import { scanSessions } from './sessions.mjs';
+import { boardHtml } from './board.mjs';
 import { globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectPlan } from './steps/project.mjs';
 
@@ -54,6 +57,8 @@ Usage: benchkeeper <command> [options]
                                     projects Update all covers (~/.config/benchkeeper/projects.json)
   update-all [--yes] [--no-push]    per project: branch chore/agent-setup-<version> in a worktree, one commit,
                                     push and pull request when origin is on GitHub
+  board [--no-open]                 sessions board of the Claude Code and Codex transcripts on this machine:
+                                    tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
   record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
 
@@ -201,6 +206,15 @@ async function command(argv, { out, ask, ctx }) {
     const results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'] });
     for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
+  }
+  if (cmd === 'board') {
+    out.write('Reading the transcripts; the first run reads all of them, later runs only new or changed ones.\n');
+    const rows = await scanSessions(ctx);
+    const file = join(ctx.config, 'board.html');
+    writeAtomic(file, boardHtml(rows), 0o600);
+    out.write(`${rows.length} sessions: ${file}\n`);
+    if (!o['no-open']) openBrowser(pathToFileURL(file).href);
+    return 0;
   }
   if (cmd === 'record') {
     const argv = positionals.slice(1);

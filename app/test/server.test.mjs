@@ -372,3 +372,13 @@ test('run report: each of two edits of one file diffs against what it left; a fi
   writeFileSync(f, 'mine\n');
   assert.deepEqual(diffs().map((d) => d && d.split('\n').at(-2)), ['+b', null]);
 });
+
+test('run report: the undo of a created file shows its removal as a diff', () => {
+  const { ctx, routes } = fixture();
+  const f = join(ctx.home, 'new.txt');
+  const run = apply([{ id: '1', step: 's', title: 'create', kind: 'write', path: f, after: 'x\ny\n' }], ctx);
+  const u = routes['POST /api/undo']({ run: run.id });
+  const [e] = routes['GET /api/run'](new URLSearchParams({ id: u.id })).entries;
+  assert.equal(e.removed, true);
+  assert.match(e.diff, /\n@@ -1,3 \+0,0 @@\n-x\n-y/);
+});

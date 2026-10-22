@@ -72,7 +72,7 @@ const undoable = (e) => (e.status === 'done' || e.touched) && !e.undone;
 function EntryBody({ e, mode }) {
   if (e.diff) return <DiffView diff={e.diff} path={e.path} mode={mode} />;
   if (e.kind === 'write' && e.status === 'done') {
-    return <Text size="sm">{e.folder ? <>Copied the folder <Code>{e.path}</Code>.</> : <><Code>{e.path}</Code> changed since, so its diff is not shown.</>}</Text>;
+    return <Text size="sm">{e.removed ? <>Removed <Code>{e.path}</Code>.</> : e.folder ? <>Copied the folder <Code>{e.path}</Code>.</> : <><Code>{e.path}</Code> changed since, so its diff is not shown.</>}</Text>;
   }
   if (e.kind === 'remove' && e.status === 'done') return <Text size="sm">Moved <Code>{e.path}</Code> to the run's backup.</Text>;
   if (e.argv) {
@@ -101,6 +101,8 @@ export function RunReport({ run: r, onUndo, busy, order = 2 }) {
   const lines = useMemo(() => diffs.map(parseDiff).reduce((s, d) => ({ added: s.added + d.added, removed: s.removed + d.removed }), { added: 0, removed: 0 }), [r]);
   const statuses = Object.entries(Object.groupBy(r.entries, (e) => e.reason === 'cancelled' ? 'cancelled' : e.status ?? 'running'));
   const firstOfStep = (e, i) => r.entries.findIndex((x) => x.step === e.step) === i;
+  // Update all committed in a worktree that is gone: its branch and pull request are the undo.
+  if (r.note?.updateAll) onUndo = null;
   return (
     <Stack gap="md" component="section" aria-label={`Run ${r.id}`}>
       <Group justify="space-between" align="flex-start" gap="sm">
@@ -113,6 +115,7 @@ export function RunReport({ run: r, onUndo, busy, order = 2 }) {
           {onUndo && <Button size="xs" leftSection={icon(IconArrowBackUp)} variant="default" loading={busy} disabled={!r.entries.some(undoable)} onClick={() => onUndo({ run: r.id })}>Undo run</Button>}
         </Group>
       </Group>
+      {r.note?.updateAll && <Text size="sm">Committed on <Code>{r.note.branch}</Code>: to undo it, close its pull request or delete the branch.</Text>}
       <Group gap="xs" role="group" aria-label="Summary">
         {statuses.map(([s, es]) => <Badge key={s} variant="default" leftSection={<Dot color={STATUS[s]?.[1] ?? 'gray'} />}>{es.length} {s}</Badge>)}
         {!!diffs.length && <Badge variant="default">{diffs.length} file{diffs.length === 1 ? '' : 's'}, +{lines.added} -{lines.removed} lines</Badge>}

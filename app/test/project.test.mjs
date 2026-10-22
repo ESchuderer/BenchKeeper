@@ -109,6 +109,10 @@ test('a second plan reads the answers from the state file', () => {
   apply(preview(first), r.ctx, { scope: r.dir });
   assert.deepEqual(preview(plan(r, {}).changes).map((c) => c.title), []);
   assert.match(preview(plan(r, { tier: 'full' }).changes).map((c) => c.title).join(), /AGENTS.md/);
+  // --tier= (empty) clears the saved tier and its line.
+  apply(preview(plan(r, { tier: '' }).changes), r.ctx, { scope: r.dir });
+  assert.doesNotMatch(readFileSync(join(r.dir, 'AGENTS.md'), 'utf8'), /Default tier/);
+  assert.equal(readState(r.dir).tier, '');
 });
 
 test('Codex-only skills need Codex; packs with plugins install them and list their prompts', () => {

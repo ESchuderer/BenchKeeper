@@ -102,7 +102,7 @@ The workflow itself (`benchkeeper:workflow`, Ponytail, optionally Matt Pocock's 
   - It edits `CLAUDE.md` when that exists. With Codex selected, move the block into `AGENTS.md`, which Codex reads, and leave `CLAUDE.md` at `@AGENTS.md`.
   - It skips the triage labels when it does not recognize the plugin skill `mattpocock-skills:triage`. Then write `docs/agents/triage-labels.md` from its `triage-labels.md` template with the default labels, add its `### Triage labels` sub-block, and create the labels the tracker lacks (`gh label create`).
 
-Ask for the default task tier of `benchkeeper:workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Set the choice with `npx benchkeeper@6.0.0 project apply --tier <tier>`, which writes the `Default tier:` line into the BenchKeeper block. For none, leave `--tier` unset and remove a `Default tier:` line outside the block after asking.
+Ask for the default task tier of `benchkeeper:workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Set the choice with `npx benchkeeper@6.0.0 project apply --tier <tier>`, which writes the `Default tier:` line into the BenchKeeper block. For none, pass `--tier=` (an unset `--tier` keeps the saved tier) and remove a `Default tier:` line outside the block after asking.
 
 ### State file
 

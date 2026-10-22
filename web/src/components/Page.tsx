@@ -72,9 +72,9 @@ const quickstart: [string, string, string][] = [
   ['Apply', 'npx benchkeeper@6.0.0 apply', 'Asks per change: rules, ask rules for merges and force pushes, the plugins (BenchKeeper, Ponytail; Matt Pocock\'s skills with --pack matt-pocock), Claude Code settings. Removals of other global rules, skills, plugins, MCP servers and hooks are off unless chosen. Every run is recorded for undo.'],
   ['Or in the browser', 'npx benchkeeper@6.0.0', 'The Dashboard shows the doctor findings. Fix everything walks through the global plan, the projects you pick and the steps left by hand. Skill installs run first in a scratch folder, so the plan lists the files they would write.'],
   ['Restart the agents', '', 'New sessions load the global rules and the plugin skills.'],
-  ['Project setup, in each repository root', 'npx benchkeeper@6.0.0 project apply --agents claude,codex', 'A block in AGENTS.md (where commands run, default tier), CLAUDE.md, library packs with --pack, and .benchkeeper/state.json. project plan shows the changes first.'],
+  ['Project setup, in each repository root', 'npx benchkeeper@6.0.0 project apply --agents claude,codex', '--agents names the agents the repository uses. A block in AGENTS.md (where commands run, default tier), CLAUDE.md, library packs with --pack, and .benchkeeper/state.json. project plan shows the changes first.'],
   ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.0.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
-  ['Update later', 'npx benchkeeper@<version> apply', 'After a release the plan lists what changed, including the plugin. Projects: benchkeeper update-all, or Fix everything in the browser, opens one pull request per project.'],
+  ['Update later', 'npx benchkeeper@6.0.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: benchkeeper update-all, or Fix everything in the browser, opens one pull request per project.'],
 ];
 
 const reasons: [string, string][] = [

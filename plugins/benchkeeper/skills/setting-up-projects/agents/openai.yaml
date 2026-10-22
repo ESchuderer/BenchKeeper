@@ -1,5 +1,5 @@
 interface:
   display_name: "Setting up projects"
-  short_description: "Devcontainer, workflow, issue tracker setup"
+  short_description: "Devcontainer, AGENTS.md, library and stack skills"
 policy:
   allow_implicit_invocation: false

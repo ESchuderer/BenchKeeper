@@ -1,0 +1,79 @@
+{
+  "kind": "benchkeeper-evals",
+  "schemaVersion": 1,
+  "target": "skill:designing-technical-uis",
+  "cases": [
+    {
+      "id": "s1",
+      "query": "Build a settings page for this admin tool with fields for API timeout (seconds), retry count and log level.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s2",
+      "query": "Review the labels, units and empty state of the results table in this dashboard.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s3",
+      "query": "Add a comparison view that shows two loan offers side by side with monthly payment and total interest.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s4",
+      "query": "Write the helper text and error messages for the input fields of this unit converter.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s5",
+      "query": "Design a data table for sensor readings with sortable columns, units and missing values.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s6",
+      "query": "Add a chart to the analysis view that shows latency percentiles over time.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "n1",
+      "query": "Fix the failing unit test in src/math.test.js.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n2",
+      "query": "Bump the eslint dev dependency to the latest patch release.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n3",
+      "query": "Write a SQL migration that adds an index on orders.customer_id.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n4",
+      "query": "Add retry with exponential backoff to the HTTP client in src/http.js.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n5",
+      "query": "Explain what this regular expression matches: ^\\d{3}-\\d{4}$",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n6",
+      "query": "Set up a GitHub Actions workflow that runs npm test on pull requests.",
+      "should": false,
+      "expected": "the skill does not load"
+    }
+  ]
+}

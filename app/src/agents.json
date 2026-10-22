@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "agents": [
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "bin": "claude",
+      "tested": true,
+      "plugins": true,
+      "global": {
+        "rules": { "path": ".claude/rules/00-global.md", "format": "file" },
+        "skills": ".claude/skills",
+        "settings": { "path": ".claude/settings.json", "format": "json" },
+        "mcp": { "path": ".claude.json", "format": "json", "key": "mcpServers" },
+        "subagents": { "path": ".claude/agents", "format": "markdown" }
+      },
+      "project": {
+        "rules": { "path": "CLAUDE.md", "format": "import" },
+        "skills": ".claude/skills",
+        "settings": { "path": ".claude/settings.json", "format": "json" },
+        "mcp": { "path": ".mcp.json", "format": "json", "key": "mcpServers" },
+        "subagents": { "path": ".claude/agents", "format": "markdown" }
+      }
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "bin": "codex",
+      "tested": true,
+      "plugins": true,
+      "global": {
+        "rules": { "path": ".codex/AGENTS.md", "format": "block" },
+        "skills": ".agents/skills",
+        "settings": { "path": ".codex/config.toml", "format": "toml" },
+        "mcp": { "path": ".codex/config.toml", "format": "toml", "key": "mcp_servers" },
+        "subagents": { "path": ".codex/agents", "format": "toml" },
+        "commandRules": ".codex/rules/benchkeeper.rules"
+      },
+      "project": {
+        "rules": { "path": "AGENTS.md", "format": "block" },
+        "skills": ".agents/skills",
+        "settings": { "path": ".codex/config.toml", "format": "toml" },
+        "mcp": { "path": ".codex/config.toml", "format": "toml", "key": "mcp_servers" },
+        "subagents": { "path": ".codex/agents", "format": "toml" }
+      }
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini CLI",
+      "bin": "gemini",
+      "tested": false,
+      "plugins": false,
+      "global": {
+        "rules": { "path": ".gemini/GEMINI.md", "format": "block" },
+        "skills": ".gemini/skills",
+        "settings": { "path": ".gemini/settings.json", "format": "json" },
+        "mcp": { "path": ".gemini/settings.json", "format": "json", "key": "mcpServers" },
+        "subagents": { "path": ".gemini/agents", "format": "markdown" }
+      },
+      "project": {
+        "rules": { "path": "AGENTS.md", "format": "block", "setting": { "path": ".gemini/settings.json", "key": ["context", "fileName"], "value": ["AGENTS.md", "GEMINI.md"] } },
+        "skills": ".agents/skills",
+        "settings": { "path": ".gemini/settings.json", "format": "json" },
+        "mcp": { "path": ".gemini/settings.json", "format": "json", "key": "mcpServers" },
+        "subagents": { "path": ".gemini/agents", "format": "markdown" }
+      }
+    },
+    {
+      "id": "copilot",
+      "name": "GitHub Copilot CLI",
+      "bin": "copilot",
+      "tested": false,
+      "plugins": false,
+      "global": {
+        "rules": { "path": ".copilot/copilot-instructions.md", "format": "block" },
+        "skills": ".copilot/skills",
+        "settings": { "path": ".copilot/settings.json", "format": "jsonc" },
+        "mcp": { "path": ".copilot/mcp-config.json", "format": "json", "key": "mcpServers" },
+        "subagents": { "path": ".copilot/agents", "format": "copilot-agent" }
+      },
+      "project": {
+        "rules": { "path": "AGENTS.md", "format": "block" },
+        "skills": ".agents/skills",
+        "settings": null,
+        "mcp": { "path": ".github/mcp.json", "format": "json", "key": "mcpServers" },
+        "subagents": { "path": ".github/agents", "format": "copilot-agent" }
+      }
+    }
+  ]
+}

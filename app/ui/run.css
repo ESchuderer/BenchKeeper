@@ -1,0 +1,32 @@
+.bk-diff {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+  overflow: hidden;
+}
+.bk-diff-head {
+  padding: 4px 8px;
+  background: var(--mantine-color-default-hover);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+.bk-plus { color: var(--mantine-color-teal-text); }
+.bk-minus { color: var(--mantine-color-red-text); }
+.bk-diff-body { overflow-x: auto; }
+.bk-diff table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.6;
+}
+.bk-diff td { padding: 0 8px; vertical-align: top; white-space: pre; }
+.bk-diff td.n {
+  width: 1%;
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid var(--mantine-color-default-border);
+}
+.bk-diff tr.hunk td { background: var(--mantine-color-default-hover); padding: 2px 8px; }
+.bk-diff tr.add td, .bk-diff td.add { background: var(--mantine-color-teal-light); }
+.bk-diff tr.del td, .bk-diff td.del { background: var(--mantine-color-red-light); }
+.bk-diff td.none { background: var(--mantine-color-default-hover); }
+.bk-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

@@ -1,0 +1,93 @@
+import { Alert, Badge, Box, Grid, Group, Loader, Paper, ScrollArea, Text } from '@mantine/core';
+import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
+import { useCallback, useEffect, useState } from 'react';
+import { api } from './api.js';
+
+export { RANK } from '../src/states.mjs';
+
+// The view and its parameters live in the hash (#/projects?path=...), so reloads and the palette can deep-link.
+const parse = () => {
+  const [view, query = ''] = window.location.hash.replace(/^#\/?/, '').split('?');
+  return { view: view || 'dashboard', params: new URLSearchParams(query) };
+};
+export const href = (view, params = {}) => {
+  const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString();
+  return `#/${view}${q ? `?${q}` : ''}`;
+};
+export const MOD = /Mac/.test(navigator.platform) ? 'Cmd' : 'Ctrl';
+export const go = (view, params) => { window.location.hash = href(view, params); };
+
+export function useRoute() {
+  const [route, setRoute] = useState(parse);
+  useEffect(() => {
+    const on = () => setRoute(parse());
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
+  return route;
+}
+
+// Status colors always come with a text label; the dot only repeats it.
+export const STATE_COLOR = { current: 'teal', absent: 'gray', outdated: 'yellow', missing: 'orange', modified: 'indigo', removed: 'red', foreign: 'grape', error: 'red', behind: 'yellow', ok: 'teal', attention: 'yellow', problem: 'red' };
+export const Dot = ({ color }) => <Box component="span" aria-hidden w={8} h={8} display="inline-block" style={{ borderRadius: 4, background: `var(--mantine-color-${color}-filled)` }} />;
+
+// Object.groupBy needs browsers from 2024 on.
+export const groupBy = (xs, key) => xs.reduce((m, x) => { (m[key(x)] ??= []).push(x); return m; }, {});
+
+// Loads a GET endpoint; reload() fetches it again and keeps the data meanwhile, another path drops it. A request for
+// an older path or load is aborted; no path clears it.
+export function useApi(path) {
+  const [state, setState] = useState({ data: null, error: null, loading: !!path, path });
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!path) { setState({ data: null, error: null, loading: false, path }); return undefined; }
+    const ac = new AbortController();
+    setState((s) => (s.path === path ? { ...s, loading: true } : { data: null, error: null, loading: true, path }));
+    api(path, undefined, { signal: ac.signal }).then((data) => !ac.signal.aborted && setState({ data, error: null, loading: false, path }), (e) => !ac.signal.aborted && setState({ data: null, error: e.message, loading: false, path }));
+    return () => ac.abort();
+  }, [path, n]);
+  const reload = useCallback(() => setN((x) => x + 1), []);
+  // Until the effect runs for a new path, the old path's data must not show under it.
+  return { ...(state.path === path ? state : { data: null, error: null, loading: true }), reload };
+}
+
+export function Loading({ state, label, children }) {
+  if (state.error) return <Note color="red" title={`${label} failed`}>{state.error}</Note>;
+  // No data yet also covers the first render after the path changes, before the effect marks it loading.
+  if (state.data == null) return <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
+  return children(state.data);
+}
+
+const STATUS_COLOR = { done: 'teal', failed: 'red', skipped: 'gray', running: 'blue', waiting: 'gray', manual: 'yellow', cancelled: 'gray' };
+export const StatusBadge = ({ status }) => <Badge variant="default" miw="max-content" leftSection={<Dot color={STATUS_COLOR[status] ?? 'gray'} />}>{status}</Badge>;
+
+// List on the left, the chosen item's detail on the right (sticky); stacked below md.
+export function SplitView({ list, detail, empty, span = 5 }) {
+  return (
+    <Grid gutter="lg">
+      <Grid.Col span={{ base: 12, md: span }}>
+        <ScrollArea.Autosize mah="calc(100vh - 220px)" type="auto" offsetScrollbars>{list}</ScrollArea.Autosize>
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, md: 12 - span }}>
+        <Paper withBorder p="md" style={{ position: 'sticky', top: 'calc(var(--app-shell-header-height, 0px) + var(--mantine-spacing-md))' }}>
+          {detail ?? <Text>{empty}</Text>}
+        </Paper>
+      </Grid.Col>
+    </Grid>
+  );
+}
+
+// A file for the browser to save, from text the server returned.
+export function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// Decorative: the text next to an icon names the action, so screen readers skip the icon.
+export const icon = (Icon, size = 16) => <Icon size={size} stroke={1.75} aria-hidden="true" />;
+const ALERT_ICON = { red: IconAlertCircle, yellow: IconAlertTriangle, teal: IconCircleCheck };
+// An Alert with the icon of its color.
+export const Note = ({ color = 'blue', ...props }) => <Alert color={color} icon={icon(ALERT_ICON[color] ?? IconInfoCircle, 20)} {...props} />;

@@ -1,6 +1,6 @@
 # Evaluations
 
-Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-17 (each file names its date).
+Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-22 (each file names its date).
 
 SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#external-benchmark-pilot-slopcodebench-v123) separates natural skill selection from delivery and scoring failures, and pins the current setup as AO. Reference calibration also exposed a missing MIME database in the scorer image, and an `sg` name clash that skipped scb-check's ast-grep rules. No new skill-effectiveness results.
 
@@ -19,7 +19,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 
 | Component | Decision | Summary |
 |---|---|---|
-| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms L, M, N, X, C, D, E, Y (layer v1, one trial per arm and model): [winery-react](bench/results/2026-10-15-winery-react.md), [cartridges](bench/results/2026-10-16-cartridges.md). AD, AE (layer v3, three rounds per arm): [openballistics](bench/results/2026-10-17-openballistics.md) |
+| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms L, M, N, X, C, D, E, Y (layer v1, one trial per arm and model): [winery-react](bench/results/2026-10-15-winery-react.md), [cartridges](bench/results/2026-10-16-cartridges.md). AD, AE (layer v3, three rounds per arm): [openballistics](bench/results/2026-10-17-openballistics.md). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
 
 ### Behavior modes
 
@@ -33,12 +33,16 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 | Component | Decision | Summary |
 |---|---|---|
 | [agent-skills](evaluations/skill-libraries/agent-skills.md) | Out (setup-v3.0) | replaced by Matt Pocock's skills. Own cartridges run: 7th of 29 alone, Matt Pocock's skills 3rd |
-| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | In (setup-v3.0) | signals: best Claude Code app on cartridges (rank 3 of 29), brownfield scores within noise, with the BenchKeeper layer the fastest arm that finished every step |
+| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | Optional pack (setup-v6.0; in from setup-v3.0) | 19 of 52 trials with them called any; no quality gain over plain Claude Code. Earlier signals: best Claude Code app on cartridges (rank 3 of 29), brownfield scores within noise, with the BenchKeeper layer the fastest arm that finished every step |
 | [andrej-karpathy-skills](evaluations/skill-libraries/andrej-karpathy-skills.md) | Not in | accuracy 60/60 in every arm. Cost +11.5% (skill-receipts), +6.6% (skillbench) |
 | [Anthropic document skills](evaluations/skill-libraries/anthropic-document-skills.md) | Not global, per project | DocOps: Claude Code Sonnet 4.6 0.519 with skills vs 0.552 without. Library: Codex only (Claude Code has them through the claude.ai skills) |
 | [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation. Four sets in the library, other single skills through the search |
-| [marketingskills](evaluations/skill-libraries/marketingskills.md) | Not global, per project | no task-level evaluation. Core and optional set in the library |
-| [Library exclusions](evaluations/skill-libraries/library-exclusions.md) | Not in the library | skills reviewed on 2026-10-18 and left out of `plugins/benchkeeper/library/README.md`, with reasons |
+| [marketingskills](evaluations/skill-libraries/marketingskills.md) | Not global, per project | no task-level evaluation. Core and optional set in the library, the marketing pack (setup-v6.0) proposes five of the core skills |
+| [playwright-best-practices](evaluations/skill-libraries/playwright-best-practices.md) | Per project, testing pack (setup-v6.0) | no evaluation of this skill; 97.1K installs, security scans passed, no scripts |
+| [Security skills](evaluations/skill-libraries/security-skills.md) | Per project, security pack (setup-v6.0), open questions on fp-check and variant-analysis | no independent evidence; vendor eval shows no variant-analysis uplift; fp-check's deep path and variant-analysis's command lose their plugin files on install; Trail of Bits attribution not copied |
+| [Frontend and docs skills](evaluations/skill-libraries/frontend-and-docs-skills.md) | Per project, frontend and docs packs (setup-v6.0), mcp-builder open | no paired measurement of frontend-design, mermaid-diagrams or accessibility; mcp-builder 100% vs 100% (SWE-Skills-Bench), fetches SDK READMEs from main at run time, broken eval script |
+| [Data and operations skills](evaluations/skill-libraries/data-and-operations-skills.md) | Per project, data and operations packs (setup-v6.0), gdpr-compliant open | no independent evidence; 1.6K to 5.8K installs, scans pass but one Snyk warn; no scripts or hooks; gdpr-compliant points to two reference files that do not exist |
+| [Library exclusions](evaluations/skill-libraries/library-exclusions.md) | Not in the library | skills reviewed 2026-10-18 to 2026-10-22 and left out of `plugins/benchkeeper/library/README.md`, with reasons |
 
 ### Workflow frameworks
 
@@ -46,9 +50,9 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 |---|---|---|
 | [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (arms G, J, M, D, k=1) | cost higher in every test but one 6-task run (1.33x on v6.4.2). Pass rate n.s. (p about 0.235) |
 | [OpenSpec](evaluations/workflow-frameworks/openspec.md) | Out (setup-v3.0) | specs and tickets live in the issue tracker of Matt Pocock's skills. Brownfield: tied with plain Claude Code, one stop after the proposal with the layer |
-| [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no baseline with a skill collection. Overlaps Matt Pocock's skills |
+| [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no baseline with a skill collection. Overlaps the workflow's specs in the issue, and Matt Pocock's skills when installed |
 | [GSD](evaluations/workflow-frameworks/gsd.md) | Not in | one task: about 1.2M tokens vs 200K vanilla, outputs indistinguishable |
-| [planning-with-files](evaluations/workflow-frameworks/planning-with-files.md) | Not in | vendor only. Every arm passed 77/77. Overlaps the ticket files of Matt Pocock's skills |
+| [planning-with-files](evaluations/workflow-frameworks/planning-with-files.md) | Not in | vendor only. Every arm passed 77/77. Overlaps the workflow's tickets in the issue tracker, and Matt Pocock's `/to-tickets` when installed |
 
 ### Harness bundles
 
@@ -88,5 +92,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 |---|---|---|
 | [Skill authoring guide (Anthropic)](evaluations/practices/skill-authoring.md) | In | 8 benchmarked collections ranked: Ponytail 3.9 first, Spec Kit 2.8 last. Only agent-skills ships evaluations |
 | [Project summary and layout in AGENTS.md](evaluations/practices/agents-md-overviews.md) | Not in | context files raised cost over 20%, no success gain, arXiv 2602.11988 |
+
+Not evaluated, offered by the app without evidence gathered: Gemini CLI and GitHub Copilot CLI support (untested), Docker Sandboxes (`--env sandbox`, untested), and the Codex permission profile for setup suggestions (its arguments are tested, its enforcement in a real Codex session is unverified).
 
 Also checked, no evidence found (independent or vendor), no file: BMAD Method (qualitative session log only, [bmad_benchmarking](https://github.com/addi-katzav/bmad_benchmarking)), gstack, oh-my-claudecode, SuperClaude, compound-engineering, wshobson/agents (one judge-only test without baseline, [#632](https://github.com/wshobson/agents/issues/632)), Taskmaster AI, Anthropic feature-dev and code-review plugins, last30days-skill, Agent-Reach (credential and supply chain issues: [#412](https://github.com/Panniantong/Agent-Reach/issues/412), [#547](https://github.com/Panniantong/Agent-Reach/issues/547)).

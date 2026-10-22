@@ -1,6 +1,6 @@
 # mattpocock/skills
 
-[Repository](https://github.com/mattpocock/skills), Category: skill libraries, Checked 2026-10-17, Decision: In (setup-v3.0)
+[Repository](https://github.com/mattpocock/skills), Category: skill libraries, Checked 2026-10-22, Decision: Optional pack (setup-v6.0)
 
 ## Advertised
 
@@ -32,7 +32,9 @@ Rank 3 of 8, review 3.4, static checks 99% (1.3.1), conciseness 4, examples 5. `
 
 ## Decision
 
-In (setup-v3.0, 2026-10-17): drives each phase of the workflow, with the BenchKeeper layer picking the tier and Ponytail `full`. Evidence, all signals (one brief per run, one trial or k = 3), no measurement:
+Optional pack (setup-v6.0, 2026-10-22): the workflow skill runs without them and names them where they help when installed. Trace count over the 182 published trials: 52 Claude Code trials had them, 19 called any (`code-review` 21 times, `tdd` 11, `domain-modeling` once), 24 of 27 were never called, and no run separated them from plain Claude Code on quality (openballistics median 82.85 vs 85.69, mistreevous 87.22 vs 86.97). Issue #132 measures setup-v6.0 with and without them on Sonnet 5.5, opusplan and Opus 5.5.
+
+Before, in (setup-v3.0, 2026-10-17): drives each phase of the workflow, with the BenchKeeper layer picking the tier and Ponytail `full`. Evidence, all signals (one brief per run, one trial or k = 3), no measurement:
 - Cartridges, Sonnet 5.5, one trial per arm ([report](../../bench/results/2026-10-16-cartridges.md)): Matt Pocock's skills alone (V) were the best Claude Code app, final score 84.0, rank 3 of 29. agent-skills alone (F) ranked 7th, plain Claude Code (A) 19th. With the BenchKeeper layer v1, Matt Pocock's skills (X) ranked 20th and agent-skills (L) 13th.
 - Openballistics brownfield, k = 3 ([report](../../bench/results/2026-10-17-openballistics.md)): no setup separated on score (medians 82.9 to 85.7, spread within one arm up to 7 points). The BenchKeeper layer v3 with these skills (AD), the fastest arm that finished every step, was faster in every round than every round of A, OpenSpec alone and V (median 8 minutes against 11 to 13, rank test p of about 0.005 one-sided, unadjusted).
 - Research ([studies](../studies.md)): focused skills with few modules beat large bundles (SkillsBench), and single coding skills rarely move pass rates. These skills are small and composable, and the user starts the long flows (`/to-spec`, `/to-tickets`, `/implement`) instead of the agent.

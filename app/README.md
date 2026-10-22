@@ -34,6 +34,28 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 
 `benchkeeper ui` serves on `127.0.0.1` at a free port and opens the browser with a one-time link (`--no-open` prints it). The link's token becomes an HttpOnly, SameSite=Strict session cookie. The server rejects other Host headers, foreign or `null` origins, cross-site fetches, changes sent with GET, and POST requests without its own header. It stops with the CLI process (Ctrl+C). Recorded agent sessions and evals run from the CLI only.
 
+| View | Contents |
+|---|---|
+| Dashboard | install health of the global items, coverage per setup part and agent (a cell opens that agent's plan), setup flow, the last 6 runs, doctor findings with a link to the plan that fixes them |
+| Catalog | library skills with filters, skill detail with eval results, pack builder (warns at more than 5 skills or overlapping descriptions), packs with export, import and removal |
+| Agents | detected agents and the global plan for the chosen ones |
+| Projects | registered projects with setup version, pending changes, tree state and branch; per project its plan, skill switches and doctor findings; add, scan a parent folder, Update all with progress per project |
+| History | runs by day; per run its entries with side-by-side diffs, undo of a step or the whole run |
+| Evals | miss and false-trigger rates per target over time (read only, `benchkeeper eval` runs them) |
+| Settings | profile export and import, keyboard shortcuts, config files |
+
+The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Choose folder" opens the system dialog: `osascript` on macOS, `zenity`, then `kdialog` on Linux. With none of them, on Windows, or after a cancel, type the path. The server blocks other requests while the dialog is open.
+
+| Keys | Action |
+|---|---|
+| Ctrl+K (macOS: Cmd+K) | command palette: views, projects, skills, the last 20 runs, plan global setup, run doctor, toggle theme |
+| Ctrl+1 to Ctrl+7 | views in sidebar order |
+| Ctrl+J | light or dark theme |
+
+Where the browser handles one of these keys itself, the sidebar, the palette and the header buttons do the same.
+
+The UI is built from dev dependencies (Mantine core, charts and spotlight, Recharts, React) into `dist/`; the published package has no extra runtime dependencies.
+
 ## Configuration
 
 | Name | Default | Effect |

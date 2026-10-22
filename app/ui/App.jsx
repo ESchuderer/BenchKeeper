@@ -4,10 +4,10 @@ import { Spotlight, spotlight } from '@mantine/spotlight';
 import { useEffect } from 'react';
 import { useApi } from './parts.jsx';
 import { Dot, MOD, go, href, useRoute } from './shell.jsx';
-import { Agents, Catalog, Dashboard, History, Projects, Settings } from './views.jsx';
+import { Agents, Catalog, Dashboard, Evals, History, Projects, Settings } from './views.jsx';
 
 const theme = createTheme({ primaryColor: 'teal', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md' });
-const VIEWS = [['dashboard', 'Dashboard', Dashboard], ['catalog', 'Catalog', Catalog], ['agents', 'Agents', Agents], ['projects', 'Projects', Projects], ['history', 'History', History], ['settings', 'Settings', Settings]];
+const VIEWS = [['dashboard', 'Dashboard', Dashboard], ['catalog', 'Catalog', Catalog], ['agents', 'Agents', Agents], ['projects', 'Projects', Projects], ['history', 'History', History], ['evals', 'Evals', Evals], ['settings', 'Settings', Settings]];
 
 function DoctorBadge({ doctor }) {
   if (!doctor.data) return <Badge variant="default">Doctor: {doctor.error ? 'failed' : 'checking'}</Badge>;
@@ -53,13 +53,13 @@ function Shell() {
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap">
             <Burger opened={nav} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Views" />
-            <Title order={1} size="h3">BenchKeeper</Title>
+            <Title order={1} size="h4">BenchKeeper</Title>
             {o && <Badge variant="outline" visibleFrom="xs">{o.version}</Badge>}
             <Group visibleFrom="md"><DoctorBadge doctor={doctor} /></Group>
           </Group>
           <Group gap="xs" wrap="nowrap">
-            <Button variant="default" onClick={spotlight.open} rightSection={<Kbd>{MOD}+K</Kbd>}>Search</Button>
-            <Button variant="default" onClick={toggleTheme}>{scheme === 'dark' ? 'Light theme' : 'Dark theme'}</Button>
+            <Button variant="default" onClick={spotlight.open} rightSection={<Kbd visibleFrom="sm">{MOD}+K</Kbd>}>Search</Button>
+            <Button variant="default" onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{scheme === 'dark' ? 'Light' : 'Dark'}</Button>
           </Group>
         </Group>
       </AppShell.Header>

@@ -38,6 +38,15 @@ const EFFORT_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5'];
 const json = (list, fallback) => { try { return JSON.parse(list); } catch { return fallback; } };
 const sets = (pairs) => (text) => mergeJson(text, pairs.map(([path, value]) => ({ path, value })));
 
+// Enabled plugin ids per agent.
+export function installedPlugins(ctx) {
+  const parse = (t, f) => { try { return JSON.parse(t); } catch { return f; } };
+  return {
+    claude: parse(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.enabled).map((p) => p.id),
+    codex: (parse(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).filter((p) => p.enabled).map((p) => p.pluginId),
+  };
+}
+
 // The highest x.y.z release public for at least 7 days, or null.
 export function newest(ctx, pkg, now = Date.now()) {
   const r = ctx.run(['npm', 'view', pkg, 'time', '--json']);

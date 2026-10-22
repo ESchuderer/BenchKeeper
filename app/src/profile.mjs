@@ -6,11 +6,17 @@ import { appVersion } from './content.mjs';
 import { ownPacks, savePack } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
 import { preview } from './runner.mjs';
-import { globalPlan } from './steps/global.mjs';
+import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectPlan, readState, tryState } from './steps/project.mjs';
 
 export const PROFILE_SCHEMA = 1;
 const ANSWERS = ['agents', 'env', 'sandbox', 'packs', 'singles', 'tier', 'paths', 'disabled'];
+
+// The optional packs whose plugin is installed: the profile's global packs.
+export function installedPacks(ctx) {
+  const installed = installedPlugins(ctx);
+  return [...new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => p.pack && installed[a]?.includes(p.id)).map((p) => p.pack)))];
+}
 
 export function exportProfile(ctx, { agents, packs = [] }) {
   const projects = listProjects(ctx).map(({ path }) => {

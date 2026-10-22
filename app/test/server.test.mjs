@@ -164,3 +164,47 @@ test('project-plan: disable and enable only name skills the project has', () => 
   const off = routes['GET /api/project-plan'](q([['disable', skill]]));
   assert.ok(off.chosen.find((s) => s.name === skill).disabled);
 });
+
+test('packs: save, export, import and remove; bad input is a 400', () => {
+  const { routes } = fixture();
+  const packs = routes['POST /api/packs'];
+  const skill = routes['GET /api/catalog']().skills[0].name;
+  assert.equal(status(() => packs({ action: 'save', id: 'Bad Id', skills: [skill] })), 400);
+  assert.equal(status(() => packs({ action: 'save', id: 'mine', skills: ['not-in-library'] })), 400);
+  assert.equal(status(() => packs({ action: 'import', text: 'not json' })), 400);
+  assert.equal(status(() => packs({ action: 'import', text: '{"kind":"other"}' })), 400);
+  assert.equal(status(() => packs({ action: 'drop' })), 400);
+  assert.equal(packs({ action: 'save', id: 'mine', skills: [skill] }).id, 'mine');
+  const { name, text } = routes['GET /api/pack-export'](new URLSearchParams({ id: 'mine' }));
+  assert.equal(name, 'mine.json');
+  assert.equal(packs({ action: 'import', text, id: 'copy' }).id, 'copy');
+  assert.equal(status(() => routes['GET /api/pack-export'](new URLSearchParams({ id: 'nope' }))), 400);
+  packs({ action: 'remove', id: 'copy' });
+  assert.equal(status(() => packs({ action: 'remove', id: 'copy' })), 400);
+  assert.deepEqual(routes['GET /api/pack-warnings'](new URLSearchParams({ skills: 'a,b,c,d,e,f' })), ['6 skills: the setup keeps about 5 per project']);
+});
+
+test('profile import: a bad kind is a 400; register saves packs and projects, then returns the plans', () => {
+  const { routes } = fixture();
+  const imp = routes['POST /api/profile-import'];
+  assert.equal(status(() => imp({ text: '{"kind":"benchkeeper-pack","schemaVersion":1}' })), 400);
+  assert.equal(status(() => imp({ text: 'nope' })), 400);
+  const dir = mkdtempSync(join(tmpdir(), 'bk-prof-'));
+  const skill = routes['GET /api/catalog']().skills[0].name;
+  const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] }, packs: [{ id: 'own', skills: [skill] }],
+    projects: [{ path: dir, answers: { agents: ['claude'], packs: ['own'] } }, { path: '/nowhere/x' }] });
+  const preview = imp({ text });
+  assert.deepEqual(preview.projects, [{ path: dir, here: true }, { path: '/nowhere/x', here: false }]);
+  assert.deepEqual(routes['GET /api/projects'](), []);
+  const r = imp({ text, register: true });
+  assert.deepEqual([r.packs, r.projects, r.missing], [['own'], [dir], ['/nowhere/x']]);
+  assert.ok(r.global.planId && r.plans.length === 1 && r.plans[0].changes.some((c) => c.title.includes(skill)));
+  assert.match(routes['GET /api/profile-export'](new URLSearchParams({ agents: 'claude' })).text, /"benchkeeper-profile"/);
+});
+
+test('evals: results without details; broken lines are left out', () => {
+  const { ctx, routes } = fixture();
+  mkdirSync(join(ctx.config, 'evals'), { recursive: true });
+  writeFileSync(join(ctx.config, 'evals/results.jsonl'), `${JSON.stringify({ target: 'skill:x', missRate: 0.5, details: [{ id: 1 }] })}\nnot json\n`);
+  assert.deepEqual(routes['GET /api/evals'](), [{ target: 'skill:x', missRate: 0.5 }]);
+});

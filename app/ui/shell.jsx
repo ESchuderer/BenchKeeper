@@ -44,3 +44,12 @@ export function SplitView({ list, detail, empty }) {
     </Grid>
   );
 }
+
+// A file for the browser to save, from text the server returned.
+export function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}

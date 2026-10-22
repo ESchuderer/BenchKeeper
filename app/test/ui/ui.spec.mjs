@@ -2,9 +2,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 const TOKEN = 'ui-test-token-0123456789';
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Settings'];
-// axe in both color schemes on the page as it is.
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Evals', 'Settings'];
+// axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
   for (const scheme of ['light', 'dark']) {
     await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
     const { violations } = await new AxeBuilder({ page }).analyze();
@@ -46,12 +47,8 @@ test.describe('views', () => {
   test('no axe violations with the command palette open, light and dark', async ({ page }) => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
     await page.keyboard.press('ControlOrMeta+K');
-    await expect(page.getByRole('dialog')).toBeVisible();
-    for (const scheme of ['light', 'dark']) {
-      await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
-      const { violations } = await new AxeBuilder({ page }).analyze();
-      expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
-    }
+    await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+    await noAxe(page);
   });
 
   test('keyboard: Tab to a sidebar link and Enter opens its view; mod+2 opens Catalog', async ({ page }) => {
@@ -91,7 +88,10 @@ test.describe('views', () => {
 
   test('palette: mod+K, type a project, Enter opens it', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+K');
-    await page.getByRole('dialog').getByLabel('Search').fill('bk-ui-proj');
+    const palette = page.getByRole('dialog', { name: 'Command palette' });
+    await palette.getByLabel('Search').fill('bk-ui-proj');
+    // Spotlight selects the first match after the list renders; Enter before that does nothing.
+    await expect(palette.locator('[data-selected]')).toContainText('bk-ui-proj');
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#\/projects\?path=/);
   });
@@ -104,13 +104,32 @@ test.describe('views', () => {
     await expect(html).not.toHaveAttribute('data-mantine-color-scheme', first);
   });
 
-  test('Catalog: search, then the detail panel with the skill text', async ({ page }) => {
+  test('Catalog: search, then the detail panel with the skill text and its eval results', async ({ page }) => {
     await nav(page, 'Catalog').click();
-    await page.getByLabel('Search').fill('technical');
-    await page.getByRole('button', { name: 'designing-technical-uis' }).click();
+    await page.getByRole('textbox', { name: 'Search' }).fill('technical');
+    await page.getByRole('table', { name: 'Skills' }).getByRole('link', { name: 'designing-technical-uis' }).click();
     const detail = page.getByRole('region', { name: 'Skill designing-technical-uis' });
     await expect(detail.getByText('# Designing technical UIs')).toBeVisible();
+    await expect(detail.getByRole('table', { name: 'Eval runs' }).getByRole('row')).toHaveCount(3);
     await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row')).toHaveCount(2);
+  });
+
+  test('Catalog: the pack builder warns about too many skills and saves an own pack; export downloads it', async ({ page }) => {
+    await nav(page, 'Catalog').click();
+    const boxes = page.getByRole('table', { name: 'Skills' }).getByRole('checkbox');
+    for (let i = 0; i < 6; i++) await boxes.nth(i).check();
+    await page.getByRole('button', { name: 'Build pack (6)' }).click();
+    const drawer = page.getByRole('dialog', { name: 'Build a pack' });
+    await expect(drawer.getByText('6 skills: the setup keeps about 5 per project')).toBeVisible();
+    await noAxe(page);
+    await drawer.getByLabel(/^Pack id/).fill('my-pack');
+    await drawer.getByRole('button', { name: 'Save pack' }).click();
+    await expect(drawer).toBeHidden();
+    const packs = page.getByRole('table', { name: 'Packs' });
+    await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toBeVisible();
+    const download = page.waitForEvent('download');
+    await packs.getByRole('button', { name: 'Export my-pack' }).click();
+    expect((await download).suggestedFilename()).toBe('my-pack.json');
   });
 
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
@@ -146,13 +165,43 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Projects' })).toContainText('no state file');
   });
 
-  test('History: a run shows its diffs, undo restores', async ({ page }) => {
+  test('History: a run shows side-by-side diffs; undo of one step, then of the run', async ({ page }) => {
     await nav(page, 'History').click();
-    const runs = page.getByRole('table', { name: 'Runs' });
-    const global = runs.getByRole('row').filter({ hasText: /apply.*global/ }).first();
-    await global.getByRole('button', { name: 'Changes' }).click();
-    await expect(page.getByRole('region', { name: /^Run / })).toContainText('Claude Code rules');
-    await global.getByRole('button', { name: 'Undo' }).click();
+    await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: 'apply global' }).first().click();
+    const run = page.getByRole('region', { name: /^Run / });
+    await expect(run).toContainText('Claude Code rules');
+    const diff = run.getByRole('table', { name: /^Diff of .*settings\.json$/ }).first();
+    await expect(diff.getByRole('columnheader')).toHaveText(['Before', 'After']);
+    await expect(diff).toContainText('+');
+    await noAxe(page);
+    await run.getByRole('button', { name: 'Undo step settings:claude', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Undo' })).toContainText(/done/);
+    await expect(run).toContainText('undone by');
+    await run.getByRole('button', { name: 'Undo run' }).click();
     await expect(page.getByRole('region', { name: 'Undo' })).toContainText(/done|failed/);
+  });
+
+  test('Evals: the fixture target, its chart and runs table', async ({ page }) => {
+    await nav(page, 'Evals').click();
+    await page.getByRole('table', { name: 'Eval targets' }).getByRole('link', { name: 'skill:designing-technical-uis' }).click();
+    const detail = page.getByRole('region', { name: 'Eval skill:designing-technical-uis' });
+    await expect(detail.locator('.recharts-surface').first()).toBeVisible();
+    await expect(detail.getByRole('table', { name: 'Eval runs' })).toContainText('25%');
+    await noAxe(page);
+  });
+
+  test('Settings: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {
+    await nav(page, 'Settings').click();
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export profile' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('benchkeeper-profile.json');
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByLabel('Import a profile').click();
+    await (await chooser).setFiles(await file.path());
+    await expect(page.getByRole('region', { name: 'Profile contents' })).toContainText('Agents: claude');
+    await page.getByRole('button', { name: 'Register projects and packs' }).click();
+    await expect(page.getByRole('region', { name: 'Global changes' })).toBeVisible();
+    await noAxe(page);
   });
 });

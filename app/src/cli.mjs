@@ -13,11 +13,11 @@ import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { openBrowser, startServer } from './server.mjs';
 import { writeAtomic } from './fsx.mjs';
-import { exportProfile, importChoices, importPlan, readProfile } from './profile.mjs';
+import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
 import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
-import { PLUGINS, globalPlan } from './steps/global.mjs';
+import { globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectPlan } from './steps/project.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
@@ -68,14 +68,6 @@ const OPTIONS = {
   target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
 };
-
-export function installedPlugins(ctx) {
-  const parse = (t, f) => { try { return JSON.parse(t); } catch { return f; } };
-  return {
-    claude: parse(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.enabled).map((p) => p.id),
-    codex: (parse(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).filter((p) => p.enabled).map((p) => p.pluginId),
-  };
-}
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
 // end early count as no.
@@ -217,9 +209,7 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'profile') {
     if (arg === 'export') {
-      const installed = installedPlugins(ctx);
-      const packs = [...new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => p.pack && installed[a]?.includes(p.id)).map((p) => p.pack)))];
-      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs });
+      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) });
       if (positionals[2]) { writeAtomic(resolve(positionals[2]), text); out.write(`wrote ${resolve(positionals[2])}\n`); } else out.write(text);
       return 0;
     }

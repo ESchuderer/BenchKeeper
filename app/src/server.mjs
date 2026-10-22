@@ -9,12 +9,14 @@ import { createServer } from 'node:http';
 import { extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { agent, detect } from './agents.mjs';
+import { userEvals } from './cases.mjs';
 import { contentDir, appVersion } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
-import { libraryWith } from './packs.mjs';
+import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
+import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
 import { apply, itemState, preview, undo } from './runner.mjs';
 import { globalPlan } from './steps/global.mjs';
@@ -40,6 +42,8 @@ export function rejectReason(req, { port, session }) {
 }
 
 const bad = (message) => Object.assign(new Error(message), { status: 400 });
+// Errors of a user's input (a pack or profile file, a pack id) are 400s.
+const input = (f) => { try { return f(); } catch (e) { throw Object.assign(e, { status: e.status ?? 400 }); } };
 
 // The OS folder dialog, first tool found: exit 0 is the choice, 1 a cancel; other codes (127: not installed) try the next.
 // shortcut: no xdg portal (needs async D-Bus); add it when zenity and kdialog are both missing on a target desktop.
@@ -126,6 +130,29 @@ export function api(ctx) {
       return projectChecks(ctx, dir);
     },
     'POST /api/pick-folder': () => pickFolder(ctx),
+    // Eval results without the per-case details; lines that do not parse are left out.
+    'GET /api/evals': () => (readText(join(userEvals(ctx), 'results.jsonl')) ?? '').split('\n').filter(Boolean).flatMap((l) => {
+      try { const { details, ...r } = JSON.parse(l); return [r]; } catch { return []; }
+    }),
+    'GET /api/pack-warnings': (q) => warnings((q.get('skills') ?? '').split(',').filter(Boolean)),
+    'GET /api/pack-export': (q) => input(() => ({ name: `${q.get('id')}.json`, text: exportPack(ctx, q.get('id')) })),
+    'POST /api/packs': (b) => input(() => {
+      if (b.action === 'save') return savePack(ctx, { id: b.id, title: b.title || b.id, skills: b.skills });
+      if (b.action === 'import') return importPack(ctx, b.text ?? '', b.id || undefined);
+      if (b.action === 'remove') return removePack(ctx, b.id), { removed: b.id };
+      throw bad('action must be save, import or remove');
+    }),
+    'GET /api/profile-export': (q) => ({ text: exportProfile(ctx, { agents: q.get('agents') ? q.get('agents').split(',') : installed(), packs: installedPacks(ctx) }) }),
+    // First what the file holds; with register, the own packs and projects are saved first (project plans can name
+    // those packs), then the global and project plans come back to apply like any other.
+    'POST /api/profile-import': (b) => {
+      const p = input(() => readProfile(b.text ?? ''));
+      if (!b.register) return { agents: p.global.agents, globalPacks: p.global.packs ?? [], packs: (p.packs ?? []).map((x) => x.id), projects: (p.projects ?? []).map((x) => ({ path: x.path, here: exists(x.path) })) };
+      const done = input(() => importChoices(ctx, p));
+      const plan = importPlan(ctx, p);
+      return { ...done, missing: plan.missing, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
+        plans: plan.projects.filter((x) => x.changes.length).map((x) => ({ path: x.path, planId: keep(x.changes, x.ctx, x.path), changes: serialize(x.changes, x.ctx) })) };
+    },
     'POST /api/scan': (b) => {
       if (typeof b.root !== 'string' || !isAbsolute(b.root)) throw bad('root must be an absolute path');
       return scan(b.root).filter((d) => !registered(d));

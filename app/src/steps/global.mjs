@@ -96,11 +96,12 @@ export function installedPlugins(ctx) {
 const bySemver = (a, b) => a.split('.').map(Number).reduce((d, x, i) => d || x - b.split('.')[i], 0);
 
 // The highest x.y.z release public for at least 7 days, or null.
-// The registry answer is kept per context, so a long-running server asks once per package.
+// The registry answer is kept per context, 6 hours, a failed one 1 minute, so a long-running server asks again.
 export function newest(ctx, pkg, now = Date.now()) {
   const cache = (ctx.registry ??= new Map());
-  if (!cache.has(pkg)) cache.set(pkg, ctx.run(['npm', 'view', pkg, 'time', '--json']));
-  const r = cache.get(pkg);
+  const hit = cache.get(pkg);
+  if (!hit || now - hit.at > (hit.r.code === 0 ? 6 * 3600e3 : 60e3)) cache.set(pkg, { at: now, r: ctx.run(['npm', 'view', pkg, 'time', '--json']) });
+  const { r } = cache.get(pkg);
   if (r.code !== 0) return null;
   const times = json(r.stdout, {});
   const list = Array.isArray(times) ? Object.assign({}, ...times) : times;

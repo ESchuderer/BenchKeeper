@@ -256,3 +256,13 @@ test('changes of one unit go together: a partial choice is refused before anythi
   const broken = preview([write(c, 'x.json', null, { id: 'x', unit: 'v', edit: () => { throw new Error('bad'); } }), write(c, 'y.txt', 'y\n', { id: 'y', unit: 'v' })]);
   assert.deepEqual(broken.map((x) => x.selected), [false, false]);
 });
+
+test('the ledger list is kept until a save, here or by another process', () => {
+  const c = context({ home: home() });
+  apply([write(c, 'a.txt', 'a\n')], c);
+  const first = c.ledger.list();
+  assert.equal(c.ledger.list(), first);
+  // Another process: a separate ledger object on the same folder.
+  apply([write(c, 'b.txt', 'b\n')], context({ home: c.home }));
+  assert.equal(c.ledger.list().length, 2);
+});

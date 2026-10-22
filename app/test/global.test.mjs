@@ -145,6 +145,11 @@ test('newest picks the highest release older than 7 days', () => {
   const ctx = { run: () => { calls++; return run(); } };
   newest(ctx, 'x'); newest(ctx, 'x');
   assert.equal(calls, 1, 'one registry request per package and context');
+  // A failed answer is asked again after a minute.
+  let fails = 0;
+  const off = { run: () => { fails++; return { code: 1 }; } };
+  newest(off, 'x', 0); newest(off, 'x', 30e3); newest(off, 'x', 61e3);
+  assert.equal(fails, 2);
 });
 
 test('plugin state comes from the agents\' files; the CLI answers only when they cannot be read', () => {

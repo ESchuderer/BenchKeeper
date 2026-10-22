@@ -4,9 +4,9 @@
 // one local user is fine.
 import { spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { extname, isAbsolute, join, resolve } from 'node:path';
+import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { agent, detect } from './agents.mjs';
@@ -89,7 +89,7 @@ export function api(ctx) {
     const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly };
     jobs.set(job.id, job);
     for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
-    work(job).catch((e) => { job.error = e.message; }).finally(() => { job.done = true; });
+    work(job).catch((e) => { job.error = e.message; }).finally(() => { job.done = true; memo.clear(); });
     return { job: job.id, total };
   };
   const evalPlanFor = (src) => {
@@ -99,12 +99,27 @@ export function api(ctx) {
     const only = src instanceof URLSearchParams ? src.getAll('target') : [src.targets ?? []].flat().filter((t) => typeof t === 'string');
     return evalPlan(ctx, { agents: agents.length ? agents : ['claude'], all: get('all') === '1' || get('all') === true, only: only.length ? only : undefined });
   };
-  const keep = (changes, pctx, scope) => { const id = randomBytes(8).toString('hex'); plans.set(id, { changes, ctx: pctx, scope }); return id; };
-  const agentsNow = () => detect(ctx);
+  // Plans wait for Apply 30 minutes; the newest 50 are kept.
+  const keep = (changes, pctx, scope) => {
+    const id = randomBytes(8).toString('hex');
+    plans.set(id, { changes, ctx: pctx, scope, at: Date.now() });
+    for (const old of [...plans.keys()].slice(0, -50)) plans.delete(old);
+    return id;
+  };
+  // Machine reads that start agent commands (versions, doctor, inventory) are kept 15 s and dropped by every change.
+  const memo = new Map();
+  const cached = (key, f) => {
+    const m = memo.get(key);
+    if (m && Date.now() - m.at < 15e3) return m.value;
+    const value = f();
+    memo.set(key, { at: Date.now(), value });
+    return value;
+  };
+  const agentsNow = () => cached('agents', () => detect(ctx));
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
   const projectCtx = (dir) => ({ ...ctx, roots: [dir] });
   const registered = (dir) => listProjects(ctx).some((p) => p.path === dir);
-  return {
+  const routes = {
     'GET /api/overview': () => ({ version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = tryState(p.path); return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
@@ -115,7 +130,7 @@ export function api(ctx) {
     'POST /api/apply': (b) => {
       idle();
       const p = plans.get(b.planId);
-      if (!p) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
+      if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       plans.delete(b.planId);
       // Output is kept per change, its last 8 kB.
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select }, (e) => {
@@ -209,7 +224,7 @@ export function api(ctx) {
       return { name, text: readText(join(contentDir, 'library', name, 'SKILL.md')) };
     },
     'GET /api/doctor': (q) => {
-      if (!q.has('dir')) return doctor(ctx, { agents: installed() });
+      if (!q.has('dir')) return cached('doctor', () => doctor(ctx, { agents: installed() }));
       const dir = resolve(q.get('dir'));
       if (!registered(dir)) throw bad('register the project first');
       return projectChecks(ctx, dir);
@@ -242,8 +257,11 @@ export function api(ctx) {
       if (typeof b.root !== 'string' || !isAbsolute(b.root)) throw bad('root must be an absolute path');
       return scan(b.root).filter((d) => !registered(d));
     },
-    'GET /api/inventory': () => inventory(ctx, installed()),
+    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed())),
   };
+  // A change drops the cached machine reads.
+  for (const k of Object.keys(routes)) if (k.startsWith('POST ')) { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
+  return routes;
 }
 
 async function body(req) {
@@ -283,7 +301,9 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     let file = resolve(dist, `.${path}`);
     if (!inside(file, [dist]) || !exists(file) || file === resolve(dist)) file = join(dist, 'index.html');
     if (!exists(file)) return send(500, 'the UI is not built: npm run build in app/', 'text/plain');
-    return send(200, readFileSync(file), TYPES[extname(file)] ?? 'application/octet-stream');
+    // Vite names built assets by their content hash, so they never change under one name; the page itself always reloads.
+    const hashed = file.startsWith(join(dist, 'assets') + sep);
+    return send(200, await readFile(file), TYPES[extname(file)] ?? 'application/octet-stream', hashed ? { 'cache-control': 'public, max-age=31536000, immutable' } : {});
   });
   return new Promise((ok) => server.listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
 }

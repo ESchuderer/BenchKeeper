@@ -85,7 +85,8 @@ test('rejected: state changes on GET, without the custom header, other methods',
 
 test('static files stay inside the build folder; unknown paths get the app page', async () => {
   const js = await req('GET', '/assets/app.js', auth());
-  assert.deepEqual([js.status, js.headers['content-type']], [200, 'text/javascript']);
+  assert.deepEqual([js.status, js.headers['content-type'], js.headers['cache-control']], [200, 'text/javascript', 'public, max-age=31536000, immutable']);
+  assert.equal((await req('GET', '/', auth())).headers['cache-control'], 'no-store');
   for (const p of ['/../../etc/passwd', '/%2e%2e/%2e%2e/etc/passwd', '/projects']) {
     const r = await req('GET', p, auth());
     assert.equal(r.body, '<!doctype html><title>BenchKeeper</title>', p);

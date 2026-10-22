@@ -1,5 +1,5 @@
 // Install ledger: one JSON file per run under <config>/ledger, backups under <config>/backup/<run id>.
-import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { real, writeAtomic } from './fsx.mjs';
 
@@ -25,6 +25,7 @@ export class Ledger {
   }
 
   save(run) {
+    this.cache = null;
     mkdirSync(this.dir, { recursive: true });
     writeAtomic(join(this.dir, `${run.id}.json`), `${JSON.stringify(run, null, 2)}\n`);
   }
@@ -34,12 +35,17 @@ export class Ledger {
     return JSON.parse(readFileSync(join(this.dir, `${id}.json`), 'utf8'));
   }
 
+  // Kept until the next save here or a change of the folder (each save renames a file into it, so another process's
+  // save changes its mtime). Callers read the runs; they do not change them.
   list() {
-    let names = [];
-    try { names = readdirSync(this.dir).filter((n) => n.endsWith('.json')); } catch { return []; }
-    return names.sort().reverse().map((n) => {
+    let names = [], gen;
+    try { gen = statSync(this.dir).mtimeMs; names = readdirSync(this.dir).filter((n) => n.endsWith('.json')); } catch { return []; }
+    if (this.cache?.gen === gen && this.cache.count === names.length) return this.cache.runs;
+    const runs = names.sort().reverse().map((n) => {
       try { return JSON.parse(readFileSync(join(this.dir, n), 'utf8')); } catch { return null; }
     }).filter((r) => r?.schema === SCHEMA);
+    this.cache = { gen, count: names.length, runs };
+    return runs;
   }
 
   // The newest applied, not undone, write entry for a path.

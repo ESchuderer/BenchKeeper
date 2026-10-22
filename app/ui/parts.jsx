@@ -3,16 +3,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Dot, STATE_COLOR, href } from './shell.jsx';
 
-// Loads a GET endpoint; reload() fetches it again. A response for an older path or load is dropped; no path clears it.
+// Loads a GET endpoint; reload() fetches it again. A request for an older path or load is aborted; no path clears it.
 export function useApi(path) {
   const [state, setState] = useState({ data: null, error: null, loading: !!path });
   const [n, setN] = useState(0);
   useEffect(() => {
     if (!path) { setState({ data: null, error: null, loading: false }); return undefined; }
-    let live = true;
+    const ac = new AbortController();
     setState((s) => ({ ...s, loading: true }));
-    api(path).then((data) => live && setState({ data, error: null, loading: false }), (e) => live && setState({ data: null, error: e.message, loading: false }));
-    return () => { live = false; };
+    api(path, undefined, { signal: ac.signal }).then((data) => !ac.signal.aborted && setState({ data, error: null, loading: false }), (e) => !ac.signal.aborted && setState({ data: null, error: e.message, loading: false }));
+    return () => ac.abort();
   }, [path, n]);
   const reload = useCallback(() => setN((x) => x + 1), []);
   return { ...state, reload };

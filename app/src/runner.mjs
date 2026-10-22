@@ -47,7 +47,7 @@ export function preview(changes) {
       let after;
       try { after = c.edit ? c.edit(before) : c.after; } catch (e) { return { ...c, error: e.message, diff: '', noop: false, selected: false }; }
       planned.set(c.path, after);
-      return { ...c, after, diff: diffLines(before, after, c.path), noop: before === after };
+      return { ...c, after, diff: before === after ? '' : diffLines(before, after, c.path), noop: before === after };
     }
     if (c.kind === 'remove') return { ...c, destructive: true, noop: !exists(c.path) };
     return { ...c, noop: false };

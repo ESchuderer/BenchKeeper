@@ -4,7 +4,7 @@
 // one local user is fine.
 import { spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -379,8 +379,9 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     let path;
     try { path = decodeURIComponent(url.pathname); } catch { return send(400, { error: 'bad path' }); }
     let file = resolve(dist, `.${path}`);
-    if (!inside(file, [dist]) || !exists(file) || file === resolve(dist)) file = join(dist, 'index.html');
-    if (!exists(file)) return send(500, 'the UI is not built: npm run build in app/', 'text/plain');
+    // Files only: reading a folder (/assets) would throw outside any handler and end the server.
+    if (!inside(file, [dist]) || !isFile(file)) file = join(dist, 'index.html');
+    if (!isFile(file)) return send(500, 'the UI is not built: npm run build in app/', 'text/plain');
     // Vite names built assets by their content hash, so they never change under one name; the page itself always reloads.
     const hashed = file.startsWith(join(dist, 'assets') + sep);
     return send(200, await readFile(file), TYPES[extname(file)] ?? 'application/octet-stream', hashed ? { 'cache-control': 'public, max-age=31536000, immutable' } : {});
@@ -388,9 +389,14 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
   return new Promise((ok) => server.listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
 }
 
+const isFile = (f) => { try { return statSync(f).isFile(); } catch { return false; } };
+
+// Windows: start takes a quoted first argument as the window title, and Node would escape the quotes of an empty one,
+// so cmd gets the arguments as written; the target is a temporary file path or a URL without quotes.
 function launch(target) {
-  const argv = process.platform === 'darwin' ? ['open', target] : process.platform === 'win32' ? ['cmd', '/c', 'start', '""', target] : ['xdg-open', target];
-  try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }
+  const win = process.platform === 'win32';
+  const argv = process.platform === 'darwin' ? ['open', target] : win ? ['cmd', '/c', 'start', '""', `"${target}"`] : ['xdg-open', target];
+  try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true, windowsVerbatimArguments: win }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }
 }
 
 // A snap or Flatpak browser has its own /tmp and cannot read the file openBrowser writes there.

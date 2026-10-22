@@ -16,7 +16,7 @@ import { libraryWith } from './packs.mjs';
 import { addProject, listProjects, removeProject, status, updateAll } from './projects.mjs';
 import { apply, itemState, preview, undo } from './runner.mjs';
 import { globalPlan } from './steps/global.mjs';
-import { projectPlan, readState } from './steps/project.mjs';
+import { projectPlan, tryState } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
 const COOKIE = 'bk_session';
@@ -50,7 +50,7 @@ export function api(ctx) {
   const projectCtx = (dir) => ({ ...ctx, roots: [dir] });
   const registered = (dir) => listProjects(ctx).some((p) => p.path === dir);
   return {
-    'GET /api/overview': () => ({ version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => ({ path: p.path, agents: readState(p.path)?.agents ?? [], setupVersion: readState(p.path)?.setupVersion ?? null })) }),
+    'GET /api/overview': () => ({ version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = tryState(p.path); return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack') } }));
@@ -68,7 +68,8 @@ export function api(ctx) {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw Object.assign(new Error('register the project first'), { status: 400 });
       const p = projectPlan({ ctx: projectCtx(dir), dir, answers: {} });
-      const changes = preview(p.changes);
+      // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
+      const changes = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
       return { planId: keep(changes, projectCtx(dir), dir), changes: serialize(changes, projectCtx(dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings };
     },
     'POST /api/update-all': (b) => updateAll(ctx, { paths: (b.paths ?? []).filter(registered), push: b.push !== false }),
@@ -88,7 +89,7 @@ export function api(ctx) {
     },
     'GET /api/catalog': () => {
       const lib = libraryWith(ctx);
-      const projects = listProjects(ctx).map((p) => readState(p.path)).filter(Boolean);
+      const projects = listProjects(ctx).map((p) => tryState(p.path)).filter(Boolean);
       return { ...lib, skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
     },
     'GET /api/skill': (q) => {
@@ -130,7 +131,9 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     }
     if (url.pathname.startsWith('/api/')) return send(req.method === 'GET' && routes[`POST ${url.pathname}`] ? 405 : 404, { error: 'no such endpoint' });
     if (req.method !== 'GET') return send(405, { error: 'method not allowed' });
-    let file = resolve(dist, `.${decodeURIComponent(url.pathname)}`);
+    let path;
+    try { path = decodeURIComponent(url.pathname); } catch { return send(400, { error: 'bad path' }); }
+    let file = resolve(dist, `.${path}`);
     if (!inside(file, [dist]) || !exists(file) || file === resolve(dist)) file = join(dist, 'index.html');
     if (!exists(file)) return send(500, 'the UI is not built: npm run build in app/', 'text/plain');
     return send(200, readFileSync(file), TYPES[extname(file)] ?? 'application/octet-stream');

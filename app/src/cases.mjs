@@ -58,7 +58,9 @@ export function addCase(ctx, { target, expected, should = true, project, transcr
   const path = join(userEvals(ctx), fileName(target));
   const change = { id: 'case:0', step: 'case', title: `eval case for ${target}: ${should ? 'should' : 'should not'} ${expected}`, kind: 'write', path,
     edit: (t) => { const set = t ? JSON.parse(t) : { kind: 'benchkeeper-evals', schemaVersion: CASE_SCHEMA, target, cases: [] }; set.cases.push(c); return `${JSON.stringify(set, null, 2)}\n`; } };
-  const r = apply(preview([change]), ctx, { scope: 'global', note: { case: c.id, target, ...(project ? { project } : {}), ...(run ? { run } : {}) } });
+  const [planned] = preview([change]);
+  if (planned.error) throw new Error(`${path}: ${planned.error}`);
+  const r = apply([planned], ctx, { scope: 'global', note: { case: c.id, target, ...(project ? { project } : {}), ...(run ? { run } : {}) } });
   if (r.status !== 'done') throw new Error(r.entries[0]?.error ?? 'case not written');
   return { case: c, run: r.id, path };
 }

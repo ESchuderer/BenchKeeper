@@ -84,4 +84,6 @@ test('static files stay inside the build folder; unknown paths get the app page'
     assert.equal(r.body, '<!doctype html><title>BenchKeeper</title>', p);
   }
   assert.match((await req('GET', '/', auth())).headers['content-security-policy'], /default-src 'self'/);
+  assert.equal((await req('GET', '/%E0%A4%A', auth())).status, 400);
+  assert.equal((await req('GET', '/api/overview', auth())).status, 200);
 });

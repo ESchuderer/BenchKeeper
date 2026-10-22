@@ -133,7 +133,7 @@ export function Agents({ overview }) {
           </Table>
           <Group><Button onClick={load} disabled={!chosen.length}>Plan setup for {chosen.length} agents</Button></Group>
           {error && <Alert color="red" title="Plan failed">{error}</Alert>}
-          {plan && <Section title="Changes"><Plan plan={plan} onDone={overview.reload} /></Section>}
+          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={overview.reload} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
           <Cli>{`benchkeeper plan --agents ${chosen.join(',')}\nbenchkeeper apply --agents ${chosen.join(',')}`}</Cli>
         </Stack>
@@ -185,7 +185,7 @@ export function Projects() {
       {plan && (
         <Section title={`Changes in ${plan.path}`}>
           {plan.warnings.map((w) => <Alert key={w} color="yellow">{w}</Alert>)}
-          <Plan plan={plan} onDone={projects.reload} />
+          <Plan key={plan.planId} plan={plan} onDone={projects.reload} />
         </Section>
       )}
       <Section title="Update all">

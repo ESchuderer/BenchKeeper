@@ -8,14 +8,15 @@ export class MergeError extends Error {}
 
 export function parseJson(text, file = 'JSON') {
   const errors = [];
-  const value = parse(text ?? '{}', errors, { allowTrailingComma: true });
+  // An empty file counts as an empty object.
+  const value = parse(text?.trim() ? text : '{}', errors, { allowTrailingComma: true });
   if (errors.length) throw new MergeError(`${file}: ${printParseErrorCode(errors[0].error)} at offset ${errors[0].offset}`);
   return value ?? {};
 }
 
 // edits: [{ path: [...keys], value }] sets a value, [{ path, append: [...] }] adds missing list entries after the user's own.
 export function mergeJson(text, edits, file) {
-  let out = text ?? '{}\n';
+  let out = text?.trim() ? text : '{}\n';
   for (const e of edits) {
     const current = parseJson(out, file);
     let value = e.value;

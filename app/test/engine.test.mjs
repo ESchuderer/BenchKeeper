@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -174,4 +174,37 @@ test('setup.sh backups are listed and restored, the current file kept in the run
   assert.equal(readFileSync(join(c.home, '.codex/AGENTS.md'), 'utf8'), 'my codex rules');
   assert.equal(readFileSync(run.entries.find((e) => e.path.endsWith('AGENTS.md')).backup, 'utf8'), 'benchkeeper rules');
   assert.throws(() => restoreLegacy('../x', c));
+});
+
+test('a linked settings file stays a link and keeps its mode; an empty JSON file merges', () => {
+  const c = context({ home: home() });
+  mkdirSync(join(c.home, 'dotfiles'));
+  const target = join(c.home, 'dotfiles/settings.json');
+  writeFileSync(target, '{"a":1}\n');
+  chmodSync(target, 0o600);
+  symlinkSync(target, join(c.home, 'settings.json'));
+  writeFileSync(join(c.home, 'empty.json'), '');
+  const run = apply(preview([
+    write(c, 'settings.json', null, { edit: (t) => t.replace('1', '2'), after: undefined }),
+    write(c, 'empty.json', null, { id: 'e', edit: (t) => mergeJson(t, [{ path: ['b'], value: 1 }]), after: undefined }),
+  ]), c);
+  assert.equal(run.status, 'done', JSON.stringify(run.entries));
+  assert.ok(lstatSync(join(c.home, 'settings.json')).isSymbolicLink());
+  assert.equal(readFileSync(target, 'utf8'), '{"a":2}\n');
+  assert.equal(statSync(target).mode & 0o777, 0o600);
+  assert.equal(itemState(join(c.home, 'settings.json'), '{"a":2}\n', c), 'current');
+  assert.equal(JSON.parse(readFileSync(join(c.home, 'empty.json'), 'utf8')).b, 1);
+  undo(run.id, c);
+  assert.equal(readFileSync(target, 'utf8'), '{"a":1}\n');
+});
+
+test('a change that fails after its backup is undone from the backup', () => {
+  const c = context({ home: home() });
+  writeFileSync(join(c.home, 'f.txt'), 'original\n');
+  // Copying from a missing source fails after the original was moved aside.
+  const run = apply(preview([write(c, 'f.txt', null, { from: join(c.home, 'missing'), after: undefined })]).map((x) => ({ ...x, selected: true })), c);
+  assert.equal(run.entries[0].status, 'failed');
+  assert.equal(existsSync(join(c.home, 'f.txt')), false);
+  assert.equal(undo(run.id, c).status, 'done');
+  assert.equal(readFileSync(join(c.home, 'f.txt'), 'utf8'), 'original\n');
 });

@@ -20,7 +20,6 @@ const run = (argv, o = {}) => {
   return { code: 127, stdout: '', stderr: 'not installed' };
 };
 const ctx = context({ home, run, appVersion: '6.0.0' });
-apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx, { select: [] });
 const first = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
 apply(first, ctx);
 appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');

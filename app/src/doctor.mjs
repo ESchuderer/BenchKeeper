@@ -6,7 +6,7 @@ import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
 import { preview } from './runner.mjs';
 import { SKILLS_CLI, globalPlan, newest } from './steps/global.mjs';
-import { readState } from './steps/project.mjs';
+import { readState, tryState } from './steps/project.mjs';
 
 export const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
 const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zshenv', '.config/fish/config.fish'];
@@ -68,7 +68,8 @@ function projectChecks(ctx, dir) {
     }
   }
   for (const w of warnings([...skills.keys()], { skills: [...skills].map(([name, pickWhen]) => ({ name, pickWhen })) })) out.push(issue('warning', 'skills', w, 'turn skills off with benchkeeper project apply --disable <skill>'));
-  const state = readState(dir);
+  let state = null;
+  try { state = readState(dir); } catch (e) { out.push(issue('error', 'project', e.message, 'fix or delete the file, then run benchkeeper project apply')); }
   if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper update-all, or benchkeeper project apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   return out;
@@ -79,6 +80,6 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
   const skillsCli = newest(ctx, 'skills', now);
   if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));
-  if (dir && (readState(dir) || exists(join(dir, 'AGENTS.md')))) out.push(...projectChecks(ctx, dir));
+  if (dir && (tryState(dir) || exists(join(dir, '.benchkeeper')) || exists(join(dir, 'AGENTS.md')))) out.push(...projectChecks(ctx, dir));
   return out;
 }

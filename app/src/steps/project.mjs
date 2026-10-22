@@ -19,11 +19,16 @@ export const ENVS = {
 };
 const SKILLS_FLAG = { claude: 'claude-code', codex: 'codex', gemini: 'gemini-cli', copilot: 'github-copilot' };
 const TIERS = ['quick', 'standard', 'full', 'research'];
+// The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
+const NPX_ENV = { DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/' };
 
 export function readState(dir) {
   const text = readText(join(dir, STATE));
-  return text ? JSON.parse(text) : null;
+  if (!text) return null;
+  try { return JSON.parse(text); } catch (e) { throw new Error(`${join(dir, STATE)}: ${e.message}`); }
 }
+// For listings: an unreadable state file counts as none, so one broken project does not hide the others.
+export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
 
 // answers: { agents, env, sandbox, packs, skills (single skills besides the packs'), disable, enable, tier,
 // paths: { skill: 'glob, glob' } }; missing answers come from the state file.
@@ -118,7 +123,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}`, {
-        kind: 'command', cwd: dir, env: { DO_NOT_TRACK: '1' },
+        kind: 'command', cwd: dir, env: NPX_ENV,
         argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
         undoArgv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', s.name, ...flags, '-y'],
       });
@@ -136,7 +141,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`remove:${name}`, `remove skill ${name}`, { kind: 'command', cwd: dir, env: { DO_NOT_TRACK: '1' }, selected: true,
+      add(`remove:${name}`, `remove skill ${name}`, { kind: 'command', cwd: dir, env: NPX_ENV, selected: true,
         argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', name, ...flags, '-y'],
         undoArgv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', name, ...flags, '--copy', '-y'] });
     } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}`, { kind: 'remove', path: join(d, name), selected: true });

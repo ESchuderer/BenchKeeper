@@ -8,8 +8,8 @@ import { spawnSync } from 'node:child_process';
 import { readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { diffLines } from './diff.mjs';
-import { copy, exists, hashPath, hashText, inside, listFiles, move, readText, writeAtomic } from './fsx.mjs';
-import { blob } from './git.mjs';
+import { copy, exists, hashPath, hashText, inside, isDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
+import { blob, fileMode } from './git.mjs';
 import { Ledger, SCHEMA, runId } from './ledger.mjs';
 
 export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand } = {}) {
@@ -55,7 +55,7 @@ export function apply(changes, ctx, { scope = 'global', select, note } = {}) {
         entry.exit = r.code;
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ') || `exit ${r.code}`);
       } else {
-        const path = resolve(c.path);
+        const path = c.kind === 'write' && !c.from ? real(c.path) : resolve(c.path);
         if (!inside(path, ctx.roots)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
         Object.assign(entry, { path, existed: exists(path), hashBefore: hashPath(path) });
         // Edits apply to the file as it is now, so a deselected earlier edit is not carried along.
@@ -69,8 +69,10 @@ export function apply(changes, ctx, { scope = 'global', select, note } = {}) {
             if (hashPath(entry.backup) !== entry.hashBefore) throw new Error(`backup of ${path} differs from the original`);
           }
         }
+        // From here the original is only in the backup, so a failure is undone too.
+        entry.touched = true;
         if (c.kind === 'write') {
-          if (entry.existed) rmSync(path, { recursive: true, force: true });
+          if (entry.existed && (c.from || isDir(path) || after == null)) rmSync(path, { recursive: true, force: true });
           if (c.from) copy(c.from, path);
           else if (after != null) writeAtomic(path, after);
         }
@@ -94,9 +96,11 @@ export function apply(changes, ctx, { scope = 'global', select, note } = {}) {
 // Undoes a run, or one step of it, newest change first. Undo is a run of its own, so it can be undone too.
 export function undo(id, ctx, { step } = {}) {
   const source = ctx.ledger.get(id);
+  // Update all worked in a worktree that is gone; its result is a branch and a pull request.
+  if (source.note?.updateAll) throw new Error(`run ${id} is an Update all commit on ${source.note.branch} in ${source.note.updateAll}: close its pull request or delete the branch`);
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'undo', of: id, scope: source.scope, entries: [] };
   for (const e of [...source.entries].reverse()) {
-    if (e.status !== 'done' || e.undone || (step && e.step !== step)) continue;
+    if (!(e.status === 'done' || (e.status === 'failed' && e.touched)) || e.undone || (step && e.step !== step)) continue;
     const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind };
     run.entries.push(entry);
     try {
@@ -109,7 +113,8 @@ export function undo(id, ctx, { step } = {}) {
           const backup = exists(path) ? ctx.ledger.backupPath(run.id, run.entries.length, path) : null;
           if (backup) copy(path, backup);
           const content = f.status === 'A' ? null : blob(ctx, e.cwd, e.before, f.path);
-          if (content == null) rmSync(path, { force: true }); else writeAtomic(path, content);
+          if (content == null) rmSync(path, { force: true });
+          else writeAtomic(path, content, fileMode(ctx, e.cwd, e.before, f.path) === '100755' ? 0o755 : undefined);
           entry.files.push({ path, backup });
         }
         entry.kind = 'restore';
@@ -154,7 +159,7 @@ export function undo(id, ctx, { step } = {}) {
 // current: matches the setup; outdated: as installed, the setup has changed; modified: edited after install;
 // removed: installed, now missing; foreign: present, not installed by the app; absent: neither.
 export function itemState(path, desired, ctx) {
-  const now = hashPath(path);
+  const now = hashPath(real(path));
   const last = ctx.ledger.last(path);
   if (now == null) return last ? 'removed' : 'absent';
   if (now === (typeof desired === 'string' ? hashText(desired) : desired)) return 'current';

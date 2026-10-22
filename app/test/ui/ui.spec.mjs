@@ -70,9 +70,10 @@ test.describe('views', () => {
   test('History: a run shows its diffs, undo restores', async ({ page }) => {
     await page.getByRole('tab', { name: 'History' }).click();
     const runs = page.getByRole('table', { name: 'Runs' });
-    await runs.getByRole('button', { name: 'Changes' }).first().click();
+    const global = runs.getByRole('row').filter({ hasText: /apply.*global/ }).first();
+    await global.getByRole('button', { name: 'Changes' }).click();
     await expect(page.getByRole('region', { name: /^Run / })).toContainText('Claude Code rules');
-    await runs.getByRole('button', { name: 'Undo' }).first().click();
+    await global.getByRole('button', { name: 'Undo' }).click();
     await expect(page.getByRole('region', { name: 'Undo' })).toContainText(/done|failed/);
   });
 });

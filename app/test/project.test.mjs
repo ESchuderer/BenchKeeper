@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
-import { ENVS, STATE, projectPlan, readState } from '../src/steps/project.mjs';
+import { ENVS, STATE, projectPlan, readState, tryState } from '../src/steps/project.mjs';
 
 function repo() {
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
@@ -37,7 +37,7 @@ test('AGENTS.md block, CLAUDE.md import, own skill copies, pinned community skil
   for (const d of ['.claude/skills', '.agents/skills']) assert.ok(existsSync(join(r.dir, d, 'designing-technical-uis/SKILL.md')), d);
   const cmd = changes.find((c) => c.title.startsWith('skill frontend-design'));
   assert.deepEqual(cmd.argv.slice(3, 9), ['add', 'https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44', '-s', 'frontend-design', '-a', 'claude-code']);
-  assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.undoArgv.includes('remove'));
+  assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.env.npm_config_registry === 'https://registry.npmjs.org/' && cmd.undoArgv.includes('remove'));
   const state = readState(r.dir);
   assert.deepEqual([state.setupVersion, state.env, state.tier, state.packs], ['6.0.0', 'host-agent', 'quick', ['frontend']]);
   assert.deepEqual(state.skills.map((s) => s.name).sort(), ['accessibility', 'designing-technical-uis', 'frontend-design']);
@@ -117,4 +117,27 @@ test('skill names from a state file never reach paths outside the project', () =
   const changes = preview(plan(r, {}).changes);
   assert.ok(changes.every((c) => !c.path || c.path.startsWith(r.dir)), JSON.stringify(changes.map((c) => c.path)));
   assert.throws(() => plan(r, { paths: { accessibility: 'src/**\nname: evil' } }), /one line of globs/);
+});
+
+test('a session started in a subfolder records and undoes paths from the repository root', () => {
+  const r = repo();
+  r.ctx.run = runCommand;
+  mkdirSync(join(r.dir, 'sub'));
+  writeFileSync(join(r.dir, 'sub/run.sh'), '#!/bin/sh\n');
+  chmodSync(join(r.dir, 'sub/run.sh'), 0o755);
+  r.git('add', '-A');
+  r.git('commit', '-qm', 'sub');
+  const run = recordSession(r.ctx, join(r.dir, 'sub'), ['sh', '-c', 'echo x > x.txt && rm run.sh']);
+  assert.deepEqual(run.entries[0].files.map((f) => `${f.status} ${f.path}`).sort(), ['A sub/x.txt', 'D sub/run.sh']);
+  assert.equal(undo(run.id, { ...r.ctx, roots: [run.scope] }).status, 'done');
+  assert.equal(existsSync(join(r.dir, 'sub/x.txt')), false);
+  assert.equal(statSync(join(r.dir, 'sub/run.sh')).mode & 0o111, 0o111);
+});
+
+test('a broken state file is reported, not thrown at listings', () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.benchkeeper'));
+  writeFileSync(join(r.dir, STATE), '{ broken');
+  assert.throws(() => readState(r.dir), /state\.json: /);
+  assert.equal(tryState(r.dir), null);
 });

@@ -51,4 +51,6 @@ test('cases need a valid target, an expectation and a query source', () => {
   assert.equal(r.case.query, 'merged a PR without asking');
   assert.equal(addCase(ctx, { target: 'rule:global', expected: 'x', should: false, query: 'q2' }).path, r.path);
   assert.equal(loadCases(ctx)['rule:global'].filter((x) => x.file === r.path).length, 2);
+  writeFileSync(r.path, '{ broken');
+  assert.throws(() => addCase(ctx, { target: 'rule:global', expected: 'x', query: 'q3' }), /rule-global\.json: /);
 });

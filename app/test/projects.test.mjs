@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { appVersion } from '../src/content.mjs';
 import { addProject, listProjects, removeProject, scan, status, updateAll } from '../src/projects.mjs';
-import { apply, context, preview } from '../src/runner.mjs';
+import { apply, context, preview, undo } from '../src/runner.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
 
 const home = () => mkdtempSync(join(tmpdir(), 'bk-home-'));
@@ -72,6 +72,9 @@ test('Update all commits the new setup on a branch in a worktree and leaves the 
   p.git('commit', '-qm', 'my work');
   p.git('checkout', '-q', 'main');
   assert.match(updateAll(ctx)[0].reason, /has other commits \(my work\)/);
+  assert.throws(() => undo(r.run, ctx), /Update all commit on chore\/agent-setup/);
+  writeFileSync(join(p.dir, STATE), '{ broken');
+  assert.match(status(ctx, p.dir).error, /state\.json/);
 });
 
 test('a project with changes, without a state file or outside git stops alone; the others continue', () => {

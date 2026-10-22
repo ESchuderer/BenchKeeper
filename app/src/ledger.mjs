@@ -1,7 +1,7 @@
 // Install ledger: one JSON file per run under <config>/ledger, backups under <config>/backup/<run id>.
 import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { writeAtomic } from './fsx.mjs';
+import { real, writeAtomic } from './fsx.mjs';
 
 export const SCHEMA = 1;
 
@@ -44,7 +44,7 @@ export class Ledger {
 
   // The newest applied, not undone, write entry for a path.
   last(path) {
-    const p = resolve(path);
+    const p = real(path);
     for (const run of this.list()) {
       const e = [...run.entries].reverse().find((x) => x.path === p && x.status === 'done' && !x.undone);
       if (e) return e;

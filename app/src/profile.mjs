@@ -7,14 +7,14 @@ import { ownPacks, savePack } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
 import { preview } from './runner.mjs';
 import { globalPlan } from './steps/global.mjs';
-import { projectPlan, readState } from './steps/project.mjs';
+import { projectPlan, readState, tryState } from './steps/project.mjs';
 
 export const PROFILE_SCHEMA = 1;
 const ANSWERS = ['agents', 'env', 'sandbox', 'packs', 'singles', 'tier', 'paths', 'disabled'];
 
 export function exportProfile(ctx, { agents, packs = [] }) {
   const projects = listProjects(ctx).map(({ path }) => {
-    const s = readState(path);
+    const s = tryState(path);
     return { path, ...(s ? { answers: Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]])) } : {}) };
   });
   const own = ownPacks(ctx).map(({ id, title, skills }) => ({ id, title, skills }));

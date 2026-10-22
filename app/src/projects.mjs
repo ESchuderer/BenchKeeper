@@ -48,10 +48,11 @@ const projectChanges = (ctx, dir) => preview(projectPlan({ ctx: { ...ctx, roots:
 
 // Per project: setup version, branch, clean tree, and the changes Update all would make.
 export function status(ctx, path) {
-  const state = readState(path);
+  let state = null, error = null;
+  try { state = readState(path); } catch (e) { error = e.message; }
   const repo = isRepo(ctx, path);
   const branch = repo ? git(ctx, path, ['branch', '--show-current']).stdout.trim() : null;
-  let changes = null, error = null;
+  let changes = null;
   if (state) {
     try { changes = projectChanges(ctx, path); } catch (e) { error = e.message; }
   }
@@ -81,7 +82,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       const wt = git(ctx, path, ['worktree', 'add', '-q', '-B', branch, tree, start]);
       if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
       try {
-        const run = apply(projectChanges(ctx, tree), { ...ctx, roots: [tree] }, { scope: tree });
+        const run = apply(projectChanges(ctx, tree), { ...ctx, roots: [tree] }, { scope: tree, note: { updateAll: path, branch } });
         result.run = run.id;
         if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
         git(ctx, tree, ['add', '-A']);

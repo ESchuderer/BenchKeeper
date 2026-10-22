@@ -42,6 +42,10 @@ export function defaultBranch(ctx, dir) {
   return null;
 }
 
+// Git's mode of a path in a tree ('100644', '100755', '120000'), or '' when absent. path is relative to the repository root.
+export const fileMode = (ctx, root, tree, path) => git(ctx, root, ['ls-tree', tree, '--', path]).stdout.split(' ')[0];
+export const repoRoot = (ctx, dir) => git(ctx, dir, ['rev-parse', '--show-toplevel']).stdout.trim();
+
 export const clean = (ctx, dir) => git(ctx, dir, ['status', '--porcelain']).stdout.trim() === '';
 export const githubRemote = (ctx, dir) => /github\.com[:/]/.test(git(ctx, dir, ['remote', 'get-url', 'origin']).stdout);
 export { git };

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 export const exists = (p) => existsSync(p) || isLink(p);
@@ -25,10 +25,15 @@ export function listFiles(dir, base = dir) {
   });
 }
 
-export function writeAtomic(p, text) {
+// A link to a file stands for that file: writes go through it, so a dotfiles link stays a link.
+export const real = (p) => (isLink(p) && existsSync(p) && !isDir(p) ? realpathSync(p) : resolve(p));
+
+// Replaces a file in one rename and keeps the mode of the file it replaces.
+export function writeAtomic(p, text, mode = existsSync(p) ? statSync(p).mode & 0o7777 : null) {
   mkdirSync(dirname(p), { recursive: true });
   const tmp = `${p}.benchkeeper-${process.pid}`;
   writeFileSync(tmp, text);
+  if (mode != null) chmodSync(tmp, mode);
   renameSync(tmp, p);
 }
 

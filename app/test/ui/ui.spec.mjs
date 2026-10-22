@@ -71,9 +71,7 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/catalog$/);
   });
 
-  test('Dashboard lists the edited rules file as modified, in the list and the coverage matrix', async ({ page }) => {
-    const attention = page.getByRole('region', { name: 'Needs attention' });
-    await expect(attention.getByRole('row', { name: /modified.*Claude Code rules/ })).toBeVisible();
+  test('Dashboard shows the edited rules file as modified in the coverage matrix', async ({ page }) => {
     const cell = page.getByRole('table', { name: 'Coverage' }).getByRole('link', { name: 'rules for Claude Code: modified, open the plan' });
     await cell.click();
     await expect(page).toHaveURL(/#\/agents\?agent=claude$/);
@@ -184,7 +182,7 @@ test.describe('views', () => {
 
   test('Projects: a project without a state file is set up step by step on a branch', async ({ page }) => {
     await nav(page, 'Projects').click();
-    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: /\/other$/ }).click();
+    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'other', exact: true }).click();
     await page.getByRole('button', { name: 'Set up this project' }).click();
     const drawer = page.getByRole('dialog', { name: 'Set up projects' });
     await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();

@@ -107,7 +107,7 @@ export function DoctorTable({ found }) {
               <Table.Tr key={n}>
                 <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.level}</Badge></Table.Td>
                 <Table.Td>{i.message}</Table.Td>
-                <Table.Td><Stack gap={4} align="flex-start"><Text size="sm">{i.fix}</Text>{action && <Button component="a" href={action[0]} size="xs" variant="default">{action[1]}</Button>}</Stack></Table.Td>
+                <Table.Td><Stack gap={4} align="flex-start">{!(action && i.fix.startsWith('benchkeeper ')) && <Text size="sm">{i.fix}</Text>}{action && <Button component="a" href={action[0]} size="xs" variant="default">{action[1]}</Button>}</Stack></Table.Td>
               </Table.Tr>
             );
           })}
@@ -143,14 +143,6 @@ export function Dashboard({ overview, doctor, history, params }) {
           <Section title="Coverage"><Loading state={inv} label="inventory">{() => <Coverage items={items} agents={agents} />}</Loading></Section>
         </Grid.Col>
       </Grid>
-      <Section title="Needs attention">
-        <Loading state={inv} label="inventory">{() => (attention.length ? (
-          <Table>
-            <Table.Thead><Table.Tr><Table.Th miw={130}>State</Table.Th><Table.Th>Item</Table.Th></Table.Tr></Table.Thead>
-            <Table.Tbody>{attention.map((c) => <Table.Tr key={`${c.step}|${c.title}`}><Table.Td><StateBadge state={c.state} /></Table.Td><Table.Td>{c.title}</Table.Td></Table.Tr>)}</Table.Tbody>
-          </Table>
-        ) : <Text>Global setup matches {agents.map((a) => a.name).join(', ') || 'no agent'}.</Text>)}</Loading>
-      </Section>
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Section title="Recent runs">
@@ -231,10 +223,12 @@ function Packs({ packs, onChange }) {
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
-      <FileButton key={file} accept="application/json,.json"
-        onChange={run(async (f) => { if (!f) return; await api('/api/packs', { action: 'import', text: await f.text() }); setFile((n) => n + 1); })}>
-        {(props) => <Button variant="default" {...props}>Import pack file</Button>}
-      </FileButton>
+      <Group>
+        <FileButton key={file} accept="application/json,.json"
+          onChange={run(async (f) => { if (!f) return; await api('/api/packs', { action: 'import', text: await f.text() }); setFile((n) => n + 1); })}>
+          {(props) => <Button variant="default" {...props}>Import pack file</Button>}
+        </FileButton>
+      </Group>
     </Section>
   );
 }
@@ -260,20 +254,19 @@ export function Catalog({ catalog, params, refresh }) {
         <Stack gap="lg">
           <Group align="flex-end">
             <TextInput label="Search" value={q} onChange={(e) => setQ(e.currentTarget.value)} />
-            <Select label="Pack" clearable value={pack} onChange={setPack} data={c.packs.filter((p) => p.skills).map((p) => ({ value: p.id, label: `${p.title ?? p.id}${p.own ? ' (own)' : ''}` }))} />
-            <Select label="Agent" clearable value={agent} onChange={setAgent} data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} />
-            <Select label="Install state" clearable value={used} onChange={setUsed} data={[{ value: 'used', label: 'In a project' }, { value: 'unused', label: 'In no project' }]} />
+            <Select label="Pack" placeholder="All packs" clearable value={pack} onChange={setPack} data={c.packs.filter((p) => p.skills).map((p) => ({ value: p.id, label: `${p.title ?? p.id}${p.own ? ' (own)' : ''}` }))} />
+            <Select label="Agent" placeholder="All agents" clearable value={agent} onChange={setAgent} data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} />
+            <Select label="Install state" placeholder="Any" clearable value={used} onChange={setUsed} data={[{ value: 'used', label: 'In a project' }, { value: 'unused', label: 'In no project' }]} />
             <Button variant="default" onClick={() => setBuilder(true)}>Build pack ({picked.length})</Button>
           </Group>
           <SplitView empty="Choose a skill for its source, pin and eval results." list={
             <Table aria-label="Skills">
-              <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Skill</Table.Th><Table.Th>Source</Table.Th><Table.Th>Projects</Table.Th></Table.Tr></Table.Thead>
+              <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Skill</Table.Th><Table.Th>Projects</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
                 {skills.map((s) => (
                   <Table.Tr key={s.name}>
                     <Table.Td><Checkbox aria-label={`Add ${s.name} to the pack`} checked={picked.includes(s.name)} onChange={() => flip(s.name)} /></Table.Td>
-                    <Table.Td><Anchor href={href('catalog', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined}>{s.name}</Anchor></Table.Td>
-                    <Table.Td>{s.source}</Table.Td>
+                    <Table.Td><Anchor href={href('catalog', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor></Table.Td>
                     <Table.Td>{s.projects}</Table.Td>
                   </Table.Tr>
                 ))}
@@ -442,6 +435,7 @@ export function Agents({ overview, params, refresh }) {
       const chosen = select ?? installed;
       return (
         <Stack gap="lg">
+          <Table.ScrollContainer minWidth={640}>
           <Table aria-label="Agents">
             <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>
@@ -456,7 +450,8 @@ export function Agents({ overview, params, refresh }) {
               ))}
             </Table.Tbody>
           </Table>
-          <Group><Button onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agents</Button></Group>
+          </Table.ScrollContainer>
+          <Group><Button onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
           {error && <Alert color="red" title="Plan failed">{error}</Alert>}
           {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={refresh} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
@@ -479,7 +474,7 @@ function ProjectDetail({ project, onChange }) {
   return (
     <Stack gap="lg" component="section" aria-label={`Project ${project.path}`}>
       <Group justify="space-between" align="flex-start" wrap="nowrap">
-        <Title order={2} size="h3" style={{ wordBreak: 'break-all' }}>{project.path}</Title>
+        <Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{project.path}</Title>
         <Group gap="xs" wrap="nowrap">
           <Button variant="default" onClick={() => api('/api/reveal', { path: project.path }).catch(() => {})}>Open folder</Button>
           {project.setupVersion && <Button variant="default" onClick={onChange.setup}>Change setup</Button>}
@@ -586,19 +581,21 @@ export function Projects({ params, overview, refresh }) {
       )}
       <Loading state={projects} label="projects">{(list) => (list.length ? (
         <SplitView empty="Choose a project for its plan, skills and doctor findings." list={
+          <Table.ScrollContainer minWidth={520}>
           <Table aria-label="Projects">
             <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th miw={140}>Setup</Table.Th><Table.Th>Changes</Table.Th><Table.Th>Tree</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>
               {list.map((p) => (
                 <Table.Tr key={p.path}>
-                  <Table.Td><Anchor href={href('projects', { path: p.path })} aria-current={p.path === open ? 'true' : undefined} fw={p.path === open ? 700 : undefined} style={{ wordBreak: 'break-all' }}>{p.path}</Anchor>{p.branch && <Text size="xs">{p.branch}</Text>}</Table.Td>
+                  <Table.Td><Anchor href={href('projects', { path: p.path })} aria-current={p.path === open ? 'true' : undefined} fw={p.path === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{p.path.split('/').pop()}</Anchor><Text size="xs" style={{ overflowWrap: 'anywhere' }}>{p.path}{p.branch && `, ${p.branch}`}</Text></Table.Td>
                   <Table.Td><SetupBadge p={p} version={version} /></Table.Td>
-                  <Table.Td>{p.error ? <Text size="sm" c="red">{p.error}</Text> : p.changes ? `${p.changes.length} pending` : '-'}</Table.Td>
+                  <Table.Td>{p.error ? <Text size="sm" c="red">{p.error}</Text> : p.changes ? <Text size="sm" style={{ whiteSpace: 'nowrap' }}>{p.changes.length} pending</Text> : '-'}</Table.Td>
                   <Table.Td>{p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository'}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
           </Table>
+          </Table.ScrollContainer>
         } detail={open && list.some((p) => p.path === open) ? (
           <ProjectDetail key={open} project={list.find((p) => p.path === open)} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: act('remove', async () => { await api('/api/projects', { action: 'remove', path: open }); go('projects'); reload(); }) }} />
         ) : null} />
@@ -720,7 +717,7 @@ export function History({ history, params, refresh }) {
   );
 }
 
-const SHORTCUTS = [[`${MOD}+K`, 'command palette'], [`${MOD}+1 to ${MOD}+7`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
+const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+7`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
 
 function Profile({ overview, refresh }) {
   const [file, setFile] = useState(null);
@@ -770,7 +767,7 @@ export function Settings({ overview, refresh }) {
         </Table>
       </Section>
       <Section title="Files">
-        <List spacing={4}>
+        <List spacing={4} size="sm">
           <List.Item><Code>~/.config/benchkeeper/ledger/</Code>: one JSON file per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/backup/</Code>: replaced and removed files per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>

@@ -53,18 +53,20 @@ Skills only, without rules and settings: `claude plugin marketplace add ESchuder
 
 ## Per repo
 
-1. Project setup, in the repository root: run `/benchkeeper:setting-up-projects` (Codex: `$benchkeeper:setting-up-projects`) and confirm the agents for this project. A new repo is set up, an existing setup is updated and cleaned. It shows one plan and applies only what you approve. On a fresh clone, it restores the skills from their recorded sources.
-2. Matt Pocock setup, when project setup asks for it: run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$mattpocock-skills:setup-matt-pocock-skills`). It asks for the issue tracker, the triage labels and where docs go, and writes `docs/agents/`. Project setup then finishes (with Codex it keeps his block in `AGENTS.md`).
+1. Project setup, in the repository root: `npx benchkeeper@6.0.0 project apply --agents claude,codex`, plus `--pack <id>` for the [library packs](plugins/benchkeeper/library/README.md#packs), `--tier` for the default tier, `--env` for where the agent runs. It writes a block in `AGENTS.md` (where commands run, default tier, skill pointers), `CLAUDE.md` with `@AGENTS.md`, the packs' skills at pinned commits, and `.benchkeeper/state.json`, whose answers later runs reuse. `project plan` shows the same changes without writing.
+2. The steps that need an agent, as a recorded session: `npx benchkeeper@6.0.0 record -- claude '/benchkeeper:setting-up-projects'` (Codex: `codex '$benchkeeper:setting-up-projects'`) for stack skills, the commands in `AGENTS.md` and the dev container. The app records the files the session changed and its transcript, and `benchkeeper undo <run>` restores them. With the `matt-pocock` pack, also `/mattpocock-skills:setup-matt-pocock-skills` (issue tracker, triage labels, domain docs in `docs/agents/`).
 3. Commit the result.
 
-The agent, its sign-in, BenchKeeper, the global rules and skills stay on the host. The app installs the Dev Containers CLI. `setting-up-projects` creates or updates the repository's container and toolchain. Rootless engines, VMs and microVMs are not required.
+Where the agent runs (`--env`):
 
-- CLI or Orca worktree terminal: `devcontainer up --workspace-folder .`, then start `claude` or `codex` on the host.
-- VS Code can attach to the same container for terminals, builds and debugging. Keep the agent in a host terminal.
-- Dependency installs, builds, lint, tests and local MCP/browser tools run through `devcontainer exec --workspace-folder . ...`. File edits and Git stay on the host. If the container fails to start, dependent commands stop: there is no host fallback. Where native chat and extensions execute is not verified.
-- MCP, browser and language-server connections need verified container launchers and paths. A host plugin or binary alone does not run in the container. Unsupported connections are reported as unavailable.
+| Env | Agent | Project commands |
+|---|---|---|
+| `container` (default) | inside the dev container, started with `devcontainer exec --workspace-folder . claude`; sign-in from the host environment (`CLAUDE_CODE_OAUTH_TOKEN` through `remoteEnv`) or kept in a named volume | in the container |
+| `host-agent` | on the host, with Git and file edits; `--sandbox` turns on Claude Code's sandbox with `devcontainer exec` and `podman` excluded, since rootless Podman cannot start inside it ([docs](https://code.claude.com/docs/en/sandboxing)) | through `devcontainer exec`, no host fallback |
+| `sandbox` | a Docker Sandboxes microVM ([docs](https://docs.docker.com/ai/sandboxes/agents/)), not tested with this setup | in the microVM |
+| `host` | on the host | on the host |
 
-Launch commands: [Dev Containers CLI](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli), [VS Code](https://code.visualstudio.com/docs/devcontainers/containers). Setup scopes mounts to the project: no host home, engine socket, privileged mode or credential forwarding. Check the client's defaults: VS Code can forward Git credentials and SSH agents automatically ([credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)). The devcontainer does not isolate the agent, which stays a host process under its client permissions ([container security](https://docs.docker.com/engine/security/)).
+Setup scopes container mounts to the project: no host home, engine socket, privileged mode or credential forwarding beyond the sign-in variable. VS Code can forward Git credentials and SSH agents automatically ([credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)). MCP, browser and language-server connections need container launchers; a host plugin or binary alone does not run in the container.
 
 ## Update
 

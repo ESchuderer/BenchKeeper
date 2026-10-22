@@ -9,15 +9,16 @@ import { readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { diffLines } from './diff.mjs';
 import { copy, exists, hashPath, hashText, inside, listFiles, move, readText, writeAtomic } from './fsx.mjs';
+import { blob } from './git.mjs';
 import { Ledger, SCHEMA, runId } from './ledger.mjs';
 
 export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand } = {}) {
   return { home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ledger: new Ledger(resolve(config), resolve(home)) };
 }
 
-export function runCommand(argv, { cwd, input, env } = {}) {
-  const r = spawnSync(argv[0], argv.slice(1), { cwd, input, env: env ?? process.env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  return { code: r.error ? 127 : r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? r.error.message : r.stderr ?? '' };
+export function runCommand(argv, { cwd, input, env, buffer, stdio } = {}) {
+  const r = spawnSync(argv[0], argv.slice(1), { cwd, input, env: env ?? process.env, stdio, encoding: buffer ? 'buffer' : 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  return { code: r.error ? 127 : r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? r.error.message : String(r.stderr ?? '') };
 }
 
 // Adds what the preview needs: the diff of each write, and whether a change is needed at all.
@@ -99,7 +100,30 @@ export function undo(id, ctx, { step } = {}) {
     const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind };
     run.entries.push(entry);
     try {
-      if (e.kind === 'command') {
+      if (e.kind === 'session') {
+        // Files the session added are removed, changed or deleted ones come back from the snapshot before it.
+        entry.files = [];
+        for (const f of e.files) {
+          const path = join(e.cwd, f.path);
+          if (!inside(path, ctx.roots)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
+          const backup = exists(path) ? ctx.ledger.backupPath(run.id, run.entries.length, path) : null;
+          if (backup) copy(path, backup);
+          const content = f.status === 'A' ? null : blob(ctx, e.cwd, e.before, f.path);
+          if (content == null) rmSync(path, { force: true }); else writeAtomic(path, content);
+          entry.files.push({ path, backup });
+        }
+        entry.kind = 'restore';
+      } else if (e.kind === 'restore') {
+        // Undo of a session undo: the files go back to their state from that run's backups.
+        entry.files = [];
+        for (const f of e.files) {
+          const backup = exists(f.path) ? ctx.ledger.backupPath(run.id, run.entries.length, f.path) : null;
+          if (backup) move(f.path, backup);
+          if (f.backup) copy(f.backup, f.path);
+          entry.files.push({ path: f.path, backup });
+        }
+        entry.kind = 'restore';
+      } else if (e.kind === 'command') {
         if (!e.undoArgv) { entry.status = 'manual'; entry.reason = `no undo command for ${e.argv.join(' ')}`; continue; }
         Object.assign(entry, { argv: e.undoArgv, cwd: e.cwd });
         const r = ctx.run(e.undoArgv, { cwd: e.cwd });

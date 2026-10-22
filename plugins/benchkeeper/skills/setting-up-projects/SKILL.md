@@ -98,6 +98,10 @@ The workflow itself (`benchkeeper:workflow`, Ponytail, optionally Matt Pocock's 
 
 Ask for the default task tier of `benchkeeper:workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions. None writes nothing and removes an existing line after asking.
 
+### State file
+
+`.benchkeeper/state.json` (committed) holds the answers, so a later run and the BenchKeeper app read the same: `schemaVersion` 1, `setupVersion` (the plugin `version`), `agents`, `env` (`container`, `host-agent`, `sandbox`, `host`), `sandbox` (true or false), `packs`, `tier`, `paths` (skill name to globs), `disabled`, `skills` (`name`, `source`, `ref`). When it exists, its answers are the defaults of every question above.
+
 ## 6. Other configuration (ask)
 
 List everything agent-related in the project that the plan does not create or keep:

@@ -12,7 +12,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 - `plugins/benchkeeper/rules/global.md` applies here: no em dash, no emojis, facts only.
 - Default tier: research
 - Pre-push review: `plugins/` counts as code, not docs.
-- Every install command in docs pins an exact version (`pkg@x.y.z`). `/benchkeeper:maintaining-repos` proposes bumps. The app installs host tools at the newest release at least 7 days old instead of a pin. Ponytail's marketplace tag (`PONYTAIL_REF` in `app/src/steps/global.mjs`) and the skills CLI version (`SKILLS_CLI`) are bumped by hand.
+- Every install command in docs pins an exact version (`pkg@x.y.z`). `/benchkeeper:maintaining-repos` proposes bumps. The app installs host tools at the newest release at least 7 days old instead of a pin. Ponytail's and Matt Pocock's plugin tags (`PONYTAIL_REF`, `MATT_POCOCK_REF` in `app/src/steps/global.mjs`) and the skills CLI version (`SKILLS_CLI`) are bumped by hand.
 - SKILL.md front matter: `description` in double quotes (it contains colons). CI runs `.github/scripts/skill-lint.mjs` on own skills.
 - Editing `plugins/benchkeeper/skills/` or `plugins/benchkeeper/rules/`: call the Skill tool with `mattpocock-skills:writing-for-agents`. Each skill has `agents/openai.yaml` for Codex: user-invoked skills set `allow_implicit_invocation: false`.
 - `plugins/benchkeeper/library/`: the skill library that `setting-up-projects` installs per project. `library.json` is the source (skills, pinned refs, packs). `README.md` tables are generated: `devcontainer exec --docker-path podman --workspace-folder . node .github/scripts/library-readme.mjs`. The plugin does not load it. Own library skills follow the `skills/` conventions (SKILL.md, `agents/openai.yaml`).

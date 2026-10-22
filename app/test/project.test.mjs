@@ -44,6 +44,20 @@ test('AGENTS.md block, CLAUDE.md import, own skill copies, pinned community skil
   assert.match(prompts[0].prompt, /setting-up-projects/);
 });
 
+test('a community skill the state file records at another commit is added again at the pin', () => {
+  const r = repo();
+  const first = plan(r, { agents: ['claude'], packs: ['frontend'] }).changes;
+  apply(preview(first), r.ctx, { scope: r.dir, select: first.filter((c) => c.kind !== 'command').map((c) => c.id) });
+  for (const n of ['frontend-design', 'accessibility']) mkdirSync(join(r.dir, '.claude/skills', n), { recursive: true });
+  const titles = () => plan(r, {}).changes.filter((c) => c.kind === 'command').map((c) => c.title);
+  assert.deepEqual(titles(), []);
+  const f = join(r.dir, STATE);
+  const state = JSON.parse(read(f));
+  state.skills.find((s) => s.name === 'frontend-design').ref = 'a'.repeat(40);
+  writeFileSync(f, JSON.stringify(state));
+  assert.deepEqual(titles(), ['skill frontend-design from anthropics/skills at dbd4588f9e10 (was aaaaaaaaaaaa)']);
+});
+
 test('a second plan reads the answers from the state file', () => {
   const r = repo();
   const first = plan(r, { agents: ['claude'], tier: 'standard' }).changes;

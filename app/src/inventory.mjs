@@ -16,7 +16,7 @@ export function inventory(ctx, agents, { devcontainerCli } = {}) {
   };
   const plan = globalPlan({ ctx, agents, devcontainerCli });
   for (const c of plan) {
-    if (c.kind === 'command' || c.kind === 'remove' || c.destructive) { put(c.step, c.title, c.kind === 'command' && !c.destructive ? 'missing' : 'foreign'); continue; }
+    if (c.kind === 'command' || c.kind === 'remove' || c.destructive) { put(c.step, c.title, c.outdated ? 'outdated' : c.kind === 'command' && !c.destructive ? 'missing' : 'foreign'); continue; }
     // Each edit against the file as it is, so one pending edit of settings.json does not mark the others.
     let after;
     try { after = c.edit ? c.edit(readText(c.path)) : c.after; } catch { put(c.step, c.title, 'error'); continue; }

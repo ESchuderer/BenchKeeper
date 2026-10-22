@@ -8,7 +8,7 @@ import { appVersion, contentDir, library } from '../content.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
-import { PLUGINS, SKILLS_CLI } from './global.mjs';
+import { PLUGINS, SKILLS_CLI, pin } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
 export const ENVS = {
@@ -84,7 +84,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     for (const ag of Object.keys(pack.plugins ?? {}).filter((x) => a.agents.includes(x))) {
       const p = PLUGINS[ag].find((x) => x.pack === id);
       if (p && !(plugins[ag] ?? []).includes(p.id)) {
-        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', p.source], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace] });
+        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', `${p.source}${ag === 'claude' ? '#' : '@'}${pin(p, appVersion).ref}`], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace] });
         add(`pack:${id}:${ag}`, `${agent(ag).name} plugin ${p.id}`, ag === 'claude' ? { kind: 'command', argv: ['claude', 'plugin', 'install', p.id], undoArgv: ['claude', 'plugin', 'uninstall', p.id] } : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] });
       }
     }
@@ -99,6 +99,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   };
 
   // Library skills: own skills copied into each skill folder, community skills through the skills CLI at the pinned commit.
+  const installedRefs = new Map((readState(dir)?.skills ?? []).filter((x) => x.ref).map((x) => [x.name, x.ref]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
     const dirs = skillDirs(ids, 'project', dir);
@@ -119,10 +120,12 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
         }
       }
     } else {
-      const missing = rest.filter(({ dir: d }) => !exists(join(d, s.name))).flatMap((x) => x.agents);
+      // A skill the state file records at another commit is added again at the library's pin.
+      const was = installedRefs.get(s.name);
+      const missing = rest.filter(({ dir: d }) => (was && was !== s.ref) || !exists(join(d, s.name))).flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}`, {
+      add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
         kind: 'command', cwd: dir, env: NPX_ENV,
         argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
         undoArgv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', s.name, ...flags, '-y'],

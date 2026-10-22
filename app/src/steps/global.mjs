@@ -10,18 +10,27 @@ import { mergeJson, parseJson, setToml } from '../merge.mjs';
 
 export const SKILLS_CLI = '1.7.2';
 export const PONYTAIL_REF = 'v5.3.2';
+export const MATT_POCOCK_REF = 'v1.3.1';
+// Pinned plugins: ref is the marketplace's git ref, version the plugin version it yields; 'app' is this app's version
+// (BenchKeeper's marketplace at tag setup-v<major>.<minor>). Matt Pocock's Claude Code plugin comes from the official
+// marketplace, which pins its own commit.
 export const PLUGINS = {
   claude: [
-    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', sparse: ['.claude-plugin', 'plugins'] },
-    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: `DietrichGebert/ponytail#${PONYTAIL_REF}` },
-    { id: 'mattpocock-skills@claude-plugins-official', marketplace: 'claude-plugins-official', pack: 'matt-pocock' },
+    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'app', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
+    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, version: PONYTAIL_REF.slice(1) },
+    { id: 'mattpocock-skills@claude-plugins-official', marketplace: 'claude-plugins-official', version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
   ],
   codex: [
-    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', sparse: ['.claude-plugin', 'plugins'] },
-    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: `DietrichGebert/ponytail@${PONYTAIL_REF}` },
-    { id: 'mattpocock-skills@mattpocock', marketplace: 'mattpocock', source: 'mattpocock/skills', pack: 'matt-pocock' },
+    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'app', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
+    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, version: PONYTAIL_REF.slice(1) },
+    { id: 'mattpocock-skills@mattpocock', marketplace: 'mattpocock', source: 'mattpocock/skills', ref: MATT_POCOCK_REF, version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
   ],
 };
+// The ref and version a plugin is pinned to, for this app version.
+export function pin(p, appVersion) {
+  const app = (x) => (x === 'app' ? appVersion : x);
+  return { ref: p.ref === 'app' ? `setup-v${appVersion.split('.').slice(0, 2).join('.')}` : p.ref, version: app(p.version) };
+}
 const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
@@ -39,7 +48,7 @@ const EFFORT_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5'];
 const json = (list, fallback) => { try { return JSON.parse(list); } catch { return fallback; } };
 const sets = (pairs) => (text) => mergeJson(text, pairs.map(([path, value]) => ({ path, value })));
 
-// User plugins ({ id, version, enabled }) and marketplace names of Claude Code or Codex, read from the agent's own files:
+// User plugins ({ id, version, enabled }), marketplace names and their git refs of Claude Code or Codex, read from the agent's own files:
 // each list command takes about 0.5 s. The CLI answers when the files are missing or unreadable.
 // shortcut: the files are internal CLI formats; if a CLI release changes them, the CLI fallback stays correct but slow.
 export function pluginState(ctx, a) {
@@ -51,7 +60,7 @@ export function pluginState(ctx, a) {
       const on = parseJson(readText(at('.claude/settings.json')) ?? '{}').enabledPlugins ?? {};
       if (installed?.version === 2 && installed.plugins && markets) {
         const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, enabled: on[id] === true })));
-        return { listed, markets: Object.keys(markets) };
+        return { listed, markets: Object.keys(markets), refs: Object.fromEntries(Object.entries(markets).map(([m, v]) => [m, v?.source?.ref])) };
       }
     } else {
       const conf = parseToml(readText(at('.codex/config.toml')) ?? '');
@@ -62,16 +71,16 @@ export function pluginState(ctx, a) {
           return (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
         };
         const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), enabled: p?.enabled === true }));
-        return { listed, markets: Object.keys(conf.marketplaces ?? {}) };
+        return { listed, markets: Object.keys(conf.marketplaces ?? {}), refs: Object.fromEntries(Object.entries(conf.marketplaces ?? {}).map(([m, v]) => [m, v?.ref])) };
       }
     }
   } catch { /* the CLI below */ }
   if (a === 'claude') {
     return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, enabled: p.enabled })),
-      markets: json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, []).map((m) => m.name) };
+      markets: json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, []).map((m) => m.name), refs: {} };
   }
   return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => ({ id: p.pluginId, version: p.version, enabled: p.enabled })),
-    markets: (json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []).map((m) => m.name) };
+    markets: (json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []).map((m) => m.name), refs: {} };
 }
 
 // Enabled plugin ids per agent.
@@ -122,18 +131,32 @@ export function globalPlan(env) {
 
   // Plugins (Claude Code, Codex) or skill copies (agents without plugins).
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {
-    const { listed, markets } = pluginState(ctx, a);
-    const enabled = listed.filter((p) => p.enabled).map((p) => p.id);
+    const { listed, markets, refs } = pluginState(ctx, a);
+    const name = agent(a).name;
     for (const p of PLUGINS[a]) {
-      if (enabled.includes(p.id) || (p.pack && !options.packs?.includes(p.pack))) continue;
+      if (p.pack && !options.packs?.includes(p.pack)) continue;
       const step = `plugin:${a}:${p.id}`;
-      if (p.source && !markets.includes(p.marketplace)) {
-        const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
-        add(step, `${agent(a).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'add', p.source, ...sparse], undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace] });
+      const { ref, version } = pin(p, ctx.appVersion);
+      const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
+      const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', `${p.source}${a === 'claude' ? '#' : '@'}${ref}`, ...sparse];
+      const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
+      const have = listed.find((x) => x.id === p.id && x.enabled);
+      if (have) {
+        // Older than the pin: update. Newer stays (Codex installs Ponytail from its main branch whatever the ref).
+        if (!have.version || bySemver(have.version, version) >= 0) continue;
+        const title = `${name} plugin ${p.id} ${have.version} to ${version}`;
+        const cmd = (argv) => add(step, title, { kind: 'command', argv, outdated: true });
+        if (addMarket && refs[p.marketplace] !== ref) {
+          // A marketplace keeps the ref it was added with: add it again at the pin (the plugin entry stays), then install.
+          cmd([a, 'plugin', 'marketplace', 'remove', p.marketplace]); cmd(addMarket); cmd(install);
+        } else {
+          cmd([a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace]);
+          cmd(a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install);
+        }
+        continue;
       }
-      add(step, `${agent(a).name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, a === 'claude'
-        ? { kind: 'command', argv: ['claude', 'plugin', 'install', p.id], undoArgv: ['claude', 'plugin', 'uninstall', p.id] }
-        : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] });
+      if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace] });
+      add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id] });
     }
     for (const { id } of listed) {
       if (!keepPlugin(id, a)) add(`other:${a}:plugin`, `remove the ${agent(a).name} plugin ${id}`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', id] : ['codex', 'plugin', 'remove', id], destructive: true });

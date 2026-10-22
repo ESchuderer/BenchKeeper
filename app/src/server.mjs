@@ -32,8 +32,9 @@ const distDir = fileURLToPath(new URL('../dist/', import.meta.url));
 // Byte lengths: timingSafeEqual throws on different lengths, and one character can be several bytes.
 const same = (a, b) => { if (typeof a !== 'string') return false; const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 
-// null when the request may go on, else [status, reason].
-export function rejectReason(req, { port, session }) {
+// null when the request may go on, else [status, reason]. API requests also need the key in the HEADER header: the
+// cookie reaches every server on 127.0.0.1 whatever its port, the key only this origin's page.
+export function rejectReason(req, { port, session, key, api = true }) {
   const self = `127.0.0.1:${port}`;
   if (req.headers.host !== self) return [421, 'wrong host'];
   if ('origin' in req.headers && req.headers.origin !== `http://${self}`) return [403, 'foreign origin'];
@@ -42,7 +43,7 @@ export function rejectReason(req, { port, session }) {
   const cookie = (req.headers.cookie ?? '').split(/;\s*/).find((c) => c.startsWith(name))?.slice(name.length);
   if (!session || !same(cookie, session)) return [401, 'no session'];
   if (!['GET', 'HEAD', 'POST'].includes(req.method)) return [405, 'method not allowed'];
-  if (req.method === 'POST' && req.headers[HEADER] !== '1') return [403, `missing ${HEADER} header`];
+  if (api && (!key || !same(req.headers[HEADER], key))) return [403, `missing ${HEADER} header`];
   return null;
 }
 
@@ -251,7 +252,7 @@ async function body(req) {
 }
 
 export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx) } = {}) {
-  let urlToken = token, session = null;
+  let urlToken = token, session = null, key = null;
   const server = createServer(async (req, res) => {
     const send = (code, data, type = 'application/json; charset=utf-8', headers = {}) => {
       res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'", ...headers });
@@ -259,13 +260,15 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     };
     const url = new URL(req.url, 'http://127.0.0.1');
     const p = server.address().port;
-    // The URL token works once: it becomes the session cookie, then the address bar is cleaned.
+    // The URL token works once: it becomes the session cookie and the API key, which the page reads from the fragment
+    // (never sent to a server) and keeps in this origin's storage.
     if (req.method === 'GET' && url.pathname === '/' && url.searchParams.has('token') && req.headers.host === `127.0.0.1:${p}` && urlToken && same(url.searchParams.get('token'), urlToken)) {
       urlToken = null;
       session = randomBytes(32).toString('base64url');
-      return send(303, '', 'text/plain', { location: '/', 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
+      key = randomBytes(32).toString('base64url');
+      return send(303, '', 'text/plain', { location: `/#k=${key}`, 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
     }
-    const why = rejectReason(req, { port: p, session });
+    const why = rejectReason(req, { port: p, session, key, api: url.pathname.startsWith('/api/') });
     if (why) return send(why[0], { error: why[1] });
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) {

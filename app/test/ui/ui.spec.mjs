@@ -23,16 +23,22 @@ test.beforeEach(async ({ page, context }) => {
 });
 
 test.describe.configure({ mode: 'serial' });
-let cookie;
-test('the token becomes a cookie and leaves the address bar', async ({ page, context }) => {
+let cookie, key;
+test('the token becomes a cookie and an API key; both leave the address bar', async ({ page, context }) => {
   await expect(page).toHaveURL('http://127.0.0.1:4410/');
   [cookie] = await context.cookies();
+  key = await page.evaluate(() => localStorage.getItem('benchkeeper-key'));
+  expect(key).toMatch(/^[\w-]{43}$/);
   expect(cookie).toMatchObject({ name: "bk_session_4410", httpOnly: true, sameSite: 'Strict' });
   await expect(page.getByRole('heading', { level: 1, name: 'BenchKeeper' })).toBeVisible();
 });
 
 test.describe('views', () => {
-  test.beforeEach(async ({ context, page }) => { await context.addCookies([cookie]); await page.goto('/'); });
+  test.beforeEach(async ({ context, page }) => {
+    await context.addCookies([cookie]);
+    await context.addInitScript((k) => localStorage.setItem('benchkeeper-key', k), key);
+    await page.goto('/');
+  });
 
   for (const view of VIEWS) {
     for (const scheme of ['light', 'dark']) {

@@ -9,7 +9,7 @@ import { api, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
 
-let srv, port, cookie;
+let srv, port, cookie, key;
 const changed = [];
 before(async () => {
   const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-srv-')), run: () => ({ code: 1, stdout: '', stderr: '' }) });
@@ -35,15 +35,15 @@ function req(method, path, headers = {}, body) {
     r.end(body);
   });
 }
-const auth = (h = {}) => ({ cookie, ...h });
-const post = (h) => req('POST', '/api/apply', auth({ 'content-type': 'application/json', 'x-benchkeeper': '1', ...h }), '{"planId":"x"}');
+const auth = (h = {}) => ({ cookie, 'x-benchkeeper': key, ...h });
+const post = (h) => req('POST', '/api/apply', auth({ 'content-type': 'application/json', ...h }), '{"planId":"x"}');
 
 test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', async () => {
   assert.equal((await req('GET', '/api/overview')).status, 401);
   assert.equal((await req('GET', '/?token=wrong')).status, 401);
   const r = await req('GET', '/?token=secret-token-123');
   assert.equal(r.status, 303);
-  assert.equal(r.headers.location, '/');
+  key = r.headers.location.match(/^\/#k=([\w-]{43})$/)[1];
   assert.match(r.headers['set-cookie'][0], new RegExp(`^bk_session_${port}=[\\w-]{43}; HttpOnly; SameSite=Strict; Path=/$`));
   assert.ok(!r.headers['set-cookie'][0].includes('secret-token-123'));
   cookie = r.headers['set-cookie'][0].split(';')[0];
@@ -53,6 +53,9 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
   assert.equal((await req('GET', '/api/overview', { cookie: `bk_session_${port}=guess` })).status, 401);
   // The session of a server on another port does not count here.
   assert.equal((await req('GET', '/api/overview', { cookie: cookie.replace(`bk_session_${port}=`, 'bk_session_1=') })).status, 401);
+  // The cookie alone, as another server on 127.0.0.1 receives it, reaches no API route; the page still loads.
+  for (const k of [undefined, '1', 'x'.repeat(43)]) assert.equal((await req('GET', '/api/overview', { cookie, ...(k ? { 'x-benchkeeper': k } : {}) })).status, 403);
+  assert.equal((await req('GET', '/', { cookie })).status, 200);
 });
 
 test('rejected: other Host, foreign or null Origin, cross-site fetches', async () => {
@@ -70,14 +73,14 @@ test('rejected: other Host, foreign or null Origin, cross-site fetches', async (
 
 test('rejected: state changes on GET, without the custom header, other methods', async () => {
   assert.equal((await req('GET', '/api/apply', auth())).status, 405);
-  assert.equal((await req('POST', '/api/apply', auth({ 'content-type': 'application/json' }), '{}')).status, 403);
-  assert.equal((await req('PUT', '/api/apply', auth({ 'x-benchkeeper': '1' }), '{}')).status, 405);
+  assert.equal((await req('POST', '/api/apply', { cookie, 'content-type': 'application/json' }, '{}')).status, 403);
+  assert.equal((await req('PUT', '/api/apply', auth(), '{}')).status, 405);
   assert.equal((await req('OPTIONS', '/api/apply', auth())).status, 405);
   assert.deepEqual(changed, []);
   const ok = await post({});
   assert.equal(ok.status, 200);
   assert.deepEqual(changed, [{ planId: 'x' }]);
-  assert.equal((await req('POST', '/api/apply', auth({ 'x-benchkeeper': '1' }), 'not json')).status, 400);
+  assert.equal((await req('POST', '/api/apply', auth(), 'not json')).status, 400);
 });
 
 test('static files stay inside the build folder; unknown paths get the app page', async () => {
@@ -210,7 +213,7 @@ test('evals: the plan names targets and sessions; the job runs them and stores r
 test('a session cookie of other bytes but the same length in characters is refused, not thrown', () => {
   const session = 'a'.repeat(43);
   const req = { method: 'GET', headers: { host: '127.0.0.1:9', cookie: `bk_session_9=${'\u00e9'.repeat(43)}` } };
-  assert.deepEqual(rejectReason(req, { port: 9, session }), [401, 'no session']);
+  assert.deepEqual(rejectReason(req, { port: 9, session, key: 'k' }), [401, 'no session']);
 });
 
 test('pick-folder: the first dialog found answers; a cancel is null; no tool is unavailable', () => {

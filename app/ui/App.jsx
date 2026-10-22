@@ -1,10 +1,11 @@
-import { Anchor, AppShell, Badge, Burger, Button, Group, Kbd, MantineProvider, NavLink, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
+import { Anchor, AppShell, Badge, Burger, Button, Drawer, Group, Kbd, MantineProvider, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
-import { useEffect } from 'react';
-import { useApi } from './parts.jsx';
+import { useEffect, useRef, useState } from 'react';
+import { api } from './api.js';
+import { RunProgress, useApi } from './parts.jsx';
 import { Dot, MOD, go, href, useRoute } from './shell.jsx';
-import { Agents, Catalog, Dashboard, Evals, History, Projects, Settings } from './views.jsx';
+import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Settings } from './views.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
@@ -19,6 +20,46 @@ function DoctorBadge({ doctor }) {
     <Anchor href={href('dashboard', { panel: 'doctor' })} underline="never">
       <Badge variant="default" leftSection={<Dot color={errors ? 'red' : warnings ? 'yellow' : 'teal'} />}>Doctor: {errors} errors, {warnings} warnings</Badge>
     </Anchor>
+  );
+}
+
+// Jobs that run on the server (apply, evals, setup suggestions), found again after a reload or on another view.
+function RunningJobs({ onDone }) {
+  const [jobs, setJobs] = useState([]);
+  const [open, setOpen] = useState(false);
+  const seen = useRef(0);
+  useEffect(() => {
+    let live = true, timer;
+    const poll = async () => {
+      try {
+        const j = await api('/api/jobs');
+        if (!live) return;
+        if (j.length < seen.current) onDone();
+        seen.current = j.length;
+        setJobs(j);
+      } catch { /* the next poll tries again */ }
+      timer = setTimeout(poll, 2000);
+    };
+    poll();
+    return () => { live = false; clearTimeout(timer); };
+  }, []);
+  if (!jobs.length && !open) return null;
+  return (
+    <>
+      {!!jobs.length && <Button variant="default" onClick={() => setOpen(true)} leftSection={<Dot color="blue" />}>{jobs.length} running</Button>}
+      <Drawer opened={open} onClose={() => setOpen(false)} position="right" size="lg" withCloseButton={false} attributes={{ content: { 'aria-label': 'Running jobs' } }}>
+        <Stack gap="lg">
+          <Group justify="space-between"><Title order={2} size="h3">Running jobs</Title><Button variant="default" onClick={() => setOpen(false)}>Close</Button></Group>
+          {!jobs.length && <Text>Nothing is running.</Text>}
+          {jobs.map((j) => (
+            <Stack key={j.id} gap="xs">
+              <Text fw={600}>{j.kind === 'apply' ? `Apply: ${j.title}` : j.kind === 'eval' ? 'Evals' : `Agent session: ${j.title}`}</Text>
+              {j.kind === 'apply' ? <RunProgress job={j.id} total={j.total} /> : j.kind === 'eval' ? <EvalJob job={j.id} total={j.total} /> : <Text size="sm">Running; the setup steps show the result.</Text>}
+            </Stack>
+          ))}
+        </Stack>
+      </Drawer>
+    </>
   );
 }
 
@@ -63,6 +104,7 @@ function Shell() {
             <Group visibleFrom="md"><DoctorBadge doctor={doctor} /></Group>
           </Group>
           <Group gap="xs" wrap="nowrap">
+            <RunningJobs onDone={() => refresh()} />
             <Button variant="default" onClick={spotlight.open} rightSection={<Kbd visibleFrom="sm">{MOD}+K</Kbd>}>Search</Button>
             <Button variant="default" onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{scheme === 'dark' ? 'Light' : 'Dark'}</Button>
           </Group>

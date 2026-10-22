@@ -85,8 +85,8 @@ export function api(ctx) {
   // Changes wait while a job runs: an undo or Update all in between would edit files and runs an apply still writes.
   const idle = () => { if ([...jobs.values()].some((j) => !j.done && !j.readOnly)) throw Object.assign(new Error('an apply or eval is still running: wait for it to finish'), { status: 409 }); };
   // A job runs work(job) in the background; the newest 20 finished jobs are kept.
-  const start = (total, work, { readOnly = false } = {}) => {
-    const job = { id: randomBytes(8).toString('hex'), total, run: null, output: {}, done: false, readOnly };
+  const start = (total, work, { kind, title, readOnly = false }) => {
+    const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly };
     jobs.set(job.id, job);
     for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
     work(job).catch((e) => { job.error = e.message; }).finally(() => { job.done = true; });
@@ -121,8 +121,10 @@ export function api(ctx) {
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select }, (e) => {
         if (e.run) job.run = e.run;
         if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
-      }).then((run) => { job.run = run; }));
+      }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
     },
+    // Running jobs, so a reloaded page finds them again.
+    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
@@ -137,7 +139,7 @@ export function api(ctx) {
       idle();
       const plan = evalPlanFor(b);
       if (!plan.length) throw bad('every target is unchanged since its last result');
-      return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; } }).then((r) => { job.results = r.map(({ details, ...x }) => x); }));
+      return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; } }).then((r) => { job.results = r.map(({ details, ...x }) => x); }), { kind: 'eval', title: 'evals' });
     },
     'GET /api/projects': () => listProjects(ctx).map((p) => { const s = status(ctx, p.path); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(p.path)) }; }),
     'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),
@@ -173,7 +175,7 @@ export function api(ctx) {
       const dir = resolve(String(b.dir ?? ''));
       if (!registered(dir)) throw bad('register the project first');
       if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
-      return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx) }).then((r) => { job.results = r; }), { readOnly: true });
+      return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx) }).then((r) => { job.results = r; }), { kind: 'advice', title: `setup suggestions for ${dir}`, readOnly: true });
     },
     'POST /api/update-all': (b) => {
       idle();

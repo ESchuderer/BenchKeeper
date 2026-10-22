@@ -144,6 +144,8 @@ test('apply: answers at once with a job; the job shows the running command and i
   // Journaled before the command started, so a crash leaves it in history.
   assert.equal(ctx.ledger.get(s.run.id).entries.at(-1).status, 'running');
   assert.equal(s.output[command.id], 'installing\n');
+  // A reloaded page finds the running job.
+  assert.deepEqual(routes['GET /api/jobs'](), [{ id: job, kind: 'apply', title: 'global setup', total: 2 }]);
   const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
   assert.equal(status(() => routes['POST /api/apply']({ planId: again.planId })), 409);
   // Undo and Update all wait too: they would edit the files and the run the apply still writes.
@@ -154,6 +156,7 @@ test('apply: answers at once with a job; the job shows the running command and i
   s = routes['GET /api/job'](new URLSearchParams({ id: job }));
   assert.equal(s.done, true);
   assert.deepEqual(s.run.entries.map((e) => e.status), ['done', 'done']);
+  assert.deepEqual(routes['GET /api/jobs'](), []);
   assert.equal(ctx.ledger.get(s.run.id).status, 'done');
   assert.equal(status(() => routes['GET /api/job'](new URLSearchParams({ id: 'nope' }))), 404);
 });

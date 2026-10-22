@@ -332,7 +332,7 @@ function EvalResults({ results }) {
   );
 }
 
-function EvalJob({ job, total, onDone }) {
+export function EvalJob({ job, total, onDone }) {
   const s = useJob(job, onDone);
   const at = s?.progress ? s.progress.index + (s.done ? 1 : 0) : 0;
   return (

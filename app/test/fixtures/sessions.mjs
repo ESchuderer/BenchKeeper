@@ -39,6 +39,8 @@ export function writeSessions(home) {
   // A running session: no cost-state yet, tokens from the usage of each message once.
   jsonl(join(home, '.claude/projects/-work-blog/s2.jsonl'), [
     { ...human('2026-10-21T09:00:00.000Z', 'typo in the README'), cwd: '/work/blog', sessionId: 's2' },
+    // A tier set with /benchkeeper:tier carries no change type; the next line names it.
+    { ...assistant('2026-10-21T09:00:04.000Z', 'n1', [{ type: 'text', text: 'Tier: quick (override)' }]), cwd: '/work/blog', sessionId: 's2' },
     { ...assistant('2026-10-21T09:00:05.000Z', 'n1', [{ type: 'text', text: 'Tier: quick (docs, typo)' }]), cwd: '/work/blog', sessionId: 's2' },
     { ...assistant('2026-10-21T09:00:06.000Z', 'n1', [{ type: 'text', text: 'Fixed.' }]), cwd: '/work/blog', sessionId: 's2' },
   ]);

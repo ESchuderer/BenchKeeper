@@ -21,7 +21,8 @@ async function lines(file, each) {
 }
 const parse = (line) => { try { return JSON.parse(line); } catch { return null; } };
 const texts = (content) => (typeof content === 'string' ? [content] : Array.isArray(content) ? content.map((c) => c.text ?? (typeof c.content === 'string' ? c.content : '')) : []);
-const tiers = (data, text) => { for (const m of text.matchAll(TIER)) data.tiers.push([m[1], m[2] ?? null]); };
+// `(override)` marks a tier set with /benchkeeper:tier: no change type.
+const tiers = (data, text) => { for (const m of text.matchAll(TIER)) data.tiers.push([m[1], m[2] && m[2] !== 'override' ? m[2] : null]); };
 
 // One Claude Code transcript (or a subagent's, of which only the skills count).
 async function claudeFile(file) {
@@ -153,7 +154,8 @@ function setupLabels(names = []) {
 
 const tierOf = (list) => {
   if (!list.length) return null;
-  const [[first, changeType]] = list, last = list.at(-1)[0];
+  const [[first]] = list, last = list.at(-1)[0];
+  const changeType = list.find(([, c]) => c)?.[1] ?? null;
   const rank = (t) => TIERS.indexOf(t);
   return { first, last, changeType, movedUp: rank(first) >= 0 && list.some(([t]) => rank(t) > rank(first)) };
 };

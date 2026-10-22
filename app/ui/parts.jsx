@@ -1,7 +1,7 @@
-import { Alert, Badge, Button, Checkbox, Code, Group, Loader, Stack, Table, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Checkbox, Code, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
-import { Dot, STATE_COLOR } from './shell.jsx';
+import { Dot, STATE_COLOR, href } from './shell.jsx';
 
 // Loads a GET endpoint; reload() fetches it again. A response for an older path or load is dropped; no path clears it.
 export function useApi(path) {
@@ -43,17 +43,17 @@ export const StateBadge = ({ state }) => (state ? <Badge variant="default" leftS
 // A plan from the server: one checkbox per change (removals off by default), its diff or command, then apply.
 export function Plan({ plan, onDone }) {
   const [select, setSelect] = useState(() => plan.changes.filter((c) => c.selected && !c.error).map((c) => c.id));
-  const [result, setResult] = useState(null);
+  const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   if (!plan.changes.length) return <Text>Nothing to change.</Text>;
   const toggle = (id) => setSelect((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const run = async () => {
     setBusy(true);
-    try { setResult(await api('/api/apply', { planId: plan.planId, select })); onDone?.(); } catch (e) { setError(e.message); }
+    try { setJob(await api('/api/apply', { planId: plan.planId, select })); } catch (e) { setError(e.message); }
     setBusy(false);
   };
-  if (result) return <RunEntries run={result} />;
+  if (job) return <RunProgress job={job.job} total={job.total} onDone={onDone} />;
   return (
     <Stack gap="sm">
       {error && <Alert color="red" title="Apply failed">{error}</Alert>}
@@ -68,6 +68,60 @@ export function Plan({ plan, onDone }) {
         </Stack>
       ))}
       <Group><Button onClick={run} loading={busy} disabled={!select.length}>Apply {select.length} changes</Button></Group>
+    </Stack>
+  );
+}
+
+const STATUS_COLOR = { done: 'teal', failed: 'red', skipped: 'gray', running: 'blue', waiting: 'gray', manual: 'yellow' };
+const StatusBadge = ({ status }) => <Badge variant="default" leftSection={<Dot color={STATUS_COLOR[status] ?? 'gray'} />}>{status}</Badge>;
+
+// A started apply, polled until it is done: each change with its status, the running command's output, then the run.
+export function RunProgress({ job, total, onDone }) {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    let live = true, timer;
+    const poll = async () => {
+      try {
+        const s = await api(`/api/job?id=${job}`);
+        if (!live) return;
+        setState(s);
+        if (s.done) { onDone?.(s.run); return; }
+      } catch (e) { if (live) setState((x) => ({ ...x, done: true, error: e.message })); return; }
+      timer = setTimeout(poll, 400);
+    };
+    poll();
+    return () => { live = false; clearTimeout(timer); };
+  }, [job]);
+  const entries = state?.run?.entries ?? [];
+  const finished = entries.filter((e) => e.status).length;
+  const running = !state?.done && entries.find((e) => !e.status);
+  const waiting = state?.done ? 0 : Math.max(total - entries.length, 0);
+  return (
+    <Stack gap="sm" component="section" aria-label="Apply progress">
+      <Progress value={total ? (finished / total) * 100 : 100} aria-label="Changes done" color={state?.run?.status === 'failed' || entries.some((e) => e.status === 'failed') ? 'red' : 'teal'} />
+      <Text role="status">
+        {state?.done ? <>Run <Code>{state.run?.id ?? job}</Code>: {state.error ?? state.run?.status} ({finished} of {total} changes). <Anchor href={href('history', { run: state.run?.id })}>Open in History</Anchor></>
+          : running ? `${finished} of ${total} done. Running: ${running.title}` : `${finished} of ${total} done`}
+      </Text>
+      {state?.error && <Alert color="red" title="Apply failed">{state.error}</Alert>}
+      <Table aria-label="Changes">
+        <Table.Thead><Table.Tr><Table.Th>Status</Table.Th><Table.Th>Change</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>
+          {entries.map((e) => {
+            const status = e.status ?? (state?.done ? 'failed' : 'running'), out = state?.output?.[e.id];
+            return (
+              <Table.Tr key={e.id}>
+                <Table.Td><StatusBadge status={status} /></Table.Td>
+                <Table.Td>
+                  {e.title}{e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}
+                  {e.argv && <Code block tabIndex={0} mt={4}>{`$ ${e.argv.join(' ')}${out ? `\n${out.trimEnd()}` : ''}`}</Code>}
+                </Table.Td>
+              </Table.Tr>
+            );
+          })}
+          {waiting > 0 && <Table.Tr><Table.Td><StatusBadge status="waiting" /></Table.Td><Table.Td>{waiting} more</Table.Td></Table.Tr>}
+        </Table.Tbody>
+      </Table>
     </Stack>
   );
 }

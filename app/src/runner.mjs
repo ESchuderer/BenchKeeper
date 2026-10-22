@@ -4,7 +4,7 @@
 //   { kind: 'remove', path }                moves a file or folder to the backup
 //   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists
 // Every change has id, step, title, and destructive (confirmed separately, off by default).
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { diffLines } from './diff.mjs';
@@ -13,7 +13,19 @@ import { blob, fileMode } from './git.mjs';
 import { Ledger, SCHEMA, runId } from './ledger.mjs';
 
 export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand } = {}) {
-  return { home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ledger: new Ledger(resolve(config), resolve(home)) };
+  return { home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
+}
+
+// runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved.
+export function runCommandAsync(argv, { cwd, env, onOutput = () => {} } = {}) {
+  return new Promise((done) => {
+    let stdout = '', stderr = '';
+    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    p.stdout.setEncoding('utf8').on('data', (d) => { stdout += d; onOutput(d); });
+    p.stderr.setEncoding('utf8').on('data', (d) => { stderr += d; onOutput(d); });
+    p.on('error', (e) => done({ code: 127, stdout, stderr: e.message }));
+    p.on('close', (code) => done({ code: code ?? 1, stdout, stderr }));
+  });
 }
 
 export function runCommand(argv, { cwd, input, env, buffer, stdio } = {}) {
@@ -40,8 +52,11 @@ export function preview(changes) {
   }).filter((c) => !c.noop).map((c) => ({ selected: !c.destructive, ...c }));
 }
 
-export function apply(changes, ctx, { scope = 'global', select, note } = {}) {
+// One loop for both drivers: it yields each command ({ argv, opts, entry }) for the driver to run and gets its result
+// back, and yields { saved } after each change, so the async driver can let a server answer progress requests.
+function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'apply', scope, ...(note ? { note } : {}), entries: [] };
+  yield { run };
   const failedSteps = new Set();
   for (const c of changes) {
     if (select ? !select.includes(c.id) : !(c.selected ?? !c.destructive)) continue;
@@ -51,7 +66,7 @@ export function apply(changes, ctx, { scope = 'global', select, note } = {}) {
     try {
       if (c.kind === 'command') {
         Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null });
-        const r = ctx.run(c.argv, { cwd: c.cwd, env: c.env && { ...process.env, ...c.env } });
+        const r = yield { argv: c.argv, opts: { cwd: c.cwd, env: c.env && { ...process.env, ...c.env } }, entry };
         entry.exit = r.code;
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ') || `exit ${r.code}`);
       } else {
@@ -87,10 +102,32 @@ export function apply(changes, ctx, { scope = 'global', select, note } = {}) {
       failedSteps.add(c.step);
     }
     ctx.ledger.save(run);
+    yield { saved: entry };
   }
   run.status = run.entries.some((e) => e.status === 'failed') ? 'failed' : 'done';
   ctx.ledger.save(run);
   return run;
+}
+
+export function apply(changes, ctx, opts) {
+  const g = applySteps(changes, ctx, opts);
+  for (let x = g.next(); ; ) {
+    if (x.done) return x.value;
+    x = g.next(x.value.argv ? ctx.run(x.value.argv, x.value.opts) : undefined);
+  }
+}
+
+// The same apply without blocking: commands run through ctx.runAsync (stub contexts fall back to ctx.run).
+// onEvent gets { run } once, { entry, output } while a command prints, and { saved } after each change.
+export async function applyAsync(changes, ctx, opts, onEvent = () => {}) {
+  const g = applySteps(changes, ctx, opts);
+  const runAsync = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
+  for (let x = g.next(); ; ) {
+    if (x.done) return x.value;
+    const v = x.value;
+    if (!v.argv) { onEvent(v); await new Promise(setImmediate); x = g.next(); continue; }
+    x = g.next(await runAsync(v.argv, { ...v.opts, onOutput: (output) => onEvent({ entry: v.entry, output }) }));
+  }
 }
 
 // Undoes a run, or one step of it, newest change first. Undo is a run of its own, so it can be undone too.

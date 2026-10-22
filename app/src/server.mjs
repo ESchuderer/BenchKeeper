@@ -18,7 +18,7 @@ import { inventory } from './inventory.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
-import { apply, itemState, preview, undo } from './runner.mjs';
+import { applyAsync, itemState, preview, undo } from './runner.mjs';
 import { globalPlan } from './steps/global.mjs';
 import { chosenSkills, projectPlan, resolveAnswers, tryState } from './steps/project.mjs';
 
@@ -65,7 +65,7 @@ function serialize(changes, ctx) {
 }
 
 export function api(ctx) {
-  const plans = new Map();
+  const plans = new Map(), jobs = new Map();
   const keep = (changes, pctx, scope) => { const id = randomBytes(8).toString('hex'); plans.set(id, { changes, ctx: pctx, scope }); return id; };
   const agentsNow = () => detect(ctx);
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
@@ -78,11 +78,25 @@ export function api(ctx) {
       const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack') } }));
       return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
     },
+    // Starts the apply and answers at once; GET /api/job shows each change as it runs. One apply at a time.
     'POST /api/apply': (b) => {
+      if ([...jobs.values()].some((j) => !j.done)) throw Object.assign(new Error('another apply is still running'), { status: 409 });
       const p = plans.get(b.planId);
       if (!p) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       plans.delete(b.planId);
-      return apply(p.changes, p.ctx, { scope: p.scope, select: b.select });
+      const job = { id: randomBytes(8).toString('hex'), total: b.select?.length ?? p.changes.filter((c) => c.selected).length, run: null, output: {}, done: false };
+      jobs.set(job.id, job);
+      // Output is kept per change, its last 8 kB.
+      applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select }, (e) => {
+        if (e.run) job.run = e.run;
+        if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
+      }).then((run) => { job.run = run; }, (e) => { job.error = e.message; }).finally(() => { job.done = true; });
+      return { job: job.id, total: job.total };
+    },
+    'GET /api/job': (q) => {
+      const job = jobs.get(q.get('id') ?? '');
+      if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
+      return { total: job.total, done: job.done, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] } };
     },
     'GET /api/projects': () => listProjects(ctx).map((p) => { const s = status(ctx, p.path); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(p.path)) }; }),
     'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),

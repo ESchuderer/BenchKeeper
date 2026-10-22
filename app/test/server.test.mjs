@@ -122,6 +122,32 @@ test('inventory: an edited rules file is modified, enabled plugins current, a mi
   assert.ok(items.every((i) => i.agent === (i.step.split(':')[1] === 'claude' ? 'claude' : 'machine')));
 });
 
+test('apply: answers at once with a job; the job shows the running command and its output, then the run; one at a time', async () => {
+  const { ctx, routes } = fixture();
+  let release;
+  ctx.runAsync = (argv, o) => { o.onOutput('installing\n'); return new Promise((r) => { release = () => r({ code: 0, stdout: 'ok', stderr: '' }); }); };
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const command = plan.changes.find((c) => c.kind === 'command');
+  const select = [plan.changes.find((c) => c.kind === 'write').id, command.id];
+  const { job, total } = routes['POST /api/apply']({ planId: plan.planId, select });
+  assert.equal(total, 2);
+  await new Promise((r) => setTimeout(r, 20));
+  let s = routes['GET /api/job'](new URLSearchParams({ id: job }));
+  assert.equal(s.done, false);
+  assert.equal(s.run.entries.at(-1).id, command.id);
+  assert.equal(s.run.entries.at(-1).status, undefined);
+  assert.equal(s.output[command.id], 'installing\n');
+  const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  assert.equal(status(() => routes['POST /api/apply']({ planId: again.planId })), 409);
+  release();
+  await new Promise((r) => setTimeout(r, 20));
+  s = routes['GET /api/job'](new URLSearchParams({ id: job }));
+  assert.equal(s.done, true);
+  assert.deepEqual(s.run.entries.map((e) => e.status), ['done', 'done']);
+  assert.equal(ctx.ledger.get(s.run.id).status, 'done');
+  assert.equal(status(() => routes['GET /api/job'](new URLSearchParams({ id: 'nope' }))), 404);
+});
+
 test('pick-folder: the first dialog found answers; a cancel is null; no tool is unavailable', () => {
   const calls = [];
   const answer = (byTool) => fixture((argv) => { calls.push(argv[0]); return byTool[argv[0]] ?? null; }).ctx;

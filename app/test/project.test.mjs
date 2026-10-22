@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
+import { appVersion } from '../src/content.mjs';
 import { ENVS, STATE, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
 
 function repo() {
@@ -42,7 +43,7 @@ test('AGENTS.md block, CLAUDE.md import, own skill copies, pinned community skil
   assert.deepEqual(cmd.argv.slice(3, 9), ['add', 'https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44', '-s', 'frontend-design', '-a', 'claude-code']);
   assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.env.npm_config_registry === 'https://registry.npmjs.org/' && cmd.snapshot.includes(join(r.dir, 'skills-lock.json')));
   const state = readState(r.dir);
-  assert.deepEqual([state.setupVersion, state.env, state.tier, state.packs], ['6.0.0', 'host-agent', 'quick', ['frontend']]);
+  assert.deepEqual([state.setupVersion, state.env, state.tier, state.packs], [appVersion, 'host-agent', 'quick', ['frontend']]);
   assert.deepEqual(state.skills.map((s) => s.name).sort(), ['accessibility', 'designing-technical-uis', 'frontend-design']);
   assert.match(prompts[0].prompt, /setting-up-projects/);
 });

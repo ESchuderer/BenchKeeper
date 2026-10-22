@@ -172,7 +172,7 @@ test.describe('views', () => {
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);
-    await expect(row).toContainText('6.0.0 current');
+    await expect(row).toContainText(/\d+\.\d+\.\d+ current/);
     await expect(row).toContainText(/\d+ pending/);
     await expect(row).toContainText('dirty');
     await row.getByRole('link').click();

@@ -6,9 +6,10 @@ import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
-import { clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
+import { blob, clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, projectPlan, readState, tryState } from './steps/project.mjs';
+import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
 
@@ -54,21 +55,73 @@ export function scan(root, depth = 3) {
 // The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
 const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: { ...ctx, roots: [dir] }, dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
 
-// Per project: setup version, branch, clean tree, and the changes Update all would make.
+// Git talks to origin without waiting on a password or passphrase prompt (terminal or askpass helper).
+function quiet(ctx, path) {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
+  if (!env.GIT_SSH_COMMAND && !git(ctx, path, ['config', '--get', 'core.sshCommand']).stdout.trim()) env.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes';
+  return env;
+}
+// Fetches origin's default branch; true when it worked. One fetch per project and minute: the CLI's status and Update all
+// share it.
+// shortcut: blocks the server like the other git reads here; move to ctx.runAsync if many slow remotes stall the UI.
+const fetched = new Map();
+function fetchBase(ctx, path, base) {
+  const key = `${path}\0${base}`;
+  if (Date.now() - (fetched.get(key) ?? 0) < 60e3) return true;
+  const ok = git(ctx, path, ['fetch', '-q', 'origin', base], { env: quiet(ctx, path), timeout: 20e3 }).code === 0;
+  if (ok) fetched.set(key, Date.now());
+  return ok;
+}
+// Origin's default branch: origin/HEAD, or asked from origin when the clone has none (a local main or master may not be it).
+function remoteDefault(ctx, path) {
+  const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
+  if (head) return head.startsWith('origin/-') ? null : head.replace(/^origin\//, '');
+  const r = git(ctx, path, ['ls-remote', '--symref', 'origin', 'HEAD'], { env: quiet(ctx, path), timeout: 20e3 });
+  const name = r.code === 0 ? r.stdout.match(/^ref: refs\/heads\/(\S+)\tHEAD$/m)?.[1] : null;
+  if (name) return name.startsWith('-') ? null : name;
+  // Origin names none (no HEAD there, or unreachable): the local main or master.
+  return defaultBranch(ctx, path);
+}
+// The state file on origin's default branch, read only after a fetch worked (an old tracking ref is not origin's
+// state), kept a minute per project; null without origin, its default branch or a fetch. Update all starts there, so a
+// setup merged on origin counts before the checkout is pulled.
+const origins = new Map();
+function originState(ctx, path) {
+  const hit = origins.get(path);
+  if (hit && Date.now() - hit.at < 60e3) return hit.value;
+  const base = isRepo(ctx, path) && git(ctx, path, ['remote', 'get-url', 'origin']).code === 0 && remoteDefault(ctx, path);
+  if (!base || !fetchBase(ctx, path, base)) return null;
+  const ref = `origin/${base}`;
+  let state = null;
+  try { state = JSON.parse(blob(ctx, path, ref, STATE).toString('utf8')); } catch { /* none, or unreadable: the checkout's counts */ }
+  origins.set(path, { at: Date.now(), value: { ref, state } });
+  return { ref, state };
+}
+// The setup that counts: the checkout's, unless origin's default branch has a newer one (or the checkout none).
+export function setupOf(ctx, path, checkout = tryState(path)) {
+  const origin = checkout?.setupVersion === appVersion ? null : originState(ctx, path);
+  const v = origin?.state?.setupVersion;
+  const state = typeof v === 'string' && (!checkout?.setupVersion || newer(v, checkout.setupVersion)) ? origin.state : checkout;
+  return { state, checkout: checkout?.setupVersion ?? null, origin: origin?.ref ?? null };
+}
+
+// Per project: setup version (checkout: the checked-out one, when origin's counts instead), branch, clean tree, and
+// the changes Update all would make, from the checkout's state file only when that is the one that counts.
 export function status(ctx, path) {
-  let state = null, error = null;
-  try { state = readState(path); } catch (e) { error = e.message; }
+  let local = null, error = null;
+  try { local = readState(path); } catch (e) { error = e.message; }
+  const { state, checkout, origin } = setupOf(ctx, path, local);
   const repo = isRepo(ctx, path);
   const branch = repo ? git(ctx, path, ['branch', '--show-current']).stdout.trim() : null;
   let changes = null;
-  if (state) {
+  if (state && state === local) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
     try { changes = projectChanges(ctx, path).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
   // Per chosen agent, the skills in the project folder it reads.
   const files = skillFiles(path);
   const skills = Object.fromEntries((state?.agents ?? []).map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
-  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills };
+  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills };
 }
 
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
@@ -78,13 +131,16 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
   return paths.map((path) => {
     const result = { path, branch };
     try {
-      if (!readState(path) && !answers[path]) throw new Error(`no ${STATE}: set the project up first`);
-      if (!isRepo(ctx, path)) throw new Error('not a git repository');
+      const local = readState(path), repo = isRepo(ctx, path);
+      if (!answers[path] && !local && !repo) throw new Error(`no ${STATE}: set the project up first`);
+      if (!repo) throw new Error('not a git repository');
       if (!clean(ctx, path)) throw new Error('working tree has changes');
       const base = defaultBranch(ctx, path);
       if (!base) throw new Error('no default branch (origin/HEAD, main or master)');
       // The branch starts at the remote's default branch when it can be fetched, else at the local one.
-      const start = git(ctx, path, ['fetch', '-q', 'origin', base]).code === 0 ? `origin/${base}` : base;
+      const start = fetchBase(ctx, path, base) ? `origin/${base}` : base;
+      // Without a state file here, the one on the start branch (a setup merged on origin) sets the project up.
+      if (!answers[path] && !local && git(ctx, path, ['cat-file', '-e', `${start}:${STATE}`]).code !== 0) throw new Error(`no ${STATE}: set the project up first`);
       // Per project path, so two projects with one folder name never share (and delete) a worktree.
       const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${appVersion}`);
       git(ctx, path, ['worktree', 'prune']);

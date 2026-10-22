@@ -103,6 +103,10 @@ function setupAnswers(src) {
     tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined };
 }
 
+// The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
+const scans = new WeakMap();
+const FRESH_SCAN_MS = 60e3;
+
 export function api(ctx) {
   const plans = new Map(), jobs = new Map(), rehearsals = new Map();
   // Changes wait while a job runs: an undo or Update all in between would edit files and runs an apply still writes.
@@ -257,11 +261,18 @@ export function api(ctx) {
       if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
       return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx), signal: job.ctl.signal }).then((r) => { job.results = r; }), { kind: 'advice', title: `setup suggestions for ${dir}`, readOnly: true });
     },
-    // Reads the transcripts into the session cache, so GET /board answers at once; one scan at a time.
-    'POST /api/sessions-scan': () => {
+    // Reads the transcripts into the session cache, so GET /board answers at once; one scan at a time. A scan less
+    // than a minute old is reused unless force is set (Rescan).
+    'POST /api/sessions-scan': (b) => {
+      const last = scans.get(ctx);
+      if (b.force !== true && last && Date.now() - last.at < FRESH_SCAN_MS) return { fresh: true };
       const running = [...jobs.values()].find((j) => j.kind === 'scan' && !j.done);
       if (running) return { job: running.id, total: 0 };
-      return start(0, async (job) => { job.results = { sessions: (await scanSessions(ctx, { onFile: (p) => { job.progress = p; } })).length }; }, { kind: 'scan', title: 'sessions', readOnly: true });
+      return start(0, async (job) => {
+        const rows = await scanSessions(ctx, { onFile: (p) => { job.progress = p; } });
+        scans.set(ctx, { rows, at: Date.now() });
+        job.results = { sessions: rows.length };
+      }, { kind: 'scan', title: 'sessions', readOnly: true });
     },
     'POST /api/update-all': (b) => {
       idle();
@@ -380,7 +391,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     if (why) return send(why[0], { error: why[1] });
     // The sessions board: a page of its own, framed by the app; only its script by hash runs there.
     if (req.method === 'GET' && url.pathname === '/board') {
-      try { return send(200, boardHtml(await scanSessions(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+      try { return send(200, boardHtml(scans.get(ctx)?.rows ?? await scanSessions(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) {

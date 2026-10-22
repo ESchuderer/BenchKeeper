@@ -67,6 +67,15 @@ test('the sessions board: the session cookie without the API key, and a CSP of i
   assert.match(r.body, /<title>Sessions board<\/title>/);
 });
 
+test('a session scan is reused for a minute: the board renders from it; force scans again', async () => {
+  const { routes } = fixture();
+  const first = routes['POST /api/sessions-scan']({});
+  assert.ok(first.job);
+  await finished(routes, first.job);
+  assert.deepEqual(routes['POST /api/sessions-scan']({}), { fresh: true });
+  assert.ok(routes['POST /api/sessions-scan']({ force: true }).job);
+});
+
 test('rejected: other Host, foreign or null Origin, cross-site fetches', async () => {
   for (const host of ['localhost:' + port, `127.0.0.1:${port + 1}`, 'evil.example', `127.0.0.1:${port}.evil.example`]) {
     assert.equal((await req('GET', '/api/overview', auth({ host }))).status, 421, host);

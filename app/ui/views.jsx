@@ -732,13 +732,16 @@ export function Settings({ overview, refresh }) {
 }
 
 // The sessions board in a frame: a scan job fills the session cache first (the first one reads every transcript), then
-// the board renders from it. The frame follows the app's theme.
+// the board renders from the server's last scan; a reload within a minute shows it without scanning. The frame follows the app's theme.
 export function Sessions() {
   const scheme = useComputedColorScheme('light');
   const [job, setJob] = useState(null);
   const [shown, setShown] = useState(0);
   const [error, setError] = useState(null);
-  const scan = async () => { setError(null); try { setJob((await api('/api/sessions-scan', {})).job); } catch (e) { setError(e.message); } };
+  const scan = async (force) => {
+    setError(null);
+    try { const r = await api('/api/sessions-scan', force ? { force: true } : {}); if (r.fresh) setShown((n) => n + 1); else setJob(r.job); } catch (e) { setError(e.message); }
+  };
   useEffect(() => { scan(); }, []);
   const state = useJob(job, (s) => { if (s.error) setError(s.error); else setShown((n) => n + 1); setJob(null); });
   const p = state?.progress;
@@ -746,7 +749,7 @@ export function Sessions() {
     <Stack gap="lg">
       <Group justify="space-between">
         <Title order={2} size="h3">Sessions</Title>
-        <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={scan}>Rescan</Button>
+        <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
       </Group>
       <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. Nothing leaves this machine except the pull request lookups through gh.</Text>
       {error && <Note color="red">{error}</Note>}

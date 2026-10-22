@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
+import { doctor } from './doctor.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
 import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
@@ -22,6 +23,7 @@ Usage: benchkeeper <command> [options]
   apply [--agents a,b] [--pack p] [--yes] [--all]
                                     global setup: asks per change; --yes takes the default selection,
                                     --all also the removals
+  doctor [dir] [--agents a,b]       setup problems with a fix each, nothing written; exit 1 on an error
   history                           runs, newest first
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
@@ -180,6 +182,12 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
     const e = run.entries[0];
     out.write(`session exit ${e.exit}, ${e.files.length} files changed${e.transcript ? `, transcript ${e.transcript}` : ''}\nrun ${run.id}: undo with benchkeeper undo ${run.id}\n`);
     return 0;
+  }
+  if (cmd === 'doctor') {
+    const found = doctor(ctx, { agents: selectedAgents(ctx, o.agents), dir: resolve(arg ?? '.') });
+    for (const i of found) out.write(`${i.level.padEnd(7)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
+    out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
+    return found.some((i) => i.level === 'error') ? 1 : 0;
   }
   if (cmd === 'history') {
     for (const r of ctx.ledger.list()) out.write(`${r.id}  ${r.kind.padEnd(5)} ${(r.status ?? 'interrupted').padEnd(11)} ${r.scope}  ${r.entries.length} changes${r.of ? ` (undo of ${r.of})` : ''}\n`);

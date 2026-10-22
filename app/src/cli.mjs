@@ -146,7 +146,8 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'project') {
     const dir = resolve(positionals[2] ?? '.');
-    const pctx = { ...ctx, roots: [...ctx.roots, dir] };
+    // Project runs write inside the project only.
+    const pctx = { ...ctx, roots: [dir] };
     const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable };
     const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
     const plan = preview(changes);
@@ -201,7 +202,7 @@ async function command(argv, { out, ask, ctx }) {
     const argv = positionals.slice(1);
     if (!argv.length) { out.write('record needs the agent command after --\n'); return 2; }
     const dir = resolve(o.project ?? '.');
-    const run = recordSession({ ...ctx, roots: [...ctx.roots, dir] }, dir, argv);
+    const run = recordSession({ ...ctx, roots: [dir] }, dir, argv);
     const e = run.entries[0];
     out.write(`session exit ${e.exit}, ${e.files.length} files changed${e.transcript ? `, transcript ${e.transcript}` : ''}\nrun ${run.id}: undo with benchkeeper undo ${run.id}\n`);
     return 0;
@@ -273,7 +274,7 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'undo' || cmd === 'restore') {
     if (!arg) { out.write(`${cmd} needs a name, see benchkeeper history\n`); return 2; }
     const scope = cmd === 'undo' ? ctx.ledger.get(arg).scope : 'global';
-    const uctx = scope === 'global' ? ctx : { ...ctx, roots: [...ctx.roots, scope] };
+    const uctx = scope === 'global' ? ctx : { ...ctx, roots: [scope] };
     return report(cmd === 'undo' ? undo(arg, uctx, { step: o.step }) : restoreLegacy(arg, ctx), out);
   }
   out.write(`unknown command ${cmd}\n\n${HELP}\n`);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
@@ -105,4 +105,16 @@ test('recording needs a git repository', () => {
   const ctx = context({ home: dir });
   assert.throws(() => recordSession(ctx, dir, ['true']), /not a git repository/);
   assert.equal(existsSync(join(dir, STATE)), false);
+});
+
+test('skill names from a state file never reach paths outside the project', () => {
+  const r = repo();
+  const outside = join(r.ctx.home, 'outside');
+  mkdirSync(join(outside, 'x'), { recursive: true });
+  mkdirSync(join(r.dir, '.benchkeeper'));
+  writeFileSync(join(r.dir, STATE), JSON.stringify({ agents: ['claude'], env: 'host', skills: [{ name: `../../../${basename(r.ctx.home)}/outside` }] }));
+  mkdirSync(join(r.dir, '.claude/skills'), { recursive: true });
+  const changes = preview(plan(r, {}).changes);
+  assert.ok(changes.every((c) => !c.path || c.path.startsWith(r.dir)), JSON.stringify(changes.map((c) => c.path)));
+  assert.throws(() => plan(r, { paths: { accessibility: 'src/**\nname: evil' } }), /one line of globs/);
 });

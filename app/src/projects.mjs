@@ -44,7 +44,7 @@ export function scan(root, depth = 3) {
 }
 
 // The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
-const projectChanges = (ctx, dir) => preview(projectPlan({ ctx: { ...ctx, roots: [...ctx.roots, dir] }, dir, answers: {} }).changes).filter((c) => c.kind !== 'command' || c.cwd);
+const projectChanges = (ctx, dir) => preview(projectPlan({ ctx: { ...ctx, roots: [dir] }, dir, answers: {} }).changes).filter((c) => c.kind !== 'command' || c.cwd);
 
 // Per project: setup version, branch, clean tree, and the changes Update all would make.
 export function status(ctx, path) {
@@ -75,10 +75,13 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       rmSync(tree, { recursive: true, force: true });
       git(ctx, path, ['worktree', 'prune']);
       const previous = git(ctx, path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]).stdout.trim();
+      // The branch is rebuilt from the default branch; commits other than an earlier Update all would be lost.
+      const other = previous && git(ctx, path, ['log', '--format=%s', `${start}..${previous}`]).stdout.split('\n').filter((l) => l && l !== `chore: agent setup ${appVersion}`);
+      if (other?.length) throw new Error(`local branch ${branch} has other commits (${other[0]}): merge or rename it first`);
       const wt = git(ctx, path, ['worktree', 'add', '-q', '-B', branch, tree, start]);
       if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
       try {
-        const run = apply(projectChanges(ctx, tree), { ...ctx, roots: [...ctx.roots, tree] }, { scope: tree });
+        const run = apply(projectChanges(ctx, tree), { ...ctx, roots: [tree] }, { scope: tree });
         result.run = run.id;
         if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
         git(ctx, tree, ['add', '-A']);

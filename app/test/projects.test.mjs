@@ -64,8 +64,14 @@ test('Update all commits the new setup on a branch in a worktree and leaves the 
   assert.equal(p.git('log', '--format=%s', '-1', r.branch).trim(), `chore: agent setup ${appVersion}`);
   assert.equal(p.git('worktree', 'list').trim().split('\n').length, 1);
   assert.equal(existsSync(join(h, '.cache/benchkeeper/worktrees')) && p.git('worktree', 'list').includes('.cache'), false);
-  // A second run finds the branch current.
+  // A second run finds the branch current; a branch with commits of its own stops that project.
   assert.equal(updateAll(ctx)[0].status, 'current');
+  p.git('checkout', '-q', r.branch);
+  writeFileSync(join(p.dir, 'mine.txt'), 'x\n');
+  p.git('add', '-A');
+  p.git('commit', '-qm', 'my work');
+  p.git('checkout', '-q', 'main');
+  assert.match(updateAll(ctx)[0].reason, /has other commits \(my work\)/);
 });
 
 test('a project with changes, without a state file or outside git stops alone; the others continue', () => {

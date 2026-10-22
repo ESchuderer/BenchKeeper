@@ -38,7 +38,7 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
   const projects = [], missing = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }
-    const pctx = { ...ctx, roots: [...ctx.roots, x.path] };
+    const pctx = { ...ctx, roots: [x.path] };
     const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined } }).changes);
     projects.push({ path: x.path, ctx: pctx, changes });
   }

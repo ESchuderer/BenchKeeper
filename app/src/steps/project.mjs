@@ -34,6 +34,8 @@ export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = 
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
   if (!(a.env in ENVS)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
   if (a.tier && !TIERS.includes(a.tier)) throw new Error(`tier must be one of ${TIERS.join(', ')}`);
+  // paths values go into SKILL.md front matter.
+  for (const [k, v] of Object.entries(a.paths)) if (typeof v !== 'string' || /[\r\n]/.test(v)) throw new Error(`paths for ${k}: one line of globs`);
   return a;
 }
 
@@ -124,7 +126,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   }
 
   // Skills of a pack or single skill no longer chosen: own copies and parked copies are removed, community skills through the skills CLI.
-  const before = (readState(dir)?.skills ?? []).map((s) => s.name);
+  // Names from the state file become paths: only skill-folder names count.
+  const before = (readState(dir)?.skills ?? []).map((s) => s.name).filter((n) => /^[a-z0-9][a-z0-9-]*$/.test(n ?? ''));
   const removed = before.filter((n) => !skills.some((s) => s.name === n));
   for (const name of removed) {
     const s = lib.skills.find((x) => x.name === name);

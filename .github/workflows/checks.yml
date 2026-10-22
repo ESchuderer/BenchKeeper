@@ -35,6 +35,9 @@ jobs:
       # library/README.md tables are generated from library.json.
       - name: Library catalog
         run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check
+      # Install commands in the docs name the app version (npx benchkeeper@<version>, the clone tag).
+      - name: Version pins
+        run: node --test .github/scripts/version-pins.test.mjs && node .github/scripts/version-pins.mjs --check
       # The web UI against a fixture home: request checks are in the app tests, views and axe (light, dark) here.
       - name: App UI tests
         working-directory: app

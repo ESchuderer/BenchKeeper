@@ -182,7 +182,7 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   mkdirSync(join(home, '.codex/plugins/cache/benchkeeper/benchkeeper/6.0.0'), { recursive: true });
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
     'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }], 'benchkeeper@benchkeeper': [{ scope: 'user', version: '5.4.0' }], 'mattpocock-skills@claude-plugins-official': [{ scope: 'user', version: '1.2.0' }] } }));
-  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { repo: 'DietrichGebert/ponytail' } }, benchkeeper: { source: { ref: 'setup-v6.0' } } }));
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { repo: 'DietrichGebert/ponytail' } }, benchkeeper: { source: { ref: 'stable' } } }));
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'benchkeeper@benchkeeper': true, 'mattpocock-skills@claude-plugins-official': true } }));
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.3.2"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
   const steps = (id) => globalPlan({ ctx, agents: ['claude', 'codex'] }).filter((c) => c.step === id);
@@ -208,9 +208,9 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
     'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }], 'benchkeeper@benchkeeper': [{ scope: 'user', version: '5.4.0' }], 'mattpocock-skills@claude-plugins-official': [{ scope: 'user', version: '0a1b2c3d4e5f' }] } }));
   assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), []);
   assert.equal(inv.find((i) => i.step === 'plugin:codex:benchkeeper@benchkeeper').state, 'current');
-  assert.deepEqual(pin(PLUGINS.claude[0], '6.0.0'), { ref: 'setup-v6.0', version: '6.0.0' });
+  assert.deepEqual(pin(PLUGINS.claude[0], '6.0.0'), { ref: 'stable', version: '6.0.0' });
   // A marketplace added at another ref: a manual step with the commands, never applied.
-  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.2.0' } }, benchkeeper: { source: { ref: 'setup-v6.0' } } }));
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.2.0' } }, benchkeeper: { source: { ref: 'stable' } } }));
   const [stuck] = steps('plugin:claude:ponytail@ponytail');
   assert.equal(steps('plugin:claude:ponytail@ponytail').length, 1);
   assert.ok(stuck.title.endsWith(': by hand') && /at v5\.2\.0, not v5\.3\.2.*marketplace remove ponytail/.test(stuck.error));

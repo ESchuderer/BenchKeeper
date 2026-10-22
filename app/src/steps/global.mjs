@@ -14,17 +14,18 @@ export const SKILLS_CLI = '1.7.2';
 export const SKILLS_SPEC = `skills@npm:skills@${SKILLS_CLI}`;
 export const PONYTAIL_REF = 'v5.3.2';
 export const MATT_POCOCK_REF = 'v1.3.1';
-// Pinned plugins: ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version
-// (BenchKeeper's marketplace at tag setup-v<major>.<minor>). Matt Pocock's Claude Code plugin comes from the official
+// Pinned plugins: ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
+// BenchKeeper's marketplace follows the branch stable, which each release moves, so an update is a marketplace refresh: moving
+// a marketplace to another ref removes it and the plugin's data. Matt Pocock's Claude Code plugin comes from the official
 // marketplace, which pins its own commit.
 export const PLUGINS = {
   claude: [
-    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'app', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
+    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
     { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, version: PONYTAIL_REF.slice(1) },
     { id: 'mattpocock-skills@claude-plugins-official', marketplace: 'claude-plugins-official', version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
   ],
   codex: [
-    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'app', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
+    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
     { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, version: PONYTAIL_REF.slice(1) },
     { id: 'mattpocock-skills@mattpocock', marketplace: 'mattpocock', source: 'mattpocock/skills', ref: MATT_POCOCK_REF, version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
   ],
@@ -32,7 +33,7 @@ export const PLUGINS = {
 // The ref and version a plugin is pinned to, for this app version.
 export function pin(p, appVersion) {
   const app = (x) => (x === 'app' ? appVersion : x);
-  return { ref: p.ref === 'app' ? `setup-v${appVersion.split('.').slice(0, 2).join('.')}` : p.ref, version: app(p.version) };
+  return { ref: p.ref, version: app(p.version) };
 }
 const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };

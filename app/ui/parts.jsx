@@ -67,7 +67,7 @@ export function Plan({ plan, onDone }) {
               label={c.destructive ? `Remove: ${c.title}` : c.title} description={unitOf(c).length > 1 ? `Goes with ${unitOf(c).length - 1} other change${unitOf(c).length > 2 ? 's' : ''} of this list` : undefined} />
             <StateBadge state={c.state} />
           </Group>
-          {c.error && <Text size="sm" c="red">Cannot merge: {c.error}</Text>}
+          {c.error && <Text size="sm" c="red">{c.kind === 'command' ? 'Not applied' : 'Cannot merge'}: {c.error}</Text>}
           {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff ? <Code block tabIndex={0}>{c.diff}</Code> : null}
         </Stack>
       ))}

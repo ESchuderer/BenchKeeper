@@ -200,4 +200,11 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   assert.equal(inv.find((i) => i.step === 'plugin:claude:ponytail@ponytail').state, 'outdated');
   assert.equal(inv.find((i) => i.step === 'plugin:codex:benchkeeper@benchkeeper').state, 'current');
   assert.deepEqual(pin(PLUGINS.claude[0], '6.0.0'), { ref: 'setup-v6.0', version: '6.0.0' });
+  // A marketplace added at another ref: a manual step with the commands, never applied.
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.2.0' } }, benchkeeper: { source: { ref: 'setup-v6.0' } } }));
+  const [stuck] = steps('plugin:claude:ponytail@ponytail');
+  assert.equal(steps('plugin:claude:ponytail@ponytail').length, 1);
+  assert.ok(stuck.title.endsWith(': by hand') && /at v5\.2\.0, not v5\.3\.2.*marketplace remove ponytail/.test(stuck.error));
+  assert.equal(preview([stuck])[0].selected, false);
+  assert.equal(apply([stuck], ctx, { select: [stuck.id] }).entries.length, 0);
 });

@@ -53,7 +53,7 @@ export function preview(changes) {
     return { ...c, noop: false };
   }).filter((c) => !c.noop).map((c) => ({ selected: !c.destructive, ...c }))
     // A unit with a change that cannot be made is not selected at all.
-    .map((c, _, all) => (c.unit && all.some((x) => x.unit === c.unit && x.error) ? { ...c, selected: false } : c));
+    .map((c, _, all) => (c.error || (c.unit && all.some((x) => x.unit === c.unit && x.error)) ? { ...c, selected: false } : c));
 }
 
 // One loop for both drivers: it yields each command ({ argv, opts, entry }) for the driver to run and gets its result
@@ -61,7 +61,8 @@ export function preview(changes) {
 function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'apply', scope, ...(note ? { note } : {}), entries: [] };
   // Changes of one unit (a copy and the removal of its source, a marketplace and its plugin) go together or not at all.
-  const picked = (c) => (select ? select.includes(c.id) : (c.selected ?? !c.destructive));
+  // A change that cannot be made (c.error) is never applied.
+  const picked = (c) => !c.error && (select ? select.includes(c.id) : (c.selected ?? !c.destructive));
   for (const c of changes) {
     const unit = c.unit && changes.filter((x) => x.unit === c.unit);
     if (unit && unit.some(picked) && !unit.every(picked)) throw new Error(`${unit.map((x) => x.title).join(' and ')} go together: choose all of them or none`);

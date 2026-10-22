@@ -147,7 +147,12 @@ export function globalPlan(env) {
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
       const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', `${p.source}${a === 'claude' ? '#' : '@'}${ref}`, ...sparse];
       const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
+      // A marketplace added at another ref stays there: moving it means removing it, which deletes the plugin's
+      // options and data in Claude Code. The plan names the commands instead of promising the version.
+      const stuck = refs[p.marketplace] && p.source && refs[p.marketplace] !== ref && markets.includes(p.marketplace);
+      const manual = (title, outdated = false) => add(step, `${title}: by hand`, { kind: 'command', argv: addMarket, outdated, error: `the ${p.marketplace} marketplace is at ${refs[p.marketplace]}, not ${ref}; moving it removes the plugin's data. By hand: ${a} plugin marketplace remove ${p.marketplace}, then ${addMarket.join(' ')}, then ${install.join(' ')}` });
       if (have) {
+        if (stuck && have.version && bySemver(have.version, version) < 0) { manual(`${name} plugin ${p.id} ${have.version} to ${version}`, true); continue; }
         // Older than the pin: refresh the marketplace and update. Newer stays (Codex installs Ponytail from its main
         // branch whatever the ref). Removing the marketplace to move its ref would delete the plugin's options and
         // data in Claude Code, so a marketplace added at an older ref stays there and the plugin stays outdated.
@@ -157,6 +162,7 @@ export function globalPlan(env) {
         add(step, title, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install, outdated: true, unit: step });
         continue;
       }
+      if (stuck) { manual(`${name} plugin ${p.id}`); continue; }
       if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step });
       add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step });
     }

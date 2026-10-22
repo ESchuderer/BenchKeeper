@@ -1,0 +1,56 @@
+# benchkeeper
+
+Installs, updates and undoes the BenchKeeper agent setup for Claude Code, Codex, Gemini CLI and GitHub Copilot, globally and per project, from a CLI or a local web UI. What the setup contains: the [repository README](../README.md#setup-steps).
+
+## Setup
+
+Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
+
+- From npm: `npx benchkeeper@6.0.0 <command>`. Until the first npm release, run it from a clone.
+- From a clone: `git clone --depth 1 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
+
+Runtime dependencies, pinned: [jsonc-parser](https://www.npmjs.com/package/jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://www.npmjs.com/package/smol-toml) 1.9.1 (Codex TOML). The web UI (React, Mantine) is built into `dist/` and ships in the package.
+
+## Commands
+
+`benchkeeper help` lists every option.
+
+| Command | Does |
+|---|---|
+| `ui [--no-open] [--port N]` | the web UI (default command), see [Web UI](#web-ui) |
+| `plan`, `apply [--yes] [--all]` | global setup for the installed agents (`--agents a,b`, `--pack matt-pocock`): a diff per change, then a question per change |
+| `history`, `undo <run> [--step s]`, `restore <date>` | recorded runs, undo of a run or step, restore of a `setup.sh` backup |
+| `project plan\|apply [dir]` | project setup: `--agents`, `--env container\|host-agent\|sandbox\|host`, `--sandbox`, `--pack`, `--skill`, `--tier`; `--disable <skill>` moves a skill to `.benchkeeper/disabled/`, `--enable` moves it back. Answers are kept in `.benchkeeper/state.json` |
+| `record [--project dir] -- <agent> [args]` | runs an agent session and records the files it changed and its transcript, so `undo` restores them |
+| `packs list\|save\|export\|import\|remove` | library packs and own packs; a pack file names library skills only |
+| `projects list\|add\|scan\|remove`, `update-all [--yes] [--no-push]` | registered projects; Update all builds branch `chore/agent-setup-<version>` per project in a worktree, commits, and pushes with a pull request when `origin` is on GitHub |
+| `doctor [dir]` | reports without changing anything: variables that turn agent features off (`DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_GROWTHBOOK`, `CLAUDE_CODE_DISABLE_ADVISOR_TOOL`; name and file, never the value), rules and settings that differ from the setup, items outside it, a missing container engine, a newer skills CLI; in a project: summary or layout sections in `AGENTS.md`, more than 5 skills, overlapping skill descriptions, broken skill links. Exit 1 on an error |
+| `profile export [file]`, `profile import <file>` | agents, packs, own packs and registered projects with their answers as one file (no file contents, environment values or tokens); import registers the projects found at the same paths and asks per change |
+| `case add --target skill:<name>\|rule:<name> --expected <text> [--should-not]` | records an agent miss as an eval case; the prompt comes from `--run <session run>`, `--transcript`, `--query` or `--description` |
+| `test [dir]` | deterministic checks, no agent session: files match the ledger, expected plugins or skill copies, nothing unexpected installed, project community skills at the library pins. Exit 1 on a failure |
+| `eval [--agents a,b] [--model m] [--target t] [--all]` | trigger cases (`plugins/benchkeeper/evals/` and your own) as real agent sessions in scratch repositories; miss and false-trigger rates per skill, agent, agent version and model. Uses your subscription, asks first, refuses when `CI` is set; runs only targets whose skill or cases changed unless `--all` |
+
+## Web UI
+
+`benchkeeper ui` serves on `127.0.0.1` at a free port and opens the browser with a one-time link (`--no-open` prints it). The link's token becomes an HttpOnly, SameSite=Strict session cookie. The server rejects other Host headers, foreign or `null` origins, cross-site fetches, changes sent with GET, and POST requests without its own header. It stops with the CLI process (Ctrl+C). Recorded agent sessions and evals run from the CLI only.
+
+## Configuration
+
+| Name | Default | Effect |
+|---|---|---|
+| `BENCHKEEPER_HOME` | your home directory | the home the app reads and writes; tests point it at a temporary directory |
+| `BENCHKEEPER_NO_UPDATE_CHECK=1` | unset | no registry request for a newer version (it runs only in a terminal and never installs) |
+
+Files below `~/.config/benchkeeper/`: `ledger/` (one JSON file per run), `backup/<run>/` (replaced and removed files), `projects.json`, `packs/`, `evals/` (own cases, `results.jsonl`, outputs of rule cases).
+
+## Test
+
+In the dev container (repository `AGENTS.md`):
+
+- `npm test`: unit tests against temporary home directories with stubbed agent commands
+- `npm run smoke`: start, plan, apply and ledger write
+- `npm run build && npm run test:ui`: the web UI against a fixture home, axe in light and dark mode
+
+## Release
+
+The package version equals the plugin version (`plugins/benchkeeper/*/plugin.json`), checked by `test/package.test.mjs`. `npm pack` copies rules, own skills, the library catalog and eval sets into `content/` and builds the UI, so `plan` and `apply` work offline for them. The owner publishes with the "npm publish" workflow (Actions, Run workflow, the version as input), which needs the `NPM_TOKEN` secret and publishes with npm provenance.

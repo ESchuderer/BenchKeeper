@@ -4,15 +4,30 @@
   "description": "Installs, updates and undoes the BenchKeeper agent setup, globally and per project, for Claude Code, Codex, Gemini CLI and GitHub Copilot.",
   "license": "MIT",
   "type": "module",
-  "bin": { "benchkeeper": "bin/benchkeeper.mjs" },
-  "files": ["bin", "src", "dist", "content"],
-  "engines": { "node": ">=22" },
-  "repository": { "type": "git", "url": "git+https://github.com/ESchuderer/BenchKeeper.git", "directory": "app" },
+  "bin": {
+    "benchkeeper": "bin/benchkeeper.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "dist",
+    "content"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ESchuderer/BenchKeeper.git",
+    "directory": "app"
+  },
   "scripts": {
     "build": "vite build",
     "test": "node --test test/*.test.mjs",
     "test:ui": "playwright test",
-    "prepack": "node scripts/content.mjs"
+    "prepack": "node scripts/content.mjs && vite build",
+    "postpack": "node scripts/content.mjs --clean",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "jsonc-parser": "3.3.1",

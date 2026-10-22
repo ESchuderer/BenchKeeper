@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
+import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { globalPlan } from './steps/global.mjs';
 import { projectPlan } from './steps/project.mjs';
@@ -24,6 +25,10 @@ Usage: benchkeeper <command> [options]
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
                                     project setup; answers default to the project's .benchkeeper/state.json
+  projects [list|add <dir>..|scan <root>|remove <dir>]
+                                    projects Update all covers (~/.config/benchkeeper/projects.json)
+  update-all [--yes] [--no-push]    per project: branch chore/agent-setup-<version> in a worktree, one commit,
+                                    push and pull request when origin is on GitHub
   record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
 
@@ -34,6 +39,7 @@ const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
+  'no-push': { type: 'boolean' },
 };
 
 export function installedPlugins(ctx) {
@@ -42,6 +48,14 @@ export function installedPlugins(ctx) {
     claude: parse(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.enabled).map((p) => p.id),
     codex: (parse(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).filter((p) => p.enabled).map((p) => p.pluginId),
   };
+}
+
+async function confirm(question, input, out) {
+  out.write(`${question} [y/N] `);
+  const rl = createInterface({ input, terminal: false });
+  const { value = '' } = await rl[Symbol.asyncIterator]().next();
+  rl.close();
+  return /^y$/i.test(value.trim());
 }
 
 async function choose(plan, o, input, out) {
@@ -115,6 +129,31 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
     out.write('Then, in an agent session the app records:\n');
     for (const p of prompts) out.write(`  benchkeeper record --project ${dir} -- ${p.agent} '${p.prompt}'   (${p.why})\n`);
     return 0;
+  }
+  if (cmd === 'projects') {
+    const dirs = positionals.slice(2);
+    if (arg === 'add') dirs.forEach((d) => out.write(`added ${addProject(ctx, d)}\n`));
+    else if (arg === 'scan') for (const d of scan(dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === d) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
+    else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.write(`removed ${resolve(d)}\n`); });
+    else if (arg && arg !== 'list') { out.write(`unknown projects command ${arg}\n`); return 2; }
+    if (!arg || arg === 'list') for (const p of listProjects(ctx)) out.write(`${p.path}\n`);
+    return 0;
+  }
+  if (cmd === 'update-all') {
+    const projects = listProjects(ctx).map((p) => status(ctx, p.path));
+    if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
+    for (const p of projects) {
+      const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean ? 'working tree has changes, skipped' : `${p.changes.length} changes`);
+      out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
+      if (p.clean && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
+    }
+    const ready = projects.filter((p) => p.repo && p.clean && p.changes?.length);
+    if (!ready.length) { out.write('nothing to update\n'); return 0; }
+    const what = `${ready.length} projects: branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}`;
+    if (!o.yes && !(await confirm(`Update ${what}?`, input, out))) return 1;
+    const results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'] });
+    for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+    return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
   if (cmd === 'record') {
     const argv = positionals.slice(1);

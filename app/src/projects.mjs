@@ -2,11 +2,11 @@
 // worktree so the user's checkout stays as it is.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
+import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
 import { clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
-import { MAX_SKILLS } from './packs.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, projectPlan, readState, tryState } from './steps/project.mjs';
 
@@ -65,9 +65,10 @@ export function status(ctx, path) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
     try { changes = projectChanges(ctx, path).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
-  // Counted as the doctor counts them, against the same limit.
-  const skills = new Set(skillFiles(path).map((f) => f.name)).size;
-  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills, maxSkills: MAX_SKILLS };
+  // Per chosen agent, the skills in the project folder it reads.
+  const files = skillFiles(path);
+  const skills = Object.fromEntries((state?.agents ?? []).map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
+  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills };
 }
 
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.

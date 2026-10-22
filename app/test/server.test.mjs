@@ -297,7 +297,7 @@ test('packs: save, export, import and remove; bad input is a 400', () => {
   assert.equal(status(() => routes['GET /api/pack-export'](new URLSearchParams({ id: 'nope' }))), 400);
   packs({ action: 'remove', id: 'copy' });
   assert.equal(status(() => packs({ action: 'remove', id: 'copy' })), 400);
-  assert.deepEqual(routes['GET /api/pack-warnings'](new URLSearchParams({ skills: 'a,b,c,d,e,f' })), ['6 skills: the setup keeps about 5 per project']);
+  assert.deepEqual(routes['GET /api/pack-warnings'](new URLSearchParams({ skills: 'a,b,c,d,e,f' })), []);
 });
 
 test('profile import: a bad kind is a 400; register saves packs and projects, then returns the plans', () => {

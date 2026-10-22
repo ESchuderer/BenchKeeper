@@ -54,7 +54,7 @@ test('global drift: rules changed after apply are an error, unexpected items a w
   assert.ok(found.some((i) => i.check === 'unexpected' && /\.claude\/skills\/stray/.test(i.message)));
 });
 
-test('project: summary sections, more than 5 skills, overlapping descriptions, broken links; exit 1 on an error', async () => {
+test('project: summary sections, overlapping descriptions, broken links; exit 1 on an error', async () => {
   const ctx = machine();
   const dir = mkdtempSync(join(tmpdir(), 'bk-doc-proj-'));
   writeFileSync(join(dir, 'AGENTS.md'), '# P\n\n## Project structure\n\n- src/\n');
@@ -69,7 +69,6 @@ test('project: summary sections, more than 5 skills, overlapping descriptions, b
   assert.deepEqual(found.filter((i) => ['agents-md', 'skills'].includes(i.check)).map((i) => `${i.level} ${i.message}`), [
     'warning AGENTS.md has a summary or layout section (## Project structure)',
     'error .claude/skills/a/SKILL.md links reference.md, which does not exist',
-    'warning 6 skills: the setup keeps about 5 per project',
     'warning a and b have overlapping descriptions',
   ]);
   let text = '';

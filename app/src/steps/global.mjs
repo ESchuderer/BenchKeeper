@@ -54,6 +54,19 @@ const sets = (pairs) => (text) => mergeJson(text, pairs.map(([path, value]) => (
 // Marketplace names and refs from a CLI list (unverified field names: a missing ref stays unknown).
 const marketRefs = (list) => ({ markets: list.map((m) => m.name), refs: Object.fromEntries(list.map((m) => [m.name, m.source?.ref ?? m.ref])) });
 
+// Skills an agent loads in every session: its global skill folder plus the skills of its turned-on plugins.
+export function globalSkills(ctx, a) {
+  const count = (d) => (exists(d) ? readdirSync(d).filter((n) => exists(join(d, n, 'SKILL.md'))).length : 0);
+  let n = count(join(ctx.home, agent(a).global.skills));
+  if (a === 'claude' || a === 'codex') {
+    for (const p of pluginState(ctx, a).listed.filter((x) => x.enabled && x.version)) {
+      const [name, market] = p.id.split('@');
+      n += count(join(ctx.home, `.${a}/plugins/cache/${market}/${name}/${p.version}/skills`));
+    }
+  }
+  return n;
+}
+
 // User plugins ({ id, version, enabled }), marketplace names and their git refs of Claude Code or Codex, read from the agent's own files:
 // each list command takes about 0.5 s. The CLI answers when the files are missing or unreadable.
 // shortcut: the files are internal CLI formats; if a CLI release changes them, the CLI fallback stays correct but slow.

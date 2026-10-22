@@ -59,7 +59,7 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('keyboard: Tab to a sidebar link and Enter opens its view; mod+2 opens Catalog', async ({ page }) => {
+  test('keyboard: Tab to a sidebar link and Enter opens its view; mod+2 opens Projects', async ({ page }) => {
     const link = nav(page, 'Agents');
     for (let i = 0; i < 30 && !(await link.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');
     await expect(link).toBeFocused();
@@ -67,8 +67,8 @@ test.describe('views', () => {
     await expect(link).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('table', { name: 'Agents' })).toBeVisible();
     await page.keyboard.press('ControlOrMeta+2');
-    await expect(nav(page, 'Catalog')).toHaveAttribute('aria-current', 'page');
-    await expect(page).toHaveURL(/#\/catalog$/);
+    await expect(nav(page, 'Projects')).toHaveAttribute('aria-current', 'page');
+    await expect(page).toHaveURL(/#\/projects$/);
   });
 
   test('Dashboard shows the edited rules file as modified in the coverage matrix', async ({ page }) => {
@@ -129,13 +129,13 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row')).toHaveCount(2);
   });
 
-  test('Catalog: the pack builder warns about too many skills and saves an own pack; export downloads it', async ({ page }) => {
+  test('Catalog: the pack builder warns about overlapping descriptions and saves an own pack; export downloads it', async ({ page }) => {
     await nav(page, 'Catalog').click();
     const boxes = page.getByRole('table', { name: 'Skills' }).getByRole('checkbox');
     for (let i = 0; i < 6; i++) await boxes.nth(i).check();
     await page.getByRole('button', { name: 'Build pack (6)' }).click();
     const drawer = page.getByRole('dialog', { name: 'Build a pack' });
-    await expect(drawer.getByText('6 skills: the setup keeps about 5 per project')).toBeVisible();
+    await expect(drawer.getByText('docx and pdf have overlapping descriptions')).toBeVisible();
     await noAxe(page);
     await drawer.getByLabel(/^Pack id/).fill('my-pack');
     await drawer.getByRole('button', { name: 'Save pack' }).click();
@@ -180,9 +180,9 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Projects' })).toContainText('no state file');
   });
 
-  test('Projects: installed skills against the limit per project', async ({ page }) => {
+  test('Projects: skills per agent, in the project and in all', async ({ page }) => {
     await nav(page, 'Projects').click();
-    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1)).toContainText(/\d+ of 5/);
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1)).toContainText(/\d+ here, \d+ in all/);
   });
 
   test('Projects: a project without a state file is set up step by step on a branch', async ({ page }) => {

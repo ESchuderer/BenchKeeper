@@ -1,8 +1,10 @@
-import { ActionIcon, Anchor, AppShell, Badge, Burger, Button, Drawer, Group, Kbd, MantineProvider, NavLink, Stack, Text, ThemeIcon, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Anchor, AppShell, Badge, Burger, Button, Drawer, Group, Kbd, MantineProvider, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
-import { IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconRobot, IconSearch, IconSettings, IconStack2, IconSun } from '@tabler/icons-react';
+import { IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconRobot, IconSearch, IconSettings, IconSun } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
+// The repository's logo, as on the site; black on white, inverted in dark mode like there.
+import logo from '../../assets/logo.svg';
 import { api } from './api.js';
 import { RunProgress, useApi } from './parts.jsx';
 import { Dot, MOD, go, href, icon, useRoute } from './shell.jsx';
@@ -14,7 +16,8 @@ const theme = createTheme({ primaryColor: 'teal', primaryShade: { light: 9, dark
   components: { Checkbox: described, Radio: described, Switch: described, InputWrapper: described } });
 // Chart colors per scheme, checked with the dataviz palette validator: shade 9 is too dark on the dark surface.
 const chartColors = (t) => ({ variables: {}, light: { '--bk-miss': t.colors.teal[9], '--bk-false-trigger': t.colors.indigo[9] }, dark: { '--bk-miss': t.colors.teal[7], '--bk-false-trigger': t.colors.indigo[6] } });
-const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot], ['projects', 'Projects', Projects, IconFolders],
+// Dashboard and Projects first: the views used most.
+const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot],
   ['history', 'History', History, IconHistory], ['evals', 'Evals', Evals, IconChartBar], ['settings', 'Settings', Settings, IconSettings]];
 
 function DoctorBadge({ doctor }) {
@@ -103,7 +106,7 @@ function Shell() {
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap">
             <Burger opened={nav} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Views" />
-            <Group gap={8} wrap="nowrap"><ThemeIcon variant="filled" size="md" aria-hidden>{icon(IconStack2, 18)}</ThemeIcon><Title order={1} size="h4">BenchKeeper</Title></Group>
+            <Group gap={8} wrap="nowrap"><img src={logo} alt="" width={30} height={30} style={scheme === 'dark' ? { filter: 'invert(1)' } : undefined} /><Title order={1} size="h4">BenchKeeper</Title></Group>
             {o && <Badge variant="outline" visibleFrom="xs">{o.version}</Badge>}
             <Group visibleFrom="md"><DoctorBadge doctor={doctor} /></Group>
           </Group>

@@ -1,6 +1,6 @@
 import { BarChart, LineChart } from '@mantine/charts';
 import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
-import { IconAdjustments, IconAlertTriangle, IconArrowBackUp, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTool, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconAdjustments, IconArrowBackUp, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTool, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi, useJob } from './parts.jsx';
@@ -553,15 +553,15 @@ const SetupBadge = ({ p, version }) => (
   </Badge>
 );
 
-// Installed skills against the doctor's limit: past it, skills start to crowd each other out of the context.
-function SkillMeter({ n, max }) {
-  const over = n > max;
+// Skills per chosen agent: in this project, and in all, its global and plugin skills included. Every one costs
+// its description in each session, and similar descriptions make the agent pick the wrong one.
+function SkillCount({ p, names }) {
+  const agents = Object.keys(p.seen ?? {});
+  if (!agents.length) return '-';
   return (
-    <Group gap={6} wrap="nowrap">
-      <Progress w={48} value={Math.min(n / max, 1) * 100} color={over ? 'yellow' : 'teal'} aria-hidden />
-      {over && <Text c="yellow.8" lh={0}>{icon(IconAlertTriangle)}</Text>}
-      <Text size="sm" style={{ whiteSpace: 'nowrap' }}>{n} of {max}{over ? ', too many' : ''}</Text>
-    </Group>
+    <Stack gap={0}>
+      {agents.map((a) => <Text key={a} size="sm" style={{ whiteSpace: 'nowrap' }}>{agents.length > 1 ? `${names[a] ?? a}: ` : ''}{p.skills[a]} here, {p.seen[a]} in all</Text>)}
+    </Stack>
   );
 }
 
@@ -577,6 +577,7 @@ export function Projects({ params, overview, refresh }) {
   const [busy, setBusy] = useState(null);
   const [setupPaths, setSetupPaths] = useState(null);
   const version = overview.data?.version;
+  const names = Object.fromEntries((overview.data?.agents ?? []).map((a) => [a.id, a.name]));
   const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error).map((p) => p.path);
   const reload = () => { projects.reload(); refresh(); };
   const act = (name, f) => async () => { setError(null); setBusy(name); try { await f(); } catch (e) { setError(e.message); } setBusy(null); };
@@ -641,7 +642,7 @@ export function Projects({ params, overview, refresh }) {
                 <Table.Tr key={p.path}>
                   <Table.Td><Anchor href={href('projects', { path: p.path })} aria-current={p.path === open ? 'true' : undefined} fw={p.path === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{p.path.split('/').pop()}</Anchor><Text size="xs" style={{ overflowWrap: 'anywhere' }}>{[p.path, p.branch, p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository'].filter(Boolean).join(', ')}</Text></Table.Td>
                   <Table.Td><SetupBadge p={p} version={version} /></Table.Td>
-                  <Table.Td><SkillMeter n={p.skills} max={p.maxSkills} /></Table.Td>
+                  <Table.Td><SkillCount p={p} names={names} /></Table.Td>
                   <Table.Td>{p.error ? <Text size="sm" c="red">{p.error}</Text> : p.changes ? <Text size="sm" style={{ whiteSpace: 'nowrap' }}>{p.changes.length} pending</Text> : '-'}</Table.Td>
                 </Table.Tr>
               ))}

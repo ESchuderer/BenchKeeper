@@ -34,13 +34,13 @@ test('pack files name library skills only and keep their schema', () => {
   assert.deepEqual(ownPacks(ctx), []);
 });
 
-test('warnings: more than 5 skills, overlapping descriptions', () => {
+test('warnings: overlapping descriptions, no limit on the count', () => {
   const lib = { skills: [
     { name: 'a', pickWhen: 'Browser tests with Playwright' }, { name: 'b', pickWhen: 'The repository has Playwright browser tests' },
     { name: 'c', pickWhen: 'Statistics' }, ...['d', 'e', 'f'].map((name) => ({ name, pickWhen: name })),
   ] };
   assert.deepEqual(warnings(['a', 'b', 'c'], lib), ['a and b have overlapping descriptions']);
-  assert.match(warnings(['a', 'c', 'd', 'e', 'f', 'x'], lib)[0], /^6 skills/);
+  assert.deepEqual(warnings(['a', 'c', 'd', 'e', 'f', 'x'], lib), []);
 });
 
 test('a project turns a skill off and on, uses an own pack, and drops a pack it no longer has', () => {

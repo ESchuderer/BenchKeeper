@@ -21,7 +21,7 @@ import { exportPack, importPack, libraryWith, removePack, savePack, warnings } f
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, undo } from './runner.mjs';
-import { globalPlan } from './steps/global.mjs';
+import { globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
@@ -156,7 +156,12 @@ export function api(ctx) {
       if (!plan.length) throw bad('every target is unchanged since its last result');
       return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; } }).then((r) => { job.results = r.map(({ details, ...x }) => x); }), { kind: 'eval', title: 'evals' });
     },
-    'GET /api/projects': () => listProjects(ctx).map((p) => { const s = status(ctx, p.path); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(p.path)) }; }),
+    // seen: the skills each chosen agent loads there, its global ones included.
+    'GET /api/projects': () => listProjects(ctx).map((p) => {
+      const s = status(ctx, p.path);
+      const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
+      return { ...s, seen, changes: s.changes && serialize(s.changes, projectCtx(p.path)) };
+    }),
     'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),
     // With setup=1 the answers come from the query (a project's first setup), else from its state file.
     'GET /api/project-plan': (q) => {

@@ -6,7 +6,6 @@ import { library } from './content.mjs';
 import { move, writeAtomic } from './fsx.mjs';
 
 export const PACK_SCHEMA = 1;
-export const MAX_SKILLS = 5;
 const dir = (ctx) => join(ctx.config, 'packs');
 
 export function ownPacks(ctx) {
@@ -60,10 +59,9 @@ export function importPack(ctx, text, id) {
 const STOP = new Set(['the', 'a', 'an', 'or', 'and', 'of', 'to', 'in', 'for', 'with', 'has', 'adds', 'repository', 'project', 'uses', 'its', 'is', 'on']);
 const words = (t = '') => new Set(t.toLowerCase().match(/[a-z]+/g)?.filter((w) => w.length > 2 && !STOP.has(w)) ?? []);
 
-// Warnings for a project's skill list: more than MAX_SKILLS, and pairs whose "pick when" texts share most words.
+// Warnings for a project's skill list: pairs whose "pick when" texts share most words, so an agent may load the wrong one.
 export function warnings(names, lib = library()) {
   const out = [];
-  if (names.length > MAX_SKILLS) out.push(`${names.length} skills: the setup keeps about ${MAX_SKILLS} per project`);
   const skills = lib.skills.filter((s) => names.includes(s.name));
   for (let i = 0; i < skills.length; i++) {
     for (let j = i + 1; j < skills.length; j++) {

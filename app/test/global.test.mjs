@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { contentDir } from '../src/content.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { inventory } from '../src/inventory.mjs';
-import { ASK, PLUGINS, globalPlan, newest, pin, pluginState } from '../src/steps/global.mjs';
+import { ASK, PLUGINS, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
 
 // Stubs: one foreign plugin, marketplace and MCP server per agent; installs and removals change what the lists show.
 function machine({ failCodexInstall = false } = {}) {
@@ -225,4 +225,17 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
   rmSync(join(home, '.codex/plugins/cache/benchkeeper'), { recursive: true });
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), ['codex plugin add benchkeeper@benchkeeper']);
+});
+
+test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-gskills-'));
+  const ctx = context({ home, run: () => ({ code: 1, stdout: '', stderr: '' }) });
+  const skill = (d) => { mkdirSync(join(home, d), { recursive: true }); writeFileSync(join(home, d, 'SKILL.md'), 'x\n'); };
+  skill('.claude/skills/mine');
+  for (const n of ['a', 'b']) skill(`.claude/plugins/cache/m/on/1.0.0/skills/${n}`);
+  skill('.claude/plugins/cache/m/off/1.0.0/skills/c');
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'on@m': [{ scope: 'user', version: '1.0.0' }], 'off@m': [{ scope: 'user', version: '1.0.0' }] } }));
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), '{"m":{}}');
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'on@m': true, 'off@m': false } }));
+  assert.equal(globalSkills(ctx, 'claude'), 3);
 });

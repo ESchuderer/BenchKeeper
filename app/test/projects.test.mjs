@@ -203,13 +203,13 @@ test('update-all shows the plan, asks once, and --yes --no-push commits without 
   assert.match(text, new RegExp(`committed +${p.dir}`));
 });
 
-test('status counts installed skills as the doctor does: once per name, turned-off ones not', () => {
+test('status counts the skills each chosen agent reads in the project; turned-off ones and folders without SKILL.md not', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bk-skills-'));
   for (const d of ['.claude/skills/a', '.agents/skills/a', '.agents/skills/b', '.benchkeeper/disabled/c']) {
     mkdirSync(join(dir, d), { recursive: true });
     writeFileSync(join(dir, d, 'SKILL.md'), '---\nname: x\n---\n');
   }
   mkdirSync(join(dir, '.agents/skills/no-skill-file'));
-  const s = status(context({ home: home() }), dir);
-  assert.deepEqual([s.skills, s.maxSkills], [2, 5]);
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ agents: ['claude', 'codex'] }));
+  assert.deepEqual(status(context({ home: home() }), dir).skills, { claude: 1, codex: 2 });
 });

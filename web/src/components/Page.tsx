@@ -74,7 +74,7 @@ const quickstart: [string, string, string][] = [
   ['Restart the agents', '', 'New sessions load the global rules and the plugin skills.'],
   ['Project setup, in each repository root', 'npx benchkeeper@6.0.0 project apply --agents claude,codex', '--agents names the agents the repository uses. A block in AGENTS.md (where commands run, default tier), CLAUDE.md, library packs with --pack, and .benchkeeper/state.json. project plan shows the changes first.'],
   ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.0.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
-  ['Update later', 'npx benchkeeper@6.0.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: benchkeeper update-all, or Fix everything in the browser, opens one pull request per project.'],
+  ['Update later', 'npx benchkeeper@6.0.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.0.0 update-all, or Fix everything in the browser, opens one pull request per project.'],
 ];
 
 const reasons: [string, string][] = [

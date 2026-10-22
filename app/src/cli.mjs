@@ -86,10 +86,14 @@ function asker(input, out) {
 
 async function choose(plan, o, ask, out) {
   if (o.yes || o.all) return plan.filter((c) => !c.error && (o.all || c.selected)).map((c) => c.id);
-  const select = [];
+  const select = [], units = new Map();
   for (const c of plan) {
     show(c, out);
-    if (!c.error && (await ask('apply?'))) select.push(c.id);
+    // One answer per unit: its changes go together.
+    if (c.unit && units.has(c.unit)) { if (units.get(c.unit)) select.push(c.id); continue; }
+    const yes = !c.error && (await ask(c.unit ? 'apply (with the changes that go with it)?' : 'apply?'));
+    if (c.unit) units.set(c.unit, yes);
+    if (yes) select.push(c.id);
   }
   return select;
 }

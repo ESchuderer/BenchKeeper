@@ -153,12 +153,12 @@ export function globalPlan(env) {
         // data in Claude Code, so a marketplace added at an older ref stays there and the plugin stays outdated.
         if (!have.version || bySemver(have.version, version) >= 0) continue;
         const title = `${name} plugin ${p.id} ${have.version} to ${version}`;
-        add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace], outdated: true });
-        add(step, title, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install, outdated: true });
+        add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace], outdated: true, unit: step });
+        add(step, title, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install, outdated: true, unit: step });
         continue;
       }
-      if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace] });
-      add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id] });
+      if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step });
+      add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step });
     }
     for (const { id } of listed) {
       if (!keepPlugin(id, a)) add(`other:${a}:plugin`, `remove the ${agent(a).name} plugin ${id}`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', id] : ['codex', 'plugin', 'remove', id], destructive: true });

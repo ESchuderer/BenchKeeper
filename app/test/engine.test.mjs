@@ -246,3 +246,13 @@ test('a change that fails after its backup is undone from the backup', () => {
   assert.equal(undo(run.id, c).status, 'done');
   assert.equal(readFileSync(join(c.home, 'f.txt'), 'utf8'), 'original\n');
 });
+
+test('changes of one unit go together: a partial choice is refused before anything changes', () => {
+  const c = context({ home: home() });
+  const changes = [write(c, 'a.txt', 'a\n', { id: 'a', unit: 'u' }), write(c, 'b.txt', 'b\n', { id: 'b', unit: 'u' })];
+  assert.throws(() => apply(changes, c, { select: ['a'] }), /go together/);
+  assert.equal(existsSync(join(c.home, 'a.txt')), false);
+  assert.equal(apply(changes, c, { select: ['a', 'b'] }).status, 'done');
+  const broken = preview([write(c, 'x.json', null, { id: 'x', unit: 'v', edit: () => { throw new Error('bad'); } }), write(c, 'y.txt', 'y\n', { id: 'y', unit: 'v' })]);
+  assert.deepEqual(broken.map((x) => x.selected), [false, false]);
+});

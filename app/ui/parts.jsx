@@ -48,7 +48,9 @@ export function Plan({ plan, onDone }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   if (!plan.changes.length) return <Text>Nothing to change.</Text>;
-  const toggle = (id) => setSelect((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  // Changes of one unit go together: toggling one toggles all of them.
+  const unitOf = (c) => (c.unit ? plan.changes.filter((x) => x.unit === c.unit).map((x) => x.id) : [c.id]);
+  const toggle = (c) => setSelect((s) => (s.includes(c.id) ? s.filter((x) => !unitOf(c).includes(x)) : [...new Set([...s, ...unitOf(c)])]));
   const run = async () => {
     setBusy(true);
     try { setJob(await api('/api/apply', { planId: plan.planId, select })); } catch (e) { setError(e.message); }
@@ -61,7 +63,8 @@ export function Plan({ plan, onDone }) {
       {plan.changes.map((c) => (
         <Stack key={c.id} gap={4}>
           <Group gap="xs" wrap="nowrap" align="flex-start">
-            <Checkbox checked={select.includes(c.id)} disabled={!!c.error} onChange={() => toggle(c.id)} label={c.destructive ? `Remove: ${c.title}` : c.title} />
+            <Checkbox checked={select.includes(c.id)} disabled={!!c.error || unitOf(c).some((id) => plan.changes.find((x) => x.id === id).error)} onChange={() => toggle(c)}
+              label={c.destructive ? `Remove: ${c.title}` : c.title} description={unitOf(c).length > 1 ? `Goes with ${unitOf(c).length - 1} other change${unitOf(c).length > 2 ? 's' : ''} of this list` : undefined} />
             <StateBadge state={c.state} />
           </Group>
           {c.error && <Text size="sm" c="red">Cannot merge: {c.error}</Text>}

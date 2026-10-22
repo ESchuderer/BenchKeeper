@@ -51,17 +51,25 @@ export function preview(changes) {
     }
     if (c.kind === 'remove') return { ...c, destructive: true, noop: !exists(c.path) };
     return { ...c, noop: false };
-  }).filter((c) => !c.noop).map((c) => ({ selected: !c.destructive, ...c }));
+  }).filter((c) => !c.noop).map((c) => ({ selected: !c.destructive, ...c }))
+    // A unit with a change that cannot be made is not selected at all.
+    .map((c, _, all) => (c.unit && all.some((x) => x.unit === c.unit && x.error) ? { ...c, selected: false } : c));
 }
 
 // One loop for both drivers: it yields each command ({ argv, opts, entry }) for the driver to run and gets its result
 // back, and yields { saved } after each change, so the async driver can let a server answer progress requests.
 function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'apply', scope, ...(note ? { note } : {}), entries: [] };
+  // Changes of one unit (a copy and the removal of its source, a marketplace and its plugin) go together or not at all.
+  const picked = (c) => (select ? select.includes(c.id) : (c.selected ?? !c.destructive));
+  for (const c of changes) {
+    const unit = c.unit && changes.filter((x) => x.unit === c.unit);
+    if (unit && unit.some(picked) && !unit.every(picked)) throw new Error(`${unit.map((x) => x.title).join(' and ')} go together: choose all of them or none`);
+  }
   yield { run };
   const failedSteps = new Set();
   for (const c of changes) {
-    if (select ? !select.includes(c.id) : !(c.selected ?? !c.destructive)) continue;
+    if (!picked(c)) continue;
     const entry = { id: c.id, step: c.step, title: c.title, kind: c.kind };
     run.entries.push(entry);
     if (failedSteps.has(c.step)) { entry.status = 'skipped'; entry.reason = 'an earlier change of this step failed'; continue; }

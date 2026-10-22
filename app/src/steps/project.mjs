@@ -96,8 +96,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const block = /\n?## Agent skills\n[\s\S]*?(?=\n## |\s*$)/;
   if (a.agents.includes('codex') && a.agents.includes('claude') && block.test(readText(at('CLAUDE.md')) ?? '') && !/## Agent skills/.test(readText(at('AGENTS.md')) ?? '')) {
     const moved = readText(at('CLAUDE.md')).match(block)[0].trim();
-    add('agent-skills-block', 'move the ## Agent skills block from CLAUDE.md to AGENTS.md (Codex reads AGENTS.md)', { kind: 'write', path: at('AGENTS.md'), edit: (t) => `${(t ?? '').trimEnd()}\n\n${moved}\n` });
-    add('agent-skills-block', 'remove the moved block from CLAUDE.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => `${t.replace(block, '').trimEnd()}\n` });
+    add('agent-skills-block', 'move the ## Agent skills block from CLAUDE.md to AGENTS.md (Codex reads AGENTS.md)', { kind: 'write', path: at('AGENTS.md'), edit: (t) => `${(t ?? '').trimEnd()}\n\n${moved}\n`, unit: 'agent-skills-block' });
+    add('agent-skills-block', 'remove the moved block from CLAUDE.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => `${t.replace(block, '').trimEnd()}\n`, unit: 'agent-skills-block' });
   }
   const prev = readState(dir);
   const dropped = (prev?.agents ?? []).filter((x) => !a.agents.includes(x));
@@ -123,8 +123,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     for (const ag of Object.keys(pack.plugins ?? {}).filter((x) => a.agents.includes(x))) {
       const p = PLUGINS[ag].find((x) => x.pack === id);
       if (p && !(plugins[ag] ?? []).includes(p.id)) {
-        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', `${p.source}${ag === 'claude' ? '#' : '@'}${pin(p, appVersion).ref}`], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace] });
-        add(`pack:${id}:${ag}`, `${agent(ag).name} plugin ${p.id}`, ag === 'claude' ? { kind: 'command', argv: ['claude', 'plugin', 'install', p.id], undoArgv: ['claude', 'plugin', 'uninstall', p.id] } : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] });
+        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', `${p.source}${ag === 'claude' ? '#' : '@'}${pin(p, appVersion).ref}`], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace], unit: `pack:${id}:${ag}` });
+        add(`pack:${id}:${ag}`, `${agent(ag).name} plugin ${p.id}`, { unit: `pack:${id}:${ag}`, ...(ag === 'claude' ? { kind: 'command', argv: ['claude', 'plugin', 'install', p.id], undoArgv: ['claude', 'plugin', 'uninstall', p.id] } : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] }) });
       }
     }
   }
@@ -133,8 +133,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const rel = (p) => relative(dir, p);
   const parked = (d, name) => join(dir, '.benchkeeper/disabled', rel(d), name);
   const moveDir = (step, from, to) => {
-    add(step, `copy ${rel(from)} to ${rel(to)}`, { kind: 'write', path: to, from });
-    add(step, `remove ${rel(from)} (copied to ${rel(to)})`, { kind: 'remove', path: from, selected: true });
+    add(step, `copy ${rel(from)} to ${rel(to)}`, { kind: 'write', path: to, from, unit: `move:${from}` });
+    add(step, `remove ${rel(from)} (copied to ${rel(to)})`, { kind: 'remove', path: from, selected: true, unit: `move:${from}` });
   };
 
   // Library skills: own skills copied into each skill folder, community skills through the skills CLI at the pinned commit

@@ -17,7 +17,7 @@ import { evalPlan, runEval } from './eval.mjs';
 import { contentDir, appVersion } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { diffLines } from './diff.mjs';
-import { exists, hashPath, inside, isDir, readText } from './fsx.mjs';
+import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
 import { blob } from './git.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
@@ -83,7 +83,7 @@ function sessionDiff(ctx, e, f) {
 function committed(ctx, run, e) {
   const { updateAll, commit } = run.note ?? {};
   if (!updateAll || !commit || !inside(e.path, [run.scope])) return null;
-  try { return blob(ctx, updateAll, commit, relative(run.scope, e.path).split(sep).join('/')).toString('utf8'); } catch { return null; }
+  try { return blob(ctx, updateAll, commit, relative(realish(run.scope), realish(e.path)).split(sep).join('/')).toString('utf8'); } catch { return null; }
 }
 
 // Changes without their edit functions, with the item state the Dashboard groups by.

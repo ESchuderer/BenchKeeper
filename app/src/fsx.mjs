@@ -56,13 +56,18 @@ export function copy(from, to) {
 }
 
 // True when p, after resolving the links of its existing ancestors, lies inside one of the roots.
-export function inside(p, roots) {
+// A path with its links resolved as far as it exists (macOS: /var is /private/var).
+export function realish(p) {
   let probe = resolve(p);
   const rest = [];
   while (!existsSync(probe)) { rest.unshift(probe.split(sep).pop()); probe = dirname(probe); }
-  const real = join(realpathSync(probe), ...rest);
+  return join(realpathSync(probe), ...rest);
+}
+
+export function inside(p, roots) {
+  const real = realish(p);
   return roots.some((r) => {
-    const root = existsSync(r) ? realpathSync(r) : resolve(r);
+    const root = realish(r);
     return real === root || real.startsWith(root + sep);
   });
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -36,7 +36,8 @@ test('advice: no JSON fails; reasons are one line of at most 200 characters', ()
 });
 
 test('Codex may read its own folder: the npm package root or the folder of a standalone binary, never the one above', async () => {
-  const t = mkdtempSync(join(tmpdir(), 'bk-codex-'));
+  // Codex's folder is resolved through links (macOS: /var is /private/var).
+  const t = realpathSync(mkdtempSync(join(tmpdir(), 'bk-codex-')));
   const read = async (bin) => {
     mkdirSync(dirname(join(t, bin)), { recursive: true });
     writeFileSync(join(t, bin), '');

@@ -1,5 +1,5 @@
 import { LineChart } from '@mantine/charts';
-import { Alert, Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileInput, Grid, Group, List, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi } from './parts.jsx';
@@ -230,8 +230,10 @@ function Packs({ packs, onChange }) {
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
-      <FileInput key={file} label="Import a pack file" accept="application/json,.json" maw={360}
-        onChange={run(async (f) => { if (!f) return; await api('/api/packs', { action: 'import', text: await f.text() }); setFile((n) => n + 1); })} />
+      <FileButton key={file} accept="application/json,.json"
+        onChange={run(async (f) => { if (!f) return; await api('/api/packs', { action: 'import', text: await f.text() }); setFile((n) => n + 1); })}>
+        {(props) => <Button variant="default" {...props}>Import pack file</Button>}
+      </FileButton>
     </Section>
   );
 }
@@ -656,10 +658,12 @@ function Profile({ overview, refresh }) {
     <Section title="Profile">
       <Text size="sm">Agents, packs, own packs and registered projects with their answers as one file. It holds no file contents, environment values or tokens.</Text>
       {error && <Alert color="red" title="Failed">{error}</Alert>}
-      <Group align="flex-end">
+      <Group>
         <Button variant="default" disabled={!agents.length} onClick={run(async () => download('benchkeeper-profile.json', (await api(`/api/profile-export?agents=${agents.join(',')}`)).text))}>Export profile</Button>
-        <FileInput key={file?.name ?? 'none'} label="Import a profile" accept="application/json,.json" maw={360}
-          onChange={run(async (f) => { setPlans(null); setFile(null); if (!f) return; const text = await f.text(); setFile({ name: f.name, text, ...(await api('/api/profile-import', { text })) }); })} />
+        <FileButton key={file?.name ?? 'none'} accept="application/json,.json"
+          onChange={run(async (f) => { setPlans(null); setFile(null); if (!f) return; const text = await f.text(); setFile({ name: f.name, text, ...(await api('/api/profile-import', { text })) }); })}>
+          {(props) => <Button variant="default" {...props}>Import profile</Button>}
+        </FileButton>
       </Group>
       {file && !plans && (
         <Stack gap="xs" aria-label="Profile contents" component="section">

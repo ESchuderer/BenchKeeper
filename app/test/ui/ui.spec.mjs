@@ -212,7 +212,7 @@ test.describe('views', () => {
     const file = await download;
     expect(file.suggestedFilename()).toBe('benchkeeper-profile.json');
     const chooser = page.waitForEvent('filechooser');
-    await page.getByLabel('Import a profile').click();
+    await page.getByRole('button', { name: 'Import profile' }).click();
     await (await chooser).setFiles(await file.path());
     await expect(page.getByRole('region', { name: 'Profile contents' })).toContainText('Agents: claude');
     await page.getByRole('button', { name: 'Register projects and packs' }).click();

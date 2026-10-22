@@ -1,7 +1,7 @@
 import { BarChart, LineChart } from '@mantine/charts';
 import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, NavLink, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title, useComputedColorScheme } from '@mantine/core';
 import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { CancelJob, Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
@@ -738,12 +738,20 @@ export function Sessions() {
   const [job, setJob] = useState(null);
   const [shown, setShown] = useState(0);
   const [error, setError] = useState(null);
+  const [src, setSrc] = useState(null);
+  const theme = useRef(scheme);
+  theme.current = scheme;
+  // Each frame load takes a one-time ticket (the frame cannot send the API key), also after a theme change.
+  const show = async () => {
+    try { const { ticket } = await api('/api/board-ticket', {}); setSrc(`/board?theme=${theme.current}&ticket=${ticket}`); setShown((n) => n + 1); } catch (e) { setError(e.message); }
+  };
+  useEffect(() => { if (src) show(); }, [scheme]);
   const scan = async (force) => {
     setError(null);
-    try { const r = await api('/api/sessions-scan', force ? { force: true } : {}); if (r.fresh) setShown((n) => n + 1); else setJob(r.job); } catch (e) { setError(e.message); }
+    try { const r = await api('/api/sessions-scan', force ? { force: true } : {}); if (r.fresh) show(); else setJob(r.job); } catch (e) { setError(e.message); }
   };
   useEffect(() => { scan(); }, []);
-  const state = useJob(job, (s) => { if (s.error) setError(s.error); else setShown((n) => n + 1); setJob(null); });
+  const state = useJob(job, (s) => { if (s.error) setError(s.error); else show(); setJob(null); });
   const p = state?.progress;
   return (
     <Stack gap="lg">
@@ -754,7 +762,7 @@ export function Sessions() {
       <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. Nothing leaves this machine except the pull request lookups through gh.</Text>
       {error && <Note color="red">{error}</Note>}
       {job && <Stack gap={4}><Text size="sm">Reading transcripts{p ? `: ${p.done} of ${p.total} files` : ''}</Text><Progress value={p?.total ? (p.done / p.total) * 100 : 0} aria-label="Transcripts read" /></Stack>}
-      {shown > 0 && <iframe key={shown} src={`/board?theme=${scheme}`} title="Sessions board" style={{ width: '100%', height: 'calc(100vh - 260px)', minHeight: 480, border: '1px solid var(--mantine-color-default-border)', borderRadius: 8 }} />}
+      {src && <iframe key={shown} src={src} title="Sessions board" style={{ width: '100%', height: 'calc(100vh - 260px)', minHeight: 480, border: '1px solid var(--mantine-color-default-border)', borderRadius: 8 }} />}
       <Cli>benchkeeper board</Cli>
     </Stack>
   );

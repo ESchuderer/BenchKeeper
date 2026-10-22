@@ -10,8 +10,10 @@ const SCHEMA = 1;
 const cacheDir = (ctx) => join(ctx.home, '.cache/benchkeeper');
 const TIERS = ['quick', 'standard', 'full'];
 const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
-const TEST = /(?:^|[\s;&|(])(npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):])/;
-const SKILL_READ = /skills[\\/]([\w.-]+)[\\/]SKILL\.md/g;
+// Also inside a quoted shell argument (devcontainer exec ... sh -lc 'npm test').
+const TEST = /(?:^|[\s;&|('"])(npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
+// The folder that holds SKILL.md, also nested (skills/engineering/tdd/SKILL.md).
+const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const PR = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
 const bare = (name) => name.split(':').pop();
 
@@ -163,10 +165,10 @@ const tierOf = (list) => {
   return { first, last, changeType, movedUp: rank(first) >= 0 && list.some(([t]) => rank(t) > rank(first)) };
 };
 
-// Pull request states from gh: merged and closed kept for good, open asked again after 6 hours (like newest() in
-// steps/global.mjs), a failed lookup (no gh, no login, offline) after 10 minutes. Not a GitHub pull request URL:
+// Pull request states from gh: merged kept for good, open asked again after 6 hours (like newest() in
+// steps/global.mjs) and closed after a day (it can be reopened), a failed lookup (no gh, no login, offline) after 10 minutes. Not a GitHub pull request URL:
 // unknown, never asked. Four lookups at a time, off the server's event loop.
-const AGAIN = { open: 6 * 3600e3, unknown: 600e3 };
+const AGAIN = { open: 6 * 3600e3, closed: 24 * 3600e3, unknown: 600e3 };
 export async function prStates(ctx, urls, now = Date.now()) {
   const file = join(cacheDir(ctx), 'prs.json');
   const cache = parse(readText(file) ?? '{}') ?? {};
@@ -203,15 +205,16 @@ export async function scanSessions(ctx, { since, onFile } = {}) {
     subSkills.set(parent, [...(subSkills.get(parent) ?? []), ...d.skills]);
   }
   const codex = new Map(entries.filter(([, x]) => x.kind === 'codex').map(([, x]) => [x.d.id, x.d]));
+  const rootOf = (c) => { let x = c; for (let n = 0; x.parent && codex.has(x.parent) && n < 50; n++) x = codex.get(x.parent); return x.id; };
   const applies = ctx.ledger.list().filter((r) => r.scope === 'global' && r.kind === 'apply' && r.status === 'done').sort((a, b) => (a.time < b.time ? 1 : -1));
   const rows = [];
   for (const [file, { kind, d }] of entries) {
     if (kind === 'sub' || !d.start || (since && d.start < since)) continue;
     let skills = d.skills, tokens, models = d.models;
     if (kind === 'codex') {
-      // A Codex subagent rollout adds its tokens and skills to its parent's row.
+      // A Codex subagent rollout, at any depth, adds its tokens and skills to its root session's row.
       if (d.parent && codex.has(d.parent)) continue;
-      const children = [...codex.values()].filter((c) => c.parent === d.id);
+      const children = [...codex.values()].filter((c) => c !== d && rootOf(c) === d.id);
       tokens = d.tokens + children.reduce((n, c) => n + c.tokens, 0);
       skills = [...skills, ...children.flatMap((c) => c.skills)];
     } else {

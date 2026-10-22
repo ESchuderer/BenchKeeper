@@ -106,6 +106,10 @@ function setupAnswers(src) {
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
 const scans = new WeakMap();
 const FRESH_SCAN_MS = 60e3;
+// GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
+// so the cookie alone (which browsers send to every server on 127.0.0.1) does not show the board.
+const tickets = new WeakMap();
+const boardTickets = (ctx) => { if (!tickets.has(ctx)) tickets.set(ctx, new Map()); return tickets.get(ctx); };
 
 export function api(ctx) {
   const plans = new Map(), jobs = new Map(), rehearsals = new Map();
@@ -263,6 +267,13 @@ export function api(ctx) {
     },
     // Reads the transcripts into the session cache, so GET /board answers at once; one scan at a time. A scan less
     // than a minute old is reused unless force is set (Rescan).
+    'POST /api/board-ticket': () => {
+      const t = boardTickets(ctx), now = Date.now();
+      for (const [k, at] of t) if (now - at > FRESH_SCAN_MS) t.delete(k);
+      const ticket = randomBytes(24).toString('base64url');
+      t.set(ticket, now);
+      return { ticket };
+    },
     'POST /api/sessions-scan': (b) => {
       const last = scans.get(ctx);
       if (b.force !== true && last && Date.now() - last.at < FRESH_SCAN_MS) return { fresh: true };
@@ -391,6 +402,10 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     if (why) return send(why[0], { error: why[1] });
     // The sessions board: a page of its own, framed by the app; only its script by hash runs there.
     if (req.method === 'GET' && url.pathname === '/board') {
+      const t = boardTickets(ctx), ticket = url.searchParams.get('ticket') ?? '';
+      const issued = t.get(ticket);
+      t.delete(ticket);
+      if (!issued || Date.now() - issued > FRESH_SCAN_MS) return send(403, { error: 'open the board from the app' });
       try {
         // The last scan, or one now; the page says when it was read.
         if (!scans.has(ctx)) scans.set(ctx, { rows: await scanSessions(ctx), at: Date.now() });

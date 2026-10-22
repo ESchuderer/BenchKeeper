@@ -69,7 +69,7 @@ test.describe('views', () => {
     await noAxe(page);
     // The app's theme reloads the frame in that theme.
     await page.getByRole('button', { name: 'Dark theme' }).click();
-    await expect(page.locator('iframe[title="Sessions board"]')).toHaveAttribute('src', '/board?theme=dark');
+    await expect(page.locator('iframe[title="Sessions board"]')).toHaveAttribute('src', /^\/board\?theme=dark&ticket=[\w-]+$/);
     await expect(board.locator('html')).toHaveAttribute('data-theme', 'dark');
     await noAxe(page);
   });

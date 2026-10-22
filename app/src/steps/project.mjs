@@ -50,11 +50,13 @@ export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = 
   return a;
 }
 
-// Packs a project's files point to, each with its reason; the setup step offers them chosen.
-// Where hand-written AGENTS.md text (outside the BenchKeeper block) says the agent runs.
-const AGENT_ON_HOST = /\bagents?\b[^.\n]{0,40}\bruns? on the host\b/i;
-const AGENT_INSIDE = /\bagents?\b[^.\n]{0,40}\bruns? (inside|in) (the|a) (dev ?container|sandbox|microVM)/i;
+// Where hand-written AGENTS.md text (outside the BenchKeeper block) says the agent runs: host, sandbox, container or null.
+const AGENT_RUNS = /\bagents?\b[^.\n]{0,40}\bruns? (on the host|(?:inside|in) (?:the|a) (dev ?container|sandbox|microVM))/i;
+const agentPlace = (text) => { const m = text.match(AGENT_RUNS); return !m ? null : m[1].endsWith('host') ? 'host' : /dev ?container/i.test(m[2]) ? 'container' : 'sandbox'; };
+const placeOf = (env) => (['host-agent', 'host'].includes(env) ? 'host' : env);
 const handWritten = (dir) => setBlock(readText(join(dir, 'AGENTS.md')) ?? '', 'project', null);
+
+// Packs a project's files point to, each with its reason; the setup step offers them chosen.
 
 export function suggest(dir) {
   const has = (p) => exists(join(dir, p));
@@ -73,9 +75,8 @@ export function suggest(dir) {
     ['data', pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/) && `Python uses ${pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/)}`],
     ['operations', ['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has) && `${['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has)} in the repository`],
   ];
-  const own = handWritten(dir);
-  const env = AGENT_ON_HOST.test(own) ? { id: has('.devcontainer') ? 'host-agent' : 'host', reason: 'AGENTS.md says the agent runs on the host' }
-    : AGENT_INSIDE.test(own) ? { id: 'container', reason: 'AGENTS.md says the agent runs inside the container' } : null;
+  const place = agentPlace(handWritten(dir));
+  const env = !place ? null : { id: place === 'host' ? (has('.devcontainer') ? 'host-agent' : 'host') : place, reason: `AGENTS.md says the agent runs ${{ host: 'on the host', container: 'inside the dev container', sandbox: 'in a sandbox' }[place]}` };
   return { packs: hints.filter(([, r]) => r).map(([id, reason]) => ({ id, reason })), devcontainer: has('.devcontainer'), env };
 }
 
@@ -223,9 +224,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), edit: (_, run) => `${JSON.stringify(state(run), null, 2)}\n` });
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.
-  const outside = handWritten(dir);
-  const onHost = ['host-agent', 'host'].includes(a.env);
-  const envWarning = (onHost ? AGENT_INSIDE : AGENT_ON_HOST).test(outside) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
+  const said = agentPlace(handWritten(dir));
+  const envWarning = said && said !== placeOf(a.env) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
   return { changes, answers: a, prompts: promptsFor(a, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning] };
 }
 

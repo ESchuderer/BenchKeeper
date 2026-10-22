@@ -18,7 +18,7 @@ before(async () => {
   writeFileSync(join(dist, 'index.html'), '<!doctype html><title>BenchKeeper</title>');
   mkdirSync(join(dist, 'assets'));
   writeFileSync(join(dist, 'assets/app.js'), 'console.log(1)');
-  const routes = { 'GET /api/overview': () => ({ ok: true }), 'POST /api/apply': (b) => { changed.push(b); return { done: true }; } };
+  const routes = { 'GET /api/overview': () => ({ ok: true }), 'POST /api/apply': (b) => { changed.push(b); return { done: true }; }, 'POST /api/board-ticket': api(ctx)['POST /api/board-ticket'] };
   const s = await startServer(ctx, { token: 'secret-token-123', dist, routes });
   srv = s.server;
   port = srv.address().port;
@@ -60,11 +60,17 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
   assert.equal((await req('GET', '/', { cookie })).status, 200);
 });
 
-test('the sessions board: the session cookie without the API key, and a CSP of its own that only this origin may frame', async () => {
+test('the sessions board: the session cookie and a one-time ticket asked for with the API key; a CSP of its own that only this origin may frame', async () => {
   assert.equal((await req('GET', '/board')).status, 401);
-  const r = await req('GET', '/board', { cookie });
+  // The cookie alone, as another server on 127.0.0.1 receives and replays it, does not show the board.
+  assert.equal((await req('GET', '/board', { cookie })).status, 403);
+  assert.equal((await req('GET', '/board?ticket=guess', { cookie })).status, 403);
+  assert.equal((await req('POST', '/api/board-ticket', { cookie, 'content-type': 'application/json' }, '{}')).status, 403);
+  const { ticket } = JSON.parse((await req('POST', '/api/board-ticket', auth({ 'content-type': 'application/json' }), '{}')).body);
+  const r = await req('GET', `/board?ticket=${ticket}`, { cookie });
   assert.deepEqual([r.status, r.headers['content-type'], r.headers['content-security-policy']], [200, 'text/html; charset=utf-8', `${BOARD_CSP}; frame-ancestors 'self'`]);
   assert.match(r.body, /<title>Sessions board<\/title>/);
+  assert.equal((await req('GET', `/board?ticket=${ticket}`, { cookie })).status, 403, 'a ticket works once');
 });
 
 test('a session scan is reused for a minute: the board renders from it; force scans again', async () => {

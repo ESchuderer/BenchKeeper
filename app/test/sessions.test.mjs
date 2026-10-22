@@ -47,10 +47,10 @@ test('Codex sessions: tokens and skills of subagent rollouts go to the parent; c
   const { c1 } = byId(rows);
   assert.deepEqual(
     [c1.agent, c1.project, c1.branch, c1.agentVersion, c1.models, c1.turns, c1.costUSD, c1.busyMs, c1.tokens, c1.tests, c1.setup, c1.setupVersion],
-    ['codex', '/work/shop', 'main', '0.162.1', ['gpt-6-astra'], 1, null, 7000, 1200, 'pass', ['Ponytail'], '6.1.0'],
+    ['codex', '/work/shop', 'main', '0.162.1', ['gpt-6-astra'], 1, null, 7000, 1300, 'pass', ['Ponytail'], '6.1.0'],
   );
   assert.deepEqual(c1.tier, { first: 'quick', last: 'quick', changeType: null, movedUp: false });
-  assert.deepEqual(c1.skills, ['diagnosing-bugs', 'tdd']);
+  assert.deepEqual(c1.skills, ['diagnosing-bugs', 'grilling', 'tdd']);
 });
 
 test('an unchanged file comes from the cache; a changed one is read again; since leaves out older sessions', async () => {
@@ -71,7 +71,7 @@ test('an unchanged file comes from the cache; a changed one is read again; since
   assert.deepEqual((await scanSessions(ctx, { since: '2026-10-21T00:00:00.000Z' })).map((r) => r.id).sort(), ['c1', 's2']);
 });
 
-test('PR states: merged and closed are kept, open is asked again after 6 hours, a failed lookup after 10 minutes', async () => {
+test('PR states: merged is kept, open is asked again after 6 hours, closed after a day, a failed lookup after 10 minutes', async () => {
   const calls = [];
   let answer = { state: 'OPEN' };
   const { ctx } = fixture((argv) => { calls.push(argv); return answer ? { code: 0, stdout: JSON.stringify(answer), stderr: '' } : { code: 127, stdout: '', stderr: 'not installed' }; });
@@ -90,4 +90,8 @@ test('PR states: merged and closed are kept, open is asked again after 6 hours, 
   assert.equal(calls.length, 3);
   answer = { state: 'CLOSED' };
   assert.deepEqual(await prStates(ctx, [b], t0 + 1e9 + 700e3), { [b]: 'closed' });
+  // Reopened and merged since: a closed state is asked again after a day.
+  answer = { state: 'MERGED' };
+  assert.deepEqual(await prStates(ctx, [b], t0 + 1e9 + 700e3 + 23 * 3600e3), { [b]: 'closed' });
+  assert.deepEqual(await prStates(ctx, [b], t0 + 1e9 + 700e3 + 25 * 3600e3), { [b]: 'merged' });
 });

@@ -26,13 +26,47 @@ jobs:
           git grep -nIP '\x{2014}|[\x{1F000}-\x{1FAFF}\x{2300}-\x{23FF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]|\x{FE0F}' -- . ':!.agents' ':!.claude' ':!*package-lock.json' ':!*.png' ':!bench/results/*/round-*' || rc=$?
           if [ "$rc" -eq 0 ]; then echo "::error::em dash or emoji found (rules/global.md, Punctuation)"; exit 1; fi
           if [ "$rc" -ne 1 ]; then echo "::error::git grep failed ($rc)"; exit 1; fi
-      # AGENTS.md: SKILL.md front matter `description` in double quotes (it contains colons).
-      - name: SKILL.md front matter
-        run: |
-          for f in plugins/benchkeeper/skills/*/SKILL.md plugins/benchkeeper/library/*/SKILL.md; do
-            awk 'NR == 1 && $0 != "---" { exit 1 } NR > 1 && $0 == "---" { exit found ? 0 : 1 } /^description: ".*"$/ { found = 1 }' "$f" \
-              || { echo "::error file=$f::front matter needs description: \"...\""; exit 1; }
-          done
-      # plugins/benchkeeper/setup.sh against a temporary HOME with stub agent CLIs; /bin/sh is dash here, so this also checks POSIX sh.
-      - name: setup.sh self-check
-        run: sh plugins/benchkeeper/setup.test.sh
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
+      # Own skills: front matter, name, quoted description, size, link targets, Codex policy (AGENTS.md conventions).
+      - name: Skill lint
+        run: node --test .github/scripts/skill-lint.test.mjs && node .github/scripts/skill-lint.mjs
+      # library/README.md tables are generated from library.json.
+      - name: Library catalog
+        run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check
+      # Install commands in the docs name the app version (npx benchkeeper@<version>, the clone tag).
+      - name: Version pins
+        run: node --test .github/scripts/version-pins.test.mjs && node .github/scripts/version-pins.mjs --check
+      # The web UI against a fixture home: request checks are in the app tests, views and axe (light, dark) here.
+      - name: App UI tests
+        working-directory: app
+        run: npm ci --ignore-scripts --no-audit --no-fund && npx playwright install --with-deps chromium && npm run build && npm run test:ui
+
+  # The installer app: engine, steps, CLI and server against temporary home directories with stub agent commands.
+  app:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
+      - name: App tests
+        working-directory: app
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm test && npm run smoke
+
+  # Windows is untested by the owner: start, plan, apply with a ledger run only.
+  app-windows-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
+      - name: Smoke test
+        working-directory: app
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund && node scripts/smoke.mjs

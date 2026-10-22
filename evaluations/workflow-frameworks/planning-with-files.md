@@ -9,6 +9,6 @@
 
 ## Decision
 
-Not in: overlaps the ticket files of Matt Pocock's skills (`/to-tickets`).
+Not in: overlaps the workflow's tickets in the issue tracker (full tier), and Matt Pocock's ticket files (`/to-tickets`) when his skills are installed.
 
 [All evaluations](../../EVALUATIONS.md)

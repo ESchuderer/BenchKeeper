@@ -1,0 +1,9 @@
+/* Panels sit on a slightly darker page, in both schemes. */
+:root[data-mantine-color-scheme='light'] { --bk-page: var(--mantine-color-gray-0); --bk-surface: var(--mantine-color-white); }
+:root[data-mantine-color-scheme='dark'] { --bk-page: var(--mantine-color-dark-8); --bk-surface: var(--mantine-color-dark-7); }
+body { background: var(--bk-page); font-feature-settings: 'cv11'; }
+.mantine-AppShell-header, .mantine-AppShell-navbar, .mantine-Paper-root { background-color: var(--bk-surface); }
+.mantine-Title-root { letter-spacing: -0.01em; }
+/* Code on the page, not in a panel, keeps its contrast to the page. */
+.mantine-Code-root { background-color: var(--bk-surface); }
+.mantine-Code-root[data-block] { border: 1px solid var(--mantine-color-default-border); }

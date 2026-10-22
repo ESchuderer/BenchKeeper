@@ -2,7 +2,7 @@ import { ActionIcon, Anchor, Box, Button, Container, Group, Text } from '@mantin
 import { IconBrandGithub, IconChartBar, IconMoon, IconSun } from '@tabler/icons-react';
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
-const SECTIONS = [['sdlc', 'SDLC'], ['parts', 'What gets installed'], ['start', 'Quick start'], ['selected', 'Why this stack'], ['where', 'Where things run']];
+const SECTIONS = [['sdlc', 'Workflow'], ['parts', 'What gets installed'], ['start', 'Quick start'], ['selected', 'Why this stack'], ['where', 'Where things run']];
 
 // The header of every page. On the main page (home) the links stay in the page; elsewhere they lead back to its sections.
 export default function SiteHeader({ base, home = false, size = 'lg' }: { base: string; home?: boolean; size?: string }) {

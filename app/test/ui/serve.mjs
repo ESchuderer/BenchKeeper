@@ -1,0 +1,62 @@
+// Playwright's web server: the UI server with a fixture home and stubbed agent commands, never the real machine.
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { addProject } from '../../src/projects.mjs';
+import { apply, context, preview } from '../../src/runner.mjs';
+import { startServer } from '../../src/server.mjs';
+import { SKILLS_SPEC, globalPlan } from '../../src/steps/global.mjs';
+import { projectPlan } from '../../src/steps/project.mjs';
+
+export const PORT = 4410;
+export const TOKEN = 'ui-test-token-0123456789';
+
+const home = mkdtempSync(join(tmpdir(), 'bk-ui-'));
+// The folder dialog answers with a parent of the registered project and of one more folder with an agent setup.
+const parent = mkdtempSync(join(tmpdir(), 'bk-ui-scan-'));
+mkdirSync(join(parent, 'other'));
+writeFileSync(join(parent, 'other/AGENTS.md'), '# Other\n');
+// A repository without a state file, for the step-by-step first setup.
+for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', join(parent, 'other'), ...a]);
+const run = (argv, o = {}) => {
+  if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }
+  // The skills CLI adds a skill folder with one file: in a rehearsal's scratch home, else in the fixture home, never the real one.
+  if (argv[0] === 'npx' && argv[2] === SKILLS_SPEC) {
+    const name = argv.includes('-s') ? argv[argv.indexOf('-s') + 1] : argv[4];
+    const base = argv.includes('-g') ? (o.env?.HOME?.includes('bk-prerun-') ? o.env.HOME : home) : o.cwd;
+    const at = join(base, '.claude/skills', name);
+    if (argv[3] === 'add') { mkdirSync(at, { recursive: true }); writeFileSync(join(at, 'SKILL.md'), `---\nname: ${name}\n---\n`); } else rmSync(at, { recursive: true, force: true });
+    return { code: 0, stdout: '', stderr: '' };
+  }
+  if (argv[0] === 'zenity') return { code: 0, stdout: `${parent}\n`, stderr: '' };
+  if (argv[0] === 'claude' && argv[1] === '--version') return { code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' };
+  // Setup advice: a restricted read-only session answers with one library skill.
+  if (argv[0] === 'claude' && argv.includes('--restricted')) return { code: 0, stdout: JSON.stringify({ result: JSON.stringify({ skills: [{ name: 'designing-technical-uis', reason: 'the project has a UI' }] }) }), stderr: '' };
+  if (argv[0] === 'claude') return { code: 0, stdout: argv.includes('--json') ? '[]' : '', stderr: '' };
+  return { code: 127, stdout: '', stderr: 'not installed' };
+};
+const ctx = context({ home, run, appVersion: '6.0.0' });
+const first = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
+apply(first, ctx);
+appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
+const dir = join(parent, 'bk-ui-proj');
+execFileSync('git', ['init', '-q', '-b', 'main', dir]);
+writeFileSync(join(dir, 'README.md'), '# Demo\n');
+const pctx = { ...ctx, roots: [dir] };
+apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick' } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+addProject(ctx, dir);
+// Two eval runs of one skill for the Evals chart.
+mkdirSync(join(ctx.config, 'evals'), { recursive: true });
+// Two agents, three targets; a rule target has no rates, and Codex's workflow run had no should-not cases.
+const result = (time, missRate, falseTriggerRate, target = 'skill:designing-technical-uis', agent = 'claude') => ({ time, target, agent, agentVersion: agent === 'claude' ? '2.1.0' : '0.50.0', model: null, hash: 'x', appVersion: '6.0.0', cases: 6, missRate, falseTriggerRate, details: [] });
+writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00:00Z', 0.5, 0), result('2026-10-08T10:00:00Z', 0.25, 0.33),
+  result('2026-10-08T11:00:00Z', 0, 0.17, 'skill:workflow'), result('2026-10-08T12:00:00Z', null, null, 'rule:global'),
+  result('2026-10-09T10:00:00Z', 0.33, null, 'skill:workflow', 'codex')].map((r) => JSON.stringify(r)).join('\n') + '\n');
+
+// The agents are stubs, so the eval plan may show in CI too.
+delete process.env.CI;
+// The folder dialog needs a display; the stubbed zenity answers without one.
+process.env.DISPLAY ??= ':99';
+await startServer(ctx, { port: PORT, token: TOKEN });
+console.log(`ready http://127.0.0.1:${PORT}/`);

@@ -1,0 +1,435 @@
+// Local web UI server: 127.0.0.1 only, one-time URL token swapped for an HttpOnly session cookie, and checks against
+// requests from other sites (Host, Origin, Sec-Fetch-Site, POST with a custom header for every change).
+// shortcut: apply, undo, Update all and the open folder dialog run synchronously and block other requests meanwhile;
+// one local user is fine.
+import { spawn } from 'node:child_process';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { ADVISERS, adviseSetup } from './advise.mjs';
+import { agent, detect } from './agents.mjs';
+import { userEvals } from './cases.mjs';
+import { evalPlan, runEval } from './eval.mjs';
+import { contentDir, appVersion } from './content.mjs';
+import { doctor, projectChecks } from './doctor.mjs';
+import { diffLines } from './diff.mjs';
+import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
+import { blob } from './git.mjs';
+import { inventory } from './inventory.mjs';
+import { rehearsable, rehearse } from './prerun.mjs';
+import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
+import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
+import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
+import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
+import { globalPlan, globalSkills } from './steps/global.mjs';
+import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
+
+export const HEADER = 'x-benchkeeper';
+// Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
+const cookieName = (port) => `bk_session_${port}`;
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
+const distDir = fileURLToPath(new URL('../dist/', import.meta.url));
+// Byte lengths: timingSafeEqual throws on different lengths, and one character can be several bytes.
+const same = (a, b) => { if (typeof a !== 'string') return false; const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
+
+// null when the request may go on, else [status, reason]. API requests also need the key in the HEADER header: the
+// cookie reaches every server on 127.0.0.1 whatever its port, the key only this origin's page.
+export function rejectReason(req, { port, session, key, api = true }) {
+  const self = `127.0.0.1:${port}`;
+  if (req.headers.host !== self) return [421, 'wrong host'];
+  if ('origin' in req.headers && req.headers.origin !== `http://${self}`) return [403, 'foreign origin'];
+  if (req.headers['sec-fetch-site'] === 'cross-site') return [403, 'cross-site request'];
+  const name = `${cookieName(port)}=`;
+  const cookie = (req.headers.cookie ?? '').split(/;\s*/).find((c) => c.startsWith(name))?.slice(name.length);
+  if (!session || !same(cookie, session)) return [401, 'no session'];
+  if (!['GET', 'HEAD', 'POST'].includes(req.method)) return [405, 'method not allowed'];
+  if (api && (!key || !same(req.headers[HEADER], key))) return [403, `missing ${HEADER} header`];
+  return null;
+}
+
+const bad = (message) => Object.assign(new Error(message), { status: 400 });
+// Errors of a user's input (a pack or profile file, a pack id) are 400s.
+const input = (f) => { try { return f(); } catch (e) { throw Object.assign(e, { status: e.status ?? 400 }); } };
+
+// The OS folder dialog, first tool found: exit 0 is the choice, 1 a cancel; other codes (127: not installed) try the next.
+// Without a display (SSH, container) zenity also exits 1, so Linux needs DISPLAY or WAYLAND_DISPLAY first.
+// shortcut: no xdg portal (needs async D-Bus); add it when zenity and kdialog are both missing on a target desktop.
+export function pickFolder(ctx, platform = process.platform, env = process.env) {
+  const display = platform !== 'linux' || env.DISPLAY || env.WAYLAND_DISPLAY;
+  const tools = platform === 'darwin' ? [['osascript', '-e', 'POSIX path of (choose folder)']] : platform === 'win32' || !display ? [] : [['zenity', '--file-selection', '--directory'], ['kdialog', '--getexistingdirectory']];
+  for (const argv of tools) {
+    const r = ctx.run(argv);
+    if (r.code === 0 && r.stdout.trim()) return { path: resolve(r.stdout.trim()) };
+    if (r.code === 0 || r.code === 1) return { path: null };
+  }
+  return { path: null, unavailable: true };
+}
+
+// A file of a recorded session between its snapshots; null for binary or large files and a lost snapshot.
+function sessionDiff(ctx, e, f) {
+  const side = (tree, absent) => (absent ? '' : blob(ctx, e.cwd, tree, f.path));
+  try {
+    const [a, b] = [side(e.before, f.status === 'A'), side(e.after, f.status === 'D')];
+    if (a.length + b.length > 1e6 || a.includes(0) || b.includes(0)) return null;
+    return diffLines(f.status === 'A' ? null : a.toString('utf8'), f.status === 'D' ? null : b.toString('utf8'), f.path);
+  } catch { return null; }
+}
+
+// An Update all change as its commit holds it: the run's worktree is gone. null for a folder or an older run.
+function committed(ctx, run, e) {
+  const { updateAll, commit } = run.note ?? {};
+  if (!updateAll || !commit || !inside(e.path, [run.scope])) return null;
+  try { return blob(ctx, updateAll, commit, relative(realish(run.scope), realish(e.path)).split(sep).join('/')).toString('utf8'); } catch { return null; }
+}
+
+// Changes without their edit functions, with the item state the Dashboard groups by.
+function serialize(changes, ctx) {
+  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
+}
+
+// First-setup answers from a query or a request body: only these keys, as strings and string lists.
+function setupAnswers(src) {
+  if (!src || typeof src !== 'object') return {};
+  const get = (k) => (src instanceof URLSearchParams ? src.get(k) : src[k]);
+  const all = (k) => (src instanceof URLSearchParams ? src.getAll(k) : [src[k] ?? []].flat()).filter((x) => typeof x === 'string');
+  const list = (k) => (src instanceof URLSearchParams ? all(k).flatMap((x) => x.split(',')).filter(Boolean) : all(k));
+  return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'), // An empty tier clears the saved one; no tier keeps it.
+    tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined };
+}
+
+export function api(ctx) {
+  const plans = new Map(), jobs = new Map(), rehearsals = new Map();
+  // Changes wait while a job runs: an undo or Update all in between would edit files and runs an apply still writes.
+  // Every route that changes files calls it first: rehearsals still running would diff against the files it changes,
+  // and rehearsed results from before are out of date.
+  const idle = () => {
+    if ([...jobs.values()].some((j) => !j.done && !j.readOnly)) throw Object.assign(new Error('an apply or eval is still running: wait for it to finish'), { status: 409 });
+    for (const j of jobs.values()) if (j.kind === 'prerun') j.ctl.abort();
+    rehearsals.clear();
+  };
+  // A job runs work(job) in the background; the newest 20 finished jobs are kept.
+  const start = (total, work, { kind, title, readOnly = false }) => {
+    const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly, ctl: new AbortController() };
+    jobs.set(job.id, job);
+    for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
+    work(job).catch((e) => { job.error = e.message; }).finally(() => { job.done = true; memo.clear(); });
+    return { job: job.id, total };
+  };
+  const evalPlanFor = (src) => {
+    if (process.env.CI) throw bad('evals start agent sessions on a subscription and do not run in CI');
+    const get = (k) => (src instanceof URLSearchParams ? src.get(k) : src[k]);
+    const agents = String(get('agents') ?? 'claude').split(',').filter((a) => ['claude', 'codex'].includes(a));
+    const only = src instanceof URLSearchParams ? src.getAll('target') : [src.targets ?? []].flat().filter((t) => typeof t === 'string');
+    return evalPlan(ctx, { agents: agents.length ? agents : ['claude'], all: get('all') === '1' || get('all') === true, only: only.length ? only : undefined });
+  };
+  // Plans wait for Apply 30 minutes; the newest 50 are kept.
+  const keep = (changes, pctx, scope) => {
+    const id = randomBytes(8).toString('hex');
+    plans.set(id, { changes, ctx: pctx, scope, at: Date.now() });
+    for (const old of [...plans.keys()].slice(0, -50)) plans.delete(old);
+    return id;
+  };
+  // Machine reads that start agent commands (versions, doctor, inventory) are kept 15 s and dropped by every change.
+  const memo = new Map();
+  const cached = (key, f) => {
+    const m = memo.get(key);
+    if (m && Date.now() - m.at < 15e3) return m.value;
+    const value = f();
+    memo.set(key, { at: Date.now(), value });
+    return value;
+  };
+  const agentsNow = () => cached('agents', () => detect(ctx));
+  const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
+  const projectCtx = (dir) => ({ ...ctx, roots: [dir] });
+  const registered = (dir) => listProjects(ctx).some((p) => p.path === dir);
+  const routes = {
+    'GET /api/overview': () => ({ version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = tryState(p.path); return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
+    'GET /api/global-plan': (q) => {
+      const agents = q.get('agents') ? q.get('agents').split(',') : installed();
+      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx) } }));
+      return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
+    },
+    // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.
+    'POST /api/apply': (b) => {
+      idle();
+      const p = plans.get(b.planId);
+      if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
+      plans.delete(b.planId);
+      // Output is kept per change, its last 8 kB.
+      return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
+        if (e.run) job.run = e.run;
+        if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
+      }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
+    },
+    // Each skills CLI command of a plan, rehearsed in a scratch folder: the files it would write, per change id. Three
+    // run at a time; a result is kept 10 minutes or until files change through the app.
+    'POST /api/prerun': (b) => {
+      const p = plans.get(b.planId);
+      if (!p) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
+      const list = p.changes.filter(rehearsable);
+      if (!list.length) return { job: null, total: 0 };
+      return start(list.length, async (job) => {
+        job.results = {};
+        const queue = [...list];
+        const worker = async () => {
+          for (let c; (c = queue.shift()) && !job.ctl.signal.aborted;) {
+            const key = JSON.stringify([c.argv, c.cwd ?? null, c.snapshot ?? null]), hit = rehearsals.get(key);
+            if (hit && Date.now() - hit.at < 10 * 60e3) { job.results[c.id] = hit.result; continue; }
+            let result;
+            try { result = await rehearse(p.ctx, c, { signal: job.ctl.signal }); } catch (e) { result = { files: [], error: e.message }; }
+            job.results[c.id] = result;
+            if (!result.error) rehearsals.set(key, { at: Date.now(), result });
+          }
+        };
+        await Promise.all([1, 2, 3].map(worker));
+      }, { kind: 'prerun', title: 'skill install preview', readOnly: true });
+    },
+    // An apply stops after the change that runs (a half-done install is worse); evals and suggestions stop their session.
+    'POST /api/job-cancel': (b) => {
+      const job = jobs.get(b.id ?? '');
+      if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
+      if (job.done) return { cancelled: false };
+      job.ctl.abort();
+      return { cancelled: true };
+    },
+    // Running jobs, so a reloaded page finds them again; a plan starts its rehearsal itself.
+    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && j.kind !== 'prerun').map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
+    'GET /api/job': (q) => {
+      const job = jobs.get(q.get('id') ?? '');
+      if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
+      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null };
+    },
+    // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.
+    'GET /api/eval-plan': (q) => {
+      const plan = evalPlanFor(q);
+      return { targets: plan.map((p) => ({ target: p.target, agent: p.agent, cases: p.cases.length })), sessions: plan.reduce((n, p) => n + p.cases.length, 0) };
+    },
+    'POST /api/eval': (b) => {
+      idle();
+      const plan = evalPlanFor(b);
+      if (!plan.length) throw bad('every target is unchanged since its last result');
+      return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; }, onResult: ({ details, ...x }) => { (job.results ??= []).push(x); }, signal: job.ctl.signal }), { kind: 'eval', title: 'evals' });
+    },
+    // seen: the skills each chosen agent loads there, its global ones included.
+    'GET /api/projects': () => listProjects(ctx).map((p) => {
+      const s = status(ctx, p.path);
+      const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
+      return { ...s, seen, changes: s.changes && serialize(s.changes, projectCtx(p.path)) };
+    }),
+    'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),
+    // With setup=1 the answers come from the query (a project's first setup), else from its state file.
+    'GET /api/project-plan': (q) => {
+      const dir = resolve(q.get('dir') ?? '');
+      if (!registered(dir)) throw bad('register the project first');
+      const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
+      // Skill toggles name skills of this project only.
+      const own = input(() => chosenSkills(resolveAnswers(dir, setup), libraryWith(ctx)).map((s) => s.name));
+      const disable = q.getAll('disable'), enable = q.getAll('enable');
+      const unknown = [...disable, ...enable].filter((n) => !own.includes(n));
+      if (unknown.length) throw bad(`not a skill of this project: ${unknown.join(', ')}`);
+      const p = input(() => projectPlan({ ctx: projectCtx(dir), dir, answers: { ...setup, disable, enable } }));
+      // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
+      const changes = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
+      return { planId: keep(changes, projectCtx(dir), dir), changes: serialize(changes, projectCtx(dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
+        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })) };
+    },
+    // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the
+    // packs its files point to.
+    'GET /api/project-setup': (q) => {
+      const dir = resolve(q.get('dir') ?? '');
+      if (!registered(dir)) throw bad('register the project first');
+      const lib = libraryWith(ctx);
+      const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
+      return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: tryState(dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
+        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })) };
+    },
+    // An agent reads the project and suggests env, packs and skills: one read-only session, after the user agreed in the UI.
+    'POST /api/setup-advice': (b) => {
+      if (process.env.CI) throw bad('setup advice starts an agent session on a subscription and does not run in CI');
+      const dir = resolve(String(b.dir ?? ''));
+      if (!registered(dir)) throw bad('register the project first');
+      if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
+      return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx), signal: job.ctl.signal }).then((r) => { job.results = r; }), { kind: 'advice', title: `setup suggestions for ${dir}`, readOnly: true });
+    },
+    'POST /api/update-all': (b) => {
+      idle();
+      const paths = (b.paths ?? []).filter(registered);
+      const answers = Object.fromEntries(Object.entries(b.answers ?? {}).filter(([p]) => paths.includes(p)).map(([p, a]) => [p, setupAnswers(a)]));
+      return updateAll(ctx, { paths, push: b.push !== false, answers });
+    },
+    'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
+    // One run with the diff of each file it wrote: its backup (or nothing) against the file as the change left it,
+    // which is the backup a later change of the run took, or the file while nothing changed it since.
+    // A session's files diff between its git snapshots.
+    'GET /api/run': (q) => {
+      const run = ctx.ledger.get(q.get('id') ?? '');
+      return { ...run, entries: run.entries.map((e, i) => {
+        // shortcut: git runs twice per file and blocks the server, so only the first 50 files get a diff; stream them when sessions get larger.
+        if (e.kind === 'session' && e.files) return { ...e, files: e.files.map((f, n) => ({ ...f, diff: n < 50 ? sessionDiff(ctx, e, f) : null })) };
+        if (!e.path || e.kind !== 'write' || e.status !== 'done') return e;
+        // Deleted, for example the undo of a file the run created: the backup against nothing.
+        if (e.hashAfter === null && !exists(e.path)) return { ...e, removed: true, diff: e.backup && !isDir(e.backup) ? diffLines(readText(e.backup), null, e.path) : null };
+        if (isDir(e.path)) return { ...e, folder: true };
+        const next = run.entries.slice(i + 1).find((x) => x.path === e.path && x.backup && x.hashBefore === e.hashAfter);
+        const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : committed(ctx, run, e);
+        return { ...e, diff: now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path) };
+      }) };
+    },
+    'POST /api/undo': (b) => {
+      idle();
+      const scope = ctx.ledger.get(b.run).scope;
+      return undo(b.run, scope === 'global' ? ctx : projectCtx(scope), { step: b.step || undefined });
+    },
+    'GET /api/catalog': () => {
+      const lib = libraryWith(ctx);
+      const projects = listProjects(ctx).map((p) => tryState(p.path)).filter(Boolean);
+      return { ...lib, skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
+    },
+    'GET /api/skill': (q) => {
+      const name = q.get('name');
+      if (!libraryWith(ctx).skills.some((s) => s.name === name)) throw Object.assign(new Error('unknown skill'), { status: 404 });
+      return { name, text: readText(join(contentDir, 'library', name, 'SKILL.md')) };
+    },
+    'GET /api/doctor': (q) => {
+      if (!q.has('dir')) return cached('doctor', () => doctor(ctx, { agents: installed() }));
+      const dir = resolve(q.get('dir'));
+      if (!registered(dir)) throw bad('register the project first');
+      return projectChecks(ctx, dir);
+    },
+    'POST /api/pick-folder': () => pickFolder(ctx),
+    // Opens a registered project in the file manager.
+    'POST /api/reveal': (b) => {
+      const dir = resolve(String(b.path ?? ''));
+      if (!registered(dir)) throw bad('register the project first');
+      (ctx.open ?? openFolder)(dir);
+      return { opened: dir };
+    },
+    // Eval results without the per-case details; lines that do not parse are left out.
+    'GET /api/evals': () => (readText(join(userEvals(ctx), 'results.jsonl')) ?? '').split('\n').filter(Boolean).flatMap((l) => {
+      try { const { details, ...r } = JSON.parse(l); return [r]; } catch { return []; }
+    }),
+    'GET /api/pack-warnings': (q) => warnings((q.get('skills') ?? '').split(',').filter(Boolean)),
+    'GET /api/pack-export': (q) => input(() => ({ name: `${q.get('id')}.json`, text: exportPack(ctx, q.get('id')) })),
+    'POST /api/packs': (b) => input(() => {
+      if (b.action === 'save') return savePack(ctx, { id: b.id, title: b.title || b.id, skills: b.skills });
+      if (b.action === 'import') return importPack(ctx, b.text ?? '', b.id || undefined);
+      if (b.action === 'remove') return removePack(ctx, b.id), { removed: b.id };
+      throw bad('action must be save, import or remove');
+    }),
+    'GET /api/profile-export': (q) => ({ text: exportProfile(ctx, { agents: q.get('agents') ? q.get('agents').split(',') : installed(), packs: installedPacks(ctx) }) }),
+    // First what the file holds; with register, the own packs and projects are saved first (project plans can name
+    // those packs), then the global and project plans come back to apply like any other.
+    'POST /api/profile-import': (b) => {
+      const p = input(() => readProfile(b.text ?? ''));
+      if (!b.register) return { agents: p.global.agents, globalPacks: p.global.packs ?? [], packs: (p.packs ?? []).map((x) => x.id), projects: (p.projects ?? []).map((x) => ({ path: x.path, here: exists(x.path) })) };
+      const done = input(() => importChoices(ctx, p));
+      const plan = importPlan(ctx, p);
+      return { ...done, missing: plan.missing, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
+        plans: plan.projects.filter((x) => x.changes.length).map((x) => ({ path: x.path, planId: keep(x.changes, x.ctx, x.path), changes: serialize(x.changes, x.ctx) })) };
+    },
+    'POST /api/scan': (b) => {
+      if (typeof b.root !== 'string' || !isAbsolute(b.root)) throw bad('root must be an absolute path');
+      return scan(b.root).filter((d) => !registered(d));
+    },
+    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed())),
+  };
+  // A change drops the cached machine reads.
+  for (const k of Object.keys(routes)) if (k.startsWith('POST ')) { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
+  return routes;
+}
+
+async function body(req) {
+  let size = 0;
+  const chunks = [];
+  for await (const c of req) { size += c.length; if (size > 1e6) throw Object.assign(new Error('body too large'), { status: 413 }); chunks.push(c); }
+  try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw Object.assign(new Error('body is not JSON'), { status: 400 }); }
+}
+
+export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx) } = {}) {
+  let urlToken = token, session = null, key = null;
+  const server = createServer(async (req, res) => {
+    const send = (code, data, type = 'application/json; charset=utf-8', headers = {}) => {
+      res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'", ...headers });
+      res.end(type.startsWith('application/json') ? JSON.stringify(data) : data);
+    };
+    const url = new URL(req.url, 'http://127.0.0.1');
+    const p = server.address().port;
+    // The URL token works once: it becomes the session cookie and the API key, which the page reads from the fragment
+    // (never sent to a server) and keeps in this origin's storage.
+    if (req.method === 'GET' && url.pathname === '/' && url.searchParams.has('token') && req.headers.host === `127.0.0.1:${p}` && urlToken && same(url.searchParams.get('token'), urlToken)) {
+      urlToken = null;
+      session = randomBytes(32).toString('base64url');
+      key = randomBytes(32).toString('base64url');
+      // A page of this origin moves on, not a redirect: after the file openBrowser hands the browser, a redirect would
+      // count as cross-site, and the browser would hold back the SameSite=Strict cookie.
+      return send(200, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/#k=${key}"><title>BenchKeeper</title>`, 'text/html; charset=utf-8', { 'set-cookie': `${cookieName(p)}=${session}; HttpOnly; SameSite=Strict; Path=/` });
+    }
+    const why = rejectReason(req, { port: p, session, key, api: url.pathname.startsWith('/api/') });
+    if (why) return send(why[0], { error: why[1] });
+    const route = routes[`${req.method} ${url.pathname}`];
+    if (route) {
+      try { return send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
+    }
+    if (url.pathname.startsWith('/api/')) return send(req.method === 'GET' && routes[`POST ${url.pathname}`] ? 405 : 404, { error: 'no such endpoint' });
+    if (req.method !== 'GET') return send(405, { error: 'method not allowed' });
+    let path;
+    try { path = decodeURIComponent(url.pathname); } catch { return send(400, { error: 'bad path' }); }
+    let file = resolve(dist, `.${path}`);
+    // Files only: reading a folder (/assets) would throw outside any handler and end the server.
+    if (!inside(file, [dist]) || !isFile(file)) file = join(dist, 'index.html');
+    if (!isFile(file)) return send(500, 'the UI is not built: npm run build in app/', 'text/plain');
+    // Vite names built assets by their content hash, so they never change under one name; the page itself always reloads.
+    const hashed = file.startsWith(join(dist, 'assets') + sep);
+    return send(200, await readFile(file), TYPES[extname(file)] ?? 'application/octet-stream', hashed ? { 'cache-control': 'public, max-age=31536000, immutable' } : {});
+  });
+  return new Promise((ok) => server.listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
+}
+
+const isFile = (f) => { try { return statSync(f).isFile(); } catch { return false; } };
+
+// Windows: start takes a quoted first argument as the window title, and Node would escape the quotes of an empty one,
+// so cmd gets the arguments as written; the target is a temporary file path or a URL without quotes.
+function launch(target) {
+  const win = process.platform === 'win32';
+  const argv = process.platform === 'darwin' ? ['open', target] : win ? ['cmd', '/c', 'start', '""', `"${target}"`] : ['xdg-open', target];
+  try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true, windowsVerbatimArguments: win }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }
+}
+
+// A snap or Flatpak browser has its own /tmp and cannot read the file openBrowser writes there.
+export function confinedBrowser(run = runCommand, home = process.env.HOME ?? '') {
+  if (process.platform !== 'linux') return false;
+  const app = run(['xdg-settings', 'get', 'default-web-browser'], { timeout: 5e3 }).stdout.trim();
+  return !!app && !app.includes('/') && ['/var/lib/snapd/desktop/applications', '/var/lib/flatpak/exports/share/applications', join(home, '.local/share/flatpak/exports/share/applications')]
+    .some((d) => exists(join(d, app)));
+}
+
+// Other local users can read process arguments, so the opener and the browser get a file only this user can read,
+// which forwards to the URL with the token. It goes once the browser had time to load it, or when the app ends.
+// A confined browser, or a file that cannot be written, gets the URL itself, as before.
+export function openBrowser(url, { wait = 120e3, open = launch, confined = confinedBrowser } = {}) {
+  if (confined()) return open(url);
+  let dir;
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'bk-open-'));
+    const file = join(dir, 'open.html');
+    const safe = url.replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+    writeFileSync(file, `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${safe}"><title>BenchKeeper</title><a href="${safe}">Open BenchKeeper</a>\n`, { mode: 0o600 });
+    const clean = () => rmSync(dir, { recursive: true, force: true });
+    process.once('exit', clean);
+    setTimeout(() => { clean(); process.off('exit', clean); }, wait).unref();
+    open(file);
+    return file;
+  } catch {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    return open(url);
+  }
+}
+// On Windows through explorer: cmd would read & or ^ in a folder name as its own syntax.
+export function openFolder(dir) {
+  if (process.platform !== 'win32') return launch(dir);
+  try { spawn('explorer', [dir], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* nothing to open */ }
+}

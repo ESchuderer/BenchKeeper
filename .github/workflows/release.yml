@@ -2,7 +2,8 @@ name: Release
 
 # The plugin version in plugins/benchkeeper/*/plugin.json is the setup version (CHANGELOG.md).
 # Pull requests: a change under plugins/benchkeeper/ raises it and adds its CHANGELOG entry.
-# main: the first push with a new version tags setup-v<major>.<minor> and publishes a GitHub Release with that entry.
+# main: the first push with a new version tags setup-v<major>.<minor>, moves the branch stable (the ref the app adds
+# BenchKeeper's marketplace at) to that commit, and publishes a GitHub Release with that entry.
 on:
   push:
     branches: [main]
@@ -37,6 +38,8 @@ jobs:
         run: |
           tag=$(sh .github/scripts/release.sh tag)
           if gh release view "$tag" >/dev/null 2>&1; then echo "$tag already released"; exit 0; fi
+          # Before the release, so a rerun after a failed release still moves it; main is linear, so this fast-forwards.
+          git push origin "$GITHUB_SHA:refs/heads/stable"
           sh .github/scripts/release.sh notes > "$RUNNER_TEMP/notes.md"
           # An existing tag (pushed by hand) is kept; otherwise the tag is created on this commit.
           gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file "$RUNNER_TEMP/notes.md"

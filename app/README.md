@@ -9,7 +9,7 @@ Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows
 - From npm: `npx benchkeeper@6.0.0 <command>`. Until the first npm release, run it from a clone.
 - From a clone: `git clone --depth 1 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
-Runtime dependencies, pinned: [jsonc-parser](https://www.npmjs.com/package/jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://www.npmjs.com/package/smol-toml) 1.9.1 (Codex TOML). The web UI (React, Mantine) is built into `dist/` and ships in the package.
+Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML). The web UI (React, Mantine) is built into `dist/` and ships in the package.
 
 ## Commands
 

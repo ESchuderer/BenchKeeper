@@ -90,10 +90,14 @@ test('eval asks before starting sessions and refuses in CI', async () => {
   const ctx = machine(stubAgent(calls));
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
-  assert.equal(await main(['eval', '--target', 'skill:workflow'], { out, ctx, input: Readable.from(['n\n']) }), 1);
-  assert.match(text, /Start 12 agent sessions\? \[y\/N\]/);
-  assert.equal(calls.length, 0);
-  process.env.CI = 'true';
-  try { assert.equal(await main(['eval', '--yes'], { out, ctx }), 2); } finally { delete process.env.CI; }
+  // The test itself may run in CI: set and restore the variable for each half.
+  const ci = process.env.CI;
+  try {
+    delete process.env.CI;
+    assert.equal(await main(['eval', '--target', 'skill:workflow'], { out, ctx, input: Readable.from(['n\n']) }), 1);
+    assert.match(text, /Start 12 agent sessions\? \[y\/N\]/);
+    process.env.CI = 'true';
+    assert.equal(await main(['eval', '--yes'], { out, ctx }), 2);
+  } finally { if (ci === undefined) delete process.env.CI; else process.env.CI = ci; }
   assert.equal(calls.length, 0);
 });

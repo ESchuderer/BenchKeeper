@@ -1,0 +1,628 @@
+{
+  "schemaVersion": 1,
+  "sections": [
+    {
+      "id": "own",
+      "title": "Own",
+      "note": "Folders next to this file."
+    },
+    {
+      "id": "anthropic",
+      "title": "Anthropic",
+      "note": "In Claude Code, `docx`, `pdf`, `pptx` and `xlsx` already come with the claude.ai skills `anthropic-skills`, so they are Codex only here."
+    },
+    {
+      "id": "science",
+      "title": "Science",
+      "note": "Python skills: read each one's dependencies before installing. Skills that need paid API keys are not listed."
+    },
+    {
+      "id": "marketing",
+      "title": "Marketing",
+      "note": "The skills read `.agents/product-marketing.md` when it exists, which `product-marketing` writes."
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "note": "CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project."
+    },
+    {
+      "id": "testing",
+      "title": "Testing",
+      "note": null
+    },
+    {
+      "id": "docs",
+      "title": "Docs and data",
+      "note": null
+    },
+    {
+      "id": "operations",
+      "title": "Operations, legal, product",
+      "note": null
+    }
+  ],
+  "skills": [
+    {
+      "name": "designing-technical-uis",
+      "section": "own",
+      "source": "own",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository has a technical UI (workbench, calculator, analysis or comparison view, dashboard, data tables, settings, admin tool, CLI output) or user-facing docs",
+      "paths": "The folders that hold UI or docs code, when they are not the whole repository",
+      "pointer": "`UI screens and user-facing text: load the designing-technical-uis skill first.` in the `AGENTS.md` of each of those folders (the root `AGENTS.md` for the whole repository). A folder `AGENTS.md` created for it gets a `CLAUDE.md` with `@AGENTS.md` when Claude Code is selected."
+    },
+    {
+      "name": "frontend-design",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "agents": "both",
+      "pickWhen": "New UI or a visual redesign"
+    },
+    {
+      "name": "mcp-builder",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "agents": "both",
+      "pickWhen": "The repository builds an MCP server"
+    },
+    {
+      "name": "docx",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "agents": "codex",
+      "pickWhen": "The repository produces or edits that file type"
+    },
+    {
+      "name": "pdf",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "agents": "codex",
+      "pickWhen": "The repository produces or edits that file type"
+    },
+    {
+      "name": "pptx",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "agents": "codex",
+      "pickWhen": "The repository produces or edits that file type"
+    },
+    {
+      "name": "xlsx",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "agents": "codex",
+      "pickWhen": "The repository produces or edits that file type"
+    },
+    {
+      "name": "scientific-critical-thinking",
+      "section": "science",
+      "set": "Core",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Research, measurement or data analysis code"
+    },
+    {
+      "name": "experimental-design",
+      "section": "science",
+      "set": "Core",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Research, measurement or data analysis code"
+    },
+    {
+      "name": "hypothesis-generation",
+      "section": "science",
+      "set": "Core",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Research, measurement or data analysis code"
+    },
+    {
+      "name": "statistical-analysis",
+      "section": "science",
+      "set": "Core",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Research, measurement or data analysis code"
+    },
+    {
+      "name": "statistical-power",
+      "section": "science",
+      "set": "Core",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Research, measurement or data analysis code"
+    },
+    {
+      "name": "uncertainty-and-units",
+      "section": "science",
+      "set": "Core",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Research, measurement or data analysis code"
+    },
+    {
+      "name": "exploratory-data-analysis",
+      "section": "science",
+      "set": "Core",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Research, measurement or data analysis code"
+    },
+    {
+      "name": "scientific-visualization",
+      "section": "science",
+      "set": "Core",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Research, measurement or data analysis code"
+    },
+    {
+      "name": "literature-review",
+      "section": "science",
+      "set": "Literature",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+    },
+    {
+      "name": "paper-lookup",
+      "section": "science",
+      "set": "Literature",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+    },
+    {
+      "name": "citation-management",
+      "section": "science",
+      "set": "Literature",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+    },
+    {
+      "name": "database-lookup",
+      "section": "science",
+      "set": "Literature",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+    },
+    {
+      "name": "markitdown",
+      "section": "science",
+      "set": "Literature",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+    },
+    {
+      "name": "scientific-writing",
+      "section": "science",
+      "set": "Writing",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository holds a paper, report or thesis"
+    },
+    {
+      "name": "peer-review",
+      "section": "science",
+      "set": "Writing",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository holds a paper, report or thesis"
+    },
+    {
+      "name": "venue-templates",
+      "section": "science",
+      "set": "Writing",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository holds a paper, report or thesis"
+    },
+    {
+      "name": "sympy",
+      "section": "science",
+      "set": "Modelling",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Symbolic math, multi-objective optimization, chemical kinetics or thermodynamics"
+    },
+    {
+      "name": "pymoo",
+      "section": "science",
+      "set": "Modelling",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Symbolic math, multi-objective optimization, chemical kinetics or thermodynamics"
+    },
+    {
+      "name": "cantera",
+      "section": "science",
+      "set": "Modelling",
+      "source": "K-Dense-AI/scientific-agent-skills",
+      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Symbolic math, multi-objective optimization, chemical kinetics or thermodynamics"
+    },
+    {
+      "name": "product-marketing",
+      "section": "marketing",
+      "set": "Core",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A product site, landing pages or a public launch"
+    },
+    {
+      "name": "copywriting",
+      "section": "marketing",
+      "set": "Core",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A product site, landing pages or a public launch"
+    },
+    {
+      "name": "copy-editing",
+      "section": "marketing",
+      "set": "Core",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A product site, landing pages or a public launch"
+    },
+    {
+      "name": "seo-audit",
+      "section": "marketing",
+      "set": "Core",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A product site, landing pages or a public launch"
+    },
+    {
+      "name": "ai-seo",
+      "section": "marketing",
+      "set": "Core",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A product site, landing pages or a public launch"
+    },
+    {
+      "name": "schema",
+      "section": "marketing",
+      "set": "Core",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A product site, landing pages or a public launch"
+    },
+    {
+      "name": "launch",
+      "section": "marketing",
+      "set": "Core",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A product site, landing pages or a public launch"
+    },
+    {
+      "name": "site-architecture",
+      "section": "marketing",
+      "set": "Core",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A product site, landing pages or a public launch"
+    },
+    {
+      "name": "content-strategy",
+      "section": "marketing",
+      "set": "Optional",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A blog or docs plan, conversion work, directory listings, or analytics setup"
+    },
+    {
+      "name": "cro",
+      "section": "marketing",
+      "set": "Optional",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A blog or docs plan, conversion work, directory listings, or analytics setup"
+    },
+    {
+      "name": "directory-submissions",
+      "section": "marketing",
+      "set": "Optional",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A blog or docs plan, conversion work, directory listings, or analytics setup"
+    },
+    {
+      "name": "analytics",
+      "section": "marketing",
+      "set": "Optional",
+      "source": "coreyhaines31/marketingskills",
+      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A blog or docs plan, conversion work, directory listings, or analytics setup"
+    },
+    {
+      "name": "gha-security-review",
+      "section": "security",
+      "source": "getsentry/skills",
+      "ref": "c93fb1e82454278a0caeb08e062a75a2e18feebb",
+      "license": "Apache-2.0",
+      "agents": "both",
+      "pickWhen": "The repository has GitHub Actions workflows"
+    },
+    {
+      "name": "fp-check",
+      "section": "security",
+      "source": "trailofbits/skills",
+      "ref": "e1f86a390d4caf28bf1c377a7d86707b2898669c",
+      "license": "CC-BY-SA-4.0",
+      "agents": "both",
+      "pickWhen": "Security findings from a scanner or review need triage"
+    },
+    {
+      "name": "variant-analysis",
+      "section": "security",
+      "source": "trailofbits/skills",
+      "ref": "e1f86a390d4caf28bf1c377a7d86707b2898669c",
+      "license": "CC-BY-SA-4.0",
+      "agents": "both",
+      "pickWhen": "A found vulnerability may repeat elsewhere in the code"
+    },
+    {
+      "name": "sharp-edges",
+      "section": "security",
+      "source": "trailofbits/skills",
+      "ref": "e1f86a390d4caf28bf1c377a7d86707b2898669c",
+      "license": "CC-BY-SA-4.0",
+      "agents": "both",
+      "pickWhen": "The repository exposes an API or configuration others can misuse"
+    },
+    {
+      "name": "playwright-best-practices",
+      "section": "testing",
+      "source": "currents-dev/playwright-best-practices-skill",
+      "ref": "283d5cbc5d11aac1abda058b16ad22c317d54dc0",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The repository has or adds Playwright tests"
+    },
+    {
+      "name": "mermaid-diagrams",
+      "section": "docs",
+      "source": "softaworks/agent-toolkit",
+      "ref": "3027f20f3181758385a1bb8c022d4041dfb4de84",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The docs hold architecture, sequence or flow diagrams"
+    },
+    {
+      "name": "accessibility",
+      "section": "docs",
+      "source": "addyosmani/web-quality-skills",
+      "ref": "afa8da942115f2961fdbfa80807ea0b232ff6c00",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A web UI that needs a WCAG 2.2 audit"
+    },
+    {
+      "name": "validate-data",
+      "section": "docs",
+      "source": "anthropics/knowledge-work-plugins",
+      "ref": "f652327d4e953d7957d99e735c3c7f9964e9d2e5",
+      "license": "Apache-2.0",
+      "agents": "both",
+      "pickWhen": "The repository imports or publishes datasets"
+    },
+    {
+      "name": "incident-response",
+      "section": "operations",
+      "source": "anthropics/knowledge-work-plugins",
+      "ref": "f652327d4e953d7957d99e735c3c7f9964e9d2e5",
+      "license": "Apache-2.0",
+      "agents": "both",
+      "pickWhen": "A deployed service with on-call or postmortems"
+    },
+    {
+      "name": "compliance-check",
+      "section": "operations",
+      "source": "anthropics/knowledge-work-plugins",
+      "ref": "f652327d4e953d7957d99e735c3c7f9964e9d2e5",
+      "license": "Apache-2.0",
+      "agents": "both",
+      "pickWhen": "The product falls under a regulation (privacy, finance, health)"
+    },
+    {
+      "name": "gdpr-compliant",
+      "section": "operations",
+      "source": "github/awesome-copilot",
+      "ref": "772e23900abaff43ccd3ea7c4e048cb5d8cae8da",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The code processes personal data of people in the EU"
+    },
+    {
+      "name": "synthesize-research",
+      "section": "operations",
+      "source": "anthropics/knowledge-work-plugins",
+      "ref": "f652327d4e953d7957d99e735c3c7f9964e9d2e5",
+      "license": "Apache-2.0",
+      "agents": "both",
+      "pickWhen": "The repository holds user interviews, surveys or feedback to evaluate"
+    }
+  ],
+  "packs": [
+    {
+      "id": "matt-pocock",
+      "title": "Matt Pocock's skills",
+      "pickWhen": "The project uses his grilling, spec, tickets, test-first and review skills",
+      "plugins": {
+        "claude": {
+          "id": "mattpocock-skills@claude-plugins-official"
+        },
+        "codex": {
+          "id": "mattpocock-skills@mattpocock",
+          "marketplace": "mattpocock/skills"
+        }
+      },
+      "prompts": [
+        {
+          "claude": "/mattpocock-skills:setup-matt-pocock-skills",
+          "codex": "$mattpocock-skills:setup-matt-pocock-skills",
+          "why": "writes `docs/agents/` (issue tracker, triage labels, domain docs) and the `## Agent skills` block"
+        }
+      ]
+    },
+    {
+      "id": "frontend",
+      "title": "Frontend",
+      "pickWhen": "The repository has a web UI",
+      "skills": [
+        "frontend-design",
+        "designing-technical-uis",
+        "accessibility"
+      ]
+    },
+    {
+      "id": "testing",
+      "title": "Testing",
+      "pickWhen": "The repository has or adds browser tests",
+      "skills": [
+        "playwright-best-practices"
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "pickWhen": "CI workflows, a public API, or security findings to triage",
+      "skills": [
+        "gha-security-review",
+        "fp-check",
+        "variant-analysis",
+        "sharp-edges"
+      ]
+    },
+    {
+      "id": "science",
+      "title": "Science and research",
+      "pickWhen": "Research, measurement or data analysis code",
+      "skills": [
+        "scientific-critical-thinking",
+        "experimental-design",
+        "statistical-analysis",
+        "uncertainty-and-units",
+        "scientific-visualization"
+      ]
+    },
+    {
+      "id": "docs",
+      "title": "Docs",
+      "pickWhen": "User-facing docs or diagrams",
+      "skills": [
+        "designing-technical-uis",
+        "mermaid-diagrams"
+      ]
+    },
+    {
+      "id": "data",
+      "title": "Data",
+      "pickWhen": "The repository imports, analyzes or publishes datasets",
+      "skills": [
+        "validate-data",
+        "exploratory-data-analysis",
+        "statistical-analysis"
+      ]
+    },
+    {
+      "id": "marketing",
+      "title": "Marketing",
+      "pickWhen": "A product site, landing pages or a public launch",
+      "skills": [
+        "product-marketing",
+        "copywriting",
+        "copy-editing",
+        "seo-audit",
+        "launch"
+      ]
+    },
+    {
+      "id": "operations",
+      "title": "Operations",
+      "pickWhen": "A deployed service or regulated product",
+      "skills": [
+        "incident-response",
+        "compliance-check",
+        "gdpr-compliant"
+      ]
+    }
+  ]
+}

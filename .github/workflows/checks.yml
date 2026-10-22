@@ -32,6 +32,9 @@ jobs:
       # Own skills: front matter, name, quoted description, size, link targets, Codex policy (AGENTS.md conventions).
       - name: Skill lint
         run: node --test .github/scripts/skill-lint.test.mjs && node .github/scripts/skill-lint.mjs
+      # library/README.md tables are generated from library.json.
+      - name: Library catalog
+        run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check
       # plugins/benchkeeper/setup.sh against a temporary HOME with stub agent CLIs; /bin/sh is dash here, so this also checks POSIX sh.
       - name: setup.sh self-check
         run: sh plugins/benchkeeper/setup.test.sh

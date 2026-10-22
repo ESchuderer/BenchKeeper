@@ -67,7 +67,7 @@ Add only domain knowledge (library) and knowledge about the confirmed stack (sea
 
 ### Library (ask)
 
-The catalog is `library/README.md` in the BenchKeeper plugin, two levels above this skill's folder. Read it, then propose the entries whose "Pick when" matches what the repository contains, each set as one question the user can trim skill by skill. Install as the catalog says:
+The catalog is `library/library.json` in the BenchKeeper plugin, two levels above this skill's folder (`library/README.md` renders it). Propose the packs and single skills whose `pickWhen` matches what the repository contains, each pack as one question the user can trim skill by skill. Install as the catalog README says, community skills at the manifest's `ref`:
 - Own skills: copy the folder. When the catalog names folders for `paths` and the user names them, add `paths:` with their globs to the copied front matter. Add the catalog's pointer line to the `AGENTS.md` it names.
 - Community skills: read and check them as in item 4 below, then install with the command in item 5.
 - Entries marked Codex only: only when Codex is selected, installed with `-a codex` alone even when both agents are selected.

@@ -9,6 +9,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Matt Pocock's skills are optional. `setup.sh` still offers his plugin, `setting-up-projects` asks whether a project uses them.
 - `setup.sh` adds an ask list to `~/.claude/settings.json` (`gh pr merge`, force push, `git reset --hard`, `git branch -D`, `git clean`) and writes `rules/codex.rules` to `~/.codex/rules/benchkeeper.rules`.
 - `setting-up-projects` asks where the agent runs: inside the devcontainer (default), on the host with project commands in the container, or without a container.
+- Library: `library/library.json` is the catalog source (skills, sources pinned to a commit, packs); `library/README.md` tables are generated from it and checked in CI. New packs: frontend, testing (`playwright-best-practices`, new), security, science, docs, data, marketing, operations, and Matt Pocock's skills with his repository setup. Own skills pass a lint in CI.
 - Plugin `version` 6.0.0. Pinned bench arms keep their skill names.
 - Upgrade: update the plugin and run `sh plugins/benchkeeper/setup.sh --apply` from the clone. Projects with `Default tier:` lines keep working; references to `following-dev-workflow` in a project's own files change to `benchkeeper:workflow`.
 

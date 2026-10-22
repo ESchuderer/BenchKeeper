@@ -33,11 +33,12 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 | Component | Decision | Summary |
 |---|---|---|
 | [agent-skills](evaluations/skill-libraries/agent-skills.md) | Out (setup-v3.0) | replaced by Matt Pocock's skills. Own cartridges run: 7th of 29 alone, Matt Pocock's skills 3rd |
-| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | In (setup-v3.0) | signals: best Claude Code app on cartridges (rank 3 of 29), brownfield scores within noise, with the BenchKeeper layer the fastest arm that finished every step |
+| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | Optional pack (setup-v6.0; in from setup-v3.0) | 19 of 52 trials with them called any; no quality gain over plain Claude Code. Earlier signals: best Claude Code app on cartridges (rank 3 of 29), brownfield scores within noise, with the BenchKeeper layer the fastest arm that finished every step |
 | [andrej-karpathy-skills](evaluations/skill-libraries/andrej-karpathy-skills.md) | Not in | accuracy 60/60 in every arm. Cost +11.5% (skill-receipts), +6.6% (skillbench) |
 | [Anthropic document skills](evaluations/skill-libraries/anthropic-document-skills.md) | Not global, per project | DocOps: Claude Code Sonnet 4.6 0.519 with skills vs 0.552 without. Library: Codex only (Claude Code has them through the claude.ai skills) |
 | [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation. Four sets in the library, other single skills through the search |
 | [marketingskills](evaluations/skill-libraries/marketingskills.md) | Not global, per project | no task-level evaluation. Core and optional set in the library |
+| [playwright-best-practices](evaluations/skill-libraries/playwright-best-practices.md) | Per project, testing pack (setup-v6.0) | no evaluation of this skill; 97.1K installs, security scans passed, no scripts |
 | [Library exclusions](evaluations/skill-libraries/library-exclusions.md) | Not in the library | skills reviewed on 2026-10-18 and left out of `plugins/benchkeeper/library/README.md`, with reasons |
 
 ### Workflow frameworks

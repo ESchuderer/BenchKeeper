@@ -2,7 +2,8 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Mod
 import { IconBulb, IconPlayerPlay } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { Loading, useApi, useJob } from './parts.jsx';
+import { CancelJob, Loading, useApi, useJob } from './parts.jsx';
+import { DiffView } from './run.jsx';
 import { Note, icon } from './shell.jsx';
 
 const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
@@ -32,7 +33,7 @@ function AgentAdvice({ dir, advisers, onAdvice }) {
   return (
     <Stack gap="xs" mb="md">
       <Group><Button leftSection={icon(IconBulb)} variant="default" disabled={!!job} onClick={() => setOpen(true)}>Suggest with an agent</Button></Group>
-      {job && <AdviceJob job={job} name={name} onDone={(s) => { setJob(null); if (s.error) setError(s.error); else onAdvice(s.results, name); }} />}
+      {job && <AdviceJob job={job} name={name} onDone={(s) => { setJob(null); if (s.error === 'cancelled') return; if (s.error) setError(s.error); else onAdvice(s.results, name); }} />}
       {error && <Note color="red" title="No suggestion">{error}</Note>}
       <Modal opened={open} onClose={() => setOpen(false)} withCloseButton={false} attributes={{ content: { 'aria-label': 'Start an agent session?' } }}>
         <Stack gap="sm">
@@ -57,9 +58,14 @@ function AgentAdvice({ dir, advisers, onAdvice }) {
   );
 }
 
-function AdviceJob({ job, name, onDone }) {
-  useJob(job, onDone);
-  return <Group gap="xs" role="status"><Loader size="xs" /><Text size="sm">{name} is reading the repository</Text></Group>;
+export function AdviceJob({ job, name, onDone }) {
+  const state = useJob(job, onDone);
+  return (
+    <Group gap="sm">
+      <Group gap="xs" role="status"><Loader size="xs" /><Text size="sm">{name} is reading the repository</Text></Group>
+      <CancelJob job={job} state={state} what="session" />
+    </Group>
+  );
 }
 
 // One project's setup, step by step: agents, where commands run, packs and skills, tier, review, then a branch
@@ -153,7 +159,7 @@ function SetupSteps({ dir, push, onFinish }) {
                 {p.changes.map((c) => (
                   <Stack key={c.id} gap={4}>
                     <Text size="sm" fw={600}>{c.title}</Text>
-                    {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff ? <Code block tabIndex={0}>{c.diff}</Code> : null}
+                    {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null}
                   </Stack>
                 ))}
                 {!!p.prompts.length && (

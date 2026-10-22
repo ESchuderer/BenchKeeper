@@ -28,12 +28,18 @@ export function diffLines(before, after, label = 'file') {
   if (!ops.some((o) => o[0] !== ' ')) return '';
   const out = [`--- ${before == null ? '/dev/null' : label}`, `+++ ${after == null ? '/dev/null' : label}`];
   const changed = ops.map((o, k) => (o[0] !== ' ' ? k : -1)).filter((k) => k >= 0);
+  // Line numbers before each op, old and new, for the hunk headers.
+  const at = [[1, 1]];
+  for (const [m] of ops) { const [a, b] = at.at(-1); at.push([a + (m !== '+'), b + (m !== '-')]); }
+  // As in unified diff: an empty side names the line before.
+  const range = (from, n) => `${n ? from : from - 1},${n}`;
   let k = 0;
   while (k < changed.length) {
     const start = Math.max(0, changed[k] - 3);
     let end = Math.min(ops.length, changed[k] + 4);
     while (k + 1 < changed.length && changed[k + 1] - 3 <= end) end = Math.min(ops.length, changed[++k] + 4);
-    out.push('@@', ...ops.slice(start, end).map((o) => o[0] + o[1]));
+    const hunk = ops.slice(start, end);
+    out.push(`@@ -${range(at[start][0], hunk.filter((o) => o[0] !== '+').length)} +${range(at[start][1], hunk.filter((o) => o[0] !== '-').length)} @@`, ...hunk.map((o) => o[0] + o[1]));
     k++;
   }
   return out.join('\n');

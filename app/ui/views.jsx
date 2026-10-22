@@ -1,18 +1,16 @@
 import { BarChart, LineChart } from '@mantine/charts';
-import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
-import { IconAdjustments, IconArrowBackUp, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTool, IconTrash, IconUpload } from '@tabler/icons-react';
+import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, NavLink, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
+import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTool, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi, useJob } from './parts.jsx';
-import { sideBySide } from './diff.js';
+import { CancelJob, Cli, Loading, Plan, Section, StateBadge, useApi, useJob } from './parts.jsx';
+import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
 import { ProjectSetup } from './setup.jsx';
 import { Dot, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, href, icon } from './shell.jsx';
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
 const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
-const note = (r) => (r.note?.case ? `eval case ${r.note.case} for ${r.note.target}` : r.note?.updateAll ? `Update all of ${r.note.updateAll}` : r.of ? `undo of ${r.of}` : '');
-const when = (t) => new Date(t).toLocaleString();
 
 function InstallHealth({ items }) {
   const by = RANK.map((s) => [s, items.filter((i) => i.state === s).length]).filter(([, n]) => n);
@@ -150,7 +148,7 @@ export function Dashboard({ overview, doctor, history, params }) {
             <Loading state={history} label="history">{(runs) => (runs.length ? (
               <Timeline bulletSize={14} lineWidth={2}>
                 {runs.slice(0, 6).map((r) => (
-                  <Timeline.Item key={r.id} title={<Anchor href={href('history', { run: r.id })}>{r.kind} {r.scope}</Anchor>}>
+                  <Timeline.Item key={r.id} title={<Anchor href={href('history', { run: r.id })}>{runTitle(r)}</Anchor>}>
                     <Text size="sm">{r.status ?? 'interrupted'}, {when(r.time)}</Text>
                     {note(r) && <Text size="xs">{note(r)}</Text>}
                   </Timeline.Item>
@@ -365,7 +363,8 @@ export function EvalJob({ job, total, onDone }) {
   return (
     <Stack gap="xs">
       <Progress value={(s?.done ? total : at) / total * 100} aria-label="Eval sessions done" />
-      <Text role="status">{s?.done ? (s.error ? `Failed: ${s.error}` : `Done: ${total} sessions`) : s?.progress ? `Session ${at + 1} of ${total}: ${s.progress.target}, case ${s.progress.case} (${s.progress.agent})` : 'Starting'}</Text>
+      <CancelJob job={job} state={s} what="evals" />
+      <Text role="status">{s?.done ? (s.error === 'cancelled' ? 'Cancelled: targets that finished kept their results' : s.error ? `Failed: ${s.error}` : `Done: ${total} sessions`) : s?.progress ? `Session ${at + 1} of ${total}: ${s.progress.target}, case ${s.progress.case} (${s.progress.agent})` : 'Starting'}</Text>
       {s?.results && (
         <Table aria-label="New eval results">
           <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
@@ -504,6 +503,8 @@ export function Agents({ overview, params, refresh }) {
 
 function ProjectDetail({ project, onChange }) {
   const [toggles, setToggles] = useState({ disable: [], enable: [] });
+  // The plan reloads with a new id after an apply, so the result lives here.
+  const [applied, setApplied] = useState(null);
   const q = new URLSearchParams({ dir: project.path });
   for (const k of ['disable', 'enable']) for (const n of toggles[k]) q.append(k, n);
   const plan = useApi(project.setupVersion ? `/api/project-plan?${q}` : null);
@@ -526,6 +527,11 @@ function ProjectDetail({ project, onChange }) {
           <Text>Not set up yet: no <Code>.benchkeeper/state.json</Code>.</Text>
           <Button leftSection={icon(IconListNumbers)} onClick={onChange.setup}>Set up this project</Button>
         </Stack>
+      ) : applied ? (
+        <Section title={`Changes in ${project.path}`}>
+          <Group justify="space-between"><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setApplied(null)}>Plan again</Button><Anchor href={href('history', { run: applied })}>Open in History</Anchor></Group>
+          <RunPanel id={applied} order={3} onChanged={onChange.done} />
+        </Section>
       ) : (
         <Loading state={plan} label="project plan">{(p) => (
           <>
@@ -537,7 +543,7 @@ function ProjectDetail({ project, onChange }) {
             )}
             <Section title={`Changes in ${project.path}`}>
               {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-              <Plan key={p.planId} plan={p} onDone={() => { setToggles({ disable: [], enable: [] }); onChange.done(); }} />
+              <Plan key={p.planId} plan={p} onDone={(run) => { if (run) setApplied(run.id); setToggles({ disable: [], enable: [] }); onChange.done(); }} />
             </Section>
           </>
         )}</Loading>
@@ -684,85 +690,27 @@ export function Projects({ params, overview, refresh }) {
   );
 }
 
-function SideBySide({ diff, label }) {
-  const rows = sideBySide(diff);
-  const cell = (t) => ({ fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 'var(--mantine-font-size-xs)', whiteSpace: 'pre', verticalAlign: 'top',
-    background: t?.[0] === '-' ? 'var(--mantine-color-red-light)' : t?.[0] === '+' ? 'var(--mantine-color-teal-light)' : undefined });
-  return (
-    <Table.ScrollContainer minWidth={480} tabIndex={0} aria-label={label}>
-      <Table withColumnBorders verticalSpacing={2} aria-label={label}>
-        <Table.Thead><Table.Tr><Table.Th>Before</Table.Th><Table.Th>After</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>
-          {rows.map((r, i) => (r.gap
-            ? <Table.Tr key={i}><Table.Td colSpan={2} style={cell()}>...</Table.Td></Table.Tr>
-            : <Table.Tr key={i}><Table.Td style={cell(r.old)}>{r.old}</Table.Td><Table.Td style={cell(r.new)}>{r.new}</Table.Td></Table.Tr>))}
-        </Table.Tbody>
-      </Table>
-    </Table.ScrollContainer>
-  );
-}
-
-function RunDetail({ id, onUndo }) {
-  const run = useApi(`/api/run?id=${encodeURIComponent(id)}`);
-  return (
-    <Stack gap="md" component="section" aria-label={`Run ${id}`}>
-      <Loading state={run} label="run">{(r) => {
-        const undoable = (e) => (e.status === 'done' || e.touched) && !e.undone;
-        const firstOfStep = (e, i) => r.entries.findIndex((x) => x.step === e.step) === i;
-        return (
-          <>
-            <Group justify="space-between" wrap="nowrap">
-              <Title order={2} size="h3">{r.kind} {r.scope}</Title>
-              <Button leftSection={icon(IconArrowBackUp)} variant="default" disabled={!r.entries.some(undoable)} onClick={() => onUndo({ run: id })}>Undo run</Button>
-            </Group>
-            <Text size="sm"><Code>{r.id}</Code>, {r.status ?? 'interrupted'}, {when(r.time)}{note(r) && `, ${note(r)}`}</Text>
-            {r.entries.map((e, i) => (
-              <Stack key={i} gap={4}>
-                <Group justify="space-between" wrap="nowrap" align="flex-start">
-                  <Text size="sm"><b>{e.status}</b> {e.title}{e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}{e.undone ? ` (undone by ${e.undone})` : ''}</Text>
-                  {firstOfStep(e, i) && undoable(e) && <Button leftSection={icon(IconArrowBackUp)} size="xs" variant="subtle" style={{ flexShrink: 0 }} aria-label={`Undo step ${e.step}`} onClick={() => onUndo({ run: id, step: e.step })}>Undo step</Button>}
-                </Group>
-                {e.diff && <SideBySide diff={e.diff} label={`Diff of ${e.path}`} />}
-                {e.argv && <Code block tabIndex={0}>{`$ ${e.argv.join(' ')}`}</Code>}
-              </Stack>
-            ))}
-          </>
-        );
-      }}</Loading>
-    </Stack>
-  );
-}
-
 export function History({ history, params, refresh }) {
   const open = params.get('run');
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const [n, setN] = useState(0);
-  const undo = async (body) => { setError(null); try { setResult(await api('/api/undo', body)); setN((x) => x + 1); refresh(); } catch (e) { setError(e.message); } };
   return (
     <Stack gap="lg">
-      {error && <Note color="red" title="Undo failed">{error}</Note>}
-      {result && <Section title="Undo"><RunEntries run={result} /></Section>}
       <Loading state={history} label="history">{(runs) => {
-        const days = [...new Set(runs.map((r) => new Date(r.time).toLocaleDateString()))];
+        const days = Object.entries(Object.groupBy(runs, (r) => new Date(r.time).toLocaleDateString()));
         return runs.length ? (
-          <SplitView empty="Choose a run for its changes and undo." list={
+          <SplitView span={4} empty="Choose a run for what it changed and undo." list={
             <Stack gap="md" component="nav" aria-label="Runs">
-              {days.map((d) => (
-                <Stack key={d} gap="xs">
-                  <Title order={2} size="h5">{d}</Title>
-                  <Timeline bulletSize={14} lineWidth={2}>
-                    {runs.filter((r) => new Date(r.time).toLocaleDateString() === d).map((r) => (
-                      <Timeline.Item key={r.id} title={<Anchor href={href('history', { run: r.id })} aria-current={r.id === open ? 'true' : undefined} fw={r.id === open ? 700 : undefined}>{r.kind} {r.scope}</Anchor>}>
-                        <Text size="sm">{r.status ?? 'interrupted'}, {r.changes} changes, {new Date(r.time).toLocaleTimeString()}</Text>
-                        {note(r) && <Text size="xs">{note(r)}</Text>}
-                      </Timeline.Item>
-                    ))}
-                  </Timeline>
+              {days.map(([d, rs]) => (
+                <Stack key={d} gap={2}>
+                  <Title order={2} size="h6" tt="uppercase" px="xs">{d}</Title>
+                  {rs.map((r) => (
+                    <NavLink key={r.id} href={href('history', { run: r.id })} active={r.id === open} aria-current={r.id === open ? 'true' : undefined} variant="light" color="gray"
+                      leftSection={<StatusIcon status={r.status ?? 'running'} />} label={runTitle(r)} styles={{ label: { color: 'var(--mantine-color-text)' }, description: { color: 'var(--mantine-color-text)' } }}
+                      description={`${r.status ?? 'interrupted'}, ${r.changes} change${r.changes === 1 ? '' : 's'}, ${new Date(r.time).toLocaleTimeString()}${note(r) ? `, ${note(r)}` : ''}`} />
+                  ))}
                 </Stack>
               ))}
             </Stack>
-          } detail={open ? <RunDetail key={`${open}-${n}`} id={open} onUndo={undo} /> : null} />
+          } detail={open ? <RunPanel key={open} id={open} onChanged={refresh} /> : null} />
         ) : <Text>No runs yet.</Text>;
       }}</Loading>
       <Cli>{`benchkeeper history\nbenchkeeper undo ${open ?? '<run>'}\nbenchkeeper undo ${open ?? '<run>'} --step <step>\nbenchkeeper case add --run <session run> --target skill:<name> --expected <text>`}</Cli>

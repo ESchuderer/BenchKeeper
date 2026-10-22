@@ -31,13 +31,13 @@ export const STATE_COLOR = { current: 'teal', absent: 'gray', outdated: 'yellow'
 export const Dot = ({ color }) => <Box component="span" aria-hidden w={8} h={8} display="inline-block" style={{ borderRadius: 4, background: `var(--mantine-color-${color}-filled)` }} />;
 
 // List on the left, the chosen item's detail on the right (sticky); stacked below md.
-export function SplitView({ list, detail, empty }) {
+export function SplitView({ list, detail, empty, span = 5 }) {
   return (
     <Grid gutter="lg">
-      <Grid.Col span={{ base: 12, md: 5 }}>
+      <Grid.Col span={{ base: 12, md: span }}>
         <ScrollArea.Autosize mah="calc(100vh - 220px)" type="auto" offsetScrollbars>{list}</ScrollArea.Autosize>
       </Grid.Col>
-      <Grid.Col span={{ base: 12, md: 7 }}>
+      <Grid.Col span={{ base: 12, md: 12 - span }}>
         <Paper withBorder p="md" style={{ position: 'sticky', top: 'calc(var(--app-shell-header-height, 0px) + var(--mantine-spacing-md))' }}>
           {detail ?? <Text>{empty}</Text>}
         </Paper>

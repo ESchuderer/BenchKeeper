@@ -161,6 +161,10 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.deepEqual(s.run.entries.map((e) => e.status), ['done', 'done']);
   assert.deepEqual(routes['GET /api/jobs'](), []);
   assert.equal(ctx.ledger.get(s.run.id).status, 'done');
+  // The run report: the written file's diff, the command's output.
+  const report = routes['GET /api/run'](new URLSearchParams({ id: s.run.id }));
+  assert.match(report.entries[0].diff, /^--- .*\n\+\+\+ .*\n@@ -/);
+  assert.equal(report.entries[1].output, 'ok');
   assert.equal(status(() => routes['GET /api/job'](new URLSearchParams({ id: 'nope' }))), 404);
 });
 
@@ -211,6 +215,33 @@ test('evals: the plan names targets and sessions; the job runs them and stores r
     assert.equal(status(() => routes['POST /api/eval']({ agents: 'claude' })), 400);
     process.env.CI = '1';
     assert.equal(status(() => routes['GET /api/eval-plan'](new URLSearchParams())), 400);
+  } finally {
+    if (ci === undefined) delete process.env.CI; else process.env.CI = ci;
+  }
+});
+
+test('cancel: an apply skips the changes not started yet; an eval stops and stores no partial target', async () => {
+  const ci = process.env.CI;
+  delete process.env.CI;
+  try {
+    const { ctx, routes } = fixture();
+    const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+    const select = [plan.changes.find((c) => c.kind === 'write').id, plan.changes.find((c) => c.kind === 'command' && !c.unit).id];
+    const { job } = routes['POST /api/apply']({ planId: plan.planId, select });
+    // The job has its run but no change yet: the check before each change sees the cancel.
+    assert.deepEqual(routes['POST /api/job-cancel']({ id: job }), { cancelled: true });
+    const s = await finished(routes, job);
+    assert.deepEqual(s.run.entries.map((e) => [e.status, e.reason]), [['skipped', 'cancelled'], ['skipped', 'cancelled']]);
+    assert.equal(s.run.status, 'cancelled');
+    assert.equal(s.cancelled, true);
+    assert.equal(status(() => routes['POST /api/job-cancel']({ id: 'nope' })), 404);
+    // Evals: the stub session ends at once; the cancel lands before the second case.
+    const before = routes['GET /api/evals']().length;
+    const e = routes['POST /api/eval']({ agents: 'claude' });
+    routes['POST /api/job-cancel']({ id: e.job });
+    const es = await finished(routes, e.job);
+    assert.equal(es.error, 'cancelled');
+    assert.equal(routes['GET /api/evals']().length, before);
   } finally {
     if (ci === undefined) delete process.env.CI; else process.env.CI = ci;
   }
@@ -326,4 +357,18 @@ test('evals: results without details; broken lines are left out', () => {
   mkdirSync(join(ctx.config, 'evals'), { recursive: true });
   writeFileSync(join(ctx.config, 'evals/results.jsonl'), `${JSON.stringify({ target: 'skill:x', missRate: 0.5, details: [{ id: 1 }] })}\nnot json\n`);
   assert.deepEqual(routes['GET /api/evals'](), [{ target: 'skill:x', missRate: 0.5 }]);
+});
+
+test('run report: each of two edits of one file diffs against what it left; a file changed since has no diff', () => {
+  const { ctx, routes } = fixture();
+  const f = join(ctx.home, 'f.txt');
+  writeFileSync(f, 'a\n');
+  const run = apply([
+    { id: '1', step: 's', title: 'one', kind: 'write', path: f, after: 'a\nb\n' },
+    { id: '2', step: 't', title: 'two', kind: 'write', path: f, after: 'a\nb\nc\n' },
+  ], ctx);
+  const diffs = () => routes['GET /api/run'](new URLSearchParams({ id: run.id })).entries.map((e) => e.diff);
+  assert.deepEqual(diffs().map((d) => d.split('\n').filter((l) => /^[+-][^+-]/.test(l))), [['+b'], ['+c']]);
+  writeFileSync(f, 'mine\n');
+  assert.deepEqual(diffs().map((d) => d && d.split('\n').at(-2)), ['+b', null]);
 });

@@ -55,7 +55,7 @@ test('TOML: forms a line edit cannot handle are refused, file unchanged', () => 
 
 test('diff shows changed lines with context', () => {
   const d = diffLines('a\nb\nc\n', 'a\nB\nc\n', 'f');
-  assert.match(d, /^--- f\n\+\+\+ f\n@@\n a\n-b\n\+B\n c/);
+  assert.match(d, /^--- f\n\+\+\+ f\n@@ -1,4 \+1,4 @@\n a\n-b\n\+B\n c/);
   assert.equal(diffLines('x', 'x'), '');
   assert.match(diffLines(null, 'new'), /--- \/dev\/null/);
 });
@@ -127,6 +127,10 @@ test('an async command keeps its last 64 kB and is stopped after its deadline', 
   // SIGTERM ignored: SIGKILL after the grace period.
   const stubborn = await runCommandAsync(['node', '-e', 'process.on("SIGTERM", () => {}); setTimeout(() => {}, 5000)'], { timeout: 100, grace: 100 });
   assert.equal(stubborn.code, 124);
+  const ac = new AbortController();
+  const cancelled = runCommandAsync(['node', '-e', 'setTimeout(() => {}, 5000)'], { signal: ac.signal });
+  ac.abort();
+  assert.deepEqual([(await cancelled).code, /cancelled/.test((await cancelled).stderr)], [130, true]);
 });
 
 test('remove moves to the backup, undo moves back', () => {
@@ -171,6 +175,7 @@ test('failed commands skip the rest of their step; command undo runs its undo ar
     { id: '4', step: 'q', title: 'no undo', kind: 'command', argv: ['x', 'add'] },
   ], c);
   assert.deepEqual(run.entries.map((e) => e.status), ['failed', 'skipped', 'done', 'done']);
+  assert.equal(run.entries[0].output, 'boom');
   const u = undo(run.id, c);
   assert.deepEqual(u.entries.map((e) => e.status), ['manual', 'done']);
   assert.ok(calls.includes('x uninstall'));

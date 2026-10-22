@@ -55,7 +55,8 @@ export function evalPlan(ctx, { agents = ['claude'], model, all = false, only } 
 
 // Each case runs in a fresh scratch repository holding the project skill under test; plugin skills come from the agent's global setup.
 // Sessions run through ctx.runAsync when there is one, so a server stays responsive; onCase gets each case before it starts.
-export async function runEval(ctx, plan, { now = () => new Date().toISOString(), onCase = () => {} } = {}) {
+// signal aborts: the running session is stopped and the target it belongs to gets no result; finished targets keep theirs.
+export async function runEval(ctx, plan, { now = () => new Date().toISOString(), onCase = () => {}, signal } = {}) {
   const out = [];
   const session = ctx.runAsync ?? ctx.run;
   const total = plan.reduce((n, p) => n + p.cases.length, 0);
@@ -67,6 +68,7 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
     const details = [];
     const keep = join(userEvals(ctx), 'outputs', `${now().replace(/[:.]/g, '')}-${p.agent}-${p.target.replace(':', '-')}`);
     for (const c of p.cases) {
+      if (signal?.aborted) throw new Error('cancelled');
       const dir = mkdtempSync(join(tmpdir(), 'bk-eval-'));
       try {
         ctx.run(['git', 'init', '-q', dir]);
@@ -75,7 +77,8 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
         if (kind === 'skill' && exists(lib)) cpSync(lib, join(dir, a.skills, name), { recursive: true });
         onCase({ index: n++, total, target: p.target, agent: p.agent, case: c.id });
         // The whole stream: the skill call comes early in a long session.
-        const r = await session(a.argv(c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024 });
+        const r = await session(a.argv(c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal });
+        if (signal?.aborted) throw new Error('cancelled');
         if (kind === 'skill') details.push({ id: c.id, should: c.should, triggered: triggered(r.stdout, name), exit: r.code });
         else {
           mkdirSync(keep, { recursive: true });

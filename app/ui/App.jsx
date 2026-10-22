@@ -8,6 +8,7 @@ import logo from '../../assets/logo.svg';
 import { api } from './api.js';
 import { RunProgress, useApi } from './parts.jsx';
 import { Dot, MOD, go, href, icon, useRoute } from './shell.jsx';
+import { AdviceJob } from './setup.jsx';
 import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Settings } from './views.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
@@ -61,7 +62,7 @@ function RunningJobs({ onDone }) {
           {jobs.map((j) => (
             <Stack key={j.id} gap="xs">
               <Text fw={600}>{j.kind === 'apply' ? `Apply: ${j.title}` : j.kind === 'eval' ? 'Evals' : `Agent session: ${j.title}`}</Text>
-              {j.kind === 'apply' ? <RunProgress job={j.id} total={j.total} /> : j.kind === 'eval' ? <EvalJob job={j.id} total={j.total} /> : <Text size="sm">Running; the setup steps show the result.</Text>}
+              {j.kind === 'apply' ? <RunProgress job={j.id} total={j.total} /> : j.kind === 'eval' ? <EvalJob job={j.id} total={j.total} /> : <AdviceJob job={j.id} name="The agent" />}
             </Stack>
           ))}
         </Stack>

@@ -1,7 +1,8 @@
 import { Anchor, Badge, Button, Checkbox, Code, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
-import { IconPlayerPlay } from '@tabler/icons-react';
+import { IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
+import { DiffView, RunPanel } from './run.jsx';
 import { Dot, Note, STATE_COLOR, href, icon } from './shell.jsx';
 
 // Loads a GET endpoint; reload() fetches it again and keeps the data meanwhile, another path drops it. A request for
@@ -50,6 +51,15 @@ export function Plan({ plan, onDone }) {
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [applied, setApplied] = useState(null);
+  if (applied) {
+    return (
+      <Stack gap="sm">
+        <Group justify="flex-end"><Anchor href={href('history', { run: applied })}>Open in History</Anchor></Group>
+        <RunPanel id={applied} order={3} onChanged={() => onDone?.()} />
+      </Stack>
+    );
+  }
   if (!plan.changes.length) return <Text>Nothing to change.</Text>;
   // Changes of one unit go together: toggling one toggles all of them.
   const unitOf = (c) => (c.unit ? plan.changes.filter((x) => x.unit === c.unit).map((x) => x.id) : [c.id]);
@@ -59,7 +69,7 @@ export function Plan({ plan, onDone }) {
     try { setJob(await api('/api/apply', { planId: plan.planId, select })); } catch (e) { setError(e.message); }
     setBusy(false);
   };
-  if (job) return <RunProgress job={job.job} total={job.total} onDone={onDone} />;
+  if (job) return <RunProgress job={job.job} total={job.total} onDone={(run) => { if (run) setApplied(run.id); onDone?.(run); }} />;
   return (
     <Stack gap="sm">
       {error && <Note color="red" title="Apply failed">{error}</Note>}
@@ -71,7 +81,7 @@ export function Plan({ plan, onDone }) {
             <StateBadge state={c.state} />
           </Group>
           {c.error && <Text size="sm" c="red">{c.kind === 'command' ? 'Not applied' : 'Cannot merge'}: {c.error}</Text>}
-          {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff ? <Code block tabIndex={0}>{c.diff}</Code> : null}
+          {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null}
         </Stack>
       ))}
       <Group><Button leftSection={icon(IconPlayerPlay)} onClick={run} loading={busy} disabled={!select.length}>Apply {select.length} changes</Button></Group>
@@ -79,7 +89,7 @@ export function Plan({ plan, onDone }) {
   );
 }
 
-const STATUS_COLOR = { done: 'teal', failed: 'red', skipped: 'gray', running: 'blue', waiting: 'gray', manual: 'yellow' };
+const STATUS_COLOR = { done: 'teal', failed: 'red', skipped: 'gray', running: 'blue', waiting: 'gray', manual: 'yellow', cancelled: 'gray' };
 export const StatusBadge = ({ status }) => <Badge variant="default" leftSection={<Dot color={STATUS_COLOR[status] ?? 'gray'} />}>{status}</Badge>;
 
 // A started job (apply or eval), polled until it is done. A failed poll is retried; only a lost job (404) or ten
@@ -112,6 +122,19 @@ export function useJob(job, onDone) {
   return state;
 }
 
+// Stops a job: an apply after the change that runs, an eval or a suggestion at once.
+export function CancelJob({ job, state, what }) {
+  const [asked, setAsked] = useState(false);
+  if (!state || state.done) return null;
+  const cancelling = asked || state.cancelled;
+  return (
+    <Group>
+      <Button size="xs" variant="default" leftSection={icon(IconPlayerStop)} disabled={cancelling}
+        onClick={() => { setAsked(true); api('/api/job-cancel', { id: job }).catch(() => setAsked(false)); }}>{cancelling ? 'Cancelling' : `Cancel ${what}`}</Button>
+    </Group>
+  );
+}
+
 // A started apply: each change with its status, the running command's output, then the run.
 export function RunProgress({ job, total, onDone }) {
   const state = useJob(job, (s) => onDone?.(s.run));
@@ -127,6 +150,7 @@ export function RunProgress({ job, total, onDone }) {
         {state?.done ? <>Run <Code>{state.run?.id ?? job}</Code>: {state.error ?? state.run?.status} ({finished} of {total} changes). <Anchor href={href('history', { run: state.run?.id })}>Open in History</Anchor></>
           : running ? `${finished} of ${total} done. Running: ${running.title}` : `${finished} of ${total} done`}
       </Text>
+      <CancelJob job={job} state={state} what="the remaining changes" />
       {state?.error && <Note color="red" title="Apply failed">{state.error}</Note>}
       <Table aria-label="Changes">
         <Table.Thead><Table.Tr><Table.Th>Status</Table.Th><Table.Th>Change</Table.Th></Table.Tr></Table.Thead>
@@ -144,25 +168,6 @@ export function RunProgress({ job, total, onDone }) {
             );
           })}
           {waiting > 0 && <Table.Tr><Table.Td><StatusBadge status="waiting" /></Table.Td><Table.Td>{waiting} more</Table.Td></Table.Tr>}
-        </Table.Tbody>
-      </Table>
-    </Stack>
-  );
-}
-
-export function RunEntries({ run }) {
-  return (
-    <Stack gap="xs">
-      <Text>Run <Code>{run.id}</Code>: {run.status}</Text>
-      <Table>
-        <Table.Thead><Table.Tr><Table.Th>Status</Table.Th><Table.Th>Change</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>
-          {run.entries.map((e, i) => (
-            <Table.Tr key={i}>
-              <Table.Td>{e.status}</Table.Td>
-              <Table.Td>{e.title}{e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}{e.diff && <Code block tabIndex={0} mt={4}>{e.diff}</Code>}</Table.Td>
-            </Table.Tr>
-          ))}
         </Table.Tbody>
       </Table>
     </Stack>

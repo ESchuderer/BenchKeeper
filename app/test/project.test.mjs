@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
+import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
 import { ENVS, STATE, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
 
@@ -178,6 +179,10 @@ test('a recorded session lists its files; undo restores them, undo of the undo r
   const e = run.entries[0];
   assert.equal(e.exit, 0);
   assert.deepEqual(e.files.map((f) => `${f.status} ${f.path}`).sort(), ['A added.txt', 'A d/f', 'M README.md']);
+  // The run report diffs each file between the snapshots.
+  const diffs = Object.fromEntries(api(r.ctx)['GET /api/run'](new URLSearchParams({ id: run.id })).entries[0].files.map((f) => [f.path, f.diff]));
+  assert.equal(diffs['README.md'], '--- README.md\n+++ README.md\n@@ -1,2 +1,3 @@\n # P\n+more\n ');
+  assert.match(diffs['added.txt'], /^--- \/dev\/null\n\+\+\+ added.txt\n@@ -0,0 \+1,2 @@\n\+new/);
   const u = undo(run.id, r.ctx);
   assert.equal(u.status, 'done', JSON.stringify(u.entries));
   assert.equal(existsSync(join(r.dir, 'added.txt')), false);

@@ -232,21 +232,27 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
-  test('History: a run shows side-by-side diffs; undo of one step, then of the run', async ({ page }) => {
+  test('History: a run report with numbered diffs, split or unified; undo of one step, then of the run', async ({ page }) => {
     await nav(page, 'History').click();
-    await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: 'apply global' }).first().click();
+    await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: /^Apply: global setup/ }).first().click();
     const run = page.getByRole('region', { name: /^Run / });
-    await expect(run).toContainText('Claude Code rules');
-    const diff = run.getByRole('table', { name: /^Diff of .*settings\.json$/ }).first();
-    await expect(diff.getByRole('columnheader')).toHaveText(['Before', 'After']);
-    await expect(diff).toContainText('+');
+    await expect(run.getByRole('article', { name: /Claude Code rules/ })).toBeVisible();
+    await expect(run.getByRole('group', { name: 'Summary' })).toContainText(/\d+ done/);
+    // An edit of an existing file splits into before and after; a created file stays unified.
+    const diffs = run.getByRole('group', { name: /^Diff of .*settings\.json$/ });
+    const created = diffs.filter({ hasText: '@@ -0,0 ' }).first(), edited = diffs.filter({ hasNotText: '@@ -0,0 ' }).first();
+    await expect(edited).toContainText(/@@ -\d+,\d+ \+\d+,\d+ @@/);
+    await run.getByText('Split', { exact: true }).click();
+    await expect(edited.locator('tr:not(.hunk)').first().locator('td')).toHaveCount(4);
+    await expect(created.locator('tr:not(.hunk)').first().locator('td')).toHaveCount(3);
     await noAxe(page);
+    await run.getByText('Unified', { exact: true }).click();
     // A step whose file no later step changed (settings.json gets later edits, so its step alone is refused).
     await run.getByRole('button', { name: 'Undo step settings:ponytail', exact: true }).click();
-    await expect(page.getByRole('region', { name: 'Undo' })).toContainText(/done/);
+    await expect(page.getByRole('alert').filter({ hasText: 'Undone' })).toContainText(/1 of 1 changes undone/);
     await expect(run).toContainText('undone by');
     await run.getByRole('button', { name: 'Undo run' }).click();
-    await expect(page.getByRole('region', { name: 'Undo' })).toContainText(/done|failed/);
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
   });
 
   test('an apply in Agents shows up in History and the header without a reload', async ({ page }) => {
@@ -258,7 +264,9 @@ test.describe('views', () => {
     await page.getByRole('button', { name: /^Plan setup for/ }).click();
     const changes = page.getByRole('region', { name: 'Changes' });
     await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
-    await expect(changes).toContainText(/Run \S+: (done|failed)/);
+    // The result replaces the plan: the run report with each change, and a link to it in History.
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(changes.getByRole('link', { name: 'Open in History' })).toBeVisible();
     await expect(nav(page, 'History')).toContainText(String(before + 1));
     await nav(page, 'History').click();
     await expect(runs).toHaveCount(before + 1);

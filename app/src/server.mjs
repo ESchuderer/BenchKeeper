@@ -15,7 +15,8 @@ import { evalPlan, runEval } from './eval.mjs';
 import { contentDir, appVersion } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { diffLines } from './diff.mjs';
-import { exists, hashPath, inside, readText } from './fsx.mjs';
+import { exists, hashPath, inside, isDir, readText } from './fsx.mjs';
+import { blob } from './git.mjs';
 import { inventory } from './inventory.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
@@ -65,6 +66,16 @@ export function pickFolder(ctx, platform = process.platform, env = process.env) 
   return { path: null, unavailable: true };
 }
 
+// A file of a recorded session between its snapshots; null for binary or large files and a lost snapshot.
+function sessionDiff(ctx, e, f) {
+  const side = (tree, absent) => (absent ? '' : blob(ctx, e.cwd, tree, f.path));
+  try {
+    const [a, b] = [side(e.before, f.status === 'A'), side(e.after, f.status === 'D')];
+    if (a.length + b.length > 1e6 || a.includes(0) || b.includes(0)) return null;
+    return diffLines(f.status === 'A' ? null : a.toString('utf8'), f.status === 'D' ? null : b.toString('utf8'), f.path);
+  } catch { return null; }
+}
+
 // Changes without their edit functions, with the item state the Dashboard groups by.
 function serialize(changes, ctx) {
   return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
@@ -86,7 +97,7 @@ export function api(ctx) {
   const idle = () => { if ([...jobs.values()].some((j) => !j.done && !j.readOnly)) throw Object.assign(new Error('an apply or eval is still running: wait for it to finish'), { status: 409 }); };
   // A job runs work(job) in the background; the newest 20 finished jobs are kept.
   const start = (total, work, { kind, title, readOnly = false }) => {
-    const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly };
+    const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly, ctl: new AbortController() };
     jobs.set(job.id, job);
     for (const [id, j] of [...jobs].slice(0, -20)) if (j.done) jobs.delete(id);
     work(job).catch((e) => { job.error = e.message; }).finally(() => { job.done = true; memo.clear(); });
@@ -133,17 +144,24 @@ export function api(ctx) {
       if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       plans.delete(b.planId);
       // Output is kept per change, its last 8 kB.
-      return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select }, (e) => {
+      return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
         if (e.run) job.run = e.run;
         if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
       }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
+    },
+    // An apply stops after the change that runs (a half-done install is worse); evals and suggestions stop their session.
+    'POST /api/job-cancel': (b) => {
+      const job = jobs.get(b.id ?? '');
+      if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
+      job.ctl.abort();
+      return { cancelled: true };
     },
     // Running jobs, so a reloaded page finds them again.
     'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
-      return { total: job.total, done: job.done, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null };
+      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null };
     },
     // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.
     'GET /api/eval-plan': (q) => {
@@ -154,7 +172,7 @@ export function api(ctx) {
       idle();
       const plan = evalPlanFor(b);
       if (!plan.length) throw bad('every target is unchanged since its last result');
-      return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; } }).then((r) => { job.results = r.map(({ details, ...x }) => x); }), { kind: 'eval', title: 'evals' });
+      return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; }, signal: job.ctl.signal }).then((r) => { job.results = r.map(({ details, ...x }) => x); }), { kind: 'eval', title: 'evals' });
     },
     // seen: the skills each chosen agent loads there, its global ones included.
     'GET /api/projects': () => listProjects(ctx).map((p) => {
@@ -195,7 +213,7 @@ export function api(ctx) {
       const dir = resolve(String(b.dir ?? ''));
       if (!registered(dir)) throw bad('register the project first');
       if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
-      return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx) }).then((r) => { job.results = r; }), { kind: 'advice', title: `setup suggestions for ${dir}`, readOnly: true });
+      return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx), signal: job.ctl.signal }).then((r) => { job.results = r; }), { kind: 'advice', title: `setup suggestions for ${dir}`, readOnly: true });
     },
     'POST /api/update-all': (b) => {
       idle();
@@ -204,12 +222,17 @@ export function api(ctx) {
       return updateAll(ctx, { paths, push: b.push !== false, answers });
     },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
-    // One run with the diff of each file it wrote: its backup (or nothing) against the file as the run left it.
+    // One run with the diff of each file it wrote: its backup (or nothing) against the file as the change left it,
+    // which is the backup a later change of the run took, or the file while nothing changed it since.
+    // A session's files diff between its git snapshots.
     'GET /api/run': (q) => {
       const run = ctx.ledger.get(q.get('id') ?? '');
-      return { ...run, entries: run.entries.map((e) => {
+      return { ...run, entries: run.entries.map((e, i) => {
+        if (e.kind === 'session') return { ...e, files: e.files.map((f) => ({ ...f, diff: sessionDiff(ctx, e, f) })) };
         if (!e.path || e.kind !== 'write' || e.status !== 'done') return e;
-        const now = hashPath(e.path) === e.hashAfter ? readText(e.path) : null;
+        if (isDir(e.path)) return { ...e, folder: true };
+        const next = run.entries.slice(i + 1).find((x) => x.path === e.path && x.backup && x.hashBefore === e.hashAfter);
+        const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : null;
         return { ...e, diff: now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path) };
       }) };
     },

@@ -17,21 +17,24 @@ export function context({ home, config = `${home}/.config/benchkeeper`, roots = 
 }
 
 // runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last keep
-// characters. A command still running after timeout ms gets SIGTERM, grace ms later SIGKILL, and fails.
-export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout = 15 * 60e3, keep = 65536, grace = 10e3 } = {}) {
+// characters. A command still running after timeout ms, or when signal aborts, gets SIGTERM, grace ms later SIGKILL, and fails.
+export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout = 15 * 60e3, keep = 65536, grace = 10e3, signal } = {}) {
   return new Promise((resolve) => {
     let stdout = '', stderr = '', timedOut = false, settled = false;
-    const done = (r) => { if (!settled) { settled = true; clearTimeout(term); clearTimeout(kill); resolve(r); } };
+    const done = (r) => { if (!settled) { settled = true; clearTimeout(term); clearTimeout(kill); signal?.removeEventListener('abort', stop); resolve(r); } };
     const tail = (t) => t.slice(-keep);
     const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-    const stopped = () => ({ code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes` });
+    const stopped = () => (signal?.aborted ? { code: 130, stdout, stderr: `${stderr}\ncancelled` } : { code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes` });
     let kill;
-    const term = setTimeout(() => {
+    const stop = () => {
+      if (timedOut) return;
       timedOut = true;
       p.kill('SIGTERM');
       // A child that ignores SIGTERM, or grandchildren that hold the pipes open, must not keep the job running.
       kill = setTimeout(() => { p.kill('SIGKILL'); p.stdout.destroy(); p.stderr.destroy(); done(stopped()); }, grace);
-    }, timeout);
+    };
+    const term = setTimeout(stop, timeout);
+    if (signal?.aborted) stop(); else signal?.addEventListener('abort', stop);
     p.stdout.setEncoding('utf8').on('data', (d) => { stdout = tail(stdout + d); onOutput(d); });
     p.stderr.setEncoding('utf8').on('data', (d) => { stderr = tail(stderr + d); onOutput(d); });
     p.on('error', (e) => done({ code: 127, stdout, stderr: e.message }));
@@ -67,7 +70,8 @@ export function preview(changes) {
 
 // One loop for both drivers: it yields each command ({ argv, opts, entry }) for the driver to run and gets its result
 // back, and yields { saved } after each change, so the async driver can let a server answer progress requests.
-function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
+// stop() true: the changes not started yet are skipped, the run is cancelled.
+function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}) {
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'apply', scope, ...(note ? { note } : {}), entries: [] };
   // Changes of one unit (a copy and the removal of its source, a marketplace and its plugin) go together or not at all.
   // A change that cannot be made (c.error) is never applied.
@@ -82,6 +86,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
     if (!picked(c)) continue;
     const entry = { id: c.id, step: c.step, title: c.title, kind: c.kind };
     run.entries.push(entry);
+    if (stop?.()) { entry.status = 'skipped'; entry.reason = 'cancelled'; continue; }
     if (failedSteps.has(c.step)) { entry.status = 'skipped'; entry.reason = 'an earlier change of this step failed'; continue; }
     try {
       if (c.kind === 'command') {
@@ -101,6 +106,8 @@ function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
         const r = yield { argv: c.argv, opts: { cwd: c.cwd, env: c.env && { ...process.env, ...c.env } }, entry };
         // Ended with an exit code: undone only when it succeeded, as before the journal.
         entry.exit = r.code;
+        // The end of what it printed, for the run report.
+        entry.output = `${r.stdout}${r.stderr ? `\n${r.stderr}` : ''}`.trim().slice(-2000);
         delete entry.touched;
         for (const x of entry.snapshot ?? []) x.hashAfter = hashPath(x.path);
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ') || `exit ${r.code}`);
@@ -141,7 +148,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
     ctx.ledger.save(run);
     yield { saved: entry };
   }
-  run.status = run.entries.some((e) => e.status === 'failed') ? 'failed' : 'done';
+  run.status = run.entries.some((e) => e.status === 'failed') ? 'failed' : run.entries.some((e) => e.reason === 'cancelled') ? 'cancelled' : 'done';
   ctx.ledger.save(run);
   return run;
 }

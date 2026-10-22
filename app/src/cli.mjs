@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
+import { addCase } from './cases.mjs';
 import { doctor } from './doctor.mjs';
 import { writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, readProfile } from './profile.mjs';
@@ -29,6 +30,9 @@ Usage: benchkeeper <command> [options]
                                     agents, packs, own packs and registered projects with their answers as one file
   profile import <file> [--yes]     shows the global and project changes, applies the chosen ones; missing paths are skipped
   doctor [dir] [--agents a,b]       setup problems with a fix each, nothing written; exit 1 on an error
+  case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
+           [--project dir] [--transcript file] [--description text] [--query text]
+                                    records an observed miss as an eval case (~/.config/benchkeeper/evals/)
   history                           runs, newest first
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
@@ -53,6 +57,8 @@ const OPTIONS = {
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
+  target: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
+  description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
 };
 
 export function installedPlugins(ctx) {
@@ -222,8 +228,20 @@ async function command(argv, { out, ask, ctx }) {
     out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
+  if (cmd === 'case') {
+    if (arg !== 'add') { out.write('case needs add\n'); return 2; }
+    // A session run gives the project and transcript.
+    const session = o.run ? ctx.ledger.get(o.run) : null;
+    const r = addCase(ctx, { target: o.target, expected: o.expected, should: !o['should-not'], run: o.run, query: o.query, description: o.description,
+      project: o.project ? resolve(o.project) : session?.scope, transcript: o.transcript ? resolve(o.transcript) : session?.entries[0]?.transcript ?? undefined });
+    out.write(`case ${r.case.id} in ${r.path}\nquery: ${r.case.query.split('\n')[0].slice(0, 120)}\nrun ${r.run}: undo with benchkeeper undo ${r.run}\n`);
+    return 0;
+  }
   if (cmd === 'history') {
-    for (const r of ctx.ledger.list()) out.write(`${r.id}  ${r.kind.padEnd(5)} ${(r.status ?? 'interrupted').padEnd(11)} ${r.scope}  ${r.entries.length} changes${r.of ? ` (undo of ${r.of})` : ''}\n`);
+    for (const r of ctx.ledger.list()) {
+      const note = r.note?.case ? ` (eval case ${r.note.case} for ${r.note.target}${r.note.run ? `, from ${r.note.run}` : ''})` : r.kind === 'session' ? ` (a miss: benchkeeper case add --run ${r.id} --target ... --expected ...)` : '';
+      out.write(`${r.id}  ${r.kind.padEnd(7)} ${(r.status ?? 'interrupted').padEnd(11)} ${r.scope}  ${r.entries.length} changes${r.of ? ` (undo of ${r.of})` : ''}${note}\n`);
+    }
     for (const b of legacyBackups(ctx)) out.write(`${b}  setup.sh backup: benchkeeper restore ${b}\n`);
     return 0;
   }

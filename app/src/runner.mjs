@@ -40,8 +40,8 @@ export function preview(changes) {
   }).filter((c) => !c.noop).map((c) => ({ selected: !c.destructive, ...c }));
 }
 
-export function apply(changes, ctx, { scope = 'global', select } = {}) {
-  const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'apply', scope, entries: [] };
+export function apply(changes, ctx, { scope = 'global', select, note } = {}) {
+  const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'apply', scope, ...(note ? { note } : {}), entries: [] };
   const failedSteps = new Set();
   for (const c of changes) {
     if (select ? !select.includes(c.id) : !(c.selected ?? !c.destructive)) continue;

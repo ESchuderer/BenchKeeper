@@ -32,7 +32,7 @@ test('apply --yes, history, undo', async () => {
   assert.ok(existsSync(join(c.home, '.claude/rules/00-global.md')));
   const id = c.text().match(/undo with benchkeeper undo (\S+)/)[1];
   await c.exec(['history']);
-  assert.match(c.text(), new RegExp(`${id}  apply done`));
+  assert.match(c.text(), new RegExp(`${id}  apply +done`));
   assert.equal(await c.exec(['undo', id]), 0);
   assert.equal(existsSync(join(c.home, '.claude/rules/00-global.md')), false);
 });

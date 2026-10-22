@@ -1,5 +1,6 @@
 // Plans, applies and undoes changes. A change is one of:
-//   { kind: 'write', path, after | from }   after null deletes, from copies a file or folder; existing content goes to the backup first
+//   { kind: 'write', path, after | edit | from }   after null deletes, edit maps the current text, from copies a file or
+//                                           folder; existing content goes to the backup first
 //   { kind: 'remove', path }                moves a file or folder to the backup
 //   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists
 // Every change has id, step, title, and destructive (confirmed separately, off by default).
@@ -20,12 +21,18 @@ export function runCommand(argv, { cwd, input, env } = {}) {
 }
 
 // Adds what the preview needs: the diff of each write, and whether a change is needed at all.
+// Edits ({ edit: text => text }) of one file build on each other in plan order.
 export function preview(changes) {
+  const planned = new Map();
+  const current = (p) => (planned.has(p) ? planned.get(p) : readText(p));
   return changes.map((c) => {
     if (c.kind === 'write') {
-      const before = readText(c.path);
       if (c.from) return { ...c, diff: `copy ${c.from}`, noop: hashPath(c.path) === hashPath(c.from) };
-      return { ...c, diff: diffLines(before, c.after, c.path), noop: before === c.after };
+      const before = current(c.path);
+      let after;
+      try { after = c.edit ? c.edit(before) : c.after; } catch (e) { return { ...c, error: e.message, diff: '', noop: false, selected: false }; }
+      planned.set(c.path, after);
+      return { ...c, after, diff: diffLines(before, after, c.path), noop: before === after };
     }
     if (c.kind === 'remove') return { ...c, destructive: true, noop: !exists(c.path) };
     return { ...c, noop: false };
@@ -43,15 +50,17 @@ export function apply(changes, ctx, { scope = 'global', select } = {}) {
     try {
       if (c.kind === 'command') {
         Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null });
-        const r = ctx.run(c.argv, { cwd: c.cwd });
+        const r = ctx.run(c.argv, { cwd: c.cwd, env: c.env && { ...process.env, ...c.env } });
         entry.exit = r.code;
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ') || `exit ${r.code}`);
       } else {
         const path = resolve(c.path);
         if (!inside(path, ctx.roots)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
         Object.assign(entry, { path, existed: exists(path), hashBefore: hashPath(path) });
+        // Edits apply to the file as it is now, so a deselected earlier edit is not carried along.
+        const after = c.kind === 'write' && c.edit ? c.edit(readText(path)) : c.after;
         if (entry.existed) {
-          entry.backup = ctx.ledger.backupPath(run.id, path);
+          entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, path);
           // A failed backup stops the step before any write.
           if (c.kind === 'remove') move(path, entry.backup);
           else {
@@ -62,10 +71,10 @@ export function apply(changes, ctx, { scope = 'global', select } = {}) {
         if (c.kind === 'write') {
           if (entry.existed) rmSync(path, { recursive: true, force: true });
           if (c.from) copy(c.from, path);
-          else if (c.after != null) writeAtomic(path, c.after);
+          else if (after != null) writeAtomic(path, after);
         }
         entry.hashAfter = hashPath(path);
-        const expected = c.from ? hashPath(c.from) : hashText(c.after);
+        const expected = c.from ? hashPath(c.from) : hashText(after);
         if (c.kind === 'write' && entry.hashAfter !== expected) throw new Error(`${path} differs after writing`);
       }
       entry.status = 'done';
@@ -100,7 +109,7 @@ export function undo(id, ctx, { step } = {}) {
         if (!inside(e.path, ctx.roots)) throw new Error(`${e.path} is outside ${ctx.roots.join(', ')}`);
         Object.assign(entry, { path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path) });
         // The current state goes to this run's backup, so the undo is reversible as well.
-        if (entry.existed) { entry.backup = ctx.ledger.backupPath(run.id, e.path); move(e.path, entry.backup); }
+        if (entry.existed) { entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, e.path); move(e.path, entry.backup); }
         if (e.existed) copy(e.backup, e.path);
         entry.hashAfter = hashPath(e.path);
         entry.kind = 'write';

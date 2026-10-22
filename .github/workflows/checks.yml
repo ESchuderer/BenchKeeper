@@ -35,6 +35,6 @@ jobs:
       # library/README.md tables are generated from library.json.
       - name: Library catalog
         run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check
-      # plugins/benchkeeper/setup.sh against a temporary HOME with stub agent CLIs; /bin/sh is dash here, so this also checks POSIX sh.
-      - name: setup.sh self-check
-        run: sh plugins/benchkeeper/setup.test.sh
+      # The installer app: engine, global and project steps against temporary home directories with stub agent commands.
+      - name: App tests
+        run: npm ci --prefix app --ignore-scripts --no-audit --no-fund && npm test --prefix app

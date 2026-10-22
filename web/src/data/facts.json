@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper sets up Claude Code and Codex with short global rules, a workflow skill that sizes each task (quick, standard, full, research) and runs long checks once at the end, and a per-repository setup: devcontainer, AGENTS.md, stack skills at pinned versions. setup.sh, which you run yourself, installs the rules, settings and plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills) and asks before each change.",
+  "description": "BenchKeeper sets up Claude Code and Codex with short global rules, a workflow skill that sizes each task (quick, standard, full, research) and runs long checks once at the end, and a per-repository setup: devcontainer, AGENTS.md, stack skills at pinned versions. The app (`npx benchkeeper`), which you run yourself, installs the rules, settings and plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills), shows a diff before each change, and records every run for undo.",
   "core": {
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
@@ -30,12 +30,7 @@
     {
       "name": "Node.js and npm",
       "url": "https://nodejs.org/en/download",
-      "for": "Dev Containers CLI and skills CLI, user prefix such as `~/.local`"
-    },
-    {
-      "name": "jq",
-      "url": "https://jqlang.org/download/",
-      "for": "`setup.sh`"
+      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `~/.local`"
     },
     {
       "name": "Docker Engine",
@@ -57,7 +52,7 @@
       "points": [
         "one git worktree per agent, the same prompt across agents",
         "terminal splits, SSH remote worktrees, mobile app",
-        "`setup.sh` offers its `orca-cli` and `orchestration` skills after asking"
+        "the app offers its `orca-cli` and `orchestration` skills"
       ],
       "when": "you want terminal-based parallel agents with worktrees, remote machines or mobile access"
     },

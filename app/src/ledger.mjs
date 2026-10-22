@@ -17,10 +17,11 @@ export class Ledger {
     this.home = home;
   }
 
-  backupPath(id, path) {
+  // <backup>/<run>/<change number>/<path below HOME>: one file changed twice in a run keeps both earlier states.
+  backupPath(id, n, path) {
     const p = resolve(path);
     const rel = p.startsWith(this.home + sep) ? relative(this.home, p) : join('_root', p);
-    return join(this.backups, id, rel);
+    return join(this.backups, id, String(n), rel);
   }
 
   save(run) {

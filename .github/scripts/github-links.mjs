@@ -30,6 +30,8 @@ export function target(url) {
     return { api: `${base}/contents/${path.map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}` };
   }
   if ((kind === 'issues' || kind === 'pull') && rest[0]) return { api: `${base}/issues/${rest[0]}` };
+  // The issue list: the API answers 410 when a repository has issues turned off.
+  if (kind === 'issues') return { api: `${base}/issues?per_page=1` };
   if (kind === 'discussions' && rest[0]) {
     return { graphql: { query: 'query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){discussion(number:$n){id}}}', variables: { o: owner, r: repo, n: Number(rest[0]) } } };
   }

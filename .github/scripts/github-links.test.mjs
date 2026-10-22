@@ -8,6 +8,7 @@ test('maps GitHub links to API paths or local files', () => {
   assert.deepEqual(target('https://github.com/a/b/blob/main/docs/x.md'), { api: '/repos/a/b/contents/docs/x.md?ref=main' });
   assert.deepEqual(target('https://github.com/a/b/issues/12'), { api: '/repos/a/b/issues/12' });
   assert.deepEqual(target('https://github.com/a/b/pull/5'), { api: '/repos/a/b/issues/5' });
+  assert.deepEqual(target('https://github.com/a/b/issues'), { api: '/repos/a/b/issues?per_page=1' });
   assert.deepEqual(target('https://github.com/a/b/releases/tag/v6.0.0'), { api: '/repos/a/b/releases/tags/v6.0.0' });
   assert.deepEqual(target('https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/rules/global.md'), { local: 'plugins/benchkeeper/rules/global.md' });
   assert.deepEqual(target('https://github.com/ESchuderer/BenchKeeper/blob/v1/x.md'), { api: '/repos/ESchuderer/BenchKeeper/contents/x.md?ref=v1' });

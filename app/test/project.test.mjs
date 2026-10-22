@@ -117,6 +117,35 @@ test('Gemini CLI reads AGENTS.md; the sandbox option excludes devcontainer and p
   assert.deepEqual(st.sandbox, { enabled: true, excludedCommands: ['devcontainer exec *', 'podman *'] });
 });
 
+test('a choice taken back cleans up: sandbox off, dropped agents lose their files, folders other agents share stay', () => {
+  const r = repo();
+  const all = (answers) => { const p = plan(r, answers); apply(preview(p.changes), r.ctx, { scope: r.dir, select: p.changes.filter((c) => c.kind !== 'command').map((c) => c.id) }); return p; };
+  mkdirSync(join(r.dir, '.claude'));
+  writeFileSync(join(r.dir, '.claude/settings.json'), '{ "sandbox": { "excludedCommands": ["mine *"] } }\n');
+  all({ agents: ['claude', 'codex', 'gemini'], env: 'container', sandbox: true, packs: ['frontend'] });
+  const p = plan(r, { agents: ['codex'], sandbox: false });
+  const off = preview(p.changes).find((c) => c.step === 'sandbox');
+  assert.ok(off.selected && off.title === 'Claude Code sandbox off');
+  apply(preview(p.changes), r.ctx, { scope: r.dir, select: p.changes.filter((c) => c.kind !== 'command').map((c) => c.id) });
+  assert.deepEqual(JSON.parse(read(join(r.dir, '.claude/settings.json'))), { sandbox: { excludedCommands: ['mine *'] } });
+  assert.ok(!existsSync(join(r.dir, 'CLAUDE.md')) && !existsSync(join(r.dir, '.claude/skills/designing-technical-uis')));
+  // Codex and Gemini CLI share .agents/skills: the copy stays for Codex.
+  assert.ok(existsSync(join(r.dir, '.agents/skills/designing-technical-uis/SKILL.md')));
+  assert.deepEqual(JSON.parse(read(join(r.dir, '.gemini/settings.json'))), {});
+  // A sandbox this setup did not turn on: removal offered, not preselected.
+  writeFileSync(join(r.dir, '.claude/settings.json'), '{ "sandbox": { "enabled": true } }\n');
+  const own = preview(plan(r, {}).changes).find((c) => c.step === 'sandbox');
+  assert.ok(!own.selected && own.title.includes('not turned on by BenchKeeper'));
+});
+
+test('hand-written instructions on where commands run get a warning', () => {
+  const r = repo();
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nAgents run on the host; tests run in the dev container.\n');
+  assert.ok(plan(r, { agents: ['claude'], env: 'container' }).warnings.some((w) => w.includes('outside the BenchKeeper block')));
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# P\n\nRun `devcontainer exec --workspace-folder . npm test`.\n');
+  assert.ok(!plan(r, { agents: ['claude'], env: 'container' }).warnings.some((w) => w.includes('outside the BenchKeeper block')));
+});
+
 test('a recorded session lists its files; undo restores them, undo of the undo reapplies', () => {
   const r = repo();
   r.ctx.run = runCommand;

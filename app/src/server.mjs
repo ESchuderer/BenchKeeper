@@ -18,7 +18,7 @@ import { exists, hashPath, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
+import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, undo } from './runner.mjs';
 import { globalPlan } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
@@ -105,7 +105,7 @@ export function api(ctx) {
     'GET /api/overview': () => ({ version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = tryState(p.path); return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
-      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack') } }));
+      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx) } }));
       return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
     },
     // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.

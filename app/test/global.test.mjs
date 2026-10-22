@@ -190,6 +190,12 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
   // An installed pack plugin is checked without its pack chosen.
   assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), ['claude plugin marketplace update claude-plugins-official', 'claude plugin update mattpocock-skills@claude-plugins-official']);
+  // No registered project uses its pack any more: removal offered, not preselected; a project that uses it keeps it.
+  const mp = (packsInUse, packs) => globalPlan({ ctx, agents: ['claude'], options: { packs, packsInUse } }).filter((c) => c.step === 'plugin:claude:mattpocock-skills@claude-plugins-official');
+  const [rm] = mp(['frontend']);
+  assert.ok(rm.destructive && rm.argv.join(' ') === 'claude plugin uninstall mattpocock-skills@claude-plugins-official' && rm.undoArgv.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official');
+  assert.equal(preview([rm])[0].selected, false);
+  assert.ok(!mp(['matt-pocock'])[0].destructive && !mp(['frontend'], ['matt-pocock'])[0].destructive && !mp(null)[0].destructive);
   const inv = inventory(ctx, ['claude', 'codex']);
   assert.equal(inv.find((i) => i.step === 'plugin:claude:ponytail@ponytail').state, 'outdated');
   assert.equal(inv.find((i) => i.step === 'plugin:codex:benchkeeper@benchkeeper').state, 'current');

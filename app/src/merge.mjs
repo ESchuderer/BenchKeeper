@@ -14,20 +14,38 @@ export function parseJson(text, file = 'JSON') {
   return value ?? {};
 }
 
-// edits: [{ path: [...keys], value }] sets a value, [{ path, append: [...] }] adds missing list entries after the user's own.
+// edits: [{ path: [...keys], value }] sets a value, [{ path, append: [...] }] adds missing list entries after the user's own,
+// { path, remove: true } deletes a key.
 export function mergeJson(text, edits, file) {
   let out = text?.trim() ? text : '{}\n';
   for (const e of edits) {
     const current = parseJson(out, file);
+    const at = (path) => path.reduce((o, k) => (o == null ? undefined : o[k]), current);
     let value = e.value;
     if (e.append) {
-      const list = e.path.reduce((o, k) => (o == null ? undefined : o[k]), current) ?? [];
+      const list = at(e.path) ?? [];
       if (!Array.isArray(list)) throw new MergeError(`${file}: ${e.path.join('.')} is not a list`);
       const missing = e.append.filter((x) => !list.some((y) => JSON.stringify(y) === JSON.stringify(x)));
       if (!missing.length) continue;
       value = [...list, ...missing];
     }
-    if (e.remove) value = undefined;
+    // pull takes items out of a list; prune drops a list or object left empty.
+    if (e.pull) {
+      const list = at(e.path);
+      if (!Array.isArray(list)) continue;
+      value = list.filter((y) => !e.pull.some((x) => JSON.stringify(x) === JSON.stringify(y)));
+      if (value.length === list.length) continue;
+      if (!value.length) value = undefined;
+    }
+    if (e.prune) {
+      const v = at(e.path);
+      if (v == null || typeof v !== 'object' || Object.keys(v).length) continue;
+      value = undefined;
+    }
+    if (e.remove) {
+      if (at(e.path) === undefined) continue;
+      value = undefined;
+    }
     out = applyEdits(out, modify(out, e.path, value, FORMAT));
   }
   parseJson(out, file);

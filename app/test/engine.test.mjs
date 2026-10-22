@@ -20,6 +20,13 @@ test('JSON merge keeps user keys, comments and list entries', () => {
   assert.throws(() => mergeJson('{ broken', [{ path: ['a'], value: 1 }]), MergeError);
 });
 
+test('JSON merge pulls list entries and prunes what is left empty', () => {
+  const pull = (t) => mergeJson(t, [{ path: ['s', 'on'], remove: true }, { path: ['s', 'x'], pull: ['a', 'b'] }, { path: ['s'], prune: true }]);
+  assert.deepEqual(JSON.parse(pull('{ "s": { "on": true, "x": ["mine", "a", "b"] } }')), { s: { x: ['mine'] } });
+  assert.deepEqual(JSON.parse(pull('{ "k": 1, "s": { "on": true, "x": ["a", "b"] } }')), { k: 1 });
+  assert.equal(pull('{ "k": 1 }\n'), '{ "k": 1 }\n');
+});
+
 test('marked block: append, replace, remove, text outside kept', () => {
   const a = setBlock('# Mine\n\nkeep this\n', 'rules', 'one');
   assert.equal(a, '# Mine\n\nkeep this\n\n<!-- benchkeeper:rules start -->\none\n<!-- benchkeeper:rules end -->\n');

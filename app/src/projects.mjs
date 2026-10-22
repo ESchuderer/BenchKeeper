@@ -6,12 +6,17 @@ import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
 import { clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
 import { apply, preview } from './runner.mjs';
-import { STATE, projectPlan, readState } from './steps/project.mjs';
+import { STATE, projectPlan, readState, tryState } from './steps/project.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
 
 export function listProjects(ctx) {
   try { return JSON.parse(readFileSync(file(ctx), 'utf8')).projects; } catch { return []; }
+}
+// Packs the registered projects use; null when none has a state file, so nothing counts as unused.
+export function packsInUse(ctx) {
+  const states = listProjects(ctx).map((p) => tryState(p.path)).filter(Boolean);
+  return states.length ? [...new Set(states.flatMap((s) => s.packs ?? []))] : null;
 }
 function save(ctx, projects) {
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);

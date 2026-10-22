@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { Loading, useApi } from './parts.jsx';
 
 const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
-const ENV_TITLE = { container: 'Agent in the dev container', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
+const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
 
 // The query of a project plan for these first-setup answers.
 const planQuery = (dir, a) => {
@@ -25,7 +25,7 @@ function SetupSteps({ dir, push, onFinish }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   useEffect(() => {
-    if (setup.data && !a) setA({ agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.devcontainer ? 'host-agent' : 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '' });
+    if (setup.data && !a) setA({ agents: setup.data.agents.map((x) => x.id), env: 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '' });
   }, [setup.data]);
   const review = useApi(step === 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));

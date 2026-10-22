@@ -15,7 +15,7 @@ import { openBrowser, startServer } from './server.mjs';
 import { writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
-import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
+import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectPlan } from './steps/project.mjs';
@@ -135,7 +135,7 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'plan' || cmd === 'apply') {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) { out.write('no agent found (claude, codex, gemini, copilot); the app installs none\n'); return 1; }
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [] } }));
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx) } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
       plan.forEach((c) => show(c, out));

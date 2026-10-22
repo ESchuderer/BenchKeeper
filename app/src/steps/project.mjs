@@ -22,6 +22,8 @@ export const TIERS = ['quick', 'standard', 'full', 'research'];
 // The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
 const NPX_ENV = { DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/' };
 
+const tryJson = (t) => { try { return t == null ? null : parseJson(t); } catch { return null; } };
+
 export function readState(dir) {
   const text = readText(join(dir, STATE));
   if (!text) return null;
@@ -95,8 +97,22 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     add('agent-skills-block', 'move the ## Agent skills block from CLAUDE.md to AGENTS.md (Codex reads AGENTS.md)', { kind: 'write', path: at('AGENTS.md'), edit: (t) => `${(t ?? '').trimEnd()}\n\n${moved}\n` });
     add('agent-skills-block', 'remove the moved block from CLAUDE.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => `${t.replace(block, '').trimEnd()}\n` });
   }
+  const prev = readState(dir);
+  const dropped = (prev?.agents ?? []).filter((x) => !a.agents.includes(x));
+  const SANDBOX_OUT = ['devcontainer exec *', 'podman *'];
   if (a.sandbox && a.agents.includes('claude')) {
-    add('sandbox', 'Claude Code sandbox on; devcontainer and podman run outside it (they cannot start inside)', { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], value: true }, { path: ['sandbox', 'excludedCommands'], append: ['devcontainer exec *', 'podman *'] }]) });
+    add('sandbox', 'Claude Code sandbox on; devcontainer and podman run outside it (they cannot start inside)', { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], value: true }, { path: ['sandbox', 'excludedCommands'], append: SANDBOX_OUT }]) });
+  } else if (tryJson(readText(at('.claude/settings.json')))?.sandbox?.enabled === true) {
+    // Preselected only when the state file shows this setup turned it on.
+    add('sandbox', `Claude Code sandbox off${prev?.sandbox ? '' : ' (not turned on by BenchKeeper)'}`, { kind: 'write', path: at('.claude/settings.json'), selected: !!prev?.sandbox,
+      edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], remove: true }, { path: ['sandbox', 'excludedCommands'], pull: SANDBOX_OUT }, { path: ['sandbox'], prune: true }]) });
+  }
+  // An agent no longer chosen: what this setup wrote for it alone comes out.
+  if (dropped.includes('claude') && readText(at('CLAUDE.md'))?.trim() === '@AGENTS.md') add('drop:claude', 'remove CLAUDE.md (only the AGENTS.md import; Claude Code is no longer chosen)', { kind: 'remove', path: at('CLAUDE.md'), selected: true });
+  if (dropped.includes('gemini')) {
+    const g = agent('gemini').project.rules.setting;
+    const v = g.key.reduce((o, k) => o?.[k], tryJson(readText(at(g.path))));
+    if (JSON.stringify(v) === JSON.stringify(g.value)) add('drop:gemini', 'Gemini CLI no longer reads AGENTS.md (not chosen)', { kind: 'write', path: at(g.path), edit: (t) => mergeJson(t, [{ path: g.key, remove: true }, { path: g.key.slice(0, -1), prune: true }]) });
   }
 
   // Packs with a plugin: installed globally when missing; their prompts are listed for the user.
@@ -162,25 +178,32 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Names from the state file become paths: only skill-folder names count.
   const before = (readState(dir)?.skills ?? []).map((s) => s.name).filter((n) => /^[a-z0-9][a-z0-9-]*$/.test(n ?? ''));
   const removed = before.filter((n) => !skills.some((s) => s.name === n));
-  for (const name of removed) {
+  const removeSkill = (name, dirs, why = '') => {
     const s = lib.skills.find((x) => x.name === name);
-    const dirs = skillDirs(a.agents, 'project', dir);
-    for (const { dir: d } of dirs) if (exists(parked(d, name))) add(`remove:${name}`, `remove ${rel(parked(d, name))}`, { kind: 'remove', path: parked(d, name), selected: true });
+    for (const { dir: d } of dirs) if (exists(parked(d, name))) add(`remove:${name}`, `remove ${rel(parked(d, name))}${why}`, { kind: 'remove', path: parked(d, name), selected: true });
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`remove:${name}`, `remove skill ${name}`, { kind: 'command', cwd: dir, env: NPX_ENV, selected: true,
+      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, selected: true,
         argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'remove', name, ...flags, '-y'],
         undoArgv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', name, ...flags, '--copy', '-y'] });
-    } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}`, { kind: 'remove', path: join(d, name), selected: true });
-  }
+    } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: true });
+  };
+  for (const name of removed) removeSkill(name, skillDirs(a.agents, 'project', dir));
+  // Skill folders only dropped agents read (agents can share one folder).
+  const kept = skillDirs(a.agents, 'project', dir).map((x) => x.dir);
+  const orphan = skillDirs(dropped, 'project', dir).filter((x) => !kept.includes(x.dir));
+  if (orphan.length) for (const name of before) removeSkill(name, orphan, ` (${orphan.flatMap((x) => x.agents).map((x) => agent(x).name).join(', ')} no longer chosen)`);
 
   // The state file, read by Update all and by setting-up-projects.
   const state = { schemaVersion: 1, setupVersion: appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...(s.ref ? { ref: s.ref } : {}) })) };
   add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), after: `${JSON.stringify(state, null, 2)}\n` });
   const names = skills.map((s) => s.name);
-  return { changes, answers: a, prompts: promptsFor(a, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: warnings(names.filter((n) => !a.disabled.includes(n)), lib) };
+  // Where commands run, written by hand outside the block, may contradict the chosen environment; prose is not removed.
+  const outside = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);
+  const envWarning = /\b(on|from) the host\b|\bagents? runs? (inside |in )?(the|a) (dev ?container|sandbox|microVM)/i.test(outside) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
+  return { changes, answers: a, prompts: promptsFor(a, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning] };
 }
 
 // What the user starts after the deterministic steps: the setup skill session, and the packs' own prompts.

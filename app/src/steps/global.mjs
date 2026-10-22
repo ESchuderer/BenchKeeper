@@ -48,6 +48,9 @@ const EFFORT_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5'];
 const json = (list, fallback) => { try { return JSON.parse(list); } catch { return fallback; } };
 const sets = (pairs) => (text) => mergeJson(text, pairs.map(([path, value]) => ({ path, value })));
 
+// Marketplace names and refs from a CLI list (unverified field names: a missing ref stays unknown).
+const marketRefs = (list) => ({ markets: list.map((m) => m.name), refs: Object.fromEntries(list.map((m) => [m.name, m.source?.ref ?? m.ref])) });
+
 // User plugins ({ id, version, enabled }), marketplace names and their git refs of Claude Code or Codex, read from the agent's own files:
 // each list command takes about 0.5 s. The CLI answers when the files are missing or unreadable.
 // shortcut: the files are internal CLI formats; if a CLI release changes them, the CLI fallback stays correct but slow.
@@ -70,17 +73,18 @@ export function pluginState(ctx, a) {
           const d = at(`.codex/plugins/cache/${market}/${name}`);
           return (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
         };
-        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), enabled: p?.enabled === true }));
+        // No version folder in the cache: the entry is there, its files are not.
+        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), enabled: p?.enabled === true, missing: !version(id) }));
         return { listed, markets: Object.keys(conf.marketplaces ?? {}), refs: Object.fromEntries(Object.entries(conf.marketplaces ?? {}).map(([m, v]) => [m, v?.ref])) };
       }
     }
   } catch { /* the CLI below */ }
   if (a === 'claude') {
     return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, enabled: p.enabled })),
-      markets: json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, []).map((m) => m.name), refs: {} };
+      ...marketRefs(json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, [])) };
   }
   return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => ({ id: p.pluginId, version: p.version, enabled: p.enabled })),
-    markets: (json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []).map((m) => m.name), refs: {} };
+    ...marketRefs(json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []) };
 }
 
 // Enabled plugin ids per agent.
@@ -135,6 +139,7 @@ export function globalPlan(env) {
     const name = agent(a).name;
     for (const p of PLUGINS[a]) {
       const have = listed.find((x) => x.id === p.id && x.enabled);
+      const off = !have && listed.find((x) => x.id === p.id);
       // An installed pack plugin is kept current without its pack being chosen again.
       if (p.pack && !options.packs?.includes(p.pack) && !have) continue;
       const step = `plugin:${a}:${p.id}`;
@@ -151,6 +156,14 @@ export function globalPlan(env) {
       // options and data in Claude Code. The plan names the commands instead of promising the version.
       const stuck = refs[p.marketplace] && p.source && refs[p.marketplace] !== ref && markets.includes(p.marketplace);
       const manual = (title, outdated = false) => add(step, `${title}: by hand`, { kind: 'command', argv: addMarket, outdated, error: `the ${p.marketplace} marketplace is at ${refs[p.marketplace]}, not ${ref}; moving it removes the plugin's data. By hand: ${a} plugin marketplace remove ${p.marketplace}, then ${addMarket.join(' ')}, then ${install.join(' ')}` });
+      // Installed but turned off: Claude Code turns it on in settings (undone by the file's backup); Codex by hand.
+      if (off) {
+        if (a === 'claude') add(step, `${name} plugin ${p.id}: turn on`, { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['enabledPlugins', p.id], value: true }]) });
+        else add(step, `${name} plugin ${p.id}: turn on by hand`, { kind: 'command', argv: install, error: `${p.id} is installed but turned off: set enabled = true under [plugins."${p.id}"] in ~/.codex/config.toml` });
+        continue;
+      }
+      // The entry is there, its files are not: install again.
+      if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
       if (have) {
         if (stuck && have.version && bySemver(have.version, version) < 0) { manual(`${name} plugin ${p.id} ${have.version} to ${version}`, true); continue; }
         // Older than the pin: refresh the marketplace and update. Newer stays (Codex installs Ponytail from its main

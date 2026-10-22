@@ -1,6 +1,6 @@
 // The cases of plugins/benchkeeper/setup.test.sh against the global steps, with stub agent commands.
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -160,7 +160,7 @@ test('plugin state comes from the agents\' files; the CLI answers only when they
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'off@x': false } }));
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.3.2"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n');
   assert.deepEqual(pluginState(ctx, 'claude'), { listed: [{ id: 'ponytail@ponytail', version: '5.2.0', enabled: true }, { id: 'off@x', version: '1.0.0', enabled: false }], markets: ['ponytail', 'benchkeeper'], refs: { ponytail: 'v5.2.0', benchkeeper: undefined } });
-  assert.deepEqual(pluginState(ctx, 'codex'), { listed: [{ id: 'ponytail@ponytail', version: '5.10.0', enabled: true }], markets: ['ponytail'], refs: { ponytail: 'v5.3.2' } });
+  assert.deepEqual(pluginState(ctx, 'codex'), { listed: [{ id: 'ponytail@ponytail', version: '5.10.0', enabled: true, missing: false }], markets: ['ponytail'], refs: { ponytail: 'v5.3.2' } });
   assert.deepEqual(calls, []);
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), '{broken');
   writeFileSync(join(home, '.codex/config.toml'), 'model = "x"\n');
@@ -207,4 +207,13 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   assert.ok(stuck.title.endsWith(': by hand') && /at v5\.2\.0, not v5\.3\.2.*marketplace remove ponytail/.test(stuck.error));
   assert.equal(preview([stuck])[0].selected, false);
   assert.equal(apply([stuck], ctx, { select: [stuck.id] }).entries.length, 0);
+  // Turned off in Claude Code: a settings write turns it on; in Codex a step by hand. Codex files gone: install again.
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': false, 'benchkeeper@benchkeeper': true } }));
+  const [on] = steps('plugin:claude:ponytail@ponytail');
+  assert.ok(on.kind === 'write' && on.title.endsWith('turn on') && JSON.parse(on.edit('{}')).enabledPlugins['ponytail@ponytail'] === true);
+  writeFileSync(join(home, '.codex/config.toml'), '[plugins."ponytail@ponytail"]\nenabled = false\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
+  assert.match(steps('plugin:codex:ponytail@ponytail')[0].error, /turned off/);
+  assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
+  rmSync(join(home, '.codex/plugins/cache/benchkeeper'), { recursive: true });
+  assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), ['codex plugin add benchkeeper@benchkeeper']);
 });

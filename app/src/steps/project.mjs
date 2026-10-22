@@ -140,6 +140,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Library skills: own skills copied into each skill folder, community skills through the skills CLI at the pinned commit
 // (undo puts back the copies of their folders and the lockfile taken before the command).
   // The state file comes with the repository: only commit ids count.
+  // The install command of each community skill: the state file records its new commit only once that ran.
+  const installs = new Map();
   const installedRefs = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{40}$/.test(x.ref ?? '')).map((x) => [x.name, x.ref]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
@@ -167,6 +169,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       const missing = targets.flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
+      installs.set(s.name, `skill:${s.name}:${changes.length}`);
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
         kind: 'command', cwd: dir, env: NPX_ENV, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
         argv: ['npx', '-y', `skills@${SKILLS_CLI}`, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
@@ -195,9 +198,18 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   if (orphan.length) for (const name of before) removeSkill(name, orphan, ` (${orphan.flatMap((x) => x.agents).map((x) => agent(x).name).join(', ')} no longer chosen)`);
 
   // The state file, read by Update all and by setting-up-projects.
-  const state = { schemaVersion: 1, setupVersion: appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
-    skills: skills.map((s) => ({ name: s.name, source: s.source, ...(s.ref ? { ref: s.ref } : {}) })) };
-  add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), after: `${JSON.stringify(state, null, 2)}\n` });
+  // A community skill keeps its earlier commit while it is turned off (the parked copy is that one), and when its
+  // install was not chosen or failed in the run that writes this file (apply passes the run to edit).
+  const recorded = (s, run) => {
+    if (s.source === 'own' || !s.ref) return {};
+    const id = installs.get(s.name);
+    const ran = !id || !run || run.entries.some((e) => e.id === id && e.status === 'done');
+    const ref = a.disabled.includes(s.name) || !ran ? installedRefs.get(s.name) : s.ref;
+    return ref ? { ref } : {};
+  };
+  const state = (run) => ({ schemaVersion: 1, setupVersion: appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
+    skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run) })) });
+  add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), edit: (_, run) => `${JSON.stringify(state(run), null, 2)}\n` });
   const names = skills.map((s) => s.name);
   // Where commands run, written by hand outside the block, may contradict the chosen environment; prose is not removed.
   const outside = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);

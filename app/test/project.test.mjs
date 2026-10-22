@@ -72,6 +72,20 @@ test('a community skill the state file records at another commit is added again 
   assert.deepEqual(titles(), [], 'a ref that is not a commit id is ignored');
 });
 
+test('the state file records a community skill\'s commit only when its install ran', () => {
+  const r = repo();
+  const changes = plan(r, { agents: ['claude'], packs: ['frontend'] }).changes;
+  const failing = { ...r.ctx, run: () => ({ code: 1, stdout: '', stderr: 'offline' }) };
+  apply(preview(changes), failing, { scope: r.dir });
+  const st = readState(r.dir);
+  assert.ok(st.skills.filter((s) => s.source !== 'own').every((s) => !s.ref), JSON.stringify(st.skills));
+  // Not claimed as installed: the next plan installs them again.
+  assert.ok(plan(r, {}).changes.some((c) => c.title.startsWith('skill frontend-design from')));
+  const ok = { ...r.ctx, run: () => ({ code: 0, stdout: '', stderr: '' }) };
+  apply(preview(plan(r, {}).changes), ok, { scope: r.dir });
+  assert.ok(readState(r.dir).skills.find((s) => s.name === 'frontend-design').ref);
+});
+
 test('suggestions name the packs the files of a project point to, with the reason', () => {
   const r = repo();
   assert.deepEqual(suggest(r.dir), { packs: [], devcontainer: false });

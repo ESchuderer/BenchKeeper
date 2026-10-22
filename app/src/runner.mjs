@@ -100,7 +100,8 @@ function* applySteps(changes, ctx, { scope = 'global', select, note } = {}) {
         if (!inside(path, ctx.roots)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
         Object.assign(entry, { path, existed: exists(path), hashBefore: hashPath(path) });
         // Edits apply to the file as it is now, so a deselected earlier edit is not carried along.
-        const after = c.kind === 'write' && c.edit ? c.edit(readText(path)) : c.after;
+        // edit also gets the run so far, so a change can depend on how earlier ones went.
+        const after = c.kind === 'write' && c.edit ? c.edit(readText(path), run) : c.after;
         if (entry.existed) entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, path);
         // Journaled before the first change: after a crash undo finds the backup (or refuses a missing one).
         Object.assign(entry, { status: 'running', touched: true });

@@ -126,7 +126,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="following-dev-workflow picks a tier for each change. Quick: branch, build, verify, ship. Full: Matt Pocock's whole flow. A skill that matches the task loads in any tier, and each change type adds its own check.">
+        <Section id="sdlc" title="One loop, sized to the change" intro="The workflow skill picks a tier for each change. Quick: branch, build, verify, ship. Full: spec, tickets, tests first, review. Several tasks on one branch run their long checks and reviews once at the end. A skill that matches the task loads in any tier, and each change type adds its own check.">
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>
@@ -140,12 +140,12 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         <Section id="parts" title="What gets installed">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <Part icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/rules/global.md`} scope="Global, every session">
-              Ask before assuming, short answers, sources for claims, only what the task needs, checks never weakened, confirm before destructive steps.
+              Ask before assuming, confirm hard-to-undo steps, checks never weakened, secrets kept out, writing without filler, sources for claims.
             </Part>
-            <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">following-dev-workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/following-dev-workflow/SKILL.md`} scope="Global, before repository work">
-              The tier, the required steps and the check per change type: issue, branch, tests, reviews before push, draft pull request.
+            <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/workflow/SKILL.md`} scope="Global, before repository work">
+              The tier, the playbook for software changes or research, the check per change type, batch mode with long checks at the end.
             </Part>
-            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="His plugin, global in both agents">
+            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Optional, his plugin, global in both agents">
               Grilling, spec and tickets, TDD, bug diagnosis, code review, pull request text. They read the issue tracker and domain docs in <Code>docs/agents/</Code>.
             </Part>
             <Part icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, level full">

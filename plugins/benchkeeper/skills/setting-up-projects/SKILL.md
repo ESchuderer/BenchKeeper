@@ -1,6 +1,6 @@
 ---
 name: setting-up-projects
-description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration, AGENTS.md, Matt Pocock's repository setup (issue tracker, domain docs), domain skills from the BenchKeeper library, stack-specific skills, the default task tier, other project configuration to remove. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration and where the agent runs, AGENTS.md, Matt Pocock's repository setup when used (issue tracker, domain docs), domain skills from the BenchKeeper library, stack-specific skills, the default task tier, other project configuration to remove. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 disable-model-invocation: true
 ---
 
@@ -28,6 +28,11 @@ Identify languages, frameworks, and infrastructure tools from build files, depen
 
 ## 2. Development container
 
+Ask where the agent runs, recommending the first:
+- **Agent in the container** (default): the agent CLIs selected above are installed in the image at exact versions, and the user starts them with `devcontainer exec --workspace-folder . claude` (or `codex`). Login: the subscription token from the host environment through `remoteEnv` (`"CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"`), never written into the image or the repository, or a login inside the container kept in a named volume for the agent's config folder.
+- **Agent on the host**: toolchains in the container, the agent on the host, project commands routed through `devcontainer exec`.
+- **Host only**: no container. Skip the rest of this step.
+
 Reuse `.devcontainer/devcontainer.json`, `.devcontainer.json`, or an existing named configuration. Otherwise create `.devcontainer/devcontainer.json` and only the Dockerfile or Compose services the confirmed stack needs. Preserve existing settings and services. Use an exact image version or digest and pin installed CLI/package versions. [Configuration reference](https://containers.dev/implementors/json_reference/)
 
 - Install the project toolchain and required local MCP/browser tools inside the image, resolving exact package versions before writing install commands.
@@ -43,7 +48,7 @@ devcontainer up --workspace-folder .
 devcontainer exec --workspace-folder . git status --short
 devcontainer exec --workspace-folder . id -un
 ```
-Launch `claude` or `codex` on the host in the repository or worktree. Route project dependency installs, builds, lint, tests, and local MCP/browser tools through `devcontainer exec --workspace-folder . ...`. From an existing container terminal, run project commands directly.
+Agent on the host: launch `claude` or `codex` on the host in the repository or worktree, and route project dependency installs, builds, lint, tests, and local MCP/browser tools through `devcontainer exec --workspace-folder . ...`. From an existing container terminal, run project commands directly.
 
 Keep compound project commands inside the container shell: `devcontainer exec --workspace-folder . sh -lc 'npm test && npm run lint'`.
 
@@ -53,12 +58,12 @@ After changing the image, Dockerfile, or container creation settings, rebuild in
 
 ## 3. AGENTS.md and CLAUDE.md
 
-- `AGENTS.md`: the container command prefix, the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), conventions found in the code that differ from the stack defaults. No project summary or layout. Update: remove a project summary or layout section after asking, fix failing or changed commands.
+- `AGENTS.md`: where project commands run (in the container, with the container command prefix when the agent runs on the host), the real install, build, test, lint, and run commands (verify inside the container when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation), conventions found in the code that differ from the stack defaults. No project summary or layout. Update: remove a project summary or layout section after asking, fix failing or changed commands.
 - `CLAUDE.md`, only when Claude Code is selected: `@AGENTS.md`, plus the `## Agent skills` block that Matt Pocock's setup writes there when Codex is not selected. Move any other content into `AGENTS.md` first. Otherwise leave an existing file unchanged and do not create one.
 
 ## 4. Skills
 
-Matt Pocock's skills (step 5) cover the workflow. Add only domain knowledge (library) and knowledge about the confirmed stack (search). Every skill here is installed in the project, never globally.
+Add only domain knowledge (library) and knowledge about the confirmed stack (search). Every skill here is installed in the project, never globally.
 
 ### Library (ask)
 
@@ -84,14 +89,14 @@ Update or restore missing skills by reinstalling each selected skill from its re
 
 ## 5. Workflow setup and default tier (ask)
 
-The workflow itself (Matt Pocock's skills, Ponytail, `following-dev-workflow`) is installed once per machine as plugins, by the user (README quick start, `setup.sh`). This step sets up what his skills read in this repository.
+The workflow itself (`benchkeeper:workflow`, Ponytail, optionally Matt Pocock's skills) is installed once per machine as plugins, by the user (README quick start, `setup.sh`). Ask whether this project uses Matt Pocock's skills. Not installed on the machine: say so and skip the rest of this list.
 
 - A project copy of Matt Pocock's skills loads twice (step 6). Do not install a skill named `code-review` into `.claude/skills/`: it would replace Claude Code's `/code-review`.
 - Matt Pocock's repository setup: ask the user to run `/mattpocock-skills:setup-matt-pocock-skills` (Codex: `$mattpocock-skills:setup-matt-pocock-skills`) once. It asks for the issue tracker and where docs go, and writes `docs/agents/` and its `## Agent skills` block. Afterwards fix its two gaps:
   - It edits `CLAUDE.md` when that exists. With Codex selected, move the block into `AGENTS.md`, which Codex reads, and leave `CLAUDE.md` at `@AGENTS.md`.
   - It skips the triage labels when it does not recognize the plugin skill `mattpocock-skills:triage`. Then write `docs/agents/triage-labels.md` from its `triage-labels.md` template with the default labels, add its `### Triage labels` sub-block, and create the labels the tracker lacks (`gh label create`).
 
-Ask for the default task tier of `following-dev-workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions. None writes nothing and removes an existing line after asking.
+Ask for the default task tier of `benchkeeper:workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Write the choice as one `Default tier: <tier>` line in the `AGENTS.md` conventions. None writes nothing and removes an existing line after asking.
 
 ## 6. Other configuration (ask)
 

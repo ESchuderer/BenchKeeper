@@ -145,9 +145,13 @@ if [ -n "$codex" ]; then
   if cmp -s "$rules" "$f"; then ok "Codex rules $f"; else step "write the Codex rules $f (an existing file goes to the backup)" put "$rules" "$f"; fi
   f=$HOME/.codex/AGENTS.override.md
   [ ! -e "$f" ] || step "move other global rules $f ($(wc -l <"$f") lines) to the backup" stash "$f"
+  f=$HOME/.codex/rules/benchkeeper.rules
+  if cmp -s "$here/rules/codex.rules" "$f"; then ok "Codex command rules $f"; else
+    step "write the Codex command rules $f (ask before gh pr merge, force push, git reset --hard, git branch -D, git clean)" put "$here/rules/codex.rules" "$f"
+  fi
 fi
 
-# Plugins: BenchKeeper, Matt Pocock's skills and Ponytail, installed the way each project documents it. Ponytail runs a
+# Plugins: BenchKeeper, Ponytail and, optional, Matt Pocock's skills, installed the way each project documents it. Ponytail runs a
 # SessionStart hook, so its marketplace is pinned to a tag (Claude #ref, Codex @ref) and bumped on purpose.
 install_claude() { claude plugin marketplace add "$2" ${3:+--sparse $3} && claude plugin install "$1"; }
 install_codex() { codex plugin marketplace add "$2" ${3:+--sparse ${3% *} --sparse ${3#* }} && codex plugin add "$1"; }
@@ -158,7 +162,7 @@ if [ -n "$claude" ]; then
     if echo "$have" | grep -qx "$1"; then ok "Claude plugin $1"; else step "install the Claude plugin $1" install_claude "$1" "$2" "$(echo "${3:-}" | tr , ' ')"; fi
   done
   p=mattpocock-skills@claude-plugins-official
-  if echo "$have" | grep -qx "$p"; then ok "Claude plugin $p"; else step "install the Claude plugin $p" claude plugin install "$p"; fi
+  if echo "$have" | grep -qx "$p"; then ok "Claude plugin $p"; else step "install the Claude plugin $p (optional, Matt Pocock's skills)" claude plugin install "$p"; fi
 fi
 if [ -n "$codex" ]; then
   have=$(codex plugin list --json | jq -r '.installed[] | select(.enabled) | .pluginId')
@@ -255,6 +259,13 @@ if [ -n "$claude" ]; then
   compact='.autoCompactWindow = 400000 | if .modelSettings then .modelSettings |= (map_values(del(.autoCompactWindow)) | with_entries(select(.value != {}))) else . end'
   if same "$f" "$compact"; then ok "Claude auto-compact window 400000"; else
     step "set the auto-compact window in $f to 400000 tokens, per-model values removed (now: $(jq -r '[(.autoCompactWindow // "unset" | tostring)] + [.modelSettings // {} | to_entries[] | select(.value.autoCompactWindow) | "\(.key) \(.value.autoCompactWindow)"] | join(", ")' "$f" 2>/dev/null || echo unset))" jqset "$f" "$compact"
+  fi
+  # Commands that are hard to undo ask first; added to the user's own ask list. `*` matches anywhere, so flags after other
+  # arguments are caught (https://code.claude.com/docs/en/permissions#wildcard-patterns).
+  ask='["Bash(gh pr merge *)", "Bash(git push *--force*)", "Bash(git push -f*)", "Bash(git push * -f*)", "Bash(git push * +*)", "Bash(git reset --hard*)", "Bash(git reset * --hard*)", "Bash(git branch -D *)", "Bash(git branch * -D*)", "Bash(git clean *)"]'
+  ask=".permissions.ask = ((.permissions.ask // []) as \$a | \$a + ($ask - \$a))"
+  if same "$f" "$ask"; then ok "Claude ask rules"; else
+    step "add to the ask list in $f: gh pr merge, force push, git reset --hard, git branch -D, git clean (other rules stay)" jqset "$f" "$ask"
   fi
   [ -z "${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-}" ] || info "CLAUDE_CODE_AUTO_COMPACT_WINDOW=$CLAUDE_CODE_AUTO_COMPACT_WINDOW in this shell outranks the setting (remove it where it is exported)"
 fi

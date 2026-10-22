@@ -1,0 +1,3 @@
+interface:
+  display_name: "Workflow"
+  short_description: "Pick the workflow, tier and checks"

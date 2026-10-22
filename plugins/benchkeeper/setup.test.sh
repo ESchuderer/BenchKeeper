@@ -56,7 +56,7 @@ echo "other" >"$HOME/.claude/rules/10-other.md"
 ln -s /nowhere/skills/following-dev-workflow "$HOME/.claude/skills/following-dev-workflow"
 mkdir -p "$HOME/.agents/skills/old-skill"
 echo '{"mcpServers":{"extra":{"command":"x"}}}' >"$HOME/.claude.json"
-echo '{"hooks":{"Stop":[{"hooks":[{"command":"echo mine"}]}],"SessionStart":[{"hooks":[{"command":"ORCA_AGENT_HOOK_PORT=1 x"}]}],"PreToolUse":[{"hooks":[{"command":"ORCA_AGENT_HOOK_PORT=1 y"}]},{"hooks":[{"command":"echo mine too"}]}],"PostToolUse":[]},"model":"opus","autoCompactWindow":600000,"modelSettings":{"claude-opus-5-5":{"autoCompactWindow":800000,"effortLevel":"high"},"claude-fable-5-1":{"autoCompactWindow":"auto"}}}' >"$HOME/.claude/settings.json"
+echo '{"hooks":{"Stop":[{"hooks":[{"command":"echo mine"}]}],"SessionStart":[{"hooks":[{"command":"ORCA_AGENT_HOOK_PORT=1 x"}]}],"PreToolUse":[{"hooks":[{"command":"ORCA_AGENT_HOOK_PORT=1 y"}]},{"hooks":[{"command":"echo mine too"}]}],"PostToolUse":[]},"model":"opus","autoCompactWindow":600000,"modelSettings":{"claude-opus-5-5":{"autoCompactWindow":800000,"effortLevel":"high"},"claude-fable-5-1":{"autoCompactWindow":"auto"}},"permissions":{"ask":["Bash(mine *)"]}}' >"$HOME/.claude/settings.json"
 printf '[analytics]\nenabled = false\n' >"$HOME/.codex/config.toml"
 echo "my codex rules" >"$HOME/.codex/AGENTS.md"
 
@@ -85,6 +85,9 @@ jq -e '.advisorModel == null and .model == "opus" and .hooks.Stop != null' "$HOM
 jq -e '.cleanupPeriodDays == 14 and .autoUpdatesChannel == "stable" and .env.DISABLE_FEEDBACK_COMMAND == "1" and .env.CLAUDE_CODE_SUBAGENT_MODEL == "sonnet"' "$HOME/.claude/settings.json" >/dev/null && pass "transcripts 14 days, stable channel, /feedback off, subagents on Sonnet" || fail "privacy or cost settings"
 jq -e '.autoCompactWindow == 400000 and .effortLevel == "high" and .modelSettings == {"claude-opus-5-5":{"effortLevel":"high"},"claude-sonnet-5-5":{"effortLevel":"high"}}' "$HOME/.claude/settings.json" >/dev/null &&
   pass "effort high, auto-compact 400000, per-model windows removed" || fail "effort or auto-compact"
+jq -e '.permissions.ask[0] == "Bash(mine *)" and (.permissions.ask | index("Bash(git push *--force*)")) and (.permissions.ask | length) == 11' "$HOME/.claude/settings.json" >/dev/null &&
+  pass "ask rules added after the user's own" || fail "ask rules"
+cmp -s "$HOME/.codex/rules/benchkeeper.rules" "$(dirname "$setup")/rules/codex.rules" && pass "Codex command rules written" || fail "Codex command rules"
 [ "$(head -1 "$HOME/.codex/config.toml")" = 'model_reasoning_effort = "high"' ] && grep -q '^\[analytics\]' "$HOME/.codex/config.toml" && pass "Codex effort high above the tables" || fail "Codex effort"
 [ "$(cat "$HOME/.dc")" = 1.0.0 ] && pass "host tool at the newest release older than 7 days" || fail "version pick"
 

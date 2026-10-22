@@ -1,10 +1,10 @@
 {
-  "description": "BenchKeeper sets up Claude Code and Codex with one rules file and three skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The skills ship as a plugin for both agents. setup.sh, which you run yourself, installs the rules, settings and plugins (BenchKeeper, Matt Pocock's skills, Ponytail) and asks before each change. setting-up-projects sets up each repository: devcontainer, AGENTS.md, stack skills at pinned versions. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.",
+  "description": "BenchKeeper sets up Claude Code and Codex with short global rules, a workflow skill that sizes each task (quick, standard, full, research) and runs long checks once at the end, and a per-repository setup: devcontainer, AGENTS.md, stack skills at pinned versions. setup.sh, which you run yourself, installs the rules, settings and plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills) and asks before each change.",
   "core": {
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
     "url": "https://github.com/mattpocock/skills",
-    "role": "his skills drive each SDLC phase (grilling, spec and tickets, tests first, code review, pull request)"
+    "role": "his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)"
   },
   "prerequisites": [
     {

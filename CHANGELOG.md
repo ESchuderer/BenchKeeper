@@ -2,6 +2,16 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.0 (2026-10-22)
+
+- Rules rewritten to the lines that change agent behavior: load the workflow skill, ask open questions in one round, get a go before hard-to-undo actions and merges, fix the cause of failing checks, keep secrets out, and the writing rules (no filler, READMEs open with one or two sentences on what the product does, no em dash or emojis, sources). Removed: restating the task before the first edit, the default-branch commit line, the semicolon and middle-dot lines, and the scope, context and development environment sections (where project commands run now lives in each project's `AGENTS.md`).
+- `following-dev-workflow` is now `benchkeeper:workflow`, a router: kind and tier, settle, then `software.md` (issue, branch and pull request flow, change types, verify) or `research.md`, batch mode for several tasks on one branch, long checks and reviews once at the end. It runs without Matt Pocock's skills and names them where they help when installed.
+- Matt Pocock's skills are optional. `setup.sh` still offers his plugin, `setting-up-projects` asks whether a project uses them.
+- `setup.sh` adds an ask list to `~/.claude/settings.json` (`gh pr merge`, force push, `git reset --hard`, `git branch -D`, `git clean`) and writes `rules/codex.rules` to `~/.codex/rules/benchkeeper.rules`.
+- `setting-up-projects` asks where the agent runs: inside the devcontainer (default), on the host with project commands in the container, or without a container.
+- Plugin `version` 6.0.0. Pinned bench arms keep their skill names.
+- Upgrade: update the plugin and run `sh plugins/benchkeeper/setup.sh --apply` from the clone. Projects with `Default tier:` lines keep working; references to `following-dev-workflow` in a project's own files change to `benchkeeper:workflow`.
+
 ## setup-v5.4 (2026-10-21)
 
 - Rules, Brevity: the facts-only line covers READMEs, docs, comments, commit, issue and PR text. Every sentence gives the reader something needed to use, build, change or decide. It also leaves out who the project is for or who uses it, restatements of headings, code or the previous sentence, feature lists that repeat the usage section, introductions and summaries of the document itself, and motivation and history unless asked.

@@ -3,11 +3,11 @@
 # BenchKeeper
 
 <!-- generated:description -->
-BenchKeeper sets up Claude Code and Codex with one rules file and three skills. It is for developers who use Claude Code or Codex and want the same rules, skills and devcontainer setup in every repository. The skills ship as a plugin for both agents. setup.sh, which you run yourself, installs the rules, settings and plugins (BenchKeeper, Matt Pocock's skills, Ponytail) and asks before each change. setting-up-projects sets up each repository: devcontainer, AGENTS.md, stack skills at pinned versions. The following-dev-workflow skill sorts each request into a tier (quick, standard, full, research), so small changes skip the steps they do not need.
+BenchKeeper sets up Claude Code and Codex with short global rules, a workflow skill that sizes each task (quick, standard, full, research) and runs long checks once at the end, and a per-repository setup: devcontainer, AGENTS.md, stack skills at pinned versions. setup.sh, which you run yourself, installs the rules, settings and plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills) and asks before each change.
 <!-- /generated:description -->
 
 <!-- generated:core -->
-**Built on [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** his skills drive each SDLC phase (grilling, spec and tickets, tests first, code review, pull request).
+**Optional: [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request).
 <!-- /generated:core -->
 
 One tool per job, exact versions for CLIs and MCP servers. BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](plugins/benchkeeper)), plus [setup.sh](plugins/benchkeeper/setup.sh) for what a plugin cannot carry: the global rules and settings.
@@ -84,9 +84,10 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 |---|---|---|
 | [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) | the marketplace, read by Claude Code and Codex | `~/.claude/plugins/`, `~/.codex/plugins/` |
 | [plugins/benchkeeper/rules/global.md](plugins/benchkeeper/rules/global.md) | global rules | copied by `setup.sh` to `~/.claude/rules/00-global.md` and `~/.codex/AGENTS.md` |
+| [plugins/benchkeeper/rules/codex.rules](plugins/benchkeeper/rules/codex.rules) | Codex asks before merging a pull request, force pushing, `git reset --hard`, `git branch -D`, `git clean` (Claude Code: the ask list `setup.sh` adds to `~/.claude/settings.json`) | copied by `setup.sh` to `~/.codex/rules/benchkeeper.rules` |
 | [plugins/benchkeeper/setup.sh](plugins/benchkeeper/setup.sh) | rules, settings, plugin installs, host checks, everything else installed globally offered for removal ([self-check](plugins/benchkeeper/setup.test.sh)) | run from the clone |
 | [plugins/benchkeeper/skills/setting-up-projects](plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, library and stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, other configuration to remove | plugin skill `benchkeeper:setting-up-projects` |
-| [plugins/benchkeeper/skills/following-dev-workflow](plugins/benchkeeper/skills/following-dev-workflow/SKILL.md) | task tiers and their steps (issue, branch, tests, spec, review, pull request), loaded before repository work | plugin skill `benchkeeper:following-dev-workflow` |
+| [plugins/benchkeeper/skills/workflow](plugins/benchkeeper/skills/workflow/SKILL.md) | task kind and tier, then the playbook for software changes or research, batch mode, long checks at the end | plugin skill `benchkeeper:workflow` |
 | [plugins/benchkeeper/skills/maintaining-repos](plugins/benchkeeper/skills/maintaining-repos/SKILL.md) | the Maintain pass on request: dead code, debt, dependency audit, version pins, docs drift, unused skills | plugin skill `benchkeeper:maintaining-repos` |
 | [plugins/benchkeeper/library](plugins/benchkeeper/library/README.md) | skills installed per project: own (`designing-technical-uis`), Anthropic, science, marketing, security, docs and data, operations, legal, product | copied or installed into a project by `setting-up-projects` |
 | [CHANGELOG.md](CHANGELOG.md) | setup versions (tags `setup-v*`) | not linked |
@@ -96,18 +97,18 @@ Each setup runs as its own arm on the same greenfield and brownfield briefs. Sco
 
 | Component | Scope | Purpose |
 |---|---|---|
-| [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | agents run on the host, project commands run inside the container |
-| [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity within the phases of Matt Pocock's skills |
-| [Matt Pocock's skills](https://github.com/mattpocock/skills), his install | global plugin in both agents: Claude Code from the official marketplace (it pins a commit of his repository), Codex from his marketplace | workflow: grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull request, handoff. Per repo it reads the issue tracker, triage labels and domain docs from `docs/agents/` |
-| [following-dev-workflow](plugins/benchkeeper/skills/following-dev-workflow/SKILL.md) | global, Claude + Codex | task tier pre-filter (quick, standard, full, research), pre-push correctness review, security review for risky changes |
+| [Dev Containers](https://code.visualstudio.com/docs/devcontainers/devcontainer-cli) | tooling on host, configuration per repo | the agent runs inside the container by default; `setting-up-projects` also offers the agent on the host with project commands in the container, or no container |
+| [Ponytail](https://github.com/DietrichGebert/ponytail), level `full` | global, Claude + Codex | implementation simplicity |
+| [Matt Pocock's skills](https://github.com/mattpocock/skills), his install, optional | global plugin in both agents: Claude Code from the official marketplace (it pins a commit of his repository), Codex from his marketplace | workflow: grilling, domain docs, spec and tickets, TDD, bug diagnosis, code review, pull request, handoff. Per repo it reads the issue tracker, triage labels and domain docs from `docs/agents/` |
+| [workflow](plugins/benchkeeper/skills/workflow/SKILL.md) | global, Claude + Codex | task tier (quick, standard, full, research), issue and pull request flow, pre-push correctness review, security review for risky changes; uses Matt Pocock's skills when installed |
 | [Playwright MCP](https://github.com/microsoft/playwright-mcp) | project connections, container browsers | browser checks |
 | [find-skills](https://github.com/vercel-labs/skills) | global | skill search, used by `setting-up-projects` |
 
-Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `docs/agents/` (from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`.
+Per repo (committed when applicable to selected agents): `.devcontainer/`, `AGENTS.md`, `CLAUDE.md`, `.agents/skills/` and `.claude/skills/` (library and stack skills), `skills-lock.json`, `docs/agents/` (with Matt Pocock's skills: from his `/setup-matt-pocock-skills`, with its `## Agent skills` block), `.mcp.json`, `.codex/config.toml`.
 
-Global (per machine): the rules, the plugins (BenchKeeper, Matt Pocock's skills, Ponytail), find-skills, settings. Nothing is installed at both levels.
+Global (per machine): the rules, the plugins (BenchKeeper, Ponytail, optionally Matt Pocock's skills), find-skills, settings. Nothing is installed at both levels.
 
-The [following-dev-workflow skill](plugins/benchkeeper/skills/following-dev-workflow/SKILL.md) combines Ponytail and Matt Pocock's skills. The integration lives here, not in the installed plugin files. Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
+Another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
 
 ## How this stack was selected
 

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
-import { context } from '../src/runner.mjs';
-import { startServer } from '../src/server.mjs';
+import { apply, context, preview } from '../src/runner.mjs';
+import { api, startServer } from '../src/server.mjs';
+import { globalPlan } from '../src/steps/global.mjs';
 
 let srv, port, cookie;
 const changed = [];
@@ -86,4 +87,36 @@ test('static files stay inside the build folder; unknown paths get the app page'
   assert.match((await req('GET', '/', auth())).headers['content-security-policy'], /default-src 'self'/);
   assert.equal((await req('GET', '/%E0%A4%A', auth())).status, 400);
   assert.equal((await req('GET', '/api/overview', auth())).status, 200);
+});
+
+// Routes against a fixture home with Claude Code installed and its plugins enabled.
+function fixture(extra = () => null) {
+  const home = mkdtempSync(join(tmpdir(), 'bk-routes-'));
+  const run = (argv, o) => {
+    const cmd = argv.join(' ');
+    const ok = (stdout = '') => ({ code: 0, stdout, stderr: '' });
+    const r = extra(argv, o);
+    if (r) return r;
+    if (cmd === 'claude --version') return ok('2.1.0 (Claude Code)');
+    if (cmd === 'claude plugin list --json') return ok(JSON.stringify([{ id: 'benchkeeper@benchkeeper', enabled: true, scope: 'user' }, { id: 'ponytail@ponytail', enabled: true, scope: 'user' }]));
+    if (cmd === 'claude plugin marketplace list --json') return ok(JSON.stringify([{ name: 'benchkeeper' }, { name: 'ponytail' }]));
+    if (argv[0] === 'claude') return ok('[]');
+    return { code: 127, stdout: '', stderr: 'not installed' };
+  };
+  const ctx = context({ home, run });
+  return { ctx, routes: api(ctx) };
+}
+const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
+
+test('inventory: an edited rules file is modified, enabled plugins current, a missing tool missing', () => {
+  const { ctx, routes } = fixture();
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write'), ctx);
+  appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'a local line\n');
+  const items = routes['GET /api/inventory']();
+  const state = (step) => items.filter((i) => i.step === step).map((i) => i.state);
+  assert.deepEqual(state('rules:claude'), ['modified']);
+  assert.deepEqual(state('settings:claude'), ['current']);
+  assert.deepEqual(state('plugin:claude:benchkeeper@benchkeeper'), ['current']);
+  assert.deepEqual(state('tools:devcontainer'), ['missing']);
+  assert.ok(items.every((i) => i.agent === (i.step.split(':')[1] === 'claude' ? 'claude' : 'machine')));
 });

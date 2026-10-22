@@ -12,6 +12,7 @@ import { contentDir, appVersion } from './content.mjs';
 import { doctor } from './doctor.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, readText } from './fsx.mjs';
+import { inventory } from './inventory.mjs';
 import { libraryWith } from './packs.mjs';
 import { addProject, listProjects, removeProject, status, updateAll } from './projects.mjs';
 import { apply, itemState, preview, undo } from './runner.mjs';
@@ -98,6 +99,7 @@ export function api(ctx) {
       return { name, text: readText(join(contentDir, 'library', name, 'SKILL.md')) };
     },
     'GET /api/doctor': () => doctor(ctx, { agents: installed() }),
+    'GET /api/inventory': () => inventory(ctx, installed()),
   };
 }
 

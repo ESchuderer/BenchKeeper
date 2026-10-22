@@ -1,6 +1,7 @@
 import { Alert, Badge, Button, Checkbox, Code, Group, Loader, Stack, Table, Text, Title } from '@mantine/core';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
+import { Dot, STATE_COLOR } from './shell.jsx';
 
 // Loads a GET endpoint; reload() fetches it again.
 export function useApi(path) {
@@ -27,14 +28,14 @@ export const Cli = ({ children }) => (
   </Stack>
 );
 
-export const Section = ({ title, children }) => (
-  <Stack gap="sm" component="section" aria-label={title}>
+export const Section = ({ title, children, id }) => (
+  <Stack gap="sm" component="section" aria-label={title} id={id}>
     <Title order={2} size="h3">{title}</Title>
     {children}
   </Stack>
 );
 
-export const StateBadge = ({ state }) => (state ? <Badge variant="default">{state}</Badge> : null);
+export const StateBadge = ({ state }) => (state ? <Badge variant="default" leftSection={<Dot color={STATE_COLOR[state] ?? 'gray'} />}>{state}</Badge> : null);
 
 // A plan from the server: one checkbox per change (removals off by default), its diff or command, then apply.
 export function Plan({ plan, onDone }) {

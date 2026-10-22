@@ -32,7 +32,7 @@ test('a case from a recorded session links project and run; history shows it; un
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
   assert.equal(await main(['case', 'add', '--run', session.id, '--target', 'skill:workflow', '--expected', 'the workflow skill loads before the first edit'], { out, ctx }), 0);
-  const [c] = loadCases(ctx)['skill:workflow'].filter((x) => x.source.run);
+  const [c] = loadCases(ctx)['skill:workflow'].filter((x) => x.source?.run);
   assert.deepEqual([c.query, c.should, c.source.project, c.source.transcript], ['rename the config flag', true, project, tr]);
   await main(['history'], { out, ctx });
   const run = text.match(/undo with benchkeeper undo (\S+)/)[1];

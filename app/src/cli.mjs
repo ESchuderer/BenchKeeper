@@ -9,6 +9,8 @@ import { appVersion } from './content.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { addCase } from './cases.mjs';
 import { doctor } from './doctor.mjs';
+import { evalPlan, runEval } from './eval.mjs';
+import { harnessTest } from './harness.mjs';
 import { writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
@@ -33,6 +35,11 @@ Usage: benchkeeper <command> [options]
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--transcript file] [--description text] [--query text]
                                     records an observed miss as an eval case (~/.config/benchkeeper/evals/)
+  test [dir] [--agents a,b]         deterministic checks: files match the ledger, expected plugins and skills,
+                                    nothing unexpected installed, project skills at the library pins; exit 1 on a failure
+  eval [--agents a,b] [--model m] [--target t] [--all] [--yes]
+                                    skill trigger evals with real agent sessions (subscription use, never in CI);
+                                    only targets changed since their last result unless --all
   history                           runs, newest first
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
@@ -57,7 +64,7 @@ const OPTIONS = {
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
-  target: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
+  target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
 };
 
@@ -232,9 +239,27 @@ async function command(argv, { out, ask, ctx }) {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
     // A session run gives the project and transcript.
     const session = o.run ? ctx.ledger.get(o.run) : null;
-    const r = addCase(ctx, { target: o.target, expected: o.expected, should: !o['should-not'], run: o.run, query: o.query, description: o.description,
+    const r = addCase(ctx, { target: o.target?.[0], expected: o.expected, should: !o['should-not'], run: o.run, query: o.query, description: o.description,
       project: o.project ? resolve(o.project) : session?.scope, transcript: o.transcript ? resolve(o.transcript) : session?.entries[0]?.transcript ?? undefined });
     out.write(`case ${r.case.id} in ${r.path}\nquery: ${r.case.query.split('\n')[0].slice(0, 120)}\nrun ${r.run}: undo with benchkeeper undo ${r.run}\n`);
+    return 0;
+  }
+  if (cmd === 'test') {
+    const checks = harnessTest(ctx, { agents: selectedAgents(ctx, o.agents), dir: arg ? resolve(arg) : undefined });
+    for (const c of checks) out.write(`${c.ok ? 'ok  ' : 'fail'}  ${c.name}${c.problems.map((p) => `\n      ${p}`).join('')}\n`);
+    return checks.every((c) => c.ok) ? 0 : 1;
+  }
+  if (cmd === 'eval') {
+    if (process.env.CI) { out.write('eval starts agent sessions on a subscription and does not run in CI\n'); return 2; }
+    const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
+    const sessions = plan.reduce((n, p) => n + p.cases.length, 0);
+    if (!plan.length) { out.write('every target is unchanged since its last result (--all runs them again)\n'); return 0; }
+    for (const p of plan) out.write(`${p.target}  ${p.agent}${p.model ? ` ${p.model}` : ''}  ${p.cases.length} cases\n`);
+    if (!o.yes && !(await ask(`Start ${sessions} agent sessions?`))) return 1;
+    for (const r of runEval(ctx, plan)) {
+      const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
+      out.write(`${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}${r.details.some((d) => d.review) ? `  review: ${r.details.find((d) => d.review).review.replace(/[^/]+$/, '')}` : ''}\n`);
+    }
     return 0;
   }
   if (cmd === 'history') {

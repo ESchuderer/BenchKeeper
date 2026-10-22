@@ -1,0 +1,79 @@
+{
+  "kind": "benchkeeper-evals",
+  "schemaVersion": 1,
+  "target": "skill:workflow",
+  "cases": [
+    {
+      "id": "s1",
+      "query": "Fix the typo in README.md: 'recieve' should be 'receive'.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s2",
+      "query": "Add a --verbose flag to the CLI in src/cli.js that prints each step.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s3",
+      "query": "Refactor parseConfig in src/config.js into smaller functions without changing behavior.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s4",
+      "query": "Open a pull request for the changes on this branch.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s5",
+      "query": "Compare three Node.js test runners for this project and recommend one.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s6",
+      "query": "Work through these four small tasks on one branch: update the license year, rename the test script, add an .editorconfig, fix the README link.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "n1",
+      "query": "What does the git command `git rebase --onto` do?",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n2",
+      "query": "Explain the difference between let and const in JavaScript.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n3",
+      "query": "Write a haiku about autumn.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n4",
+      "query": "What is 17 times 23?",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n5",
+      "query": "Translate 'good morning' into German.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n6",
+      "query": "Summarize what a Dockerfile HEALTHCHECK instruction is for, in two sentences.",
+      "should": false,
+      "expected": "the skill does not load"
+    }
+  ]
+}

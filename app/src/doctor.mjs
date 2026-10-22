@@ -36,7 +36,7 @@ function featureVars(ctx, env) {
 }
 
 // The global plan's pending changes: rules or the workflow plugin missing are errors, other drift warnings.
-function globalDrift(ctx, agents, devcontainerCli) {
+export function globalDrift(ctx, agents, devcontainerCli) {
   let plan;
   try { plan = preview(globalPlan({ ctx, agents, devcontainerCli })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
   return plan.map((c) => {

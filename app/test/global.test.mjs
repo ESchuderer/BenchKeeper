@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { contentDir } from '../src/content.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
-import { ASK, globalPlan, newest } from '../src/steps/global.mjs';
+import { ASK, globalPlan, newest, pluginState } from '../src/steps/global.mjs';
 
 // Stubs: one foreign plugin, marketplace and MCP server per agent; installs and removals change what the lists show.
 function machine({ failCodexInstall = false } = {}) {
@@ -140,4 +140,30 @@ test('newest picks the highest release older than 7 days', () => {
   const run = () => ({ code: 0, stdout: JSON.stringify({ '1.2.0': '2026-01-01T00:00:00Z', '1.10.0': '2026-02-01T00:00:00Z', '2.0.0': '2026-10-21T00:00:00Z', '2.0.0-beta': '2026-01-01T00:00:00Z' }) });
   assert.equal(newest({ run }, 'x', Date.parse('2026-10-22')), '1.10.0');
   assert.equal(newest({ run: () => ({ code: 1 }) }, 'x'), null);
+  let calls = 0;
+  const ctx = { run: () => { calls++; return run(); } };
+  newest(ctx, 'x'); newest(ctx, 'x');
+  assert.equal(calls, 1, 'one registry request per package and context');
+});
+
+test('plugin state comes from the agents\' files; the CLI answers only when they cannot be read', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-plugins-'));
+  const calls = [];
+  const ctx = context({ home, run: (argv) => { calls.push(argv.join(' ')); return { code: 0, stdout: argv[0] === 'claude' ? '[{"id":"cli@x","enabled":true,"scope":"user"}]' : '{"installed":[{"pluginId":"cli@x","enabled":true}]}', stderr: '' }; } });
+  mkdirSync(join(home, '.claude/plugins'), { recursive: true });
+  mkdirSync(join(home, '.codex/plugins/cache/ponytail/ponytail/5.2.0'), { recursive: true });
+  mkdirSync(join(home, '.codex/plugins/cache/ponytail/ponytail/5.10.0'), { recursive: true });
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
+    'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }], 'off@x': [{ scope: 'user', version: '1.0.0' }], 'proj@x': [{ scope: 'project', version: '1.0.0', projectPath: '/p' }] } }));
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: {}, benchkeeper: {} }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'off@x': false } }));
+  writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n');
+  assert.deepEqual(pluginState(ctx, 'claude'), { listed: [{ id: 'ponytail@ponytail', version: '5.2.0', enabled: true }, { id: 'off@x', version: '1.0.0', enabled: false }], markets: ['ponytail', 'benchkeeper'] });
+  assert.deepEqual(pluginState(ctx, 'codex'), { listed: [{ id: 'ponytail@ponytail', version: '5.10.0', enabled: true }], markets: ['ponytail'] });
+  assert.deepEqual(calls, []);
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), '{broken');
+  writeFileSync(join(home, '.codex/config.toml'), 'model = "x"\n');
+  assert.equal(pluginState(ctx, 'claude').listed[0].id, 'cli@x');
+  assert.equal(pluginState(ctx, 'codex').listed[0].id, 'cli@x');
+  assert.ok(calls.includes('claude plugin list --json') && calls.includes('codex plugin list --json'));
 });

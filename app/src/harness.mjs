@@ -5,7 +5,7 @@ import { agent } from './agents.mjs';
 import { contentDir, library } from './content.mjs';
 import { globalDrift } from './doctor.mjs';
 import { exists, hashPath, readText } from './fsx.mjs';
-import { PLUGINS } from './steps/global.mjs';
+import { PLUGINS, pluginState } from './steps/global.mjs';
 import { readState } from './steps/project.mjs';
 
 const check = (name, problems) => ({ name, ok: problems.length === 0, problems });
@@ -27,10 +27,8 @@ function ledgerCheck(ctx) {
 
 function pluginCheck(ctx, agents) {
   const problems = [];
-  const json = (t, f) => { try { return JSON.parse(t); } catch { return f; } };
   for (const a of agents.filter((x) => agent(x).plugins)) {
-    const out = ctx.run([a, 'plugin', 'list', '--json']).stdout;
-    const enabled = (a === 'claude' ? json(out, []) : json(out, {}).installed ?? []).filter((p) => p.enabled).map((p) => p.id ?? p.pluginId);
+    const enabled = pluginState(ctx, a).listed.filter((p) => p.enabled).map((p) => p.id);
     for (const p of PLUGINS[a].filter((x) => !x.pack)) if (!enabled.includes(p.id)) problems.push(`${agent(a).name}: plugin ${p.id} not enabled`);
   }
   for (const a of agents.filter((x) => !agent(x).plugins)) {

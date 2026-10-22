@@ -2,6 +2,7 @@
 // installed globally, offered for removal (destructive, off by default).
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parse as parseToml } from 'smol-toml';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { contentDir } from '../content.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
@@ -38,23 +39,60 @@ const EFFORT_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5'];
 const json = (list, fallback) => { try { return JSON.parse(list); } catch { return fallback; } };
 const sets = (pairs) => (text) => mergeJson(text, pairs.map(([path, value]) => ({ path, value })));
 
-// Enabled plugin ids per agent.
-export function installedPlugins(ctx) {
-  const parse = (t, f) => { try { return JSON.parse(t); } catch { return f; } };
-  return {
-    claude: parse(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.enabled).map((p) => p.id),
-    codex: (parse(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).filter((p) => p.enabled).map((p) => p.pluginId),
-  };
+// User plugins ({ id, version, enabled }) and marketplace names of Claude Code or Codex, read from the agent's own files:
+// each list command takes about 0.5 s. The CLI answers when the files are missing or unreadable.
+// shortcut: the files are internal CLI formats; if a CLI release changes them, the CLI fallback stays correct but slow.
+export function pluginState(ctx, a) {
+  const at = (p) => join(ctx.home, p);
+  try {
+    if (a === 'claude') {
+      const installed = JSON.parse(readText(at('.claude/plugins/installed_plugins.json')));
+      const markets = JSON.parse(readText(at('.claude/plugins/known_marketplaces.json')));
+      const on = parseJson(readText(at('.claude/settings.json')) ?? '{}').enabledPlugins ?? {};
+      if (installed?.version === 2 && installed.plugins && markets) {
+        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, enabled: on[id] === true })));
+        return { listed, markets: Object.keys(markets) };
+      }
+    } else {
+      const conf = parseToml(readText(at('.codex/config.toml')) ?? '');
+      if (conf.plugins || conf.marketplaces) {
+        const version = (id) => {
+          const [name, market] = id.split('@');
+          const d = at(`.codex/plugins/cache/${market}/${name}`);
+          return (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
+        };
+        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), enabled: p?.enabled === true }));
+        return { listed, markets: Object.keys(conf.marketplaces ?? {}) };
+      }
+    }
+  } catch { /* the CLI below */ }
+  if (a === 'claude') {
+    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, enabled: p.enabled })),
+      markets: json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, []).map((m) => m.name) };
+  }
+  return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => ({ id: p.pluginId, version: p.version, enabled: p.enabled })),
+    markets: (json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []).map((m) => m.name) };
 }
 
+// Enabled plugin ids per agent.
+export function installedPlugins(ctx) {
+  const ids = (a) => pluginState(ctx, a).listed.filter((p) => p.enabled).map((p) => p.id);
+  return { claude: ids('claude'), codex: ids('codex') };
+}
+
+const bySemver = (a, b) => a.split('.').map(Number).reduce((d, x, i) => d || x - b.split('.')[i], 0);
+
 // The highest x.y.z release public for at least 7 days, or null.
+// The registry answer is kept per context, so a long-running server asks once per package.
 export function newest(ctx, pkg, now = Date.now()) {
-  const r = ctx.run(['npm', 'view', pkg, 'time', '--json']);
+  const cache = (ctx.registry ??= new Map());
+  if (!cache.has(pkg)) cache.set(pkg, ctx.run(['npm', 'view', pkg, 'time', '--json']));
+  const r = cache.get(pkg);
   if (r.code !== 0) return null;
   const times = json(r.stdout, {});
   const list = Array.isArray(times) ? Object.assign({}, ...times) : times;
   const ok = Object.entries(list).filter(([v, t]) => /^\d+\.\d+\.\d+$/.test(v) && Date.parse(t) < now - 7 * 864e5).map(([v]) => v);
-  ok.sort((a, b) => a.split('.').map(Number).reduce((d, x, i) => d || x - b.split('.')[i], 0));
+  ok.sort(bySemver);
   return ok.at(-1) ?? null;
 }
 
@@ -84,9 +122,8 @@ export function globalPlan(env) {
 
   // Plugins (Claude Code, Codex) or skill copies (agents without plugins).
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {
-    const listed = a === 'claude' ? json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []) : json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? [];
-    const enabled = listed.filter((p) => p.enabled).map((p) => p.id ?? p.pluginId);
-    const markets = a === 'claude' ? json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, []).map((m) => m.name) : (json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []).map((m) => m.name);
+    const { listed, markets } = pluginState(ctx, a);
+    const enabled = listed.filter((p) => p.enabled).map((p) => p.id);
     for (const p of PLUGINS[a]) {
       if (enabled.includes(p.id) || (p.pack && !options.packs?.includes(p.pack))) continue;
       const step = `plugin:${a}:${p.id}`;
@@ -98,7 +135,7 @@ export function globalPlan(env) {
         ? { kind: 'command', argv: ['claude', 'plugin', 'install', p.id], undoArgv: ['claude', 'plugin', 'uninstall', p.id] }
         : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] });
     }
-    for (const id of listed.filter((p) => (a === 'claude' ? p.scope === 'user' || p.scope == null : true)).map((p) => p.id ?? p.pluginId)) {
+    for (const { id } of listed) {
       if (!keepPlugin(id, a)) add(`other:${a}:plugin`, `remove the ${agent(a).name} plugin ${id}`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', id] : ['codex', 'plugin', 'remove', id], destructive: true });
     }
     for (const m of markets) if (!KEEP_MARKETPLACES[a].includes(m) && !/^openai-curated/.test(m)) add(`other:${a}:marketplace`, `remove the ${agent(a).name} marketplace ${m}`, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'remove', m], destructive: true });

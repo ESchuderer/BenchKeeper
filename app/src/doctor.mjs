@@ -50,7 +50,7 @@ export function globalDrift(ctx, agents, devcontainerCli) {
 const frontMatter = (text) => text?.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
 const description = (text) => frontMatter(text).match(/^description:\s*"?(.*?)"?\s*$/m)?.[1] ?? '';
 
-function projectChecks(ctx, dir) {
+export function projectChecks(ctx, dir) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
   const heading = agentsMd?.match(SUMMARY)?.[0];

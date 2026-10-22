@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
-import { api, startServer } from '../src/server.mjs';
+import { api, pickFolder, startServer } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
+import { projectPlan } from '../src/steps/project.mjs';
 
 let srv, port, cookie;
 const changed = [];
@@ -119,4 +120,47 @@ test('inventory: an edited rules file is modified, enabled plugins current, a mi
   assert.deepEqual(state('plugin:claude:benchkeeper@benchkeeper'), ['current']);
   assert.deepEqual(state('tools:devcontainer'), ['missing']);
   assert.ok(items.every((i) => i.agent === (i.step.split(':')[1] === 'claude' ? 'claude' : 'machine')));
+});
+
+test('pick-folder: the first dialog found answers; a cancel is null; no tool is unavailable', () => {
+  const calls = [];
+  const answer = (byTool) => fixture((argv) => { calls.push(argv[0]); return byTool[argv[0]] ?? null; }).ctx;
+  assert.deepEqual(pickFolder(answer({ zenity: { code: 0, stdout: '/home/me/code/app\n' } }), 'linux'), { path: '/home/me/code/app' });
+  assert.deepEqual(pickFolder(answer({ zenity: { code: 1, stdout: '' } }), 'linux'), { path: null });
+  calls.length = 0;
+  assert.deepEqual(pickFolder(answer({ kdialog: { code: 0, stdout: '/srv/x\n' } }), 'linux'), { path: '/srv/x' });
+  assert.deepEqual(calls, ['zenity', 'kdialog']);
+  assert.deepEqual(pickFolder(answer({}), 'linux'), { path: null, unavailable: true });
+  assert.deepEqual(pickFolder(answer({ osascript: { code: 0, stdout: '/Users/me/app/\n' } }), 'darwin'), { path: '/Users/me/app' });
+  assert.deepEqual(pickFolder(answer({}), 'win32'), { path: null, unavailable: true });
+});
+
+test('scan needs an absolute root and leaves out registered folders; doctor and project-plan need a registered dir', () => {
+  const { routes } = fixture();
+  assert.equal(status(() => routes['POST /api/scan']({ root: 'code' })), 400);
+  assert.equal(status(() => routes['POST /api/scan']({})), 400);
+  const root = mkdtempSync(join(tmpdir(), 'bk-scan-'));
+  for (const d of ['a', 'b']) { mkdirSync(join(root, d)); writeFileSync(join(root, d, 'AGENTS.md'), '# x\n'); }
+  routes['POST /api/projects']({ action: 'add', path: join(root, 'a') });
+  assert.deepEqual(routes['POST /api/scan']({ root }), [join(root, 'b')]);
+  const q = (o) => new URLSearchParams(o);
+  assert.equal(status(() => routes['GET /api/doctor'](q({ dir: join(root, 'b') }))), 400);
+  assert.ok(Array.isArray(routes['GET /api/doctor'](q({ dir: join(root, 'a') }))));
+  assert.equal(status(() => routes['GET /api/project-plan'](q({ dir: join(root, 'b') }))), 400);
+});
+
+test('project-plan: disable and enable only name skills the project has', () => {
+  const { ctx, routes } = fixture();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-pp-'));
+  const pctx = { ...ctx, roots: [dir] };
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], packs: ['frontend'] } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+  routes['POST /api/projects']({ action: 'add', path: dir });
+  const q = (extra) => new URLSearchParams([['dir', dir], ...extra]);
+  const plan = routes['GET /api/project-plan'](q([]));
+  const skill = plan.chosen[0].name;
+  assert.ok(plan.chosen.every((s) => !s.disabled));
+  assert.equal(status(() => routes['GET /api/project-plan'](q([['disable', 'not-a-skill']]))), 400);
+  assert.equal(status(() => routes['GET /api/project-plan'](q([['enable', '../../etc']]))), 400);
+  const off = routes['GET /api/project-plan'](q([['disable', skill]]));
+  assert.ok(off.chosen.find((s) => s.name === skill).disabled);
 });

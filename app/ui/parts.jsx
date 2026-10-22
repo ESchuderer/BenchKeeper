@@ -24,7 +24,7 @@ export function Loading({ state, label, children }) {
 export const Cli = ({ children }) => (
   <Stack gap={4}>
     <Text size="sm" fw={600}>CLI</Text>
-    <Code block>{children}</Code>
+    <Code block tabIndex={0}>{children}</Code>
   </Stack>
 );
 
@@ -61,7 +61,7 @@ export function Plan({ plan, onDone }) {
             <StateBadge state={c.state} />
           </Group>
           {c.error && <Text size="sm" c="red">Cannot merge: {c.error}</Text>}
-          {c.kind === 'command' ? <Code block>{`$ ${c.argv.join(' ')}`}</Code> : c.diff ? <Code block>{c.diff}</Code> : null}
+          {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff ? <Code block tabIndex={0}>{c.diff}</Code> : null}
         </Stack>
       ))}
       <Group><Button onClick={run} loading={busy} disabled={!select.length}>Apply {select.length} changes</Button></Group>
@@ -79,7 +79,7 @@ export function RunEntries({ run }) {
           {run.entries.map((e, i) => (
             <Table.Tr key={i}>
               <Table.Td>{e.status}</Table.Td>
-              <Table.Td>{e.title}{e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}{e.diff && <Code block mt={4}>{e.diff}</Code>}</Table.Td>
+              <Table.Td>{e.title}{e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}{e.diff && <Code block tabIndex={0} mt={4}>{e.diff}</Code>}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>

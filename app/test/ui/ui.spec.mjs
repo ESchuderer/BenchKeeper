@@ -3,6 +3,14 @@ import { expect, test } from '@playwright/test';
 
 const TOKEN = 'ui-test-token-0123456789';
 const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Settings'];
+// axe in both color schemes on the page as it is.
+async function noAxe(page) {
+  for (const scheme of ['light', 'dark']) {
+    await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+    const { violations } = await new AxeBuilder({ page }).analyze();
+    expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
+  }
+}
 const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 
 test.beforeEach(async ({ page, context }) => {
@@ -105,14 +113,37 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row')).toHaveCount(2);
   });
 
-  test('Projects: the registered project, its plan, and Update all reports why it stopped', async ({ page }) => {
+  test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);
-    await expect(row).toContainText('6.0.0');
-    await row.getByRole('button', { name: 'Plan' }).click();
-    await expect(page.getByRole('region', { name: /^Changes in / })).toBeVisible();
+    await expect(row).toContainText('6.0.0 current');
+    await expect(row).toContainText(/\d+ pending/);
+    await expect(row).toContainText('dirty');
+    await row.getByRole('link').click();
+    await expect(page).toHaveURL(/#\/projects\?path=/);
+    const changes = page.getByRole('region', { name: /^Changes in / });
+    await expect(changes).toBeVisible();
+    const skill = page.getByRole('region', { name: 'Skills' }).getByRole('switch').first();
+    await skill.click();
+    await expect(changes).toContainText('.benchkeeper/disabled/');
+    await expect(page.getByRole('region', { name: 'Project doctor' })).toBeVisible();
+    await noAxe(page);
     await page.getByRole('button', { name: 'Update all' }).click();
+    await expect(page.getByRole('progressbar', { name: 'Update all: 1 of 1 projects' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(/stopped|current|committed/);
+  });
+
+  test('Projects: Choose folder fills the path from the dialog; scan offers the unregistered folder', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    await page.getByRole('button', { name: 'Choose folder' }).click();
+    await expect(page.getByLabel('Project folder')).toHaveValue(/bk-ui-scan-/);
+    await page.getByRole('button', { name: 'Scan for projects' }).click();
+    const found = page.getByRole('region', { name: 'Found projects' });
+    await expect(found.getByRole('checkbox')).toHaveCount(1);
+    await expect(found.getByRole('checkbox', { name: /\/other$/ })).toBeChecked();
+    await found.getByRole('button', { name: 'Add selected (1)' }).click();
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row')).toHaveCount(3);
+    await expect(page.getByRole('table', { name: 'Projects' })).toContainText('no state file');
   });
 
   test('History: a run shows its diffs, undo restores', async ({ page }) => {

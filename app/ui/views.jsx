@@ -1,8 +1,8 @@
-import { Alert, Anchor, Badge, Box, Button, Checkbox, Code, Grid, Group, List, Paper, RingProgress, Select, Stack, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Box, Button, Checkbox, Code, Grid, Group, List, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Loading, Plan, RunEntries, Section, StateBadge, useApi } from './parts.jsx';
-import { Dot, MOD, RANK, STATE_COLOR, href } from './shell.jsx';
+import { Dot, MOD, RANK, STATE_COLOR, SplitView, go, href } from './shell.jsx';
 
 const ATTENTION = ['outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
@@ -227,7 +227,7 @@ function SkillDetail({ skill, onClose }) {
         <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
         {skill.agents === 'codex' && <Badge variant="default">Codex only</Badge>}
         <Text size="sm">Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>
-        {skill.source === 'own' && <Loading state={text} label="skill text">{(t) => <Code block>{t.text}</Code>}</Loading>}
+        {skill.source === 'own' && <Loading state={text} label="skill text">{(t) => <Code block tabIndex={0}>{t.text}</Code>}</Loading>}
       </Stack>
     </Paper>
   );
@@ -277,66 +277,148 @@ export function Agents({ overview, params }) {
   );
 }
 
-export function Projects() {
+function ProjectDetail({ project, onChange }) {
+  const [toggles, setToggles] = useState({ disable: [], enable: [] });
+  const q = new URLSearchParams({ dir: project.path });
+  for (const k of ['disable', 'enable']) for (const n of toggles[k]) q.append(k, n);
+  const plan = useApi(project.setupVersion ? `/api/project-plan?${q}` : null);
+  const found = useApi(`/api/doctor?dir=${encodeURIComponent(project.path)}`);
+  const flip = (s) => setToggles(({ disable, enable }) => (s.disabled
+    ? { disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
+    : { disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
+  return (
+    <Stack gap="lg" component="section" aria-label={`Project ${project.path}`}>
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Title order={2} size="h3" style={{ wordBreak: 'break-all' }}>{project.path}</Title>
+        <Button variant="subtle" onClick={onChange.remove}>Remove from list</Button>
+      </Group>
+      {!project.setupVersion ? <Text>No state file: run <Code>benchkeeper project apply</Code> there first.</Text> : (
+        <Loading state={plan} label="project plan">{(p) => (
+          <>
+            {!!p.chosen.length && (
+              <Section title="Skills">
+                {p.chosen.map((s) => <Switch key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} />)}
+                <Text size="sm">A skill turned off moves to <Code>.benchkeeper/disabled/</Code> when the plan is applied.</Text>
+              </Section>
+            )}
+            <Section title={`Changes in ${project.path}`}>
+              {p.warnings.map((w) => <Alert key={w} color="yellow">{w}</Alert>)}
+              <Plan key={p.planId} plan={p} onDone={() => { setToggles({ disable: [], enable: [] }); onChange.done(); }} />
+            </Section>
+          </>
+        )}</Loading>
+      )}
+      <Section title="Project doctor"><Loading state={found} label="doctor">{(f) => <DoctorTable found={f.map((i) => ({ ...i, dir: project.path }))} />}</Loading></Section>
+    </Stack>
+  );
+}
+
+const SetupBadge = ({ p, version }) => (
+  <Badge variant="default" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.setupVersion === version ? 'teal' : 'yellow'} />}>
+    {p.setupVersion ? `${p.setupVersion} ${p.setupVersion === version ? 'current' : 'behind'}` : 'no state file'}
+  </Badge>
+);
+
+export function Projects({ params, overview }) {
   const projects = useApi('/api/projects');
+  const open = params.get('path');
   const [path, setPath] = useState('');
-  const [plan, setPlan] = useState(null);
+  const [found, setFound] = useState(null);
+  const [pick, setPick] = useState([]);
   const [push, setPush] = useState(true);
-  const [results, setResults] = useState(null);
+  const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const act = (f) => async () => { setError(null); setBusy(true); try { await f(); } catch (e) { setError(e.message); } setBusy(false); };
+  const [busy, setBusy] = useState(null);
+  const version = overview.data?.version;
+  const reload = () => { projects.reload(); overview.reload(); };
+  const act = (name, f) => async () => { setError(null); setBusy(name); try { await f(); } catch (e) { setError(e.message); } setBusy(null); };
+  // The OS dialog; when there is none or it is cancelled, the typed path stays.
+  const choose = async () => {
+    const r = await api('/api/pick-folder', {});
+    if (r.unavailable) setError('No folder dialog found (zenity, kdialog or osascript): type the path.');
+    return r.path;
+  };
+  const add = (dir) => api('/api/projects', { action: 'add', path: dir });
+  const scanRoot = act('scan', async () => {
+    const root = path || await choose();
+    if (!root) return;
+    setPath(root);
+    const list = await api('/api/scan', { root });
+    setFound(list);
+    setPick(list);
+  });
+  // One request per project, so the server's synchronous apply stays as it is and each row reports on its own.
+  const updateAll = act('update', async () => {
+    const rows = projects.data.map((p) => ({ path: p.path, status: 'pending' }));
+    setProgress([...rows]);
+    for (const [i, row] of rows.entries()) {
+      rows[i] = { ...row, status: 'running' };
+      setProgress([...rows]);
+      try { [rows[i]] = await api('/api/update-all', { paths: [row.path], push }); } catch (e) { rows[i] = { path: row.path, status: 'stopped', reason: e.message }; }
+      setProgress([...rows]);
+    }
+    reload();
+  });
+  const done = progress?.filter((r) => !['pending', 'running'].includes(r.status)).length ?? 0;
   return (
     <Stack gap="lg">
-      <form onSubmit={(e) => { e.preventDefault(); act(async () => { await api('/api/projects', { action: 'add', path }); setPath(''); projects.reload(); })(); }}>
+      <form onSubmit={(e) => { e.preventDefault(); act('add', async () => { await add(path); setPath(''); reload(); })(); }}>
         <Group align="flex-end">
-          <TextInput label="Project folder" placeholder="/home/me/code/app" value={path} onChange={(e) => setPath(e.currentTarget.value)} w={420} />
-          <Button type="submit" disabled={!path}>Add project</Button>
+          <TextInput label="Project folder" placeholder="/home/me/code/app" value={path} onChange={(e) => setPath(e.currentTarget.value)} w={{ base: '100%', sm: 420 }} />
+          <Button variant="default" loading={busy === 'choose'} onClick={act('choose', async () => { const p = await choose(); if (p) setPath(p); })}>Choose folder</Button>
+          <Button type="submit" disabled={!path} loading={busy === 'add'}>Add project</Button>
+          <Button variant="default" loading={busy === 'scan'} onClick={scanRoot}>Scan for projects</Button>
         </Group>
       </form>
       {error && <Alert color="red" title="Failed">{error}</Alert>}
-      <Loading state={projects} label="projects">{(list) => (list.length ? (
-        <Table aria-label="Projects">
-          <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Branch</Table.Th><Table.Th>Working tree</Table.Th><Table.Th>Changes</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {list.map((p) => (
-              <Table.Tr key={p.path}>
-                <Table.Td><Code>{p.path}</Code></Table.Td>
-                <Table.Td>{p.setupVersion ?? 'no state file'}</Table.Td>
-                <Table.Td>{p.branch ?? '-'}</Table.Td>
-                <Table.Td>{p.repo ? (p.clean ? 'clean' : 'changed') : 'not a repository'}</Table.Td>
-                <Table.Td>{p.error ?? p.changes?.length ?? '-'}</Table.Td>
-                <Table.Td>
-                  <Group gap="xs">
-                    <Button size="xs" variant="default" disabled={!p.setupVersion} onClick={act(async () => setPlan({ path: p.path, ...(await api(`/api/project-plan?dir=${encodeURIComponent(p.path)}`)) }))}>Plan</Button>
-                    <Button size="xs" variant="subtle" onClick={act(async () => { await api('/api/projects', { action: 'remove', path: p.path }); projects.reload(); })}>Remove from list</Button>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      ) : <Text>No projects. Add a folder set up with benchkeeper project apply.</Text>)}</Loading>
-      {plan && (
-        <Section title={`Changes in ${plan.path}`}>
-          {plan.warnings.map((w) => <Alert key={w} color="yellow">{w}</Alert>)}
-          <Plan key={plan.planId} plan={plan} onDone={projects.reload} />
+      {found && (
+        <Section title="Found projects">
+          {found.length ? (
+            <>
+              <Checkbox.Group value={pick} onChange={setPick} label={`Folders with an agent setup below ${path}, not registered yet`}>
+                <Stack gap={4} mt="xs">{found.map((d) => <Checkbox key={d} value={d} label={d} />)}</Stack>
+              </Checkbox.Group>
+              <Group><Button disabled={!pick.length} loading={busy === 'add-found'} onClick={act('add-found', async () => { for (const d of pick) await add(d); setFound(null); reload(); })}>Add selected ({pick.length})</Button></Group>
+            </>
+          ) : <Text>No unregistered folders with AGENTS.md, skills-lock.json or a state file below {path}.</Text>}
         </Section>
       )}
+      <Loading state={projects} label="projects">{(list) => (list.length ? (
+        <SplitView empty="Choose a project for its plan, skills and doctor findings." list={
+          <Table aria-label="Projects" highlightOnHover>
+            <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th miw={140}>Setup</Table.Th><Table.Th>Changes</Table.Th><Table.Th>Tree</Table.Th></Table.Tr></Table.Thead>
+            <Table.Tbody>
+              {list.map((p) => (
+                <Table.Tr key={p.path} bg={p.path === open ? 'var(--mantine-color-default-hover)' : undefined}>
+                  <Table.Td><Anchor href={href('projects', { path: p.path })} aria-current={p.path === open ? 'true' : undefined} style={{ wordBreak: 'break-all' }}>{p.path}</Anchor>{p.branch && <Text size="xs">{p.branch}</Text>}</Table.Td>
+                  <Table.Td><SetupBadge p={p} version={version} /></Table.Td>
+                  <Table.Td>{p.error ? <Text size="sm" c="red">{p.error}</Text> : p.changes ? `${p.changes.length} pending` : '-'}</Table.Td>
+                  <Table.Td>{p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository'}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        } detail={open && list.some((p) => p.path === open) ? (
+          <ProjectDetail key={open} project={list.find((p) => p.path === open)} onChange={{ done: reload, remove: act('remove', async () => { await api('/api/projects', { action: 'remove', path: open }); go('projects'); reload(); }) }} />
+        ) : null} />
+      ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
         <Text size="sm">Per project: branch chore/agent-setup-&lt;version&gt; in a worktree, one commit. Projects with uncommitted changes are skipped.</Text>
         <Group>
           <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
-          <Button loading={busy} disabled={!projects.data?.length} onClick={act(async () => { setResults(await api('/api/update-all', { paths: projects.data.map((p) => p.path), push })); projects.reload(); })}>Update all</Button>
+          <Button loading={busy === 'update'} disabled={!projects.data?.length} onClick={updateAll}>Update all</Button>
         </Group>
-        {results && (
-          <Table aria-label="Update all results">
-            <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Result</Table.Th></Table.Tr></Table.Thead>
-            <Table.Tbody>{results.map((r) => <Table.Tr key={r.path}><Table.Td><Code>{r.path}</Code></Table.Td><Table.Td>{r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}</Table.Td></Table.Tr>)}</Table.Tbody>
-          </Table>
+        {progress && (
+          <>
+            <Progress.Root size="lg"><Progress.Section value={(done / progress.length) * 100} aria-label={`Update all: ${done} of ${progress.length} projects`} /></Progress.Root>
+            <Table aria-label="Update all results">
+              <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Result</Table.Th></Table.Tr></Table.Thead>
+              <Table.Tbody>{progress.map((r) => <Table.Tr key={r.path}><Table.Td><Code>{r.path}</Code></Table.Td><Table.Td>{r.status}{r.reason ? `: ${r.reason}` : ''}{r.pr && <> <Anchor href={r.pr} target="_blank" rel="noreferrer">{r.pr}</Anchor></>}</Table.Td></Table.Tr>)}</Table.Tbody>
+            </Table>
+          </>
         )}
       </Section>
-      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper project plan <dir>\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
+      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }

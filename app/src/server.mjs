@@ -1,23 +1,24 @@
 // Local web UI server: 127.0.0.1 only, one-time URL token swapped for an HttpOnly session cookie, and checks against
 // requests from other sites (Host, Origin, Sec-Fetch-Site, POST with a custom header for every change).
-// shortcut: apply, undo and Update all run synchronously and block other requests meanwhile; one local user is fine.
+// shortcut: apply, undo, Update all and the open folder dialog run synchronously and block other requests meanwhile;
+// one local user is fine.
 import { spawn } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { extname, join, resolve } from 'node:path';
+import { extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { agent, detect } from './agents.mjs';
 import { contentDir, appVersion } from './content.mjs';
-import { doctor } from './doctor.mjs';
+import { doctor, projectChecks } from './doctor.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
 import { libraryWith } from './packs.mjs';
-import { addProject, listProjects, removeProject, status, updateAll } from './projects.mjs';
+import { addProject, listProjects, removeProject, scan, status, updateAll } from './projects.mjs';
 import { apply, itemState, preview, undo } from './runner.mjs';
 import { globalPlan } from './steps/global.mjs';
-import { projectPlan, tryState } from './steps/project.mjs';
+import { chosenSkills, projectPlan, resolveAnswers, tryState } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
 const COOKIE = 'bk_session';
@@ -36,6 +37,20 @@ export function rejectReason(req, { port, session }) {
   if (!['GET', 'HEAD', 'POST'].includes(req.method)) return [405, 'method not allowed'];
   if (req.method === 'POST' && req.headers[HEADER] !== '1') return [403, `missing ${HEADER} header`];
   return null;
+}
+
+const bad = (message) => Object.assign(new Error(message), { status: 400 });
+
+// The OS folder dialog, first tool found: exit 0 is the choice, 1 a cancel; other codes (127: not installed) try the next.
+// shortcut: no xdg portal (needs async D-Bus); add it when zenity and kdialog are both missing on a target desktop.
+export function pickFolder(ctx, platform = process.platform) {
+  const tools = platform === 'darwin' ? [['osascript', '-e', 'POSIX path of (choose folder)']] : platform === 'win32' ? [] : [['zenity', '--file-selection', '--directory'], ['kdialog', '--getexistingdirectory']];
+  for (const argv of tools) {
+    const r = ctx.run(argv);
+    if (r.code === 0 && r.stdout.trim()) return { path: resolve(r.stdout.trim()) };
+    if (r.code === 0 || r.code === 1) return { path: null };
+  }
+  return { path: null, unavailable: true };
 }
 
 // Changes without their edit functions, with the item state the Dashboard groups by.
@@ -67,11 +82,17 @@ export function api(ctx) {
     'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),
     'GET /api/project-plan': (q) => {
       const dir = resolve(q.get('dir') ?? '');
-      if (!registered(dir)) throw Object.assign(new Error('register the project first'), { status: 400 });
-      const p = projectPlan({ ctx: projectCtx(dir), dir, answers: {} });
+      if (!registered(dir)) throw bad('register the project first');
+      // Skill toggles name skills of this project only.
+      const own = chosenSkills(resolveAnswers(dir, {}), libraryWith(ctx)).map((s) => s.name);
+      const disable = q.getAll('disable'), enable = q.getAll('enable');
+      const unknown = [...disable, ...enable].filter((n) => !own.includes(n));
+      if (unknown.length) throw bad(`not a skill of this project: ${unknown.join(', ')}`);
+      const p = projectPlan({ ctx: projectCtx(dir), dir, answers: { disable, enable } });
       // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
       const changes = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
-      return { planId: keep(changes, projectCtx(dir), dir), changes: serialize(changes, projectCtx(dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings };
+      return { planId: keep(changes, projectCtx(dir), dir), changes: serialize(changes, projectCtx(dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
+        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })) };
     },
     'POST /api/update-all': (b) => updateAll(ctx, { paths: (b.paths ?? []).filter(registered), push: b.push !== false }),
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
@@ -98,7 +119,17 @@ export function api(ctx) {
       if (!libraryWith(ctx).skills.some((s) => s.name === name)) throw Object.assign(new Error('unknown skill'), { status: 404 });
       return { name, text: readText(join(contentDir, 'library', name, 'SKILL.md')) };
     },
-    'GET /api/doctor': () => doctor(ctx, { agents: installed() }),
+    'GET /api/doctor': (q) => {
+      if (!q.has('dir')) return doctor(ctx, { agents: installed() });
+      const dir = resolve(q.get('dir'));
+      if (!registered(dir)) throw bad('register the project first');
+      return projectChecks(ctx, dir);
+    },
+    'POST /api/pick-folder': () => pickFolder(ctx),
+    'POST /api/scan': (b) => {
+      if (typeof b.root !== 'string' || !isAbsolute(b.root)) throw bad('root must be an absolute path');
+      return scan(b.root).filter((d) => !registered(d));
+    },
     'GET /api/inventory': () => inventory(ctx, installed()),
   };
 }

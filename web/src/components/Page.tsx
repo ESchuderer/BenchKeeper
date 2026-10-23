@@ -68,13 +68,14 @@ function StepList({ from, className }: { from: number; className?: string }) {
 }
 
 const quickstart: [string, string, string][] = [
-  ['Review the plan', 'npx benchkeeper@6.2.0 plan', 'Each change for the agents on your PATH: file changes as a diff, commands as their command line. Writes nothing. Until the npm release, run the app from a clone (README, Setup steps).'],
+  ['Review the plan', 'npx benchkeeper@6.2.0 plan', 'Each change for the agents on your PATH: file changes as a diff, commands as their command line. Writes nothing.'],
   ['Apply', 'npx benchkeeper@6.2.0 apply', 'Asks per change: rules, ask rules for merges and force pushes, the plugins (BenchKeeper, Ponytail; Matt Pocock\'s skills with --pack matt-pocock), Claude Code settings. Removals of other global rules, skills, plugins, MCP servers and hooks are off unless chosen. Every run is recorded for undo.'],
   ['Or in the browser', 'npx benchkeeper@6.2.0', 'The Dashboard shows the doctor findings. Fix everything walks through the global plan, the projects you pick and the steps left by hand. Skill installs run first in a scratch folder, so the plan lists the files they would write.'],
   ['Restart the agents', '', 'New sessions load the global rules and the plugin skills.'],
   ['Project setup, in each repository root', 'npx benchkeeper@6.2.0 project apply --agents claude,codex', '--agents names the agents the repository uses. A block in AGENTS.md (where commands run, default tier), CLAUDE.md, library packs with --pack, and .benchkeeper/state.json. project plan shows the changes first.'],
   ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.2.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
   ['Update later', 'npx benchkeeper@6.2.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.2.0 update-all, or Fix everything in the browser, opens one pull request per project.'],
+  ['Track sessions', 'npx benchkeeper@6.2.0 board', 'Writes a static page, ~/.config/benchkeeper/board.html, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
 ];
 
 const reasons: [string, string][] = [
@@ -152,7 +153,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               The smallest complete change: reuse before new code, no unrequested options, a test for new logic, <Code>shortcut:</Code> comments for known limits.
             </Part>
             <Part icon={<IconRoute size={20} />} title="The app and the setup skills" href={`${REPO}/tree/main/app`} scope="On request">
-              <Code>npx benchkeeper@6.2.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, and Fix everything applies the global plan and opens a pull request per project. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass.
+              <Code>npx benchkeeper@6.2.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and opens a pull request per project, and the Sessions board tracks tier, cost and outcome per session. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass.
             </Part>
             <Part icon={<IconContainer size={20} />} title="Devcontainer and Playwright" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="Per repository">
               Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the <Anchor href={`${REPO}/blob/main/plugins/benchkeeper/library/README.md`}>BenchKeeper library</Anchor>, stack skills from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
@@ -200,8 +201,8 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </Stack>
             <Side label="Devcontainer, one per repository" color="orange" items={container} />
           </SimpleGrid>
-          <Alert mt="xl" variant="default" role="note" icon={<IconAlertTriangle size={20} />} title="Not a sandbox">
-            The dev container scopes commands and mounts to the project; the agent keeps its own permissions. For stronger isolation, use a Docker Sandboxes microVM (--env sandbox, untested) or a VM.
+          <Alert mt="xl" variant="default" role="note" icon={<IconAlertTriangle size={20} />} title="Isolation">
+            In the default container environment the agent sees the project mount instead of your home folder, but a container shares the host kernel and is not a security boundary. With --env host-agent, project apply --sandbox turns on Claude Code's sandbox. For a separate kernel, use a Docker Sandboxes microVM (--env sandbox, untested) or a VM.
           </Alert>
         </Section>
       </main>

@@ -16,12 +16,12 @@ import { launch, openBrowser, startServer } from './server.mjs';
 import { writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
-import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
+import { addProject, listProjects, packsInUse, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
 import { globalPlan, installedPlugins } from './steps/global.mjs';
-import { projectPlan } from './steps/project.mjs';
+import { projectCtx, projectPlan } from './steps/project.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -48,15 +48,21 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
-                    [--disable s] [--enable s]
+                    [--disable s] [--enable s] [--share|--local]
                                     project setup; answers default to the project's .benchkeeper/state.json;
+                                    local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
+                                    ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
                                     --disable moves a skill to .benchkeeper/disabled/, --enable moves it back
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (~/.config/benchkeeper/packs/)
   projects [list|add <dir>..|scan <root>|remove <dir>]
                                     projects Update all covers (~/.config/benchkeeper/projects.json)
-  update-all [--yes] [--no-push]    per project: branch chore/agent-setup-<version> in a worktree, one commit,
-                                    push and pull request when origin is on GitHub
+  projects unshare [dir..] [--yes] [--no-push]
+                                    per project whose repository still carries a setup kept local: a pull request
+                                    that removes it (branch chore/agent-setup-local); default: every such project
+  update-all [--yes] [--no-push]    per project: local setup (the default) applied in the checkout; shared setup
+                                    (project apply --share) on branch chore/agent-setup-<version> in a worktree,
+                                    one commit, push and pull request when origin is on GitHub
   board [--no-open]                 sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
   record [--project dir] -- <agent> [args]
@@ -68,7 +74,7 @@ Env (where the agent runs): container (default; host-agent or host when AGENTS.m
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
-  env: { type: 'string' }, sandbox: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
+  env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
   target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
@@ -155,9 +161,8 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'project') {
     const dir = resolve(positionals[2] ?? '.');
-    // Project runs write inside the project only.
-    const pctx = { ...ctx, roots: [dir] };
-    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable };
+    const pctx = projectCtx(ctx, dir);
+    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable };
     const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
     const plan = preview(changes);
     if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
@@ -187,6 +192,17 @@ async function command(argv, { out, ask, ctx }) {
     if (arg === 'add') dirs.forEach((d) => out.write(`added ${addProject(ctx, d)}\n`));
     else if (arg === 'scan') for (const d of scan(dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === d) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
     else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.write(`removed ${resolve(d)}\n`); });
+    else if (arg === 'unshare') {
+      const due = (dirs.length ? dirs.map((d) => resolve(d)) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
+      if (!due.length) { out.write('no project carries a committed setup\n'); return 0; }
+      for (const p of due) out.write(`${p.path}  setup ${p.origin ?? '-'} on origin${p.clean ? '' : ', working tree has changes: skipped'}\n`);
+      const ready = due.filter((p) => p.clean);
+      if (!ready.length) return 1;
+      if (!o.yes && !(await ask(`Open ${ready.length} pull requests (branch chore/agent-setup-local)${o['no-push'] ? ' without pushing' : ''}?`))) return 1;
+      const results = ready.map((p) => unshare(ctx, p.path, { push: !o['no-push'] }));
+      for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+      return results.some((r) => r.status === 'stopped') ? 1 : 0;
+    }
     else if (arg && arg !== 'list') { out.write(`unknown projects command ${arg}\n`); return 2; }
     if (!arg || arg === 'list') for (const p of listProjects(ctx)) out.write(`${p.path}\n`);
     return 0;
@@ -195,15 +211,17 @@ async function command(argv, { out, ask, ctx }) {
     const projects = listProjects(ctx).map((p) => status(ctx, p.path));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
     for (const p of projects) {
-      const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean ? 'working tree has changes, skipped'
+      const commits = p.share || p.committed;
+      const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean && commits ? 'working tree has changes, skipped'
         : p.changes ? `${p.changes.length} changes` : `setup ${p.setupVersion} on ${p.origin}, checkout ${p.checkout ?? 'without one'}${p.current ? ': pull it' : ''}`);
       out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
-      if (p.clean && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
+      if ((p.clean || !commits) && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
     }
     // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
-    const ready = projects.filter((p) => p.repo && p.clean && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
+    const ready = projects.filter((p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
-    const what = `${ready.length} projects: branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}`;
+    const shared = ready.filter((p) => p.share).length;
+    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
     const results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'] });
     for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
@@ -292,7 +310,7 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'undo' || cmd === 'restore') {
     if (!arg) { out.write(`${cmd} needs a name, see benchkeeper history\n`); return 2; }
     const scope = cmd === 'undo' ? ctx.ledger.get(arg).scope : 'global';
-    const uctx = scope === 'global' ? ctx : { ...ctx, roots: [scope] };
+    const uctx = scope === 'global' ? ctx : projectCtx(ctx, scope);
     return report(cmd === 'undo' ? undo(arg, uctx, { step: o.step }) : restoreLegacy(arg, ctx), out);
   }
   out.write(`unknown command ${cmd}\n\n${HELP}\n`);

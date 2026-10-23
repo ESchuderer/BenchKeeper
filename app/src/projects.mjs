@@ -8,7 +8,7 @@ import { hashText, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
 import { apply, preview } from './runner.mjs';
-import { STATE, projectPlan, readState, tryState } from './steps/project.mjs';
+import { STATE, committedSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -24,6 +24,16 @@ export function packsInUse(ctx) {
 function save(ctx, projects) {
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);
 }
+// The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the
+// project has its own again (local, untracked).
+const kept = (ctx, path) => listProjects(ctx).find((p) => p.path === path)?.state ?? null;
+function keepState(ctx, path, state) {
+  const list = listProjects(ctx);
+  if (!list.some((p) => p.path === path)) list.push({ path, added: new Date().toISOString() });
+  save(ctx, list.map((p) => (p.path !== path ? p : state ? { ...p, state } : (({ state: _, ...rest }) => rest)(p))));
+}
+// A state file as answers for a local setup.
+const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
 export function addProject(ctx, path) {
   const p = resolve(path);
   if (!existsSync(p)) throw new Error(`${p} does not exist`);
@@ -53,7 +63,7 @@ export function scan(root, depth = 3) {
 }
 
 // The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
-const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: { ...ctx, roots: [dir] }, dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
+const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
 
 // Git talks to origin without waiting on a password or passphrase prompt (terminal or askpass helper).
 function quiet(ctx, path) {
@@ -135,94 +145,146 @@ export function setupOf(ctx, path, checkout = tryState(path)) {
 export function status(ctx, path) {
   let local = null, error = null;
   try { local = readState(path); } catch (e) { error = e.message; }
+  const own = local;
+  local ??= kept(ctx, path);
   const { state, checkout, origin } = setupOf(ctx, path, local);
   const repo = isRepo(ctx, path);
   const branch = repo ? git(ctx, path, ['branch', '--show-current']).stdout.trim() : null;
   let changes = null;
   if (state && state === local) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
-    try { changes = projectChanges(ctx, path).filter((c) => c.selected); } catch (e) { error = e.message; }
+    try { changes = projectChanges(ctx, path, own ? undefined : localAnswers(local)).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
   // Per chosen agent, the skills in the project folder it reads.
   const files = skillFiles(path);
   const skills = Object.fromEntries((state?.agents ?? []).map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
-  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills };
+  // committed: git tracks the state file of a setup this machine keeps local; projects unshare takes it out.
+  const share = state?.share === true;
+  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
+    share, committed: !!repo && !share && tracksState(ctx, path) };
 }
 
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
-// answers[path] sets up a project without a state file the same way: its first setup lands on the branch too.
+// answers[path] sets up a project without a state file the same way. A local setup (the default) is applied in the
+// checkout; a shared one lands on branch chore/agent-setup-<version> with one commit and a pull request.
 export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), push = true, answers = {} } = {}) {
-  const branch = `chore/agent-setup-${appVersion}`;
   return paths.map((path) => {
-    const result = { path, branch };
+    const result = { path };
     try {
       const local = readState(path), repo = isRepo(ctx, path);
-      if (!answers[path] && !local && !repo) throw new Error(`no ${STATE}: set the project up first`);
-      if (!repo) throw new Error('not a git repository');
-      if (!clean(ctx, path)) throw new Error('working tree has changes');
-      const base = defaultBranch(ctx, path);
-      if (!base) throw new Error('no default branch (origin/HEAD, main or master)');
-      // The branch starts at the remote's default branch when it can be fetched, else at the local one.
-      const start = fetchBase(ctx, path, base) ? `origin/${base}` : base;
-      // Without a state file here, the one on the start branch (a setup merged on origin) sets the project up.
-      if (!answers[path] && !local && git(ctx, path, ['cat-file', '-e', `${start}:${STATE}`]).code !== 0) throw new Error(`no ${STATE}: set the project up first`);
-      // Per project path, so two projects with one folder name never share (and delete) a worktree.
-      const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${appVersion}`);
-      git(ctx, path, ['worktree', 'prune']);
-      // A relative core.hooksPath resolves in the worktree, which holds the fetched tree: the checkout's hooks run instead.
-      const hooksPath = git(ctx, path, ['config', '--get', 'core.hooksPath']).stdout.trim();
-      const hooks = hooksPath && !isAbsolute(hooksPath) && !hooksPath.startsWith('~') ? ['-c', `core.hooksPath=${resolve(path, hooksPath)}`] : [];
-      // A worktree left by a failed run holds its partial work: it stays until the user removes it.
-      if (existsSync(tree)) throw new Error(`a failed Update all left ${tree}: look at it, then git worktree remove --force ${tree}`);
-      const previous = git(ctx, path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]).stdout.trim();
-      // An unmerged branch from earlier runs gets new commits on top, so its pushes stay fast-forward; it may hold
-      // only the commits those runs made (by id, from the ledger). A merged one starts again at the default branch.
-      const open = previous && git(ctx, path, ['merge-base', '--is-ancestor', previous, start]).code !== 0;
-      if (open) {
-        const made = new Set(ctx.ledger.list().filter((r) => r.note?.updateAll === path && r.note.branch === branch && r.note.commit).map((r) => r.note.commit));
-        const other = git(ctx, path, ['log', '--format=%H %s', `${start}..${previous}`]).stdout.split('\n').filter(Boolean).filter((l) => !made.has(l.split(' ')[0]));
-        if (other.length) throw new Error(`local branch ${branch} has other commits (${other[0].slice(41)}): merge or rename it first`);
-      }
-      const wt = git(ctx, path, [...hooks, ...(open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start])]);
-      if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
-      let keep = false, planned = false;
-      try {
-        const changes = projectChanges(ctx, tree, answers[path]);
-        planned = keep = true;
-        const run = apply(changes, { ...ctx, roots: [tree] }, { scope: tree, note: { updateAll: path, branch } });
+      // The setup that counts says whether it is shared: the checkout's, the one kept from a removal pull request, or
+      // origin's.
+      const setup = local ?? kept(ctx, path) ?? (repo ? setupOf(ctx, path, local).state : null);
+      if (!answers[path] && !setup) throw new Error(`no ${STATE}: set the project up first`);
+      if (!(answers[path]?.share ?? setup?.share ?? false)) {
+        // Still committed: a local apply would change tracked files, and pulling the removal later would fail on them.
+        if (!answers[path] && repo && tracksState(ctx, path)) return unshare(ctx, path, { push });
+        const run = apply(projectChanges(ctx, path, answers[path] ?? (local ? undefined : localAnswers(setup))), projectCtx(ctx, path), { scope: path, note: { updateAll: path } });
         result.run = run.id;
-        if (run.status !== 'done') throw new Error(`${run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ')} (the worktree stays at ${tree})`);
-        git(ctx, tree, ['add', '-A']);
-        if (clean(ctx, tree)) { result.status = 'current'; keep = false; return result; }
-        const commit = git(ctx, tree, [...hooks, 'commit', '-q', '-m', `chore: agent setup ${appVersion}`, '-m', `BenchKeeper setup ${appVersion}, applied by benchkeeper update-all from ${STATE}.`]);
-        if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
-        ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim() } });
-        // The commit is on the branch: the worktree is not needed for pushing.
-        keep = false;
-        result.status = 'committed';
-        if (push && githubRemote(ctx, path)) {
-          const head = git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim();
-          const remote = git(ctx, path, ['ls-remote', 'origin', `refs/heads/${branch}`]).stdout.split(/\s/)[0];
-          if (remote !== head) {
-            const p = git(ctx, tree, [...hooks, 'push', '-q', '-u', 'origin', branch]);
-            if (p.code !== 0) throw new Error(`git push (origin may have ${branch} with other commits: merge or close its pull request first): ${p.stderr.trim()}`);
-          }
-          const pr = ctx.run(['gh', 'pr', 'create', '--base', base, '--head', branch, '--title', `chore: agent setup ${appVersion}`, '--body', `BenchKeeper setup ${appVersion}, applied by \`benchkeeper update-all\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`], { cwd: tree });
-          const url = `${pr.stdout}\n${pr.stderr}`.match(/https:\/\/github\.com\/\S+\/pull\/\d+/)?.[0];
-          if (pr.code !== 0 && !(url && /already exists/.test(pr.stderr))) throw new Error(`gh pr create: ${pr.stderr.trim()}`);
-          result.pr = url;
-          result.status = 'pull request';
-        }
-      } finally {
-        if (keep) result.worktree = tree;
-        else git(ctx, path, ['worktree', 'remove', '--force', tree]);
-        // A plan that failed wrote nothing: a branch this run made goes too.
-        if (!planned && !previous) git(ctx, path, ['branch', '-D', branch]);
+        if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
+        if (kept(ctx, path)) keepState(ctx, path, null);
+        result.status = run.entries.length ? 'applied' : 'current';
+        return result;
       }
+      viaPullRequest(ctx, path, result, {
+        branch: `chore/agent-setup-${appVersion}`, push,
+        // Without a state file here, the one on the start branch (a setup merged on origin) sets the project up.
+        check: (start) => { if (!answers[path] && !local && git(ctx, path, ['cat-file', '-e', `${start}:${STATE}`]).code !== 0) throw new Error(`no ${STATE}: set the project up first`); },
+        work: (tree) => apply(projectChanges(ctx, tree, answers[path]), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: `chore/agent-setup-${appVersion}` } }),
+        title: `chore: agent setup ${appVersion}`,
+        body: `BenchKeeper setup ${appVersion}, applied by \`benchkeeper update-all\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`,
+      });
     } catch (e) {
       result.status = 'stopped';
       result.reason = e.message;
     }
     return result;
   });
+}
+
+// A committed setup made local: one pull request takes it out of the repository (committedSetup). The checkout keeps the
+// committed copies until the merge is pulled (changing them would make that pull fail), and the registry keeps its state
+// file, so Update all writes the local setup after the pull deleted them.
+export function unshare(ctx, path, { push = true } = {}) {
+  const result = { path };
+  try {
+    viaPullRequest(ctx, path, result, {
+      branch: 'chore/agent-setup-local', push,
+      work: (tree) => apply(preview(committedSetup(tree)), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: 'chore/agent-setup-local' } }),
+      title: 'chore: keep the agent setup local',
+      body: 'BenchKeeper now keeps the per-project agent setup on each machine, in files git ignores (`.git/info/exclude`): `CLAUDE.local.md`, `AGENTS.override.md`, `.claude/settings.local.json`, the installed skills and `.benchkeeper/`. This removes the committed copies: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.\n\nAfter merging, pull, then run Update all in BenchKeeper (`npx benchkeeper update-all`): it writes the local setup from the answers it kept. Other machines: `npx benchkeeper project apply --agents ...` once.',
+    });
+    const state = tryState(path);
+    if (state && result.status !== 'current') keepState(ctx, path, state);
+  } catch (e) {
+    result.status = 'stopped';
+    result.reason = e.message;
+  }
+  return result;
+}
+
+// One change as a pull request: a worktree on origin's default branch (or the local one), work(tree) returns the run
+// that changed it, then one commit, push and gh pr create. Fills result (branch, run, status, pr, a kept worktree) and
+// throws with the reason.
+function viaPullRequest(ctx, path, result, { branch, push = true, check = () => {}, work, title, body }) {
+  result.branch = branch;
+  if (!isRepo(ctx, path)) throw new Error('not a git repository');
+  if (!clean(ctx, path)) throw new Error('working tree has changes');
+  const base = defaultBranch(ctx, path);
+  if (!base) throw new Error('no default branch (origin/HEAD, main or master)');
+  // The branch starts at the remote's default branch when it can be fetched, else at the local one.
+  const start = fetchBase(ctx, path, base) ? `origin/${base}` : base;
+  check(start);
+  // Per project path, so two projects with one folder name never share (and delete) a worktree.
+  const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${branch.split('/').pop()}`);
+  git(ctx, path, ['worktree', 'prune']);
+  // A relative core.hooksPath resolves in the worktree, which holds the fetched tree: the checkout's hooks run instead.
+  const hooksPath = git(ctx, path, ['config', '--get', 'core.hooksPath']).stdout.trim();
+  const hooks = hooksPath && !isAbsolute(hooksPath) && !hooksPath.startsWith('~') ? ['-c', `core.hooksPath=${resolve(path, hooksPath)}`] : [];
+  // A worktree left by a failed run holds its partial work: it stays until the user removes it.
+  if (existsSync(tree)) throw new Error(`an earlier failed run left ${tree}: look at it, then git worktree remove --force ${tree}`);
+  const previous = git(ctx, path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]).stdout.trim();
+  // An unmerged branch from earlier runs gets new commits on top, so its pushes stay fast-forward; it may hold
+  // only the commits those runs made (by id, from the ledger). A merged one starts again at the default branch.
+  const open = previous && git(ctx, path, ['merge-base', '--is-ancestor', previous, start]).code !== 0;
+  if (open) {
+    const made = new Set(ctx.ledger.list().filter((r) => r.note?.updateAll === path && r.note.branch === branch && r.note.commit).map((r) => r.note.commit));
+    const other = git(ctx, path, ['log', '--format=%H %s', `${start}..${previous}`]).stdout.split('\n').filter(Boolean).filter((l) => !made.has(l.split(' ')[0]));
+    if (other.length) throw new Error(`local branch ${branch} has other commits (${other[0].slice(41)}): merge or rename it first`);
+  }
+  const wt = git(ctx, path, [...hooks, ...(open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start])]);
+  if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
+  let keep = false, planned = false;
+  try {
+    const run = work(tree);
+    planned = keep = true;
+    result.run = run.id;
+    if (run.status !== 'done') throw new Error(`${run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ')} (the worktree stays at ${tree})`);
+    git(ctx, tree, ['add', '-A']);
+    if (clean(ctx, tree)) { result.status = 'current'; keep = false; return result; }
+    const commit = git(ctx, tree, [...hooks, 'commit', '-q', '-m', title, '-m', body.replace(/`/g, '')]);
+    if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
+    ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim() } });
+    // The commit is on the branch: the worktree is not needed for pushing.
+    keep = false;
+    result.status = 'committed';
+    if (push && githubRemote(ctx, path)) {
+      const head = git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim();
+      const remote = git(ctx, path, ['ls-remote', 'origin', `refs/heads/${branch}`]).stdout.split(/\s/)[0];
+      if (remote !== head) {
+        const p = git(ctx, tree, [...hooks, 'push', '-q', '-u', 'origin', branch]);
+        if (p.code !== 0) throw new Error(`git push (origin may have ${branch} with other commits: merge or close its pull request first): ${p.stderr.trim()}`);
+      }
+      const pr = ctx.run(['gh', 'pr', 'create', '--base', base, '--head', branch, '--title', title, '--body', body], { cwd: tree });
+      const url = `${pr.stdout}\n${pr.stderr}`.match(/https:\/\/github\.com\/\S+\/pull\/\d+/)?.[0];
+      if (pr.code !== 0 && !(url && /already exists/.test(pr.stderr))) throw new Error(`gh pr create: ${pr.stderr.trim()}`);
+      result.pr = url;
+      result.status = 'pull request';
+    }
+  } finally {
+    if (keep) result.worktree = tree;
+    else git(ctx, path, ['worktree', 'remove', '--force', tree]);
+    // A plan that failed wrote nothing: a branch this run made goes too.
+    if (!planned && !previous) git(ctx, path, ['branch', '-D', branch]);
+  }
 }

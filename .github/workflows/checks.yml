@@ -23,6 +23,8 @@ jobs:
         with:
           version: 1.31.1
           advanced-security: false
+          # bench/briefs hold the recorded reference repositories, whose workflows stay as they were
+          inputs: .github
       # rules/global.md, Punctuation: em dash and emoji in tracked text files; vendored skills, lockfiles and
       # recorded benchmark trial data (agent transcripts, apps, model reviews in bench/results/*/round-*) excluded.
       - name: Forbidden characters

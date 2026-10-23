@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
@@ -346,7 +346,8 @@ test('skill names from a state file never reach paths outside the project', () =
   writeFileSync(join(r.dir, STATE), JSON.stringify({ agents: ['claude'], env: 'host', skills: [{ name: `../../../${basename(r.ctx.home)}/outside` }] }));
   mkdirSync(join(r.dir, '.claude/skills'), { recursive: true });
   const changes = preview(plan(r, {}).changes);
-  assert.ok(changes.every((c) => !c.path || c.path.startsWith(r.dir)), JSON.stringify(changes.map((c) => c.path)));
+  // git names the exclude file by its real path (macOS: /private/var for /var).
+  assert.ok(changes.every((c) => !c.path || c.path.startsWith(r.dir) || c.path.startsWith(realpathSync(r.dir))), JSON.stringify(changes.map((c) => c.path)));
   assert.throws(() => plan(r, { paths: { accessibility: 'src/**\nname: evil' } }), /one line of globs/);
 });
 

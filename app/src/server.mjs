@@ -24,7 +24,7 @@ import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, listProjects, packsInUse, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
+import { addProject, listProjects, packsInUse, prefetchOrigins, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { scanSessions } from './sessions.mjs';
 import { globalPlan, globalSkills } from './steps/global.mjs';
@@ -113,6 +113,8 @@ const boardTickets = (ctx) => { if (!tickets.has(ctx)) tickets.set(ctx, new Map(
 
 export function api(ctx) {
   const plans = new Map(), jobs = new Map(), rehearsals = new Map();
+  // Origin's setup per project, read without blocking before the routes that show it (setupOf then hits the cache).
+  const originsOfProjects = () => prefetchOrigins(ctx, listProjects(ctx).map((p) => p.path));
   // Changes wait while a job runs: an undo or Update all in between would edit files and runs an apply still writes.
   // Every route that changes files calls it first: rehearsals still running would diff against the files it changes,
   // and rehearsed results from before are out of date.
@@ -157,7 +159,7 @@ export function api(ctx) {
   const projectCtx = (dir) => ({ ...ctx, roots: [dir] });
   const registered = (dir) => listProjects(ctx).some((p) => p.path === dir);
   const routes = {
-    'GET /api/overview': () => ({ version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
+    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx) } }));
@@ -225,7 +227,7 @@ export function api(ctx) {
       return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; }, onResult: ({ details, ...x }) => { (job.results ??= []).push(x); }, signal: job.ctl.signal }), { kind: 'eval', title: 'evals' });
     },
     // seen: the skills each chosen agent loads there, its global ones included.
-    'GET /api/projects': () => listProjects(ctx).map((p) => {
+    'GET /api/projects': async () => (await originsOfProjects(), listProjects(ctx)).map((p) => {
       const s = status(ctx, p.path);
       const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
       return { ...s, seen, changes: s.changes && serialize(s.changes, projectCtx(p.path)) };
@@ -428,6 +430,10 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     const hashed = file.startsWith(join(dist, 'assets') + sep);
     return send(200, await readFile(file), TYPES[extname(file)] ?? 'application/octet-stream', hashed ? { 'cache-control': 'public, max-age=31536000, immutable' } : {});
   });
+  // Longer than the browser keeps an idle connection: a request the page sends just as Node closes one would fail as a
+  // network error (browsers retry only GETs). Headers must be allowed longer than that.
+  server.keepAliveTimeout = 65e3;
+  server.headersTimeout = 70e3;
   return new Promise((ok) => server.listen(port, '127.0.0.1', () => ok({ server, url: `http://127.0.0.1:${server.address().port}/?token=${token}` })));
 }
 

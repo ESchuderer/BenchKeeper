@@ -114,6 +114,20 @@ test.describe('views', () => {
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
   });
 
+  test('a read that loses its connection is asked again; no answer at all says the server has stopped', async ({ page }) => {
+    let n = 0;
+    // The app reads the history once at load.
+    await page.route(/\/api\/history(\?|$)/, (r) => (n++ === 0 ? r.abort('connectionreset') : r.continue()));
+    await page.reload();
+    await nav(page, 'History').click();
+    await expect(page.locator('a[href*="history?run="]').first()).toBeVisible();
+    expect(n).toBe(2);
+    await page.unroute(/\/api\/history(\?|$)/);
+    await page.route(/\/api\/history(\?|$)/, (r) => r.abort('connectionreset'));
+    await page.reload();
+    await expect(page.getByText(/BenchKeeper does not answer: its server has stopped/)).toBeVisible();
+  });
+
   test('slash opens the palette too', async ({ page }) => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
     await page.keyboard.press('/');

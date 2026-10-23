@@ -100,5 +100,19 @@ code:not([data-block]) { white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .mantine-Timeline-item:target { animation: none; outline: 2px solid var(--mantine-color-teal-6); } }
 /* Phones: the two step lists stack, so the first one's line continues into the second; ring labels sized for the 40% scale. */
 @media (max-width: 639px) { .steps-first .mantine-Timeline-item:last-of-type { --timeline-line-display: block; } .ring .flow-t { display: none; } .ring text.ph-l { font-size: 17px; } .ring .req-t { font-size: 22px; } }
-/* below md the header has a second row with the section links */
-@media (max-width: 61.99em) { section[id] { scroll-margin-top: 104px; } .mantine-Timeline-item { scroll-margin-top: 112px; } }
+/* Repository widget in the header (name, then latest release, stars, forks); icon plus name alone when the GitHub API is unavailable. */
+.header-end { min-width: 0; }
+.header-end > :not(.repo) { flex: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.repo { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 260px; padding: 3px 6px; border-radius: var(--mantine-radius-md); color: var(--mantine-color-text); text-decoration: none; }
+.repo:hover { background: var(--mantine-color-default-hover); }
+.repo:focus-visible { outline: 2px solid var(--mantine-color-teal-6); outline-offset: 2px; }
+.repo-icon { flex: none; }
+.repo-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.repo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.repo-facts { display: flex; gap: 10px; overflow: hidden; white-space: nowrap; font-size: 11px; color: var(--mantine-color-dimmed); }
+.repo-facts > span { display: inline-flex; align-items: center; gap: 3px; }
+@media (max-width: 29.99em) { .wordmark { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } }
+@media (max-width: 47.99em) { .repo { padding: 3px 4px; } .repo-icon { width: 22px; height: 22px; } .repo-facts { gap: 8px; } }
+/* below lg the header has a second row with the section links */
+@media (max-width: 74.99em) { section[id] { scroll-margin-top: 104px; } .mantine-Timeline-item { scroll-margin-top: 112px; } }

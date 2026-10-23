@@ -70,3 +70,9 @@ test('the benchmark pages use the main site header, its section links lead back 
   await expect(nav.getByRole('link', { name: 'Workflow' })).toHaveAttribute('href', '/BenchKeeper/#sdlc');
   await expect(page.getByRole('banner').getByRole('link', { name: 'Benchmark', exact: true })).toBeVisible();
 });
+
+test('the header repository widget is one link whose name starts with the repository', async ({ page }) => {
+  await page.goto('./');
+  const link = page.getByRole('banner').getByRole('link', { name: /^ESchuderer\/BenchKeeper/ });
+  await expect(link).toHaveAttribute('href', 'https://github.com/ESchuderer/BenchKeeper');
+});

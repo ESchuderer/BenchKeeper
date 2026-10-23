@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.1.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.",
+  "description": "BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.2.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.",
   "tagline": "Short rules, a workflow skill and a per-repository setup for Claude Code and Codex, installed by an app that shows each change first and can undo it.",
   "core": {
     "name": "mattpocock/skills",

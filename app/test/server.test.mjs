@@ -73,11 +73,14 @@ test('the sessions board: the session cookie and a one-time ticket asked for wit
   assert.equal((await req('GET', `/board?ticket=${ticket}`, { cookie })).status, 403, 'a ticket works once');
 });
 
-test('a session scan is reused for a minute: the board renders from it; force scans again', async () => {
-  const { routes } = fixture();
+test('a session scan is reused for a minute: the board renders from it and is saved as board.html; force scans again', async () => {
+  const { ctx, routes } = fixture();
   const first = routes['POST /api/sessions-scan']({});
   assert.ok(first.job);
   await finished(routes, first.job);
+  const file = join(ctx.config, 'board.html');
+  assert.match(readFileSync(file, 'utf8'), /<title>Sessions board<\/title>/);
+  if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.deepEqual(routes['POST /api/sessions-scan']({}), { fresh: true });
   assert.ok(routes['POST /api/sessions-scan']({ force: true }).job);
 });

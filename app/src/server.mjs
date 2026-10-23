@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADVISERS, adviseSetup } from './advise.mjs';
-import { CSP as BOARD_CSP, boardHtml } from './board.mjs';
+import { CSP as BOARD_CSP, boardHtml, writeBoard } from './board.mjs';
 import { agent, detect } from './agents.mjs';
 import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
@@ -105,6 +105,7 @@ function setupAnswers(src) {
 
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
 const scans = new WeakMap();
+const keepScan = (ctx, rows) => { const at = Date.now(); scans.set(ctx, { rows, at }); writeBoard(ctx, rows, new Date(at).toISOString()); };
 const FRESH_SCAN_MS = 60e3;
 // GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
 // so the cookie alone (which browsers send to every server on 127.0.0.1) does not show the board.
@@ -281,7 +282,7 @@ export function api(ctx) {
       if (running) return { job: running.id, total: 0 };
       return start(0, async (job) => {
         const rows = await scanSessions(ctx, { onFile: (p) => { job.progress = p; } });
-        scans.set(ctx, { rows, at: Date.now() });
+        keepScan(ctx, rows);
         job.results = { sessions: rows.length };
       }, { kind: 'scan', title: 'sessions', readOnly: true });
     },
@@ -408,7 +409,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
       if (!issued || Date.now() - issued > FRESH_SCAN_MS) return send(403, { error: 'open the board from the app' });
       try {
         // The last scan, or one now; the page says when it was read.
-        if (!scans.has(ctx)) scans.set(ctx, { rows: await scanSessions(ctx), at: Date.now() });
+        if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx));
         const { rows, at } = scans.get(ctx);
         return send(200, boardHtml(rows, new Date(at).toISOString()), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }

@@ -101,3 +101,28 @@ test('on: the buttons run /benchkeeper:tier as a person types it', ON, async ($,
   expect(await ui.find({ type: 'Text', text: /override: none/ })).toBeDefined()
   await ui.unmount()
 })
+
+test('on: the board button opens the board the app wrote, or says how to get one', ON, async ($, on) => {
+  engine(on)
+  const ran: string[][] = []
+  const toasts: string[] = []
+  let written = false
+  on('env.get', (_, e) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
+  on('fs.exists', (_, e) => ({ value: written && e.path === '/home/u/.config/benchkeeper/board.html' }))
+  on('process.run', (_, e) => {
+    ran.push([...e.argv])
+    return { value: { exitCode: 0, stdout: 'Linux\n', stderr: '' } } as never
+  })
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined } as never
+  })
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'board' })
+  expect(toasts).toEqual(['No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper board'])
+  expect(ran).toEqual([])
+  written = true
+  await ui.press({ key: 'board' })
+  expect(ran).toEqual([['uname'], ['xdg-open', '/home/u/.config/benchkeeper/board.html']])
+  await ui.unmount()
+})

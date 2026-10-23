@@ -2,14 +2,14 @@
 
 Installs, updates and undoes the BenchKeeper agent setup for Claude Code, Codex, Gemini CLI and GitHub Copilot, globally and per project, from a CLI or a local web UI. What the setup contains: the [repository README](../README.md#setup-steps).
 
-First run: `npx benchkeeper@6.1.0` opens the browser on the Dashboard, with the doctor findings and Fix everything. In a terminal, `plan` shows the changes and `apply` makes them.
+First run: `npx benchkeeper@6.2.0` opens the browser on the Dashboard, with the doctor findings and Fix everything. In a terminal, `plan` shows the changes and `apply` makes them.
 
 ## Setup
 
 Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
 
-- From npm: `npx benchkeeper@6.1.0 <command>`. Until the first npm release, run it from a clone.
-- From a clone: `git clone --depth 1 --branch setup-v6.1 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
+- From npm: `npx benchkeeper@6.2.0 <command>`. Until the first npm release, run it from a clone.
+- From a clone: `git clone --depth 1 --branch setup-v6.2 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
 Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML). The web UI (React, Mantine) is built into `dist/` and ships in the package.
 
@@ -43,7 +43,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | Projects | registered projects with setup version, skills per chosen agent (in the project, and in all with its global and plugin skills), pending changes, tree state and branch; per project its plan, skill switches and doctor findings; add, scan a parent folder, Update all with progress per project. A project without a state file is set up step by step (agents, environment with the dev container as default, packs and skills with suggestions from its files, tier, review) on a branch with one commit and a pull request, one project after the other; Prefill all with an agent, on the first project of a batch, runs one suggestion session per project after one consent, one at a time with a state per project (waiting, running, ready, failed, cancelled); each project's steps then start from its suggestion, still reviewed and applied one by one (a reload loses suggestions not yet used). Change setup reopens these steps from the state file; Open folder shows the project in the file manager. Suggest with an agent asks first, then runs one read-only session (Claude Code `-p --restricted --strict-mcp-config` with Read, Grep and Glob; Codex `exec` with a permission profile that reads only the project, the system's minimal paths and Codex itself, writes nothing, and runs without web search and MCP servers) in the project on your subscription; only library packs, skills and environments from its answer are taken |
 | Catalog | library skills with filters, skill detail with eval results, pack builder (warns about overlapping descriptions), packs with export, import and removal |
 | Agents | detected agents and the global plan for the chosen ones. A skills CLI install in a plan (here, in a project's plan and in setup review) runs first in a scratch folder with its own `HOME` and `CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_*` unset, so the plan shows the files it would write (mapped back to the folders those variables point to); links are copied as what they point to, npm keeps your cache and `.npmrc`, git your global config. Three run at a time; a result is kept 10 minutes or until the app changes files, and an apply stops a rehearsal still running. Apply shows each change as it runs, with the command output, then the run report in place of the plan. Cancel skips the changes not started yet |
-| Sessions | the sessions board (see `board`), scanned when the view opens, with progress and Rescan |
+| Sessions | the sessions board (see `board`), scanned when the view opens, with progress and Rescan; each scan also rewrites `board.html`, which the tier band's board button opens |
 | History | runs by day; the run report: counts by status and changed lines, each change with its diff (line numbers, unified or split, created and deleted files unified), command and output, or session files, undo of a step or the whole run |
 | Evals | per agent and model (the newest by default): the latest miss and false-trigger rate of each target, worst first, and each target's rates over time; Run evals plans the targets and the number of agent sessions, then starts them with progress per session; Cancel stops the running session, finished targets keep their results |
 | Settings | profile export and import, keyboard shortcuts, config files |

@@ -1,6 +1,8 @@
 // The sessions board: one self-contained page. Rows go in as JSON data; one constant script draws the page, writes
 // every transcript value through textContent, and builds the charts as plain SVG. Its hash is the page's script-src.
 import { createHash } from 'node:crypto';
+import { join } from 'node:path';
+import { writeAtomic } from './fsx.mjs';
 
 // Runs in the browser only: toString() of this function is the page script.
 function draw() {
@@ -255,4 +257,11 @@ export function boardHtml(rows, now = new Date().toISOString()) {
 </body>
 </html>
 `;
+}
+
+// The board as a file the user opens without the app (the tier band's Board button): rewritten by every scan.
+export function writeBoard(ctx, rows, now) {
+  const file = join(ctx.config, 'board.html');
+  writeAtomic(file, boardHtml(rows, now), 0o600);
+  return file;
 }

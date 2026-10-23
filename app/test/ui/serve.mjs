@@ -60,7 +60,7 @@ const dir = join(parent, 'bk-ui-proj');
 execFileSync('git', ['init', '-q', '-b', 'main', dir]);
 writeFileSync(join(dir, 'README.md'), '# Demo\n');
 const pctx = { ...ctx, roots: [dir] };
-apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick' } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
 addProject(ctx, dir);
 // Two eval runs of one skill for the Evals chart.
 mkdirSync(join(ctx.config, 'evals'), { recursive: true });

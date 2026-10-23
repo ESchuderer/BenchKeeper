@@ -1,5 +1,5 @@
 // Git helpers: working tree snapshots that leave the user's index alone.
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,12 +8,33 @@ const git = (ctx, dir, args, extra = {}) => ctx.run(['git', '-C', dir, ...args],
 export const isRepo = (ctx, dir) => git(ctx, dir, ['rev-parse', '--is-inside-work-tree']).stdout.trim() === 'true';
 
 // Tree of every tracked and untracked, not ignored, file, written through a temporary index.
+// The files of a local agent setup that git ignores through BenchKeeper's blocks in info/exclude (paths from the
+// repository root dir): a snapshot holds them too, so a recorded session can undo skills it installed there.
+function localSetupPaths(ctx, dir) {
+  const common = git(ctx, dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim();
+  let text = '';
+  try { text = readFileSync(join(common, 'info', 'exclude'), 'utf8'); } catch { return []; }
+  const paths = [];
+  let inside = false;
+  for (const l of text.split('\n')) {
+    if (/^# benchkeeper:local.* start$/.test(l)) inside = true;
+    else if (/^# benchkeeper:local.* end$/.test(l)) inside = false;
+    else if (inside && l.startsWith('/')) paths.push(l.slice(1).replace(/\/$/, ''));
+  }
+  return paths.filter((p) => existsSync(join(dir, p)));
+}
+
 export function snapshot(ctx, dir) {
   const tmp = mkdtempSync(join(tmpdir(), 'bk-index-'));
   const env = { ...process.env, GIT_INDEX_FILE: join(tmp, 'index') };
   try {
     const add = git(ctx, dir, ['add', '-A'], { env });
     if (add.code !== 0) throw new Error(`git add: ${add.stderr.trim()}`);
+    const local = localSetupPaths(ctx, dir);
+    if (local.length) {
+      const forced = git(ctx, dir, ['add', '-f', '--', ...local], { env });
+      if (forced.code !== 0) throw new Error(`git add: ${forced.stderr.trim()}`);
+    }
     const tree = git(ctx, dir, ['write-tree'], { env });
     if (tree.code !== 0) throw new Error(`git write-tree: ${tree.stderr.trim()}`);
     return tree.stdout.trim();

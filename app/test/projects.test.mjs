@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
+import { projectChecks } from '../src/doctor.mjs';
 import { appVersion } from '../src/content.mjs';
 import { addProject, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
@@ -22,7 +23,7 @@ function project(h) {
   git('config', 'user.name', 't');
   writeFileSync(join(dir, 'README.md'), '# P\n');
   const ctx = context({ home: h, roots: [h, dir] });
-  apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent' } }).changes), ctx, { scope: dir });
+  apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent', share: true } }).changes), ctx, { scope: dir });
   const state = JSON.parse(readFileSync(join(dir, STATE), 'utf8'));
   writeFileSync(join(dir, STATE), JSON.stringify({ ...state, setupVersion: '5.0.0' }));
   git('add', '-A');
@@ -133,7 +134,7 @@ test('Update all adds to its own unmerged branch, refuses an amended commit, and
   const bad = updateAll({ ...ctx, run: (argv, o) => (argv[0] === 'npx' ? { code: 1, stdout: '', stderr: 'offline' } : ctx.run(argv, o)) }, { paths: [p.dir], answers: { [p.dir]: { agents: ['claude'], env: 'host-agent', packs: ['frontend'] } } })[0];
   assert.equal(bad.status, 'stopped');
   assert.ok(bad.worktree && existsSync(bad.worktree), bad.reason);
-  assert.match(updateAll(ctx, { paths: [p.dir] })[0].reason, /a failed Update all left/);
+  assert.match(updateAll(ctx, { paths: [p.dir] })[0].reason, /an earlier failed run left/);
 });
 
 test('a project with changes, without a state file or outside git stops alone; the others continue', () => {
@@ -162,7 +163,7 @@ test('a project without a state file is set up on the branch from answers; the c
   git('add', '-A');
   git('commit', '-qm', 'init');
   assert.match(updateAll(ctx, { paths: [dir] })[0].reason, /no \.benchkeeper\/state\.json: set the project up first/);
-  const [r] = updateAll(ctx, { paths: [dir], answers: { [dir]: { agents: ['claude'], env: 'host-agent', tier: 'standard' } } });
+  const [r] = updateAll(ctx, { paths: [dir], answers: { [dir]: { agents: ['claude'], env: 'host-agent', tier: 'standard', share: true } } });
   assert.equal(r.status, 'committed');
   const state = JSON.parse(git('show', `${r.branch}:${STATE}`));
   assert.deepEqual([state.agents, state.env, state.tier], [['claude'], 'host-agent', 'standard']);
@@ -179,7 +180,7 @@ test('a changed setup lands on the branch with its cleanups; an empty tier clear
   git('config', 'user.email', 't@example.com');
   git('config', 'user.name', 't');
   const pctx = context({ home: h, roots: [dir] });
-  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude', 'codex'], env: 'container', sandbox: true, tier: 'quick' } }).changes), pctx, { scope: dir });
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude', 'codex'], env: 'container', sandbox: true, tier: 'quick', share: true } }).changes), pctx, { scope: dir });
   git('add', '-A');
   git('commit', '-qm', 'setup');
   const [r] = updateAll(ctx, { paths: [dir], answers: { [dir]: { agents: ['codex'], sandbox: false, tier: null } } });
@@ -299,4 +300,69 @@ test('prefetchOrigins reads origin without blocking and fills the cache status u
   p.git('remote', 'set-url', 'origin', join(h, 'gone.git'));
   assert.deepEqual([status(ctx, p.dir).setupVersion, status(ctx, p.dir).origin], [appVersion, 'origin/main']);
   assert.deepEqual([status(ctx, offline.dir).origin, status(ctx, offline.dir).checkout], [null, '5.0.0']);
+});
+
+test('projects unshare: a pull request without the committed setup; the checkout stays as it is until the pull, then Update all writes the local setup from the kept answers', async () => {
+  const h = home();
+  const p = project(h);
+  // A setup from before 6.3, committed and pushed: its state file has no share key.
+  const { share, ...old } = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
+  writeFileSync(join(p.dir, STATE), JSON.stringify(old));
+  p.git('commit', '-qam', 'old setup');
+  p.git('push', '-q', 'origin', 'main');
+  const ctx = context({ home: h });
+  addProject(ctx, p.dir);
+  assert.equal(status(ctx, p.dir).committed, true);
+  const still = (d) => projectChecks(ctx, d).some((i) => /still has it committed/.test(i.message));
+  assert.ok(still(p.dir));
+  let out = '';
+  const w = new Writable({ write(c, _, done) { out += c; done(); } });
+  assert.equal(await main(['projects', 'unshare', '--yes', '--no-push'], { out: w, ctx, input: Readable.from(['']) }), 0, out);
+  assert.match(out, /^committed\s/m);
+  assert.equal(p.git('ls-tree', '-r', '--name-only', 'chore/agent-setup-local'), 'README.md\n');
+  // The checkout keeps the committed copies until the merge is pulled; the registry keeps the state file.
+  assert.equal(p.git('status', '--porcelain'), '');
+  assert.equal(listProjects(ctx)[0].state.agents[0], 'claude');
+  // Update all before the merge: the pull request is there already.
+  assert.equal(updateAll(ctx, { paths: [p.dir], push: false })[0].status, 'current');
+  // Merged and pulled: the committed copies are gone; Update all writes the local setup from the kept answers.
+  p.git('merge', '-q', '--ff-only', 'chore/agent-setup-local');
+  assert.ok(!existsSync(join(p.dir, STATE)));
+  assert.equal(status(ctx, p.dir).changes.length > 0, true);
+  const [r] = updateAll(ctx, { paths: [p.dir], push: false });
+  assert.equal(r.status, 'applied', r.reason);
+  assert.equal(JSON.parse(readFileSync(join(p.dir, STATE), 'utf8')).share, false);
+  assert.match(readFileSync(join(p.dir, 'CLAUDE.local.md'), 'utf8'), /benchkeeper:project start/);
+  assert.equal(p.git('status', '--porcelain'), '');
+  assert.equal(listProjects(ctx)[0].state, undefined);
+  assert.equal(status(ctx, p.dir).committed, false);
+  assert.ok(!still(p.dir));
+});
+
+test('unshare keeps the answers first; after a failed push, the next run pushes the commit and opens the pull request', () => {
+  const h = home();
+  const p = project(h);
+  const { share, ...old } = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
+  writeFileSync(join(p.dir, STATE), JSON.stringify(old));
+  p.git('commit', '-qam', 'old setup');
+  p.git('push', '-q', 'origin', 'main');
+  let offline = true;
+  const calls = [];
+  const base = context({ home: h });
+  const ctx = context({ home: h, run: (argv, o) => {
+    if (argv[0] === 'gh') { calls.push('gh'); return { code: 0, stdout: 'https://github.com/o/r/pull/2\n', stderr: '' }; }
+    if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
+    if (argv.includes('push') && offline) return { code: 128, stdout: '', stderr: 'Could not resolve host: github.com' };
+    return base.run(argv, o);
+  } });
+  addProject(ctx, p.dir);
+  const [first] = updateAll(ctx, { paths: [p.dir] });
+  assert.equal(first.status, 'stopped');
+  assert.match(first.reason, /git push/);
+  assert.equal(listProjects(ctx)[0].state.agents[0], 'claude');
+  offline = false;
+  const [second] = updateAll(ctx, { paths: [p.dir] });
+  assert.equal(second.status, 'pull request', second.reason);
+  assert.equal(second.pr, 'https://github.com/o/r/pull/2');
+  assert.deepEqual(calls, ['gh']);
 });

@@ -11,7 +11,7 @@ const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host
 
 // The query of a project plan for these first-setup answers.
 const planQuery = (dir, a) => {
-  const q = new URLSearchParams({ dir, setup: '1', agents: a.agents.join(','), env: a.env, sandbox: a.sandbox ? '1' : '0' });
+  const q = new URLSearchParams({ dir, setup: '1', agents: a.agents.join(','), env: a.env, sandbox: a.sandbox ? '1' : '0', share: a.share ? '1' : '0' });
   for (const p of a.packs) q.append('pack', p);
   for (const s of a.skills) q.append('skill', s);
   q.set('tier', a.tier);
@@ -82,8 +82,9 @@ export function AdviceJob({ job, name, onDone }) {
 // A plan shown for review only, its skill installs rehearsed.
 const Rehearsed = ({ plan }) => <ChangeList plan={plan} prerun={usePrerun(plan)} />;
 
-// One project's setup, step by step: agents, where commands run, packs and skills, tier, review, then a branch
-// with one commit (and a pull request when origin is on GitHub), as Update all makes them.
+// One project's setup, step by step: agents, where commands run, packs and skills, tier, review. Local (the default):
+// written in the checkout, in files git ignores. Shared: a branch with one commit (and a pull request when origin is on
+// GitHub), as Update all makes them.
 function SetupSteps({ dir, push, onFinish, prefill }) {
   const setup = useApi(`/api/project-setup?dir=${encodeURIComponent(dir)}`);
   const [a, setA] = useState(null);
@@ -96,8 +97,8 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     if (!setup.data || a) return;
     // A project set up before starts from its state file, so only what the user changes is cleaned up.
     const st = setup.data.state;
-    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '' }
-      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '' });
+    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '', share: st.share === true }
+      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '', share: false });
   }, [setup.data]);
   const applyAdvice = (r, name, prefilled = false) => {
     setAdvice({ ...r, name, prefilled });
@@ -186,14 +187,20 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             </Radio.Group>
           </Stepper.Step>
           <Stepper.Step label="Review">
+            <Radio.Group mb="sm" label="Where the setup lives" value={a.share ? 'share' : 'local'} onChange={(v) => set('share')(v === 'share')}>
+              <Stack gap="xs" mt="xs">
+                <Radio value="local" label="On this machine (recommended)" description="CLAUDE.local.md, AGENTS.override.md and the skills, in this checkout; git ignores them, so nothing lands in the repository." />
+                <Radio value="share" label="In the repository, as a pull request" description="The AGENTS.md block, CLAUDE.md and the skills on a branch with one commit, for everyone who clones it." />
+              </Stack>
+            </Radio.Group>
             <Loading state={review} label="changes">{(p) => (
               <Stack gap="sm">
                 {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-                <Text size="sm">{p.changes.length} changes on branch <Code>chore/agent-setup</Code>, nothing in your working tree.</Text>
+                <Text size="sm">{a.share ? <>{p.changes.length} changes on branch <Code>chore/agent-setup</Code>, nothing in your working tree.</> : <>{p.changes.length} changes in this checkout, in files git ignores.</>}</Text>
                 <Rehearsed plan={p} />
                 {!!p.prompts.length && (
                   <Stack gap={4}>
-                    <Text size="sm" fw={600}>After merging, start in the project</Text>
+                    <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Then start in the project'}</Text>
                     {p.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
                   </Stack>
                 )}
@@ -203,18 +210,19 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
           <Stepper.Completed>
             {result && (
               <Note color={result.status === 'stopped' ? 'red' : 'teal'} title={result.status}>
-                {result.reason ?? <>Branch <Code>{result.branch}</Code>{result.pr && <>, pull request <Anchor href={result.pr} target="_blank" rel="noreferrer">{result.pr}</Anchor></>}</>}
+                {result.reason ?? (result.branch ? <>Branch <Code>{result.branch}</Code>{result.pr && <>, pull request <Anchor href={result.pr} target="_blank" rel="noreferrer">{result.pr}</Anchor></>}</> : 'Written in this checkout; git ignores it.')}
               </Note>
             )}
             {result?.run && <RunPanel id={result.run} order={3} />}
-            {!result && <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>}
+            {!result && (a.share ? <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>
+              : <Text>Writes the setup in this checkout and adds its files to <Code>.git/info/exclude</Code>.</Text>)}
           </Stepper.Completed>
         </Stepper>
         {error && <Note color="red" title="Failed">{error}</Note>}
         <Group justify="space-between">
           <Button variant="default" disabled={step === 0 || !!result || busy} onClick={() => setStep(step - 1)}>Back</Button>
           {step < 5 && <Button disabled={!a.agents.length || (step === 4 && !review.data)} onClick={() => setStep(step + 1)}>{step === 4 ? 'Continue' : 'Next'}</Button>}
-          {step === 5 && !result && <Button loading={busy} onClick={create}>{push ? 'Create branch and pull request' : 'Create branch'}</Button>}
+          {step === 5 && !result && <Button loading={busy} onClick={create}>{!a.share ? 'Apply' : push ? 'Create branch and pull request' : 'Create branch'}</Button>}
           {result && <Button onClick={() => onFinish(result)}>Next project</Button>}
         </Group>
       </Stack>

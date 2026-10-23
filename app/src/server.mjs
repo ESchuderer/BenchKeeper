@@ -24,11 +24,11 @@ import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, listProjects, packsInUse, prefetchOrigins, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
+import { addProject, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { scanSessions } from './sessions.mjs';
 import { globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, suggest } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
@@ -100,7 +100,9 @@ function setupAnswers(src) {
   const all = (k) => (src instanceof URLSearchParams ? src.getAll(k) : [src[k] ?? []].flat()).filter((x) => typeof x === 'string');
   const list = (k) => (src instanceof URLSearchParams ? all(k).flatMap((x) => x.split(',')).filter(Boolean) : all(k));
   return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'), // An empty tier clears the saved one; no tier keeps it.
-    tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined };
+    tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined,
+    // No share keeps the saved choice.
+    share: (src instanceof URLSearchParams ? src.has('share') : 'share' in src) ? get('share') === '1' || get('share') === true : undefined };
 }
 
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
@@ -157,10 +159,9 @@ export function api(ctx) {
   };
   const agentsNow = () => cached('agents', () => detect(ctx));
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
-  const projectCtx = (dir) => ({ ...ctx, roots: [dir] });
   const registered = (dir) => listProjects(ctx).some((p) => p.path === dir);
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
+    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx) } }));
@@ -231,7 +232,7 @@ export function api(ctx) {
     'GET /api/projects': async () => (await originsOfProjects(), listProjects(ctx)).map((p) => {
       const s = status(ctx, p.path);
       const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
-      return { ...s, seen, changes: s.changes && serialize(s.changes, projectCtx(p.path)) };
+      return { ...s, seen, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
     }),
     'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),
     // With setup=1 the answers come from the query (a project's first setup), else from its state file.
@@ -244,10 +245,10 @@ export function api(ctx) {
       const disable = q.getAll('disable'), enable = q.getAll('enable');
       const unknown = [...disable, ...enable].filter((n) => !own.includes(n));
       if (unknown.length) throw bad(`not a skill of this project: ${unknown.join(', ')}`);
-      const p = input(() => projectPlan({ ctx: projectCtx(dir), dir, answers: { ...setup, disable, enable } }));
+      const p = input(() => projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: { ...setup, disable, enable } }));
       // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
       const changes = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
-      return { planId: keep(changes, projectCtx(dir), dir), changes: serialize(changes, projectCtx(dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
+      return { planId: keep(changes, projectCtx(ctx, dir), dir), changes: serialize(changes, projectCtx(ctx, dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
         chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })) };
     },
     // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the
@@ -257,7 +258,7 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       const lib = libraryWith(ctx);
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
-      return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: tryState(dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
+      return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: projectState(ctx, dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
         packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })) };
     },
     // An agent reads the project and suggests env, packs and skills: one read-only session, after the user agreed in the UI.
@@ -321,11 +322,11 @@ export function api(ctx) {
     'POST /api/undo': (b) => {
       idle();
       const scope = ctx.ledger.get(b.run).scope;
-      return undo(b.run, scope === 'global' ? ctx : projectCtx(scope), { step: b.step || undefined });
+      return undo(b.run, scope === 'global' ? ctx : projectCtx(ctx, scope), { step: b.step || undefined });
     },
     'GET /api/catalog': () => {
       const lib = libraryWith(ctx);
-      const projects = listProjects(ctx).map((p) => tryState(p.path)).filter(Boolean);
+      const projects = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
       return { ...lib, skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
     },
     'GET /api/skill': (q) => {

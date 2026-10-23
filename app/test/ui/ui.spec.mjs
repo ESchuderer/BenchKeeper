@@ -235,7 +235,7 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1)).toContainText(/\d+ here, \d+ in all/);
   });
 
-  test('Projects: a project without a state file is set up step by step on a branch', async ({ page }) => {
+  test('Projects: a project without a state file is set up step by step, local or on a branch', async ({ page }) => {
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'other', exact: true }).click();
     await page.getByRole('button', { name: 'Set up this project' }).click();
@@ -258,6 +258,11 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Next' }).click();
     await drawer.getByRole('radio', { name: /^Standard/ }).check();
     await drawer.getByRole('button', { name: 'Next' }).click();
+    // Local is the default; the repository is the other choice.
+    await expect(drawer.getByRole('radio', { name: /^On this machine/ })).toBeChecked();
+    await expect(drawer).toContainText(/\d+ changes in this checkout, in files git ignores/);
+    await expect(drawer).toContainText('CLAUDE.local.md');
+    await drawer.getByRole('radio', { name: /^In the repository/ }).check();
     await expect(drawer).toContainText(/\d+ changes on branch/);
     await expect(drawer).toContainText('AGENTS.md');
     await expect(drawer).toContainText('skill designing-technical-uis (own)');
@@ -282,7 +287,7 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
-  test('Projects: Prefill all asks once, suggests per project in turn, and each project lands as its own pull request', async ({ page }) => {
+  test('Projects: Prefill all asks once, suggests per project in turn, and a shared project lands as its own pull request', async ({ page }) => {
     await nav(page, 'Projects').click();
     for (const name of ['alpha', 'broken']) {
       await page.getByLabel('Project folder').fill(join(BATCH, name));
@@ -305,6 +310,7 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Skip' }).click();
     await expect(drawer.getByText(/^Prefilled from Claude Code's suggestion/)).toBeVisible();
     for (let s = 0; s < 4; s++) await drawer.getByRole('button', { name: 'Next' }).click();
+    await drawer.getByRole('radio', { name: /^In the repository/ }).check();
     await expect(drawer).toContainText('skill designing-technical-uis (own)');
     await drawer.getByRole('button', { name: 'Continue' }).click();
     await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();

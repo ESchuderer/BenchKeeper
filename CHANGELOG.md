@@ -2,6 +2,15 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.3 (2026-10-23)
+
+- Project setups stay on this machine by default. `project apply` writes the BenchKeeper block into `CLAUDE.local.md` (importing `AGENTS.md`) and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`; rebuilt from `AGENTS.md` on each apply), the sandbox into `.claude/settings.local.json`, and lists every file it writes in a marked block of `.git/info/exclude`, so `git status` stays clean. `--share` (or "In the repository" in the browser) keeps the committed layout: the block in `AGENTS.md`, `CLAUDE.md`, a pull request from Update all. The project's own `AGENTS.md` text, `docs/agents/` and `.devcontainer/` stay committed.
+- Update all applies local setups in the checkout. A repository that still tracks `.benchkeeper/state.json` while its setup is local (every setup from before 6.3) gets a pull request that removes the committed setup, branch `chore/agent-setup-local`; `benchkeeper projects unshare` does the same on request. The checkout stays as it is until you pull the merge, and the answers are kept in `projects.json`, so the next Update all writes the setup locally.
+- Doctor: warns when a local setup is still committed. Projects view: a badge per project (local, local and still committed, shared).
+- `setting-up-projects`: knows both layouts; after editing `AGENTS.md` in a local setup with Codex, it runs `project apply` so `AGENTS.override.md` follows.
+- Plugin `version` 6.3.0.
+- Upgrade: `npx benchkeeper@6.3.0 apply`, then Update all (or `benchkeeper projects unshare`) for the projects set up before; merge each pull request, pull, and run Update all once more.
+
 ## setup-v6.2 (2026-10-23)
 
 - Sessions board as a file: each scan of the Sessions view in the browser UI also rewrites `~/.config/benchkeeper/board.html`, as `benchkeeper board` does.

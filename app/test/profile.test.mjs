@@ -27,12 +27,12 @@ test('export holds choices only; import registers projects, saves packs, sets up
   rmSync(gone, { recursive: true });
   const text = exportProfile(a, { agents: ['claude'], packs: [] });
   const p = readProfile(text);
-  assert.deepEqual(p.projects[0], { path: proj, answers: { agents: ['claude'], env: 'host', sandbox: false, packs: ['ui'], singles: [], tier: 'quick', paths: {}, disabled: [] } });
+  assert.deepEqual(p.projects[0], { path: proj, answers: { agents: ['claude'], env: 'host', sandbox: false, share: false, packs: ['ui'], singles: [], tier: 'quick', paths: {}, disabled: [] } });
   assert.ok(!text.includes('TOKEN') && !text.includes('accessibility/SKILL'));
 
   // The other machine has the clone without the state file.
   rmSync(join(proj, '.benchkeeper'), { recursive: true });
-  rmSync(join(proj, 'CLAUDE.md'));
+  rmSync(join(proj, 'CLAUDE.local.md'));
   const b = machine();
   const file = join(tmp('bk-prof-file-'), 'profile.json');
   writeFileSync(file, text);
@@ -44,7 +44,7 @@ test('export holds choices only; import registers projects, saves packs, sets up
   assert.deepEqual(listProjects(b).map((x) => x.path), [proj]);
   assert.equal(readState(proj).tier, 'quick');
   assert.deepEqual(readState(proj).skills.map((s) => s.name), ['accessibility']);
-  assert.equal(readFileSync(join(proj, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n');
+  assert.match(readFileSync(join(proj, 'CLAUDE.local.md'), 'utf8'), /Default tier: quick/);
   assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
 });
 

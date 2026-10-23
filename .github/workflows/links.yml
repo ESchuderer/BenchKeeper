@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # github.com pages are rate-limited for runners; those links are checked through the API below. Gists stay with lychee (the Actions token cannot read the gists API).
       # git.example.com: the made-up remote of the targeted tasks' fixture repositories (bench/briefs/skill-*).
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0

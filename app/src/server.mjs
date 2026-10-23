@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADVISERS, adviseSetup } from './advise.mjs';
+import { CSP as BOARD_CSP, boardHtml } from './board.mjs';
 import { agent, detect } from './agents.mjs';
 import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
@@ -25,6 +26,7 @@ import { exportPack, importPack, libraryWith, removePack, savePack, warnings } f
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, listProjects, packsInUse, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
+import { scanSessions } from './sessions.mjs';
 import { globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectPlan, resolveAnswers, suggest, tryState } from './steps/project.mjs';
 
@@ -100,6 +102,14 @@ function setupAnswers(src) {
   return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'), // An empty tier clears the saved one; no tier keeps it.
     tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined };
 }
+
+// The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
+const scans = new WeakMap();
+const FRESH_SCAN_MS = 60e3;
+// GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
+// so the cookie alone (which browsers send to every server on 127.0.0.1) does not show the board.
+const tickets = new WeakMap();
+const boardTickets = (ctx) => { if (!tickets.has(ctx)) tickets.set(ctx, new Map()); return tickets.get(ctx); };
 
 export function api(ctx) {
   const plans = new Map(), jobs = new Map(), rehearsals = new Map();
@@ -197,7 +207,7 @@ export function api(ctx) {
       return { cancelled: true };
     },
     // Running jobs, so a reloaded page finds them again; a plan starts its rehearsal itself.
-    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && j.kind !== 'prerun').map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
+    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && !['prerun', 'scan'].includes(j.kind)).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
@@ -254,6 +264,26 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
       return start(1, (job) => adviseSetup(ctx, { dir, agent: b.agent, lib: libraryWith(ctx), signal: job.ctl.signal }).then((r) => { job.results = r; }), { kind: 'advice', title: `setup suggestions for ${dir}`, readOnly: true });
+    },
+    // Reads the transcripts into the session cache, so GET /board answers at once; one scan at a time. A scan less
+    // than a minute old is reused unless force is set (Rescan).
+    'POST /api/board-ticket': () => {
+      const t = boardTickets(ctx), now = Date.now();
+      for (const [k, at] of t) if (now - at > FRESH_SCAN_MS) t.delete(k);
+      const ticket = randomBytes(24).toString('base64url');
+      t.set(ticket, now);
+      return { ticket };
+    },
+    'POST /api/sessions-scan': (b) => {
+      const last = scans.get(ctx);
+      if (b.force !== true && last && Date.now() - last.at < FRESH_SCAN_MS) return { fresh: true };
+      const running = [...jobs.values()].find((j) => j.kind === 'scan' && !j.done);
+      if (running) return { job: running.id, total: 0 };
+      return start(0, async (job) => {
+        const rows = await scanSessions(ctx, { onFile: (p) => { job.progress = p; } });
+        scans.set(ctx, { rows, at: Date.now() });
+        job.results = { sessions: rows.length };
+      }, { kind: 'scan', title: 'sessions', readOnly: true });
     },
     'POST /api/update-all': (b) => {
       idle();
@@ -370,6 +400,18 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     }
     const why = rejectReason(req, { port: p, session, key, api: url.pathname.startsWith('/api/') });
     if (why) return send(why[0], { error: why[1] });
+    // The sessions board: a page of its own, framed by the app; only its script by hash runs there.
+    if (req.method === 'GET' && url.pathname === '/board') {
+      const t = boardTickets(ctx), ticket = url.searchParams.get('ticket') ?? '';
+      const issued = t.get(ticket);
+      t.delete(ticket);
+      if (!issued || Date.now() - issued > FRESH_SCAN_MS) return send(403, { error: 'open the board from the app' });
+      try {
+        // The last scan, or one now; the page says when it was read.
+        if (!scans.has(ctx)) scans.set(ctx, { rows: await scanSessions(ctx), at: Date.now() });
+        const { rows, at } = scans.get(ctx);
+        return send(200, boardHtml(rows, new Date(at).toISOString()), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+    }
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) {
       try { return send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
@@ -393,7 +435,7 @@ const isFile = (f) => { try { return statSync(f).isFile(); } catch { return fals
 
 // Windows: start takes a quoted first argument as the window title, and Node would escape the quotes of an empty one,
 // so cmd gets the arguments as written; the target is a temporary file path or a URL without quotes.
-function launch(target) {
+export function launch(target) {
   const win = process.platform === 'win32';
   const argv = process.platform === 'darwin' ? ['open', target] : win ? ['cmd', '/c', 'start', '""', `"${target}"`] : ['xdg-open', target];
   try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true, windowsVerbatimArguments: win }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }

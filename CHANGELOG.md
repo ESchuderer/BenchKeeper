@@ -2,6 +2,18 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.1 (2026-10-22)
+
+- Sessions board: `benchkeeper board` and the Sessions view in the browser UI show every Claude Code and Codex session on this machine with its tier and change type, the setup installed at the time, the skills used, the last test run, pull request state, time, tokens and the cost Claude Code records. It reads the local transcripts, the run ledger and `gh`, and caches in `~/.cache/benchkeeper/`.
+- `/benchkeeper:tier <quick|standard|full|research|auto>` (Codex: `$benchkeeper:tier`): a tier for the rest of the session, below a tier the user names for one task and a risky change.
+- `benchkeeper:workflow`: the tier line names the change type, `Tier: standard (bug, known cause)`, and a new line follows when the work grows, so the board can report tiers that moved up.
+- Optional tier band in Claude Code (plugin option `tierBand`, off by default; `apply` offers it unselected): the tier of the last answer above the prompt, buttons that run `/benchkeeper:tier`, and the override kept in the system prompt through compaction and resume.
+- Project setup in the browser: Prefill all runs the agent's suggestions for every project of a batch after one consent; each project still gets its own review, apply and pull request.
+- Library: each skill has its own "pick when" text (35 skills shared their pack's), so choosing the science, marketing or document packs no longer warns about overlapping descriptions; a test keeps the catalog free of overlaps.
+- Project setup: when the project's own `AGENTS.md` says the agent runs on the host, the environment defaults to `host-agent` (`host` without `.devcontainer/`), and the warning about that text appears only when it contradicts the chosen environment. The adviser sees what each environment means.
+- Plugin `version` 6.1.0.
+- Upgrade: `npx benchkeeper@6.1.0 apply`, which updates the plugin; choose the tier band step to turn the band on.
+
 ## setup-v6.0 (2026-10-22)
 
 - Rules rewritten to the lines that change agent behavior: load the workflow skill, ask open questions in one round, get a go before hard-to-undo actions and merges, fix the cause of failing checks, keep secrets out, and the writing rules (no filler, READMEs open with one or two sentences on what the product does, no em dash or emojis, sources). Removed: restating the task before the first edit, the default-branch commit line, the semicolon and middle-dot lines, and the scope, context and development environment sections (where project commands run now lives in each project's `AGENTS.md`).

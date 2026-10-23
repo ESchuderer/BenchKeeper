@@ -44,6 +44,7 @@ test('global drift: rules changed after apply are an error, unexpected items a w
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
   let found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
   assert.deepEqual(levels(found, 'rules'), []);
+  assert.ok(!found.some((i) => /tier band/.test(i.message)), 'the optional tier band left off is not drift');
   assert.deepEqual(levels(found, 'plugin'), ['error', 'error', 'warning', 'warning']);
   assert.equal(found.find((i) => i.check === 'plugin').message, 'not installed: Claude Code marketplace benchkeeper');
   assert.ok(found.some((i) => i.message === 'no container engine (podman or docker)'));
@@ -52,6 +53,16 @@ test('global drift: rules changed after apply are an error, unexpected items a w
   found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
   assert.deepEqual(levels(found, 'rules'), ['error']);
   assert.ok(found.some((i) => i.check === 'unexpected' && /\.claude\/skills\/stray/.test(i.message)));
+});
+
+test('an older plugin is outdated, a warning, once per agent', () => {
+  const ctx = { ...machine(), appVersion: '6.0.0' };
+  mkdirSync(join(ctx.home, '.claude/plugins'), { recursive: true });
+  writeFileSync(join(ctx.home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version: '0.1.0' }] } }));
+  writeFileSync(join(ctx.home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ benchkeeper: { source: { ref: 'stable' } } }));
+  writeFileSync(join(ctx.home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'benchkeeper@benchkeeper': true } }));
+  const found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).filter((i) => /benchkeeper@benchkeeper/.test(i.message));
+  assert.deepEqual(found.map((i) => [i.level, i.message]), [['warning', `outdated: Claude Code plugin benchkeeper@benchkeeper 0.1.0 to ${ctx.appVersion}`]]);
 });
 
 test('project: summary sections, overlapping descriptions, broken links; exit 1 on an error', async () => {

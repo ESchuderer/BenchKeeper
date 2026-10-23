@@ -1,0 +1,5 @@
+interface:
+  display_name: "Tier"
+  short_description: "Set the tier for this session"
+policy:
+  allow_implicit_invocation: false

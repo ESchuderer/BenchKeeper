@@ -73,9 +73,10 @@ export function UpdateResults({ progress, extra }) {
 }
 
 // Projects Update all can take: set up before, behind this version or with changes pending. A state file that cannot be
-// read, uncommitted changes or no repository: shown, not offered, as Update all would stop or skip them.
+// read, no repository, or uncommitted changes where Update all commits (a shared setup, or one still committed): shown,
+// not offered, as Update all would stop or skip them.
 const offered = (p) => p.error || (p.setupVersion && (!p.current || p.changes?.length));
-const blocked = (p) => (p.error ? p.error : !p.repo ? 'no repository' : !p.clean ? 'uncommitted changes' : null);
+const blocked = (p) => (p.error ? p.error : !p.repo ? 'no repository' : !p.clean && (p.share || p.committed) ? 'uncommitted changes' : null);
 
 // The global plan, then the projects to update, then what is left to do by hand; Apply runs both at the end.
 function FixSteps({ version, doctor, onClose, setBusy }) {
@@ -106,7 +107,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
         <Stepper.Step label="Projects">
           <Loading state={projects} label="projects">{() => (
             <Stack gap="sm">
-              <Text size="sm">Each checked project gets branch <Code>chore/agent-setup-{version}</Code> in a worktree with one commit, pushed with a pull request when origin is on GitHub. Your working tree stays as it is.</Text>
+              <Text size="sm">A local setup is written in the checkout, in files git ignores. A setup still committed in the repository gets a pull request that removes it (<Code>chore/agent-setup-local</Code>); after you merge and pull, the next Update all writes it locally. A shared setup gets branch <Code>chore/agent-setup-{version}</Code> in a worktree with one commit, pushed with a pull request when origin is on GitHub.</Text>
               {list.length ? (
                 <>
                   <Group gap="xs">

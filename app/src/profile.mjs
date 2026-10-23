@@ -8,10 +8,10 @@ import { ownPacks, savePack } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
 import { preview } from './runner.mjs';
 import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
-import { projectPlan, readState, tryState } from './steps/project.mjs';
+import { projectCtx, projectPlan, readState, tryState } from './steps/project.mjs';
 
 export const PROFILE_SCHEMA = 1;
-const ANSWERS = ['agents', 'env', 'sandbox', 'packs', 'singles', 'tier', 'paths', 'disabled'];
+const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled'];
 
 // The optional packs whose plugin is installed: the profile's global packs.
 export function installedPacks(ctx) {
@@ -46,7 +46,7 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
   const projects = [], missing = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }
-    const pctx = { ...ctx, roots: [x.path] };
+    const pctx = projectCtx(ctx, x.path);
     const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined } }).changes);
     projects.push({ path: x.path, ctx: pctx, changes });
   }

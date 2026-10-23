@@ -62,8 +62,7 @@ function quiet(ctx, path) {
   return env;
 }
 // Fetches origin's default branch; true when it worked. One fetch per project and minute: the CLI's status and Update all
-// share it.
-// shortcut: blocks the server like the other git reads here; move to ctx.runAsync if many slow remotes stall the UI.
+// share it; the server fills it first with prefetchOrigins, so its requests do not wait on the network.
 const fetched = new Map();
 function fetchBase(ctx, path, base) {
   const key = `${path}\0${base}`;
@@ -76,7 +75,9 @@ function fetchBase(ctx, path, base) {
 function remoteDefault(ctx, path) {
   const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
   if (head) return head.startsWith('origin/-') ? null : head.replace(/^origin\//, '');
-  const r = git(ctx, path, ['ls-remote', '--symref', 'origin', 'HEAD'], { env: quiet(ctx, path), timeout: 20e3 });
+  return remoteHead(ctx, path, git(ctx, path, ['ls-remote', '--symref', 'origin', 'HEAD'], { env: quiet(ctx, path), timeout: 20e3 }));
+}
+function remoteHead(ctx, path, r) {
   const name = r.code === 0 ? r.stdout.match(/^ref: refs\/heads\/(\S+)\tHEAD$/m)?.[1] : null;
   if (name) return name.startsWith('-') ? null : name;
   // Origin names none (no HEAD there, or unreachable): the local main or master.
@@ -89,13 +90,37 @@ const origins = new Map();
 function originState(ctx, path) {
   const hit = origins.get(path);
   if (hit && Date.now() - hit.at < 60e3) return hit.value;
-  const base = isRepo(ctx, path) && git(ctx, path, ['remote', 'get-url', 'origin']).code === 0 && remoteDefault(ctx, path);
+  const base = hasOrigin(ctx, path) && remoteDefault(ctx, path);
   if (!base || !fetchBase(ctx, path, base)) return null;
+  return keepOrigin(ctx, path, base);
+}
+const hasOrigin = (ctx, path) => isRepo(ctx, path) && git(ctx, path, ['remote', 'get-url', 'origin']).code === 0;
+function keepOrigin(ctx, path, base) {
   const ref = `origin/${base}`;
   let state = null;
   try { state = JSON.parse(blob(ctx, path, ref, STATE).toString('utf8')); } catch { /* none, or unreadable: the checkout's counts */ }
   origins.set(path, { at: Date.now(), value: { ref, state } });
   return { ref, state };
+}
+// originState's network reads (ls-remote, fetch) through ctx.runAsync, four projects at a time, into the minute caches it
+// reads: a server keeps answering meanwhile, where minutes of slow remotes would time out the page's requests. A failed
+// fetch is kept as no origin state for the minute too.
+export async function prefetchOrigins(ctx, paths) {
+  if (!ctx.runAsync) return;
+  const due = paths.filter((p) => tryState(p)?.setupVersion !== appVersion && !(Date.now() - (origins.get(p)?.at ?? 0) < 60e3) && hasOrigin(ctx, p));
+  const net = (path, args) => ctx.runAsync(['git', '-C', path, ...args], { env: quiet(ctx, path), timeout: 20e3 });
+  const one = async (path) => {
+    const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
+    const base = head ? (head.startsWith('origin/-') ? null : head.replace(/^origin\//, '')) : remoteHead(ctx, path, await net(path, ['ls-remote', '--symref', 'origin', 'HEAD']));
+    if (!base) return;
+    const key = `${path}\0${base}`;
+    if (!(Date.now() - (fetched.get(key) ?? 0) < 60e3)) {
+      if ((await net(path, ['fetch', '-q', 'origin', base])).code !== 0) { origins.set(path, { at: Date.now(), value: null }); return; }
+      fetched.set(key, Date.now());
+    }
+    keepOrigin(ctx, path, base);
+  };
+  await Promise.all(Array.from({ length: 4 }, async () => { while (due.length) await one(due.shift()); }));
 }
 // The setup that counts: the checkout's, unless origin's default branch has a newer one (or the checkout none).
 export function setupOf(ctx, path, checkout = tryState(path)) {

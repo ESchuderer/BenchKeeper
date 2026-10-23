@@ -104,7 +104,7 @@ test.describe('views', () => {
   });
 
   test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {
-    await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects: 1 registered, 0 behind, ok$/ })).toBeVisible();
+    await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 1 registered, 0 behind ok$/ })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Global items by state' })).toContainText('modified');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
     await expect(page).toHaveURL(/#\/history\?run=/);
@@ -125,6 +125,20 @@ test.describe('views', () => {
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toBeHidden();
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+  });
+
+  test('a read that loses its connection is asked again; no answer at all says the server has stopped', async ({ page }) => {
+    let n = 0;
+    // The app reads the history once at load.
+    await page.route(/\/api\/history(\?|$)/, (r) => (n++ === 0 ? r.abort('connectionreset') : r.continue()));
+    await page.reload();
+    await nav(page, 'History').click();
+    await expect(page.locator('a[href*="history?run="]').first()).toBeVisible();
+    expect(n).toBe(2);
+    await page.unroute(/\/api\/history(\?|$)/);
+    await page.route(/\/api\/history(\?|$)/, (r) => r.abort('connectionreset'));
+    await page.reload();
+    await expect(page.getByText(/BenchKeeper does not answer: its server has stopped/)).toBeVisible();
   });
 
   test('slash opens the palette too', async ({ page }) => {

@@ -394,7 +394,7 @@ test('packs: save, export, import and remove; bad input is a 400', () => {
   assert.deepEqual(routes['GET /api/pack-warnings'](new URLSearchParams({ skills: 'a,b,c,d,e,f' })), []);
 });
 
-test('profile import: a bad kind is a 400; register saves packs and projects, then returns the plans', () => {
+test('profile import: a bad kind is a 400; register saves packs and projects, then returns the plans', async () => {
   const { routes } = fixture();
   const imp = routes['POST /api/profile-import'];
   assert.equal(status(() => imp({ text: '{"kind":"benchkeeper-pack","schemaVersion":1}' })), 400);
@@ -408,7 +408,7 @@ test('profile import: a bad kind is a 400; register saves packs and projects, th
     projects: [{ path: dir, answers: { agents: ['claude'], packs: ['own'] } }, { path: '/nowhere/x' }] });
   const preview = imp({ text });
   assert.deepEqual(preview.projects, [{ path: dir, here: true }, { path: '/nowhere/x', here: false }]);
-  assert.deepEqual(routes['GET /api/projects'](), []);
+  assert.deepEqual(await routes['GET /api/projects'](), []);
   const r = imp({ text, register: true });
   assert.deepEqual([r.packs, r.projects, r.missing], [['own'], [dir], ['/nowhere/x']]);
   assert.ok(r.global.planId && r.plans.length === 1 && r.plans[0].changes.some((c) => c.title.includes(skill)));

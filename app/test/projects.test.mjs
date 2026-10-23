@@ -7,7 +7,7 @@ import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { appVersion } from '../src/content.mjs';
-import { addProject, listProjects, removeProject, scan, status, updateAll } from '../src/projects.mjs';
+import { addProject, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
@@ -274,5 +274,29 @@ test('status and Update all read the state file on the fetched default branch wh
   const offline = project(h);
   offline.git('fetch', '-q', 'origin');
   offline.git('remote', 'set-url', 'origin', join(h, 'gone.git'));
+  assert.deepEqual([status(ctx, offline.dir).origin, status(ctx, offline.dir).checkout], [null, '5.0.0']);
+});
+
+test('prefetchOrigins reads origin without blocking and fills the cache status uses; a failed fetch counts as no origin', async () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const other = mkdtempSync(join(tmpdir(), 'bk-clone-'));
+  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, setupVersion: appVersion }));
+  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
+  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  const offline = project(h);
+  offline.git('remote', 'set-url', 'origin', join(h, 'gone.git'));
+  // The event loop runs while the git commands do.
+  let ticks = 0;
+  const timer = setInterval(() => { ticks += 1; }, 1);
+  await prefetchOrigins(ctx, [p.dir, offline.dir]);
+  clearInterval(timer);
+  assert.ok(ticks > 0);
+  // Origin gone now: status answers from the minute cache, without asking the network again.
+  p.git('remote', 'set-url', 'origin', join(h, 'gone.git'));
+  assert.deepEqual([status(ctx, p.dir).setupVersion, status(ctx, p.dir).origin], [appVersion, 'origin/main']);
   assert.deepEqual([status(ctx, offline.dir).origin, status(ctx, offline.dir).checkout], [null, '5.0.0']);
 });

@@ -68,7 +68,9 @@ steps.forEach((s, k) => {
   const deg = k * step;
   const [x, y] = pt(deg);
   const tip = esc(`${k + 1}. ${s.name}: ${s.tip}`);
-  o.push(`<a class="step" href="#step-${k + 1}" data-tip="${tip}" aria-label="${tip}"><circle class="hit" cx="${f(x)}" cy="${f(y)}" r="40"/>`);
+  // The name starts with the visible text (number, name, subtitle), so speech input finds the link by what it shows.
+  const name = esc(`${k + 1} ${s.name} ${s.sub}${s.human ? ` ${s.human}` : ''}. ${s.tip}`);
+  o.push(`<a class="step" href="#step-${k + 1}" data-tip="${tip}" aria-label="${name}"><circle class="hit" cx="${f(x)}" cy="${f(y)}" r="40"/>`);
   if (s.human) o.push(`<circle class="you-ring" cx="${f(x)}" cy="${f(y)}" r="35"/>`);
   o.push(`<g class="node"><circle cx="${f(x)}" cy="${f(y)}" r="27"/><text class="n" x="${f(x)}" y="${f(y + 6)}" text-anchor="middle">${k + 1}</text></g>`);
   let lx = 334;

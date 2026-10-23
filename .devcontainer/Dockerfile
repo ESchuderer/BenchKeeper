@@ -6,12 +6,12 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends git=1:2.39.5-0+deb12u3 ca-certificates=20250419~deb12u1 \
   && rm -rf /var/lib/apt/lists/*
 
-# Playwright MCP with its Chromium, and the Chromium headless shell of the site's @playwright/test (keep 1.64.0 equal to
+# Playwright MCP with its Chromium, and the Chromium headless shell of the site's @playwright/test (keep 1.64.1 equal to
 # web/package.json); the system libraries once, from the MCP's Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN npm i -g --prefix /usr/local @playwright/mcp@0.0.83 \
   && cd /usr/local/lib/node_modules/@playwright/mcp && npx playwright install-deps chromium && npx playwright install chromium \
-  && npx -y playwright@1.64.0 install --only-shell chromium \
+  && npx -y playwright@1.64.1 install --only-shell chromium \
   && chown -R node:node /ms-playwright \
   && npm cache clean --force && rm -rf /root/.npm/_npx /var/lib/apt/lists/*
 

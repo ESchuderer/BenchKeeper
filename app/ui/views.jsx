@@ -67,7 +67,7 @@ function Flow({ nodes }) {
             return (
               <g key={n.label}>
                 {i > 0 && <line x1={x - GAP + 2} y1="55" x2={x - 4} y2="55" stroke="currentColor" strokeWidth="2" markerEnd="url(#flow-arrow)" />}
-                <a href={n.href} aria-label={`${n.label}: ${n.value}, ${n.status}`}>
+                <a href={n.href}>
                   <rect x={x + 1} y="4" width={W - 2} height="102" rx="8" fill="var(--mantine-color-body)" stroke={color} strokeWidth="3" />
                   <text x={x + 12} y="32" fontWeight="600" fontSize="15" fill="currentColor">{n.label}</text>
                   <text x={x + 12} y="60" fontSize="13" fill="currentColor">{n.value}</text>

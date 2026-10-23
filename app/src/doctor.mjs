@@ -39,12 +39,17 @@ function featureVars(ctx, env) {
 export function globalDrift(ctx, agents, devcontainerCli) {
   let plan;
   try { plan = preview(globalPlan({ ctx, agents, devcontainerCli })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
-  return plan.map((c) => {
+  // An optional step left off is not drift.
+  const found = plan.filter((c) => !c.optional).map((c) => {
     if (c.error) return issue('error', 'global', `${c.title}: ${c.error}`, 'edit the file by hand; the app does not merge this form');
     if (c.destructive) return issue('warning', 'unexpected', c.title.replace(/^(remove|move) /, 'not part of the setup: '), 'benchkeeper apply --all offers its removal');
+    // An older version is drift, not a missing part.
+    if (c.outdated) return issue('warning', c.step.split(':')[0], `outdated: ${c.title}`, 'benchkeeper apply');
     const error = /^rules:/.test(c.step) || /^plugin:\w+:benchkeeper@/.test(c.step);
     return issue(error ? 'error' : 'warning', c.step.split(':')[0], c.kind === 'command' ? `not installed: ${c.title}` : `${c.title} differs from setup ${appVersion}`, 'benchkeeper apply');
   });
+  // A step of several commands (marketplace refresh, then update) is one finding.
+  return found.filter((f, i) => found.findIndex((g) => g.check === f.check && g.message === f.message) === i);
 }
 
 const frontMatter = (text) => text?.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';

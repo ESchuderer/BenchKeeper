@@ -71,6 +71,7 @@ test('plan changes nothing and lists the other rules as destructive', () => {
   assert.equal(readFileSync(join(m.home, '.claude/CLAUDE.md'), 'utf8'), 'old rules');
   const other = plan.find((c) => c.title.includes('~/.claude/CLAUDE.md'));
   assert.equal(other.selected, false);
+  assert.equal(plan.find((c) => c.step === 'settings:claude:tier-band').selected, false);
   assert.ok(plan.every((c) => !c.title.includes('find-skills') || c.kind === 'command'));
 });
 
@@ -107,6 +108,7 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.equal(st.attribution.sessionUrl, false);
   assert.ok(st.cleanupPeriodDays === 14 && st.autoUpdatesChannel === 'stable' && st.env.DISABLE_FEEDBACK_COMMAND === '1' && st.env.CLAUDE_CODE_SUBAGENT_MODEL === 'sonnet');
   assert.equal(st.autoCompactWindow, 400000);
+  assert.equal(st.pluginConfigs['benchkeeper@benchkeeper'].options.tierBand, true);
   assert.deepEqual(st.modelSettings, { 'claude-opus-5-5': { effortLevel: 'high' }, 'claude-sonnet-5-5': { effortLevel: 'high' } });
   assert.deepEqual(st.permissions.ask, ['Bash(mine *)', ...ASK]);
   assert.equal(readFileSync(join(m.home, '.codex/config.toml'), 'utf8'), 'model_reasoning_effort = "high"\n[analytics]\nenabled = false\n\n[feedback]\nenabled = false\n');

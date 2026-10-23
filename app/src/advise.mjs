@@ -45,7 +45,7 @@ export function advicePrompt(lib) {
     'Suggest the agent setup for the repository in the current directory. Read its files (package manifests, CI workflows, docs, .devcontainer/, AGENTS.md); change nothing.',
     'Answer with one JSON object and nothing else: {"env": {"id": "...", "reason": "..."}, "packs": [{"id": "...", "reason": "..."}], "skills": [{"name": "...", "reason": "..."}]}.',
     'Use only ids and names from the lists below. Packs whose skills the project needs; single skills only when no chosen pack has them; only skills the project needs. Each reason is one short sentence naming the file that shows it.',
-    '', 'Environments (where the agent and the project commands run):', ...Object.keys(ENVS).map((id) => `- ${id}`),
+    '', 'Environments (where the agent and the project commands run):', ...Object.entries(ENVS).map(([id, text]) => `- ${id}: ${text?.split('. ')[0] ?? 'the agent and all commands run on the host'}`),
     '', 'Packs:', ...lib.packs.map((p) => `- ${p.id}: ${p.pickWhen ?? p.title}${p.skills?.length ? ` (skills: ${p.skills.join(', ')})` : ''}`),
     '', 'Skills:', ...lib.skills.map((s) => `- ${s.name}: ${s.pickWhen ?? ''}`),
   ].join('\n');

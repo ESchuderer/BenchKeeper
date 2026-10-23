@@ -8,9 +8,12 @@ import { apply, context, preview } from '../../src/runner.mjs';
 import { startServer } from '../../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../../src/steps/global.mjs';
 import { projectPlan } from '../../src/steps/project.mjs';
+import { writeSessions } from '../fixtures/sessions.mjs';
 
 export const PORT = 4410;
 export const TOKEN = 'ui-test-token-0123456789';
+// Two more repositories for Prefill all, registered by the test: alpha has a GitHub origin, broken gets no suggestion.
+export const BATCH = join(tmpdir(), `bk-ui-batch-${PORT}`);
 
 const home = mkdtempSync(join(tmpdir(), 'bk-ui-'));
 // The folder dialog answers with a parent of the registered project and of one more folder with an agent setup.
@@ -19,7 +22,19 @@ mkdirSync(join(parent, 'other'));
 writeFileSync(join(parent, 'other/AGENTS.md'), '# Other\n');
 // A repository without a state file, for the step-by-step first setup.
 for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', join(parent, 'other'), ...a]);
+rmSync(BATCH, { recursive: true, force: true });
+for (const name of ['alpha', 'broken']) {
+  const d = join(BATCH, name);
+  mkdirSync(d, { recursive: true });
+  writeFileSync(join(d, 'README.md'), `# ${name}\n`);
+  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', d, ...a]);
+}
+execFileSync('git', ['-C', join(BATCH, 'alpha'), 'remote', 'add', 'origin', 'https://github.com/acme/alpha.git']);
 const run = (argv, o = {}) => {
+  // GitHub is never reached: fetch fails as offline would, push and ls-remote answer as an empty remote, gh opens a pull request.
+  if (argv[0] === 'git' && argv.includes('fetch')) return { code: 1, stdout: '', stderr: 'offline' };
+  if (argv[0] === 'git' && (argv.includes('push') || argv.includes('ls-remote'))) return { code: 0, stdout: '', stderr: '' };
+  if (argv[0] === 'gh' && argv[1] === 'pr' && argv[2] === 'create') return { code: 0, stdout: 'https://github.com/acme/alpha/pull/1\n', stderr: '' };
   if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }
   // The skills CLI adds a skill folder with one file: in a rehearsal's scratch home, else in the fixture home, never the real one.
   if (argv[0] === 'npx' && argv[2] === SKILLS_SPEC) {
@@ -32,6 +47,7 @@ const run = (argv, o = {}) => {
   if (argv[0] === 'zenity') return { code: 0, stdout: `${parent}\n`, stderr: '' };
   if (argv[0] === 'claude' && argv[1] === '--version') return { code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' };
   // Setup advice: a restricted read-only session answers with one library skill.
+  if (argv[0] === 'claude' && argv.includes('--restricted') && o.cwd?.endsWith('/broken')) return { code: 1, stdout: '', stderr: 'model overloaded' };
   if (argv[0] === 'claude' && argv.includes('--restricted')) return { code: 0, stdout: JSON.stringify({ result: JSON.stringify({ skills: [{ name: 'designing-technical-uis', reason: 'the project has a UI' }] }) }), stderr: '' };
   if (argv[0] === 'claude') return { code: 0, stdout: argv.includes('--json') ? '[]' : '', stderr: '' };
   return { code: 127, stdout: '', stderr: 'not installed' };
@@ -53,6 +69,9 @@ const result = (time, missRate, falseTriggerRate, target = 'skill:designing-tech
 writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00:00Z', 0.5, 0), result('2026-10-08T10:00:00Z', 0.25, 0.33),
   result('2026-10-08T11:00:00Z', 0, 0.17, 'skill:workflow'), result('2026-10-08T12:00:00Z', null, null, 'rule:global'),
   result('2026-10-09T10:00:00Z', 0.33, null, 'skill:workflow', 'codex')].map((r) => JSON.stringify(r)).join('\n') + '\n');
+
+// Claude Code and Codex transcripts for the Sessions board.
+writeSessions(home);
 
 // The agents are stubs, so the eval plan may show in CI too.
 delete process.env.CI;

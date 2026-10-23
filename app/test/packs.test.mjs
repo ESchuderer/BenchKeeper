@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { library } from '../src/content.mjs';
 import { exportPack, importPack, libraryWith, ownPacks, removePack, savePack, warnings } from '../src/packs.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { projectPlan, readState } from '../src/steps/project.mjs';
@@ -41,6 +42,10 @@ test('warnings: overlapping descriptions, no limit on the count', () => {
   ] };
   assert.deepEqual(warnings(['a', 'b', 'c'], lib), ['a and b have overlapping descriptions']);
   assert.deepEqual(warnings(['a', 'c', 'd', 'e', 'f', 'x'], lib), []);
+});
+
+test('the library: every skill has a pick-when text of its own, so a pack choice raises no overlap warning', () => {
+  assert.deepEqual(warnings(library().skills.map((s) => s.name)), []);
 });
 
 test('a project turns a skill off and on, uses an own pack, and drops a pack it no longer has', () => {

@@ -1,10 +1,20 @@
 {
   "name": "benchkeeper",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "description": "Task kind and tier with their checks (software change, docs pass, research), plus project setup and repository maintenance skills. Uses Matt Pocock's skills and Ponytail when installed.",
   "author": { "name": "ESchuderer", "url": "https://github.com/ESchuderer" },
   "homepage": "https://eschuderer.github.io/BenchKeeper/",
   "repository": "https://github.com/ESchuderer/BenchKeeper",
   "license": "MIT",
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "hooks": "./hooks/claude-tier.json",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "tierBand": {
+      "type": "boolean",
+      "title": "Tier band",
+      "description": "Shows the tier line of the last answer above the prompt, with buttons that set /benchkeeper:tier for this session. Claude Code terminal only.",
+      "default": false
+    }
+  }
 }

@@ -1,10 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { openBrowser } from '../../src/server.mjs';
 
 const TOKEN = 'ui-test-token-0123456789';
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Evals', 'Settings'];
+const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // A transition may start a frame after the dialog is visible: wait until dialogs and overlays are fully opaque.
@@ -55,6 +58,21 @@ test.describe('views', () => {
       });
     }
   }
+
+  test('Sessions: a scan fills the board frame; a title stays text; no axe violations in the frame, light and dark', async ({ page }) => {
+    await nav(page, 'Sessions').click();
+    const board = page.frameLocator('iframe[title="Sessions board"]');
+    await expect(board.getByRole('heading', { level: 1, name: 'Sessions board' })).toBeVisible();
+    await board.getByLabel('Period').selectOption('all');
+    await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Cart </script><img src=x onerror=alert(1)> fix');
+    await expect(board.getByRole('table', { name: /Sessions by tier/ })).toContainText('full');
+    await noAxe(page);
+    // The app's theme reloads the frame in that theme.
+    await page.getByRole('button', { name: 'Dark theme' }).click();
+    await expect(page.locator('iframe[title="Sessions board"]')).toHaveAttribute('src', /^\/board\?theme=dark&ticket=[\w-]+$/);
+    await expect(board.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await noAxe(page);
+  });
 
   test('no axe violations with the command palette open, light and dark', async ({ page }) => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
@@ -125,7 +143,7 @@ test.describe('views', () => {
 
   test('Catalog: search, then the detail panel with the skill text and its eval results', async ({ page }) => {
     await nav(page, 'Catalog').click();
-    await page.getByRole('textbox', { name: 'Search' }).fill('technical');
+    await page.getByRole('textbox', { name: 'Search' }).fill('technical-uis');
     await page.getByRole('table', { name: 'Skills' }).getByRole('link', { name: 'designing-technical-uis' }).click();
     const detail = page.getByRole('region', { name: 'Skill designing-technical-uis' });
     await expect(detail.getByText('# Designing technical UIs')).toBeVisible();
@@ -133,13 +151,14 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Skills' }).getByRole('row')).toHaveCount(2);
   });
 
-  test('Catalog: the pack builder warns about overlapping descriptions and saves an own pack; export downloads it', async ({ page }) => {
+  test('Catalog: the pack builder finds no overlapping descriptions in the library and saves an own pack; export downloads it', async ({ page }) => {
     await nav(page, 'Catalog').click();
     const boxes = page.getByRole('table', { name: 'Skills' }).getByRole('checkbox');
     for (let i = 0; i < 6; i++) await boxes.nth(i).check();
     await page.getByRole('button', { name: 'Build pack (6)' }).click();
     const drawer = page.getByRole('dialog', { name: 'Build a pack' });
-    await expect(drawer.getByText('docx and pdf have overlapping descriptions')).toBeVisible();
+    await expect(drawer.getByLabel(/^Pack id/)).toBeVisible();
+    await expect(drawer.getByText(/overlapping descriptions/)).toHaveCount(0);
     await noAxe(page);
     await drawer.getByLabel(/^Pack id/).fill('my-pack');
     await drawer.getByRole('button', { name: 'Save pack' }).click();
@@ -154,7 +173,7 @@ test.describe('views', () => {
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);
-    await expect(row).toContainText('6.0.0 current');
+    await expect(row).toContainText(/\d+\.\d+\.\d+ current/);
     await expect(row).toContainText(/\d+ pending/);
     await expect(row).toContainText('dirty');
     await row.getByRole('link').click();
@@ -233,6 +252,39 @@ test.describe('views', () => {
     await expect(drawer.getByRole('radio', { name: /^Agent on the host/ })).toBeChecked();
     await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).toBeChecked();
+    await drawer.getByRole('button', { name: 'Close' }).click();
+  });
+
+  test('Projects: Prefill all asks once, suggests per project in turn, and each project lands as its own pull request', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    for (const name of ['alpha', 'broken']) {
+      await page.getByLabel('Project folder').fill(join(BATCH, name));
+      await page.getByRole('button', { name: 'Add project' }).click();
+      await expect(page.getByRole('table', { name: 'Projects' }).getByRole('link', { name, exact: true })).toBeVisible();
+    }
+    await page.getByRole('button', { name: /^Set up 3 new projects$/ }).click();
+    const drawer = page.getByRole('dialog', { name: 'Set up projects' });
+    await drawer.getByRole('button', { name: 'Prefill all with Claude Code' }).click();
+    const ask = page.getByRole('dialog', { name: 'Start 3 agent sessions?' });
+    await expect(ask).toContainText('3 sessions, one after the other');
+    await noAxe(page);
+    await ask.getByRole('button', { name: 'Start Claude Code' }).click();
+    const list = drawer.getByRole('region', { name: 'Suggestions' });
+    await expect(list.getByRole('listitem').filter({ hasText: 'broken' })).toContainText('failed');
+    await expect(list.getByRole('listitem').filter({ hasText: 'broken' })).toContainText('model overloaded');
+    await expect(list.getByRole('listitem').filter({ hasText: 'alpha' })).toContainText('ready');
+    await expect(drawer.getByText(/^Prefilled from Claude Code's suggestion/)).toBeVisible();
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Skip' }).click();
+    await expect(drawer.getByText(/^Prefilled from Claude Code's suggestion/)).toBeVisible();
+    for (let s = 0; s < 4; s++) await drawer.getByRole('button', { name: 'Next' }).click();
+    await expect(drawer).toContainText('skill designing-technical-uis (own)');
+    await drawer.getByRole('button', { name: 'Continue' }).click();
+    await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();
+    await expect(drawer.getByRole('link', { name: 'https://github.com/acme/alpha/pull/1' })).toBeVisible();
+    await drawer.getByRole('button', { name: 'Next project' }).click();
+    // No suggestion for broken: its form starts from the defaults.
+    await expect(drawer.getByText(/^Prefilled from/)).toBeHidden();
     await drawer.getByRole('button', { name: 'Close' }).click();
   });
 

@@ -75,7 +75,7 @@
       "source": "anthropics/skills",
       "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
       "agents": "codex",
-      "pickWhen": "The repository produces or edits that file type"
+      "pickWhen": "Word documents (.docx, .dotx) are created, read or edited"
     },
     {
       "name": "pdf",
@@ -83,7 +83,7 @@
       "source": "anthropics/skills",
       "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
       "agents": "codex",
-      "pickWhen": "The repository produces or edits that file type"
+      "pickWhen": "PDF files are read, merged, split, filled or created"
     },
     {
       "name": "pptx",
@@ -91,7 +91,7 @@
       "source": "anthropics/skills",
       "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
       "agents": "codex",
-      "pickWhen": "The repository produces or edits that file type"
+      "pickWhen": "PowerPoint slide decks (.pptx, .potx) as input or output"
     },
     {
       "name": "xlsx",
@@ -99,7 +99,7 @@
       "source": "anthropics/skills",
       "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
       "agents": "codex",
-      "pickWhen": "The repository produces or edits that file type"
+      "pickWhen": "Spreadsheets (.xlsx, .csv, .tsv) are the input or output"
     },
     {
       "name": "scientific-critical-thinking",
@@ -109,7 +109,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Research, measurement or data analysis code"
+      "pickWhen": "Scientific claims, biases and evidence quality get judged"
     },
     {
       "name": "experimental-design",
@@ -119,7 +119,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Research, measurement or data analysis code"
+      "pickWhen": "Experiments are planned before data collection: randomization, blocking, factorial designs"
     },
     {
       "name": "hypothesis-generation",
@@ -129,7 +129,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Research, measurement or data analysis code"
+      "pickWhen": "Observations turn into testable hypotheses and preregistered plans"
     },
     {
       "name": "statistical-analysis",
@@ -139,7 +139,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Research, measurement or data analysis code"
+      "pickWhen": "Groups are compared or hypotheses tested: test choice, assumptions, effect sizes, reporting"
     },
     {
       "name": "statistical-power",
@@ -149,7 +149,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Research, measurement or data analysis code"
+      "pickWhen": "Sample sizes or power need calculating before a study"
     },
     {
       "name": "uncertainty-and-units",
@@ -159,7 +159,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Research, measurement or data analysis code"
+      "pickWhen": "Physical units and measurement uncertainty propagate through calculations"
     },
     {
       "name": "exploratory-data-analysis",
@@ -169,7 +169,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Research, measurement or data analysis code"
+      "pickWhen": "Unfamiliar CSV, JSON, HDF5 or FASTA files get profiled: missingness, outliers, leakage"
     },
     {
       "name": "scientific-visualization",
@@ -179,7 +179,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Research, measurement or data analysis code"
+      "pickWhen": "Publication figures with Matplotlib, Seaborn or Plotly"
     },
     {
       "name": "literature-review",
@@ -189,7 +189,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+      "pickWhen": "Systematic or scoping literature reviews"
     },
     {
       "name": "paper-lookup",
@@ -199,7 +199,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+      "pickWhen": "Papers, preprints and open-access full text are searched in scholarly APIs"
     },
     {
       "name": "citation-management",
@@ -209,7 +209,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+      "pickWhen": "References need validating or converting to BibTeX"
     },
     {
       "name": "database-lookup",
@@ -219,7 +219,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+      "pickWhen": "Facts come from named public database APIs, with provenance"
     },
     {
       "name": "markitdown",
@@ -229,7 +229,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "The repository works with papers, datasets from public databases, or PDF and Office sources"
+      "pickWhen": "PDF, Office or other documents are converted to Markdown"
     },
     {
       "name": "scientific-writing",
@@ -239,7 +239,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "The repository holds a paper, report or thesis"
+      "pickWhen": "A manuscript or report is drafted or revised"
     },
     {
       "name": "peer-review",
@@ -249,7 +249,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "The repository holds a paper, report or thesis"
+      "pickWhen": "A manuscript, protocol or proposal gets a peer review"
     },
     {
       "name": "venue-templates",
@@ -259,7 +259,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "The repository holds a paper, report or thesis"
+      "pickWhen": "A paper, poster or grant follows a journal or conference template (LaTeX)"
     },
     {
       "name": "sympy",
@@ -269,7 +269,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Symbolic math, multi-objective optimization, chemical kinetics or thermodynamics"
+      "pickWhen": "Symbolic math: exact algebra, calculus, equation solving"
     },
     {
       "name": "pymoo",
@@ -279,7 +279,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Symbolic math, multi-objective optimization, chemical kinetics or thermodynamics"
+      "pickWhen": "Single- or multi-objective optimization (NSGA-II, Pareto fronts)"
     },
     {
       "name": "cantera",
@@ -289,7 +289,7 @@
       "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "Symbolic math, multi-objective optimization, chemical kinetics or thermodynamics"
+      "pickWhen": "Chemical kinetics, combustion and ignition delay with Cantera"
     },
     {
       "name": "product-marketing",
@@ -299,7 +299,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A product site, landing pages or a public launch"
+      "pickWhen": "Positioning, target audience and the product context the other marketing skills read"
     },
     {
       "name": "copywriting",
@@ -309,7 +309,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A product site, landing pages or a public launch"
+      "pickWhen": "New copy for a homepage, landing or pricing page"
     },
     {
       "name": "copy-editing",
@@ -319,7 +319,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A product site, landing pages or a public launch"
+      "pickWhen": "Existing marketing copy gets edited or proofread"
     },
     {
       "name": "seo-audit",
@@ -329,7 +329,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A product site, landing pages or a public launch"
+      "pickWhen": "Search ranking problems: technical SEO, meta tags, crawl errors"
     },
     {
       "name": "ai-seo",
@@ -339,7 +339,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A product site, landing pages or a public launch"
+      "pickWhen": "Answers from AI search engines and LLMs should cite the site"
     },
     {
       "name": "schema",
@@ -349,7 +349,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A product site, landing pages or a public launch"
+      "pickWhen": "Structured data: JSON-LD, schema.org, rich results"
     },
     {
       "name": "launch",
@@ -359,7 +359,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A product site, landing pages or a public launch"
+      "pickWhen": "A product launch, feature announcement or go-to-market plan"
     },
     {
       "name": "site-architecture",
@@ -369,7 +369,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A product site, landing pages or a public launch"
+      "pickWhen": "Page hierarchy, navigation, URLs and internal links of a website"
     },
     {
       "name": "content-strategy",
@@ -379,7 +379,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A blog or docs plan, conversion work, directory listings, or analytics setup"
+      "pickWhen": "A blog or content plan: topics, clusters, editorial calendar"
     },
     {
       "name": "cro",
@@ -389,7 +389,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A blog or docs plan, conversion work, directory listings, or analytics setup"
+      "pickWhen": "A page or form does not convert well enough"
     },
     {
       "name": "directory-submissions",
@@ -399,7 +399,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A blog or docs plan, conversion work, directory listings, or analytics setup"
+      "pickWhen": "The product gets listed in startup, SaaS or AI directories"
     },
     {
       "name": "analytics",
@@ -409,7 +409,7 @@
       "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
-      "pickWhen": "A blog or docs plan, conversion work, directory listings, or analytics setup"
+      "pickWhen": "Event tracking: GA4, tag manager, UTM parameters"
     },
     {
       "name": "gha-security-review",

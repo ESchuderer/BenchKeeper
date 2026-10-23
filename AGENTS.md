@@ -9,7 +9,7 @@ Agents (Claude Code, Codex) run on the host in the repository or worktree. File 
 - Site locally: `devcontainer exec --docker-path podman --workspace-folder . sh -lc 'cd web && npm ci && npm run build && npm test'`. Preview (`npm run preview`) under `/BenchKeeper/` on a free host port: `podman port $(podman ps -q --filter label=devcontainer.local_folder="$PWD") 4321`
 
 ## Conventions
-- Branches: `develop` is the default branch. Branches and pull requests target `develop` (squash merge). `main` is releases only and changes by a promotion pull request `develop` to `main` with a merge commit. The Release and Pages deploys and the npm publish run on `main` only.
+- Branches: `develop` is the default branch. Branches and pull requests target `develop` (squash merge). `main` is releases only and changes by a promotion pull request `develop` to `main` with a merge commit. The Promote workflow (`ESchuderer/repo-baseline`) opens and updates that pull request on each push to `develop`; merging it is the release. It is opened with `GITHUB_TOKEN` and starts no workflows, so the `main` ruleset requires only checks that also run on pushes to `develop`. The Release and Pages deploys and the npm publish run on `main` only.
 - `plugins/benchkeeper/rules/global.md` applies here: no em dash, no emojis, facts only.
 - Default tier: research
 - Pre-push review: `plugins/` counts as code, not docs.

@@ -250,7 +250,7 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'doctor') {
     const found = doctor(ctx, { agents: selectedAgents(ctx, o.agents), dir: resolve(arg ?? '.') });
-    for (const i of found) out.write(`${i.level.padEnd(7)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
+    for (const i of found) out.write(`${(i.tag ?? i.level).padEnd(8)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
     out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }

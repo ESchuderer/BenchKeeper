@@ -6,6 +6,9 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 
 - Sessions board as a file: each scan of the Sessions view in the browser UI also rewrites `~/.config/benchkeeper/board.html`, as `benchkeeper board` does.
 - Tier band: a board button opens that file; without one, it says to open Sessions in the app or run `benchkeeper board`.
+- Sessions board: the Project filter offers Registered projects (the app's project list and their Git worktrees), preset when any of them has sessions; All shows every session as before.
+- Browser UI: a Stop button in the header stops the local server, as Ctrl+C does; it is refused while an apply or eval runs.
+- Doctor: an older plugin shows as level `outdated` instead of a warning with an "outdated:" prefix.
 - Plugin `version` 6.2.0.
 - Upgrade: `npx benchkeeper@6.2.0 apply`, which updates the plugin.
 

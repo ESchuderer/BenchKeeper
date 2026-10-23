@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADVISERS, adviseSetup } from './advise.mjs';
-import { CSP as BOARD_CSP, boardHtml, writeBoard } from './board.mjs';
+import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { agent, detect } from './agents.mjs';
 import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
@@ -275,6 +275,12 @@ export function api(ctx) {
       t.set(ticket, now);
       return { ticket };
     },
+    // The page's Stop button: refused while an apply or eval runs; scans, suggestions and rehearsals stop with the server.
+    'POST /api/shutdown': () => {
+      idle();
+      for (const j of jobs.values()) if (!j.done) j.ctl.abort();
+      return { stopping: true };
+    },
     'POST /api/sessions-scan': (b) => {
       const last = scans.get(ctx);
       if (b.force !== true && last && Date.now() - last.at < FRESH_SCAN_MS) return { fresh: true };
@@ -411,11 +417,14 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
         // The last scan, or one now; the page says when it was read.
         if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx));
         const { rows, at } = scans.get(ctx);
-        return send(200, boardHtml(rows, new Date(at).toISOString()), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+        return send(200, boardHtml(rows, new Date(at).toISOString(), registeredPaths(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) {
-      try { return send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
+      try { send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
+      // After the answer: closing ends the CLI's ui command, as Ctrl+C does.
+      if (url.pathname === '/api/shutdown') setImmediate(() => { server.close(); server.closeAllConnections(); });
+      return;
     }
     if (url.pathname.startsWith('/api/')) return send(req.method === 'GET' && routes[`POST ${url.pathname}`] ? 405 : 404, { error: 'no such endpoint' });
     if (req.method !== 'GET') return send(405, { error: 'method not allowed' });

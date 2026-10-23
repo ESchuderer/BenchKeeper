@@ -18,12 +18,12 @@ before(async () => {
   writeFileSync(join(dist, 'index.html'), '<!doctype html><title>BenchKeeper</title>');
   mkdirSync(join(dist, 'assets'));
   writeFileSync(join(dist, 'assets/app.js'), 'console.log(1)');
-  const routes = { 'GET /api/overview': () => ({ ok: true }), 'POST /api/apply': (b) => { changed.push(b); return { done: true }; }, 'POST /api/board-ticket': api(ctx)['POST /api/board-ticket'] };
+  const routes = { 'GET /api/overview': () => ({ ok: true }), 'POST /api/apply': (b) => { changed.push(b); return { done: true }; }, 'POST /api/board-ticket': api(ctx)['POST /api/board-ticket'], 'POST /api/shutdown': () => ({ stopping: true }) };
   const s = await startServer(ctx, { token: 'secret-token-123', dist, routes });
   srv = s.server;
   port = srv.address().port;
 });
-after(() => srv.close());
+after(() => { if (srv.listening) srv.close(); });
 
 function req(method, path, headers = {}, body) {
   return new Promise((ok, fail) => {
@@ -466,4 +466,14 @@ test('a snap or Flatpak browser cannot read the file and gets the URL', () => {
   let opened;
   openBrowser('http://127.0.0.1:1/?token=a', { open: (f) => { opened = f; }, confined: () => true });
   assert.equal(opened, 'http://127.0.0.1:1/?token=a');
+});
+
+// Last: it stops the shared server.
+test('Stop: the API key is needed; the server closes after its answer', async () => {
+  assert.equal((await req('POST', '/api/shutdown', { cookie, 'content-type': 'application/json' }, '{}')).status, 403);
+  const closed = new Promise((ok) => srv.once('close', ok));
+  const r = await req('POST', '/api/shutdown', auth({ 'content-type': 'application/json' }), '{}');
+  assert.deepEqual([r.status, JSON.parse(r.body)], [200, { stopping: true }]);
+  await closed;
+  assert.equal(srv.listening, false);
 });

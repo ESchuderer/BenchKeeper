@@ -44,7 +44,8 @@ export function globalDrift(ctx, agents, devcontainerCli) {
     if (c.error) return issue('error', 'global', `${c.title}: ${c.error}`, 'edit the file by hand; the app does not merge this form');
     if (c.destructive) return issue('warning', 'unexpected', c.title.replace(/^(remove|move) /, 'not part of the setup: '), 'benchkeeper apply --all offers its removal');
     // An older version is drift, not a missing part.
-    if (c.outdated) return issue('warning', c.step.split(':')[0], `outdated: ${c.title}`, 'benchkeeper apply');
+    // A warning shown as outdated: the version change says the rest.
+    if (c.outdated) return { ...issue('warning', c.step.split(':')[0], c.title, 'benchkeeper apply'), tag: 'outdated' };
     const error = /^rules:/.test(c.step) || /^plugin:\w+:benchkeeper@/.test(c.step);
     return issue(error ? 'error' : 'warning', c.step.split(':')[0], c.kind === 'command' ? `not installed: ${c.title}` : `${c.title} differs from setup ${appVersion}`, 'benchkeeper apply');
   });

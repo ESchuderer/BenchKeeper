@@ -63,6 +63,9 @@ test.describe('views', () => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');
     await expect(board.getByRole('heading', { level: 1, name: 'Sessions board' })).toBeVisible();
+    // The fixture project is registered, but no session ran in it: All stays chosen, Registered projects is offered.
+    await expect(board.getByLabel('Project').locator('option').first()).toHaveText('Registered projects');
+    await expect(board.getByLabel('Project')).toHaveValue('');
     await board.getByLabel('Period').selectOption('all');
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Cart </script><img src=x onerror=alert(1)> fix');
     await expect(board.getByRole('table', { name: /Sessions by tier/ })).toContainText('full');
@@ -112,6 +115,16 @@ test.describe('views', () => {
     await doctor.getByRole('row', { name: /Claude Code rules/ }).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
+  });
+
+  test('Stop: the header button asks first; Cancel keeps the server running', async ({ page }) => {
+    await page.getByRole('button', { name: 'Stop BenchKeeper' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Stop BenchKeeper?' });
+    await expect(dialog.getByText(/npx benchkeeper@\d+\.\d+\.\d+/)).toBeVisible();
+    await noAxe(page);
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText('CLI', { exact: true })).toBeVisible();
   });
 
   test('slash opens the palette too', async ({ page }) => {

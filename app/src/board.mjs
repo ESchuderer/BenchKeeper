@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { writeAtomic } from './fsx.mjs';
+import { listProjects } from './projects.mjs';
 
 // Runs in the browser only: toString() of this function is the page script.
 function draw() {
@@ -46,11 +47,16 @@ function draw() {
     ['tier', 'Tier', (r) => r.tier?.last ?? 'none'],
     ['setup', 'Setup', setupKey],
   ];
-  const state = { period: '30', q: '' };
+  // Projects registered in the app and their worktrees; a leading space keeps the option apart from any path.
+  const REGISTERED = ' registered';
+  const listed = (r) => !!r.project && D.registered.some((p) => r.project === p || r.project.startsWith(`${p}/`) || r.project.startsWith(`${p}\\`));
+  const state = { period: '30', q: '', project: rows.some(listed) ? REGISTERED : '' };
+  const matches = (key, f, r) => (key === 'project' && state.project === REGISTERED ? listed(r) : f(r) === state[key]);
   const bar = $('filters');
   for (const [key, label, f] of FILTERS) {
     const values = [...new Set(rows.map(f))].sort();
-    const s = el('select', { id: `f-${key}` }, el('option', { value: '' }, 'All'), values.map((v) => el('option', { value: v }, v)));
+    const own = key === 'project' && D.registered.length ? [el('option', { value: REGISTERED, selected: state.project === REGISTERED }, 'Registered projects')] : [];
+    const s = el('select', { id: `f-${key}` }, own, el('option', { value: '', selected: !state[key] }, 'All'), values.map((v) => el('option', { value: v }, v)));
     s.addEventListener('change', () => { state[key] = s.value; render(); });
     bar.append(el('span', { class: 'f' }, el('label', { for: `f-${key}` }, label), s));
   }
@@ -173,7 +179,7 @@ function draw() {
   function render() {
     // Whole UTC days, the same ones the chart draws: today and the days before it.
     const since = state.period === 'all' ? '' : day(new Date(now - (Number(state.period) - 1) * 864e5).toISOString());
-    const list = rows.filter((r) => r.start >= since && FILTERS.every(([key, , f]) => !state[key] || f(r) === state[key]));
+    const list = rows.filter((r) => r.start >= since && FILTERS.every(([key, , f]) => !state[key] || matches(key, f, r)));
     const span = days(list);
     current = list;
     tiles(list, span);
@@ -225,10 +231,11 @@ details summary { cursor: pointer; color: var(--ink-2); margin-top: 6px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 `;
 
-// rows: scanSessions output; now: an ISO time (the periods count back from it).
-export function boardHtml(rows, now = new Date().toISOString()) {
+// rows: scanSessions output; now: an ISO time (the periods count back from it); registered: folders the Project filter
+// offers as one choice, and preselects when a session ran in one.
+export function boardHtml(rows, now = new Date().toISOString(), registered = []) {
   // JSON in a script element: < as <, so no value can close the element.
-  const data = JSON.stringify({ rows, now }).replace(/</g, '\\u003c');
+  const data = JSON.stringify({ rows, now, registered }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -262,6 +269,14 @@ export function boardHtml(rows, now = new Date().toISOString()) {
 // The board as a file the user opens without the app (the tier band's Board button): rewritten by every scan.
 export function writeBoard(ctx, rows, now) {
   const file = join(ctx.config, 'board.html');
-  writeAtomic(file, boardHtml(rows, now), 0o600);
+  writeAtomic(file, boardHtml(rows, now, registeredPaths(ctx)), 0o600);
   return file;
+}
+
+// The app's registered projects with their Git worktrees, where sessions on a branch often run.
+export function registeredPaths(ctx) {
+  return [...new Set(listProjects(ctx).flatMap(({ path }) => {
+    const r = ctx.run(['git', '-C', path, 'worktree', 'list', '--porcelain']);
+    return [path, ...(r.code === 0 ? r.stdout.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9)) : [])];
+  }))];
 }

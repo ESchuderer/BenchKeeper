@@ -2,6 +2,17 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.2 (2026-10-23)
+
+- Sessions board as a file: each scan of the Sessions view in the browser UI also rewrites `~/.config/benchkeeper/board.html`, as `benchkeeper board` does.
+- Tier band: a board button opens that file; without one, it says to open Sessions in the app or run `benchkeeper board`.
+- Sessions board: the Project filter offers Registered projects (the app's project list and their Git worktrees), preset when any of them has sessions; All shows every session as before.
+- Browser UI: a Stop button in the header stops the local server, as Ctrl+C does; it is refused while an apply or eval runs.
+- Doctor: an older plugin shows as level `outdated` instead of a warning with an "outdated:" prefix.
+- Evals view: a short explanation of what evals check and what Miss and False trigger mean.
+- Plugin `version` 6.2.0.
+- Upgrade: `npx benchkeeper@6.2.0 apply`, which updates the plugin.
+
 ## setup-v6.1 (2026-10-22)
 
 - Sessions board: `benchkeeper board` and the Sessions view in the browser UI show every Claude Code and Codex session on this machine with its tier and change type, the setup installed at the time, the skills used, the last test run, pull request state, time, tokens and the cost Claude Code records. It reads the local transcripts, the run ledger and `gh`, and caches in `~/.cache/benchkeeper/`.

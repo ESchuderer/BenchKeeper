@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADVISERS, adviseSetup } from './advise.mjs';
-import { CSP as BOARD_CSP, boardHtml } from './board.mjs';
+import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { agent, detect } from './agents.mjs';
 import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
@@ -105,6 +105,7 @@ function setupAnswers(src) {
 
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
 const scans = new WeakMap();
+const keepScan = (ctx, rows) => { const at = Date.now(); scans.set(ctx, { rows, at }); try { writeBoard(ctx, rows, new Date(at).toISOString()); } catch { /* the file is a convenience; the scan and the framed board still work */ } };
 const FRESH_SCAN_MS = 60e3;
 // GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
 // so the cookie alone (which browsers send to every server on 127.0.0.1) does not show the board.
@@ -276,6 +277,12 @@ export function api(ctx) {
       t.set(ticket, now);
       return { ticket };
     },
+    // The page's Stop button: refused while an apply or eval runs; scans, suggestions and rehearsals stop with the server.
+    'POST /api/shutdown': () => {
+      idle();
+      for (const j of jobs.values()) if (!j.done) j.ctl.abort();
+      return { stopping: true };
+    },
     'POST /api/sessions-scan': (b) => {
       const last = scans.get(ctx);
       if (b.force !== true && last && Date.now() - last.at < FRESH_SCAN_MS) return { fresh: true };
@@ -283,7 +290,7 @@ export function api(ctx) {
       if (running) return { job: running.id, total: 0 };
       return start(0, async (job) => {
         const rows = await scanSessions(ctx, { onFile: (p) => { job.progress = p; } });
-        scans.set(ctx, { rows, at: Date.now() });
+        keepScan(ctx, rows);
         job.results = { sessions: rows.length };
       }, { kind: 'scan', title: 'sessions', readOnly: true });
     },
@@ -410,13 +417,16 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
       if (!issued || Date.now() - issued > FRESH_SCAN_MS) return send(403, { error: 'open the board from the app' });
       try {
         // The last scan, or one now; the page says when it was read.
-        if (!scans.has(ctx)) scans.set(ctx, { rows: await scanSessions(ctx), at: Date.now() });
+        if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx));
         const { rows, at } = scans.get(ctx);
-        return send(200, boardHtml(rows, new Date(at).toISOString()), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+        return send(200, boardHtml(rows, new Date(at).toISOString(), registeredPaths(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     if (route) {
-      try { return send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
+      try { send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
+      // After the answer: closing ends the CLI's ui command, as Ctrl+C does.
+      if (url.pathname === '/api/shutdown') setImmediate(() => { server.close(); server.closeAllConnections(); });
+      return;
     }
     if (url.pathname.startsWith('/api/')) return send(req.method === 'GET' && routes[`POST ${url.pathname}`] ? 405 : 404, { error: 'no such endpoint' });
     if (req.method !== 'GET') return send(405, { error: 'method not allowed' });

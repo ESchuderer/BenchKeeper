@@ -19,7 +19,7 @@ import { exportPack, importPack, libraryWith, removePack, savePack } from './pac
 import { addProject, listProjects, packsInUse, removeProject, scan, status, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { scanSessions } from './sessions.mjs';
-import { boardHtml } from './board.mjs';
+import { writeBoard } from './board.mjs';
 import { globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectPlan } from './steps/project.mjs';
 
@@ -212,8 +212,7 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'board') {
     out.write('Reading the transcripts; the first run reads all of them, later runs only new or changed ones.\n');
     const rows = await scanSessions(ctx);
-    const file = join(ctx.config, 'board.html');
-    writeAtomic(file, boardHtml(rows), 0o600);
+    const file = writeBoard(ctx, rows);
     out.write(`${rows.length} sessions: ${file}\n`);
     // A file URL carries no token: opened directly, as the CLI exits before a redirect file would be read.
     if (!o['no-open']) launch(pathToFileURL(file).href);
@@ -251,7 +250,7 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'doctor') {
     const found = doctor(ctx, { agents: selectedAgents(ctx, o.agents), dir: resolve(arg ?? '.') });
-    for (const i of found) out.write(`${i.level.padEnd(7)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
+    for (const i of found) out.write(`${(i.tag ?? i.level).padEnd(8)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
     out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }

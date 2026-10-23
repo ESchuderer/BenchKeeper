@@ -79,4 +79,4 @@ In the dev container (repository `AGENTS.md`):
 
 ## Release
 
-The package version equals the plugin version (`plugins/benchkeeper/*/plugin.json`), checked by `test/package.test.mjs`. `npm pack` copies rules, own skills, the library catalog and eval sets into `content/` and builds the UI, so `plan` and `apply` work offline for them. The owner publishes with the "npm publish" workflow (Actions, Run workflow, the version as input), which publishes through npm trusted publishing (no token) with provenance. The first version was published by hand, since trusted publishing is set up in the package's npm settings.
+The package version equals the plugin version (`plugins/benchkeeper/*/plugin.json`), checked by `test/package.test.mjs`. `npm pack` copies rules, own skills, the library catalog and eval sets into `content/` and builds the UI, so `plan` and `apply` work offline for them. The owner publishes with the "npm publish" workflow (Actions, Run workflow, the version as input), which publishes through npm trusted publishing (no token) with provenance. The trusted publisher in the package's npm settings names this repository and `npm.yml`.

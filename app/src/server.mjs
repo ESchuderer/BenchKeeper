@@ -105,7 +105,7 @@ function setupAnswers(src) {
 
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
 const scans = new WeakMap();
-const keepScan = (ctx, rows) => { const at = Date.now(); scans.set(ctx, { rows, at }); writeBoard(ctx, rows, new Date(at).toISOString()); };
+const keepScan = (ctx, rows) => { const at = Date.now(); scans.set(ctx, { rows, at }); try { writeBoard(ctx, rows, new Date(at).toISOString()); } catch { /* the file is a convenience; the scan and the framed board still work */ } };
 const FRESH_SCAN_MS = 60e3;
 // GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
 // so the cookie alone (which browsers send to every server on 127.0.0.1) does not show the board.

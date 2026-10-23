@@ -41,7 +41,7 @@ async function openBoard($: EngineInterface) {
   if (!(await $.fs.exists(file))) return $.ui.toast('No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper board')
   const windows = (await $.env.get('OS')) === 'Windows_NT'
   const mac = !windows && (await $.process.run(['uname'])).stdout.trim() === 'Darwin'
-  await $.process.run(windows ? ['cmd', '/c', 'start', '', file] : [mac ? 'open' : 'xdg-open', file])
+  await $.process.run(windows ? ['cmd', '/c', 'start', '', file.replaceAll('/', '\\')] : [mac ? 'open' : 'xdg-open', file])
 }
 
 export const register: Register = (on, options) => {

@@ -1,7 +1,7 @@
 name: npm publish
 
 # Started by the owner only (Actions, npm publish, Run workflow). Publishes app/ as benchkeeper@<version> with npm
-# provenance. Needs the repository secret NPM_TOKEN (an npm automation token for the benchkeeper package).
+# provenance through trusted publishing (OIDC): no token. The package's npm settings name this repository and npm.yml.
 on:
   workflow_dispatch:
     inputs:
@@ -29,8 +29,8 @@ jobs:
         env:
           WANT: ${{ inputs.version }}
         run: test "$(node -p 'require("./package.json").version')" = "$WANT"
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - run: npm install -g npm@11.21.1
       - name: Test and publish
         working-directory: app
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm ci --no-audit --no-fund && npm test && npm publish --provenance --access public

@@ -1,5 +1,6 @@
 // Optional tier band (userConfig tierBand, off by default): the tier line of the last answer above the prompt, buttons
-// for /benchkeeper:tier, and the session's override kept in the system prompt, so it outlasts compaction and resume.
+// for /benchkeeper:tier and the sessions board, and the session's override kept in the system prompt, so it outlasts
+// compaction and resume.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -31,6 +32,16 @@ async function current($: EngineInterface): Promise<string | null> {
   if (v) return v
   const stored = await $.store.get(await key($))
   return typeof stored === 'string' && CHOICES.includes(stored) ? stored : null
+}
+
+// The board the app writes on each scan of its Sessions view, and on benchkeeper board; the band only opens it.
+async function openBoard($: EngineInterface) {
+  const home = (await $.env.get('BENCHKEEPER_HOME')) ?? (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
+  const file = `${home}/.config/benchkeeper/board.html`
+  if (!(await $.fs.exists(file))) return $.ui.toast('No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper board')
+  const windows = (await $.env.get('OS')) === 'Windows_NT'
+  const mac = !windows && (await $.process.run(['uname'])).stdout.trim() === 'Darwin'
+  await $.process.run(windows ? ['cmd', '/c', 'start', '', file.replaceAll('/', '\\')] : [mac ? 'open' : 'xdg-open', file])
 }
 
 export const register: Register = (on, options) => {
@@ -77,6 +88,7 @@ export const register: Register = (on, options) => {
         {['quick', 'standard', 'full', 'auto'].map(level => (
           <Button key={level} plain label={level} onPress={() => pick(level)} />
         ))}
+        <Button key="board" plain label="board" onPress={() => openBoard($).catch(() => $.ui.toast('Could not open the sessions board'))} />
       </Box>
     )
     return below ? <Box flexDirection="column">{mine}{below}</Box> : mine

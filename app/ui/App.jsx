@@ -1,7 +1,7 @@
-import { ActionIcon, Anchor, AppShell, Badge, Burger, Button, Drawer, Group, Kbd, MantineProvider, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, AppShell, Badge, Burger, Button, Code, Drawer, Group, Kbd, MantineProvider, Modal, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
-import { IconActivity, IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconRobot, IconSearch, IconSettings, IconSun } from '@tabler/icons-react';
+import { IconActivity, IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPower, IconRobot, IconSearch, IconSettings, IconSun } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
@@ -126,6 +126,7 @@ function Shell() {
               <RunningJobs onDone={() => refresh()} />
               <Button leftSection={icon(IconSearch)} variant="default" onClick={spotlight.open} rightSection={<Kbd visibleFrom="sm">{MOD}+K</Kbd>}>Search</Button>
               <ActionIcon variant="default" size={36} onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{icon(scheme === 'dark' ? IconSun : IconMoon, 18)}</ActionIcon>
+              <StopApp version={o?.version} />
             </Group>
           </Group>
         </AppShell.Header>
@@ -143,6 +144,36 @@ function Shell() {
           scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />
       </AppShell>
     </FixEverything>
+  );
+}
+
+// Stops the local server, as Ctrl+C in its terminal does; the server refuses while an apply or eval runs.
+function StopApp({ version }) {
+  const [opened, { open, close }] = useDisclosure(false);
+  const [state, setState] = useState({ busy: false, error: null, stopped: false });
+  const stop = () => {
+    setState({ busy: true, error: null, stopped: false });
+    api('/api/shutdown', {}).then(() => setState({ busy: false, error: null, stopped: true }), (e) => setState({ busy: false, error: e.message, stopped: false }));
+  };
+  const title = state.stopped ? 'BenchKeeper stopped' : 'Stop BenchKeeper?';
+  return (
+    <>
+      <ActionIcon variant="default" size={36} onClick={open} aria-label="Stop BenchKeeper">{icon(IconPower, 18)}</ActionIcon>
+      <Modal opened={opened} onClose={state.stopped ? () => {} : close} withCloseButton={false} attributes={{ content: { 'aria-label': title } }}>
+        <Stack gap="sm">
+          <Title order={2} size="h4">{title}</Title>
+          <Text size="sm">{state.stopped ? 'The server has stopped; you can close this tab.' : 'The local server stops and this page stops working. Scans and agent suggestions still running are cancelled.'}</Text>
+          <Text size="sm">Start it again: <Code>npx benchkeeper{version ? `@${version}` : ''}</Code></Text>
+          {state.error && <Alert color="red" role="alert" title="Not stopped">{state.error}</Alert>}
+          {!state.stopped && (
+            <Group justify="flex-end">
+              <Button variant="default" onClick={close}>Cancel</Button>
+              <Button color="red" loading={state.busy} onClick={stop}>Stop</Button>
+            </Group>
+          )}
+        </Stack>
+      </Modal>
+    </>
   );
 }
 

@@ -394,8 +394,17 @@ export function Evals({ params }) {
   const open = params.get('target');
   return (
     <Stack gap="lg">
+      <Stack gap={6} maw={720}>
+        <Text>A skill only helps when the agent loads it for the tasks it is meant for, and leaves it alone otherwise. Evals test exactly that.</Text>
+        <Text size="sm">Each case is a short task. BenchKeeper gives it to a real agent session in a throwaway folder and records whether the skill loaded. Two numbers come out, and lower is better for both:</Text>
+        <List size="sm">
+          <List.Item><b>Miss</b>: the task needed the skill, but the agent did not load it.</List.Item>
+          <List.Item><b>False trigger</b>: the agent loaded the skill for a task that did not need it.</List.Item>
+        </List>
+        <Text size="sm">Run them after a skill or the setup changes, then compare with the last result. They use your agent subscription, a few minutes per skill.</Text>
+      </Stack>
       <Loading state={evals} label="eval results">{(all) => {
-        if (!all.length) return <Text>No eval results yet.</Text>;
+        if (!all.length) return <Text>No eval results yet: plan and run them below.</Text>;
         // Rates of different agents and models do not compare: one of them at a time, the newest by default.
         const keys = [...new Set(all.map(seriesOf))];
         const series = keys.includes(picked) ? picked : seriesOf(all.at(-1));

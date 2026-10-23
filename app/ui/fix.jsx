@@ -18,13 +18,13 @@ export function DoctorTable({ found, onAction }) {
   return (
     <Table.ScrollContainer minWidth={560}>
       <Table aria-label="Doctor findings">
-        <Table.Thead><Table.Tr><Table.Th w={110}>Level</Table.Th><Table.Th>Problem</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th w={140}>Level</Table.Th><Table.Th>Problem</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>
           {found.map((i, n) => {
             const action = fixAction(i);
             return (
               <Table.Tr key={n}>
-                <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.level}</Badge></Table.Td>
+                <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.tag ?? i.level}</Badge></Table.Td>
                 <Table.Td>{i.message}</Table.Td>
                 <Table.Td><Stack gap={4} align="flex-start">{!(action && i.fix.startsWith('benchkeeper ')) && <Text size="sm">{i.fix}</Text>}{action && <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>}</Stack></Table.Td>
               </Table.Tr>

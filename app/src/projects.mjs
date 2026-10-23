@@ -18,7 +18,7 @@ export function listProjects(ctx) {
 }
 // Packs the registered projects use; null when none has a state file, so nothing counts as unused.
 export function packsInUse(ctx) {
-  const states = listProjects(ctx).map((p) => tryState(p.path)).filter(Boolean);
+  const states = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
   return states.length ? [...new Set(states.flatMap((s) => s.packs ?? []))] : null;
 }
 function save(ctx, projects) {
@@ -27,6 +27,8 @@ function save(ctx, projects) {
 // The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the
 // project has its own again (local, untracked).
 const kept = (ctx, path) => listProjects(ctx).find((p) => p.path === path)?.state ?? null;
+// A registered project's answers: its state file, or the one kept after a removal pull request.
+export const projectState = (ctx, path) => tryState(path) ?? kept(ctx, path);
 function keepState(ctx, path, state) {
   const list = listProjects(ctx);
   if (!list.some((p) => p.path === path)) list.push({ path, added: new Date().toISOString() });
@@ -150,18 +152,20 @@ export function status(ctx, path) {
   const { state, checkout, origin } = setupOf(ctx, path, local);
   const repo = isRepo(ctx, path);
   const branch = repo ? git(ctx, path, ['branch', '--show-current']).stdout.trim() : null;
+  const share = state?.share === true;
+  // committed: git tracks the state file of a setup this machine keeps local; Update all opens the pull request
+  // that removes it, and plans no local changes until then.
+  const committed = !!repo && !share && tracksState(ctx, path);
   let changes = null;
-  if (state && state === local) {
+  if (state && state === local && !committed) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
     try { changes = projectChanges(ctx, path, own ? undefined : localAnswers(local)).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
   // Per chosen agent, the skills in the project folder it reads.
   const files = skillFiles(path);
   const skills = Object.fromEntries((state?.agents ?? []).map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
-  // committed: git tracks the state file of a setup this machine keeps local; projects unshare takes it out.
-  const share = state?.share === true;
   return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
-    share, committed: !!repo && !share && tracksState(ctx, path) };
+    share, committed };
 }
 
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
@@ -208,14 +212,15 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
 export function unshare(ctx, path, { push = true } = {}) {
   const result = { path };
   try {
+    // Kept first: once the pull request is merged and pulled, the state file is gone, whatever this run ends with.
+    const state = readState(path);
+    if (state) keepState(ctx, path, state);
     viaPullRequest(ctx, path, result, {
       branch: 'chore/agent-setup-local', push,
       work: (tree) => apply(preview(committedSetup(tree)), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: 'chore/agent-setup-local' } }),
       title: 'chore: keep the agent setup local',
       body: 'BenchKeeper now keeps the per-project agent setup on each machine, in files git ignores (`.git/info/exclude`): `CLAUDE.local.md`, `AGENTS.override.md`, `.claude/settings.local.json`, the installed skills and `.benchkeeper/`. This removes the committed copies: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.\n\nAfter merging, pull, then run Update all in BenchKeeper (`npx benchkeeper update-all`): it writes the local setup from the answers it kept. Other machines: `npx benchkeeper project apply --agents ...` once.',
     });
-    const state = tryState(path);
-    if (state && result.status !== 'current') keepState(ctx, path, state);
   } catch (e) {
     result.status = 'stopped';
     result.reason = e.message;
@@ -261,10 +266,14 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
     result.run = run.id;
     if (run.status !== 'done') throw new Error(`${run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ')} (the worktree stays at ${tree})`);
     git(ctx, tree, ['add', '-A']);
-    if (clean(ctx, tree)) { result.status = 'current'; keep = false; return result; }
-    const commit = git(ctx, tree, [...hooks, 'commit', '-q', '-m', title, '-m', body.replace(/`/g, '')]);
-    if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
-    ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim() } });
+    // Nothing new on an unmerged branch from an earlier run: its commits still go out (that run's push or pull
+    // request may have failed).
+    if (clean(ctx, tree) && !(open && push && githubRemote(ctx, path))) { result.status = 'current'; keep = false; return result; }
+    if (!clean(ctx, tree)) {
+      const commit = git(ctx, tree, [...hooks, 'commit', '-q', '-m', title, '-m', body.replace(/`/g, '')]);
+      if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
+      ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim() } });
+    }
     // The commit is on the branch: the worktree is not needed for pushing.
     keep = false;
     result.status = 'committed';

@@ -338,3 +338,31 @@ test('projects unshare: a pull request without the committed setup; the checkout
   assert.equal(status(ctx, p.dir).committed, false);
   assert.ok(!still(p.dir));
 });
+
+test('unshare keeps the answers first; after a failed push, the next run pushes the commit and opens the pull request', () => {
+  const h = home();
+  const p = project(h);
+  const { share, ...old } = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
+  writeFileSync(join(p.dir, STATE), JSON.stringify(old));
+  p.git('commit', '-qam', 'old setup');
+  p.git('push', '-q', 'origin', 'main');
+  let offline = true;
+  const calls = [];
+  const base = context({ home: h });
+  const ctx = context({ home: h, run: (argv, o) => {
+    if (argv[0] === 'gh') { calls.push('gh'); return { code: 0, stdout: 'https://github.com/o/r/pull/2\n', stderr: '' }; }
+    if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
+    if (argv.includes('push') && offline) return { code: 128, stdout: '', stderr: 'Could not resolve host: github.com' };
+    return base.run(argv, o);
+  } });
+  addProject(ctx, p.dir);
+  const [first] = updateAll(ctx, { paths: [p.dir] });
+  assert.equal(first.status, 'stopped');
+  assert.match(first.reason, /git push/);
+  assert.equal(listProjects(ctx)[0].state.agents[0], 'claude');
+  offline = false;
+  const [second] = updateAll(ctx, { paths: [p.dir] });
+  assert.equal(second.status, 'pull request', second.reason);
+  assert.equal(second.pr, 'https://github.com/o/r/pull/2');
+  assert.deepEqual(calls, ['gh']);
+});

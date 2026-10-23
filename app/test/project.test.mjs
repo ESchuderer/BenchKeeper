@@ -69,10 +69,48 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   apply(preview(plan(r, { share: true }).changes), r.ctx, { scope: r.dir });
   assert.match(read(join(r.dir, 'AGENTS.md')), /- Default tier: quick/);
   assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n');
-  assert.equal(read(join(r.dir, 'CLAUDE.local.md')), '');
+  assert.ok(!existsSync(join(r.dir, 'CLAUDE.local.md')));
   assert.ok(!existsSync(join(r.dir, 'AGENTS.override.md')));
   assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
   assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
+});
+
+test('local: two projects in one repository keep their own exclude blocks; a dropped agent loses its local file; a committed setup is refused', () => {
+  const r = repo();
+  for (const d of ['web', 'api']) mkdirSync(join(r.dir, d));
+  const at = (d) => ({ ctx: projectCtx(r.ctx, join(r.dir, d)), dir: join(r.dir, d) });
+  for (const d of ['web', 'api']) {
+    const { ctx, dir } = at(d);
+    assert.equal(apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude', 'codex'], env: 'host-agent' } }).changes), ctx, { scope: dir }).status, 'done');
+  }
+  const exclude = () => read(join(r.dir, '.git/info/exclude'));
+  for (const p of ['/web/CLAUDE.local.md', '/api/CLAUDE.local.md', '/web/.benchkeeper/', '/api/AGENTS.override.md']) assert.ok(exclude().includes(`\n${p}\n`), p);
+  assert.equal(r.git('status', '--porcelain').toString(), '');
+
+  const web = at('web');
+  apply(preview(projectPlan({ ctx: web.ctx, dir: web.dir, answers: { agents: ['claude'] } }).changes), web.ctx, { scope: web.dir });
+  assert.ok(!existsSync(join(web.dir, 'AGENTS.override.md')));
+  assert.ok(!exclude().includes('/web/AGENTS.override.md') && exclude().includes('/api/AGENTS.override.md'));
+
+  const api = at('api');
+  apply(preview(projectPlan({ ctx: api.ctx, dir: api.dir, answers: { share: true } }).changes), api.ctx, { scope: api.dir });
+  assert.ok(!exclude().includes('/api/') && exclude().includes('/web/CLAUDE.local.md'));
+  r.git('add', '-A');
+  r.git('commit', '-qm', 'shared api setup');
+  assert.throws(() => projectPlan({ ctx: api.ctx, dir: api.dir, answers: { share: false } }), /is committed: benchkeeper projects unshare/);
+});
+
+test('a recorded session in a local setup holds the skills git ignores, so undo restores them', () => {
+  const r = repo();
+  apply(preview(plan(r, { agents: ['claude'], env: 'host-agent' }).changes), r.ctx, { scope: r.dir });
+  // The setup session installs a stack skill, then project apply lists it in the exclude block (skills-lock.json).
+  recordSession(r.ctx, r.dir, ['sh', '-c', 'mkdir -p .claude/skills/stack && echo s > .claude/skills/stack/SKILL.md && echo \'{"skills":{"stack":{}}}\' > skills-lock.json']);
+  apply(preview(plan(r, {}).changes), r.ctx, { scope: r.dir });
+  assert.match(read(join(r.dir, '.git/info/exclude')), /\n\/\.claude\/skills\/stack\/\n/);
+  const again = recordSession(r.ctx, r.dir, ['sh', '-c', 'echo changed > .claude/skills/stack/SKILL.md']);
+  assert.deepEqual(again.entries[0].files.map((f) => f.path), ['.claude/skills/stack/SKILL.md']);
+  assert.equal(undo(again.id, r.ctx).status, 'done');
+  assert.equal(read(join(r.dir, '.claude/skills/stack/SKILL.md')), 's\n');
 });
 
 test('local in a linked worktree: the exclude list of the main repository, outside the worktree, is written and undone', () => {

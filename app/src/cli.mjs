@@ -161,6 +161,7 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'project') {
     const dir = resolve(positionals[2] ?? '.');
+    if (o.share && o.local) { out.write('--share and --local exclude each other\n'); return 2; }
     const pctx = projectCtx(ctx, dir);
     const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable };
     const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });

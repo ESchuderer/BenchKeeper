@@ -31,6 +31,8 @@ const NPX_ENV = { DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmj
 
 const tryJson = (t) => { try { return t == null ? null : parseJson(t); } catch { return null; } };
 const SANDBOX_OUT = ['devcontainer exec *', 'podman *'];
+// Takes out what the sandbox step set, and the sandbox object when nothing else is left in it.
+const sandboxOff = (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], remove: true }, { path: ['sandbox', 'excludedCommands'], pull: SANDBOX_OUT }, { path: ['sandbox'], prune: true }]);
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]*$/;
 // Skills the skills CLI installed in the project, by its lockfile.
 const lockedSkills = (dir) => Object.keys(tryJson(readText(join(dir, LOCK)))?.skills ?? {}).filter((n) => SKILL_NAME.test(n));
@@ -52,7 +54,7 @@ export function committedSetup(dir) {
   if (readText(at('CLAUDE.md'))?.trim() === '@AGENTS.md') add('claude-md', 'remove CLAUDE.md (only the AGENTS.md import; Claude Code reads AGENTS.md)', { kind: 'remove', path: at('CLAUDE.md') });
   if (state?.sandbox && tryJson(readText(at('.claude/settings.json')))?.sandbox) {
     add('sandbox', '.claude/settings.json without the sandbox keys BenchKeeper set', { kind: 'write', path: at('.claude/settings.json'),
-      edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], remove: true }, { path: ['sandbox', 'excludedCommands'], pull: SANDBOX_OUT }, { path: ['sandbox'], prune: true }]) });
+      edit: sandboxOff });
   }
   const names = [...new Set([...(state?.skills ?? []).map((s) => s.name), ...lockedSkills(dir)])].filter((n) => SKILL_NAME.test(n ?? ''));
   for (const { dir: d } of skillDirs(['claude', 'codex', 'gemini', 'copilot'], 'project', dir)) {
@@ -124,7 +126,6 @@ export function suggest(dir) {
   return { packs: hints.filter(([, r]) => r).map(([id, reason]) => ({ id, reason })), devcontainer: has('.devcontainer'), env };
 }
 
-// The exclude file of the repository dir is in, shared by all its worktrees; null outside a git repository.
 // True when git tracks the state file: a setup committed in the repository.
 export const tracksState = (ctx, dir) => git(ctx, dir, ['ls-files', '--', STATE]).stdout.trim().endsWith(STATE);
 
@@ -135,6 +136,7 @@ export function projectCtx(ctx, dir) {
   return { ...ctx, roots: [resolve(dir), ...(exclude ? [dirname(exclude)] : [])] };
 }
 
+// The exclude file of the repository dir is in, shared by all its worktrees; null outside a git repository.
 function excludeFile(ctx, dir) {
   const r = git(ctx, dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const common = r.code === 0 ? r.stdout.trim() : '';
@@ -166,10 +168,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   if (a.share) {
     add('agents-md', 'AGENTS.md: where commands run, default tier, skill pointers', { kind: 'write', path: at('AGENTS.md'), edit: (t) => setBlock(t, 'project', blockText) });
     if (a.agents.includes('claude')) add('claude-md', 'CLAUDE.md imports AGENTS.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => (t?.includes('@AGENTS.md') ? t : t?.trim() ? `@AGENTS.md\n\n${t}` : '@AGENTS.md\n') });
-    // What a local setup wrote here before.
-    if (getBlock(readText(at(LOCAL_CLAUDE)), 'project') != null) add('local-claude', `remove the BenchKeeper block from ${LOCAL_CLAUDE} (now in AGENTS.md)`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '') });
-    if (exists(at(OVERRIDE)) && overrideOurs(readText(at(OVERRIDE)))) add('local-codex', `remove ${OVERRIDE} (BenchKeeper's, now in AGENTS.md)`, { kind: 'remove', path: at(OVERRIDE), selected: true });
   } else {
+    // A committed setup stays until a pull request removes it (projects unshare): a local one beside it would load
+    // the block twice and change tracked files.
+    if (tracksState(ctx, dir)) throw new Error(`the setup of ${dir} is committed: benchkeeper projects unshare moves it to this machine (a pull request), --share keeps it in the repository`);
     const agentsMd = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);
     if (a.agents.includes('claude')) {
       const imports = /^@AGENTS\.md$/m.test(readText(at('CLAUDE.md')) ?? '') || !agentsMd.trim();
@@ -183,6 +185,14 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
         edit: () => setBlock(agentsMd, 'project', blockText) });
     }
   }
+  // What a local setup wrote for an agent no longer chosen, or before the setup was shared.
+  const gone = (id) => (a.share ? 'now in AGENTS.md' : `${agent(id).name} is no longer chosen`);
+  const localClaude = readText(at(LOCAL_CLAUDE));
+  if ((a.share || !a.agents.includes('claude')) && getBlock(localClaude, 'project') != null) {
+    if (setBlock(localClaude, 'project', null).replace(/^@AGENTS\.md\n*/, '').trim()) add('local-claude', `remove the BenchKeeper block from ${LOCAL_CLAUDE} (${gone('claude')})`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '') });
+    else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block; ${gone('claude')})`, { kind: 'remove', path: at(LOCAL_CLAUDE), selected: true });
+  }
+  if ((a.share || !a.agents.includes('codex')) && exists(at(OVERRIDE)) && overrideOurs(readText(at(OVERRIDE)))) add('local-codex', `remove ${OVERRIDE} (BenchKeeper's; ${gone('codex')})`, { kind: 'remove', path: at(OVERRIDE), selected: true });
   if (a.agents.includes('gemini')) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]) });
@@ -203,7 +213,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   } else if (tryJson(readText(at(settings)))?.sandbox?.enabled === true) {
     // Preselected only when the state file shows this setup turned it on.
     add('sandbox', `Claude Code sandbox off${prev?.sandbox ? '' : ' (not turned on by BenchKeeper)'}`, { kind: 'write', path: at(settings), selected: !!prev?.sandbox,
-      edit: (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], remove: true }, { path: ['sandbox', 'excludedCommands'], pull: SANDBOX_OUT }, { path: ['sandbox'], prune: true }]) });
+      edit: sandboxOff });
   }
   // An agent no longer chosen: what this setup wrote for it alone comes out.
   if (dropped.includes('claude') && readText(at('CLAUDE.md'))?.trim() === '@AGENTS.md') add('drop:claude', 'remove CLAUDE.md (only the AGENTS.md import; Claude Code is no longer chosen)', { kind: 'remove', path: at('CLAUDE.md'), selected: true });
@@ -319,7 +329,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       // Stack skills the setup session installed with the skills CLI (its lockfile names them).
       ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])].map((p) => `/${prefix}${p}`);
     const list = a.share ? null : `# BenchKeeper's local agent setup (benchkeeper project apply)\n${local.join('\n')}`;
-    if (a.share ? getBlock(readText(exclude), 'local', '#') != null : true) add('exclude', a.share ? 'git ignores the setup no longer (it is committed)' : 'git ignores the local setup (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t) => setBlock(t, 'local', list, '#') });
+    // One block per project folder: several projects in one repository keep their own lists.
+    const id = `local:/${prefix}`;
+    if (a.share ? getBlock(readText(exclude), id, '#') != null : true) add('exclude', a.share ? 'git ignores the setup no longer (it is committed)' : 'git ignores the local setup (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t) => setBlock(t, id, list, '#') });
   }
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.

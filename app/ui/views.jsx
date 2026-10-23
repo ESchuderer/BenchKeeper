@@ -544,10 +544,14 @@ function ProjectDetail({ project, onChange }) {
 
 // Origin's setup counts when the checkout's is older or missing: the checkout needs a pull.
 const lags = (p) => p.setupVersion && p.checkout !== p.setupVersion;
+// committed: the repository still carries a setup kept local; Update all opens the pull request that removes it.
 const SetupBadge = ({ p, version }) => (
-  <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.setupVersion === version ? 'teal' : 'yellow'} />}>
-    {p.setupVersion ? `${p.setupVersion} ${p.setupVersion === version ? 'current' : 'behind'}${lags(p) ? ` on ${p.origin}` : ''}` : 'no state file'}
-  </Badge>
+  <Group gap={4} wrap="nowrap">
+    <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.setupVersion === version ? 'teal' : 'yellow'} />}>
+      {p.setupVersion ? `${p.setupVersion} ${p.setupVersion === version ? 'current' : 'behind'}${lags(p) ? ` on ${p.origin}` : ''}` : 'no state file'}
+    </Badge>
+    {p.setupVersion && <Badge variant="default" miw="max-content">{p.share ? 'shared' : p.committed ? 'local, still committed' : 'local'}</Badge>}
+  </Group>
 );
 
 // Skills per chosen agent: in this project, and in all, its global and plugin skills included. Every one costs

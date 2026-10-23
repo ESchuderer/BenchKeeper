@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
@@ -8,7 +8,7 @@ import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
 import { appVersion } from '../src/content.mjs';
-import { ENVS, STATE, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
+import { ENVS, STATE, projectCtx, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
 
 function repo() {
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
@@ -26,10 +26,10 @@ function repo() {
 const read = (p) => readFileSync(p, 'utf8');
 const plan = (r, answers, plugins = { claude: [], codex: [] }) => projectPlan({ ctx: r.ctx, dir: r.dir, answers, plugins });
 
-test('AGENTS.md block, CLAUDE.md import, own skill copies, pinned community skills, state file', () => {
+test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, pinned community skills, state file', () => {
   const r = repo();
   writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nmy notes\n');
-  const { changes, prompts } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick' });
+  const { changes, prompts } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true });
   const run = apply(preview(changes), r.ctx, { scope: r.dir, select: changes.filter((c) => c.kind !== 'command').map((c) => c.id) });
   assert.equal(run.status, 'done');
   const agentsMd = read(join(r.dir, 'AGENTS.md'));
@@ -46,6 +46,84 @@ test('AGENTS.md block, CLAUDE.md import, own skill copies, pinned community skil
   assert.deepEqual([state.setupVersion, state.env, state.tier, state.packs], [appVersion, 'host-agent', 'quick', ['frontend']]);
   assert.deepEqual(state.skills.map((s) => s.name).sort(), ['accessibility', 'designing-technical-uis', 'frontend-design']);
   assert.match(prompts[0].prompt, /setting-up-projects/);
+});
+
+test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md carries it, git ignores it all; shared moves it back', () => {
+  const r = repo();
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nmy notes\n');
+  r.git('add', '-A');
+  r.git('commit', '-qm', 'agents');
+  const { changes } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick' });
+  assert.equal(apply(preview(changes), r.ctx, { scope: r.dir, select: changes.filter((c) => c.kind !== 'command').map((c) => c.id) }).status, 'done');
+  assert.equal(read(join(r.dir, 'AGENTS.md')), '# Project\n\nmy notes\n');
+  assert.ok(!existsSync(join(r.dir, 'CLAUDE.md')));
+  const local = read(join(r.dir, 'CLAUDE.local.md'));
+  assert.ok(local.startsWith('@AGENTS.md\n\n') && local.includes('- Default tier: quick'), local);
+  const override = read(join(r.dir, 'AGENTS.override.md'));
+  assert.ok(override.startsWith('# Project\n\nmy notes\n') && override.includes('- Default tier: quick'), override);
+  assert.equal(readState(r.dir).share, false);
+  const exclude = read(join(r.dir, '.git/info/exclude'));
+  for (const p of ['/.benchkeeper/', '/CLAUDE.local.md', '/AGENTS.override.md', '/.claude/skills/designing-technical-uis/', '/.agents/skills/designing-technical-uis/']) assert.ok(exclude.includes(`\n${p}\n`), p);
+  assert.equal(r.git('status', '--porcelain').toString(), '');
+
+  apply(preview(plan(r, { share: true }).changes), r.ctx, { scope: r.dir });
+  assert.match(read(join(r.dir, 'AGENTS.md')), /- Default tier: quick/);
+  assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n');
+  assert.ok(!existsSync(join(r.dir, 'CLAUDE.local.md')));
+  assert.ok(!existsSync(join(r.dir, 'AGENTS.override.md')));
+  assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
+  assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
+});
+
+test('local: two projects in one repository keep their own exclude blocks; a dropped agent loses its local file; a committed setup is refused', () => {
+  const r = repo();
+  for (const d of ['web', 'api']) mkdirSync(join(r.dir, d));
+  const at = (d) => ({ ctx: projectCtx(r.ctx, join(r.dir, d)), dir: join(r.dir, d) });
+  for (const d of ['web', 'api']) {
+    const { ctx, dir } = at(d);
+    assert.equal(apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude', 'codex'], env: 'host-agent' } }).changes), ctx, { scope: dir }).status, 'done');
+  }
+  const exclude = () => read(join(r.dir, '.git/info/exclude'));
+  for (const p of ['/web/CLAUDE.local.md', '/api/CLAUDE.local.md', '/web/.benchkeeper/', '/api/AGENTS.override.md']) assert.ok(exclude().includes(`\n${p}\n`), p);
+  assert.equal(r.git('status', '--porcelain').toString(), '');
+
+  const web = at('web');
+  apply(preview(projectPlan({ ctx: web.ctx, dir: web.dir, answers: { agents: ['claude'] } }).changes), web.ctx, { scope: web.dir });
+  assert.ok(!existsSync(join(web.dir, 'AGENTS.override.md')));
+  assert.ok(!exclude().includes('/web/AGENTS.override.md') && exclude().includes('/api/AGENTS.override.md'));
+
+  const api = at('api');
+  apply(preview(projectPlan({ ctx: api.ctx, dir: api.dir, answers: { share: true } }).changes), api.ctx, { scope: api.dir });
+  assert.ok(!exclude().includes('/api/') && exclude().includes('/web/CLAUDE.local.md'));
+  r.git('add', '-A');
+  r.git('commit', '-qm', 'shared api setup');
+  assert.throws(() => projectPlan({ ctx: api.ctx, dir: api.dir, answers: { share: false } }), /is committed: benchkeeper projects unshare/);
+});
+
+test('a recorded session in a local setup holds the skills git ignores, so undo restores them', () => {
+  const r = repo();
+  apply(preview(plan(r, { agents: ['claude'], env: 'host-agent' }).changes), r.ctx, { scope: r.dir });
+  // The setup session installs a stack skill, then project apply lists it in the exclude block (skills-lock.json).
+  recordSession(r.ctx, r.dir, ['sh', '-c', 'mkdir -p .claude/skills/stack && echo s > .claude/skills/stack/SKILL.md && echo \'{"skills":{"stack":{}}}\' > skills-lock.json']);
+  apply(preview(plan(r, {}).changes), r.ctx, { scope: r.dir });
+  assert.match(read(join(r.dir, '.git/info/exclude')), /\n\/\.claude\/skills\/stack\/\n/);
+  const again = recordSession(r.ctx, r.dir, ['sh', '-c', 'echo changed > .claude/skills/stack/SKILL.md']);
+  assert.deepEqual(again.entries[0].files.map((f) => f.path), ['.claude/skills/stack/SKILL.md']);
+  assert.equal(undo(again.id, r.ctx).status, 'done');
+  assert.equal(read(join(r.dir, '.claude/skills/stack/SKILL.md')), 's\n');
+});
+
+test('local in a linked worktree: the exclude list of the main repository, outside the worktree, is written and undone', () => {
+  const r = repo();
+  const wt = join(mkdtempSync(join(tmpdir(), 'bk-wt-')), 'wt');
+  r.git('worktree', 'add', '-q', '-b', 'side', wt);
+  const pctx = projectCtx(r.ctx, wt);
+  const run = apply(preview(projectPlan({ ctx: pctx, dir: wt, answers: { agents: ['claude'], env: 'host-agent' } }).changes), pctx, { scope: wt });
+  assert.equal(run.status, 'done', JSON.stringify(run.entries.filter((e) => e.error)));
+  assert.match(read(join(r.dir, '.git/info/exclude')), /\n\/CLAUDE\.local\.md\n/);
+  assert.equal(execFileSync('git', ['-C', wt, 'status', '--porcelain'], { encoding: 'utf8' }), '');
+  assert.equal(undo(run.id, pctx).status, 'done');
+  assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
 });
 
 test('a community skill the state file records at another commit is added again at the pin', () => {
@@ -106,7 +184,7 @@ test('suggestions name the packs the files of a project point to, with the reaso
 
 test('a second plan reads the answers from the state file', () => {
   const r = repo();
-  const first = plan(r, { agents: ['claude'], tier: 'standard' }).changes;
+  const first = plan(r, { agents: ['claude'], tier: 'standard', share: true }).changes;
   apply(preview(first), r.ctx, { scope: r.dir });
   assert.deepEqual(preview(plan(r, {}).changes).map((c) => c.title), []);
   assert.match(preview(plan(r, { tier: 'full' }).changes).map((c) => c.title).join(), /AGENTS.md/);
@@ -141,7 +219,7 @@ test('Gemini CLI reads AGENTS.md; the sandbox option excludes devcontainer and p
   const r = repo();
   mkdirSync(join(r.dir, '.claude'));
   writeFileSync(join(r.dir, '.claude/settings.json'), '{ "permissions": { "allow": ["Bash(npm test)"] } }\n');
-  apply(preview(plan(r, { agents: ['claude', 'gemini'], env: 'host-agent', sandbox: true }).changes), r.ctx, { scope: r.dir });
+  apply(preview(plan(r, { agents: ['claude', 'gemini'], env: 'host-agent', sandbox: true, share: true }).changes), r.ctx, { scope: r.dir });
   assert.deepEqual(JSON.parse(read(join(r.dir, '.gemini/settings.json'))).context.fileName, ['AGENTS.md', 'GEMINI.md']);
   const st = JSON.parse(read(join(r.dir, '.claude/settings.json')));
   assert.deepEqual(st.permissions.allow, ['Bash(npm test)']);
@@ -153,7 +231,7 @@ test('a choice taken back cleans up: sandbox off, dropped agents lose their file
   const all = (answers) => { const p = plan(r, answers); apply(preview(p.changes), r.ctx, { scope: r.dir, select: p.changes.filter((c) => c.kind !== 'command').map((c) => c.id) }); return p; };
   mkdirSync(join(r.dir, '.claude'));
   writeFileSync(join(r.dir, '.claude/settings.json'), '{ "sandbox": { "excludedCommands": ["mine *"] } }\n');
-  all({ agents: ['claude', 'codex', 'gemini'], env: 'container', sandbox: true, packs: ['frontend'] });
+  all({ agents: ['claude', 'codex', 'gemini'], env: 'container', sandbox: true, packs: ['frontend'], share: true });
   const p = plan(r, { agents: ['codex'], sandbox: false });
   const off = preview(p.changes).find((c) => c.step === 'sandbox');
   assert.ok(off.selected && off.title === 'Claude Code sandbox off');
@@ -268,7 +346,8 @@ test('skill names from a state file never reach paths outside the project', () =
   writeFileSync(join(r.dir, STATE), JSON.stringify({ agents: ['claude'], env: 'host', skills: [{ name: `../../../${basename(r.ctx.home)}/outside` }] }));
   mkdirSync(join(r.dir, '.claude/skills'), { recursive: true });
   const changes = preview(plan(r, {}).changes);
-  assert.ok(changes.every((c) => !c.path || c.path.startsWith(r.dir)), JSON.stringify(changes.map((c) => c.path)));
+  // git names the exclude file by its real path (macOS: /private/var for /var).
+  assert.ok(changes.every((c) => !c.path || c.path.startsWith(r.dir) || c.path.startsWith(realpathSync(r.dir))), JSON.stringify(changes.map((c) => c.path)));
   assert.throws(() => plan(r, { paths: { accessibility: 'src/**\nname: evil' } }), /one line of globs/);
 });
 

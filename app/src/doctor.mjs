@@ -6,7 +6,7 @@ import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
 import { preview } from './runner.mjs';
 import { SKILLS_CLI, globalPlan, newest } from './steps/global.mjs';
-import { readState, tryState } from './steps/project.mjs';
+import { readState, tracksState, tryState } from './steps/project.mjs';
 
 export const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
 const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zshenv', '.config/fish/config.fish'];
@@ -79,6 +79,7 @@ export function projectChecks(ctx, dir) {
   for (const w of warnings([...skills.keys()], { skills: [...skills].map(([name, pickWhen]) => ({ name, pickWhen })) })) out.push(issue('warning', 'skills', w, 'turn skills off with benchkeeper project apply --disable <skill>'));
   let state = null;
   try { state = readState(dir); } catch (e) { out.push(issue('error', 'project', e.message, 'fix or delete the file, then run benchkeeper project apply')); }
+  if (state && state.share !== true && tracksState(ctx, dir)) out.push(issue('warning', 'project', 'the setup is local, but the repository still has it committed', 'benchkeeper projects unshare: a pull request removes the committed copies'));
   if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper update-all, or benchkeeper project apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   return out;

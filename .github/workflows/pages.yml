@@ -32,6 +32,8 @@ jobs:
       - run: node scripts/readme.mjs --check
       - run: node --test scripts/*.test.mjs
       - run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: npx playwright install --with-deps chromium
       - run: npm test
       # Pages serves dist/ under /BenchKeeper/; a root dir with that path lets lychee resolve internal links.

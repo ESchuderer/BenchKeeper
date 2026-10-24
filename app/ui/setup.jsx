@@ -100,9 +100,11 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '', share: st.share === true }
       : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '', share: false });
   }, [setup.data]);
+  // An environment the user chose is kept: a suggestion fills it only while it still has its starting value.
+  const envTouched = useRef(false);
   const applyAdvice = (r, name, prefilled = false) => {
-    setAdvice({ ...r, name, prefilled });
-    setA((x) => ({ ...x, env: r.env?.id ?? x.env, packs: r.packs.length || r.skills.length ? r.packs.map((p) => p.id) : x.packs, skills: r.packs.length || r.skills.length ? r.skills.map((k) => k.name) : x.skills }));
+    setAdvice({ ...r, name, prefilled, keptEnv: envTouched.current && !!r.env && r.env.id !== a.env });
+    setA((x) => ({ ...x, env: envTouched.current ? x.env : r.env?.id ?? x.env, packs: r.packs.length || r.skills.length ? r.packs.map((p) => p.id) : x.packs, skills: r.packs.length || r.skills.length ? r.skills.map((k) => k.name) : x.skills }));
   };
   // A batch suggestion fills the form once, when it is ready and the form still has its starting values; after an
   // edit it waits as a note with Use it, so the user's choices stay.
@@ -142,9 +144,15 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
               </Stack>
             </Checkbox.Group>
             {!s.agents.length && <Note color="yellow" mt="sm">No agent is installed on this machine.</Note>}
+            <Radio.Group mt="md" label="Where the setup lives" value={a.share ? 'share' : 'local'} onChange={(v) => set('share')(v === 'share')}>
+              <Stack gap="xs" mt="xs">
+                <Radio value="local" label="On this machine (recommended)" description="CLAUDE.local.md, AGENTS.override.md and the skills, in this checkout; git ignores them, so nothing lands in the repository." />
+                <Radio value="share" label="In the repository, as a pull request" description="The AGENTS.md block, CLAUDE.md and the skills on a branch with one commit, for everyone who clones it." />
+              </Stack>
+            </Radio.Group>
           </Stepper.Step>
           <Stepper.Step label="Environment">
-            <Radio.Group label="Where the agent and the project's commands run" value={a.env} onChange={set('env')}>
+            <Radio.Group label="Where the agent and the project's commands run" value={a.env} onChange={(v) => { envTouched.current = true; set('env')(v); }}>
               <Stack gap="xs" mt="xs">
                 {Object.entries(s.envs).map(([id, text]) => <Radio key={id} value={id} label={ENV_TITLE[id] ?? id} description={text ?? 'No instructions in AGENTS.md: the agent and all commands run on the host.'} />)}
               </Stack>
@@ -158,7 +166,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             {advice && (
               <Note color="blue" mb="md" title={advice.prefilled ? `Prefilled from ${advice.name}'s suggestion` : `Suggested by ${advice.name}`} withCloseButton onClose={() => setAdvice(null)}>
                 <List size="sm">
-                  {advice.env && <List.Item>Environment {ENV_TITLE[advice.env.id] ?? advice.env.id}: {advice.env.reason}</List.Item>}
+                  {advice.env && <List.Item>Environment {ENV_TITLE[advice.env.id] ?? advice.env.id}: {advice.env.reason}{advice.keptEnv && ' (your choice in the Environment step stays)'}</List.Item>}
                   {advice.packs.map((p) => <List.Item key={p.id}>Pack {p.id}: {p.reason}</List.Item>)}
                   {advice.skills.map((k) => <List.Item key={k.name}>Skill {k.name}: {k.reason}</List.Item>)}
                   {!advice.env && !advice.packs.length && !advice.skills.length && <List.Item>No pack or skill from the library fits; your choices stay.</List.Item>}
@@ -187,12 +195,6 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             </Radio.Group>
           </Stepper.Step>
           <Stepper.Step label="Review">
-            <Radio.Group mb="sm" label="Where the setup lives" value={a.share ? 'share' : 'local'} onChange={(v) => set('share')(v === 'share')}>
-              <Stack gap="xs" mt="xs">
-                <Radio value="local" label="On this machine (recommended)" description="CLAUDE.local.md, AGENTS.override.md and the skills, in this checkout; git ignores them, so nothing lands in the repository." />
-                <Radio value="share" label="In the repository, as a pull request" description="The AGENTS.md block, CLAUDE.md and the skills on a branch with one commit, for everyone who clones it." />
-              </Stack>
-            </Radio.Group>
             <Loading state={review} label="changes">{(p) => (
               <Stack gap="sm">
                 {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
@@ -219,6 +221,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
           </Stepper.Completed>
         </Stepper>
         {error && <Note color="red" title="Failed">{error}</Note>}
+        {!a.agents.length && step < 5 && <Text size="sm" role="status">Pick at least one agent to continue.</Text>}
         <Group justify="space-between">
           <Button variant="default" disabled={step === 0 || !!result || busy} onClick={() => setStep(step - 1)}>Back</Button>
           {step < 5 && <Button disabled={!a.agents.length || (step === 4 && !review.data)} onClick={() => setStep(step + 1)}>{step === 4 ? 'Continue' : 'Next'}</Button>}

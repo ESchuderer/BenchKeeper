@@ -1,11 +1,12 @@
 import { BarChart, LineChart } from '@mantine/charts';
-import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, NavLink, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Modal, NavLink, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title, useComputedColorScheme } from '@mantine/core';
 import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { CancelJob, Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
-import { DoctorTable, FixEverythingButton, UpdateResults, updateProjects } from './fix.jsx';
+import { DoctorTable, FixEverythingButton, UpdateResults } from './fix.jsx';
+import { updateProjects } from './update.js';
 import { OneRunButtons } from './onerun.jsx';
 import { ProjectSetup } from './setup.jsx';
 import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
@@ -100,9 +101,9 @@ export function Dashboard({ overview, doctor, history, params }) {
   const behind = o?.projects.filter((p) => p.setupVersion !== o.version).length ?? 0;
   const nodes = [
     { label: 'Agents detected', value: `${agents.length} installed`, status: agents.length ? 'ok' : 'problem', href: href('agents') },
-    { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : 'checking', status: attention.length ? 'attention' : 'ok', href: href('agents', { plan: '1' }) },
+    { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : inv.error ? 'check failed' : 'checking', status: inv.error ? 'problem' : attention.length ? 'attention' : 'ok', href: href('agents', { plan: '1' }) },
     { label: 'Projects', value: `${o?.projects.length ?? 0} registered, ${behind} behind`, status: behind ? 'attention' : 'ok', href: href('projects') },
-    { label: 'Doctor', value: doctor.data ? `${errors} errors, ${warnings} warnings` : 'checking', status: errors ? 'problem' : warnings ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
+    { label: 'Doctor', value: doctor.data ? `${errors} errors, ${warnings} warnings` : doctor.error ? 'check failed' : 'checking', status: doctor.error || errors ? 'problem' : warnings ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
   ];
   return (
     <Stack gap="xl">
@@ -179,7 +180,10 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
 function Packs({ packs, onChange }) {
   const [error, setError] = useState(null);
   const [file, setFile] = useState(0);
+  // A pack file whose id is an own pack's: asked first, the old file goes to the backup.
+  const [replace, setReplace] = useState(null);
   const run = (f) => async (...a) => { setError(null); try { await f(...a); onChange(); } catch (e) { setError(e.message); } };
+  const importText = run(async (text) => { setReplace(null); await api('/api/packs', { action: 'import', text }); setFile((n) => n + 1); });
   return (
     <Section title="Packs">
       {error && <Note color="red" title="Failed">{error}</Note>}
@@ -205,10 +209,27 @@ function Packs({ packs, onChange }) {
       </Table.ScrollContainer>
       <Group>
         <FileButton key={file} accept="application/json,.json"
-          onChange={run(async (f) => { if (!f) return; await api('/api/packs', { action: 'import', text: await f.text() }); setFile((n) => n + 1); })}>
+          onChange={async (f) => {
+            if (!f) return;
+            setError(null);
+            let text;
+            try { text = await f.text(); } catch (e) { setError(e.message); return; }
+            let id; try { id = JSON.parse(text).id; } catch { /* the server names what is wrong */ }
+            if (packs.some((p) => p.own && p.id === id)) setReplace({ id, text }); else importText(text);
+          }}>
           {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import pack file</Button>}
         </FileButton>
       </Group>
+      <Modal opened={!!replace} onClose={() => { setReplace(null); setFile((n) => n + 1); }} withCloseButton={false} attributes={{ content: { 'aria-label': `Replace pack ${replace?.id}?` } }}>
+        <Stack gap="sm">
+          <Title order={2} size="h4">Replace pack {replace?.id}?</Title>
+          <Text size="sm">An own pack with this id exists. Its file goes to the run backups, as when a pack is removed.</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => { setReplace(null); setFile((n) => n + 1); }}>Cancel</Button>
+            <Button onClick={() => importText(replace.text)}>Replace pack {replace?.id}</Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Section>
   );
 }
@@ -602,7 +623,11 @@ export function Projects({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  const updateAll = act('update', async () => { await updateProjects(projects.data.map((p) => p.path), push, setProgress); reload(); });
+  const updateAll = act('update', async () => { setConfirmPrs(false); await updateProjects(projects.data.map((p) => p.path), push, setProgress); reload(); });
+  // Update all pushes a branch and opens a pull request for each project whose setup is shared or still committed.
+  const [confirmPrs, setConfirmPrs] = useState(false);
+  const prs = push ? (projects.data ?? []).filter((p) => p.share || p.committed).length : 0;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   return (
     <Stack gap="lg">
       <form onSubmit={(e) => { e.preventDefault(); act('add', async () => { await add(path); setPath(''); reload(); })(); }}>
@@ -648,14 +673,24 @@ export function Projects({ params, overview, refresh }) {
         ) : null} />
       ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
-        <Text size="sm">Per project: branch chore/agent-setup-&lt;version&gt; in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first, on the same kind of branch.</Text>
+        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>
           <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
-          <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!projects.data?.length} onClick={updateAll}>Update all</Button>
+          <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!projects.data?.length} onClick={prs ? () => setConfirmPrs(true) : updateAll}>Update all</Button>
           <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths({ paths: fresh })}>Set up {fresh.length} new projects</Button>
         </Group>
         {progress && <UpdateResults progress={progress} extra={(r) => fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>} />}
       </Section>
+      <Modal opened={confirmPrs} onClose={() => setConfirmPrs(false)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
+        <Stack gap="sm">
+          <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
+          <Text size="sm">{plural(prs, 'project')} with a shared setup get a branch pushed to origin and a pull request when origin is on GitHub. Projects with uncommitted changes are skipped.</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmPrs(false)}>Cancel</Button>
+            <Button leftSection={icon(IconRefresh)} onClick={updateAll}>Update all and open up to {plural(prs, 'pull request')}</Button>
+          </Group>
+        </Stack>
+      </Modal>
       {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
       <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>

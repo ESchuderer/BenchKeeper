@@ -81,6 +81,22 @@ test('the level found: the highest of plugin, project setup, global rules', () =
   assert.deepEqual([full.level, full.adds], ['full', null]);
 });
 
+test('without --level the level found counts: a standard machine is not grown to full, and doctor names the level in its fix', async () => {
+  const m = machine();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-level-proj-'));
+  mkdirSync(join(dir, '.benchkeeper'));
+  writeFileSync(join(dir, STATE), JSON.stringify({ schemaVersion: 1, setupVersion: '6.5.0', agents: ['claude'], skills: [] }));
+  addProject(m.ctx, dir);
+  const found = doctor(m.ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
+  const plugin = found.find((i) => i.check === 'plugin');
+  assert.equal(plugin.fix, 'benchkeeper apply --level standard');
+  assert.ok(!found.some((i) => i.check === 'rules'));
+  const c = cli(m.ctx);
+  assert.equal(await c.exec(['plan', '--agents', 'claude']), 0);
+  assert.doesNotMatch(c.text(), /rules|settings/);
+  assert.match(c.text(), /benchkeeper@benchkeeper/);
+});
+
 test('doctor below full expects the plugin only: missing global rules and tools are not drift', () => {
   const m = machine();
   m.s.installed = true;

@@ -3,7 +3,7 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
-import { detectLevel } from './level.mjs';
+import { levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
 import { preview } from './runner.mjs';
@@ -41,15 +41,17 @@ function featureVars(ctx, env) {
 export function globalDrift(ctx, agents, devcontainerCli, level) {
   let plan;
   try { plan = preview(globalPlan({ ctx, agents, devcontainerCli, options: { level } })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
+  // Below full, the fix names the level: a plain apply would grow the setup.
+  const apply = level && level !== 'full' ? `benchkeeper apply --level ${level}` : 'benchkeeper apply';
   // An optional step left off is not drift.
   const found = plan.filter((c) => !c.optional).map((c) => {
     if (c.error) return issue('error', 'global', `${c.title}: ${c.error}`, 'edit the file by hand; the app does not merge this form');
     if (c.destructive) return issue('warning', 'unexpected', c.title.replace(/^(remove|move) /, 'not part of the setup: '), 'benchkeeper apply --all offers its removal');
     // An older version is drift, not a missing part.
     // A warning shown as outdated: the version change says the rest.
-    if (c.outdated) return { ...issue('warning', c.step.split(':')[0], c.title, 'benchkeeper apply'), tag: 'outdated' };
+    if (c.outdated) return { ...issue('warning', c.step.split(':')[0], c.title, apply), tag: 'outdated' };
     const error = /^rules:/.test(c.step) || /^plugin:\w+:benchkeeper@/.test(c.step);
-    return issue(error ? 'error' : 'warning', c.step.split(':')[0], c.kind === 'command' ? `not installed: ${c.title}` : `${c.title} differs from setup ${appVersion}`, 'benchkeeper apply');
+    return issue(error ? 'error' : 'warning', c.step.split(':')[0], c.kind === 'command' ? `not installed: ${c.title}` : `${c.title} differs from setup ${appVersion}`, apply);
   });
   // A step of several commands (marketplace refresh, then update) is one finding.
   return found.filter((f, i) => found.findIndex((g) => g.check === f.check && g.message === f.message) === i);
@@ -90,7 +92,7 @@ export function projectChecks(ctx, dir) {
 // baseline: { profile, ref } adds the drift of dir's GitHub settings and caller workflows against a repo-baseline profile (reads only).
 export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
   // Below full, the global plan is the plugin alone: rules, settings and host tools are not expected.
-  const level = detectLevel(ctx, agents, dir).level ?? 'full';
+  const level = levelFor(ctx, agents, dir);
   const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level)];
   if (level === 'full') {
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));

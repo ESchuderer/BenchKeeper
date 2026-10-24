@@ -12,7 +12,7 @@ BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill t
 
 BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](plugins/benchkeeper)), plus the [app](app) for what a plugin cannot carry: project setup, the global rules and settings, history and undo.
 
-Three levels, from the smallest: a plugin cannot ship always-on instructions, so lite relies on the `workflow` skill description to trigger ([trigger rate](evaluations/practices/lite-install.md)). Each level contains the one before.
+Three levels, from the smallest: a plugin cannot ship always-on instructions, so lite relies on the `workflow` skill description to trigger (trigger rate unverified: [evaluation](evaluations/practices/lite-install.md)). Each level contains the one before.
 
 <!-- generated:levels -->
 | Level | Contains | Writes | Command |

@@ -155,7 +155,7 @@ function Start({ mode, onStart }) {
   useEffect(() => {
     if (!data.data || form) return;
     const open = data.data.projects.filter((p) => !p.blocked);
-    setForm({ global: mode !== 'projects', level: 'full', picked: mode === 'everything' ? open.map((p) => p.path) : mode === 'projects' ? open.filter((p) => p.state !== 'current').map((p) => p.path) : [] });
+    setForm({ global: mode !== 'projects', level: data.data.level, picked: mode === 'everything' ? open.map((p) => p.path) : mode === 'projects' ? open.filter((p) => p.state !== 'current').map((p) => p.path) : [] });
   }, [data.data]);
   return (
     <Loading state={data} label="projects">{(d) => (!form ? null : (

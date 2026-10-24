@@ -21,7 +21,7 @@ import { addProject, canon, listProjects, packsInUse, removeProject, scan, statu
 import { recordSession } from './session.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
-import { detectLevel } from './level.mjs';
+import { detectLevel, levelFor } from './level.mjs';
 import { LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan } from './steps/project.mjs';
 
@@ -36,7 +36,8 @@ Usage: benchkeeper <command> [options]
                                     global setup: asks per change; --yes takes the default selection,
                                     --all also the removals. --level lite|standard: the BenchKeeper plugin
                                     alone, nothing else on the machine (standard: then project apply writes
-                                    the local block per repository); full (default): rules, settings, plugins, tools
+                                    the local block per repository); full: rules, settings, plugins, tools.
+                                    Default: the level found (doctor shows it), full on a machine without BenchKeeper
   profile export [file] [--agents a,b]
                                     agents, packs, own packs and registered projects with their answers as one file
   profile import <file> [--yes]     shows the global and project changes, applies the chosen ones; missing paths are skipped
@@ -163,7 +164,7 @@ async function command(argv, { out, ask, ctx }) {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) { out.write('no agent found (claude, codex, gemini, copilot); the app installs none\n'); return 1; }
     if (o.level && !LEVELS.includes(o.level)) { out.write(`--level must be one of ${LEVELS.join(', ')}\n`); return 2; }
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level: o.level } }));
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level: o.level ?? levelFor(ctx, agents) } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
       plan.forEach((c) => show(c, out));

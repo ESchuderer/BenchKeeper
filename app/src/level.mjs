@@ -18,7 +18,10 @@ export const ADDS = {
 export function detectLevel(ctx, agents, dir) {
   const rules = agents.some((id) => readText(join(ctx.home, agent(id).global.rules.path))?.includes(GLOBAL_RULES_MARK));
   const project = [dir, ...listProjects(ctx).map((p) => p.path)].some((d) => d && tryState(d));
-  const plugin = agents.some((id) => agent(id).plugins && benchkeeperPlugin(ctx, id).installed);
+  const plugin = agents.some((id) => { try { return agent(id).plugins && benchkeeperPlugin(ctx, id).installed; } catch { return false; } });
   const level = rules ? 'full' : project ? 'standard' : plugin ? 'lite' : null;
   return { level, adds: ADDS[level] ?? null };
 }
+
+// The level a plan or fix uses when none is named: the one found, so a lite machine is not grown to full by accident.
+export const levelFor = (ctx, agents, dir) => detectLevel(ctx, agents, dir).level ?? 'full';

@@ -12,7 +12,7 @@
       "name": "Standard",
       "contains": "lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list",
       "writes": "local files in each project you run `project apply` in",
-      "command": "npx benchkeeper@6.5.0 apply --level standard"
+      "command": "npx benchkeeper@6.5.0 apply --level standard && npx benchkeeper@6.5.0 project apply"
     },
     {
       "name": "Full",

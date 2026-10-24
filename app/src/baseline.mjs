@@ -17,7 +17,7 @@ const GH_ENV = { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER:
 
 const bundled = (path) => readFileSync(new URL(`./baseline/${path}`, import.meta.url), 'utf8');
 // Arrays of strings (merge methods, refs, patterns) are sets here: their order is not a difference.
-const canon = (v) => (Array.isArray(v) ? (v.every((x) => typeof x === 'string') ? [...v].sort() : v.map(canon)) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])])) : v);
+const canon = (v) => (Array.isArray(v) ? (v.every((x) => typeof x === 'string') ? [...v].sort((a, b) => a.localeCompare(b)) : v.map(canon)) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort((a, b) => a.localeCompare(b)).map((k) => [k, canon(v[k])])) : v);
 const same = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 const show = (v) => (typeof v === 'string' ? v : JSON.stringify(v));
 const valid = (p, name) => p?.schemaVersion === 1 && p.name === name && typeof p.advisory === 'boolean' && (p.rulesets === undefined || Array.isArray(p.rulesets));

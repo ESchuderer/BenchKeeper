@@ -6,7 +6,7 @@ import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { hashText, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
-import { blob, clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
+import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, safeBranch } from './git.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, committedSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
 import { newer } from './update.mjs';
@@ -69,7 +69,7 @@ const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: pr
 
 // Git talks to origin without waiting on a password or passphrase prompt (terminal or askpass helper).
 function quiet(ctx, path) {
-  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
+  const env = { ...repoEnv(), GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
   if (!env.GIT_SSH_COMMAND && !git(ctx, path, ['config', '--get', 'core.sshCommand']).stdout.trim()) env.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes';
   return env;
 }
@@ -86,12 +86,13 @@ function fetchBase(ctx, path, base) {
 // Origin's default branch: origin/HEAD, or asked from origin when the clone has none (a local main or master may not be it).
 function remoteDefault(ctx, path) {
   const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
-  if (head) return head.startsWith('origin/-') ? null : head.replace(/^origin\//, '');
+  if (head) return safeBranch(head.replace(/^origin\//, ''));
   return remoteHead(ctx, path, git(ctx, path, ['ls-remote', '--symref', 'origin', 'HEAD'], { env: quiet(ctx, path), timeout: 20e3 }));
 }
-function remoteHead(ctx, path, r) {
+// origin names its default branch itself: the name goes into a fetch refspec, so only plain branch names pass.
+export function remoteHead(ctx, path, r) {
   const name = r.code === 0 ? r.stdout.match(/^ref: refs\/heads\/(\S+)\tHEAD$/m)?.[1] : null;
-  if (name) return name.startsWith('-') ? null : name;
+  if (name) return safeBranch(name);
   // Origin names none (no HEAD there, or unreachable): the local main or master.
   return defaultBranch(ctx, path);
 }
@@ -123,7 +124,7 @@ export async function prefetchOrigins(ctx, paths) {
   const net = (path, args) => ctx.runAsync(['git', '-C', path, ...args], { env: quiet(ctx, path), timeout: 20e3 });
   const one = async (path) => {
     const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
-    const base = head ? (head.startsWith('origin/-') ? null : head.replace(/^origin\//, '')) : remoteHead(ctx, path, await net(path, ['ls-remote', '--symref', 'origin', 'HEAD']));
+    const base = head ? safeBranch(head.replace(/^origin\//, '')) : remoteHead(ctx, path, await net(path, ['ls-remote', '--symref', 'origin', 'HEAD']));
     if (!base) return;
     const key = `${path}\0${base}`;
     if (!(Date.now() - (fetched.get(key) ?? 0) < 60e3)) {

@@ -15,7 +15,7 @@ export function transcript(home, dir, since) {
     for (const e of entries) {
       const p = join(d, e.name);
       if (e.isDirectory() && depth > 0) scan(p, depth - 1);
-      else if (e.name.endsWith('.jsonl')) { const t = statSync(p).mtimeMs; if (t >= since) found.push([t, p]); }
+      else if (e.name.endsWith('.jsonl')) { try { const t = statSync(p).mtimeMs; if (t >= since) found.push([t, p]); } catch { /* a dangling link */ } }
     }
   };
   scan(claude, 0);

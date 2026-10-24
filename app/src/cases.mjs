@@ -17,6 +17,8 @@ function readSet(path) {
   if (text == null) return null;
   const set = JSON.parse(text);
   if (set.kind !== 'benchkeeper-evals' || set.schemaVersion !== CASE_SCHEMA) throw new Error(`${path}: not a schemaVersion ${CASE_SCHEMA} eval set`);
+  // Target and case ids become folder and file names in a run.
+  if (!TARGET.test(set.target) || !Array.isArray(set.cases) || !set.cases.every((c) => typeof c?.id === 'string' && /^[\w-]+$/.test(c.id))) throw new Error(`${path}: a target or case id with characters outside letters, digits, dash and underscore`);
   return set;
 }
 

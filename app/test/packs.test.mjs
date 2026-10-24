@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -20,6 +20,16 @@ test('own packs: save, export, import under a new id, remove', () => {
   assert.equal(importPack(ctx, exportPack(ctx, 'frontend'), 'my-frontend').skills.length, 3);
   removePack(ctx, 'ui');
   assert.deepEqual(ownPacks(ctx).map((p) => p.id).sort(), ['my-frontend', 'ui2']);
+});
+
+test('a pack saved over an own pack of the same id leaves the old file in the backup', () => {
+  const ctx = ctxAt();
+  savePack(ctx, { id: 'ui', title: 'Old', skills: ['accessibility'] });
+  savePack(ctx, { id: 'ui', title: 'New', skills: ['designing-technical-uis'] });
+  assert.equal(ownPacks(ctx).find((p) => p.id === 'ui').title, 'New');
+  const kept = readdirSync(join(ctx.config, 'backup', 'packs'));
+  assert.equal(kept.length, 1);
+  assert.equal(JSON.parse(readFileSync(join(ctx.config, 'backup', 'packs', kept[0]), 'utf8')).title, 'Old');
 });
 
 test('pack files name library skills only and keep their schema', () => {

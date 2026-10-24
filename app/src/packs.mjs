@@ -12,7 +12,9 @@ const dir = (ctx) => join(ctx.config, 'packs');
 export function ownPacks(ctx) {
   let files = [];
   try { files = readdirSync(dir(ctx)).filter((f) => f.endsWith('.json')); } catch { return []; }
-  return files.map((f) => ({ ...JSON.parse(readFileSync(join(dir(ctx), f), 'utf8')), own: true }));
+  // A file that is not a pack with a plain id is left out: the id becomes a file name.
+  const read = (f) => { try { return { ...JSON.parse(readFileSync(join(dir(ctx), f), 'utf8')), own: true }; } catch { return null; } };
+  return files.map(read).filter((p) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(p?.id ?? ''));
 }
 
 // The library with the user's packs added to its presets.

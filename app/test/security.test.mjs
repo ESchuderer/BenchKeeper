@@ -9,6 +9,8 @@ import { machineContext } from '../src/cli.mjs';
 import { inside, writeAtomic } from '../src/fsx.mjs';
 import { clean, githubRemote } from '../src/git.mjs';
 import { runId } from '../src/ledger.mjs';
+import { loadCases } from '../src/cases.mjs';
+import { ownPacks, removePack } from '../src/packs.mjs';
 import { remoteHead } from '../src/projects.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
@@ -203,4 +205,27 @@ test('commands without a folder of their own run in the home, not in the folder 
   const registry = [];
   newest({ home: c.home, run: (argv, o) => { registry.push(o.cwd); return { code: 1 }; } }, 'pkg');
   assert.deepEqual([...seen, ...registry], [c.home, c.home]);
+});
+
+test('a pack file whose id is not a plain id is ignored, so removing it cannot reach other files', () => {
+  const c = context({ home: home() });
+  mkdirSync(join(c.config, 'packs'), { recursive: true });
+  writeFileSync(join(c.config, 'packs', 'a.json'), JSON.stringify({ kind: 'benchkeeper-pack', id: '../../victim', skills: [] }));
+  writeFileSync(join(c.config, 'packs', 'b.json'), '{');
+  writeFileSync(join(c.home, '.config', 'victim.json'), 'keep');
+  assert.deepEqual(ownPacks(c), []);
+  assert.throws(() => removePack(c, '../../victim'), /no own pack/);
+  assert.equal(readFileSync(join(c.home, '.config', 'victim.json'), 'utf8'), 'keep');
+});
+
+test('an eval set with a target or case id that is a path is refused when read', () => {
+  const c = context({ home: home() });
+  mkdirSync(join(c.config, 'evals'), { recursive: true });
+  const set = (target, id) => JSON.stringify({ kind: 'benchkeeper-evals', schemaVersion: 1, target, cases: [{ id, query: 'q', should: true }] });
+  writeFileSync(join(c.config, 'evals', 'x.json'), set('skill:../../x', 'c1'));
+  assert.throws(() => loadCases(c), /outside letters/);
+  writeFileSync(join(c.config, 'evals', 'x.json'), set('rule:ok', '../../results'));
+  assert.throws(() => loadCases(c), /outside letters/);
+  writeFileSync(join(c.config, 'evals', 'x.json'), set('rule:ok', 'c1'));
+  assert.ok(loadCases(c)['rule:ok']);
 });

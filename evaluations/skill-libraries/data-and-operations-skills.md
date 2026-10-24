@@ -1,6 +1,6 @@
 # Data and operations skills (Anthropic knowledge-work plugins, awesome-copilot)
 
-Category: skill libraries, Checked 2026-10-22, Decision: Per project. `validate-data` in the data pack, `incident-response`, `compliance-check` and `gdpr-compliant` in the operations pack, `synthesize-research` as a single skill. `gdpr-compliant` ships with two broken reference paths (see its check).
+Category: skill libraries, Checked 2026-10-22 and 2026-10-24, Decision: Per project. `validate-data` in the data pack, `incident-response`, `compliance-check` and `gdpr-compliant` in the operations pack, `synthesize-research` as a single skill. `gdpr-compliant` ships with two broken reference paths (see its check).
 
 Five skills from two sources. Pinned commits are the `ref` fields in `plugins/benchkeeper/library/library.json`.
 
@@ -75,6 +75,59 @@ Per skill:
   - Lost markers. The "do" and "do not" example pairs have no marker left in the text: `"Column 'email' violates unique constraint on table 'users'"` and `"A user with this email address already exists."` sit under "Return generic error messages" as two identical-looking bullets, and `GET /users/{userId}` and `192.168.1.xxx` stand without a label (SKILL.md lines 109, 129, 145, 146). An agent can read the bad example as the instruction.
   - Stack bias. Examples name .NET tools (Hangfire, Bogus, `dotnet list package`) and Azure, AWS, GCP key stores. Retention defaults (analytics 13 months, auth logs 12 to 24 months, inactive accounts 12 months) are the skill's recommendations; the sources it cites are CNIL, ENISA, OWASP and NIST guidance, which this check did not open (unverified).
   - Scope: personal data in EU engineering work, as the pick-when says. No scripts, no URLs, no network calls, no credential requests. Secrets section recommends `gitleaks` or `detect-secrets` pre-commit hooks, which conflicts with this repository's own choice (no secret hook) but only applies to projects that install the skill, and is advice, not an action.
+
+## Quality bar check (issue 151, 2026-10-24)
+
+Pins as in the table above: anthropics/knowledge-work-plugins `f652327` (2026-10-14), github/awesome-copilot `772e239` (2026-10-15).
+
+Grading used (the same for every source; the bar is in [library quality bar](library-quality-bar.md)): pass, borderline (soft problems only, or a reading of the bar that the owner decides) or fail (a hard limit broken). Overall is the worst point.
+
+| Skill | 1 Runs as installed | 2 License | 3 Authoring | 4 Earns its place | 5 Maintained | Overall |
+|---|---|---|---|---|---|---|
+| `validate-data` | pass | pass | pass | borderline | pass | borderline |
+| `incident-response` | borderline | pass | pass | pass | pass | borderline |
+| `compliance-check` | pass | pass | borderline | borderline | pass | borderline |
+| `synthesize-research` | borderline | pass | pass | borderline | pass | borderline |
+| `gdpr-compliant` | pass | pass | borderline | borderline | pass | borderline |
+
+Measured at the pin:
+
+| Skill | Description characters | `SKILL.md` lines | License | Effect evidence |
+|---|---|---|---|---|
+| `validate-data` | 301 | 383 | root `LICENSE` Apache-2.0 plus 10 appended unrelated lines; plugin-level `LICENSE` | none; skills.sh 3.7K installs |
+| `incident-response` | 264 | 158 | root `LICENSE` Apache-2.0 plus 10 appended unrelated lines; plugin-level `LICENSE` | none; skills.sh 5.8K installs |
+| `compliance-check` | 385 | 274 | root `LICENSE` Apache-2.0 plus 10 appended unrelated lines; plugin-level `LICENSE` | none; skills.sh 3.3K installs |
+| `synthesize-research` | 314 | 312 | root `LICENSE` Apache-2.0 plus 10 appended unrelated lines; plugin-level `LICENSE` | none; skills.sh 3.0K installs, Snyk Warn without reason |
+| `gdpr-compliant` | 676 | 283 | root `LICENSE` MIT (Copyright GitHub, Inc.) | none; skills.sh 1.6K installs, scans pass |
+
+Findings (every fail and borderline with file and line or URL):
+
+- `validate-data`: borderline.
+  - Point 4, borderline: Null, dedup and completeness checks (`SKILL.md:133-141`) repeat `exploratory-data-analysis` (`skills/exploratory-data-analysis/SKILL.md:132, 198`); the traps list (`SKILL.md:248-257`) repeats `statistical-analysis`. Same data pack. The distinct trigger is reviewing a business analysis or SQL before sharing.
+  - Other: Line 9 links `../../CONNECTORS.md` (not copied), no `~~` placeholders, so nothing is needed from outside.
+- `incident-response`: borderline.
+  - Point 1, borderline: `SKILL.md:142, 146, 150` use `~~monitoring`, `~~incident management`, `~~chat` in an optional connectors block; they resolve only through `../../CONNECTORS.md` (`:9`) and `engineering/.mcp.json`, neither copied. Triage, severity table and postmortem templates run from pasted text. Reported upstream: anthropics/knowledge-work-plugins#1381.
+- `compliance-check`: borderline.
+  - Point 3, borderline: "June 2021 version" (`SKILL.md:149`) and "2021 version" (`:172`) of the standard contractual clauses; "30 days (extendable by 60 days)" (`:74, 212`) differs from GDPR Article 12(3), one month plus two (https://eur-lex.europa.eu/eli/reg/2016/679/oj).
+  - Point 4, borderline: Shares "a feature that touches personal data" with `gdpr-compliant` (`SKILL.md:3` of both), same operations pack; compliance-check is a legal-team initiative review, gdpr-compliant is code rules.
+  - Other: Line 9 links `../../CONNECTORS.md`, no placeholders.
+- `synthesize-research`: borderline.
+  - Point 1, borderline: `SKILL.md:26-29` list `~~knowledge base`, `~~user feedback`, `~~product analytics`, `~~meeting transcription` "(if connected)"; they resolve only through the dead `../../CONNECTORS.md` (`:9`) and `product-management/.mcp.json`. Pasted text and files (`:24-25`) are listed first, so the skill runs.
+  - Point 4, borderline: Partial overlap with `literature-review` (`skills/literature-review/SKILL.md:101` against `SKILL.md:114-123`), though that one is database-backed literature search. Same-source `design/skills/research-synthesis` has an almost identical trigger and is not in the library.
+- `gdpr-compliant`: borderline.
+  - Point 3, borderline: `SKILL.md:15, 156, 194` point to `references/security.md` (file is `Security.md`) and `SKILL.md:16` to `references/operations.md` (does not exist at the pin or on `main`; the content is in `Security.md:144-263`). `SKILL.md` stays self-contained. Do and do-not markers are lost (`SKILL.md:108-109, 129, 145-146`).
+  - Point 4, borderline: Shares "personal data" with `compliance-check` (`legal/skills/compliance-check/SKILL.md:3`); different lens (code rules and PR checklist `SKILL.md:234-271`).
+  - Other: Pin is 9 days old; 235 later commits on `main`, none in the folder (one commit, PR #1230, 2026-03-30). The repository's staleness bot lists the skill as stale (github/awesome-copilot#5320).
+
+Source notes:
+
+- Point 5: both repositories are not archived. knowledge-work-plugins: 50 commits since the pin, none in the four folders (each last changed 2026-03-13, 2d6f7e2). awesome-copilot: 235 commits since the pin, none in `skills/gdpr-compliant` (one commit, PR #1230, 2026-03-30).
+- License location: Apache-2.0 in the knowledge-work-plugins root `LICENSE`, which carries 10 unrelated appended lines (lines 203-212, PR #193, d6c8015, 2026-04-28), and a clean copy in `data/`, `legal/` and `product-management/`; `engineering/` has none. MIT in the awesome-copilot root `LICENSE` (Copyright GitHub, Inc.) with `CONTRIBUTING.md:509-511` licensing contributions under MIT. No skill folder has a license file.
+- Every knowledge-work-plugins `SKILL.md` opens (line 9) with a link to `../../CONNECTORS.md`, outside the skill folder. Reported by an outside user: [anthropics/knowledge-work-plugins#1381](https://github.com/anthropics/knowledge-work-plugins/issues/1381) (66 skills in 13 plugins, open). [#1382](https://github.com/anthropics/knowledge-work-plugins/issues/1382) (open) reviews other plugins and reports overlapping triggers between `design/user-research` and `design/research-synthesis`.
+- skills.sh (2026-10-24): `validate-data` 3.7K installs, `incident-response` 5.8K, `compliance-check` 3.3K, `synthesize-research` 3.0K (Snyk Warn, no reason stated), `gdpr-compliant` 1.6K. Scans otherwise pass.
+- Independent evidence of effect: none found for any of the five (GitHub issue search, skills.sh, web search). Third-party fork scans of awesome-copilot report `gdpr-compliant` "2/2 checks passed" in their own spec-compliance tooling, which does not catch the case mismatch and the missing `operations.md`.
+
+Removal: none made. The owner decides on the fails and borderline cases in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151).
 
 ## Decision
 

@@ -10,6 +10,7 @@ import { RunProgress } from './parts.jsx';
 import { Dot, MOD, go, href, icon, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
 import { FixEverything } from './fix.jsx';
+import { ApplyProgress, OneRunDrawer, OneRunProvider } from './onerun.jsx';
 import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Sessions, Settings } from './views.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
@@ -71,8 +72,8 @@ function RunningJobs({ onDone }) {
           {!jobs.length && <Text>Nothing is running.</Text>}
           {jobs.map((j) => (
             <Stack key={j.id} gap="xs">
-              <Text fw={600}>{j.kind === 'apply' ? `Apply: ${j.title}` : j.kind === 'eval' ? 'Evals' : `Agent session: ${j.title}`}</Text>
-              {j.kind === 'apply' ? <RunProgress job={j.id} total={j.total} /> : j.kind === 'eval' ? <EvalJob job={j.id} total={j.total} /> : <AdviceJob job={j.id} name="The agent" />}
+              <Text fw={600}>{j.kind === 'apply' ? `Apply: ${j.title}` : j.kind === 'apply-all' ? 'One-run setup' : j.kind === 'eval' ? 'Evals' : `Agent session: ${j.title}`}</Text>
+              {j.kind === 'apply' ? <RunProgress job={j.id} total={j.total} /> : j.kind === 'apply-all' ? <ApplyProgress job={j.id} total={j.total} /> : j.kind === 'eval' ? <EvalJob job={j.id} total={j.total} /> : <AdviceJob job={j.id} name="The agent" />}
             </Stack>
           ))}
         </Stack>
@@ -84,6 +85,7 @@ function RunningJobs({ onDone }) {
 function Shell() {
   const { view, params } = useRoute();
   const [nav, { toggle, close }] = useDisclosure();
+  const [oneRun, setOneRun] = useState(null);
   const overview = useApi('/api/overview');
   // Fetched once here: the header badge and the Dashboard share it, and it makes a registry request.
   const doctor = useApi('/api/doctor');
@@ -106,6 +108,9 @@ function Shell() {
     { group: 'Runs', actions: (history.data ?? []).slice(0, 20).map((r) => ({ id: `run-${r.id}`, label: `${r.kind} ${r.scope}`, description: r.id, onClick: () => go('history', { run: r.id }) })) },
     { group: 'Actions', actions: [
       { id: 'plan-global', label: 'Plan global setup', onClick: () => go('agents', { plan: '1' }) },
+      { id: 'one-run-everything', label: 'Set up everything in one run', onClick: () => setOneRun('everything') },
+      { id: 'one-run-global', label: 'Set up global only in one run', onClick: () => setOneRun('global') },
+      { id: 'one-run-projects', label: 'Set up projects in one run', onClick: () => setOneRun('projects') },
       { id: 'doctor', label: 'Run doctor', onClick: () => { doctor.reload(); go('dashboard', { panel: 'doctor' }); } },
       { id: 'theme', label: 'Toggle theme', onClick: toggleTheme },
     ] },
@@ -113,6 +118,7 @@ function Shell() {
   const View = (VIEWS.find(([id]) => id === view) ?? VIEWS[0])[2];
   return (
     <FixEverything version={o?.version} doctor={doctor} onClose={refresh}>
+      <OneRunProvider value={setOneRun}>
       <AppShell header={{ height: 60 }} navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !nav } }} padding="md">
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between" wrap="nowrap">
@@ -143,6 +149,8 @@ function Shell() {
         <Spotlight actions={actions} shortcut={['mod + K', '/']} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
           scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />
       </AppShell>
+      <OneRunDrawer mode={oneRun} onClose={() => { setOneRun(null); refresh(); }} />
+      </OneRunProvider>
     </FixEverything>
   );
 }

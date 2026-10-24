@@ -58,7 +58,7 @@ export function Loading({ state, label, children }) {
   return children(state.data);
 }
 
-const STATUS_COLOR = { done: 'teal', failed: 'red', skipped: 'gray', running: 'blue', waiting: 'gray', manual: 'yellow', cancelled: 'gray' };
+const STATUS_COLOR = { done: 'teal', ready: 'teal', failed: 'red', skipped: 'gray', running: 'blue', waiting: 'gray', manual: 'yellow', cancelled: 'gray' };
 export const StatusBadge = ({ status }) => <Badge variant="default" miw="max-content" leftSection={<Dot color={STATUS_COLOR[status] ?? 'gray'} />}>{status}</Badge>;
 
 // List on the left, the chosen item's detail on the right (sticky); stacked below md.

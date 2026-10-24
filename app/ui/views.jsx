@@ -108,13 +108,14 @@ export function Dashboard({ overview, doctor, history, params }) {
   const inv = useApi('/api/inventory');
   const panel = params.get('panel');
   useEffect(() => { if (panel) document.getElementById(panel)?.scrollIntoView(); }, [panel, doctor.data]);
-  // A new run (Fix everything, the header's jobs) changes what the inventory shows; the history arriving the first time does not.
+  // A new run or a newest run that finished (Fix everything, the header's jobs) changes what the inventory shows; the history arriving the first time does not.
   const runs = useRef(undefined);
+  const latest = history.data?.slice(0, 3).map((r) => `${r.id}:${r.status}`).join();
   useEffect(() => {
-    if (!history.data) return;
-    if (runs.current !== undefined && history.data.length !== runs.current) inv.reload();
-    runs.current = history.data.length;
-  }, [history.data?.length]);
+    if (latest === undefined) return;
+    if (runs.current !== undefined && latest !== runs.current) inv.reload();
+    runs.current = latest;
+  }, [latest]);
   const o = overview.data, items = inv.data ?? [];
   const agents = o?.agents.filter((a) => a.installed) ?? [];
   const attention = items.filter((i) => ATTENTION.includes(i.state));

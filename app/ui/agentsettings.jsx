@@ -27,7 +27,7 @@ function ValueControl({ row, own, edit, setEdit }) {
       return <Select aria-label={label} data={[...(row.values ?? []).map(String), ...(typeof shown === 'string' && !(row.values ?? []).includes(shown) ? [shown] : [])]} value={shown ?? null} placeholder={UNSET} clearable searchable={!!row.also}
         onChange={(v) => set(v)} allowDeselect={false} comboboxProps={{ withinPortal: false }} />;
     case 'int': case 'number':
-      return <NumberInput aria-label={label} value={shown ?? ''} min={row.min} allowDecimal={row.type === 'number'} onChange={(v) => set(v === '' ? null : Number(v))} />;
+      return <NumberInput aria-label={label} value={shown ?? ''} min={row.min} allowDecimal={row.type === 'number'} onChange={(v) => { if (v === '') set(null); else if (Number.isFinite(Number(v))) set(Number(v)); }} />;
     case 'string':
       return <TextInput aria-label={label} value={shown ?? ''} placeholder={UNSET} onChange={(e) => set(e.currentTarget.value || null)} />;
     case 'attribution': {
@@ -83,7 +83,7 @@ function Row({ row, layer, edits, setEdit }) {
           ))}
         </Stack>
       </Table.Td>
-      <Table.Td miw={200}><ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} /></Table.Td>
+      <Table.Td miw={200}>{row.editable === false ? <Text size="sm">Not edited here: {row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text> : <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} />}</Table.Td>
       <Table.Td>{row.layer ? <Stack gap={2}><Badge variant="default" miw="max-content">{row.layer === 'managed' ? 'managed (read-only)' : `from ${row.layer}`}</Badge><Text size="sm">{text(row.value)}</Text></Stack> : layerBadge(row)}</Table.Td>
     </Table.Tr>
   );
@@ -205,8 +205,8 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
 // The agents' own settings files. Distinct from Settings, which holds the app's preferences.
 export function AgentSettings({ overview, params, refresh }) {
   const [agent, setAgent] = useState(params.get('agent') === 'codex' ? 'codex' : 'claude');
-  const [layer, setLayer] = useState('user');
-  const [dir, setDir] = useState(null);
+  const [layer, setLayer] = useState(params.get('layer') === 'project' ? 'project' : 'user');
+  const [dir, setDir] = useState(params.get('path'));
   const [advanced, setAdvanced] = useState(false);
   const [edits, setEdits] = useState({});
   const projects = overview.data?.projects ?? [];

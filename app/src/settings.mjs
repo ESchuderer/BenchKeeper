@@ -17,21 +17,23 @@ const SCHEMAS = { claude: load('claude-code-settings.schema.json'), codex: load(
 export const settingsAgents = Object.keys(CATALOG);
 export const agentSettings = (id) => CATALOG[id] ?? (() => { throw new Error(`no settings for agent ${id}: ${settingsAgents.join(', ')}`); })();
 
-const SECRET = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|BEARER|COOKIE|PRIVATE)/i;
-export const isSecretName = (name) => SECRET.test(String(name));
+// Whole words of the name (split at case changes and separators), so includeCoAuthoredBy and MAX_THINKING_TOKENS stay visible.
+const SECRET_WORD = /^(?:\w*key|\w*token|\w*secret|\w*password|passwd|credentials?|o?auth(?:orization)?|bearer|cookie|private)$/i;
+export const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
 const MASK = '(set)';
 
 // Masks every value whose key name suggests a secret, at any depth.
 export function maskSecrets(v, name = '') {
   if (isSecretName(name) && v != null) return MASK;
+  if (typeof v === 'string') return redact(v);
   if (Array.isArray(v)) return v.map((x) => maskSecrets(x, name));
   if (v && typeof v === 'object' && !(v instanceof Date)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, maskSecrets(x, k)]));
   return v;
 }
 
 // A diff or text with the values of secret-looking names masked ("NAME": "x", NAME = "x", inline or on a line of its own).
-const SECRET_PAIR = /("?)([A-Za-z0-9_.-]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|BEARER|COOKIE|PRIVATE)[A-Za-z0-9_.-]*)\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|[^\s,}\]]+)/gi;
-export const redact = (text) => (text == null ? text : text.replace(SECRET_PAIR, (_, q, name, sep) => `${q}${name}${q}${sep}"${MASK}"`));
+const SECRET_PAIR = /("?)([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|(?:(?:Bearer|Basic)\s+)?[^\s,}\]]+)/gi;
+export const redact = (text) => (text == null ? text : text.replace(SECRET_PAIR, (_, q, name, sep, value) => `${q}${name}${q}${sep}${isSecretName(name) ? `"${MASK}"` : redact(value)}`));
 // Only settings files carry such pairs: a rules file that mentions API_KEY = x stays as it is.
 export const isSettingsFile = (path) => /(^|\/)(settings(\.local)?\.json|config\.toml|managed_config\.toml|\.claude\.json)$/.test(String(path));
 
@@ -57,7 +59,7 @@ const parseLayer = (agentId, text) => {
 export function readSettings(ctx, agentId, { dir } = {}) {
   return layerFiles(ctx, agentId, dir).map((f) => {
     const text = readText(f.path);
-    if (text == null) return { ...f, exists: exists(f.path), data: {} };
+    if (text == null) return exists(f.path) ? { ...f, exists: true, data: {}, error: 'the file cannot be read' } : { ...f, exists: false, data: {} };
     try { return { ...f, exists: true, data: parseLayer(agentId, text) }; } catch (e) { return { ...f, exists: true, data: {}, error: e.message.split('\n')[0] }; }
   });
 }
@@ -414,7 +416,7 @@ export function bundleEdits(agentId, id) {
 
 // ---- Doctor ----
 
-const issue = (level, message, fix) => ({ level, check: 'agent-settings', message, fix });
+const issue = (level, message, fix, dir) => ({ level, check: 'agent-settings', message, fix, ...(dir ? { dir } : {}) });
 
 // Doctor findings for the agents' settings: files Claude Code would skip, the rules marked doctor, Codex trust entries of
 // folders that are gone. With dir, only what the project and local layers add to the global findings. Names and places,
@@ -425,13 +427,13 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
     const name = agentSettings(id).name;
     const all = readSettings(ctx, id, { dir });
     for (const l of all.filter((x) => x.error && (!dir || x.layer !== 'user') && x.layer !== 'managed')) {
-      out.push(issue('error', `${name} cannot read ${l.path}: ${l.error}${id === 'claude' ? '; it skips the whole file' : ''}`, 'fix the file by hand, then run benchkeeper doctor again'));
+      out.push(issue('error', `${name} cannot read ${l.path}: ${l.error}${id === 'claude' ? '; it skips the whole file' : ''}`, 'fix the file by hand, then run benchkeeper doctor again', l.layer === 'user' ? undefined : dir));
     }
     const readable = all.filter((l) => !l.error);
     const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, onlyDoctor: true }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, onlyDoctor: true }).filter((x) => !before.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`));
+    for (const n of notes(id, readable, { env, onlyDoctor: true }).filter((x) => !before.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
     if (id === 'codex' && !dir) {
-      for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set projects.${t.path} --unset --agent codex`));
+      for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }
   }
   return out;

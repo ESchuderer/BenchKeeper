@@ -245,7 +245,7 @@ test('Codex trust list: gone folders are a Doctor warning with a remove action, 
   const found = doctor(ctx, { agents: ['codex'], env: {} }).filter((i) => i.check === 'agent-settings');
   assert.equal(found.length, 1);
   assert.match(found[0].message, /\/gone\/wt\.1, which no longer exists/);
-  assert.match(found[0].fix, /settings set projects\.\/gone\/wt\.1 --unset --agent codex/);
+  assert.match(found[0].fix, /settings set 'projects\.\/gone\/wt\.1' --unset --agent codex/);
   assert.equal(readFileSync(codexUser(ctx), 'utf8').includes('/gone/wt.1'), true, 'Doctor removes nothing');
   assert.equal(change(ctx, 'codex', { edits: { 'projects./gone/wt.1': null } }).status, 'done');
   const out = readFileSync(codexUser(ctx), 'utf8');
@@ -327,4 +327,25 @@ test('routes: the list masks secrets, the plan is a plan the apply route takes, 
   assert.ok(!JSON.stringify(plan).includes(SECRET), 'the diff context is masked');
   assert.equal(plan.changes[0].selected, true);
   assert.deepEqual((await routes['POST /api/settings-plan']({ agent: 'claude', edits: { 'env.DISABLE_TELEMETRY': null } })).changes, [], 'nothing to change');
+});
+
+test('masking: whole words of the name, tokens inside values, no false hits', () => {
+  assert.deepEqual(maskSecrets({ includeCoAuthoredBy: false, MAX_THINKING_TOKENS: '5', apiKeyHelper: 'x', ANTHROPIC_AUTH_TOKEN: 'y' }), { includeCoAuthoredBy: false, MAX_THINKING_TOKENS: '5', apiKeyHelper: '(set)', ANTHROPIC_AUTH_TOKEN: '(set)' });
+  assert.equal(redact('"commit": "Co-Authored-By: Name <x>"'), '"commit": "Co-Authored-By: Name <x>"');
+  assert.ok(!redact('curl -H "Authorization: Bearer abc123"').includes('abc123'));
+  assert.ok(!maskSecrets({ hooks: { command: "export API_KEY=abc123 && run" } }).hooks.command.includes('abc123'));
+});
+
+test('an existing file that cannot be read is an error, not an empty layer', () => {
+  const ctx = machine();
+  mkdirSync(claudeUser(ctx), { recursive: true });
+  assert.match(readSettings(ctx, 'claude').find((l) => l.layer === 'user').error, /cannot be read/);
+  assert.throws(() => settingsChanges(ctx, 'claude', { edits: { cleanupPeriodDays: 20 } }));
+});
+
+test('Doctor fix for a stale Codex trust entry quotes the path', () => {
+  const ctx = machine();
+  write(codexUser(ctx), "[projects.\"/gone/my 'dir\"]\ntrust_level = \"trusted\"\n");
+  const fix = doctor(ctx, {}).find((i) => i.check === 'agent-settings' && /no longer exists/.test(i.message))?.fix;
+  assert.ok(fix?.includes("'projects./gone/my '\\''dir'"), fix);
 });

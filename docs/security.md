@@ -60,7 +60,7 @@ What the `benchkeeper` app (`app/`) may change on a machine, what it never chang
 - Write into a project's `.git` except `info/exclude`.
 - Force push, push with a `+` refspec, run `git clean`, `git reset`, `git stash` or `git checkout` on a user's checkout, delete a remote branch, or merge or close a pull request.
 - Delete a local branch it did not create in the same run.
-- Edit a file that changed since the preview without telling (a whole-file write is refused, an edit applies to the file as it is).
+- Edit a file that changed since the preview without telling (a whole-file write of new text is refused, an edit applies to the file as it is; a copy from a folder is not checked).
 - Start a second run while another one holds the lock.
 - Send file contents, settings or tokens anywhere (the update notice sends an unauthenticated GET for the package version).
 - Apply a removal unless it is selected (removals are unselected by default; see the exception under Open).

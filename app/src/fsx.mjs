@@ -67,7 +67,7 @@ export function realish(p, follow = true) {
   const rest = [];
   while (!existsSync(probe)) {
     // A dangling link stands for its target: a write through it creates the target.
-    if (isLink(probe)) { if (++hops > 40) throw new Error(`too many links: ${p}`); probe = resolve(dirname(probe), readlinkSync(probe)); continue; }
+    if (isLink(probe)) { if (++hops > 40) throw new Error(`too many links: ${p}`); probe = resolve(realish(dirname(probe)), readlinkSync(probe)); continue; }
     rest.unshift(probe.split(sep).pop());
     probe = dirname(probe);
   }

@@ -1,7 +1,7 @@
 // One test per limit of docs/security.md that no other test file covers. Each fails when its control is removed.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mock, test } from 'node:test';
@@ -46,6 +46,16 @@ test('the ledger, its backups and run files are private to the user, whatever th
   } finally { process.umask(before); }
 });
 
+test('ledger and backup folders of an earlier version are made private on the next run', () => {
+  const c = context({ home: home() });
+  mkdirSync(join(c.config, 'ledger'), { recursive: true, mode: 0o755 });
+  mkdirSync(join(c.config, 'backup'), { recursive: true, mode: 0o755 });
+  chmodSync(join(c.config, 'ledger'), 0o755);
+  chmodSync(join(c.config, 'backup'), 0o755);
+  apply([write(c, 'a', '1')], c);
+  assert.deepEqual([mode(join(c.config, 'ledger')), mode(join(c.config, 'backup'))], [0o700, 0o700]);
+});
+
 test('an atomic write that fails leaves no temporary file, and a new file with a mode never exists with another', () => {
   const d = home();
   mkdirSync(join(d, 'x'));
@@ -70,6 +80,16 @@ test('a path through a dangling link that leaves the root is outside it', () => 
   symlinkSync(join(out, 'missing'), join(root, 'evil'));
   assert.equal(inside(join(root, 'evil', 'x'), [root]), false);
   assert.equal(inside(join(root, 'fine', 'x'), [root]), true);
+});
+
+test('a relative dangling link is resolved from the real folder of the link', () => {
+  const root = home();
+  const out = home();
+  mkdirSync(join(out, 'deep'));
+  symlinkSync(join(out, 'deep'), join(root, 'via'));
+  // Through via the link points at <out>/deep/../inner; read from the textual folder it would name <root>/inner.
+  symlinkSync('../inner', join(out, 'deep', 'rel'));
+  assert.equal(inside(join(root, 'via', 'rel', 'x'), [root]), false);
 });
 
 test('an empty BENCHKEEPER_HOME is not the working directory', () => {
@@ -178,8 +198,8 @@ test('a default branch named by origin is a plain branch name: no option, no ref
 
 test('only a github.com origin is a GitHub remote', () => {
   const at = (url) => githubRemote({ run: () => ({ code: 0, stdout: `${url}\n` }) }, '/p');
-  for (const url of ['https://github.com/o/r.git', 'git@github.com:o/r.git', 'ssh://git@github.com/o/r.git', 'https://user@github.com/o/r']) assert.equal(at(url), true, url);
-  for (const url of ['https://git.example/github.com/o/r.git', 'ssh://git@evil.example/github.com/x.git', 'https://notgithub.com/o/r', '']) assert.equal(at(url), false, url);
+  for (const url of ['https://github.com/o/r.git', 'git@github.com:o/r.git', 'ssh://git@github.com/o/r.git', 'https://user@github.com/o/r', 'https://user:token@github.com/o/r', 'ssh://git@github.com:22/o/r']) assert.equal(at(url), true, url);
+  for (const url of ['https://git.example/github.com/o/r.git', 'ssh://git@evil.example/github.com/x.git', 'https://notgithub.com/o/r', 'https://github.com:x@evil.example/o/r', '']) assert.equal(at(url), false, url);
 });
 
 test('a failing git status is not a clean tree', () => {
@@ -213,6 +233,7 @@ test('a pack file whose id is not a plain id is ignored, so removing it cannot r
   mkdirSync(join(c.config, 'packs'), { recursive: true });
   writeFileSync(join(c.config, 'packs', 'a.json'), JSON.stringify({ kind: 'benchkeeper-pack', id: '../../victim', skills: [] }));
   writeFileSync(join(c.config, 'packs', 'b.json'), '{');
+  writeFileSync(join(c.config, 'packs', 'c.json'), JSON.stringify({ kind: 'benchkeeper-pack', id: 'other', skills: [] }));
   writeFileSync(join(c.home, '.config', 'victim.json'), 'keep');
   assert.deepEqual(ownPacks(c), []);
   assert.throws(() => removePack(c, '../../victim'), /no own pack/);
@@ -226,6 +247,8 @@ test('an eval set with a target or case id that is a path is refused when read',
   writeFileSync(join(c.config, 'evals', 'x.json'), set('skill:../../x', 'c1'));
   assert.throws(() => loadCases(c), /outside letters/);
   writeFileSync(join(c.config, 'evals', 'x.json'), set('rule:ok', '../../results'));
+  assert.throws(() => loadCases(c), /outside letters/);
+  writeFileSync(join(c.config, 'evals', 'x.json'), JSON.stringify({ kind: 'benchkeeper-evals', schemaVersion: 1, target: 'rule:ok', cases: null }));
   assert.throws(() => loadCases(c), /outside letters/);
   writeFileSync(join(c.config, 'evals', 'x.json'), set('rule:ok', 'c1'));
   assert.ok(loadCases(c)['rule:ok']);

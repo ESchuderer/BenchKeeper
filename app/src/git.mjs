@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 // Variables that point git at another repository (set when the app runs from a hook or `git rebase --exec`) never reach it:
 // -C names the repository. index: the caller sets GIT_INDEX_FILE itself.
-const REPO_VARS = /^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|NAMESPACE|PREFIX|CONFIG_COUNT|CONFIG_PARAMETERS|CONFIG_KEY_\d+|CONFIG_VALUE_\d+)$/;
+const REPO_VARS = /^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|NAMESPACE|PREFIX)$/;
 const git = (ctx, dir, args, { index, ...extra } = {}) => ctx.run(['git', '-C', dir, ...args], { ...extra, env: Object.fromEntries(Object.entries(extra.env ?? process.env).filter(([k]) => (index && k === 'GIT_INDEX_FILE') || !REPO_VARS.test(k))) });
 
 // A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax.
@@ -78,5 +78,5 @@ export const repoRoot = (ctx, dir) => git(ctx, dir, ['rev-parse', '--show-toplev
 // A status that fails is not a clean tree.
 export const clean = (ctx, dir) => { const r = git(ctx, dir, ['status', '--porcelain']); return r.code === 0 && r.stdout.trim() === ''; };
 // The host of origin is github.com: https, ssh or scp form, not a folder of that name on another host.
-export const githubRemote = (ctx, dir) => /^(?:(?:https?|ssh|git):\/\/)?(?:[^@/:]+@)?github\.com[:/]/i.test(git(ctx, dir, ['remote', 'get-url', 'origin']).stdout.trim());
+export const githubRemote = (ctx, dir) => /^(?:(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|(?:[^@/:]+@)?github\.com:)/i.test(git(ctx, dir, ['remote', 'get-url', 'origin']).stdout.trim());
 export { git };

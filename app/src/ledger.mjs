@@ -1,6 +1,6 @@
 // Install ledger: one JSON file per run under <config>/ledger, backups under <config>/backup/<run id>.
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { real, writeAtomic } from './fsx.mjs';
 
@@ -34,6 +34,8 @@ export class Ledger {
   save(run) {
     this.cache = null;
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    // Folders made by an earlier version keep their mode otherwise.
+    for (const d of [this.dir, this.backups]) { try { chmodSync(d, 0o700); } catch { /* not there yet */ } }
     writeAtomic(join(this.dir, `${run.id}.json`), `${JSON.stringify(run, null, 2)}\n`, 0o600);
   }
 

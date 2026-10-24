@@ -9,10 +9,11 @@ RUN apt-get update \
 # Playwright MCP with its Chromium, and the Chromium headless shell of the site's @playwright/test (keep 1.64.1 equal to
 # web/package.json); the system libraries once, from the MCP's Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN npm i -g --prefix /usr/local @playwright/mcp@0.0.83 \
-  && cd /usr/local/lib/node_modules/@playwright/mcp && npx playwright install-deps chromium && npx playwright install chromium \
-  && npx -y playwright@1.64.1 install --only-shell chromium \
+RUN npm i -g --ignore-scripts --prefix /usr/local @playwright/mcp@0.0.83 \
+  && mcp=/usr/local/lib/node_modules/@playwright/mcp/node_modules/playwright-core/cli.js \
+  && node $mcp install-deps chromium && node $mcp install chromium \
+  && npm i -g --ignore-scripts --prefix /tmp/pw playwright@1.64.1 && node /tmp/pw/lib/node_modules/playwright/cli.js install --only-shell chromium \
   && chown -R node:node /ms-playwright \
-  && npm cache clean --force && rm -rf /root/.npm/_npx /var/lib/apt/lists/*
+  && npm cache clean --force && rm -rf /tmp/pw /var/lib/apt/lists/*
 
 USER node

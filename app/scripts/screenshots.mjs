@@ -49,7 +49,7 @@ const VIEWS = [
     await page.getByRole('button', { name: 'Set up this project' }).click();
     const drawer = page.getByRole('dialog', { name: 'Set up projects' });
     await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();
-    // The review step lists what the setup writes.
+    // The summary step lists the answers and what the setup writes.
     for (let i = 0; i < 4; i++) await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer).toContainText(/\d+ changes in this checkout, in files git ignores/);
   }],

@@ -14,7 +14,8 @@ const GATE = join(tmpdir(), 'bk-ui-gate-4410');
 const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
-  // A transition may start a frame after the dialog is visible: wait until dialogs and overlays are fully opaque.
+  // A transition may start a frame after the dialog is visible: let it start, then wait until dialogs and overlays are fully opaque.
+  await page.waitForTimeout(250);
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running')
     && [...document.querySelectorAll('[role=dialog], [class*="Overlay"]')].every((e) => getComputedStyle(e).opacity === '1'), null, { polling: 'raf' });
   for (const scheme of ['light', 'dark']) {
@@ -152,6 +153,16 @@ test.describe('views', () => {
     expect(urls.filter((u) => /\/assets\/evals-.*\.js$/.test(u))).toHaveLength(1);
   });
 
+  test('a chart chunk that fails to load shows a message with Reload, not a blank page', async ({ page }) => {
+    await page.route(/\/assets\/evals-.*\.js$/, (r) => r.abort());
+    await page.reload();
+    await nav(page, 'Evals').click();
+    const note = page.getByRole('alert').filter({ hasText: 'Charts did not load' });
+    await expect(note.getByRole('button', { name: 'Reload' })).toBeVisible();
+    await noAxe(page);
+    await page.unroute(/\/assets\/evals-.*\.js$/);
+  });
+
   test('a hidden tab does not poll the running jobs', async ({ page }) => {
     let jobs = 0;
     page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/jobs') jobs++; });
@@ -192,7 +203,7 @@ test.describe('views', () => {
     await expect(board.getByLabel('Project')).toHaveValue('');
     await board.getByLabel('Period').selectOption('all');
     // A changed count is announced.
-    await expect(board.getByRole('status').filter({ hasText: / of \d+ sessions/ })).toBeVisible();
+    await expect(board.getByRole('status')).toContainText(/\d+ of \d+ sessions/);
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Cart </script><img src=x onerror=alert(1)> fix');
     await expect(board.getByRole('table', { name: /Sessions by tier/ })).toContainText('full');
     await noAxe(page);

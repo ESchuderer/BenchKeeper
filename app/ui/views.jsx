@@ -1,6 +1,6 @@
 import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Loader, Modal, NavLink, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title, useComputedColorScheme } from '@mantine/core';
 import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
@@ -14,7 +14,18 @@ import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, gr
 const EvalResults = lazy(() => import('./evals.jsx').then((m) => ({ default: m.EvalResults })));
 const EvalsPage = lazy(() => import('./evals.jsx').then((m) => ({ default: m.Evals })));
 const LoadingCharts = <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading charts</Text></Group>;
-export const Evals = (props) => <Suspense fallback={LoadingCharts}><EvalsPage {...props} /></Suspense>;
+// The chunk can fail to load: offline, or the server runs a newer build than this page.
+class ChartsBoundary extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    return this.state.failed
+      ? <Note color="red" title="Charts did not load"><Group gap="sm">Reload the page; if BenchKeeper was updated, it needs the new one.<Button size="xs" variant="default" onClick={() => window.location.reload()}>Reload</Button></Group></Note>
+      : this.props.children;
+  }
+}
+const Charts = ({ children }) => <ChartsBoundary><Suspense fallback={LoadingCharts}>{children}</Suspense></ChartsBoundary>;
+export const Evals = (props) => <Charts><EvalsPage {...props} /></Charts>;
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
@@ -100,8 +111,9 @@ export function Dashboard({ overview, doctor, history, params }) {
   // A new run (Fix everything, the header's jobs) changes what the inventory shows; the history arriving the first time does not.
   const runs = useRef(undefined);
   useEffect(() => {
-    if (runs.current !== undefined && history.data && history.data.length !== runs.current) inv.reload();
-    runs.current = history.data?.length;
+    if (!history.data) return;
+    if (runs.current !== undefined && history.data.length !== runs.current) inv.reload();
+    runs.current = history.data.length;
   }, [history.data?.length]);
   const o = overview.data, items = inv.data ?? [];
   const agents = o?.agents.filter((a) => a.installed) ?? [];
@@ -300,7 +312,7 @@ function SkillDetail({ skill, results }) {
       <Text>{skill.pickWhen}</Text>
       <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
       {skill.agents === 'codex' && <Badge variant="default">Codex only</Badge>}
-      {results.length ? <Suspense fallback={LoadingCharts}><EvalResults results={results} /></Suspense> : <Text size="sm">No eval results for this skill. Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>}
+      {results.length ? <Charts><EvalResults results={results} /></Charts> : <Text size="sm">No eval results for this skill. Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>}
       {skill.source === 'own' && <Loading state={text} label="skill text">{(t) => <Code block tabIndex={0}>{t.text}</Code>}</Loading>}
     </Stack>
   );

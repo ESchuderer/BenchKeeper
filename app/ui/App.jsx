@@ -56,20 +56,21 @@ function RunningJobs({ onDone }) {
   const [open, setOpen] = useState(false);
   const seen = useRef(0);
   useEffect(() => {
-    let live = true, timer;
-    // A hidden tab does not ask; it asks at once when it is shown again.
+    let live = true, timer, busy = false;
+    // A hidden tab neither asks nor keeps a timer; it asks at once when it is shown again.
     const poll = async () => {
-      if (document.hidden) { timer = setTimeout(poll, 2000); return; }
+      if (document.hidden) return;
+      busy = true;
       try {
         const j = await api('/api/jobs');
         if (!live) return;
         if (j.length < seen.current) onDone();
         seen.current = j.length;
         setJobs(j);
-      } catch { /* the next poll tries again */ }
-      timer = setTimeout(poll, 2000);
+      } catch { /* the next poll tries again */ } finally { busy = false; }
+      if (live) timer = setTimeout(poll, 2000);
     };
-    const shown = () => { if (!document.hidden) { clearTimeout(timer); poll(); } };
+    const shown = () => { if (!document.hidden && !busy) { clearTimeout(timer); poll(); } };
     document.addEventListener('visibilitychange', shown);
     poll();
     return () => { live = false; clearTimeout(timer); document.removeEventListener('visibilitychange', shown); };

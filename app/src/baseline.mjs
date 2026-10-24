@@ -166,7 +166,7 @@ export function filesDrift(profile, dir) {
   for (const m of profile.callers ?? []) {
     const uses = callerUses(dir, m);
     if (!uses.length) out.push({ message: `caller workflow ${m} is missing`, fix: `benchkeeper project apply --caller ${m}` });
-    else if (!uses.some((u) => /^[0-9a-f]{40}$/.test(u))) out.push({ message: `caller workflow ${m} is not pinned to a commit (${uses[0]})`, fix: 'pin the uses: line to a full commit SHA' });
+    else if (uses.some((u) => !/^[0-9a-f]{40}$/.test(u))) out.push({ message: `caller workflow ${m} is not pinned to a commit (${uses.find((u) => !/^[0-9a-f]{40}$/.test(u))})`, fix: 'pin the uses: line to a full commit SHA' });
   }
   for (const f of profile.files ?? []) if (!exists(join(dir, f))) out.push({ message: `${f} is missing`, fix: 'add the file (Dependabot version updates)' });
   return out;

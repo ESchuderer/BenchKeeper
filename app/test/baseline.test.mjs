@@ -163,6 +163,14 @@ test('a lint or sonar caller in use needs its allowlist pattern; admin-only scan
   assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), ['secret scanning not readable, left out', 'secret scanning push protection not readable, left out']);
 });
 
+test('every use of a caller must be pinned, not just one', () => {
+  const { ctx } = machine(compliant());
+  const dir = checkout({ promote: null });
+  const pinned = `${BASELINE_REPO}/.github/workflows/promote.yml@${'a'.repeat(40)}`;
+  writeFileSync(join(dir, '.github/workflows/promote.yml'), `jobs:\n  a:\n    uses: ${pinned}\n  b:\n    uses: ${BASELINE_REPO}/.github/workflows/promote.yml@main\n`);
+  assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), ['caller workflow promote is not pinned to a commit (main)']);
+});
+
 test('rulesets without checks and a caller that is not pinned to a commit are reported', () => {
   const db = compliant();
   db.rulesets = OSS.rulesets.map((r, i) => structuredClone({ ...r, id: i + 1, source_type: 'Repository' }));

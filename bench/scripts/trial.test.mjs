@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { audit, outcome, workflow } from './trial.mjs';
+import { audit, byCode, outcome, workflow } from './trial.mjs';
 
 // Fixtures: init and SessionStart events recorded from the arm images (hook output reduced to its markers).
 const fixture = (arm) => readFileSync(new URL(`fixtures/init-${arm}.jsonl`, import.meta.url), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
@@ -431,4 +431,9 @@ test('SCB report preserves per-test denominators and missing regression groups',
     scb: { eval: { pass_counts: { Core: 2, Error: 0 }, total_counts: { Core: 3, Error: 1 } }, quality: { verbosity: 0, erosion: 0.2 } } }] };
   assert.match(scbTable([trial]), /AO \| 2 \| 6 \| 2\/3 \| n\/a \| 0\/1 \| n\/a \| 0 \| 0.2/);
   assert.match(workflowTable([trial]), /AO \| 1 \| not observed \| not observed \| 0/);
+});
+
+test('byCode orders like the default sort: by code unit, uppercase before lowercase', () => {
+  const names = ['b', 'B', 'a', 'ab', 'A', '_x', 'é', 'z'];
+  assert.deepEqual([...names].sort(byCode), [...names].sort());
 });

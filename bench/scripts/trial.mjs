@@ -7,6 +7,9 @@ import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
 import { claudePhases, commandText, opencodePhases, shellWriteTarget } from './phases.mjs';
 
+// Orders strings by UTF-16 code unit, like Array.prototype.sort() without a comparator.
+export const byCode = (a, b) => Number(a > b) - Number(a < b);
+
 // Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3' to 'v5': rules and the
 // following-dev-workflow skill, 'v6': the setup-v4.0 plugin, 'v7': the setup-v5.0 plugin), spec tool.
 export const ARMS = {
@@ -59,7 +62,7 @@ function auditInit(init, events, arm) {
   const listed = new Set([...(init.skills || []), ...(init.agents || [])]);
   const hookOut = events.filter((e) => e.subtype === 'hook_response' && e.hook_event === 'SessionStart').map((e) => e.output).join('\n');
   const problems = [];
-  if (plugins.join() !== [...want.plugins].sort().join()) problems.push(`plugins ${plugins.join(',') || 'none'}`);
+  if (plugins.join() !== [...want.plugins].sort(byCode).join()) problems.push(`plugins ${plugins.join(',') || 'none'}`);
   const expected = [...want.skills, ...(want.agents || [])];
   for (const m of expected) if (!listed.has(m)) problems.push(`missing ${m}`);
   for (const m of MARKERS) if (!expected.includes(m) && listed.has(m)) problems.push(`unexpected ${m}`);
@@ -67,7 +70,7 @@ function auditInit(init, events, arm) {
   const mcp = (init.mcp_servers || []).map((s) => `${s.name}:${s.status === 'pending' ? 'connected' : s.status}`).sort();
   if (mcp.join() !== (want.mcp || []).map((n) => `${n}:connected`).join()) problems.push(`mcp ${(init.mcp_servers || []).map((s) => `${s.name}:${s.status}`).sort().join(',') || 'none'}`);
   if (!want.hooks.length && hookOut.trim()) problems.push('unexpected SessionStart output');
-  return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins, available_skills: [...(init.skills || [])].sort() };
+  return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins, available_skills: [...(init.skills || [])].sort(byCode) };
 }
 
 const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test_[^/]*|conftest)\.py$|_test\.py$/;
@@ -110,7 +113,7 @@ export function workflow(events, uses = claudeUses(events)) {
     subagent_tool_calls: uses.filter((u) => u.sub).length,
     skills,
     skill_errors: skillErrors,
-    available_skills: [...new Set(events.filter((e) => e.type === 'system' && e.subtype === 'init').flatMap((e) => e.skills || []))].sort(),
+    available_skills: [...new Set(events.filter((e) => e.type === 'system' && e.subtype === 'init').flatMap((e) => e.skills || []))].sort(byCode),
     agents,
     tiers,
     plan_or_spec_files: writes.filter((p) => /\.md$/i.test(p) && /(plan|spec|design|brainstorm|requirement)/i.test(p)),

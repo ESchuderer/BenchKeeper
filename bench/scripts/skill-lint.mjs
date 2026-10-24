@@ -7,6 +7,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+const byCode = (a, b) => Number(a > b) - Number(a < b);
+
 export const CHECKS = ['name-valid', 'desc-length', 'desc-xml', 'desc-third-person', 'desc-when', 'body-lines', 'nested-refs',
   'ref-toc', 'dated-text', 'mcp-qualified', 'windows-paths'];
 const MONTH = '(January|February|March|April|May|June|July|August|September|October|November|December)';
@@ -73,7 +75,7 @@ export function lintSkill(file) {
 
 export function lintCollection(collection, root) {
   const files = walk(root);
-  const skills = files.filter((p) => p.endsWith('/SKILL.md')).sort().map((f) => ({ ...lintSkill(f), path: relative(root, f) }));
+  const skills = files.filter((p) => p.endsWith('/SKILL.md')).sort(byCode).map((f) => ({ ...lintSkill(f), path: relative(root, f) }));
   const gerund = skills.filter((s) => /^[a-z]+ing(-|$)/.test(s.name)).length;
   return { collection, skills, naming: `gerund ${gerund} of ${skills.length}`,
     evals: files.some((p) => /(^|\/)(evals?|evaluations?)(\/|\.json$)/.test(relative(root, p))) };

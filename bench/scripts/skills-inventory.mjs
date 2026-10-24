@@ -5,6 +5,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { phaseOfSkill } from './phases.mjs';
+import { byCode } from './trial.mjs';
 import { arm as describe } from '../../web/scripts/bench-data.mjs';
 
 // Framework, its arm, the arm whose skills are subtracted besides the plain arm A, and which arms belong to the
@@ -26,7 +27,7 @@ export function inventory(files, fixtures) {
   const base = new Set(fixture(fixtures, 'A'));
   return FRAMEWORKS.flatMap(([framework, arm, minus]) => {
     const drop = new Set([...base, ...(minus ? fixture(fixtures, minus) : [])]);
-    const names = [...new Set(fixture(fixtures, arm).filter((n) => !drop.has(n)))].sort();
+    const names = [...new Set(fixture(fixtures, arm).filter((n) => !drop.has(n)))].sort(byCode);
     return names.map((name) => {
       const f = (files[arm] || []).find((x) => x.dir === short(name) || x.name === short(name));
       return { framework, skill: name, phase: phaseOfSkill(name) || 'other', tokens: f ? Math.round(f.bytes / 4) : null, description: f ? firstSentence(f.description) : '' };

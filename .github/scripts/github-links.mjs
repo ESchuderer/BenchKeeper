@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+const byCode = (a, b) => Number(a > b) - Number(a < b);
 const SELF = (process.env.GITHUB_REPOSITORY || 'ESchuderer/BenchKeeper').toLowerCase();
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 // First path segments that are GitHub pages, not owners.
@@ -83,7 +84,7 @@ async function check(t, token) {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const token = process.env.GITHUB_TOKEN;
-  const urls = [...new Set(process.argv.slice(2).flatMap((f) => extract(readFileSync(f, 'utf8'))))].sort();
+  const urls = [...new Set(process.argv.slice(2).flatMap((f) => extract(readFileSync(f, 'utf8'))))].sort(byCode);
   const errors = [];
   for (let i = 0; i < urls.length; i += 4) {
     const batch = urls.slice(i, i + 4);

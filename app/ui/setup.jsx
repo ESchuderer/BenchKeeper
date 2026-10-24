@@ -103,7 +103,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
   // An environment the user chose is kept: a suggestion fills it only while it still has its starting value.
   const envTouched = useRef(false);
   const applyAdvice = (r, name, prefilled = false) => {
-    setAdvice({ ...r, name, prefilled });
+    setAdvice({ ...r, name, prefilled, keptEnv: envTouched.current && !!r.env && r.env.id !== a.env });
     setA((x) => ({ ...x, env: envTouched.current ? x.env : r.env?.id ?? x.env, packs: r.packs.length || r.skills.length ? r.packs.map((p) => p.id) : x.packs, skills: r.packs.length || r.skills.length ? r.skills.map((k) => k.name) : x.skills }));
   };
   // A batch suggestion fills the form once, when it is ready and the form still has its starting values; after an
@@ -166,7 +166,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             {advice && (
               <Note color="blue" mb="md" title={advice.prefilled ? `Prefilled from ${advice.name}'s suggestion` : `Suggested by ${advice.name}`} withCloseButton onClose={() => setAdvice(null)}>
                 <List size="sm">
-                  {advice.env && <List.Item>Environment {ENV_TITLE[advice.env.id] ?? advice.env.id}: {advice.env.reason}</List.Item>}
+                  {advice.env && <List.Item>Environment {ENV_TITLE[advice.env.id] ?? advice.env.id}: {advice.env.reason}{advice.keptEnv && ' (your choice in the Environment step stays)'}</List.Item>}
                   {advice.packs.map((p) => <List.Item key={p.id}>Pack {p.id}: {p.reason}</List.Item>)}
                   {advice.skills.map((k) => <List.Item key={k.name}>Skill {k.name}: {k.reason}</List.Item>)}
                   {!advice.env && !advice.packs.length && !advice.skills.length && <List.Item>No pack or skill from the library fits; your choices stay.</List.Item>}

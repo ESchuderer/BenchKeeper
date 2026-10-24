@@ -9,9 +9,10 @@ export async function updateProjects(paths, push, onProgress, control) {
     rows[i] = { ...row, status: 'running' };
     onProgress([...rows]);
     try { rows[i] = (await api('/api/update-all', { paths: [row.path], push }))[0] ?? { path: row.path, status: 'stopped', reason: 'no longer registered' }; } catch (e) { rows[i] = { path: row.path, status: 'stopped', reason: e.message }; }
-    if (control?.stop) { for (let j = i + 1; j < rows.length; j++) rows[j] = { path: rows[j].path, status: 'skipped', reason: 'stopped by you' }; }
+    const stop = control?.stop;
+    if (stop) for (let j = i + 1; j < rows.length; j++) rows[j] = { path: rows[j].path, status: 'skipped', reason: 'stopped by you' };
     onProgress([...rows]);
-    if (control?.stop) break;
+    if (stop) break;
   }
   return rows;
 }

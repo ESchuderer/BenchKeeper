@@ -101,9 +101,9 @@ export function Dashboard({ overview, doctor, history, params }) {
   const behind = o?.projects.filter((p) => p.setupVersion !== o.version).length ?? 0;
   const nodes = [
     { label: 'Agents detected', value: `${agents.length} installed`, status: agents.length ? 'ok' : 'problem', href: href('agents') },
-    { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : inv.error ? 'check failed' : 'checking', status: inv.error || attention.length ? (inv.error ? 'problem' : 'attention') : 'ok', href: href('agents', { plan: '1' }) },
+    { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : inv.error ? 'check failed' : 'checking', status: inv.error ? 'problem' : attention.length ? 'attention' : 'ok', href: href('agents', { plan: '1' }) },
     { label: 'Projects', value: `${o?.projects.length ?? 0} registered, ${behind} behind`, status: behind ? 'attention' : 'ok', href: href('projects') },
-    { label: 'Doctor', value: doctor.data ? `${errors} errors, ${warnings} warnings` : doctor.error ? 'check failed' : 'checking', status: errors || doctor.error ? 'problem' : warnings ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
+    { label: 'Doctor', value: doctor.data ? `${errors} errors, ${warnings} warnings` : doctor.error ? 'check failed' : 'checking', status: doctor.error || errors ? 'problem' : warnings ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
   ];
   return (
     <Stack gap="xl">
@@ -211,7 +211,9 @@ function Packs({ packs, onChange }) {
         <FileButton key={file} accept="application/json,.json"
           onChange={async (f) => {
             if (!f) return;
-            const text = await f.text();
+            setError(null);
+            let text;
+            try { text = await f.text(); } catch (e) { setError(e.message); return; }
             let id; try { id = JSON.parse(text).id; } catch { /* the server names what is wrong */ }
             if (packs.some((p) => p.own && p.id === id)) setReplace({ id, text }); else importText(text);
           }}>
@@ -671,7 +673,7 @@ export function Projects({ params, overview, refresh }) {
         ) : null} />
       ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
-        <Text size="sm">Per project: branch chore/agent-setup-&lt;version&gt; in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first, on the same kind of branch.</Text>
+        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>
           <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
           <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!projects.data?.length} onClick={prs ? () => setConfirmPrs(true) : updateAll}>Update all</Button>
@@ -679,13 +681,13 @@ export function Projects({ params, overview, refresh }) {
         </Group>
         {progress && <UpdateResults progress={progress} extra={(r) => fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>} />}
       </Section>
-      <Modal opened={confirmPrs} onClose={() => setConfirmPrs(false)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open ${plural(prs, 'pull request')}?` } }}>
+      <Modal opened={confirmPrs} onClose={() => setConfirmPrs(false)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
         <Stack gap="sm">
-          <Title order={2} size="h4">Open {plural(prs, 'pull request')}?</Title>
-          <Text size="sm">{plural(prs, 'project')} with a shared setup get a branch pushed to origin and a pull request when origin is on GitHub. The other {(projects.data?.length ?? 0) - prs} are written in their checkouts, nothing is pushed.</Text>
+          <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
+          <Text size="sm">{plural(prs, 'project')} with a shared setup get a branch pushed to origin and a pull request when origin is on GitHub. Projects with uncommitted changes are skipped.</Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setConfirmPrs(false)}>Cancel</Button>
-            <Button leftSection={icon(IconRefresh)} onClick={updateAll}>Update all and open {plural(prs, 'pull request')}</Button>
+            <Button leftSection={icon(IconRefresh)} onClick={updateAll}>Update all and open up to {plural(prs, 'pull request')}</Button>
           </Group>
         </Stack>
       </Modal>

@@ -314,13 +314,13 @@ test.describe('views', () => {
     await noAxe(page);
     await page.getByRole('button', { name: 'Update all', exact: true }).click();
     // The project's setup is shared: a pull request, so Update all asks first and names the count.
-    const ask = page.getByRole('dialog', { name: 'Open 1 pull request?' });
+    const ask = page.getByRole('dialog', { name: 'Open up to 1 pull request?' });
     await noAxe(page);
     await ask.getByRole('button', { name: 'Cancel' }).click();
     await expect(ask).toBeHidden();
     await expect(page.getByRole('progressbar', { name: /^Update all:/ })).toHaveCount(0);
     await page.getByRole('button', { name: 'Update all', exact: true }).click();
-    await ask.getByRole('button', { name: 'Update all and open 1 pull request' }).click();
+    await ask.getByRole('button', { name: 'Update all and open up to 1 pull request' }).click();
     await expect(page.getByRole('progressbar', { name: 'Update all: 1 of 1 projects' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(/stopped|current|committed/);
   });

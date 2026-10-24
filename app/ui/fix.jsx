@@ -95,7 +95,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
         <Stepper.Step label="Projects">
           <Loading state={projects} label="projects">{() => (
             <Stack gap="sm">
-              <Text size="sm">A local setup is written in the checkout, in files git ignores. A shared setup, or one still committed in the repository, gets a branch and a pull request when origin is on GitHub; after you merge the removal of a committed one and pull, the next Update all writes it locally.</Text>
+              <Text size="sm">A shared setup, or one still committed in the repository, gets a branch and a pull request when origin is on GitHub; after you merge the removal of a committed one and pull, the next Update all writes it locally.</Text>
               {list.length ? (
                 <>
                   <Group gap="xs">

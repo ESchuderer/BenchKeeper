@@ -1,6 +1,7 @@
 // Packs: the library's presets plus the user's own, saved in ~/.config/benchkeeper/packs/<id>.json.
 // A pack file names library skills only, so an imported pack cannot bring a source or ref the library does not pin.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { library } from './content.mjs';
 import { move, writeAtomic } from './fsx.mjs';
@@ -33,7 +34,11 @@ export function savePack(ctx, { id, title = id, skills }) {
   validate(pack, library());
   const file = join(dir(ctx), `${id}.json`);
   // A pack saved or imported over an own pack of the same id keeps the old file in the backup.
-  if (existsSync(file)) move(file, join(ctx.config, 'backup', 'packs', `${id}-${Date.now()}.json`));
+  // Copied, not moved: a failed write leaves the old pack in place.
+  if (existsSync(file)) {
+    mkdirSync(join(ctx.config, 'backup', 'packs'), { recursive: true });
+    copyFileSync(file, join(ctx.config, 'backup', 'packs', `${id}-${Date.now()}-${randomUUID().slice(0, 8)}.json`));
+  }
   writeAtomic(file, `${JSON.stringify(pack, null, 2)}\n`);
   return pack;
 }

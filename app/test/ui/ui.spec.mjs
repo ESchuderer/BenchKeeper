@@ -561,4 +561,28 @@ test.describe('views', () => {
     await expect(drawer.getByRole('region', { name: 'quatro' })).toContainText('Not prepared');
     await drawer.getByRole('button', { name: 'Close' }).click();
   });
+
+  test('One-run: another mode from the palette during prepare does not leave Close disabled', async ({ page }) => {
+    const drawer = oneRun(page);
+    writeFileSync(GATE, '');
+    try {
+      await page.getByRole('button', { name: 'Set up projects' }).click();
+      await drawer.getByRole('checkbox', { name: 'Global setup' }).check();
+      for (const name of ['broken', 'alpha', 'other']) await drawer.getByRole('checkbox', { name, exact: true }).uncheck();
+      await drawer.getByRole('button', { name: 'Start', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Start an agent session?' }).getByRole('button', { name: 'Start Claude Code' }).click();
+      await expect(drawer.getByRole('region', { name: 'Prepare progress' }).getByRole('row', { name: /quatro/ })).toContainText('Claude Code is reading the repository');
+      await expect(drawer.getByRole('button', { name: 'Close' })).toBeDisabled();
+      await page.keyboard.press('ControlOrMeta+K');
+      const palette = page.getByRole('dialog', { name: 'Command palette' });
+      await expect(async () => {
+        await palette.getByLabel('Search').fill('');
+        await palette.getByLabel('Search').fill('global only in one run');
+        await expect(palette.locator('[data-selected]')).toContainText('Set up global only', { timeout: 1000 });
+      }).toPass();
+      await page.keyboard.press('Enter');
+      await expect(drawer.getByRole('button', { name: 'Close' })).toBeEnabled();
+    } finally { rmSync(GATE, { force: true }); }
+    await drawer.getByRole('button', { name: 'Close' }).click();
+  });
 });

@@ -79,6 +79,8 @@ export function OneRunDrawer({ mode, onClose }) {
 function Flow({ mode, setBusy, setReviewing }) {
   const [stage, setStage] = useState('start');
   useEffect(() => { setReviewing(stage === 'review'); return () => setReviewing(false); }, [stage]);
+  // A remount (another mode from the palette) or an unmount drops the progress that would clear it; the job goes on.
+  useEffect(() => () => setBusy(false), []);
   const [items, setItems] = useState([]);
   const [prepared, setPrepared] = useState(false);
   const [job, setJob] = useState(null);

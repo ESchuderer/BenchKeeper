@@ -21,7 +21,7 @@ import { addProject, canon, listProjects, packsInUse, removeProject, scan, statu
 import { recordSession } from './session.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
-import { detectLevel, levelFor } from './level.mjs';
+import { detectLevel } from './level.mjs';
 import { LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan } from './steps/project.mjs';
 
@@ -164,8 +164,9 @@ async function command(argv, { out, ask, ctx }) {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) { out.write('no agent found (claude, codex, gemini, copilot); the app installs none\n'); return 1; }
     if (o.level && !LEVELS.includes(o.level)) { out.write(`--level must be one of ${LEVELS.join(', ')}\n`); return 2; }
-    const level = o.level ?? levelFor(ctx, agents);
-    if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${detectLevel(ctx, agents).adds}\n`);
+    const found = detectLevel(ctx, agents, process.cwd());
+    const level = o.level ?? found.level ?? 'full';
+    if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${found.adds}\n`);
     const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {

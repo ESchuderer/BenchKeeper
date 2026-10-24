@@ -12,7 +12,7 @@ import { clean, defaultBranch, githubRemote } from '../src/git.mjs';
 import { runId } from '../src/ledger.mjs';
 import { loadCases } from '../src/cases.mjs';
 import { ownPacks, removePack } from '../src/packs.mjs';
-import { remoteHead } from '../src/projects.mjs';
+import { prefetchOrigins, remoteHead } from '../src/projects.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
 import { newest } from '../src/steps/global.mjs';
@@ -306,4 +306,15 @@ test('the ledger keeps the argv of a command, never its environment', () => {
   const c = context({ home: home(), run: () => ({ code: 0, stdout: '', stderr: '' }) });
   const run = apply([{ id: 'c', step: 's', title: 'c', kind: 'command', argv: ['x'], env: { SECRET_TOKEN: 'tok-123' } }], c);
   assert.doesNotMatch(readFileSync(join(c.config, 'ledger', `${run.id}.json`), 'utf8'), /tok-123|SECRET_TOKEN/);
+});
+
+test('the network reads of Update all get no variable that points git at another repository either', async () => {
+  const r = repo();
+  r.git('remote', 'add', 'origin', r.dir);
+  const envs = [];
+  const ctx = { ...r.ctx, runAsync: async (argv, o) => { envs.push(o.env); return { code: 1, stdout: '', stderr: '' }; } };
+  process.env.GIT_DIR = join(r.dir, 'elsewhere');
+  try { await prefetchOrigins(ctx, [r.dir]); } finally { delete process.env.GIT_DIR; }
+  assert.ok(envs.length > 0);
+  assert.ok(envs.every((e) => !('GIT_DIR' in e)));
 });

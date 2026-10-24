@@ -6,7 +6,8 @@ import { join } from 'node:path';
 // Variables that point git at another repository (set when the app runs from a hook or `git rebase --exec`) never reach it:
 // -C names the repository. index: the caller sets GIT_INDEX_FILE itself.
 const REPO_VARS = /^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|NAMESPACE|PREFIX)$/;
-const git = (ctx, dir, args, { index, ...extra } = {}) => ctx.run(['git', '-C', dir, ...args], { ...extra, env: Object.fromEntries(Object.entries(extra.env ?? process.env).filter(([k]) => (index && k === 'GIT_INDEX_FILE') || !REPO_VARS.test(k))) });
+export const repoEnv = (env = process.env, index = false) => Object.fromEntries(Object.entries(env).filter(([k]) => (index && k === 'GIT_INDEX_FILE') || !REPO_VARS.test(k)));
+const git = (ctx, dir, args, { index, ...extra } = {}) => ctx.run(['git', '-C', dir, ...args], { ...extra, env: repoEnv(extra.env, index) });
 
 // A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax.
 export const safeBranch = (n) => (/^[\w.][\w.\/-]*$/.test(n ?? '') && !n.includes('..') ? n : null);

@@ -47,7 +47,7 @@ What the `benchkeeper` app (`app/`) may change on a machine, what it never chang
 | Step kind | May write | Confinement |
 |---|---|---|
 | Global setup (`steps/global.mjs`) | Rules, settings and skill files of the selected agents below the home folder; removal of other rules is offered, off by default | Write root is the home folder (`ctx.roots`) |
-| Project setup (`steps/project.mjs`) | Files in the project folder and the repository's `info/exclude`; never the project's own `.git` | Roots are the project and `<git-common-dir>/info`; `.git` is denied |
+| Project setup (`steps/project.mjs`) | Files in the project folder and the repository's `info` folder (the exclude list); never the rest of the project's own `.git` | Roots are the project and `<git-common-dir>/info`; `.git` is denied |
 | Commands (plugin installs, `npm i -g`, `npx skills`) | What the tool writes | Not confined; declared `snapshot` paths are root-checked, backed up and restored on undo |
 | Update all (`projects.mjs`) | A worktree under `.cache/benchkeeper/worktrees` in the home folder, one commit, a branch, a push and a pull request per repository | Roots are the worktree and the repository's `info`; checkout untouched |
 | Recorded session (`session.mjs`) | The agent writes in its working tree; the app writes the ledger | Undo restores files inside the repository root only |
@@ -56,14 +56,14 @@ What the `benchkeeper` app (`app/`) may change on a machine, what it never chang
 ## What the app never does
 
 - Run a command through a shell.
-- Write outside the roots of a run, also through a symlink, a dangling symlink or `..`.
-- Write into a project's `.git` except `info/exclude`.
+- Write outside the roots of a run, also through a symlink, a dangling symlink or `..` (the commands a run starts write what their tool writes).
+- Write into a project's `.git` except its `info` folder.
 - Force push, push with a `+` refspec, run `git clean`, `git reset`, `git stash` or `git checkout` on a user's checkout, delete a remote branch, or merge or close a pull request.
 - Delete a local branch it did not create in the same run.
 - Edit a file that changed since the preview without telling (a whole-file write of new text is refused, an edit applies to the file as it is; a copy from a folder is not checked).
 - Start a second run while another one holds the lock.
-- Send file contents, settings or tokens anywhere (the update notice sends an unauthenticated GET for the package version).
-- Apply a removal unless it is selected (removals are unselected by default; see the exception under Open).
+- Add telemetry or send file contents itself. What leaves the machine is what the tools it starts send: `git push` and `gh pr create` of Update all, the package registries, the agents' own CLIs (an advice or eval session sends what its agent reads to the agent's provider), and the update notice (an unauthenticated GET for the package version).
+- Apply a removal that is not selected. Removals are unselected by default, except removals of files the app identifies as its own by content (see Open, #206).
 - Open the `gh` login files: `gh` runs as a command only, and transcripts are read for names and counts.
 
 ## Limits and their controls
@@ -76,7 +76,7 @@ A test name refers to the file named in the same row.
 |---|---|---|
 | Write, remove, snapshot and undo stay inside the roots, links resolved | `allowed` in `runner.mjs`, `inside` and `realish` in `fsx.mjs` | `engine.test.mjs` "writes outside the roots are refused, also through a link"; `security.test.mjs` "a remove, a command snapshot and an undo outside the roots are refused", "a path through a dangling link" |
 | A removed link is judged as a link, not by its target | `inside(..., follow)` | `global.test.mjs` "full apply" (dangling link removed) |
-| A project run never writes into `.git` except `info/exclude` | `projectCtx` (`deny`) and `allowed` | `security.test.mjs` "a project run never writes into .git" |
+| A project run never writes into `.git` except its `info` folder | `projectCtx` (`deny`) and `allowed` | `security.test.mjs` "a project run never writes into .git" |
 | A temporary file is never written through a planted link and is removed on failure | `writeAtomic` (`wx`, random name) | `security.test.mjs` "an atomic write that fails leaves no temporary file" |
 | The server takes plan ids and change ids, never paths or argv | `POST /api/apply` in `server.mjs` | `server.test.mjs` "apply: answers at once with a job"; `security-server.test.mjs` "a select that is not a list of ids" |
 | Ids that become file names are plain: run id, pack id, eval target and case id, skill name | `Ledger.get`, `ownPacks` and `validate` in `packs.mjs`, `readSet` in `cases.mjs`, `SKILL_NAME` in `steps/project.mjs` | `security.test.mjs` "a pack file whose id is not a plain id", "an eval set with a target or case id that is a path"; `packs.test.mjs` "pack files name library skills only"; `project.test.mjs` skill-name test |
@@ -92,7 +92,7 @@ A test name refers to the file named in the same row.
 | No shell anywhere | `spawn` and `spawnSync` with argv in `runner.mjs`, `server.mjs` | `security.test.mjs` "no code of the app runs a shell" |
 | External text never becomes an option: default branch, GitHub host, option-like file names | `safeBranch` in `git.mjs`, `githubRemote`, `git ... -- path`, `diff-tree -z` | `security.test.mjs` "a default branch named by origin", "only a github.com origin", "files named like options", "a default branch that is an option" |
 | A failing `git status` is not a clean tree | `clean` | `security.test.mjs` "a failing git status is not a clean tree" |
-| Variables that point git at another repository are dropped | `git` in `git.mjs` | `security.test.mjs` "git gets no variable that points it at another repository" |
+| Variables that point git at another repository are dropped from the git calls of `git.mjs` and `projects.mjs` (the `git init` of `eval.mjs` and the `worktree list` of `board.mjs` pass the environment as it is) | `repoEnv` and `git` in `git.mjs` | `security.test.mjs` "git gets no variable that points it at another repository" |
 | The repository's `core.hooksPath` is pinned for worktree, commit and push | `viaPullRequest` in `projects.mjs` | `projects.test.mjs` "Update all runs the hooks of the checkout" |
 | Project `npx` uses the public registry; the skills CLI is an exact version under an alias, never a repo-local binary | `NPX_ENV`, `SKILLS_SPEC` | `project.test.mjs` (the skills command asserts the registry variable and the spec) |
 | Commands without a folder run in the home | `applySteps` in `runner.mjs`, `newest` in `steps/global.mjs` | `security.test.mjs` "commands without a folder of their own run in the home" |

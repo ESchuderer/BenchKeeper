@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { addProject } from '../../src/projects.mjs';
 import { apply, context, preview } from '../../src/runner.mjs';
 import { startServer } from '../../src/server.mjs';
@@ -15,13 +15,19 @@ export const TOKEN = 'ui-test-token-0123456789';
 // Two more repositories for Prefill all, registered by the test: alpha has a GitHub origin, broken gets no suggestion.
 export const BATCH = join(tmpdir(), `bk-ui-batch-${PORT}`);
 
-const home = mkdtempSync(join(tmpdir(), 'bk-ui-'));
+// Demo mode (app/scripts/screenshots.mjs, the site's screenshots): fixed folder names under one fixture root, and the
+// server must run with HOME inside it.
+const DEMO = process.env.BK_DEMO_ROOT;
+const home = DEMO ? join(DEMO, 'home') : mkdtempSync(join(tmpdir(), 'bk-ui-'));
+if (DEMO && resolve(process.env.HOME ?? '') !== resolve(home)) throw new Error(`demo mode needs HOME=${home}, not the caller's home`);
+mkdirSync(home, { recursive: true });
 // The folder dialog answers with a parent of the registered project and of one more folder with an agent setup.
-const parent = mkdtempSync(join(tmpdir(), 'bk-ui-scan-'));
-mkdirSync(join(parent, 'other'));
-writeFileSync(join(parent, 'other/AGENTS.md'), '# Other\n');
+const parent = DEMO ? join(DEMO, 'projects') : mkdtempSync(join(tmpdir(), 'bk-ui-scan-'));
+const other = DEMO ? 'blog' : 'other';
+mkdirSync(join(parent, other), { recursive: true });
+writeFileSync(join(parent, `${other}/AGENTS.md`), '# Other\n');
 // A repository without a state file, for the step-by-step first setup.
-for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', join(parent, 'other'), ...a]);
+for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', join(parent, other), ...a]);
 rmSync(BATCH, { recursive: true, force: true });
 for (const name of ['alpha', 'broken']) {
   const d = join(BATCH, name);
@@ -56,12 +62,13 @@ const ctx = context({ home, run, appVersion: '6.0.0' });
 const first = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
 apply(first, ctx);
 appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
-const dir = join(parent, 'bk-ui-proj');
+const dir = join(parent, DEMO ? 'shop' : 'bk-ui-proj');
 execFileSync('git', ['init', '-q', '-b', 'main', dir]);
 writeFileSync(join(dir, 'README.md'), '# Demo\n');
 const pctx = { ...ctx, roots: [dir] };
 apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
 addProject(ctx, dir);
+if (DEMO) addProject(ctx, join(parent, other));
 // Two eval runs of one skill for the Evals chart.
 mkdirSync(join(ctx.config, 'evals'), { recursive: true });
 // Two agents, three targets; a rule target has no rates, and Codex's workflow run had no should-not cases.
@@ -71,7 +78,8 @@ writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00
   result('2026-10-09T10:00:00Z', 0.33, null, 'skill:workflow', 'codex')].map((r) => JSON.stringify(r)).join('\n') + '\n');
 
 // Claude Code and Codex transcripts for the Sessions board.
-writeSessions(home);
+if (DEMO) writeSessions(home, { root: parent, title: 'Fix the cart total' });
+else writeSessions(home);
 
 // The agents are stubs, so the eval plan may show in CI too.
 delete process.env.CI;

@@ -27,7 +27,8 @@
     "test:ui": "playwright test",
     "prepack": "node scripts/content.mjs && vite build",
     "postpack": "node scripts/content.mjs --clean",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "jsonc-parser": "3.3.1",

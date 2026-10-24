@@ -468,6 +468,17 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer).toContainText(/\d+ changes in this checkout, in files git ignores/);
     await expect(drawer).toContainText('CLAUDE.local.md');
+    // The summary shows every answer next to its step; Change goes back to that step and Next returns.
+    const answers = drawer.getByRole('list', { name: 'Your answers' });
+    await expect(answers).toContainText('Agent in the dev container');
+    await expect(answers).toContainText('Standard: one behavior');
+    await expect(answers).toContainText('designing-technical-uis');
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Change Default tier' }).click();
+    await expect(drawer.getByRole('radio', { name: /^Standard/ })).toBeChecked();
+    await drawer.getByRole('radio', { name: /^Quick/ }).check();
+    await drawer.getByRole('button', { name: 'Next' }).click();
+    await expect(answers).toContainText('Quick: the diff fits in one sentence');
     // The repository is the other choice, made in the first step.
     for (let i = 0; i < 4; i++) await drawer.getByRole('button', { name: 'Back' }).click();
     await drawer.getByRole('radio', { name: /^In the repository/ }).check();

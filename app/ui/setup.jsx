@@ -82,7 +82,23 @@ export function AdviceJob({ job, name, onDone }) {
 // A plan shown for review only, its skill installs rehearsed.
 const Rehearsed = ({ plan }) => <ChangeList plan={plan} prerun={usePrerun(plan)} />;
 
-// One project's setup, step by step: agents, where commands run, packs and skills, tier, review. Local (the default):
+// Every answer next to its step, each with a way back to change it.
+function Answers({ rows, onChange }) {
+  return (
+    <List listStyleType="none" spacing="xs" aria-label="Your answers">
+      {rows.map(({ label, value, step }) => (
+        <List.Item key={label} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
+          <Group gap="xs" wrap="nowrap" align="baseline" justify="space-between">
+            <Text size="sm"><Text span fw={600}>{label}:</Text> {value}</Text>
+            <Anchor component="button" type="button" size="sm" aria-label={`Change ${label}`} onClick={() => onChange(step)}>Change</Anchor>
+          </Group>
+        </List.Item>
+      ))}
+    </List>
+  );
+}
+
+// One project's setup, step by step: agents, where commands run, packs and skills, tier, summary. Local (the default):
 // written in the checkout, in files git ignores. Shared: a branch with one commit (and a pull request when origin is on
 // GitHub), as Update all makes them.
 function SetupSteps({ dir, push, onFinish, prefill }) {
@@ -194,20 +210,29 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
               <Stack gap="xs" mt="xs">{['', ...s.tiers].map((t) => <Radio key={t || 'none'} value={t} label={TIER_TEXT[t] ?? t} />)}</Stack>
             </Radio.Group>
           </Stepper.Step>
-          <Stepper.Step label="Review">
-            <Loading state={review} label="changes">{(p) => (
-              <Stack gap="sm">
-                {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-                <Text size="sm">{a.share ? <>{p.changes.length} changes on branch <Code>chore/agent-setup</Code>, nothing in your working tree.</> : <>{p.changes.length} changes in this checkout, in files git ignores.</>}</Text>
-                <Rehearsed plan={p} />
-                {!!p.prompts.length && (
-                  <Stack gap={4}>
-                    <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Then start in the project'}</Text>
-                    {p.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
-                  </Stack>
-                )}
-              </Stack>
-            )}</Loading>
+          <Stepper.Step label="Summary">
+            <Stack gap="md">
+              <Answers onChange={setStep} rows={[
+                { label: 'Agents', step: 0, value: a.agents.map((id) => s.agents.find((x) => x.id === id)?.name ?? id).join(', ') || 'None' },
+                { label: 'Where the setup lives', step: 0, value: a.share ? 'In the repository, as a pull request' : 'On this machine' },
+                { label: 'Environment', step: 1, value: `${ENV_TITLE[a.env] ?? a.env}${a.sandbox ? ', with the Claude Code sandbox' : ''}` },
+                { label: 'Packs and skills', step: 2, value: [...a.packs.map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills].join(', ') || 'None' },
+                { label: 'Default tier', step: 3, value: TIER_TEXT[a.tier] ?? a.tier },
+              ]} />
+              <Loading state={review} label="changes">{(p) => (
+                <Stack gap="sm">
+                  {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
+                  <Text size="sm">{a.share ? <>{p.changes.length} changes on branch <Code>chore/agent-setup</Code>, nothing in your working tree.</> : <>{p.changes.length} changes in this checkout, in files git ignores.</>}</Text>
+                  <Rehearsed plan={p} />
+                  {!!p.prompts.length && (
+                    <Stack gap={4}>
+                      <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Then start in the project'}</Text>
+                      {p.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
+                    </Stack>
+                  )}
+                </Stack>
+              )}</Loading>
+            </Stack>
           </Stepper.Step>
           <Stepper.Completed>
             {result && (

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -7,6 +8,9 @@ import { openBrowser } from '../../src/server.mjs';
 
 const TOKEN = 'ui-test-token-0123456789';
 const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
+const ONE = join(tmpdir(), 'bk-ui-one-4410');
+// While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
+const GATE = join(tmpdir(), 'bk-ui-gate-4410');
 const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
@@ -434,4 +438,127 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+
+  // The one-run setup, last: it applies project setups and registers four more projects.
+  const addProjects = async (page, names) => {
+    await nav(page, 'Projects').click();
+    for (const name of names) {
+      await page.getByLabel('Project folder').fill(join(ONE, name));
+      await page.getByRole('button', { name: 'Add project' }).click();
+      await expect(page.getByRole('table', { name: 'Projects' }).getByRole('link', { name, exact: true })).toBeVisible();
+    }
+    await nav(page, 'Dashboard').click();
+  };
+  const oneRun = (page) => page.getByRole('dialog', { name: 'One-run setup' });
+
+  test('One-run, Global only: the start form, then a review page with only the global plan', async ({ page }) => {
+    await page.getByRole('button', { name: 'Set up global only' }).click();
+    const drawer = oneRun(page);
+    await expect(drawer.getByRole('checkbox', { name: 'Global setup' })).toBeChecked();
+    // A shared setup is left to Update all.
+    await expect(drawer.getByRole('checkbox', { name: 'bk-ui-proj' })).toBeDisabled();
+    await expect(drawer.getByText(/left to Update all: shared setup/)).toBeVisible();
+    await expect(drawer.getByRole('checkbox', { name: 'broken' })).not.toBeChecked();
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Start', exact: true }).click();
+    const global = drawer.getByRole('region', { name: 'Global setup' });
+    await expect(global.getByRole('checkbox', { name: 'Global setup', exact: true })).toBeChecked();
+    await expect(drawer.getByRole('region', { name: 'broken' })).toHaveCount(0);
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(drawer).toBeHidden();
+  });
+
+  test('One-run, Everything with two projects (one without a setup): one progress bar, one review page, one apply', async ({ page }) => {
+    await addProjects(page, ['uno', 'duo']);
+    const drawer = oneRun(page);
+    writeFileSync(GATE, '');
+    try {
+      await page.getByRole('button', { name: 'Set up everything', exact: true }).click();
+      // Everything preselects every project the run can set up; the earlier tests registered three more.
+      for (const name of ['uno', 'duo', 'broken', 'alpha', 'other']) await expect(drawer.getByRole('checkbox', { name, exact: true })).toBeChecked();
+      for (const name of ['alpha', 'other']) await drawer.getByRole('checkbox', { name, exact: true }).uncheck();
+      await drawer.getByRole('button', { name: 'Start', exact: true }).click();
+      // One consent for the sessions of the projects without a setup: duo and broken.
+      const ask = page.getByRole('dialog', { name: 'Start 2 agent sessions?' });
+      await expect(ask).toContainText('2 sessions, one after the other');
+      await noAxe(page);
+      await ask.getByRole('button', { name: 'Start Claude Code' }).click();
+      const progress = drawer.getByRole('region', { name: 'Prepare progress' });
+      await expect(progress.getByRole('row', { name: /duo/ })).toContainText('Claude Code is reading the repository');
+      await expect(progress.getByRole('row', { name: /broken/ })).toContainText('ready');
+      await expect(progress.getByRole('row', { name: /uno/ })).toContainText('ready');
+      await noAxe(page);
+    } finally { rmSync(GATE, { force: true }); }
+    const duo = drawer.getByRole('region', { name: 'duo', exact: true });
+    await expect(duo).toBeVisible();
+    // A failed suggestion shows its reason; the project still gets a plan from the defaults.
+    await expect(drawer.getByRole('region', { name: 'broken' })).toContainText('model overloaded');
+    await expect(duo).toContainText('Suggested by Claude Code: skill designing-technical-uis');
+    const uno = drawer.getByRole('region', { name: 'uno', exact: true });
+    await expect(uno.getByRole('group', { name: /^Diff of / })).toHaveCount(0);
+    await uno.getByRole('button', { name: /^Show diff of / }).first().click();
+    await expect(uno.getByRole('group', { name: /^Diff of .*CLAUDE\.local\.md$/ })).toBeVisible();
+    // An edit of the answers builds that project's plan again.
+    const checked = () => duo.getByText(/\d+ of \d+ changes checked/).textContent();
+    const before = await checked();
+    await duo.getByRole('button', { name: 'Edit answers of duo' }).click();
+    await duo.getByRole('checkbox', { name: 'Frontend', exact: true }).check();
+    await expect.poll(checked).not.toBe(before);
+    // Per-section checkboxes: leave out the global plan and broken.
+    await drawer.getByRole('region', { name: 'Global setup' }).getByRole('checkbox', { name: 'Global setup', exact: true }).uncheck();
+    await drawer.getByRole('region', { name: 'broken' }).getByRole('checkbox', { name: 'broken', exact: true }).uncheck();
+    await noAxe(page);
+    await drawer.getByRole('button', { name: /^Apply \d+ changes in 2 sections$/ }).click();
+    const apply = drawer.getByRole('region', { name: 'Apply progress' });
+    await expect(apply.getByRole('status')).toContainText(/^Finished: 2 of 2 sections done/);
+    await expect(apply.getByRole('row', { name: /^done .*\/uno: / })).toBeVisible();
+    await expect(apply.getByRole('row', { name: /^done .*\/duo: / })).toBeVisible();
+    await expect(apply.getByRole('link', { name: 'Open report' })).toHaveCount(2);
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Close' }).click();
+  });
+
+  test('One-run, Projects with one picked: no global plan, one consent for one session, one section', async ({ page }) => {
+    await addProjects(page, ['tres']);
+    await page.getByRole('button', { name: 'Set up projects' }).click();
+    const drawer = oneRun(page);
+    await expect(drawer.getByRole('checkbox', { name: 'Global setup' })).not.toBeChecked();
+    // Set up by the run before: not preselected. Without a setup: preselected.
+    await expect(drawer.getByRole('checkbox', { name: 'uno', exact: true })).not.toBeChecked();
+    await expect(drawer.getByRole('checkbox', { name: 'tres', exact: true })).toBeChecked();
+    for (const name of ['broken', 'alpha', 'other']) await drawer.getByRole('checkbox', { name, exact: true }).uncheck();
+    await drawer.getByRole('button', { name: 'Start', exact: true }).click();
+    const ask = page.getByRole('dialog', { name: 'Start an agent session?' });
+    await ask.getByRole('button', { name: 'Start Claude Code' }).click();
+    await expect(drawer.getByRole('region', { name: 'tres' })).toBeVisible();
+    await expect(drawer.getByRole('region', { name: 'Global setup' })).toHaveCount(0);
+    await expect(drawer.getByRole('region', { name: 'broken' })).toHaveCount(0);
+    await drawer.getByRole('button', { name: /^Apply \d+ changes in 1 sections$/ }).click();
+    await expect(drawer.getByRole('region', { name: 'Apply progress' }).getByRole('status')).toContainText(/^Finished: 1 of 1 sections done/);
+    await drawer.getByRole('button', { name: 'Close' }).click();
+  });
+
+  test('One-run: a cancel during prepare stops the running session; what is ready stays reviewable', async ({ page }) => {
+    await addProjects(page, ['quatro']);
+    const drawer = oneRun(page);
+    writeFileSync(GATE, '');
+    try {
+      await page.getByRole('button', { name: 'Set up projects' }).click();
+      await drawer.getByRole('checkbox', { name: 'Global setup' }).check();
+      for (const name of ['broken', 'alpha', 'other']) await drawer.getByRole('checkbox', { name, exact: true }).uncheck();
+      await drawer.getByRole('button', { name: 'Start', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Start an agent session?' }).getByRole('button', { name: 'Start Claude Code' }).click();
+      const progress = drawer.getByRole('region', { name: 'Prepare progress' });
+      await expect(progress.getByRole('row', { name: /quatro/ })).toContainText('Claude Code is reading the repository');
+      await progress.getByRole('button', { name: 'Cancel' }).click();
+    } finally { rmSync(GATE, { force: true }); }
+    const progress = drawer.getByRole('region', { name: 'Prepare progress' });
+    await expect(progress.getByRole('row', { name: /quatro/ })).toContainText('cancelled');
+    await expect(progress.getByRole('status')).toContainText('Cancelled: 1 of 2 items are ready.');
+    await drawer.getByRole('button', { name: 'Review what is ready' }).click();
+    await expect(drawer.getByRole('region', { name: 'Global setup' })).toBeVisible();
+    await expect(drawer.getByRole('region', { name: 'quatro' })).toContainText('Not prepared');
+    await drawer.getByRole('button', { name: 'Close' }).click();
+  });
 });

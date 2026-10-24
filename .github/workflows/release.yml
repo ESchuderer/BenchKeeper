@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: release.sh self-check
         run: sh .github/scripts/release.test.sh
@@ -35,7 +36,7 @@ jobs:
     steps:
       # Full history: the push to stable must find stable's commit here to fast-forward it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
+        with: # zizmor: ignore[artipacked] the job pushes stable with these credentials
           fetch-depth: 0
       - name: Tag and GitHub Release
         run: |

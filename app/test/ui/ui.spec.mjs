@@ -283,14 +283,17 @@ test.describe('views', () => {
 
   test('a slow first overview shows the starting screen, not 0 agents; a failed one offers Try again', async ({ page }) => {
     let down = true;
+    let release;
+    const gate = new Promise((r) => { release = r; });
     await page.route(/\/api\/overview(\?|$)/, async (route) => {
       if (!down) return route.continue();
-      await new Promise((r) => setTimeout(r, 400));
+      await gate;
       return route.abort('connectionreset');
     });
     await page.reload();
     await expect(page.getByRole('status')).toContainText('Starting');
     await expect(page.getByText('0 installed')).toHaveCount(0);
+    release();
     await expect(page.getByRole('alert')).toContainText('Cannot read the setup');
     down = false;
     await page.getByRole('button', { name: 'Try again' }).click();

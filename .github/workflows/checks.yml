@@ -1,6 +1,6 @@
 name: Checks
 
-# The promotion pull request (head develop) skips every job: the push to develop already ran them on the same commit,
+# The promotion pull request (develop into main) skips every job: the push to develop already ran them on the same commit,
 # and those results are the ones the main ruleset requires. `checks` is the required check, a gate over the two
 # parallel jobs. Jobs that never read the recorded trial data (bench/results/*/round-*, 595 MB) check out without it.
 on:
@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   checks-core:
-    if: github.head_ref != 'develop'
+    # Skips only the promotion pull request (this repository's develop into main), whose jobs the push to develop already ran; a fork branch named develop is not skipped.
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
@@ -64,7 +65,7 @@ jobs:
 
   # The web UI against a fixture home: request checks are in the app tests, views and axe (light, dark) here.
   app-ui-tests:
-    if: github.head_ref != 'develop'
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
@@ -88,7 +89,7 @@ jobs:
 
   # Required check: passes when both parallel jobs pass, and is skipped with them on the promotion pull request.
   checks:
-    if: ${{ always() && github.head_ref != 'develop' }}
+    if: ${{ always() && !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     needs: [checks-core, app-ui-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -103,7 +104,7 @@ jobs:
 
   # The installer app: engine, steps, CLI and server against temporary home directories with stub agent commands.
   app:
-    if: github.head_ref != 'develop'
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     strategy:
       fail-fast: false
       matrix:
@@ -129,7 +130,7 @@ jobs:
 
   # Windows is untested by the owner: start, plan, apply with a ledger run only.
   app-windows-smoke:
-    if: github.head_ref != 'develop'
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: windows-latest
     timeout-minutes: 10
     permissions:
@@ -150,7 +151,7 @@ jobs:
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund && node scripts/smoke.mjs
 
   dependency-review:
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event_name == 'pull_request' && !(github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

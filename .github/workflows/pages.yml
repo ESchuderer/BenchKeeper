@@ -14,9 +14,10 @@ concurrency:
 
 jobs:
   # The site build reads the recorded trial data (bench/results/*/round-*) at build time, so it keeps the full checkout.
-  # The promotion pull request (head develop) skips it: the push to develop already built the same commit.
+  # The promotion pull request (develop into main) skips it: the push to develop already built the same commit.
   build:
-    if: github.head_ref != 'develop'
+    # Skips only the promotion pull request (this repository's develop into main), whose jobs the push to develop already ran; a fork branch named develop is not skipped.
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

@@ -17,7 +17,8 @@ concurrency:
 
 jobs:
   check:
-    if: github.event_name == 'pull_request'
+    # Skips only the promotion pull request (this repository's develop into main), whose jobs the push to develop already ran; a fork branch named develop is not skipped.
+    if: ${{ github.event_name == 'pull_request' && !(github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

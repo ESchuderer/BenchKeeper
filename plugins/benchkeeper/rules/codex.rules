@@ -1,7 +1,0 @@
-# Commands that are hard to undo: Codex asks before running them. Rules match a command prefix only, so a flag after
-# other arguments (git push origin main --force) is not caught; the global rules cover that case in prose.
-prefix_rule(pattern = ["gh", "pr", "merge"], decision = "prompt", match = ["gh pr merge 12 --squash"])
-prefix_rule(pattern = ["git", "push", ["--force", "-f", "--force-with-lease"]], decision = "prompt", match = ["git push --force origin main", "git push -f"], not_match = ["git push origin main"])
-prefix_rule(pattern = ["git", "reset", "--hard"], decision = "prompt", match = ["git reset --hard HEAD~1"], not_match = ["git reset HEAD file"])
-prefix_rule(pattern = ["git", "branch", "-D"], decision = "prompt", match = ["git branch -D old"], not_match = ["git branch -d old"])
-prefix_rule(pattern = ["git", "clean"], decision = "prompt", match = ["git clean -fd"])

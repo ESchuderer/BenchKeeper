@@ -39,7 +39,8 @@ const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
 
-export const ASK = ['Bash(gh pr merge *)', 'Bash(git push *--force*)', 'Bash(git push -f*)', 'Bash(git push * -f*)', 'Bash(git push * +*)', 'Bash(git reset --hard*)', 'Bash(git reset * --hard*)', 'Bash(git branch -D *)', 'Bash(git branch * -D*)', 'Bash(git clean *)'];
+// Ask rules of setup-v6.3 and before: removed again, Claude Code's auto mode decides what needs a prompt.
+export const ASK_OUT = ['Bash(gh pr merge *)', 'Bash(git push *--force*)', 'Bash(git push -f*)', 'Bash(git push * -f*)', 'Bash(git push * +*)', 'Bash(git reset --hard*)', 'Bash(git reset * --hard*)', 'Bash(git branch -D *)', 'Bash(git branch * -D*)', 'Bash(git clean *)'];
 const CLAUDE_KEYS = [
   [['advisorModel'], 'opus'], [['remoteControlAtStartup'], true], [['showClearContextOnPlanAccept'], true],
   [['cleanupPeriodDays'], 14], [['autoUpdatesChannel'], 'stable'],
@@ -149,9 +150,10 @@ export function globalPlan(env) {
   }
   if (agents.includes('codex') && exists(at('.codex/AGENTS.override.md'))) add('rules:codex:other', 'Codex rules override ~/.codex/AGENTS.override.md', { kind: 'remove', path: at('.codex/AGENTS.override.md') });
 
-  // Commands that are hard to undo ask first.
-  if (agents.includes('claude')) add('ask:claude', 'Claude Code asks before gh pr merge, force push, git reset --hard, git branch -D, git clean', { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['permissions', 'ask'], append: ASK }]) });
-  if (agents.includes('codex')) add('ask:codex', 'Codex asks before gh pr merge, force push, git reset --hard, git branch -D, git clean', { kind: 'write', path: at('.codex/rules/benchkeeper.rules'), after: readFileSync(join(contentDir, 'rules/codex.rules'), 'utf8') });
+  // Earlier setups added ask rules for gh pr merge, force push and the like: they go.
+  const settingsText = readText(at('.claude/settings.json')) ?? '';
+  if (agents.includes('claude') && ASK_OUT.some((x) => settingsText.includes(x))) add('ask:claude', 'Claude Code no longer asks before gh pr merge, force push, git reset --hard, git branch -D, git clean (BenchKeeper ask rules removed)', { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['permissions', 'ask'], pull: ASK_OUT }, { path: ['permissions'], prune: true }]) });
+  if (exists(at('.codex/rules/benchkeeper.rules'))) add('ask:codex', 'Codex no longer asks before gh pr merge, force push, git reset --hard, git branch -D, git clean (BenchKeeper rules file removed)', { kind: 'remove', path: at('.codex/rules/benchkeeper.rules') });
 
   // Plugins (Claude Code, Codex) or skill copies (agents without plugins).
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {

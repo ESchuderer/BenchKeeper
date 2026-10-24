@@ -690,7 +690,7 @@ export function Sessions() {
       </Group>
       {error && <Note color="red">{error}</Note>}
       {job && <Stack gap={4}><Text size="sm">Reading transcripts{p ? `: ${p.done} of ${p.total} files` : ''}</Text><Progress value={p?.total ? (p.done / p.total) * 100 : 0} aria-label="Transcripts read" /></Stack>}
-      {src && <iframe ref={frame} key={shown} src={src} title="Sessions board" style={{ display: 'block', width: '100%', height, border: 0 }} />}
+      {src && <iframe ref={frame} key={shown} src={src} title="Sessions board" onLoad={() => frame.current?.contentWindow?.postMessage({ bkTheme: theme.current }, window.location.origin)} style={{ display: 'block', width: '100%', height, border: 0 }} />}
       <Cli>benchkeeper board</Cli>
     </Stack>
   );

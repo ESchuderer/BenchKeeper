@@ -40,8 +40,8 @@ const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y 
 
 test('every series color holds 3:1 against its surface, in light and dark', () => {
   const css = boardHtml([], '2026-10-23T00:00:00Z').match(/<style>([\s\S]*?)<\/style>/)[1];
-  const dark = css.match(/:root\[data-theme="dark"\] \{([^}]*)\}/)[1], light = css.match(/:root \{ color-scheme: light;([^}]*)\}/)[1];
-  for (const [name, block] of [['light', light], ['dark', dark]]) {
+  const dark = css.match(/:root\[data-theme="dark"\] \{([^}]*)\}/)[1], system = css.match(/:where\(:not\(\[data-theme="light"\]\)\) \{([^}]*)\}/)[1], light = css.match(/:root \{ color-scheme: light;([^}]*)\}/)[1];
+  for (const [name, block] of [['light', light], ['dark', dark], ['system dark', system]]) {
     const v = (k) => block.match(new RegExp(`--${k}: (#[0-9a-f]{6})`))[1];
     for (const k of ['s1', 's2', 's3', 's4']) assert.ok(contrast(v(k), v('surface')) >= 3, `${name} ${k} ${v(k)} on ${v('surface')}: ${contrast(v(k), v('surface')).toFixed(2)}`);
   }

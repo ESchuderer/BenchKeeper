@@ -87,8 +87,10 @@ function draw() {
   const ranked = new Map();
   for (const r of rows) ranked.set(setupKey(r), (ranked.get(setupKey(r)) ?? 0) + 1);
   const TOP = [...ranked].sort((a, b) => b[1] - a[1]).slice(0, SERIES).map(([k]) => k);
-  const slot = (r) => (TOP.includes(setupKey(r)) ? setupKey(r) : 'Other');
-  const color = (k) => (k === 'Other' ? 'var(--other)' : `var(--s${TOP.indexOf(k) + 1})`);
+  // A filtered list of at most SERIES setups names them all; a setup outside the top ones takes a color no shown top one uses.
+  let named = TOP, extra = new Map();
+  const slot = (r) => (named.includes(setupKey(r)) ? setupKey(r) : 'Other');
+  const color = (k) => (k === 'Other' ? 'var(--other)' : `var(--s${(TOP.includes(k) ? TOP.indexOf(k) : extra.get(k)) + 1})`);
 
   function sparkline(values) {
     const w = 120, h = 28, max = Math.max(...values, 1);
@@ -115,17 +117,23 @@ function draw() {
 
   // The drawn chart, for the keyboard and the readout.
   let drawn = null;
-  function chart(list, span) {
+  function chart(list, span, keep = null) {
+    drawn?.clear();
+    $('chart-table').parentElement.hidden = false;
     const isCost = metric.value === 'cost';
     const value = (r) => (isCost ? r.costUSD ?? 0 : (r.busyMs ?? 0) / 3600e3);
     const text = (v) => (isCost ? money(v) : dur(v * 3600e3));
+    const distinct = [...new Set(list.map(setupKey))];
+    named = distinct.length <= SERIES ? distinct : TOP;
+    const free = [...Array(SERIES).keys()].filter((i) => !distinct.includes(TOP[i]));
+    extra = new Map(named.filter((k) => !TOP.includes(k)).map((k) => [k, free.shift()]));
     const present = new Set(list.map(slot));
-    const keys = [...TOP, 'Other'].filter((k) => present.has(k));
+    const keys = [...TOP, ...extra.keys(), 'Other'].filter((k) => present.has(k));
     // One pass over the sessions: per day and series.
     const byDay = new Map();
     for (const r of list) {
-      const d = day(r.start), m = byDay.get(d) ?? new Map();
-      m.set(slot(r), (m.get(slot(r)) ?? 0) + value(r));
+      const d = day(r.start), m = byDay.get(d) ?? new Map(), k = slot(r);
+      m.set(k, (m.get(k) ?? 0) + value(r));
       byDay.set(d, m);
     }
     const stacks = span.map((d) => ({ d, parts: keys.map((k) => byDay.get(d)?.get(k) ?? 0) }));
@@ -145,13 +153,13 @@ function draw() {
     svg.append(band);
     const tip = $('tip');
     let active = null;
-    const clear = () => { active = null; band.setAttribute('visibility', 'hidden'); tip.replaceChildren(); };
+    const clear = () => { active = null; band.setAttribute('visibility', 'hidden'); tip.replaceChildren(); $('tip-live').textContent = ''; };
     const choose = (i, announce) => {
       active = Math.max(0, Math.min(stacks.length - 1, i));
       const s = stacks[active], total = sum(s.parts);
       band.setAttribute('x', L + active * step);
       band.setAttribute('visibility', 'visible');
-      const items = total ? [...keys.map((k, j) => s.parts[j] && el('span', { class: 'key' }, el('span', { class: 'swatch', style: `background:${color(k)}` }), `${k} ${text(s.parts[j])}`)).filter(Boolean), el('span', {}, `Total ${text(total)}`)] : ['no sessions'];
+      const items = byDay.has(s.d) ? [...keys.map((k, j) => s.parts[j] && el('span', { class: 'key' }, el('span', { class: 'swatch', style: `background:${color(k)}` }), `${k} ${text(s.parts[j])}`)).filter(Boolean), el('span', {}, `Total ${text(total)}`)] : ['no sessions'];
       tip.replaceChildren(el('strong', {}, `${s.d} `), ...items);
       if (announce) $('tip-live').textContent = tip.textContent;
     };
@@ -175,13 +183,16 @@ function draw() {
       svg.append(hit);
     });
     drawn = { count: stacks.length, get active() { return active; }, choose, clear };
+    const c = $('chart');
+    c.setAttribute('tabindex', '0'); c.setAttribute('role', 'group'); c.setAttribute('aria-label', 'Per day by setup. The left and right arrow keys read each day, Escape closes the reading.');
     $('legend').replaceChildren(...keys.map((k) => el('span', { class: 'key' }, el('span', { class: 'swatch', style: `background:${color(k)}` }), k)));
     $('chart').replaceChildren(svg);
-    $('chart-table').replaceChildren(table('Per day, days without sessions left out', ['Day', ...keys, 'Total'], stacks.filter((s) => sum(s.parts)).map((s) => [s.d, ...s.parts.map(text), text(sum(s.parts))])));
+    if (keep != null) choose(keep);
+    $('chart-table').replaceChildren(table('Per day, days without sessions left out', ['Day', ...keys, 'Total'], stacks.filter((s) => byDay.has(s.d)).map((s) => [s.d, ...s.parts.map(text), text(sum(s.parts))])));
   }
   // The keyboard reads the chart day by day; Escape closes the readout.
   $('chart').addEventListener('keydown', (e) => {
-    if (!drawn) return;
+    if (!drawn || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const to = { ArrowRight: (drawn.active ?? -1) + 1, ArrowLeft: (drawn.active ?? drawn.count) - 1, Home: 0, End: drawn.count - 1 }[e.key];
     if (e.key === 'Escape') drawn.clear();
     else if (to != null) { drawn.choose(to, true); e.preventDefault(); }
@@ -210,7 +221,14 @@ function draw() {
   let current = [], last = null, announced = null;
   // A region that scrolls sideways is a Tab stop, so the keyboard can scroll it; one that fits is not.
   const scrollStops = () => document.querySelectorAll('main > section').forEach((s) => (s.scrollWidth > s.clientWidth ? s.setAttribute('tabindex', '0') : s.removeAttribute('tabindex')));
-  addEventListener('resize', () => { cancelAnimationFrame(last); last = requestAnimationFrame(() => { chart(current, days(current)); scrollStops(); }); });
+  // The frame's own height changes (the page grows to fit) fire resize too: only a new width redraws.
+  let width = innerWidth;
+  addEventListener('resize', () => {
+    if (innerWidth === width) return;
+    width = innerWidth;
+    cancelAnimationFrame(last);
+    last = requestAnimationFrame(() => { if (current.length) chart(current, days(current), drawn?.active); scrollStops(); });
+  });
   function renderTable(list) {
     const q = state.q;
     const shown = list.filter((r) => !q || [r.title, r.project, r.branch, setupKey(r), r.tier?.last, r.tier?.changeType, ...r.skills].some((x) => x && x.toLowerCase().includes(q))).slice(0, 300);
@@ -238,8 +256,10 @@ function draw() {
     if (!list.length) {
       // One sentence per section instead of header-only tables and an empty axis.
       drawn = null;
+      for (const a of ['tabindex', 'role', 'aria-label']) $('chart').removeAttribute(a);
       for (const id of ['chart', 'by-tier', 'by-setup', 'by-change', 'skills']) $(id).replaceChildren(el('p', { class: 'muted' }, 'No sessions match these filters.'));
-      for (const id of ['legend', 'chart-table', 'tip']) $(id).replaceChildren();
+      for (const id of ['legend', 'chart-table', 'tip', 'tip-live']) $(id).replaceChildren();
+      $('chart-table').parentElement.hidden = true;
       renderTable(list);
       return;
     }
@@ -286,7 +306,7 @@ caption { text-align: left; padding-bottom: 6px; }
 th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
 thead th { font-weight: 600; } tbody th { font-weight: 400; }
 .rank { display: flex; align-items: center; gap: 8px; } .rank-bar { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--s1); max-width: 240px; flex: none; }
-#tip { display: flex; flex-wrap: wrap; gap: 2px 14px; min-height: 1.45em; margin: 4px 0; }
+#tip { display: flex; flex-wrap: wrap; gap: 2px 14px; min-height: 2.9em; margin: 4px 0; }
 #chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mark, .swatch { forced-color-adjust: none; }
 .sr, .framed h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

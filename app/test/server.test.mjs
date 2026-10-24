@@ -554,6 +554,8 @@ test('apply-all: a plan that expired or was never made is a 409 and nothing runs
   assert.equal(status(() => routes['POST /api/apply-all']({ sections: [] })), 400);
   const { projects } = plansOf(routes);
   assert.equal(status(() => routes['POST /api/apply-all']({ sections: [{ planId: projects[0].planId }, { planId: 'gone' }] })), 409);
+  // One plan is single-use, also within one request.
+  assert.equal(status(() => routes['POST /api/apply-all']({ sections: [{ planId: projects[0].planId }, { planId: projects[0].planId }] })), 400);
   // The plan that was fine stays usable: the whole request is refused before anything is taken.
   const { job } = routes['POST /api/apply-all']({ sections: [{ planId: projects[0].planId, select: defaults(projects[0]) }] });
   assert.ok(job);

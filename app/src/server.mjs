@@ -191,18 +191,16 @@ export function api(ctx) {
         if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
         return { id: x.planId, p, select: Array.isArray(x.select) ? x.select.filter((i) => typeof i === 'string') : undefined };
       });
+      if (new Set(list.map((x) => x.id)).size < list.length) throw bad('a plan can be applied once: each section needs its own planId');
       for (const { id } of list) plans.delete(id);
       return start(list.length, async (job) => {
-        job.sections = list.map(({ p, select }) => ({ scope: p.scope, title: p.scope === 'global' ? 'Global setup' : p.scope, total: select?.length ?? p.changes.filter((c) => c.selected).length, status: 'waiting', run: null, output: {}, error: null }));
+        job.sections = list.map(({ p, select }) => ({ scope: p.scope, title: p.scope === 'global' ? 'Global setup' : p.scope, total: select?.length ?? p.changes.filter((c) => c.selected).length, status: 'waiting', run: null, error: null }));
         for (const [i, { p, select }] of list.entries()) {
           const s = job.sections[i];
           if (job.ctl.signal.aborted) { s.status = 'cancelled'; continue; }
           s.status = 'running';
           try {
-            const run = await applyAsync(p.changes, p.ctx, { scope: p.scope, select, stop: () => job.ctl.signal.aborted }, (e) => {
-              if (e.run) s.run = e.run;
-              if (e.output) s.output[e.entry.id] = ((s.output[e.entry.id] ?? '') + e.output).slice(-8192);
-            });
+            const run = await applyAsync(p.changes, p.ctx, { scope: p.scope, select, stop: () => job.ctl.signal.aborted }, (e) => { if (e.run) s.run = e.run; });
             s.run = run;
             s.status = run.status;
             if (run.status === 'failed') s.error = run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ');

@@ -58,24 +58,27 @@ export function OneRunButtons() {
 // Open until the run is over: the drawer sits in the app shell, so a view change does not end a run.
 export function OneRunDrawer({ mode, onClose }) {
   const [busy, setBusy] = useState(false);
+  // The review holds minutes of agent work: only the Close button leaves it, not a stray Escape or click.
+  const [reviewing, setReviewing] = useState(false);
   const close = () => { if (!busy) onClose(); };
   return (
-    <Drawer opened={!!mode} onClose={close} position="right" size="xl" withCloseButton={false} closeOnEscape={!busy} closeOnClickOutside={!busy} attributes={{ content: { 'aria-label': 'One-run setup' } }}>
+    <Drawer opened={!!mode} onClose={close} position="right" size="xl" withCloseButton={false} closeOnEscape={!busy && !reviewing} closeOnClickOutside={!busy && !reviewing} attributes={{ content: { 'aria-label': 'One-run setup' } }}>
       {mode && (
         <Stack gap="md">
           <Group justify="space-between">
             <Title order={2} size="h3">One-run setup</Title>
             <Button variant="default" disabled={busy} onClick={close}>Close</Button>
           </Group>
-          <Flow mode={mode} setBusy={setBusy} />
+          <Flow key={mode} mode={mode} setBusy={setBusy} setReviewing={setReviewing} />
         </Stack>
       )}
     </Drawer>
   );
 }
 
-function Flow({ mode, setBusy }) {
+function Flow({ mode, setBusy, setReviewing }) {
   const [stage, setStage] = useState('start');
+  useEffect(() => { setReviewing(stage === 'review'); return () => setReviewing(false); }, [stage]);
   const [items, setItems] = useState([]);
   const [prepared, setPrepared] = useState(false);
   const [job, setJob] = useState(null);
@@ -205,6 +208,8 @@ function Prepare({ items, prepared, onCancel, onReview, onStartOver }) {
 function Review({ items, patch, onStartOver, onApply }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // A project whose answers changed waits for its new plan: the old one would write what the page no longer shows.
+  const stale = items.some((i) => i.answers && i.builtFor !== JSON.stringify(i.answers));
   const sections = items.filter((i) => i.plan && !i.planError && i.include && i.select.length);
   const total = sections.reduce((n, i) => n + i.select.length, 0);
   const apply = async () => {
@@ -222,7 +227,7 @@ function Review({ items, patch, onStartOver, onApply }) {
       {error && <Note color="red" title="Apply failed">{error}</Note>}
       <Group justify="space-between">
         <Button variant="default" onClick={onStartOver}>Start over</Button>
-        <Button leftSection={icon(IconPlayerPlay)} loading={busy} disabled={!sections.length} onClick={apply}>Apply {total} changes in {sections.length} sections</Button>
+        <Button leftSection={icon(IconPlayerPlay)} loading={busy} disabled={!sections.length || stale} onClick={apply}>Apply {total} changes in {sections.length} sections</Button>
       </Group>
     </Stack>
   );
@@ -265,13 +270,12 @@ function PlanBody({ plan, select, setSelect }) {
 function Answers({ item, patch }) {
   const { key, path, setup, answers } = item;
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const now = JSON.stringify(answers);
+  const busy = item.builtFor !== now;
   useEffect(() => {
     if (item.builtFor === now) return undefined;
     let live = true;
-    setBusy(true);
-    projectPlanOf(path, answers).then((plan) => live && patch(key, { plan, builtFor: now, select: defaultSelect(plan), planError: null }), (e) => live && patch(key, { builtFor: now, planError: e.message })).finally(() => live && setBusy(false));
+    projectPlanOf(path, answers).then((plan) => live && patch(key, { plan, builtFor: now, select: defaultSelect(plan), planError: null }), (e) => live && patch(key, { builtFor: now, planError: e.message }));
     return () => { live = false; };
   }, [now]);
   const set = (k) => (v) => patch(key, (i) => ({ answers: { ...i.answers, [k]: v } }));

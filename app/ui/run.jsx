@@ -100,7 +100,7 @@ function EntryBody({ e, mode, out }) {
 
 // One run as a report: what it did to each file and command, with undo per step and for the run.
 // output: what the commands printed, by change id, while the apply's job is known; the ledger does not keep it.
-export function RunReport({ run: r, onUndo, busy, order = 2, output }) {
+export function RunReport({ run: r, onUndo, busy, order = 3, output }) {
   const [mode, setMode] = useDiffMode();
   const diffs = r.entries.flatMap((e) => [e.diff, ...(e.files ?? []).map((f) => f.diff)]).filter(Boolean);
   const lines = useMemo(() => diffs.map(parseDiff).reduce((s, d) => ({ added: s.added + d.added, removed: s.removed + d.removed }), { added: 0, removed: 0 }), [r]);

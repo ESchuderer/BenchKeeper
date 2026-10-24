@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
+import { PROFILES, baselineIssues } from './baseline.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { addCase } from './cases.mjs';
 import { doctor } from './doctor.mjs';
@@ -35,7 +36,10 @@ Usage: benchkeeper <command> [options]
   profile export [file] [--agents a,b]
                                     agents, packs, own packs and registered projects with their answers as one file
   profile import <file> [--yes]     shows the global and project changes, applies the chosen ones; missing paths are skipped
-  doctor [dir] [--agents a,b]       setup problems with a fix each, nothing written; exit 1 on an error
+  doctor [dir] [--agents a,b] [--baseline auto|oss|private-advisory] [--baseline-ref ref]
+                                    setup problems with a fix each, nothing written; exit 1 on an error;
+                                    --baseline also compares the GitHub settings and caller workflows with a
+                                    repo-baseline profile (read-only gh api; auto: advisory for private repositories)
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--transcript file] [--description text] [--query text]
                                     records an observed miss as an eval case (~/.config/benchkeeper/evals/)
@@ -48,11 +52,12 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
-                    [--disable s] [--enable s] [--share|--local]
+                    [--disable s] [--enable s] [--share|--local] [--caller promote|lint-js|lint-python|sonar]
                                     project setup; answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
-                                    --disable moves a skill to .benchkeeper/disabled/, --enable moves it back
+                                    --disable moves a skill to .benchkeeper/disabled/, --enable moves it back;
+                                    --caller writes that repo-baseline workflow file (never GitHub settings)
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (~/.config/benchkeeper/packs/)
   projects [list|add <dir>..|scan <root>|remove <dir>]
@@ -60,9 +65,11 @@ Usage: benchkeeper <command> [options]
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
-  update-all [--yes] [--no-push]    per project: local setup (the default) applied in the checkout; shared setup
+  update-all [--yes] [--no-push] [--baseline auto|oss|private-advisory]
+                                    per project: local setup (the default) applied in the checkout; shared setup
                                     (project apply --share) on branch chore/agent-setup-<version> in a worktree,
-                                    one commit, push and pull request when origin is on GitHub
+                                    one commit, push and pull request when origin is on GitHub;
+                                    --baseline also reports each project's GitHub settings drift, changing none
   board [--no-open]                 sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
   record [--project dir] -- <agent> [args]
@@ -78,6 +85,7 @@ const OPTIONS = {
   'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
   target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
+  baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -163,7 +171,7 @@ async function command(argv, { out, ask, ctx }) {
     const dir = resolve(positionals[2] ?? '.');
     if (o.share && o.local) { out.write('--share and --local exclude each other\n'); return 2; }
     const pctx = projectCtx(ctx, dir);
-    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable };
+    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller };
     const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
     const plan = preview(changes);
     if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
@@ -218,6 +226,13 @@ async function command(argv, { out, ask, ctx }) {
       out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
       if ((p.clean || !commits) && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
     }
+    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
+    if (o.baseline) {
+      for (const p of projects) {
+        out.write(`${p.path}  GitHub settings against profile ${o.baseline} (report only)\n`);
+        for (const i of baselineIssues(ctx, p.path, { profile: o.baseline, ref: o['baseline-ref'] })) out.write(`  ${(i.tag ?? i.level).padEnd(8)} ${i.message}\n`);
+      }
+    }
     // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
     const ready = projects.filter((p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
@@ -268,7 +283,8 @@ async function command(argv, { out, ask, ctx }) {
     return code;
   }
   if (cmd === 'doctor') {
-    const found = doctor(ctx, { agents: selectedAgents(ctx, o.agents), dir: resolve(arg ?? '.') });
+    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
+    const found = doctor(ctx, { agents: selectedAgents(ctx, o.agents), dir: resolve(arg ?? '.'), baseline: o.baseline && { profile: o.baseline, ref: o['baseline-ref'] } });
     for (const i of found) out.write(`${(i.tag ?? i.level).padEnd(8)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
     out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
     return found.some((i) => i.level === 'error') ? 1 : 0;

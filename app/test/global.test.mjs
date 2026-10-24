@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { contentDir } from '../src/content.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { inventory } from '../src/inventory.mjs';
-import { PLUGINS, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
+import { PLUGINS, benchkeeperPlugin, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
 
 // Stubs: one foreign plugin, marketplace and MCP server per agent; installs and removals change what the lists show.
 function machine({ failCodexInstall = false } = {}) {
@@ -232,6 +232,28 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
   rmSync(join(home, '.codex/plugins/cache/benchkeeper'), { recursive: true });
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), ['codex plugin add benchkeeper@benchkeeper']);
+});
+
+test('the BenchKeeper plugin behind the app is updated by apply; the next plan is empty', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-self-'));
+  const installedFile = join(home, '.claude/plugins/installed_plugins.json');
+  const installAt = (version) => writeFileSync(installedFile, JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version }] } }));
+  const calls = [];
+  const run = (argv) => { calls.push(argv.join(' ')); if (argv.join(' ') === 'claude plugin update benchkeeper@benchkeeper') installAt('6.5.0'); return { code: 0, stdout: '', stderr: '' }; };
+  const ctx = context({ home, appVersion: '6.5.0', run });
+  mkdirSync(join(home, '.claude/plugins'), { recursive: true });
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ benchkeeper: { source: { ref: 'stable' } } }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'benchkeeper@benchkeeper': true } }));
+  const plan = () => globalPlan({ ctx, agents: ['claude'] }).filter((c) => c.step === 'plugin:claude:benchkeeper@benchkeeper');
+  installAt('6.0.0');
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.0.0', available: '6.5.0' });
+  assert.deepEqual(plan().map((c) => c.argv.join(' ')), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
+  assert.equal(apply(plan(), ctx).entries.length, 2);
+  assert.deepEqual(calls.slice(-2), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.5.0', available: '6.5.0' });
+  assert.deepEqual(plan(), []);
+  writeFileSync(installedFile, JSON.stringify({ version: 2, plugins: {} }));
+  assert.equal(benchkeeperPlugin(ctx, 'claude').installed, null);
 });
 
 test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {

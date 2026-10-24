@@ -107,6 +107,12 @@ export function pluginState(ctx, a) {
     ...marketRefs(json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []) };
 }
 
+// The BenchKeeper plugin of an agent: the installed version (null when not installed) and the one this app sets up.
+export function benchkeeperPlugin(ctx, a) {
+  const have = pluginState(ctx, a).listed.find((x) => x.id === 'benchkeeper@benchkeeper');
+  return { installed: have?.version ?? null, available: ctx.appVersion };
+}
+
 // Enabled plugin ids per agent.
 export function installedPlugins(ctx) {
   const ids = (a) => pluginState(ctx, a).listed.filter((p) => p.enabled).map((p) => p.id);

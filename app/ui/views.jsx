@@ -138,6 +138,13 @@ export function Dashboard({ overview, doctor, history, params }) {
         <FixEverythingButton />
       </Group>
       <Section title="Setup flow"><Flow nodes={nodes} /></Section>
+      {agents.some((a) => a.plugin) && (
+        <Section title="BenchKeeper plugin">
+          {agents.filter((a) => a.plugin).map((a) => (
+            <Text key={a.id} size="sm">{a.name}: {a.plugin.installed ? `installed ${a.plugin.installed}` : 'not installed'}, available {a.plugin.available}</Text>
+          ))}
+        </Section>
+      )}
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Section title="Install health"><Loading state={inv} label="inventory">{() => <InstallHealth items={items} />}</Loading></Section>

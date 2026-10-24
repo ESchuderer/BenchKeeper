@@ -140,6 +140,49 @@ test.describe('views', () => {
     await expect(palette).toBeVisible();
   });
 
+  test('first load: the eval charts are fetched only with the Evals view, the inventory once', async ({ page }) => {
+    const urls = [];
+    page.on('request', (r) => urls.push(new URL(r.url()).pathname));
+    await page.goto('/');
+    await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+    expect(urls.filter((u) => u === '/api/inventory')).toHaveLength(1);
+    expect(urls.filter((u) => /\/assets\/evals-.*\.js$/.test(u))).toHaveLength(0);
+    await nav(page, 'Evals').click();
+    await expect(page.getByRole('table', { name: 'Eval targets' })).toBeVisible();
+    expect(urls.filter((u) => /\/assets\/evals-.*\.js$/.test(u))).toHaveLength(1);
+  });
+
+  test('a hidden tab does not poll the running jobs', async ({ page }) => {
+    let jobs = 0;
+    page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/jobs') jobs++; });
+    await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); });
+    await page.waitForTimeout(2200);
+    const hidden = jobs;
+    await page.waitForTimeout(4400);
+    expect(jobs).toBe(hidden);
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
+    await expect.poll(() => jobs).toBeGreaterThan(hidden);
+  });
+
+  test('History: the newest 100 runs, the older ones on request, a linked old run stays listed', async ({ page }) => {
+    await page.route(/\/api\/history(\?|$)/, async (route) => {
+      const real = await (await route.fetch()).json();
+      const old = Array.from({ length: 150 }, (_, i) => ({ ...real[0], id: `old-${i}`, time: new Date(Date.UTC(2020, 0, 1) + i * 864e5).toISOString() })).reverse();
+      await route.fulfill({ json: [...real, ...old] });
+    });
+    await page.reload();
+    await nav(page, 'History').click();
+    const runs = page.getByRole('navigation', { name: 'Runs' }).getByRole('link');
+    await expect(runs).toHaveCount(100);
+    await page.getByRole('button', { name: /^Show \d+ older runs$/ }).click();
+    await expect(runs).toHaveCount(await page.evaluate(async () => (await (await fetch('/api/history', { headers: { 'x-benchkeeper': localStorage.getItem('benchkeeper-key') } })).json()).length));
+    // Opened by its link, an old run is in the list from the start.
+    await page.goto('/#/history?run=old-0');
+    await page.reload();
+    await expect(runs.and(page.locator('[aria-current=true]'))).toHaveCount(1);
+  });
+
   test('Sessions: a scan fills the board frame; a title stays text; no axe violations in the frame, light and dark', async ({ page }) => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');

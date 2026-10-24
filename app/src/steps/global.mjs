@@ -39,8 +39,10 @@ const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
 
-// Ask rules of setup-v6.3 and before: removed again, Claude Code's auto mode decides what needs a prompt.
-export const ASK_OUT = ['Bash(gh pr merge *)', 'Bash(git push *--force*)', 'Bash(git push -f*)', 'Bash(git push * -f*)', 'Bash(git push * +*)', 'Bash(git reset --hard*)', 'Bash(git reset * --hard*)', 'Bash(git branch -D *)', 'Bash(git branch * -D*)', 'Bash(git clean *)'];
+// BenchKeeper adds no permission rules: Claude Code's auto mode (its defaults) decides what needs a prompt. Whatever else sits in
+// permissions.ask or in Codex's rules folder differs from that set and is offered for removal.
+export const PERMISSION_ASK = [];
+const CODEX_OWN_RULES = ['default.rules'];
 const CLAUDE_KEYS = [
   [['advisorModel'], 'opus'], [['remoteControlAtStartup'], true], [['showClearContextOnPlanAccept'], true],
   [['cleanupPeriodDays'], 14], [['autoUpdatesChannel'], 'stable'],
@@ -150,10 +152,15 @@ export function globalPlan(env) {
   }
   if (agents.includes('codex') && exists(at('.codex/AGENTS.override.md'))) add('rules:codex:other', 'Codex rules override ~/.codex/AGENTS.override.md', { kind: 'remove', path: at('.codex/AGENTS.override.md') });
 
-  // Earlier setups added ask rules for gh pr merge, force push and the like: they go.
-  const settingsText = readText(at('.claude/settings.json')) ?? '';
-  if (agents.includes('claude') && ASK_OUT.some((x) => settingsText.includes(x))) add('ask:claude', 'Claude Code no longer asks before gh pr merge, force push, git reset --hard, git branch -D, git clean (BenchKeeper ask rules removed)', { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['permissions', 'ask'], pull: ASK_OUT }, { path: ['permissions'], prune: true }]) });
-  if (exists(at('.codex/rules/benchkeeper.rules'))) add('ask:codex', 'Codex no longer asks before gh pr merge, force push, git reset --hard, git branch -D, git clean (BenchKeeper rules file removed)', { kind: 'remove', path: at('.codex/rules/benchkeeper.rules') });
+  // Offered, not preselected: an ask rule may be the user's own, and a Codex rules file holds the user's saved approvals too.
+  if (agents.includes('claude')) {
+    const ask = parseJson(readText(at('.claude/settings.json')) ?? '{}').permissions?.ask;
+    for (const rule of (Array.isArray(ask) ? ask : []).filter((x) => !PERMISSION_ASK.includes(x))) add(`ask:claude:${rule}`, `Claude Code ask rule ${rule} (BenchKeeper adds none: auto mode decides what needs a prompt)`, { kind: 'write', path: at('.claude/settings.json'), destructive: true, edit: (t) => mergeJson(t, [{ path: ['permissions', 'ask'], pull: [rule] }, { path: ['permissions'], prune: true }]) });
+  }
+  if (agents.includes('codex')) {
+    const dir = at('.codex/rules');
+    for (const f of (exists(dir) ? readdirSync(dir) : []).filter((x) => !CODEX_OWN_RULES.includes(x))) add(`ask:codex:${f}`, `Codex command rules file ${f} (BenchKeeper adds none)`, { kind: 'remove', path: join(dir, f) });
+  }
 
   // Plugins (Claude Code, Codex) or skill copies (agents without plugins).
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {

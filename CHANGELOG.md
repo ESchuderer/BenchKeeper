@@ -4,7 +4,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 
 ## setup-v6.4 (2026-10-24)
 
-- No ask rules and no approval line in the rules: Claude Code's auto mode (its defaults) decides what needs a prompt. `gh pr merge`, force push, `git reset --hard`, `git branch -D` and `git clean` run without BenchKeeper asking first. The rule that required the user's go before hard-to-undo actions and merges is gone, as is the Codex command rules file. Global setup removes the ask rules that earlier versions added, as a change of its own with undo.
+- No ask rules and no approval line in the rules: Claude Code's auto mode (its defaults) decides what needs a prompt. `gh pr merge`, force push, `git reset --hard`, `git branch -D` and `git clean` run without BenchKeeper asking first. The rule that required the user's go before hard-to-undo actions and merges is gone, as is the Codex command rules file. Global setup compares `permissions.ask` in the Claude Code settings and the files in the Codex rules folder with the set BenchKeeper wants (none) and offers each difference for removal, one change per rule or file, off by default so your own rules stay unless you pick them.
 - Plugin `version` 6.4.0.
 - Upgrade: update the plugin, then `npx benchkeeper@6.4.0 apply`.
 

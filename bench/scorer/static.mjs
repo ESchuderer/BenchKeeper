@@ -1,9 +1,9 @@
 // Static file server for briefs scored with "serve": "static" (brief.json). Usage: node static.mjs <dir>; port from PORT.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 
-const root = process.argv[2];
+const root = resolve(process.argv[2]);
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
@@ -11,10 +11,11 @@ const TYPES = {
 };
 createServer(async (req, res) => {
   try {
-    // normalize() on an absolute path never climbs above the root.
-    let p = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname));
+    let p = normalize(decodeURIComponent(new URL(req.url, 'https://localhost').pathname));
     if (p.endsWith('/')) p += 'index.html';
-    const body = await readFile(join(root, p));
+    const file = join(root, p);
+    if (!file.startsWith(root + sep)) throw new Error('outside the root');
+    const body = await readFile(file);
     res.writeHead(200, { 'content-type': TYPES[extname(p)] || 'application/octet-stream' });
     res.end(body);
   } catch {

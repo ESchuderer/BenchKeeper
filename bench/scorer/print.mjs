@@ -4,7 +4,7 @@
 // Usage: node bench/scorer/print.mjs <app-dir> <brief.md> [rendered-detail.html]   prints JSON; the app is served on localhost
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
@@ -14,12 +14,15 @@ const pdfPages = (pdf) => (pdf.toString('latin1').match(/\/Type\s*\/Page(?![s\w]
 
 export const cartridgeNames = (brief) => readFileSync(brief, 'utf8').split('\n').flatMap((l) => (l.startsWith('{') ? [JSON.parse(l).name] : []));
 
-function serve(dir) {
+export function serve(dir) {
+  const root = resolve(dir);
   const server = createServer((req, res) => {
-    let p = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname));
-    if (p.endsWith('/')) p += 'index.html';
     try {
-      const body = readFileSync(join(dir, p));
+      let p = normalize(decodeURIComponent(new URL(req.url, 'https://localhost').pathname));
+      if (p.endsWith('/')) p += 'index.html';
+      const file = join(root, p);
+      if (!file.startsWith(root + sep)) throw new Error('outside the root');
+      const body = readFileSync(file);
       res.writeHead(200, { 'content-type': MIME[extname(p)] || 'application/octet-stream' }).end(body);
     } catch { res.writeHead(404).end(); }
   });
@@ -55,6 +58,7 @@ export async function measurePrint(dir, names, detailOut) {
   try {
     const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
     for (const name of names) {
+      /** @type {{ name: string, pages: number | null, width_share: number | null, pass: boolean, error?: string }} */
       const r = { name, pages: null, width_share: null, pass: false };
       try {
         await page.emulateMedia({ media: null });

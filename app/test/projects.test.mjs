@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -12,11 +12,13 @@ import { addProject, canon, listProjects, prefetchOrigins, removeProject, scan, 
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
+// Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
+const TMP = realpathSync(tmpdir());
 
-const home = () => mkdtempSync(join(tmpdir(), 'bk-home-'));
+const home = () => mkdtempSync(join(TMP, 'bk-home-'));
 // A project set up by an older setup version, committed on main, with a local bare origin (not GitHub).
 function project(h) {
-  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  const dir = mkdtempSync(join(TMP, 'bk-proj-'));
   const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 't@example.com');
@@ -28,7 +30,7 @@ function project(h) {
   writeFileSync(join(dir, STATE), JSON.stringify({ ...state, setupVersion: '5.0.0' }));
   git('add', '-A');
   git('commit', '-qm', 'init');
-  const origin = mkdtempSync(join(tmpdir(), 'bk-origin-'));
+  const origin = mkdtempSync(join(TMP, 'bk-origin-'));
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin]);
   git('remote', 'add', 'origin', origin);
   git('push', '-q', 'origin', 'main');
@@ -38,7 +40,7 @@ function project(h) {
 test('registry: add, list, remove; scan finds folders with an agent setup', () => {
   const h = home();
   const ctx = context({ home: h });
-  const root = mkdtempSync(join(tmpdir(), 'bk-scan-'));
+  const root = mkdtempSync(join(TMP, 'bk-scan-'));
   for (const d of ['a', 'b/c', 'node_modules/x']) { mkdirSync(join(root, d), { recursive: true }); writeFileSync(join(root, d, 'AGENTS.md'), '#\n'); }
   mkdirSync(join(root, 'e'));
   assert.deepEqual(scan(root).map((d) => d.slice(canon(root).length + 1)).sort(), ['a', 'b/c']);
@@ -53,10 +55,10 @@ test('registry: add, list, remove; scan finds folders with an agent setup', () =
 test('registry: one folder is one project, also through a symlink, in the registry and in the scan', async () => {
   const h = home();
   const ctx = context({ home: h });
-  const real = mkdtempSync(join(tmpdir(), 'bk-real-'));
+  const real = mkdtempSync(join(TMP, 'bk-real-'));
   mkdirSync(join(real, 'app'));
   writeFileSync(join(real, 'app', 'AGENTS.md'), '#\n');
-  const link = join(mkdtempSync(join(tmpdir(), 'bk-link-')), 'Projects');
+  const link = join(mkdtempSync(join(TMP, 'bk-link-')), 'Projects');
   symlinkSync(real, link);
   addProject(ctx, join(real, 'app'));
   addProject(ctx, join(link, 'app'));
@@ -169,7 +171,7 @@ test('a project with changes, without a state file or outside git stops alone; t
   const dirty = project(h);
   writeFileSync(join(dirty.dir, 'README.md'), 'edited\n');
   const ok = project(h);
-  const plain = mkdtempSync(join(tmpdir(), 'bk-plain-'));
+  const plain = mkdtempSync(join(TMP, 'bk-plain-'));
   const res = updateAll(ctx, { paths: [dirty.dir, plain, ok.dir] });
   assert.deepEqual(res.map((r) => r.status), ['stopped', 'stopped', 'committed']);
   assert.match(res[0].reason, /working tree has changes/);
@@ -180,7 +182,7 @@ test('a project with changes, without a state file or outside git stops alone; t
 test('a project without a state file is set up on the branch from answers; the checkout stays as it was', () => {
   const h = home();
   const ctx = context({ home: h });
-  const dir = mkdtempSync(join(tmpdir(), 'bk-fresh-'));
+  const dir = mkdtempSync(join(TMP, 'bk-fresh-'));
   const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 't@example.com');
@@ -200,7 +202,7 @@ test('a project without a state file is set up on the branch from answers; the c
 test('a changed setup lands on the branch with its cleanups; an empty tier clears the saved one', () => {
   const h = home();
   const ctx = context({ home: h });
-  const dir = mkdtempSync(join(tmpdir(), 'bk-change-'));
+  const dir = mkdtempSync(join(TMP, 'bk-change-'));
   const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe', encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 't@example.com');
@@ -216,7 +218,7 @@ test('a changed setup lands on the branch with its cleanups; an empty tier clear
   assert.throws(() => git('show', `${r.branch}:CLAUDE.md`));
   assert.deepEqual(JSON.parse(git('show', `${r.branch}:.claude/settings.json`)), {});
   // A sandbox the user turned on is offered for removal, not counted as pending.
-  const own = mkdtempSync(join(tmpdir(), 'bk-own-'));
+  const own = mkdtempSync(join(TMP, 'bk-own-'));
   mkdirSync(join(own, '.claude'));
   writeFileSync(join(own, '.claude/settings.json'), '{ "sandbox": { "enabled": true } }\n');
   const octx = context({ home: h, roots: [own] });
@@ -260,7 +262,7 @@ test('update-all shows the plan, asks once, and --yes --no-push commits without 
 });
 
 test('status counts the skills each chosen agent reads in the project; turned-off ones and folders without SKILL.md not', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'bk-skills-'));
+  const dir = mkdtempSync(join(TMP, 'bk-skills-'));
   for (const d of ['.claude/skills/a', '.agents/skills/a', '.agents/skills/b', '.benchkeeper/disabled/c']) {
     mkdirSync(join(dir, d), { recursive: true });
     writeFileSync(join(dir, d, 'SKILL.md'), '---\nname: x\n---\n');
@@ -275,7 +277,7 @@ test('status and Update all read the state file on the fetched default branch wh
   const ctx = context({ home: h });
   const p = project(h);
   // The setup merged on origin from another clone; this checkout has not fetched or pulled it.
-  const other = mkdtempSync(join(tmpdir(), 'bk-clone-'));
+  const other = mkdtempSync(join(TMP, 'bk-clone-'));
   execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
   writeFileSync(join(other, STATE), JSON.stringify({ ...state, setupVersion: appVersion }));
@@ -308,7 +310,7 @@ test('prefetchOrigins reads origin without blocking and fills the cache status u
   const h = home();
   const ctx = context({ home: h });
   const p = project(h);
-  const other = mkdtempSync(join(tmpdir(), 'bk-clone-'));
+  const other = mkdtempSync(join(TMP, 'bk-clone-'));
   execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
   writeFileSync(join(other, STATE), JSON.stringify({ ...state, setupVersion: appVersion }));

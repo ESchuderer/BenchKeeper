@@ -60,8 +60,11 @@ export class Ledger {
   }
 
   get(id) {
-    if (!/^[\w-]+$/.test(id)) throw new Error(`bad run id: ${id}`);
-    return JSON.parse(readFileSync(join(this.dir, `${id}.json`), 'utf8'));
+    if (typeof id !== 'string' || !/^[\w-]+$/.test(id)) throw Object.assign(new Error(`bad run id: ${id}`), { status: 400 });
+    try { return JSON.parse(readFileSync(join(this.dir, `${id}.json`), 'utf8')); } catch (e) {
+      if (e.code === 'ENOENT') throw Object.assign(new Error(`no run ${id}`), { status: 404 });
+      throw e;
+    }
   }
 
   // Kept until the next save here or a change of the folder (each save renames a file into it, so another process's

@@ -219,8 +219,9 @@ const doneOrTouched = (e) => e.status === 'done' || ((e.status === 'failed' || e
 // Each entry is checked before it changes anything, journaled before the first change, and saved when it ends.
 export function undo(id, ctx, { step } = {}) {
   const source = ctx.ledger.get(id);
-  // Update all worked in a worktree that is gone; its result is a branch and a pull request.
-  if (source.note?.updateAll) throw new Error(`run ${id} is an Update all commit on ${source.note.branch} in ${source.note.updateAll}: close its pull request or delete the branch`);
+  // Update all on a branch worked in a worktree that is gone; its result is a branch and a pull request. A local run
+  // changed the checkout and undoes like any other.
+  if (source.note?.updateAll && source.note.branch) throw new Error(`run ${id} is an Update all commit on ${source.note.branch} in ${source.note.updateAll}: close its pull request or delete the branch`);
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'undo', of: id, scope: source.scope, entries: [] };
   const save = () => { ctx.ledger.save(run); ctx.ledger.save(source); };
   const begin = (entry) => { Object.assign(entry, { status: 'running', touched: true }); save(); };

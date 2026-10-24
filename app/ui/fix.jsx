@@ -1,7 +1,8 @@
 import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Progress, Stack, Stepper, Table, Text, Title } from '@mantine/core';
-import { IconPlayerPlay, IconTool, IconWand } from '@tabler/icons-react';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { IconPlayerPlay, IconPlayerStop, IconTool, IconWand } from '@tabler/icons-react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
+import { updateProjects } from './update.js';
 import { ChangeList, RunProgress, defaultSelect, usePrerun } from './parts.jsx';
 import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
 
@@ -34,19 +35,6 @@ export function DoctorTable({ found, onAction }) {
       </Table>
     </Table.ScrollContainer>
   );
-}
-
-// Update all, one request per project, so the server's synchronous apply stays as it is and each row reports on its own.
-export async function updateProjects(paths, push, onProgress) {
-  const rows = paths.map((path) => ({ path, status: 'pending' }));
-  onProgress([...rows]);
-  for (const [i, row] of rows.entries()) {
-    rows[i] = { ...row, status: 'running' };
-    onProgress([...rows]);
-    try { rows[i] = (await api('/api/update-all', { paths: [row.path], push }))[0] ?? { path: row.path, status: 'stopped', reason: 'no longer registered' }; } catch (e) { rows[i] = { path: row.path, status: 'stopped', reason: e.message }; }
-    onProgress([...rows]);
-  }
-  return rows;
 }
 
 export function UpdateResults({ progress, extra }) {
@@ -107,7 +95,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
         <Stepper.Step label="Projects">
           <Loading state={projects} label="projects">{() => (
             <Stack gap="sm">
-              <Text size="sm">A local setup is written in the checkout, in files git ignores. A setup still committed in the repository gets a pull request that removes it (<Code>chore/agent-setup-local</Code>); after you merge and pull, the next Update all writes it locally. A shared setup gets branch <Code>chore/agent-setup-{version}</Code> in a worktree with one commit, pushed with a pull request when origin is on GitHub.</Text>
+              <Text size="sm">A local setup is written in the checkout, in files git ignores. A shared setup, or one still committed in the repository, gets a branch and a pull request when origin is on GitHub; after you merge the removal of a committed one and pull, the next Update all writes it locally.</Text>
               {list.length ? (
                 <>
                   <Group gap="xs">
@@ -165,9 +153,11 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const [error, setError] = useState(null);
   const [stopped, setStopped] = useState(null);
   const [finished, setFinished] = useState(false);
+  const [stopAsked, setStopAsked] = useState(false);
+  const control = useRef({ stop: false });
   const after = useApi(finished ? '/api/doctor' : null);
   const finish = () => { setFinished(true); setBusy(false); };
-  const projects = () => { setStopped(null); (paths.length ? updateProjects(paths, true, setProgress) : Promise.resolve()).then(finish); };
+  const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, true, setProgress, control.current) : Promise.resolve()).then(finish); };
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
     if (!select?.length) { projects(); return; }
@@ -195,6 +185,11 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
         <Stack gap="xs">
           <Title order={3} size="h5">Projects</Title>
           <UpdateResults progress={progress} />
+          {!finished && (
+            <Group>
+              <Button size="xs" variant="default" leftSection={icon(IconPlayerStop)} disabled={stopAsked} onClick={() => { control.current.stop = true; setStopAsked(true); }}>{stopAsked ? 'Stopping after this project' : 'Stop after this project'}</Button>
+            </Group>
+          )}
         </Stack>
       )}
       {finished && (

@@ -81,7 +81,7 @@ function Flow({ nodes }) {
         </svg>
       </Box>
       <List hiddenFrom="sm" aria-label="Setup flow">
-        {nodes.map((n) => <List.Item key={n.label}><Anchor href={n.href}>{n.label}</Anchor>: {n.value} ({n.status})</List.Item>)}
+        {nodes.map((n) => <List.Item key={n.label}><Anchor href={n.href} underline="always">{n.label}</Anchor>: {n.value} ({n.status})</List.Item>)}
       </List>
     </>
   );
@@ -245,7 +245,7 @@ export function Catalog({ catalog, params, refresh }) {
               <Table.Tbody>
                 {skills.map((s) => (
                   <Table.Tr key={s.name}>
-                    <Table.Td><Checkbox aria-label={`Add ${s.name} to the pack`} checked={picked.includes(s.name)} onChange={() => flip(s.name)} /></Table.Td>
+                    <Table.Td><Checkbox size="md" aria-label={`Add ${s.name} to the pack`} checked={picked.includes(s.name)} onChange={() => flip(s.name)} /></Table.Td>
                     <Table.Td><Anchor href={href('catalog', { skill: s.name })} aria-current={s.name === open ? 'true' : undefined} fw={s.name === open ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{s.name}</Anchor></Table.Td>
                     <Table.Td>{s.projects}</Table.Td>
                   </Table.Tr>
@@ -266,7 +266,7 @@ function SkillDetail({ skill, results }) {
   const text = useApi(skill.source === 'own' ? `/api/skill?name=${encodeURIComponent(skill.name)}` : null);
   return (
     <Stack gap="xs" component="section" aria-label={`Skill ${skill.name}`}>
-      <Group justify="space-between"><Title order={2} size="h3">{skill.name}</Title><Button component="a" href={href('catalog')} variant="subtle">Close</Button></Group>
+      <Group justify="space-between"><Title order={3} size="h3">{skill.name}</Title><Button component="a" href={href('catalog')} variant="subtle">Close</Button></Group>
       <Text>{skill.pickWhen}</Text>
       <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
       {skill.agents === 'codex' && <Badge variant="default">Codex only</Badge>}
@@ -433,7 +433,7 @@ export function Evals({ params }) {
               </Table>
             } detail={latest.some((r) => r.target === open) ? (
               <Stack gap="sm" component="section" aria-label={`Eval ${open}`}>
-                <Title order={2} size="h3">{open}</Title>
+                <Title order={3} size="h3">{open}</Title>
                 <Text size="sm">{series}</Text>
                 <EvalResults results={mine.filter((r) => r.target === open)} />
               </Stack>
@@ -507,7 +507,7 @@ function ProjectDetail({ project, onChange }) {
   return (
     <Stack gap="lg" component="section" aria-label={`Project ${project.path}`}>
       <Group justify="space-between" align="flex-start">
-        <Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{project.path}</Title>
+        <Title order={3} size="h3" style={{ overflowWrap: 'anywhere' }}>{project.path}</Title>
         <Group gap="xs">
           <Button leftSection={icon(IconFolderOpen)} variant="default" onClick={() => api('/api/reveal', { path: project.path }).catch(() => {})}>Open folder</Button>
           {project.setupVersion && !lags(project) && <Button leftSection={icon(IconAdjustments)} variant="default" onClick={onChange.setup}>Change setup</Button>}
@@ -673,7 +673,7 @@ export function History({ history, params, refresh }) {
             <Stack gap="md" component="nav" aria-label="Runs">
               {days.map(([d, rs]) => (
                 <Stack key={d} gap={2}>
-                  <Title order={2} size="h6" tt="uppercase" px="xs">{d}</Title>
+                  <Title order={3} size="h6" tt="uppercase" px="xs">{d}</Title>
                   {rs.map((r) => (
                     <NavLink key={r.id} href={href('history', { run: r.id })} active={r.id === open} aria-current={r.id === open ? 'true' : undefined} variant="light" color="gray"
                       leftSection={<StatusIcon status={r.status ?? 'running'} />} label={runTitle(r)} styles={{ label: { color: 'var(--mantine-color-text)' }, description: { color: 'var(--mantine-color-text)' } }}
@@ -729,7 +729,7 @@ function Profile({ overview, refresh }) {
   );
 }
 
-export function Settings({ overview, refresh }) {
+export function Settings({ overview, refresh, keys }) {
   return (
     <Stack gap="xl">
       <Profile overview={overview} refresh={refresh} />
@@ -738,6 +738,7 @@ export function Settings({ overview, refresh }) {
           <Table.Thead><Table.Tr><Table.Th>Keys</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>{SHORTCUTS.map(([k, a]) => <Table.Tr key={k}><Table.Td><Code>{k}</Code></Table.Td><Table.Td>{a}</Table.Td></Table.Tr>)}</Table.Tbody>
         </Table>
+        <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
       <Section title="Files">
         <List spacing={4} size="sm">
@@ -777,8 +778,7 @@ export function Sessions() {
   const p = state?.progress;
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={2} size="h3">Sessions</Title>
+      <Group justify="flex-end">
         <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
       </Group>
       <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. Nothing leaves this machine except the pull request lookups through gh.</Text>

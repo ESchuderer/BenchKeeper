@@ -250,13 +250,13 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 <div class="head"><h1>Sessions board</h1><span class="muted">Claude Code and Codex sessions on this machine, read ${now.slice(0, 16).replace('T', ' ')} UTC</span><button id="theme" type="button">Light or dark</button></div>
 <div id="filters" role="group" aria-label="Filters"></div>
 <div id="tiles"></div>
-<section aria-labelledby="h-chart"><div class="row"><h2 id="h-chart">Per day by setup</h2><label>Show <select id="metric"><option value="cost">Cost</option><option value="time">Agent time</option></select></label></div>
+<section tabindex="0" aria-labelledby="h-chart"><div class="row"><h2 id="h-chart">Per day by setup</h2><label>Show <select id="metric"><option value="cost">Cost</option><option value="time">Agent time</option></select></label></div>
 <div id="legend"></div><div id="chart"></div><details><summary>Table</summary><div id="chart-table"></div></details></section>
-<section aria-labelledby="h-tier"><h2 id="h-tier">By tier</h2><div id="by-tier"></div></section>
-<section aria-labelledby="h-setup"><h2 id="h-setup">By setup</h2><div id="by-setup"></div></section>
-<section aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
-<section aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>
-<section aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted"></p><div id="sessions"></div></section>
+<section tabindex="0" aria-labelledby="h-tier"><h2 id="h-tier">By tier</h2><div id="by-tier"></div></section>
+<section tabindex="0" aria-labelledby="h-setup"><h2 id="h-setup">By setup</h2><div id="by-setup"></div></section>
+<section tabindex="0" aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
+<section tabindex="0" aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>
+<section tabindex="0" aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted" role="status"></p><div id="sessions"></div></section>
 </main>
 <div id="tip" role="status" hidden></div>
 <script type="application/json" id="data">${data}</script>

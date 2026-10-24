@@ -61,7 +61,7 @@ export function readLive(ctx, slug) {
   const run = (path) => ctx.run(['gh', 'api', `repos/${slug}${path}`], { env: GH_ENV, timeout: 20e3 });
   const get = (key, path) => {
     const r = run(path);
-    if (r.code !== 0) { unreadable[key] = { http: /HTTP (\d{3})/.exec(r.stderr)?.[1] ?? null, message: r.stderr.trim().split('\n')[0] }; return undefined; }
+    if (r.code !== 0) { unreadable[key] = { http: r.stderr.match(/HTTP (\d{3})/)?.[1] ?? null, message: r.stderr.trim().split('\n')[0] }; return undefined; }
     try { return r.stdout.trim() ? JSON.parse(r.stdout) : {}; } catch { unreadable[key] = { http: null, message: 'not JSON' }; return undefined; }
   };
   const repo = get('repo', '');
@@ -83,7 +83,7 @@ export function readLive(ctx, slug) {
   // 204 when on, 404 when off.
   const alerts = run('/vulnerability-alerts');
   const off = alerts.code !== 0 && /HTTP 404/.test(alerts.stderr);
-  if (alerts.code !== 0 && !off) unreadable.dependabot_alerts = { http: /HTTP (\d{3})/.exec(alerts.stderr)?.[1] ?? null, message: alerts.stderr.trim().split('\n')[0] };
+  if (alerts.code !== 0 && !off) unreadable.dependabot_alerts = { http: alerts.stderr.match(/HTTP (\d{3})/)?.[1] ?? null, message: alerts.stderr.trim().split('\n')[0] };
   const on = (x) => (x ? x.status === 'enabled' : undefined);
   state.security = Object.fromEntries(Object.entries({
     private_vulnerability_reporting: pvr && pvr.enabled === true,

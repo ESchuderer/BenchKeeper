@@ -5,6 +5,7 @@ import { appVersion } from './content.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
 import { preview } from './runner.mjs';
+import { settingsChecks } from './settings.mjs';
 import { SKILLS_CLI, globalPlan, newest } from './steps/global.mjs';
 import { readState, tracksState, tryState } from './steps/project.mjs';
 
@@ -82,11 +83,12 @@ export function projectChecks(ctx, dir) {
   if (state && state.share !== true && tracksState(ctx, dir)) out.push(issue('warning', 'project', 'the setup is local, but the repository still has it committed', 'benchkeeper projects unshare: a pull request removes the committed copies'));
   if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper update-all, or benchkeeper project apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
+  out.push(...settingsChecks(ctx, { dir }));
   return out;
 }
 
 export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now } = {}) {
-  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli)];
+  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli), ...settingsChecks(ctx, { agents, env })];
   if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
   const skillsCli = newest(ctx, 'skills', now);
   if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));

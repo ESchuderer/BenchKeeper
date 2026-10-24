@@ -43,7 +43,7 @@ const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropi
 // permissions.ask or in Codex's rules folder differs from that set and is offered for removal.
 export const PERMISSION_ASK = [];
 const CODEX_OWN_RULES = ['default.rules'];
-const CLAUDE_KEYS = [
+export const CLAUDE_KEYS = [
   [['advisorModel'], 'opus'], [['remoteControlAtStartup'], true], [['showClearContextOnPlanAccept'], true],
   [['cleanupPeriodDays'], 14], [['autoUpdatesChannel'], 'stable'],
   [['attribution'], { commit: 'Assisted-by: generative AI', pr: 'Created with the assistance of generative AI.', sessionUrl: false }],

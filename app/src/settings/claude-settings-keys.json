@@ -1,0 +1,1484 @@
+[
+ {
+  "key": "advisorModel",
+  "description": "Pick which model answers when Claude asks the advisor tool",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "agent",
+  "description": "Start every session as a named subagent with its prompt, tools, and model",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "agentPushNotifEnabled",
+  "description": "Let Claude send a push notification to your phone when it decides to",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "allowAllClaudeAiMcps",
+  "description": "Load the claude.ai connectors Claude Code fetches itself alongside a deployed `managed-mcp.json`",
+  "topic": "MCP",
+  "scope": "Managed"
+ },
+ {
+  "key": "allowClaudeInChromeWithManagedMcp",
+  "description": "Let the built-in Claude in Chrome server run alongside a deployed `managed-mcp.json`",
+  "topic": "MCP",
+  "scope": "Managed"
+ },
+ {
+  "key": "allowedChannelPlugins",
+  "description": "Replace the default allowlist of channel plugins that can push messages",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "allowedHttpHookUrls",
+  "description": "Limit which URLs HTTP hooks can target",
+  "topic": "Hooks and automation",
+  "scope": "Any file"
+ },
+ {
+  "key": "allowedMcpServers",
+  "description": "Allowlist which MCP servers users can add",
+  "topic": "MCP",
+  "scope": "Any file"
+ },
+ {
+  "key": "allowedProviders",
+  "description": "Limit which API providers a machine may use",
+  "topic": "Authentication and providers",
+  "scope": "Managed"
+ },
+ {
+  "key": "allowManagedHooksOnly",
+  "description": "Run only the hooks your organization deploys",
+  "topic": "Hooks and automation",
+  "scope": "Managed"
+ },
+ {
+  "key": "allowManagedMcpServersOnly",
+  "description": "Make the managed MCP allowlist the only one that applies",
+  "topic": "MCP",
+  "scope": "Managed"
+ },
+ {
+  "key": "allowManagedPermissionRulesOnly",
+  "description": "Make managed settings the only settings source of permission rules",
+  "topic": "Permission settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "alwaysThinkingEnabled",
+  "description": "Turn extended thinking off for every session",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "apiKeyHelper",
+  "description": "Generate the API credential with your own command",
+  "topic": "Authentication and providers",
+  "scope": "Any file"
+ },
+ {
+  "key": "askUserQuestionTimeout",
+  "description": "Let an unanswered question auto-continue after idle time",
+  "topic": "Interface and terminal",
+  "scope": "User or managed"
+ },
+ {
+  "key": "appendPlugins",
+  "description": "Run your organization's mods after every mod a user installs",
+  "topic": "Plugins and skills",
+  "scope": "User or managed"
+ },
+ {
+  "key": "attribution",
+  "description": "Customize the attribution Claude Code adds to commits and pull requests",
+  "topic": "Git and attribution",
+  "scope": "Any file"
+ },
+ {
+  "key": "attribution.commit",
+  "description": "Change or hide the trailer Claude Code adds to commits",
+  "topic": "Git and attribution",
+  "scope": "Any file"
+ },
+ {
+  "key": "attribution.pr",
+  "description": "Change or hide the attribution line in pull request descriptions",
+  "topic": "Git and attribution",
+  "scope": "Any file"
+ },
+ {
+  "key": "attribution.sessionUrl",
+  "description": "Omit the claude.ai session link from cloud and Remote Control commits",
+  "topic": "Git and attribution",
+  "scope": "Any file"
+ },
+ {
+  "key": "autoCompactEnabled",
+  "description": "Turn automatic compaction off or on",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "autoCompactWindow",
+  "description": "Set how full the context gets before Claude Code compacts",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "autoConnectIde",
+  "description": "Connect to a running VS Code or JetBrains IDE automatically from an external terminal",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "autoContinueAtUsageLimit",
+  "description": "Wait in the open session and continue the task automatically after a claude.ai usage limit resets",
+  "topic": "Interface and terminal",
+  "scope": "User or managed"
+ },
+ {
+  "key": "autoInstallIdeExtension",
+  "description": "Turn off automatic install of the IDE extension from a VS Code terminal",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "autoMemoryDirectory",
+  "description": "Store auto memory in a directory you choose",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "autoMemoryEnabled",
+  "description": "Turn auto memory off or on",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "autoMode",
+  "description": "Add your own allow and deny rules to the auto mode classifier",
+  "topic": "Permission settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "autoMode.classifyAllShell",
+  "description": "Send every shell command through the auto mode classifier, even ones a narrow allow rule matches",
+  "topic": "Permission settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "autoScrollEnabled",
+  "description": "Follow new output to the bottom in fullscreen rendering",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "autoUpdatesChannel",
+  "description": "Follow the stable release channel instead of latest",
+  "topic": "Updates and versioning",
+  "scope": "Any file"
+ },
+ {
+  "key": "availableModels",
+  "description": "Restrict which models people can pick",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "availableModelsMatch",
+  "description": "Make each `availableModels` model ID entry permit only the version it names",
+  "topic": "Model and responses",
+  "scope": "Managed"
+ },
+ {
+  "key": "awaySummaryEnabled",
+  "description": "Turn off the session recap shown when you come back to the terminal",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "awsAuthRefresh",
+  "description": "Refresh expired Bedrock credentials in `.aws` with your own command",
+  "topic": "Authentication and providers",
+  "scope": "Any file"
+ },
+ {
+  "key": "awsCredentialExport",
+  "description": "Supply Bedrock credentials as JSON from your own command",
+  "topic": "Authentication and providers",
+  "scope": "Any file"
+ },
+ {
+  "key": "axScreenReader",
+  "description": "Render screen-reader friendly output",
+  "topic": "Interface and terminal",
+  "scope": "User or managed"
+ },
+ {
+  "key": "bashEditDiffEnabled",
+  "description": "Record the files that changed while a Bash command ran in every permission mode",
+  "topic": "Interface and terminal",
+  "scope": "User or managed"
+ },
+ {
+  "key": "bashOutputMaxChars",
+  "description": "Set how much of a successful command's output Claude receives inline",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "blockedMarketplaces",
+  "description": "Block plugin marketplace sources for your organization",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "browserExternalPageTools",
+  "description": "Keep Claude's tools off external pages in the desktop Browser pane",
+  "topic": "Tools",
+  "scope": "Managed"
+ },
+ {
+  "key": "channelsEnabled",
+  "description": "Allow channels for your organization",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "claudeInChromeDefaultEnabled",
+  "description": "Turn on Chrome integration when a session starts, in the interactive CLI and the VS Code extension",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "claudeMd",
+  "description": "Inject organization-wide CLAUDE.md instructions from managed settings",
+  "topic": "Memory and context",
+  "scope": "Managed"
+ },
+ {
+  "key": "claudeMdExcludes",
+  "description": "Skip specific CLAUDE.md files when memory loads",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "cleanupPeriodDays",
+  "description": "Choose how many days Claude Code keeps transcripts before deleting them",
+  "topic": "Privacy and telemetry",
+  "scope": "Any file"
+ },
+ {
+  "key": "companyAnnouncements",
+  "description": "Show your organization's announcements at startup",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "copyFullResponse",
+  "description": "Make `/copy` copy the full response without showing the picker",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "copyOnSelect",
+  "description": "Turn off automatic copying of text you select with the mouse in fullscreen rendering and agent view",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "crossSessionInbound",
+  "description": "Choose whether Claude Code delivers messages from your other sessions, shows a notice without delivering them, or refuses them",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "defaultShell",
+  "description": "Choose whether Bash or PowerShell runs the shell commands you type with the `!` prefix",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "defaultToAgentsView",
+  "description": "Open agent view instead of a new conversation when you run `claude` with no arguments",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "deniedMcpServers",
+  "description": "Block specific MCP servers by URL, command, or name",
+  "topic": "MCP",
+  "scope": "Any file"
+ },
+ {
+  "key": "deniedModels",
+  "description": "Block specific models, even ones `availableModels` permits",
+  "topic": "Model and responses",
+  "scope": "Managed"
+ },
+ {
+  "key": "desktopSessionCleanupPeriodDays",
+  "description": "Set an age limit in days for Claude Desktop and Cowork transcripts",
+  "topic": "Privacy and telemetry",
+  "scope": "User or managed"
+ },
+ {
+  "key": "dialogExpiry",
+  "description": "Set how long Claude Code waits for Remote Control or an SDK host to answer a forwarded dialog before it cancels the dialog",
+  "topic": "Interface and terminal",
+  "scope": "User or managed"
+ },
+ {
+  "key": "diffTool",
+  "description": "Choose whether Claude's proposed file changes open in the VS Code or JetBrains diff viewer or stay in the terminal",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "disableAgentView",
+  "description": "Turn off background agents and agent view",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableAllHooks",
+  "description": "Turn off hooks, a custom status line, and a custom `@` file suggestion command at once",
+  "topic": "Hooks and automation",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableArtifact",
+  "description": "Deprecated; use `enableArtifact` to turn the Artifact tool off",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableAutoMode",
+  "description": "Remove auto mode from the permission mode cycle",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableBrowserExternalNavigation",
+  "description": "Limit the desktop Browser pane to localhost for people and Claude",
+  "topic": "Tools",
+  "scope": "Managed"
+ },
+ {
+  "key": "disableBundledSkills",
+  "description": "Turn off the skills and workflows included with Claude Code",
+  "topic": "Plugins and skills",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableClaudeAiConnectors",
+  "description": "Turn off claude.ai connectors so Claude Code doesn't fetch them",
+  "topic": "MCP",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableCommandPluginSources",
+  "description": "Block plugins that install by running a marketplace-declared command",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "disableDeepLinkRegistration",
+  "description": "Stop Claude Code from registering the `claude-cli://` handler",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableDesktopLocalSessions",
+  "description": "Turn off Desktop Code sessions that run on the device, leaving SSH to other hosts and cloud",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Managed"
+ },
+ {
+  "key": "disabledMcpjsonServers",
+  "description": "Reject specific servers from a project's `.mcp.json`",
+  "topic": "MCP",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableMobileSimulatorTools",
+  "description": "Block Claude's tools in the desktop iOS Simulator pane",
+  "topic": "Tools",
+  "scope": "Managed"
+ },
+ {
+  "key": "disableRemoteControl",
+  "description": "Turn off Remote Control everywhere it can start",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableSideloadFlags",
+  "description": "Reject the CLI flags that sideload plugins, subagents, and MCP servers",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "disableSkillShellExecution",
+  "description": "Stop skills and custom commands from running inline shell",
+  "topic": "Plugins and skills",
+  "scope": "Any file"
+ },
+ {
+  "key": "disableWorkflows",
+  "description": "Turn dynamic workflows off for everyone; use `enableWorkflows` for yourself",
+  "topic": "Hooks and automation",
+  "scope": "Any file"
+ },
+ {
+  "key": "editorMode",
+  "description": "Use vim key bindings in the input prompt",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "effortLevel",
+  "description": "Set a default effort level for models without a saved level of their own",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "emojiCompletionEnabled",
+  "description": "Turn off `:shortcode:` emoji suggestions and replacement in the prompt input",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "enableAllProjectMcpServers",
+  "description": "Approve every server in project `.mcp.json` files without a prompt",
+  "topic": "MCP",
+  "scope": "Any file"
+ },
+ {
+  "key": "enableArtifact",
+  "description": "Turn the Artifact tool off with a `false` in any file; no file can turn it back on",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "enabledMcpjsonServers",
+  "description": "Approve specific servers from a project's `.mcp.json`",
+  "topic": "MCP",
+  "scope": "Any file"
+ },
+ {
+  "key": "enabledPlugins",
+  "description": "Turn individual plugins on or off per scope",
+  "topic": "Plugins and skills",
+  "scope": "Any file"
+ },
+ {
+  "key": "enableWorkflows",
+  "description": "Turn dynamic workflows on or off against your plan's default",
+  "topic": "Hooks and automation",
+  "scope": "Any file"
+ },
+ {
+  "key": "enforceAvailableModels",
+  "description": "Keep the `/model` Default choice inside your `availableModels` allowlist",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "env",
+  "description": "Set environment variables for every session and its subprocesses",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "externalEditorContext",
+  "description": "Show Claude's last response as comments when you press Ctrl+G to edit",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "extraKnownMarketplaces",
+  "description": "Register marketplaces for a repository or an organization",
+  "topic": "Plugins and skills",
+  "scope": "Any file"
+ },
+ {
+  "key": "fallbackModel",
+  "description": "Name backup models for when the primary is overloaded",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "fastMode",
+  "description": "Turn fast mode on for sessions where it's available",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "fastModePerSessionOptIn",
+  "description": "Require people to turn fast mode on each session",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "feedbackDrafts",
+  "description": "Control whether Claude queues feedback drafts for you to review",
+  "topic": "Privacy and telemetry",
+  "scope": "User or managed"
+ },
+ {
+  "key": "feedbackSurveyRate",
+  "description": "Change how often the session quality survey appears",
+  "topic": "Privacy and telemetry",
+  "scope": "Any file"
+ },
+ {
+  "key": "fileCheckpointingEnabled",
+  "description": "Turn off or on the file snapshots that `/rewind` restores",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "fileSuggestion",
+  "description": "Supply `@` file autocomplete from your own command",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "footerLinksRegexes",
+  "description": "Make issue or review IDs in output into clickable links below the input box",
+  "topic": "Interface and terminal",
+  "scope": "User or managed"
+ },
+ {
+  "key": "forceLoginGatewayUrl",
+  "description": "Set the gateway URL the login screen connects to",
+  "topic": "Authentication and providers",
+  "scope": "User or managed"
+ },
+ {
+  "key": "forceLoginMethod",
+  "description": "Restrict login to claude.ai, Claude Console, or a cloud gateway",
+  "topic": "Authentication and providers",
+  "scope": "Any file"
+ },
+ {
+  "key": "forceLoginOrgUUID",
+  "description": "Pin claude.ai logins to your organization; only a managed source enforces it",
+  "topic": "Authentication and providers",
+  "scope": "Any file"
+ },
+ {
+  "key": "forceRemoteSettingsRefresh",
+  "description": "Block startup until server-managed settings are freshly fetched",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "gatewayInternalNetworks",
+  "description": "Let `/login` reach a cloud gateway on public IPv4 space your organization uses internally",
+  "topic": "Authentication and providers",
+  "scope": "Managed"
+ },
+ {
+  "key": "gcpAuthRefresh",
+  "description": "Refresh Google Cloud credentials with your own command",
+  "topic": "Authentication and providers",
+  "scope": "Any file"
+ },
+ {
+  "key": "hooks",
+  "description": "Run your own commands as hooks at points in Claude Code's lifecycle",
+  "topic": "Hooks and automation",
+  "scope": "Any file"
+ },
+ {
+  "key": "httpHookAllowedEnvVars",
+  "description": "Limit which env vars HTTP hooks can put in headers",
+  "topic": "Hooks and automation",
+  "scope": "Any file"
+ },
+ {
+  "key": "idleCompaction",
+  "description": "Stop Claude Code from compacting a long conversation while your terminal session is idle",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "includeCoAuthoredBy",
+  "description": "Deprecated; use `attribution` to hide or change commit and PR attribution",
+  "topic": "Git and attribution",
+  "scope": "Any file"
+ },
+ {
+  "key": "includeGitInstructions",
+  "description": "Remove the built-in commit and PR instructions from Claude's context",
+  "topic": "Git and attribution",
+  "scope": "Any file"
+ },
+ {
+  "key": "inputNeededNotifEnabled",
+  "description": "Get a push notification when Claude is waiting on you",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "isolatePeerMachines",
+  "description": "Ask you before Claude messages one of your sessions on another machine",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "keybindingFlavor",
+  "description": "Deprecated and has no effect; the word-editing shortcuts always follow readline conventions",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "language",
+  "description": "Have Claude respond in a language other than English",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "leftArrowOpensAgents",
+  "description": "Turn off the `←` shortcut that backgrounds the session and opens agent view",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "managedMcpServers",
+  "description": "Provide remote MCP servers to every user alongside the ones they add",
+  "topic": "MCP",
+  "scope": "Managed"
+ },
+ {
+  "key": "managedSourcesBehavior",
+  "description": "Compose every managed source you deploy instead of using the highest-priority one alone",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "maxEffortLevel",
+  "description": "Cap the effort level for every model or per model, on every provider",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "maxProseWidth",
+  "description": "Cap how wide the prose in Claude's responses runs in a wide terminal",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "minimumVersion",
+  "description": "Keep auto-updates from installing anything below a version",
+  "topic": "Updates and versioning",
+  "scope": "Any file"
+ },
+ {
+  "key": "model",
+  "description": "Change the model Claude Code starts with",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "modelOverrides",
+  "description": "Map model IDs to your provider's IDs, such as Bedrock ARNs",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "modelPicker",
+  "description": "Choose which models the `/model` picker lists, in your own order and with your own labels",
+  "topic": "Model and responses",
+  "scope": "User or managed"
+ },
+ {
+  "key": "modelPricing",
+  "description": "Report spend at your organization's contracted rates instead of list price",
+  "topic": "Model and responses",
+  "scope": "Managed"
+ },
+ {
+  "key": "modelSettings",
+  "description": "Keep a saved effort level or auto-compact window per model, or cap one model's effort",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "otelHeadersHelper",
+  "description": "Generate rotating OpenTelemetry headers with your own command",
+  "topic": "Authentication and providers",
+  "scope": "Any file"
+ },
+ {
+  "key": "outputStyle",
+  "description": "Change Claude's role, tone, and output format with an output style",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "parentSettingsBehavior",
+  "description": "Apply or drop restrictions an SDK or IDE host passes when you deploy managed settings",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "permissionExplainerEnabled",
+  "description": "Removed in v2.1.257, together with the `Ctrl+E` command explanation on shell permission prompts",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "permissions",
+  "description": "Set allow, ask, and deny rules and the starting permission mode",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "permissions.additionalDirectories",
+  "description": "Give Claude file access to directories outside the current one",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "permissions.allow",
+  "description": "Approve listed tool uses without a prompt",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "permissions.ask",
+  "description": "Always prompt before listed tool uses",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "permissions.blockReadsOutsideWorkingDirectories",
+  "description": "Make the file tools refuse reads outside the working directories in every permission mode",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "permissions.defaultMode",
+  "description": "Set the permission mode new sessions start in",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "permissions.deny",
+  "description": "Block listed tool uses, including reads of files that hold secrets",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "permissions.disableBypassPermissionsMode",
+  "description": "Prevent anyone from entering bypassPermissions mode",
+  "topic": "Permission settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "plansDirectory",
+  "description": "Choose where plan mode writes plan files",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "pluginConfigs",
+  "description": "Store the answers you gave a plugin's configuration dialog",
+  "topic": "Plugins and skills",
+  "scope": "User or managed"
+ },
+ {
+  "key": "pluginSuggestionMarketplaces",
+  "description": "Choose which marketplaces can surface plugin install suggestions in `/plugin`",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "pluginTrustMessage",
+  "description": "Add your own text to the plugin trust warning",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "policyHelper",
+  "description": "Run an executable that computes managed settings at startup",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "policyHelper.path",
+  "description": "Name the helper executable Claude Code runs",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "policyHelper.refreshIntervalMs",
+  "description": "Re-run the helper in the background on an interval",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "policyHelper.timeoutMs",
+  "description": "Set how long Claude Code waits for the helper",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "preferredNotifChannel",
+  "description": "Choose a terminal bell or desktop notification for task completion",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "prefersReducedMotion",
+  "description": "Reduce or turn off spinner, shimmer, and flash animations",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "prependPlugins",
+  "description": "Run your organization's mods before every mod a user installs",
+  "topic": "Plugins and skills",
+  "scope": "User or managed"
+ },
+ {
+  "key": "processWrapper",
+  "description": "Run Claude Code's background processes through a corporate launcher on macOS and Linux",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "User or managed"
+ },
+ {
+  "key": "promptCacheTtl",
+  "description": "Choose the prompt cache lifetime for the main conversation",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "promptSuggestionEnabled",
+  "description": "Hide the grayed-out prompt suggestions in the input box",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "prStatusFooterEnabled",
+  "description": "Turn off the prompt footer's PR review status badge and the pull request check behind it",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "prUrlTemplate",
+  "description": "Point PR links at an internal code-review tool instead of github.com",
+  "topic": "Git and attribution",
+  "scope": "Any file"
+ },
+ {
+  "key": "remote.defaultEnvironmentId",
+  "description": "Pick the default cloud environment for `claude --cloud`; a self-hosted `ccpool_` ID is read only from user and managed settings and `--settings`",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "remoteControlAtStartup",
+  "description": "Connect Remote Control automatically when a session starts",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Any file"
+ },
+ {
+  "key": "requiredMaximumVersion",
+  "description": "Refuse to start on a version newer than your organization allows",
+  "topic": "Updates and versioning",
+  "scope": "Managed"
+ },
+ {
+  "key": "requiredMinimumVersion",
+  "description": "Refuse to start on a version older than your organization requires",
+  "topic": "Updates and versioning",
+  "scope": "Managed"
+ },
+ {
+  "key": "respectGitignore",
+  "description": "Keep gitignored files out of the `@` file picker",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "respondToBashCommands",
+  "description": "Stop Claude from responding after a `!` shell command runs",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox",
+  "description": "Isolate Bash commands from your filesystem and network on macOS, Linux, and WSL2",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.allowAppleEvents",
+  "description": "Let sandboxed commands send Apple Events on macOS",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.allowNestedUserNamespaces",
+  "description": "Let sandboxed commands create user namespaces on Linux and WSL2",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.allowUnsandboxedCommands",
+  "description": "Let Claude retry a blocked command outside the sandbox, or forbid it",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.autoAllowBashIfSandboxed",
+  "description": "Run sandboxed commands without a permission prompt",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.bwrapPath",
+  "description": "Point the sandbox at a bubblewrap binary outside `PATH`",
+  "topic": "Sandbox settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "sandbox.credentials",
+  "description": "Hide or mask credential files and variables inside the sandbox",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.credentials.allowPlaintextInject",
+  "description": "Let masked credentials reach plain HTTP services on trusted test networks",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.credentials.awsPairs",
+  "description": "Link custom-named AWS key variables into one credential for re-signing",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.credentials.envVars",
+  "description": "Unset or mask an environment variable inside the sandbox",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.credentials.files",
+  "description": "Block or mask reads of a credential file inside the sandbox",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.credentials.sigv4",
+  "description": "Choose whether streaming, presigned, or SigV4A AWS requests fail or pass through",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.enabled",
+  "description": "Turn on Bash sandboxing on macOS, Linux, and WSL2",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.enableWeakerNestedSandbox",
+  "description": "Run the Linux sandbox inside an unprivileged container",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.enableWeakerNetworkIsolation",
+  "description": "Let `gh`, `gcloud`, and `terraform` verify TLS behind a MITM proxy inside the sandbox on macOS",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.excludedCommands",
+  "description": "Name commands Claude Code can run outside the sandbox",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.failIfUnavailable",
+  "description": "Refuse to start when the sandbox can't, instead of running unsandboxed",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.filesystem",
+  "description": "Control which paths sandboxed commands can read and write",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.filesystem.allowManagedReadPathsOnly",
+  "description": "Stop developers from re-opening read paths your organization blocked",
+  "topic": "Sandbox settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "sandbox.filesystem.allowRead",
+  "description": "Re-open reading inside a region `denyRead` blocks",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.filesystem.allowWrite",
+  "description": "Add paths sandboxed commands can write to",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.filesystem.denyRead",
+  "description": "Block sandboxed commands from reading specific paths",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.filesystem.denyWrite",
+  "description": "Block sandboxed commands from writing to specific paths",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.filesystem.disabled",
+  "description": "Turn off filesystem isolation while keeping network isolation",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.ignoreViolations",
+  "description": "Silence violation reports for paths a command is expected to probe",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network",
+  "description": "Control which hosts, ports, and sockets sandboxed commands reach",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.allowAllUnixSockets",
+  "description": "Let sandboxed commands connect to every Unix socket",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.allowedDomains",
+  "description": "Pre-allow domains so sandboxed commands don't prompt for them",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.allowLocalBinding",
+  "description": "Let sandboxed commands listen on network ports and connect to localhost on macOS",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.allowMachLookup",
+  "description": "Let macOS sandboxed tools like the iOS Simulator or Playwright reach their XPC services",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.allowManagedDomainsOnly",
+  "description": "Lock the network allowlist to managed settings",
+  "topic": "Sandbox settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "sandbox.network.allowUnixSockets",
+  "description": "List Unix socket paths sandboxed commands can use on macOS",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.deniedDomains",
+  "description": "Block domains for sandboxed commands, even inside an allowed wildcard",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.httpProxyPort",
+  "description": "Route sandbox HTTP traffic through your own proxy",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.socksProxyPort",
+  "description": "Route sandbox SOCKS traffic through your own proxy",
+  "topic": "Sandbox settings",
+  "scope": "Any file"
+ },
+ {
+  "key": "sandbox.network.strictAllowlist",
+  "description": "Deny hosts outside the allowlist instead of prompting",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.network.tlsTerminate",
+  "description": "Have the sandbox proxy terminate TLS so it can read HTTPS requests",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.ripgrep",
+  "description": "Use your own ripgrep binary inside the sandbox",
+  "topic": "Sandbox settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sandbox.socatPath",
+  "description": "Point the sandbox proxy at a `socat` binary outside `PATH`",
+  "topic": "Sandbox settings",
+  "scope": "Managed"
+ },
+ {
+  "key": "showClearContextOnPlanAccept",
+  "description": "Show a \"clear context\" option on the plan accept screen",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "showThinkingSummaries",
+  "description": "See summaries of Claude's thinking instead of a collapsed stub",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "showTurnDuration",
+  "description": "Hide the \"Cooked for\" duration after each response",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "skillListingBudgetFraction",
+  "description": "Reserve more or less context for the skill listing",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "skillListingMaxDescChars",
+  "description": "Cap each skill's description length in the skill listing",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "skillOverrides",
+  "description": "Hide or collapse a skill without editing its SKILL.md",
+  "topic": "Plugins and skills",
+  "scope": "Any file"
+ },
+ {
+  "key": "skipAutoPermissionPrompt",
+  "description": "Skip the one-time notice Claude Code shows when you first enter auto mode yourself rather than through the built-in default",
+  "topic": "Permission settings",
+  "scope": "User or managed"
+ },
+ {
+  "key": "skipDangerousModePermissionPrompt",
+  "description": "Skip the confirmation dialog before bypassPermissions mode",
+  "topic": "Permission settings",
+  "scope": "User, local, or managed"
+ },
+ {
+  "key": "skipWebFetchPreflight",
+  "description": "Skip the WebFetch hostname check when Anthropic is unreachable",
+  "topic": "Privacy and telemetry",
+  "scope": "Any file"
+ },
+ {
+  "key": "spellcheck",
+  "description": "Underline misspelled words in the prompt input with a spell checker you install",
+  "topic": "Interface and terminal",
+  "scope": "User or managed"
+ },
+ {
+  "key": "spinnerTipsEnabled",
+  "description": "Hide tips in the spinner while Claude works",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "spinnerTipsOverride",
+  "description": "Add your own tips to the spinner rotation, or replace the built-in tips",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "spinnerVerbs",
+  "description": "Add or replace the verbs shown while a turn runs",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "sshConfigs",
+  "description": "Add SSH connections to the Desktop environment selector",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "User or managed"
+ },
+ {
+  "key": "sshHostAllowlist",
+  "description": "Limit which hosts Desktop SSH sessions can reach",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "Managed"
+ },
+ {
+  "key": "sshHostCommands",
+  "description": "Add SSH connections whose host comes from a command to the Desktop environment selector",
+  "topic": "Remote, desktop, and notifications",
+  "scope": "User or managed"
+ },
+ {
+  "key": "statusLine",
+  "description": "Run your own command to render a status line below the prompt",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "strictKnownMarketplaces",
+  "description": "Allowlist the marketplace sources users can add and install from",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "strictPluginOnlyCustomization",
+  "description": "Block skills, agents, hooks, and MCP servers from user and project sources",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "strictPluginOnlyCustomization.agents",
+  "description": "Lock agents to plugin and managed sources",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "strictPluginOnlyCustomization.hooks",
+  "description": "Lock hooks to plugin and managed sources",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "strictPluginOnlyCustomization.mcp",
+  "description": "Lock MCP servers to plugin and managed sources",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "strictPluginOnlyCustomization.skills",
+  "description": "Lock skills to plugin and managed sources",
+  "topic": "Plugins and skills",
+  "scope": "Managed"
+ },
+ {
+  "key": "subagentPromptCacheTtl",
+  "description": "Choose the prompt cache lifetime for subagents and other requests outside the main conversation",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "subagentStatusLine",
+  "description": "Rewrite rows in the subagent task display with your own command",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "switchModelsOnFlag",
+  "description": "Switch models automatically or pause when a safety classifier flags a request",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "syncClaudeAiPlugins",
+  "description": "Stop loading the plugins enabled on your claude.ai account and stop downloading new ones",
+  "topic": "Plugins and skills",
+  "scope": "User, local, or managed"
+ },
+ {
+  "key": "syncClaudeAiSkills",
+  "description": "Stop loading the skills enabled on your claude.ai account and stop downloading new ones",
+  "topic": "Plugins and skills",
+  "scope": "User, local, or managed"
+ },
+ {
+  "key": "syntaxHighlightingDisabled",
+  "description": "Turn off syntax highlighting in diffs and code blocks",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "taskOutputMaxChars",
+  "description": "Removed in v2.1.277, together with the `TaskOutput` tool it sized",
+  "topic": "Memory and context",
+  "scope": "Any file"
+ },
+ {
+  "key": "teammateDefaultModel",
+  "description": "Removed in v2.1.234; see Specify teammates and models for how Claude Code picks a teammate's model",
+  "topic": "Global config settings",
+  "scope": "Global config"
+ },
+ {
+  "key": "teammateMode",
+  "description": "Choose how agent team teammates display",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "terminalProgressBarEnabled",
+  "description": "Hide the terminal progress bar in terminals that support it",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "terminalTitleFromRename",
+  "description": "Stop `/rename` and `--name` from changing the terminal tab title",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "theme",
+  "description": "Pick the interface color theme, built-in or custom",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "timeFormat",
+  "description": "Show the times in the interface on a 12-hour or 24-hour clock, in UTC, or with a strftime pattern",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "timeZone",
+  "description": "Show the times in the interface in a time zone other than your system's",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "tui",
+  "description": "Choose the fullscreen or classic terminal renderer",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "ultracode",
+  "description": "Have Claude plan a workflow for each substantive task without being asked",
+  "topic": "Model and responses",
+  "scope": "Any file"
+ },
+ {
+  "key": "useAutoModeDuringPlan",
+  "description": "Let the auto mode classifier review shell commands in plan mode; set `false` to get prompts instead",
+  "topic": "Permission settings",
+  "scope": "User, local, or managed"
+ },
+ {
+  "key": "verbose",
+  "description": "Show full tool output instead of truncated summaries; `viewMode` takes precedence when both are set",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "viewMode",
+  "description": "Start every session in default, verbose, or focus view",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "vimInsertModeRemaps",
+  "description": "Map a two-key INSERT-mode sequence such as `jj` to Escape",
+  "topic": "Interface and terminal",
+  "scope": "User or managed"
+ },
+ {
+  "key": "voice",
+  "description": "Turn on voice dictation and pick hold or tap mode",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "voiceEnabled",
+  "description": "Turn on voice dictation with the older single-key form",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "wheelScrollAccelerationEnabled",
+  "description": "Turn off mouse-wheel acceleration in fullscreen rendering",
+  "topic": "Interface and terminal",
+  "scope": "Any file"
+ },
+ {
+  "key": "workflowKeywordTriggerEnabled",
+  "description": "Let the word `ultracode` in a prompt start a workflow; set `false` to type it without starting one",
+  "topic": "Hooks and automation",
+  "scope": "Any file"
+ },
+ {
+  "key": "workflowSizeGuideline",
+  "description": "Set the agent count Claude aims for in dynamic workflows",
+  "topic": "Hooks and automation",
+  "scope": "Any file"
+ },
+ {
+  "key": "worktree",
+  "description": "Configure how Claude Code creates git worktrees",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "worktree.baseRef",
+  "description": "Branch new worktrees from the remote default branch or your local HEAD",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "worktree.bgIsolation",
+  "description": "Let background sessions edit the working copy without a worktree",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "worktree.location",
+  "description": "Choose where Desktop SSH sessions create their worktrees on a remote machine",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "User"
+ },
+ {
+  "key": "worktree.sparsePaths",
+  "description": "Check out only the directories you need in each worktree",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "worktree.symlinkDirectories",
+  "description": "Symlink large directories into each worktree instead of duplicating them",
+  "topic": "Agents, sessions, and worktrees",
+  "scope": "Any file"
+ },
+ {
+  "key": "wslInheritsWindowsSettings",
+  "description": "Have WSL read managed settings from the Windows policy chain",
+  "topic": "Enterprise and managed settings",
+  "scope": "Managed"
+ }
+]

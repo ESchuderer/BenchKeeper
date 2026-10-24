@@ -18,6 +18,7 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
 import { addProject, canon, listProjects, packsInUse, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
+import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
 import { globalPlan, installedPlugins } from './steps/global.mjs';
@@ -36,6 +37,13 @@ Usage: benchkeeper <command> [options]
                                     agents, packs, own packs and registered projects with their answers as one file
   profile import <file> [--yes]     shows the global and project changes, applies the chosen ones; missing paths are skipped
   doctor [dir] [--agents a,b]       setup problems with a fix each, nothing written; exit 1 on an error
+  settings list [--agent claude|codex] [--advanced] [--project dir]
+  settings get <key> [--agent a] [--project dir]
+  settings set <key> <value> | --unset | --bundle <id> [--agent a] [--layer user|project|local] [--project dir] [--yes]
+                                    agent settings (Claude Code settings.json, Codex config.toml) with notes on keys
+                                    that cancel each other; a change is a plan with a diff, undo restores it;
+                                    environment switches are set (value "set") or removed, never 0 or false;
+                                    managed settings are never written
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--transcript file] [--description text] [--query text]
                                     records an observed miss as an eval case (~/.config/benchkeeper/evals/)
@@ -78,6 +86,7 @@ const OPTIONS = {
   'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
   target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
+  agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -128,7 +137,7 @@ export function selectedAgents(ctx, list) {
 function show(c, out) {
   out.write(`${c.destructive ? 'remove ' : 'change '}${c.title}${c.error ? `\n  cannot merge: ${c.error}` : ''}\n`);
   if (c.kind === 'command') out.write(`  $ ${c.argv.join(' ')}\n`);
-  else if (c.diff) out.write(`${c.diff.split('\n').map((l) => `  ${l}`).join('\n')}\n`);
+  else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }
 
 export async function main(argv, { out = process.stdout, input = process.stdin, ctx = machineContext() } = {}) {
@@ -273,6 +282,7 @@ async function command(argv, { out, ask, ctx }) {
     out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
+  if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
     // A session run gives the project and transcript.
@@ -316,4 +326,60 @@ async function command(argv, { out, ask, ctx }) {
   }
   out.write(`unknown command ${cmd}\n\n${HELP}\n`);
   return 2;
+}
+
+const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
+
+// settings list|get|set: the editor of the UI on the command line, through the same plan, diff and undo.
+async function settingsCommand({ o, positionals, out, ask, ctx }) {
+  const [, sub, key, ...rest] = positionals;
+  const agentId = o.agent ?? 'claude';
+  if (!settingsAgents.includes(agentId)) { out.write(`agent must be one of ${settingsAgents.join(', ')}\n`); return 2; }
+  const dir = o.project ? resolve(o.project) : undefined;
+  const view = () => listSettings(ctx, agentId, { dir, advanced: key === undefined ? !!o.advanced : true, env: process.env });
+  const noteLines = (notes) => notes.forEach((n) => out.write(`  ${n.level}: ${n.message} (${n.source})\n`));
+  if (sub === 'list') {
+    const l = view();
+    for (const f of l.layers) out.write(`${f.layer.padEnd(8)} ${f.path}${f.exists ? '' : ' (missing)'}${f.error ? ` (unreadable: ${f.error})` : ''}${f.readOnly ? ' (read-only)' : ''}\n`);
+    for (const s of l.settings) {
+      out.write(`${s.key.padEnd(44)} ${s.layer ? `${show1(s.value)} (${s.layer})` : `default: ${s.default}`}\n`);
+      noteLines(s.notes);
+    }
+    for (const a of l.advanced ?? []) if (a.changed || o.advanced) out.write(`${a.key.padEnd(44)} ${a.layer ? `${show1(a.value)} (${a.layer})` : '-'}\n`);
+    for (const x of l.outside ?? []) out.write(`${x.key.padEnd(44)} ${show1(x.value)} (${x.layer}, not in the app's list, kept)\n`);
+    for (const e of l.env ?? []) out.write(`env.${e.name.padEnd(40)} ${show1(e.value)} (${e.layer})\n`);
+    return 0;
+  }
+  if (sub === 'get') {
+    if (!key) { out.write('settings get needs a key\n'); return 2; }
+    const l = view();
+    const s = [...l.settings, ...(l.advanced ?? [])].find((x) => x.key === key);
+    if (!s) { out.write(`${key} is not a key of ${l.name}'s reference or schema\n`); return 1; }
+    out.write(`${show1(s.value)}${s.layer ? ` (${s.layer})` : `  (unset; default: ${s.default ?? 'built-in'})`}\n`);
+    for (const x of s.sets ?? []) out.write(`  ${x.layer}: ${show1(x.value)}\n`);
+    noteLines(s.notes ?? []);
+    return 0;
+  }
+  if (sub !== 'set') { out.write('settings needs list, get or set\n'); return 2; }
+  const layer = o.layer ?? 'user';
+  let edits;
+  try {
+    if (o.bundle) edits = bundleEdits(agentId, o.bundle);
+    else {
+      if (!key) { out.write('settings set needs a key and a value, or --unset, or --bundle\n'); return 2; }
+      const def = describeKey(agentId, key) ?? (agentId === 'codex' && key.startsWith('projects.') ? { key, type: 'any' } : null);
+      if (!def) { out.write(`${key} is not a key of the ${agentId} reference or schema\n`); return 1; }
+      if (o.unset) edits = { [key]: null };
+      else if (rest.length === 0 && def.type !== 'switch') { out.write(`settings set ${key} needs a value or --unset\n`); return 2; }
+      else edits = { [key]: parseInput(def, rest.length ? rest.join(' ') : 'set') };
+    }
+  } catch (e) { out.write(`${e.message}\n`); return 2; }
+  let plan;
+  try {
+    const changes = settingsChanges(ctx, agentId, { layer, dir, edits });
+    plan = preview(changes);
+  } catch (e) { out.write(`${e.message}\n`); return 1; }
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  const sctx = layer === 'user' ? ctx : projectCtx(ctx, dir);
+  return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
 }

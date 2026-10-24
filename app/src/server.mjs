@@ -27,6 +27,7 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { addProject, canon, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { scanSessions } from './sessions.mjs';
+import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, suggest } from './steps/project.mjs';
 
@@ -91,7 +92,7 @@ function committed(ctx, run, e) {
 
 // Changes without their edit functions, with the item state the Dashboard groups by.
 function serialize(changes, ctx) {
-  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
+  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, ...(c.diff && isSettingsFile(c.path) ? { diff: redact(c.diff) } : {}), prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
 }
 
 // First-setup answers from a query or a request body: only these keys, as strings and string lists.
@@ -360,7 +361,8 @@ export function api(ctx) {
         if (isDir(e.path)) return { ...e, folder: true };
         const next = run.entries.slice(i + 1).find((x) => x.path === e.path && x.backup && x.hashBefore === e.hashAfter);
         const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : committed(ctx, run, e);
-        return { ...e, diff: now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path) };
+        const d = now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path);
+        return { ...e, diff: isSettingsFile(e.path) ? redact(d) : d };
       }) };
     },
     'POST /api/undo': (b) => {
@@ -418,6 +420,28 @@ export function api(ctx) {
     'POST /api/scan': (b) => {
       if (typeof b.root !== 'string' || !isAbsolute(b.root)) throw bad('root must be an absolute path');
       return scan(b.root).filter((d) => !registered(d));
+    },
+    // Agent settings of one layer set (user, plus a registered project's project and local files) with their notes. Values
+    // of secret-looking names are masked by the module.
+    'GET /api/settings': (q) => {
+      const agentId = q.get('agent') ?? 'claude';
+      if (!settingsAgents.includes(agentId)) throw bad(`agent must be one of ${settingsAgents.join(', ')}`);
+      const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      return input(() => listSettings(ctx, agentId, { dir, advanced: q.get('advanced') === '1', env: process.env }));
+    },
+    // A plan for edits { key: value | null } (null removes the key) or a bundle in one layer; applied through /api/apply.
+    'POST /api/settings-plan': (b) => {
+      const agentId = b.agent ?? 'claude';
+      if (!settingsAgents.includes(agentId)) throw bad(`agent must be one of ${settingsAgents.join(', ')}`);
+      const layer = b.layer ?? 'user';
+      const dir = layer === 'user' ? undefined : resolve(String(b.dir ?? ''));
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const edits = b.bundle ? input(() => bundleEdits(agentId, b.bundle)) : b.edits;
+      if (!edits || typeof edits !== 'object' || Array.isArray(edits)) throw bad('edits must be an object of key and value');
+      const sctx = dir ? projectCtx(ctx, dir) : ctx;
+      const changes = preview(input(() => settingsChanges(sctx, agentId, { layer, dir, edits })));
+      return { planId: keep(changes, sctx, dir ?? 'global'), changes: serialize(changes, sctx) };
     },
     'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed())),
   };

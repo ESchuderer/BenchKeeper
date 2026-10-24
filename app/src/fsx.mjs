@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
 export const exists = (p) => existsSync(p) || isLink(p);
 export const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return false; } };
@@ -33,9 +33,12 @@ export function writeAtomic(p, text, mode = existsSync(p) ? statSync(p).mode & 0
   mkdirSync(dirname(p), { recursive: true });
   // Random and created new (wx): a link planted at a guessable name must not be written through.
   const tmp = `${p}.benchkeeper-${randomBytes(6).toString('hex')}`;
-  writeFileSync(tmp, text, { flag: 'wx' });
-  if (mode != null) chmodSync(tmp, mode);
-  renameSync(tmp, p);
+  // The mode at creation: a settings file with tokens is never readable by others, not even before the chmod.
+  writeFileSync(tmp, text, { flag: 'wx', ...(mode != null ? { mode } : {}) });
+  try {
+    if (mode != null) chmodSync(tmp, mode);
+    renameSync(tmp, p);
+  } catch (e) { rmSync(tmp, { force: true }); throw e; }
 }
 
 // Moves a file or folder, across devices too.
@@ -57,15 +60,22 @@ export function copy(from, to) {
 
 // True when p, after resolving the links of its existing ancestors, lies inside one of the roots.
 // A path with its links resolved as far as it exists (macOS: /var is /private/var).
-export function realish(p) {
-  let probe = resolve(p);
+// follow false: a link as the last part of p stands for itself (removing it leaves its target alone).
+export function realish(p, follow = true) {
+  let probe = resolve(p), hops = 0;
+  if (!follow && isLink(probe)) return join(realish(dirname(probe)), basename(probe));
   const rest = [];
-  while (!existsSync(probe)) { rest.unshift(probe.split(sep).pop()); probe = dirname(probe); }
+  while (!existsSync(probe)) {
+    // A dangling link stands for its target: a write through it creates the target.
+    if (isLink(probe)) { if (++hops > 40) throw new Error(`too many links: ${p}`); probe = resolve(dirname(probe), readlinkSync(probe)); continue; }
+    rest.unshift(probe.split(sep).pop());
+    probe = dirname(probe);
+  }
   return join(realpathSync(probe), ...rest);
 }
 
-export function inside(p, roots) {
-  const real = realish(p);
+export function inside(p, roots, follow = true) {
+  const real = realish(p, follow);
   return roots.some((r) => {
     const root = realish(r);
     return real === root || real.startsWith(root + sep);

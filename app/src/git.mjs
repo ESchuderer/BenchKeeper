@@ -66,6 +66,8 @@ export function defaultBranch(ctx, dir) {
 
 // Git's mode of a path in a tree ('100644', '100755', '120000'), or '' when absent. path is relative to the repository root.
 export const fileMode = (ctx, root, tree, path) => git(ctx, root, ['ls-tree', tree, '--', path]).stdout.split(' ')[0];
+// False when git no longer has the tree: an unreferenced snapshot is removed by gc.
+export const hasTree = (ctx, root, tree) => git(ctx, root, ['cat-file', '-e', `${tree}^{tree}`]).code === 0;
 export const repoRoot = (ctx, dir) => git(ctx, dir, ['rev-parse', '--show-toplevel']).stdout.trim();
 
 export const clean = (ctx, dir) => git(ctx, dir, ['status', '--porcelain']).stdout.trim() === '';

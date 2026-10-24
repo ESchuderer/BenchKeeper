@@ -130,10 +130,10 @@ export function suggest(dir) {
 export const tracksState = (ctx, dir) => git(ctx, dir, ['ls-files', '--', STATE]).stdout.trim().endsWith(STATE);
 
 // A project run writes inside the project, plus the git exclude list, which a linked worktree or a project in a
-// subfolder keeps outside it.
+// subfolder keeps outside it. Never into the project's own .git (hooks, config): a committed link must not aim a write there.
 export function projectCtx(ctx, dir) {
   const exclude = excludeFile(ctx, dir);
-  return { ...ctx, roots: [resolve(dir), ...(exclude ? [dirname(exclude)] : [])] };
+  return { ...ctx, roots: [resolve(dir), ...(exclude ? [dirname(exclude)] : [])], deny: [resolve(dir, '.git')] };
 }
 
 // The exclude file of the repository dir is in, shared by all its worktrees; null outside a git repository.

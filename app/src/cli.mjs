@@ -116,7 +116,7 @@ function report(run, out) {
 }
 
 export function machineContext(env = process.env) {
-  const home = env.BENCHKEEPER_HOME ?? homedir();
+  const home = env.BENCHKEEPER_HOME || homedir();
   return context({ home, appVersion });
 }
 

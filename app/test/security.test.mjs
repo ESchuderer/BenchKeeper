@@ -1,0 +1,161 @@
+// One test per limit of docs/security.md that no other test file covers. Each fails when its control is removed.
+import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { mock, test } from 'node:test';
+import { machineContext } from '../src/cli.mjs';
+import { inside, writeAtomic } from '../src/fsx.mjs';
+import { runId } from '../src/ledger.mjs';
+import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
+import { recordSession } from '../src/session.mjs';
+import { projectCtx } from '../src/steps/project.mjs';
+
+const home = () => mkdtempSync(join(tmpdir(), 'bk-sec-'));
+const write = (c, path, after, extra = {}) => ({ id: `w-${path}`, step: 's', title: path, kind: 'write', path: join(c.home, path), after, ...extra });
+const mode = (p) => statSync(p).mode & 0o777;
+const repo = () => {
+  const dir = home();
+  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 't');
+  writeFileSync(join(dir, 'README.md'), '# P\n');
+  git('add', '-A');
+  git('commit', '-qm', 'init');
+  const h = home();
+  return { dir, git, ctx: context({ home: h, roots: [h, dir], run: runCommand }) };
+};
+
+test('the ledger, its backups and run files are private to the user, whatever the umask', () => {
+  const before = process.umask(0o022);
+  try {
+    const c = context({ home: home() });
+    writeFileSync(join(c.home, 'settings.json'), 'old');
+    const run = apply([write(c, 'settings.json', 'new')], c);
+    assert.equal(mode(join(c.config, 'ledger')), 0o700);
+    assert.equal(mode(join(c.config, 'ledger', `${run.id}.json`)), 0o600);
+    for (let d = join(c.config, 'backup', run.id); d !== join(c.config, 'backup'); d = join(d, '..')) assert.equal(mode(d), 0o700, d);
+  } finally { process.umask(before); }
+});
+
+test('an atomic write that fails leaves no temporary file, and a new file with a mode never exists with another', () => {
+  const d = home();
+  mkdirSync(join(d, 'x'));
+  assert.throws(() => writeAtomic(join(d, 'x'), 'text'));
+  assert.deepEqual(readdirSync(d), ['x']);
+  const before = process.umask(0o022);
+  try {
+    writeAtomic(join(d, 'secret'), 'token', 0o600);
+    assert.equal(mode(join(d, 'secret')), 0o600);
+  } finally { process.umask(before); }
+});
+
+test('run ids do not repeat in one second', () => {
+  const now = new Date();
+  mock.method(Math, 'random', () => 0.5);
+  try { assert.notEqual(runId(now), runId(now)); } finally { mock.restoreAll(); }
+});
+
+test('a path through a dangling link that leaves the root is outside it', () => {
+  const root = home();
+  const out = home();
+  symlinkSync(join(out, 'missing'), join(root, 'evil'));
+  assert.equal(inside(join(root, 'evil', 'x'), [root]), false);
+  assert.equal(inside(join(root, 'fine', 'x'), [root]), true);
+});
+
+test('an empty BENCHKEEPER_HOME is not the working directory', () => {
+  assert.equal(machineContext({ BENCHKEEPER_HOME: '' }).home, homedir());
+});
+
+test('a command that fails after its snapshot is taken can still be undone', () => {
+  const dir = home();
+  const c = context({ home: dir, run: () => { writeFileSync(join(dir, 'skill'), 'half'); return { code: 1, stdout: '', stderr: 'boom' }; } });
+  writeFileSync(join(dir, 'skill'), 'before');
+  const run = apply([{ id: 'c', step: 's', title: 'c', kind: 'command', argv: ['x'], cwd: dir, snapshot: [join(dir, 'skill')] }], c);
+  assert.equal(run.entries[0].status, 'failed');
+  assert.equal(undo(run.id, c).status, 'done');
+  assert.equal(readFileSync(join(dir, 'skill'), 'utf8'), 'before');
+});
+
+test('an undo of a snapshot command records each file and its backup before it moves anything', () => {
+  const dir = home();
+  const c = context({ home: dir, run: () => { writeFileSync(join(dir, 'skill'), 'after'); return { code: 0, stdout: '', stderr: '' }; } });
+  writeFileSync(join(dir, 'skill'), 'before');
+  const run = apply([{ id: 'c', step: 's', title: 'c', kind: 'command', argv: ['x'], cwd: dir, snapshot: [join(dir, 'skill')] }], c);
+  const saves = [];
+  const save = c.ledger.save.bind(c.ledger);
+  c.ledger.save = (r) => { if (r.kind === 'undo') saves.push(JSON.parse(JSON.stringify(r))); save(r); };
+  undo(run.id, c);
+  const first = saves.find((r) => r.entries[0]?.status === 'running');
+  assert.equal(first.entries[0].files.length, 1);
+  assert.ok(first.entries[0].files[0].backup);
+});
+
+test('a file changed between the preview and the apply is not overwritten with the old plan', () => {
+  const c = context({ home: home() });
+  const path = join(c.home, 'f');
+  writeFileSync(path, 'old');
+  const planned = preview([write(c, 'f', 'new')]);
+  writeFileSync(path, 'edited by hand');
+  const run = apply(planned, c);
+  assert.equal(run.entries[0].status, 'failed');
+  assert.match(run.entries[0].error, /changed since the plan/);
+  assert.equal(readFileSync(path, 'utf8'), 'edited by hand');
+});
+
+test('two edits of one file in a plan still apply in order', () => {
+  const c = context({ home: home() });
+  writeFileSync(join(c.home, 'f'), 'a');
+  const run = apply(preview([write(c, 'f', null, { id: '1', edit: (t) => `${t}b` }), write(c, 'f', null, { id: '2', edit: (t) => `${t}c` })]), c);
+  assert.equal(run.status, 'done');
+  assert.equal(readFileSync(join(c.home, 'f'), 'utf8'), 'abc');
+});
+
+test('a project run never writes into .git except the exclude list, also through a link', () => {
+  const r = repo();
+  symlinkSync('.git/config', join(r.dir, 'CLAUDE.local.md'));
+  const pc = projectCtx(r.ctx, r.dir);
+  const run = apply([
+    { id: 'a', step: 'a', title: 'a', kind: 'write', path: join(r.dir, '.git/hooks/pre-commit'), after: 'x' },
+    { id: 'b', step: 'b', title: 'b', kind: 'write', path: join(r.dir, 'CLAUDE.local.md'), after: '[core]\n\tfsmonitor = x\n' },
+    { id: 'c', step: 'c', title: 'c', kind: 'write', path: join(r.dir, '.git/info/exclude'), after: '/x\n' },
+    { id: 'd', step: 'd', title: 'd', kind: 'write', path: join(r.dir, 'ok.md'), after: 'ok' },
+  ], pc);
+  assert.deepEqual(run.entries.map((e) => e.status), ['failed', 'failed', 'done', 'done']);
+  assert.equal(existsSync(join(r.dir, '.git/hooks/pre-commit')), false);
+  assert.doesNotMatch(readFileSync(join(r.dir, '.git/config'), 'utf8'), /fsmonitor/);
+});
+
+test('a second run is refused while another process holds the lock; a lock of a dead process is taken over', () => {
+  const c = context({ home: home() });
+  mkdirSync(c.config, { recursive: true });
+  writeFileSync(join(c.config, 'lock'), JSON.stringify({ pid: process.ppid }));
+  assert.throws(() => apply([write(c, 'a', '1')], c), /another BenchKeeper run is in progress/);
+  assert.throws(() => undo('20200101T000000Z-abcd', c), /another BenchKeeper run is in progress/);
+  assert.equal(existsSync(join(c.home, 'a')), false);
+  writeFileSync(join(c.config, 'lock'), JSON.stringify({ pid: spawnSync(process.execPath, ['-e', '']).pid }));
+  assert.equal(apply([write(c, 'a', '1')], c).status, 'done');
+  assert.equal(existsSync(join(c.config, 'lock')), false);
+});
+
+test('undo of a session whose snapshots are gone fails instead of reporting success', () => {
+  const r = repo();
+  const run = recordSession(r.ctx, r.dir, ['sh', '-c', 'rm README.md && echo x > n']);
+  r.git('prune', '--expire=now');
+  const u = undo(run.id, r.ctx);
+  assert.equal(u.status, 'failed');
+  assert.match(u.entries[0].error, /snapshot/);
+  assert.equal(existsSync(join(r.dir, 'README.md')), false);
+});
+
+test('a transcript that cannot be read does not lose the recorded session', () => {
+  const r = repo();
+  const folder = join(r.ctx.home, '.claude/projects', r.dir.replace(/[^a-zA-Z0-9]/g, '-'));
+  mkdirSync(folder, { recursive: true });
+  symlinkSync(join(r.ctx.home, 'missing'), join(folder, 'x.jsonl'));
+  const run = recordSession(r.ctx, r.dir, ['sh', '-c', 'echo x > n']);
+  assert.equal(r.ctx.ledger.get(run.id).entries[0].files.length, 1);
+});

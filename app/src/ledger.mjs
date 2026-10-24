@@ -1,13 +1,17 @@
 // Install ledger: one JSON file per run under <config>/ledger, backups under <config>/backup/<run id>.
-import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { real, writeAtomic } from './fsx.mjs';
 
 export const SCHEMA = 1;
 
+const held = new Map();
+const alive = (pid) => { if (!Number.isInteger(pid) || pid < 1) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
 export function runId(now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-  return `${stamp}-${Math.random().toString(36).slice(2, 6)}`;
+  return `${stamp}-${randomBytes(3).toString('hex')}`;
 }
 
 export class Ledger {
@@ -21,13 +25,38 @@ export class Ledger {
   backupPath(id, n, path) {
     const p = resolve(path);
     const rel = p.startsWith(this.home + sep) ? relative(this.home, p) : join('_root', p);
-    return join(this.backups, id, String(n), rel);
+    const out = join(this.backups, id, String(n), rel);
+    // Backups hold copies of settings files with tokens: the folders are the user's alone.
+    mkdirSync(dirname(out), { recursive: true, mode: 0o700 });
+    return out;
   }
 
   save(run) {
     this.cache = null;
-    mkdirSync(this.dir, { recursive: true });
-    writeAtomic(join(this.dir, `${run.id}.json`), `${JSON.stringify(run, null, 2)}\n`);
+    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    writeAtomic(join(this.dir, `${run.id}.json`), `${JSON.stringify(run, null, 2)}\n`, 0o600);
+  }
+
+  // One run at a time on this config folder, also across processes: a lock file with the pid of the run. A second run
+  // in the same process goes on (Update all applies many times); the lock of a dead process is taken over.
+  // shortcut: a reused pid keeps a dead run's lock alive, delete <config>/lock then.
+  lock() {
+    const file = join(dirname(this.dir), 'lock');
+    const release = () => { const n = held.get(file) - 1; if (n > 0) held.set(file, n); else { held.delete(file); rmSync(file, { force: true }); } };
+    if (held.has(file)) { held.set(file, held.get(file) + 1); return release; }
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    for (;;) {
+      try { writeFileSync(file, JSON.stringify({ pid: process.pid }), { flag: 'wx', mode: 0o600 }); break; } catch (e) {
+        if (e.code !== 'EEXIST') throw e;
+        let pid;
+        try { pid = JSON.parse(readFileSync(file, 'utf8')).pid; } catch { /* being written right now, or torn */ }
+        const fresh = Date.now() - (statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0) < 5000;
+        if (alive(pid) || (!pid && fresh)) throw new Error(`another BenchKeeper run is in progress${pid ? ` (process ${pid})` : ''}: wait until it ends`);
+        rmSync(file, { force: true });
+      }
+    }
+    held.set(file, 1);
+    return release;
   }
 
   get(id) {

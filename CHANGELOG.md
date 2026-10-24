@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.4 (2026-10-24)
+
+- No ask rules and no approval line in the rules: Claude Code's auto mode (its defaults) decides what needs a prompt. `gh pr merge`, force push, `git reset --hard`, `git branch -D` and `git clean` run without BenchKeeper asking first. The rule that required the user's go before hard-to-undo actions and merges is gone, as is the Codex command rules file. Global setup compares `permissions.ask` in the Claude Code settings and the files in the Codex rules folder with the set BenchKeeper wants (none) and offers each difference for removal, one change per rule or file, off by default so your own rules stay unless you pick them.
+- Plugin `version` 6.4.0.
+- Upgrade: update the plugin, then `npx benchkeeper@6.4.0 apply`.
+
 ## setup-v6.3 (2026-10-23)
 
 - Project setups stay on this machine by default. `project apply` writes the BenchKeeper block into `CLAUDE.local.md` (importing `AGENTS.md`) and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`; rebuilt from `AGENTS.md` on each apply), the sandbox into `.claude/settings.local.json`, and lists every file it writes in a marked block of `.git/info/exclude`, so `git status` stays clean. `--share` (or "In the repository" in the browser) keeps the committed layout: the block in `AGENTS.md`, `CLAUDE.md`, a pull request from Update all. The project's own `AGENTS.md` text, `docs/agents/` and `.devcontainer/` stay committed.

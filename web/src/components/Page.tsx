@@ -68,14 +68,14 @@ function StepList({ from, className }: { from: number; className?: string }) {
 }
 
 const quickstart: [string, string, string][] = [
-  ['Review the plan', 'npx benchkeeper@6.3.0 plan', 'Each change for the agents on your PATH: file changes as a diff, commands as their command line. Writes nothing.'],
-  ['Apply', 'npx benchkeeper@6.3.0 apply', 'Asks per change: rules, ask rules for merges and force pushes, the plugins (BenchKeeper, Ponytail; Matt Pocock\'s skills with --pack matt-pocock), Claude Code settings. Removals of other global rules, skills, plugins, MCP servers and hooks are off unless chosen. Every run is recorded for undo.'],
-  ['Or in the browser', 'npx benchkeeper@6.3.0', 'The Dashboard shows the doctor findings. Fix everything walks through the global plan, the projects you pick and the steps left by hand. Skill installs run first in a scratch folder, so the plan lists the files they would write.'],
+  ['Review the plan', 'npx benchkeeper@6.4.0 plan', 'Each change for the agents on your PATH: file changes as a diff, commands as their command line. Writes nothing.'],
+  ['Apply', 'npx benchkeeper@6.4.0 apply', 'Asks per change: rules, the plugins (BenchKeeper, Ponytail; Matt Pocock\'s skills with --pack matt-pocock), Claude Code settings. Removals of other global rules, skills, plugins, MCP servers and hooks are off unless chosen. Every run is recorded for undo.'],
+  ['Or in the browser', 'npx benchkeeper@6.4.0', 'The Dashboard shows the doctor findings. Fix everything walks through the global plan, the projects you pick and the steps left by hand. Skill installs run first in a scratch folder, so the plan lists the files they would write.'],
   ['Restart the agents', '', 'New sessions load the global rules and the plugin skills.'],
-  ['Project setup, in each repository root', 'npx benchkeeper@6.3.0 project apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. project plan shows the changes first.'],
-  ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.3.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
-  ['Update later', 'npx benchkeeper@6.3.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.3.0 update-all, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
-  ['Track sessions', 'npx benchkeeper@6.3.0 board', 'Writes a static page, ~/.config/benchkeeper/board.html, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
+  ['Project setup, in each repository root', 'npx benchkeeper@6.4.0 project apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. project plan shows the changes first.'],
+  ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.4.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
+  ['Update later', 'npx benchkeeper@6.4.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.4.0 update-all, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
+  ['Track sessions', 'npx benchkeeper@6.4.0 board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
 ];
 
 const reasons: [string, string][] = [
@@ -141,7 +141,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         <Section id="parts" title="What gets installed">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <Part icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/rules/global.md`} scope="Global, every session">
-              Ask before assuming, confirm hard-to-undo steps, checks never weakened, secrets kept out, writing without filler, sources for claims.
+              Ask before assuming, checks never weakened, secrets kept out, writing without filler, sources for claims.
             </Part>
             <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/workflow/SKILL.md`} scope="Global, before repository work">
               The task kind and tier, the playbooks for software changes, docs passes and research, the check per change type, batch mode with long checks at the end.
@@ -153,7 +153,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               The smallest complete change: reuse before new code, no unrequested options, a test for new logic, <Code>shortcut:</Code> comments for known limits.
             </Part>
             <Part icon={<IconRoute size={20} />} title="The app and the setup skills" href={`${REPO}/tree/main/app`} scope="On request">
-              <Code>npx benchkeeper@6.3.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates every project, and the Sessions board tracks tier, cost and outcome per session. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass.
+              <Code>npx benchkeeper@6.4.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates every project, and the Sessions board tracks tier, cost and outcome per session. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass.
             </Part>
             <Part icon={<IconContainer size={20} />} title="Devcontainer and Playwright" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="Per repository">
               Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the <Anchor href={`${REPO}/blob/main/plugins/benchkeeper/library/README.md`}>BenchKeeper library</Anchor>, stack skills from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
@@ -161,7 +161,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="start" title="Quick start" intro={<>Needs Claude Code or Codex (Gemini CLI and GitHub Copilot CLI also work, untested), Git, Node.js 22, and Docker or Podman for the dev container (<Anchor href={`${REPO}#prerequisites`}>full list</Anchor>). The app installs the Dev Containers CLI. Each setup step shows its plan before it changes anything.</>}>
+        <Section id="start" title="Quick start" intro={<>Needs Claude Code or Codex (Gemini CLI and GitHub Copilot CLI also work, untested), Git, Node.js 22, and Docker or Podman for the dev container (<Anchor href={`${REPO}#prerequisites`}>full list</Anchor>). The app installs the Dev Containers CLI. Each setup step shows its plan before it changes anything. <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
           <Stack gap="lg" maw={760}>
             {quickstart.map(([title, cmd, note], k) => (
               <Group key={title} gap="md" wrap="nowrap" align="flex-start">

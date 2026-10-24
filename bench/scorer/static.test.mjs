@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { get } from 'node:http';
+import { createServer, get } from 'node:http';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -34,7 +34,10 @@ async function check(port) {
 }
 
 test('static.mjs serves files under its root and nothing outside it', async () => {
-  const port = 38000 + (process.pid % 1000);
+  const probe = createServer().listen(0, '127.0.0.1');
+  await new Promise((ok) => probe.once('listening', ok));
+  const { port } = probe.address();
+  await new Promise((ok) => probe.close(ok));
   const child = spawn(process.execPath, [new URL('./static.mjs', import.meta.url).pathname, site()], { env: { ...process.env, PORT: String(port) }, stdio: 'ignore' });
   try {
     for (let i = 0; i < 50; i++) { try { await request(port, '/'); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }

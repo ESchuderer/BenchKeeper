@@ -28,7 +28,8 @@ const isBlank = (c) => c === ' ' || c === '\t';
 const trimBlanks = (line) => { let a = 0, b = line.length; while (a < b && isBlank(line[a])) a++; while (b > a && isBlank(line[b - 1])) b--; return line.slice(a, b); };
 
 // Heredoc bodies and their terminator line are file contents; only the `<<DELIM` header stays. A line scan instead of one
-// regex with a lazy body, which rescans the rest of the command for every header that has no terminator.
+// regex with a lazy body. shortcut: a header without a terminator still reads to the end of the command, so many of them
+// cost headers times length; commands are short, add a memo if that changes.
 function withoutHeredocBodies(text) {
   const header = /<<-?[ \t]*\\?(['"]?)([\w.-]+)\1[^\n]*/g;
   let out = '', pos = 0, m;

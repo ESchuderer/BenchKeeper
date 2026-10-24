@@ -37,6 +37,7 @@ export function coverage(dir, timeout = 300_000) {
     const env = { ...process.env, CI: '1', NODE_V8_COVERAGE: `${work}/v8` };
     delete env.NODE_TEST_CONTEXT;
     const r = spawnSync(NPM, cmd, { cwd: app, encoding: 'utf8', timeout, env });
+    if (r.error?.code === 'ENOENT') return none('npm not found next to node');
     // A suite that fails only under instrumentation (timing assertions) still counts; one that also fails plain gives null.
     let instrumented = false;
     if (r.status !== 0) {

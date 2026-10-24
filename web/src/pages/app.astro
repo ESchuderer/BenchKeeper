@@ -2,13 +2,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import BenchLayout from '../layouts/BenchLayout.astro';
-import AppPage from '../components/AppPage';
+import AppPage, { VIEWS } from '../components/AppPage';
 
 // The build runs in web/ (npm run build). A PNG's width and height are the two big-endian integers after its signature.
 const dir = join(process.cwd(), 'public', 'app');
-const shots = Object.fromEntries(['dashboard', 'fix', 'projects', 'setup', 'sessions', 'history', 'doctor'].flatMap((v) => ['light', 'dark'].map((s) => {
+const shots = Object.fromEntries(VIEWS.flatMap(({ shot: v }) => ['light', 'dark'].map((s) => {
   const png = readFileSync(join(dir, `${v}-${s}.png`));
-  return [`${v}-${s}`, { file: `${v}-${s}.png`, width: png.readUInt32BE(16), height: png.readUInt32BE(20) }];
+  return [`${v}-${s}`, { width: png.readUInt32BE(16), height: png.readUInt32BE(20) }];
 })));
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---

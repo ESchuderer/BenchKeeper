@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { addProject } from '../../src/projects.mjs';
 import { apply, context, preview } from '../../src/runner.mjs';
 import { startServer } from '../../src/server.mjs';
@@ -19,7 +19,7 @@ export const BATCH = join(tmpdir(), `bk-ui-batch-${PORT}`);
 // server must run with HOME inside it.
 const DEMO = process.env.BK_DEMO_ROOT;
 const home = DEMO ? join(DEMO, 'home') : mkdtempSync(join(tmpdir(), 'bk-ui-'));
-if (DEMO && process.env.HOME !== home) throw new Error(`demo mode needs HOME=${home}, not the caller's home`);
+if (DEMO && resolve(process.env.HOME ?? '') !== resolve(home)) throw new Error(`demo mode needs HOME=${home}, not the caller's home`);
 mkdirSync(home, { recursive: true });
 // The folder dialog answers with a parent of the registered project and of one more folder with an agent setup.
 const parent = DEMO ? join(DEMO, 'projects') : mkdtempSync(join(tmpdir(), 'bk-ui-scan-'));

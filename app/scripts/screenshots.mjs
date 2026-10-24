@@ -94,7 +94,8 @@ try {
       await expect(page.getByRole('heading', { level: 1, name: 'BenchKeeper' })).toBeVisible();
       await steps(page);
       // Transitions of drawers and charts must have finished.
-      await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { polling: 'raf' });
+      // The board is a frame of its own.
+      for (const f of page.frames()) await f.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { polling: 'raf' });
       await assertFixtureOnly(page, `${name}-${scheme}`);
       await (cut ? cut(page) : page).screenshot({ path: join(out, `${name}-${scheme}.png`) });
       console.log(`${name}-${scheme}.png`);

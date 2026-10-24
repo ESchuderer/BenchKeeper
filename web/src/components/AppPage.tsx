@@ -1,10 +1,10 @@
 import { Anchor, Container, Stack, Text, Title } from '@mantine/core';
 import { BenchShell } from './Bench';
 
-export type Shot = { file: string; width: number; height: number };
+export type Shot = { width: number; height: number };
 
 // One section per view of the app. The screenshots are saved by app/scripts/screenshots.mjs.
-const VIEWS: { id: string; title: string; shot: string; alt: string; text: string[] }[] = [
+export const VIEWS: { id: string; title: string; shot: string; alt: string; text: string[] }[] = [
   {
     id: 'dashboard', title: 'Dashboard', shot: 'dashboard',
     alt: 'The Dashboard: a setup flow of four boxes (agents detected, global setup, projects, doctor), the install health chart, a coverage table of rules, ask rules, plugin, settings and tools per agent, recent runs and doctor findings.',
@@ -55,7 +55,7 @@ const VIEWS: { id: string; title: string; shot: string; alt: string; text: strin
   },
   {
     id: 'doctor', title: 'Doctor', shot: 'doctor',
-    alt: 'The Doctor table: a level (error or warning), the problem, and a fix column that holds a Plan fix button or a text such as installing Podman or Docker.',
+    alt: 'The Doctor table: a level (error or warning), the problem, and a fix column that holds a Plan fix button or the step to do by hand.',
     text: [
       'The doctor checks the setup against what is installed: rules that differ from the setup, missing plugins and skills, a missing container engine, environment variables that turn features off.',
       'A finding the setup can fix has a Plan fix button that opens the plan. The others carry the command to run by hand.',

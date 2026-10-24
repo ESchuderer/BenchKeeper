@@ -11,8 +11,8 @@
 // output 5 relative to input, from Anthropic's price ratios; output estimated as content characters / 4), time from
 // the event timestamps. OpenCode: cost and time per message as OpenCode reports them.
 
-const SPEC_FILE = /(^|\/)(openspec|\.specify|\.scratch|docs\/superpowers|docs\/adr|specs?)\/|(spec|plan|design|proposal|tasks|requirements)[^/]*\.md$/i;
-const TEST_FILE = /(^|\/)(tests?|__tests__|e2e)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+const SPEC_FILE = /(?:(?:^|\/)(?:openspec|\.specify|\.scratch|docs\/superpowers|docs\/adr|specs?)\/)|(?:(?:spec|plan|design|proposal|tasks|requirements)[^/]*\.md$)/i;
+const TEST_FILE = /(?:(?:^|\/)(?:tests?|__tests__|e2e)\/)|(?:\.(?:test|spec)\.[cm]?[jt]sx?$)/;
 // Commands, not paths: `npm test`, `npm run lint`, `npx playwright test`, `tsc --noEmit`; `cat test/x` stays in its phase.
 const VERIFY_CMD = /\b(npm (run )?(test|lint|typecheck|check|e2e)|npx (vitest|jest|playwright|tsc|eslint)|vitest|jest|tsc|eslint)\b/;
 const BUILD_CMD = /\bnpm (i|install|ci|run build)\b/;
@@ -24,11 +24,36 @@ export function shellWriteTarget(command) {
     || /(?:^|[;&|]\s*)tee\s+(?:-a\s+)?['"]?([^\s'"<>;&|]+)/.exec(c)?.[1] || null;
 }
 
+const isBlank = (c) => c === ' ' || c === '\t';
+const trimBlanks = (line) => { let a = 0, b = line.length; while (a < b && isBlank(line[a])) a++; while (b > a && isBlank(line[b - 1])) b--; return line.slice(a, b); };
+
+// Heredoc bodies and their terminator line are file contents; only the `<<DELIM` header stays. A line scan instead of one
+// regex with a lazy body, which rescans the rest of the command for every header that has no terminator.
+function withoutHeredocBodies(text) {
+  const header = /<<-?[ \t]*\\?(['"]?)([\w.-]+)\1[^\n]*/g;
+  let out = '', pos = 0, m;
+  while ((m = header.exec(text))) {
+    const bodyStart = m.index + m[0].length;
+    if (text[bodyStart] !== '\n') continue;
+    let end = -1;
+    for (let s = bodyStart + 1; s <= text.length && end < 0;) {
+      const nl = text.indexOf('\n', s);
+      const e = nl < 0 ? text.length : nl;
+      if (trimBlanks(text.slice(s, e)) === m[2]) end = e;
+      s = e + 1;
+    }
+    if (end < 0) continue;
+    out += text.slice(pos, bodyStart);
+    pos = header.lastIndex = end;
+  }
+  return out + text.slice(pos);
+}
+
 // A shell command as it runs: without heredoc bodies (file contents), written file names and the packages an install
 // command names, so `cat > vitest.config.ts`, `pip install pytest` and a README that mentions `npm test` are no checks.
 export function commandText(command) {
-  return String(command || '').replace(/(<<-?[ \t]*\\?(['"]?)([\w.-]+)\2[^\n]*)\n(?:[\s\S]*?\n)??[ \t]*\3[ \t]*(?=\n|$)/g, '$1')
-    .replace(/(>{1,2}|\btee\s+(-a\s+)?)\s*['"]?[^\s'"<>;&|]+/g, '')
+  return withoutHeredocBodies(String(command || ''))
+    .replace(/(?:>{1,2}\s*|\btee\s+(?:-a\s+)?)['"]?[^\s'"<>;&|]+/g, '')
     .replace(/\b(npm (?:i|install|add)|pnpm (?:i|install|add)|yarn add|pip3? install|uv (?:add|pip install|tool install)|python3? -m pip install)\b[^;&|\n]*/g, '$1');
 }
 

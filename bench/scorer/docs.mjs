@@ -49,14 +49,14 @@ export function readmeAccuracy(dir, text) {
     add(`npm ${m[1]}`, ok);
   }
   const targets = new Set();
-  for (const m of text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) if (!/^([a-z][a-z0-9+.-]*:|#)/i.test(m[1])) targets.add(m[1].split('#')[0]);
+  for (const m of text.matchAll(/\[[^\][]*\]\(([^)\s]+)\)/g)) if (!/^([a-z][a-z0-9+.-]*:|#)/i.test(m[1])) targets.add(m[1].split('#')[0]);
   for (const m of text.matchAll(/`([^`\s]+)`/g)) {
     const t = m[1];
     if (PATHISH.test(t) && (t.includes('/') || EXT.test(t)) && !/^(text|application|image|audio|video)\//.test(t) && !GENERATED.test(t.replace(/^\.\//, ''))) targets.add(t);
   }
   for (const t of targets) {
     if (!t) continue;
-    const base = t.includes('*') ? t.slice(0, t.indexOf('*')).replace(/[^/]*$/, '') : t;
+    const base = t.includes('*') ? t.slice(0, t.lastIndexOf('/', t.indexOf('*')) + 1) : t;
     add(`path ${t}`, existsSync(join(dir, base || '.')));
   }
   const wrong = checks.filter((c) => !c.ok).map((c) => c.what);
@@ -64,7 +64,7 @@ export function readmeAccuracy(dir, text) {
 }
 
 export function readmeCoverage(dir, text, sources) {
-  const heads = [...text.matchAll(/^#{1,6}\s+(.+)$/gm)].map((m) => m[1]);
+  const heads = [...text.matchAll(/^#{1,6}[ \t]+(\S.*)$/gm)].map((m) => m[1]);
   const head = (re) => heads.some((h) => re.test(h));
   const prose = text.split('\n').filter((l) => l.trim() && !/^(#|```|[-*|>\s]|\d+\.)/.test(l)).slice(0, 8).some((l) => l.trim().split(/\s+/).length >= 6);
   const names = [...new Set(sources.map((f) => f.split('/').pop()))];

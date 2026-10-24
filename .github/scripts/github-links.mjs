@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const byCode = (a, b) => Number(a > b) - Number(a < b);
+const trimTrailing = (s) => { let end = s.length; while (end > 0 && '.,;:_'.includes(s[end - 1])) end--; return s.slice(0, end); };
 const SELF = (process.env.GITHUB_REPOSITORY || 'ESchuderer/BenchKeeper').toLowerCase();
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 // First path segments that are GitHub pages, not owners.
@@ -43,7 +44,7 @@ export function target(url) {
 }
 
 // Markdown emphasis or table pipes next to a URL are not part of it.
-export const extract = (text) => [...text.matchAll(/https:\/\/github\.com\/[^\s)"'<>`\]|*]+/g)].map((m) => m[0].replace(/[.,;:_]+$/, '').split('#')[0]);
+export const extract = (text) => [...text.matchAll(/https:\/\/github\.com\/[^\s)"'<>`\]|*]+/g)].map((m) => trimTrailing(m[0]).split('#')[0]);
 
 function request(t, token) {
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'benchkeeper-links', ...(token && { Authorization: `Bearer ${token}` }) };

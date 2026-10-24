@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { audit, byCode, outcome, workflow } from './trial.mjs';
+import { commandText } from './phases.mjs';
 
 // Fixtures: init and SessionStart events recorded from the arm images (hook output reduced to its markers).
 const fixture = (arm) => readFileSync(new URL(`fixtures/init-${arm}.jsonl`, import.meta.url), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
@@ -436,4 +437,11 @@ test('SCB report preserves per-test denominators and missing regression groups',
 test('byCode orders like the default sort: by code unit, uppercase before lowercase', () => {
   const names = ['b', 'B', 'a', 'ab', 'A', '_x', 'é', 'z'];
   assert.deepEqual([...names].sort(byCode), [...names].sort());
+});
+
+test('commandText drops heredoc bodies and written file names, and keeps an unterminated heredoc', () => {
+  assert.equal(commandText('cat > a.txt <<EOF\nnpm test\n  EOF\nnpm run lint'), 'cat  <<EOF\nnpm run lint');
+  assert.equal(commandText("cat <<-'X'\nbody\nX"), "cat <<-'X'");
+  assert.equal(commandText('cat <<EOF\nnpm test\nno terminator'), 'cat <<EOF\nnpm test\nno terminator');
+  assert.equal(commandText('echo hi | tee -a out.log && pip install pytest'), 'echo hi |  && pip install');
 });

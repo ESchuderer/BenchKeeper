@@ -8,6 +8,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const byCode = (a, b) => Number(a > b) - Number(a < b);
+const trimNewlines = (s) => { let end = s.length; while (end > 0 && s[end - 1] === '\n') end--; return s.slice(0, end); };
 
 export const CHECKS = ['name-valid', 'desc-length', 'desc-xml', 'desc-third-person', 'desc-when', 'body-lines', 'nested-refs',
   'ref-toc', 'dated-text', 'mcp-qualified', 'windows-paths'];
@@ -15,7 +16,7 @@ const MONTH = '(January|February|March|April|May|June|July|August|September|Octo
 const DATED = new RegExp(`\\b20\\d\\d-\\d\\d-\\d\\d\\b|\\b${MONTH} 20\\d\\d\\b|\\b(as of|before|after|since|until) (20\\d\\d|${MONTH})\\b`, 'i');
 // shortcut: these three are heuristics (first or second person, a trigger clause, an MCP tool named without its server);
 // the Opus review in the results document judges the same points by reading.
-const FIRST_PERSON = /^\s*(I|I'm|I'll|You|We)\b|\bI (can|will)\b|\byou can use this\b/i;
+const FIRST_PERSON = /(?:^\s*(?:I|I'm|I'll|You|We)\b)|(?:\bI (?:can|will)\b)|(?:\byou can use this\b)/i;
 const WHEN = /\b(use|used|invoke|invoked|trigger|triggers|run|load|apply)\b[^.]{0,60}\b(when|whenever|before|after|if|for|on|during)\b|\bwhen (the user|you|working|asked|a|an|the)\b/i;
 
 function walk(dir, out = []) {
@@ -34,8 +35,8 @@ export function frontMatter(text) {
   if (!m) return { fields: {}, body: text };
   const fields = {}; const ls = m[1].split(/\r?\n/);
   for (let i = 0; i < ls.length; i++) {
-    const kv = /^([A-Za-z_-]+):\s*(.*)$/.exec(ls[i]); if (!kv) continue;
-    let v = kv[2].trim();
+    const kv = /^([A-Za-z_-]+):\s*(\S.*)?$/.exec(ls[i]); if (!kv) continue;
+    let v = (kv[2] ?? '').trim();
     if (/^[>|][-+]?$/.test(v)) { const block = []; while (i + 1 < ls.length && /^(\s+|$)/.test(ls[i + 1])) block.push(ls[++i].trim()); v = block.join(v[0] === '>' ? ' ' : '\n').trim(); }
     else { while (i + 1 < ls.length && /^\s+\S/.test(ls[i + 1])) v += ` ${ls[++i].trim()}`; v = v.replace(/^(["'])([\s\S]*)\1$/, '$2'); }
     fields[kv[1]] = v;
@@ -46,12 +47,12 @@ export function frontMatter(text) {
 const localLinks = (text, from) => [...text.matchAll(/\]\(([^)#\s]+\.md)(#[^)]*)?\)/g)].map((x) => x[1])
   .filter((l) => !/^[a-z]+:/i.test(l)).map((l) => resolve(dirname(from), l)).filter((p) => existsSync(p) && statSync(p).isFile());
 const hasToc = (text) => { const head = text.split('\n').slice(0, 40).join('\n');
-  return /^#+\s*(contents|table of contents)\b/im.test(head) || (head.match(/^\s*[-*] \[[^\]]+\]\(#/gm) || []).length >= 3; };
+  return /^#+[ \t]*(contents|table of contents)\b/im.test(head) || (head.match(/^[ \t]*[-*] \[[^\]]+\]\(#/gm) || []).length >= 3; };
 
 export function lintSkill(file) {
   const text = readFileSync(file, 'utf8'); const dir = dirname(file);
   const { fields, body: raw } = frontMatter(text);
-  const body = raw.replace(/\n+$/, '');
+  const body = trimNewlines(raw);
   const name = fields.name || dir.split('/').pop(); const desc = fields.description || '';
   const refs = walk(dir).filter((p) => p.endsWith('.md') && p !== file);
   const failed = [];

@@ -107,7 +107,7 @@ export function workflow(events, uses = claudeUses(events)) {
   const last = uses.at(-1);
   // Tier lines the agent wrote (`Tier: quick`), from the main thread's text.
   const tiers = events.filter((e) => e.type === 'assistant' && !e.parent_tool_use_id).flatMap((e) => (e.message?.content || [])
-    .filter((c) => c.type === 'text').flatMap((c) => [...(c.text || '').matchAll(/^[^\w\n]*Tier[^\w\n]*:[^\w\n]*(\w+)/gim)].map((m) => m[1].toLowerCase())));
+    .filter((c) => c.type === 'text').flatMap((c) => [...(c.text || '').matchAll(/^[^\w\n]*Tier[^\w\n:]*:[^\w\n]*(\w+)/gim)].map((m) => m[1].toLowerCase())));
   return {
     tool_calls: uses.length,
     subagent_tool_calls: uses.filter((u) => u.sub).length,

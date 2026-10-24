@@ -21,7 +21,9 @@ const OPENCODE = new Set(['Q', 'R', 'S', 'T', 'U', 'Z', 'AA']);
 const fixture = (dir, arm) => readFileSync(join(dir, `init-${arm}.jsonl`), 'utf8').split('\n').filter(Boolean)
   .map((l) => JSON.parse(l)).find((e) => e.subtype === 'init')?.skills || [];
 const short = (name) => String(name).split(':').pop();
-const firstSentence = (s) => { const t = String(s).replace(/\s*\u2014\s*/g, ', ').split(/(?<=\.)\s/)[0]; return t.length > 140 ? `${t.slice(0, 137)}...` : t; };
+// ', ' for each em dash with the whitespace around it (split instead of a regex, which backtracks on long whitespace runs)
+const dashToComma = (s) => s.split('\u2014').map((p, i) => (i ? p.trimStart() : p)).map((p, i, a) => (i < a.length - 1 ? p.trimEnd() : p)).join(', ');
+const firstSentence = (s) => { const t = dashToComma(String(s)).split(/(?<=\.)\s/)[0]; return t.length > 140 ? `${t.slice(0, 137)}...` : t; };
 
 export function inventory(files, fixtures) {
   const base = new Set(fixture(fixtures, 'A'));

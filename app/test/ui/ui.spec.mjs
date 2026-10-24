@@ -50,6 +50,8 @@ test.describe('views', () => {
     await context.addCookies([cookie]);
     await context.addInitScript((k) => localStorage.setItem('benchkeeper-key', k), key);
     await page.goto('/');
+    // Shortcuts and the skip link exist once the app is up, behind the starting screen.
+    await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
   });
 
   for (const view of VIEWS) {
@@ -277,6 +279,22 @@ test.describe('views', () => {
     await cell.click();
     await expect(page).toHaveURL(/#\/agents\?agent=claude$/);
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
+  });
+
+  test('a slow first overview shows the starting screen, not 0 agents; a failed one offers Try again', async ({ page }) => {
+    let down = true;
+    await page.route(/\/api\/overview(\?|$)/, async (route) => {
+      if (!down) return route.continue();
+      await new Promise((r) => setTimeout(r, 400));
+      return route.abort('connectionreset');
+    });
+    await page.reload();
+    await expect(page.getByRole('status')).toContainText('Starting');
+    await expect(page.getByText('0 installed')).toHaveCount(0);
+    await expect(page.getByRole('alert')).toContainText('Cannot read the setup');
+    down = false;
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByText('CLI', { exact: true })).toBeVisible();
   });
 
   test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {

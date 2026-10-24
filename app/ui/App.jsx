@@ -1,4 +1,4 @@
-import { ActionIcon, Alert, Anchor, AppShell, Badge, Burger, Button, Code, Drawer, Group, Kbd, MantineProvider, Modal, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, AppShell, Badge, Burger, Button, Code, Drawer, Group, Kbd, MantineProvider, Modal, NavLink, Loader, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys, useMediaQuery } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
 import { IconActivity, IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPower, IconRobot, IconSearch, IconSettings, IconSun } from '@tabler/icons-react';
@@ -95,6 +95,18 @@ function RunningJobs({ onDone }) {
   );
 }
 
+// Full screen until the first overview arrives, so the views never show 0 agents or an error for what is only not loaded yet.
+function Splash({ error, retry }) {
+  return (
+    <Stack component="main" h="100vh" align="center" justify="center" gap="md" p="md">
+      <Title order={1} size="h3">BenchKeeper</Title>
+      {error
+        ? <Alert color="red" title="Cannot read the setup" maw={480}><Stack gap="sm" align="flex-start">{error}<Button size="xs" variant="default" onClick={retry}>Try again</Button></Stack></Alert>
+        : <Group gap="xs" role="status"><Loader size="sm" /><Text size="sm">Starting, reading the setup</Text></Group>}
+    </Stack>
+  );
+}
+
 function Shell() {
   const { view, params } = useRoute();
   const [nav, { toggle, close }] = useDisclosure();
@@ -148,6 +160,7 @@ function Shell() {
   }, [label]);
   // A closed menu on a phone is only moved off screen: its links and buttons must not stay Tab stops.
   const phone = useMediaQuery('(max-width: 47.99em)');
+  if (!o) return <Splash error={overview.error} retry={overview.reload} />;
   return (
     <FixEverything version={o?.version} doctor={doctor} onClose={refresh}>
       <OneRunProvider value={setOneRun}>

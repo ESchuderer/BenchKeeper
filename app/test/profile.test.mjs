@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -10,8 +10,10 @@ import { exportProfile, readProfile } from '../src/profile.mjs';
 import { addProject, listProjects } from '../src/projects.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
 import { projectPlan, readState } from '../src/steps/project.mjs';
+// Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
+const TMP = realpathSync(tmpdir());
 
-const tmp = (p) => mkdtempSync(join(tmpdir(), p));
+const tmp = (p) => mkdtempSync(join(TMP, p));
 const machine = () => context({ home: tmp('bk-prof-'), run: (argv) => (argv[0] === 'npm' ? { code: 1, stdout: '', stderr: '' } : { code: 0, stdout: argv.includes('--json') ? '[]' : '1.0.0', stderr: '' }) });
 
 test('export holds choices only; import registers projects, saves packs, sets up projects without a state file, skips missing paths', async () => {

@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { CSP, SCRIPT_HASH, boardHtml, registeredPaths } from '../src/board.mjs';
 import { context } from '../src/runner.mjs';
 import { TITLE } from './fixtures/sessions.mjs';
+// Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
+const TMP = realpathSync(tmpdir());
 
 const row = { agent: 'claude', id: 's1', project: '/work/shop', title: TITLE, start: '2026-10-20T10:00:00.000Z', end: '2026-10-20T10:03:00.000Z', turns: 1, models: [], costUSD: 1, busyMs: 1000, tokens: 10, tier: null, skills: [], tests: null, setup: [], setupVersion: null, prs: [] };
 
@@ -22,7 +24,7 @@ test('a title that closes the script element stays data; the CSP hash is the has
 });
 
 test('registered projects and their worktrees go to the board as the Project filter\'s first choice', () => {
-  const home = mkdtempSync(join(tmpdir(), 'bk-board-'));
+  const home = mkdtempSync(join(TMP, 'bk-board-'));
   const run = (argv) => (argv.join(' ') === `git -C ${home}/shop worktree list --porcelain`
     ? { code: 0, stdout: `worktree ${home}/shop\nHEAD 1\n\nworktree ${home}/wt/shop-fix\nHEAD 2\n`, stderr: '' }
     : { code: 128, stdout: '', stderr: 'not a git repository' });

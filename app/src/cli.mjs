@@ -217,6 +217,7 @@ async function command(argv, { out, ask, ctx }) {
     return 0;
   }
   if (cmd === 'update-all') {
+    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
     const projects = listProjects(ctx).map((p) => status(ctx, p.path));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
     for (const p of projects) {
@@ -226,7 +227,6 @@ async function command(argv, { out, ask, ctx }) {
       out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
       if ((p.clean || !commits) && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
     }
-    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
     if (o.baseline) {
       for (const p of projects) {
         out.write(`${p.path}  GitHub settings against profile ${o.baseline} (report only)\n`);

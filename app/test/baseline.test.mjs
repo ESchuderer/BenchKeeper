@@ -37,6 +37,8 @@ function stub(db) {
     calls.push(argv);
     if (db.offline) return { code: 1, stdout: '', stderr: 'error connecting to api.github.com\n' };
     const target = argv.find((a) => a.startsWith('repos/'));
+    if (db.deny?.some((d) => target.includes(d))) return bad(403, 'Resource not accessible by personal access token');
+    if (target.startsWith(`repos/${BASELINE_REPO}/contents/`) && db.baselineInvalid) return { code: 0, stdout: '{"schemaVersion":2}', stderr: '' };
     if (target.startsWith(`repos/${BASELINE_REPO}/contents/`)) return db.baselineDown ? bad(404, 'Not Found') : { code: 0, stdout: readFileSync(new URL(`../src/baseline/${target.match(/contents\/([^?]+)/)[1]}`, import.meta.url), 'utf8'), stderr: '' };
     const path = target.replace(/^repos\/[^/]+\/[^/]+/, '');
     if (path === '') return ok({ private: db.private, ...db.repo, security_and_analysis: { secret_scanning: { status: db.scanning ? 'enabled' : 'disabled' }, secret_scanning_push_protection: { status: db.pushProtection ? 'enabled' : 'disabled' } } });
@@ -128,6 +130,27 @@ test('control characters from a workflow file or a check name never reach the re
   assert.ok(!/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/.test(text));
 });
 
+test('a part that cannot be read is named and never reads as a match; a lost ruleset detail is not a missing ruleset', () => {
+  const db = compliant();
+  db.deny = ['/actions/permissions/workflow', '/rulesets/2'];
+  const { ctx } = machine(db);
+  const found = messages(baselineIssues(ctx, checkout(), { profile: 'oss' }));
+  assert.deepEqual(found, ['workflow not readable (HTTP 403), left out', 'ruleset 2 not readable (HTTP 403), left out']);
+  assert.ok(!found.some((m) => /missing|matches/.test(m)));
+  assert.ok(baselineIssues(ctx, checkout(), { profile: 'oss' }).every((i) => !i.tag), 'enforcing profile: no advisory tag');
+});
+
+test('a comment is not a caller and a quoted pin is one; the origin must be github.com itself', () => {
+  const { ctx } = machine(compliant());
+  const dir = checkout({ promote: null });
+  writeFileSync(join(dir, '.github/workflows/promote.yml'), `# uses: ${BASELINE_REPO}/.github/workflows/promote.yml@${'a'.repeat(40)}\n`);
+  assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), ['caller workflow promote is missing']);
+  writeFileSync(join(dir, '.github/workflows/promote.yml'), `jobs:\n  p:\n    uses: "${BASELINE_REPO}/.github/workflows/promote.yml@${'a'.repeat(40)}"\n`);
+  assert.deepEqual(baselineIssues(ctx, dir, { profile: 'oss' }).map((i) => i.level), ['info']);
+  for (const url of ['https://evilgithub.com/o/r', 'https://github.com/o/..', 'https://github.com/../r']) assert.equal(githubSlug(ctx, checkout({ remote: url })), null, url);
+  assert.equal(githubSlug(ctx, checkout({ remote: 'ssh://git@github.com/o/r.git' })), 'o/r');
+});
+
 test('rulesets without checks and a caller that is not pinned to a commit are reported', () => {
   const db = compliant();
   db.rulesets = OSS.rulesets.map((r, i) => structuredClone({ ...r, id: i + 1, source_type: 'Repository' }));
@@ -151,6 +174,8 @@ test('the profile falls back to the bundled copy when repo-baseline is unreachab
   const r = loadProfile(ctx, 'oss');
   assert.deepEqual(r.profile, OSS);
   assert.match(r.source, /bundled copy of ESchuderer\/repo-baseline@/);
+  const odd = machine({ baselineInvalid: true });
+  assert.match(loadProfile(odd.ctx, 'oss').source, /repo-baseline: not a valid profile file/);
   assert.throws(() => loadProfile(ctx, 'oss', 'feature/x'), /cannot read profile oss at ESchuderer\/repo-baseline@feature\/x/);
   assert.throws(() => loadProfile(ctx, 'oss', '--evil'), /not a ref/);
   assert.throws(() => loadProfile(ctx, '../oss'), /profile must be one of/);

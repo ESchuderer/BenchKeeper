@@ -9,7 +9,7 @@ import { git } from './git.mjs';
 
 export const BASELINE_REPO = 'ESchuderer/repo-baseline';
 // The repo-baseline commit the bundled copy in ./baseline/ and the caller files come from (scripts/baseline-sync.mjs).
-export const REF = '027a198b2acbaf5b6360399e8acee9aad87cf954';
+export const REF = '9fa20b5c33cc72f777a717fb9418c57211ace0b0';
 export const PROFILES = ['oss', 'private-advisory'];
 export const CALLERS = ['promote', 'lint-js', 'lint-python', 'sonar'];
 const REF_OK = /^[\w][\w./-]*$/;
@@ -28,12 +28,16 @@ export function loadProfile(ctx, name, ref = REF) {
   if (!PROFILES.includes(name)) throw new Error(`profile must be one of ${PROFILES.join(', ')}`);
   if (!REF_OK.test(ref)) throw new Error(`not a ref: ${ref}`);
   const r = ctx.run(['gh', 'api', '-H', 'Accept: application/vnd.github.raw', `repos/${BASELINE_REPO}/contents/profiles/${name}.json?ref=${ref}`], { env: GH_ENV, timeout: 20e3 });
-  try {
-    const profile = JSON.parse(r.stdout);
-    if (r.code === 0 && valid(profile, name)) return { profile, source: `${BASELINE_REPO}@${ref.slice(0, 7)}` };
-  } catch { /* unreachable or not JSON */ }
-  if (ref !== REF) throw new Error(`cannot read profile ${name} at ${BASELINE_REPO}@${ref}: ${r.stderr.trim().split('\n')[0] || 'no valid file'}`);
-  return { profile: JSON.parse(bundled(`profiles/${name}.json`)), source: `bundled copy of ${BASELINE_REPO}@${REF.slice(0, 7)} (repo-baseline not reachable)` };
+  let why = r.stderr.trim().split('\n')[0] || 'no answer';
+  if (r.code === 0) {
+    try {
+      const profile = JSON.parse(r.stdout);
+      if (valid(profile, name)) return { profile, source: `${BASELINE_REPO}@${ref.slice(0, 7)}` };
+    } catch { /* not JSON */ }
+    why = 'not a valid profile file (a newer schema?)';
+  }
+  if (ref !== REF) throw new Error(`cannot read profile ${name} at ${BASELINE_REPO}@${ref}: ${why}`);
+  return { profile: JSON.parse(bundled(`profiles/${name}.json`)), source: `bundled copy of ${BASELINE_REPO}@${REF.slice(0, 7)} (repo-baseline: ${why})` };
 }
 
 // A caller workflow of repo-baseline, pinned to the bundled commit: { path, text }.
@@ -44,8 +48,8 @@ export function callerFile(module) {
 
 // owner/repo of a checkout's GitHub origin, or null.
 export function githubSlug(ctx, dir) {
-  const m = git(ctx, dir, ['remote', 'get-url', 'origin']).stdout.trim().match(/github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
-  return m && !m[1].startsWith('.') && !m[2].startsWith('-') ? `${m[1]}/${m[2]}` : null;
+  const m = git(ctx, dir, ['remote', 'get-url', 'origin']).stdout.trim().match(/(?:^|@|\/\/)github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
+  return m && !/^\.{1,2}$/.test(m[1]) && !/^\.{1,2}$/.test(m[2]) && !m[1].startsWith('-') && !m[2].startsWith('-') ? `${m[1]}/${m[2]}` : null;
 }
 
 const REPO_KEYS = ['allow_merge_commit', 'allow_squash_merge', 'allow_rebase_merge', 'allow_auto_merge', 'delete_branch_on_merge'];
@@ -61,6 +65,8 @@ export function readLive(ctx, slug) {
     try { return r.stdout.trim() ? JSON.parse(r.stdout) : {}; } catch { unreadable[key] = { http: null, message: 'not JSON' }; return undefined; }
   };
   const repo = get('repo', '');
+  // Offline or no login: the rest would fail the same way, one timeout at a time.
+  if (!repo) return { visibility: null, state: {}, unreadable };
   const actions = get('actions', '/actions/permissions');
   const state = {
     repo: repo && pick(repo, REPO_KEYS),
@@ -68,7 +74,6 @@ export function readLive(ctx, slug) {
     selected: actions?.allowed_actions === 'selected' ? get('selected', '/actions/permissions/selected-actions') : undefined,
     workflow: get('workflow', '/actions/permissions/workflow'),
   };
-  if (!repo) return { visibility: null, state, unreadable };
   const sec = repo.security_and_analysis ?? {};
   const pvr = get('private_vulnerability_reporting', '/private-vulnerability-reporting');
   const fixes = get('dependabot_security_updates', '/automated-security-fixes');
@@ -87,7 +92,9 @@ export function readLive(ctx, slug) {
     secret_scanning_push_protection: on(sec.secret_scanning_push_protection),
   }).filter(([, v]) => v !== undefined));
   const list = get('rulesets', '/rulesets?includes_parents=false&per_page=100');
-  if (Array.isArray(list)) state.rulesets = list.map((x) => get(`ruleset ${x.id}`, `/rulesets/${Number(x.id)}`)).filter(Boolean);
+  // One detail that cannot be read leaves the section out: a missing entry would read as a missing ruleset.
+  const details = Array.isArray(list) ? list.map((x) => get(`ruleset ${x.id}`, `/rulesets/${Number(x.id)}`)) : [];
+  if (Array.isArray(list) && details.every(Boolean)) state.rulesets = details;
   return { visibility: repo.private ? 'private' : 'public', state, unreadable };
 }
 
@@ -100,7 +107,8 @@ const contexts = (rs) => rs?.rules?.find((r) => r.type === 'required_status_chec
 export function compare(profile, live) {
   const out = [];
   const keys = (label, want = {}, have) => {
-    if (have) for (const [k, v] of Object.entries(want)) if (have[k] !== undefined && !same(v, have[k])) out.push(`${label} ${k} is ${show(have[k])}, the profile wants ${show(v)}`);
+    // GitHub answers 404 for alerts that are off and for a token without admin read.
+    if (have) for (const [k, v] of Object.entries(want)) if (have[k] !== undefined && !same(v, have[k])) out.push(`${label} ${k} is ${show(have[k])}${k === 'dependabot_alerts' ? ' (or the token cannot read it)' : ''}, the profile wants ${show(v)}`);
   };
   keys('repository', profile.repo, live.state.repo);
   keys('Actions', profile.actions, live.state.actions);
@@ -147,7 +155,8 @@ export function filesDrift(profile, dir) {
   const wf = join(dir, '.github/workflows');
   const texts = exists(wf) ? readdirSync(wf).filter((f) => /\.ya?ml$/.test(f)).map((f) => readText(join(wf, f)) ?? '') : [];
   for (const m of profile.callers ?? []) {
-    const uses = texts.flatMap((t) => [...t.matchAll(new RegExp(`uses:\\s*${BASELINE_REPO}/\\.github/workflows/${m}\\.yml@(\\S+)`, 'g'))].map((x) => x[1]));
+    // A line of its own, so a comment does not count; quotes around the value are allowed.
+    const uses = texts.flatMap((t) => [...t.matchAll(new RegExp(`^\\s*(?:-\\s*)?uses:\\s*["']?${BASELINE_REPO}/\\.github/workflows/${m}\\.yml@([^\\s"']+)`, 'gm'))].map((x) => x[1]));
     if (!uses.length) out.push({ message: `caller workflow ${m} is missing`, fix: `benchkeeper project apply --caller ${m}` });
     else if (!uses.some((u) => /^[0-9a-f]{40}$/.test(u))) out.push({ message: `caller workflow ${m} is not pinned to a commit (${uses[0]})`, fix: 'pin the uses: line to a full commit SHA' });
   }
@@ -170,7 +179,9 @@ export function baselineIssues(ctx, dir, { profile = 'auto', ref } = {}) {
   const tag = p.advisory ? 'advisory' : undefined;
   const fix = `${p.advisory ? 'advisory, nothing to apply: ' : ''}in a clone of ${BASELINE_REPO} at ${ref ?? REF.slice(0, 7)}: node scripts/apply.mjs ${slug} --profile ${p.name} (dry run, then --apply)`;
   const out = [...compare(p, live).map((m) => issue(`${slug}: ${m}`, fix, tag)), ...filesDrift(p, dir).map((f) => issue(`${slug}: ${f.message}`, f.fix, tag))];
-  for (const [k, v] of Object.entries(live.unreadable)) if (/^(rulesets|selected|code_scanning_default_setup|private_vulnerability_reporting)$/.test(k) || k === 'dependabot_alerts') out.push(issue(`${slug}: ${k.replaceAll('_', ' ')} not readable${v.http ? ` (HTTP ${v.http})` : ''}, left out`, p.advisory ? 'the plan or the token lacks it: advisory only' : 'a token with admin read access shows it', 'advisory'));
+  // A part the profile does not govern (private vulnerability reporting on a private repository) is not worth a line.
+  const governed = (k) => (/^ruleset/.test(k) ? !!p.rulesets : k in (p.security ?? {}) || (k in p && typeof p[k] === 'object'));
+  for (const [k, v] of Object.entries(live.unreadable).filter(([k]) => governed(k))) out.push(issue(`${slug}: ${k.replaceAll('_', ' ')} not readable${v.http ? ` (HTTP ${v.http})` : ''}, left out`, p.advisory ? 'the plan or the token lacks it: advisory only' : 'a token with admin read access shows it', tag));
   if (!out.length) out.push({ level: 'info', check: 'baseline', message: `${slug} matches profile ${p.name} (${source})`, fix: '' });
   return out;
 }

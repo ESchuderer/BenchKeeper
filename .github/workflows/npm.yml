@@ -33,7 +33,7 @@ jobs:
           WANT: ${{ inputs.version }}
         run: test "$(node -p 'require("./package.json").version')" = "$WANT"
       # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
-      - run: npm install -g npm@11.21.1 # zizmor: ignore[adhoc-packages] exact version
+      - run: npm install -g --ignore-scripts npm@11.21.1 # zizmor: ignore[adhoc-packages] exact version
       - name: Test and publish
         working-directory: app
-        run: npm ci --no-audit --no-fund && npm test && npm publish --provenance --access public
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm test && npm publish --provenance --access public

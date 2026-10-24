@@ -75,6 +75,8 @@ export function readLive(ctx, slug) {
     workflow: get('workflow', '/actions/permissions/workflow'),
   };
   const sec = repo.security_and_analysis ?? {};
+  // GitHub returns this block to admins only: without it the two scanning settings are unknown, not off.
+  if (!repo.security_and_analysis) for (const k of ['secret_scanning', 'secret_scanning_push_protection']) unreadable[k] = { http: null, message: 'security_and_analysis not returned (admin rights needed)' };
   const pvr = get('private_vulnerability_reporting', '/private-vulnerability-reporting');
   const fixes = get('dependabot_security_updates', '/automated-security-fixes');
   const code = get('code_scanning_default_setup', '/code-scanning/default-setup');
@@ -149,19 +151,33 @@ export function compare(profile, live) {
   return out;
 }
 
+// The refs the workflow files of the checkout give repo-baseline's caller m (a line of its own, so a comment does not
+// count; quotes around the value are allowed).
+function callerUses(dir, m) {
+  const wf = join(dir, '.github/workflows');
+  const texts = exists(wf) ? readdirSync(wf).filter((f) => /\.ya?ml$/.test(f)).map((f) => readText(join(wf, f)) ?? '') : [];
+  return texts.flatMap((t) => [...t.matchAll(new RegExp(`^\\s*(?:-\\s*)?uses:\\s*["']?${BASELINE_REPO}/\\.github/workflows/${m}\\.yml@([^\\s"']+)`, 'gm'))].map((x) => x[1]));
+}
+const callerPattern = (m) => `${BASELINE_REPO}/.github/workflows/${m}.yml@*`;
+
 // Caller workflows and files of the checkout against the profile.
 export function filesDrift(profile, dir) {
   const out = [];
-  const wf = join(dir, '.github/workflows');
-  const texts = exists(wf) ? readdirSync(wf).filter((f) => /\.ya?ml$/.test(f)).map((f) => readText(join(wf, f)) ?? '') : [];
   for (const m of profile.callers ?? []) {
-    // A line of its own, so a comment does not count; quotes around the value are allowed.
-    const uses = texts.flatMap((t) => [...t.matchAll(new RegExp(`^\\s*(?:-\\s*)?uses:\\s*["']?${BASELINE_REPO}/\\.github/workflows/${m}\\.yml@([^\\s"']+)`, 'gm'))].map((x) => x[1]));
+    const uses = callerUses(dir, m);
     if (!uses.length) out.push({ message: `caller workflow ${m} is missing`, fix: `benchkeeper project apply --caller ${m}` });
     else if (!uses.some((u) => /^[0-9a-f]{40}$/.test(u))) out.push({ message: `caller workflow ${m} is not pinned to a commit (${uses[0]})`, fix: 'pin the uses: line to a full commit SHA' });
   }
   for (const f of profile.files ?? []) if (!exists(join(dir, f))) out.push({ message: `${f} is missing`, fix: 'add the file (Dependabot version updates)' });
   return out;
+}
+
+// A caller the checkout uses beyond the profile's (lint, sonar) needs its pattern in the Actions allowlist.
+export function allowlistDrift(profile, live, dir) {
+  const have = live.state.selected?.patterns_allowed;
+  if (!have) return [];
+  return CALLERS.filter((m) => !profile.selected?.patterns_allowed?.includes(callerPattern(m)) && callerUses(dir, m).length && !have.includes(callerPattern(m)))
+    .map((m) => `Actions allowlist lacks ${callerPattern(m)}, which the ${m} caller workflow uses`);
 }
 
 // Doctor issues for one checkout: { level, check: 'baseline', message, fix, tag? }. profile: a name or 'auto' (private
@@ -178,7 +194,7 @@ export function baselineIssues(ctx, dir, { profile = 'auto', ref } = {}) {
   const { profile: p, source } = loaded;
   const tag = p.advisory ? 'advisory' : undefined;
   const fix = `${p.advisory ? 'advisory, nothing to apply: ' : ''}in a clone of ${BASELINE_REPO} at ${ref ?? REF.slice(0, 7)}: node scripts/apply.mjs ${slug} --profile ${p.name} (dry run, then --apply)`;
-  const out = [...compare(p, live).map((m) => issue(`${slug}: ${m}`, fix, tag)), ...filesDrift(p, dir).map((f) => issue(`${slug}: ${f.message}`, f.fix, tag))];
+  const out = [...[...compare(p, live), ...allowlistDrift(p, live, dir)].map((m) => issue(`${slug}: ${m}`, fix, tag)), ...filesDrift(p, dir).map((f) => issue(`${slug}: ${f.message}`, f.fix, tag))];
   // A part the profile does not govern (private vulnerability reporting on a private repository) is not worth a line.
   const governed = (k) => (/^ruleset/.test(k) ? !!p.rulesets : k in (p.security ?? {}) || (k in p && typeof p[k] === 'object'));
   for (const [k, v] of Object.entries(live.unreadable).filter(([k]) => governed(k))) out.push(issue(`${slug}: ${k.replaceAll('_', ' ')} not readable${v.http ? ` (HTTP ${v.http})` : ''}, left out`, p.advisory ? 'the plan or the token lacks it: advisory only' : 'a token with admin read access shows it', tag));

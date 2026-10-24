@@ -20,7 +20,7 @@ const compliant = () => ({
   private: false,
   repo: { ...OSS.repo },
   actions: { ...OSS.actions },
-  selected: { ...OSS.selected },
+  selected: structuredClone(OSS.selected),
   workflow: { ...OSS.workflow },
   pvr: true, alerts: true, fixes: true, code: 'configured', scanning: true, pushProtection: true,
   rulesets: [withChecks(OSS.rulesets[0], ['build', 'dependency-review']), withChecks(OSS.rulesets[1], ['build'])],
@@ -41,7 +41,7 @@ function stub(db) {
     if (target.startsWith(`repos/${BASELINE_REPO}/contents/`) && db.baselineInvalid) return { code: 0, stdout: '{"schemaVersion":2}', stderr: '' };
     if (target.startsWith(`repos/${BASELINE_REPO}/contents/`)) return db.baselineDown ? bad(404, 'Not Found') : { code: 0, stdout: readFileSync(new URL(`../src/baseline/${target.match(/contents\/([^?]+)/)[1]}`, import.meta.url), 'utf8'), stderr: '' };
     const path = target.replace(/^repos\/[^/]+\/[^/]+/, '');
-    if (path === '') return ok({ private: db.private, ...db.repo, security_and_analysis: { secret_scanning: { status: db.scanning ? 'enabled' : 'disabled' }, secret_scanning_push_protection: { status: db.pushProtection ? 'enabled' : 'disabled' } } });
+    if (path === '') return ok({ private: db.private, ...db.repo, security_and_analysis: db.noSecurityBlock ? undefined : { secret_scanning: { status: db.scanning ? 'enabled' : 'disabled' }, secret_scanning_push_protection: { status: db.pushProtection ? 'enabled' : 'disabled' } } });
     if (path === '/actions/permissions') return ok(db.actions);
     if (path === '/actions/permissions/selected-actions') return ok(db.selected);
     if (path === '/actions/permissions/workflow') return ok(db.workflow);
@@ -149,6 +149,18 @@ test('a comment is not a caller and a quoted pin is one; the origin must be gith
   assert.deepEqual(baselineIssues(ctx, dir, { profile: 'oss' }).map((i) => i.level), ['info']);
   for (const url of ['https://evilgithub.com/o/r', 'https://github.com/o/..', 'https://github.com/../r']) assert.equal(githubSlug(ctx, checkout({ remote: url })), null, url);
   assert.equal(githubSlug(ctx, checkout({ remote: 'ssh://git@github.com/o/r.git' })), 'o/r');
+});
+
+test('a lint or sonar caller in use needs its allowlist pattern; admin-only scanning settings missing are named, not matched', () => {
+  const db = compliant();
+  const dir = checkout();
+  writeFileSync(join(dir, '.github/workflows/lint-js.yml'), `jobs:\n  l:\n    uses: ${BASELINE_REPO}/.github/workflows/lint-js.yml@${'b'.repeat(40)}\n`);
+  const { ctx } = machine(db);
+  assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), [`Actions allowlist lacks ${BASELINE_REPO}/.github/workflows/lint-js.yml@*, which the lint-js caller workflow uses`]);
+  db.selected.patterns_allowed.push(`${BASELINE_REPO}/.github/workflows/lint-js.yml@*`);
+  assert.deepEqual(baselineIssues(ctx, dir, { profile: 'oss' }).map((i) => i.level), ['info']);
+  db.noSecurityBlock = true;
+  assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), ['secret scanning not readable, left out', 'secret scanning push protection not readable, left out']);
 });
 
 test('rulesets without checks and a caller that is not pinned to a commit are reported', () => {

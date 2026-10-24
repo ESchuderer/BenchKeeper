@@ -33,3 +33,16 @@ test('registered projects and their worktrees go to the board as the Project fil
   const html = boardHtml([], '2026-10-23T00:00:00Z', registeredPaths(ctx));
   assert.deepEqual(JSON.parse(html.match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]).registered, registeredPaths(ctx));
 });
+
+// WCAG relative luminance; a mark needs 3:1 against its surface (the dataviz palette validator's contrast check).
+const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)).reduce((n, c, i) => n + c * [0.2126, 0.7152, 0.0722][i], 0);
+const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+
+test('every series color holds 3:1 against its surface, in light and dark', () => {
+  const css = boardHtml([], '2026-10-23T00:00:00Z').match(/<style>([\s\S]*?)<\/style>/)[1];
+  const dark = css.match(/:root\[data-theme="dark"\] \{([^}]*)\}/)[1], light = css.match(/:root \{ color-scheme: light;([^}]*)\}/)[1];
+  for (const [name, block] of [['light', light], ['dark', dark]]) {
+    const v = (k) => block.match(new RegExp(`--${k}: (#[0-9a-f]{6})`))[1];
+    for (const k of ['s1', 's2', 's3', 's4']) assert.ok(contrast(v(k), v('surface')) >= 3, `${name} ${k} ${v(k)} on ${v('surface')}: ${contrast(v(k), v('surface')).toFixed(2)}`);
+  }
+});

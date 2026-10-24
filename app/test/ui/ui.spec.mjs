@@ -203,14 +203,53 @@ test.describe('views', () => {
     await expect(board.getByLabel('Project')).toHaveValue('');
     await board.getByLabel('Period').selectOption('all');
     // A changed count is announced.
-    await expect(board.getByRole('status')).toContainText(/\d+ of \d+ sessions/);
+    await expect(board.locator('#count-live')).toContainText(/\d+ of \d+ sessions/);
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Cart </script><img src=x onerror=alert(1)> fix');
     await expect(board.getByRole('table', { name: /Sessions by tier/ })).toContainText('full');
     await noAxe(page);
-    // The app's theme reloads the frame in that theme.
+    // The app's theme reaches the frame without a reload: the filter the user set stays.
     await page.getByRole('button', { name: 'Dark theme' }).click();
-    await expect(page.locator('iframe[title="Sessions board"]')).toHaveAttribute('src', /^\/board\?theme=dark&ticket=[\w-]+$/);
     await expect(board.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.locator('iframe[title="Sessions board"]')).toHaveAttribute('src', /^\/board\?theme=light&ticket=[\w-]+$/);
+    await expect(board.getByLabel('Period')).toHaveValue('all');
+    await noAxe(page);
+  });
+
+  test('Sessions board: the frame has the board\'s height and its own heading, intro and theme button are hidden; a day is read by pointer and keyboard; a setup keeps its color; an empty selection says so', async ({ page }) => {
+    await nav(page, 'Sessions').click();
+    const frame = page.locator('iframe[title="Sessions board"]');
+    const board = page.frameLocator('iframe[title="Sessions board"]');
+    await board.getByLabel('Period').selectOption('all');
+    // The frame is as tall as the board, so the page scrolls and the frame does not.
+    await expect.poll(async () => (await frame.boundingBox()).height).toBeGreaterThan(700);
+    expect(await board.locator('body').evaluate((b) => b.scrollHeight - b.clientHeight)).toBeLessThanOrEqual(1);
+    await expect(board.locator('#theme')).toBeHidden();
+    await expect(board.locator('.lead')).toBeHidden();
+    // Pointer: the readout names the day and every series in it, not one bar.
+    const colors = () => board.locator('#legend').evaluate((el) => Object.fromEntries([...el.querySelectorAll('.key')].map((k) => [k.textContent, k.querySelector('.swatch').getAttribute('style')])));
+    const all = await colors();
+    expect(Object.keys(all).length).toBeGreaterThan(1);
+    const hits = board.locator('#chart svg rect[fill=transparent]');
+    await hits.nth(await hits.count() - 3).hover();
+    await expect(board.locator('#tip')).toContainText(/\d{4}-\d{2}-\d{2}.*(Total|no sessions)/);
+    // Keyboard: arrow keys read day by day, Escape closes.
+    await board.locator('#chart').focus();
+    await page.keyboard.press('End');
+    await expect(board.locator('#tip')).toContainText(new Date().toISOString().slice(0, 10));
+    await expect(board.locator('#tip-live')).toContainText(new Date().toISOString().slice(0, 10));
+    await page.keyboard.press('ArrowLeft');
+    await expect(board.locator('#tip')).not.toContainText(new Date().toISOString().slice(0, 10));
+    await page.keyboard.press('Escape');
+    await expect(board.locator('#tip')).toBeEmpty();
+    // A filter that drops series does not repaint the others.
+    await board.getByLabel('Agent', { exact: true }).selectOption('claude');
+    const some = await colors();
+    for (const [name, style] of Object.entries(some)) expect(all[name]).toBe(style);
+    // Nothing selected: one sentence per section, no empty axis.
+    await board.getByLabel('Agent', { exact: true }).selectOption('codex');
+    await board.getByLabel('Tier', { exact: true }).selectOption('full');
+    await expect(board.getByText('No sessions match these filters.')).toHaveCount(5);
+    await expect(board.locator('#chart svg')).toHaveCount(0);
     await noAxe(page);
   });
 

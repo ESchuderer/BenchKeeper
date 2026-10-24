@@ -1,5 +1,5 @@
 import { ActionIcon, Alert, Anchor, AppShell, Badge, Burger, Button, Code, Drawer, Group, Kbd, MantineProvider, Modal, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
-import { useDisclosure, useHotkeys } from '@mantine/hooks';
+import { useDisclosure, useHotkeys, useMediaQuery } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
 import { IconActivity, IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPower, IconRobot, IconSearch, IconSettings, IconSun } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
@@ -16,6 +16,7 @@ import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Sessions
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
 const theme = createTheme({
+  respectReducedMotion: true,
   primaryColor: 'teal', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md',
   fontFamily: "'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
   fontFamilyMonospace: "ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
@@ -31,6 +32,13 @@ const chartColors = (t) => ({ variables: {}, light: { '--bk-miss': t.colors.teal
 // Dashboard and Projects first: the views used most.
 const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot],
   ['history', 'History', History, IconHistory], ['sessions', 'Sessions', Sessions, IconActivity], ['evals', 'Evals', Evals, IconChartBar], ['settings', 'Settings', Settings, IconSettings]];
+
+// The "/" key opens the palette unless turned off in Settings (WCAG 2.1.4: a character-key shortcut must be switchable).
+const SLASH = 'bk-slash';
+function useSlash() {
+  const [on, set] = useState(() => { try { return localStorage.getItem(SLASH) !== 'off'; } catch { return true; } });
+  return [on, (v) => { set(v); try { localStorage.setItem(SLASH, v ? 'on' : 'off'); } catch { /* lasts for this page */ } }];
+}
 
 function DoctorBadge({ doctor }) {
   if (!doctor.data) return <Badge variant="default">Doctor: {doctor.error ? 'failed' : 'checking'}</Badge>;
@@ -91,6 +99,8 @@ function Shell() {
   const doctor = useApi('/api/doctor');
   const history = useApi('/api/history');
   const catalog = useApi('/api/catalog');
+  const [slash, setSlash] = useSlash();
+  const [stopOpen, stopModal] = useDisclosure(false);
   const { setColorScheme } = useMantineColorScheme();
   const scheme = useComputedColorScheme('light');
   // After any change: the header, sidebar counts, palette and views read these.
@@ -115,40 +125,67 @@ function Shell() {
       { id: 'theme', label: 'Toggle theme', onClick: toggleTheme },
     ] },
   ];
-  const View = (VIEWS.find(([id]) => id === view) ?? VIEWS[0])[2];
+  const [, label, View] = VIEWS.find(([id]) => id === view) ?? VIEWS[0];
+  // The title names the view, and a view change moves focus to its heading so a screen reader announces it; not on the
+  // first load, and not while a dialog holds the focus.
+  const first = useRef(true);
+  useEffect(() => {
+    document.title = `${label} - BenchKeeper`;
+    if (first.current) { first.current = false; return undefined; }
+    // The palette is still closing when it sends the user to a view: wait for it, but not for a drawer the user keeps.
+    let tries = 0, timer;
+    const focus = () => {
+      if (!document.querySelector('[role=dialog]')) document.getElementById('view-title')?.focus();
+      else if (++tries < 10) timer = setTimeout(focus, 100);
+    };
+    focus();
+    return () => clearTimeout(timer);
+  }, [label]);
+  // A closed menu on a phone is only moved off screen: its links and buttons must not stay Tab stops.
+  const phone = useMediaQuery('(max-width: 47.99em)');
   return (
     <FixEverything version={o?.version} doctor={doctor} onClose={refresh}>
       <OneRunProvider value={setOneRun}>
+      <a className="bk-skip" href="#view-title" onClick={(e) => { e.preventDefault(); document.getElementById('view-title')?.focus(); }}>Skip to content</a>
       <AppShell header={{ height: 60 }} navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !nav } }} padding="md">
         <AppShell.Header>
           <Group h="100%" px="md" justify="space-between" wrap="nowrap">
             <Group gap="sm" wrap="nowrap">
-              <Burger opened={nav} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Views" />
+              <Burger opened={nav} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Views" aria-expanded={nav} aria-controls="app-nav" />
               <Group gap={8} wrap="nowrap"><img src={logo} alt="" width={30} height={30} style={scheme === 'dark' ? { filter: 'invert(1)' } : undefined} /><Title order={1} size="h4">BenchKeeper</Title></Group>
               {o && <Badge variant="outline" visibleFrom="xs">{o.version}</Badge>}
               <Group visibleFrom="md"><DoctorBadge doctor={doctor} /></Group>
             </Group>
             <Group gap="xs" wrap="nowrap">
               <RunningJobs onDone={() => refresh()} />
-              <Button leftSection={icon(IconSearch)} variant="default" onClick={spotlight.open} rightSection={<Kbd visibleFrom="sm">{MOD}+K</Kbd>}>Search</Button>
-              <ActionIcon variant="default" size={36} onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{icon(scheme === 'dark' ? IconSun : IconMoon, 18)}</ActionIcon>
-              <StopApp version={o?.version} />
+              <Button visibleFrom="sm" leftSection={icon(IconSearch)} variant="default" onClick={spotlight.open} rightSection={<Kbd>{MOD}+K</Kbd>}>Search</Button>
+              <ActionIcon hiddenFrom="sm" variant="default" size={36} onClick={spotlight.open} aria-label="Search">{icon(IconSearch, 18)}</ActionIcon>
+              <ActionIcon visibleFrom="sm" variant="default" size={36} onClick={toggleTheme} aria-label={scheme === 'dark' ? 'Light theme' : 'Dark theme'}>{icon(scheme === 'dark' ? IconSun : IconMoon, 18)}</ActionIcon>
+              <ActionIcon visibleFrom="sm" variant="default" size={36} onClick={stopModal.open} aria-label="Stop BenchKeeper">{icon(IconPower, 18)}</ActionIcon>
             </Group>
           </Group>
         </AppShell.Header>
-        <AppShell.Navbar p="xs" aria-label="Views">
+        <AppShell.Navbar id="app-nav" p="xs" aria-label="Views" inert={phone && !nav ? true : undefined}>
           {VIEWS.map(([id, label, , Icon]) => (
             <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} variant="filled" color="dark" aria-current={view === id ? 'page' : undefined}
               rightSection={counts[id] ? <Badge variant="default" size="sm">{counts[id]}</Badge> : null} />
           ))}
-          <Text size="xs" mt="auto" p="xs">{MOD}+1 to {MOD}+{VIEWS.length}: views</Text>
+          {/* The header has no room for the doctor count below md, nor for theme and Stop below sm: they live here. */}
+          <Stack gap="xs" mt="auto" p="xs">
+            <Group hiddenFrom="md"><DoctorBadge doctor={doctor} /></Group>
+            <Button hiddenFrom="sm" variant="default" leftSection={icon(scheme === 'dark' ? IconSun : IconMoon)} onClick={toggleTheme}>{scheme === 'dark' ? 'Light theme' : 'Dark theme'}</Button>
+            <Button hiddenFrom="sm" variant="default" leftSection={icon(IconPower)} onClick={stopModal.open}>Stop BenchKeeper</Button>
+          </Stack>
+          <Text size="xs" mt="auto" p="xs" visibleFrom="sm">{MOD}+1 to {MOD}+{VIEWS.length}: views</Text>
         </AppShell.Navbar>
         <AppShell.Main>
-          <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} />
+          <Title order={2} size="h3" id="view-title" tabIndex={-1} mb="md" style={{ outline: 'none' }}>{label}</Title>
+          <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} keys={{ slash, setSlash }} />
         </AppShell.Main>
-        <Spotlight actions={actions} shortcut={['mod + K', '/']} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
+        <Spotlight actions={actions} shortcut={slash ? ['mod + K', '/'] : 'mod + K'} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
           scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />
       </AppShell>
+      <StopApp version={o?.version} opened={stopOpen} close={stopModal.close} />
       <OneRunDrawer mode={oneRun} onClose={() => { setOneRun(null); refresh(); }} />
       </OneRunProvider>
     </FixEverything>
@@ -156,8 +193,7 @@ function Shell() {
 }
 
 // Stops the local server, as Ctrl+C in its terminal does; the server refuses while an apply or eval runs.
-function StopApp({ version }) {
-  const [opened, { open, close }] = useDisclosure(false);
+function StopApp({ version, opened, close }) {
   const [state, setState] = useState({ busy: false, error: null, stopped: false });
   const stop = () => {
     setState({ busy: true, error: null, stopped: false });
@@ -166,7 +202,6 @@ function StopApp({ version }) {
   const title = state.stopped ? 'BenchKeeper stopped' : 'Stop BenchKeeper?';
   return (
     <>
-      <ActionIcon variant="default" size={36} onClick={open} aria-label="Stop BenchKeeper">{icon(IconPower, 18)}</ActionIcon>
       <Modal opened={opened} onClose={state.stopped ? () => {} : close} withCloseButton={false} attributes={{ content: { 'aria-label': title } }}>
         <Stack gap="sm">
           <Title order={2} size="h4">{title}</Title>

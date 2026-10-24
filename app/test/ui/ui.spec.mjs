@@ -63,6 +63,83 @@ test.describe('views', () => {
     }
   }
 
+  // The same pass at 390 px, where the sidebar is a menu: reflow and link styling differ there.
+  for (const view of VIEWS) {
+    for (const scheme of ['light', 'dark']) {
+      test(`no axe violations in ${view}, ${scheme} mode, phone width`, async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto(`/#/${view.toLowerCase()}`);
+        await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+        await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+        const { violations } = await new AxeBuilder({ page }).analyze();
+        expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
+      });
+    }
+  }
+
+  test('phone width: the header fits at 320 px; the menu holds theme and Stop, and says whether it is open', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    const burger = page.getByRole('button', { name: 'Views' });
+    await expect(burger).toHaveAttribute('aria-expanded', 'false');
+    for (const name of ['Views', 'Search']) {
+      const box = await page.getByRole('banner').getByRole('button', { name }).boundingBox();
+      expect(box.x + box.width).toBeLessThanOrEqual(320);
+    }
+    await expect(page.getByRole('banner').getByRole('button', { name: /theme$|Stop BenchKeeper/ })).toHaveCount(0);
+    // Closed, the menu is off screen and out of the Tab order.
+    await expect(page.locator('#app-nav')).toHaveAttribute('inert', '');
+    await burger.click();
+    await expect(page.locator('#app-nav')).not.toHaveAttribute('inert');
+    await expect(burger).toHaveAttribute('aria-expanded', 'true');
+    const theme = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /theme$/ });
+    await expect.poll(async () => (await theme.boundingBox()).x).toBeGreaterThanOrEqual(0);
+    await expect(page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: 'Stop BenchKeeper' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
+  });
+
+  test('skip link: the first Tab stop moves focus to the view heading; each view has a title and a heading', async ({ page }) => {
+    await expect(page).toHaveTitle('Dashboard - BenchKeeper');
+    await page.keyboard.press('Tab');
+    const skip = page.getByRole('link', { name: 'Skip to content' });
+    await expect(skip).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { level: 2, name: 'Dashboard' })).toBeFocused();
+    await expect(page).toHaveURL(/\/$/);
+    await nav(page, 'Projects').click();
+    await expect(page).toHaveTitle('Projects - BenchKeeper');
+    await expect(page.getByRole('heading', { level: 2, name: 'Projects' })).toBeFocused();
+  });
+
+  test('a view chosen in the palette gets the focus on its heading once the palette has closed', async ({ page }) => {
+    await page.keyboard.press('ControlOrMeta+K');
+    const palette = page.getByRole('dialog', { name: 'Command palette' });
+    await expect(async () => {
+      await palette.getByLabel('Search').fill('');
+      await palette.getByLabel('Search').fill('Settings');
+      await expect(palette.locator('[data-selected]')).toContainText('Settings', { timeout: 1000 });
+    }).toPass();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeFocused();
+  });
+
+  test('Settings: the / key can be turned off', async ({ page }) => {
+    await nav(page, 'Settings').click();
+    const slash = page.getByRole('switch', { name: 'Open the command palette with the / key' });
+    const palette = page.getByRole('dialog', { name: 'Command palette' });
+    // Hotkeys ignore a focused input, so the focus leaves the switch before each key.
+    const press = async (key) => { await page.getByRole('heading', { level: 2, name: 'Settings' }).click(); await page.keyboard.press(key); };
+    await slash.click();
+    await press('/');
+    await expect(palette).toBeHidden();
+    await press('ControlOrMeta+K');
+    await expect(palette).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(palette).toBeHidden();
+    await slash.click();
+    await press('/');
+    await expect(palette).toBeVisible();
+  });
+
   test('Sessions: a scan fills the board frame; a title stays text; no axe violations in the frame, light and dark', async ({ page }) => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');
@@ -71,6 +148,8 @@ test.describe('views', () => {
     await expect(board.getByLabel('Project').locator('option').first()).toHaveText('Registered projects');
     await expect(board.getByLabel('Project')).toHaveValue('');
     await board.getByLabel('Period').selectOption('all');
+    // A changed count is announced.
+    await expect(board.getByRole('status').filter({ hasText: / of \d+ sessions/ })).toBeVisible();
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Cart </script><img src=x onerror=alert(1)> fix');
     await expect(board.getByRole('table', { name: /Sessions by tier/ })).toContainText('full');
     await noAxe(page);

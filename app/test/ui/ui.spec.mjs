@@ -277,7 +277,24 @@ test.describe('views', () => {
     await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toBeVisible();
     const download = page.waitForEvent('download');
     await packs.getByRole('button', { name: 'Export my-pack' }).click();
-    expect((await download).suggestedFilename()).toBe('my-pack.json');
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('my-pack.json');
+    // The file's id is an own pack's: asked first, and Cancel leaves everything as it was.
+    const importFile = async () => {
+      const chooser = page.waitForEvent('filechooser');
+      await page.getByRole('button', { name: 'Import pack file' }).click();
+      await (await chooser).setFiles(await file.path());
+    };
+    await importFile();
+    const ask = page.getByRole('dialog', { name: 'Replace pack my-pack?' });
+    await expect(ask).toContainText('run backups');
+    await noAxe(page);
+    await ask.getByRole('button', { name: 'Cancel' }).click();
+    await expect(ask).toBeHidden();
+    await importFile();
+    await ask.getByRole('button', { name: 'Replace pack my-pack' }).click();
+    await expect(ask).toBeHidden();
+    await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toHaveCount(1);
   });
 
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
@@ -295,7 +312,15 @@ test.describe('views', () => {
     await expect(changes).toContainText('.benchkeeper/disabled/');
     await expect(page.getByRole('region', { name: 'Project doctor' })).toBeVisible();
     await noAxe(page);
-    await page.getByRole('button', { name: 'Update all' }).click();
+    await page.getByRole('button', { name: 'Update all', exact: true }).click();
+    // The project's setup is shared: a pull request, so Update all asks first and names the count.
+    const ask = page.getByRole('dialog', { name: 'Open up to 1 pull request?' });
+    await noAxe(page);
+    await ask.getByRole('button', { name: 'Cancel' }).click();
+    await expect(ask).toBeHidden();
+    await expect(page.getByRole('progressbar', { name: /^Update all:/ })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Update all', exact: true }).click();
+    await ask.getByRole('button', { name: 'Update all and open up to 1 pull request' }).click();
     await expect(page.getByRole('progressbar', { name: 'Update all: 1 of 1 projects' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(/stopped|current|committed/);
   });
@@ -324,6 +349,13 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'Set up this project' }).click();
     const drawer = page.getByRole('dialog', { name: 'Set up projects' });
     await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();
+    // Local or shared is the first question, as it decides what every later step writes; local is the default.
+    await expect(drawer.getByRole('radio', { name: /^On this machine/ })).toBeChecked();
+    // Without an agent Next is off, and the text says why.
+    await drawer.getByRole('checkbox', { name: 'Claude Code' }).uncheck();
+    await expect(drawer.getByText('Pick at least one agent to continue.')).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await drawer.getByRole('checkbox', { name: 'Claude Code' }).check();
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer.getByRole('radio', { name: /^Agent in the dev container/ })).toBeChecked();
@@ -341,11 +373,12 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Next' }).click();
     await drawer.getByRole('radio', { name: /^Standard/ }).check();
     await drawer.getByRole('button', { name: 'Next' }).click();
-    // Local is the default; the repository is the other choice.
-    await expect(drawer.getByRole('radio', { name: /^On this machine/ })).toBeChecked();
     await expect(drawer).toContainText(/\d+ changes in this checkout, in files git ignores/);
     await expect(drawer).toContainText('CLAUDE.local.md');
+    // The repository is the other choice, made in the first step.
+    for (let i = 0; i < 4; i++) await drawer.getByRole('button', { name: 'Back' }).click();
     await drawer.getByRole('radio', { name: /^In the repository/ }).check();
+    for (let i = 0; i < 4; i++) await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer).toContainText(/\d+ changes on branch/);
     await expect(drawer).toContainText('AGENTS.md');
     await expect(drawer).toContainText('skill designing-technical-uis (own)');
@@ -392,8 +425,8 @@ test.describe('views', () => {
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Skip' }).click();
     await expect(drawer.getByText(/^Prefilled from Claude Code's suggestion/)).toBeVisible();
-    for (let s = 0; s < 4; s++) await drawer.getByRole('button', { name: 'Next' }).click();
     await drawer.getByRole('radio', { name: /^In the repository/ }).check();
+    for (let s = 0; s < 4; s++) await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer).toContainText('skill designing-technical-uis (own)');
     await drawer.getByRole('button', { name: 'Continue' }).click();
     await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();

@@ -337,6 +337,9 @@ test('projects unshare: a pull request without the committed setup; the checkout
   assert.equal(listProjects(ctx)[0].state, undefined);
   assert.equal(status(ctx, p.dir).committed, false);
   assert.ok(!still(p.dir));
+  // A local Update all run changed the checkout itself, so it can be undone.
+  assert.equal(undo(r.run, context({ home: h, roots: [h, p.dir] })).status, 'done');
+  assert.ok(!existsSync(join(p.dir, 'CLAUDE.local.md')));
 });
 
 test('unshare keeps the answers first; after a failed push, the next run pushes the commit and opens the pull request', () => {

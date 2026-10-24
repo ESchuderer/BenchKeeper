@@ -649,20 +649,32 @@ export function Settings({ overview, refresh, keys }) {
 }
 
 // The sessions board in a frame: a scan job fills the session cache first (the first one reads every transcript), then
-// the board renders from the server's last scan; a reload within a minute shows it without scanning. The frame follows the app's theme.
+// the board renders from the server's last scan; a reload within a minute shows it without scanning. The frame follows the
+// app's theme without reloading, and takes the height of the board, so the page scrolls and the frame does not.
 export function Sessions() {
   const scheme = useComputedColorScheme('light');
   const [job, setJob] = useState(null);
   const [shown, setShown] = useState(0);
   const [error, setError] = useState(null);
   const [src, setSrc] = useState(null);
+  const [height, setHeight] = useState(480);
+  const frame = useRef(null);
   const theme = useRef(scheme);
-  useEffect(() => { theme.current = scheme; }, [scheme]);
-  // Each frame load takes a one-time ticket (the frame cannot send the API key), also after a theme change.
+  useEffect(() => {
+    theme.current = scheme;
+    frame.current?.contentWindow?.postMessage({ bkTheme: scheme }, window.location.origin);
+  }, [scheme]);
+  useEffect(() => {
+    const on = (e) => {
+      if (e.source === frame.current?.contentWindow && e.origin === window.location.origin && Number.isFinite(e.data?.bkBoardHeight)) setHeight(Math.max(480, e.data.bkBoardHeight));
+    };
+    window.addEventListener('message', on);
+    return () => window.removeEventListener('message', on);
+  }, []);
+  // Each frame load takes a one-time ticket (the frame cannot send the API key).
   const show = async () => {
     try { const { ticket } = await api('/api/board-ticket', {}); setSrc(`/board?theme=${theme.current}&ticket=${ticket}`); setShown((n) => n + 1); } catch (e) { setError(e.message); }
   };
-  useEffect(() => { if (src) show(); }, [scheme]);
   const scan = async (force) => {
     setError(null);
     try { const r = await api('/api/sessions-scan', force ? { force: true } : {}); if (r.fresh) show(); else setJob(r.job); } catch (e) { setError(e.message); }
@@ -672,13 +684,13 @@ export function Sessions() {
   const p = state?.progress;
   return (
     <Stack gap="lg">
-      <Group justify="flex-end">
+      <Group justify="space-between" align="flex-start">
+        <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. Nothing leaves this machine except the pull request lookups through gh.</Text>
         <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
       </Group>
-      <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. Nothing leaves this machine except the pull request lookups through gh.</Text>
       {error && <Note color="red">{error}</Note>}
       {job && <Stack gap={4}><Text size="sm">Reading transcripts{p ? `: ${p.done} of ${p.total} files` : ''}</Text><Progress value={p?.total ? (p.done / p.total) * 100 : 0} aria-label="Transcripts read" /></Stack>}
-      {src && <iframe key={shown} src={src} title="Sessions board" style={{ width: '100%', height: 'calc(100vh - 260px)', minHeight: 480, border: '1px solid var(--mantine-color-default-border)', borderRadius: 8 }} />}
+      {src && <iframe ref={frame} key={shown} src={src} title="Sessions board" onLoad={() => frame.current?.contentWindow?.postMessage({ bkTheme: theme.current }, window.location.origin)} style={{ display: 'block', width: '100%', height, border: 0 }} />}
       <Cli>benchkeeper board</Cli>
     </Stack>
   );

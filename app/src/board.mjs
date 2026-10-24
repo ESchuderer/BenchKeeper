@@ -23,6 +23,7 @@ function draw() {
   const median = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
   const pct = (part, all) => (all ? `${Math.round((part / all) * 100)}%` : '-');
   const usd = (x) => (x == null ? 'not recorded' : `$${x < 10 ? x.toFixed(2) : Math.round(x).toLocaleString('en')}`);
+  const money = (x) => (x == null ? 'not recorded' : `$${x.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
   const dur = (ms) => { if (ms == null) return 'not recorded'; const m = Math.round(ms / 60e3); return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`; };
   const compact = (x) => (x >= 1e9 ? `${+(x / 1e9).toFixed(1)}B` : x >= 1e6 ? `${+(x / 1e6).toFixed(1)}M` : x >= 1e3 ? `${+(x / 1e3).toFixed(1)}K` : String(+x.toFixed(x < 10 ? 1 : 0)));
   const sum = (xs) => xs.reduce((n, x) => n + (x ?? 0), 0);
@@ -33,6 +34,12 @@ function draw() {
   const asked = new URLSearchParams(location.search).get('theme');
   const theme = (t) => { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
   theme(['light', 'dark'].includes(asked) ? asked : stored);
+  // In the app's frame its heading, intro and theme button are the app's: the app sends the theme and takes the height.
+  if (parent !== window) {
+    document.documentElement.classList.add('framed');
+    addEventListener('message', (e) => { if (e.source === parent && e.origin === location.origin && ['light', 'dark'].includes(e.data?.bkTheme)) theme(e.data.bkTheme); });
+    new ResizeObserver(() => parent.postMessage({ bkBoardHeight: Math.ceil(document.body.getBoundingClientRect().height) }, location.origin)).observe(document.body);
+  }
   $('theme').addEventListener('click', () => {
     const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
     const next = dark ? 'light' : 'dark';
@@ -76,6 +83,15 @@ function draw() {
     return out;
   };
 
+  // Rank over every session once: a setup keeps its slot and color while the filters change; the rest fold into Other.
+  const ranked = new Map();
+  for (const r of rows) ranked.set(setupKey(r), (ranked.get(setupKey(r)) ?? 0) + 1);
+  const TOP = [...ranked].sort((a, b) => b[1] - a[1]).slice(0, SERIES).map(([k]) => k);
+  // A filtered list of at most SERIES setups names them all; a setup outside the top ones takes a color no shown top one uses.
+  let named = TOP, extra = new Map();
+  const slot = (r) => (named.includes(setupKey(r)) ? setupKey(r) : 'Other');
+  const color = (k) => (k === 'Other' ? 'var(--other)' : `var(--s${(TOP.includes(k) ? TOP.indexOf(k) : extra.get(k)) + 1})`);
+
   function sparkline(values) {
     const w = 120, h = 28, max = Math.max(...values, 1);
     const pts = values.map((v, i) => [values.length > 1 ? (i / (values.length - 1)) * (w - 8) + 4 : w / 2, h - 4 - (v / max) * (h - 8)]);
@@ -99,17 +115,28 @@ function draw() {
       el('div', { class: 'label' }, label), el('div', { class: 'value' }, value), sparkline(series), note && el('div', { class: 'note' }, note))));
   }
 
-  function chart(list, span) {
+  // The drawn chart, for the keyboard and the readout.
+  let drawn = null;
+  function chart(list, span, keep = null) {
+    drawn?.clear();
+    $('chart-table').parentElement.hidden = false;
     const isCost = metric.value === 'cost';
     const value = (r) => (isCost ? r.costUSD ?? 0 : (r.busyMs ?? 0) / 3600e3);
-    const counts = new Map();
-    for (const r of list) counts.set(setupKey(r), (counts.get(setupKey(r)) ?? 0) + 1);
-    // Fixed slots by session count; the rest fold into Other, so a series keeps its color while filters change.
-    const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, SERIES).map(([k]) => k);
-    const keys = [...top, ...(counts.size > SERIES ? ['Other'] : [])];
-    const color = (k) => (k === 'Other' ? 'var(--other)' : `var(--s${top.indexOf(k) + 1})`);
-    const series = (r) => (top.includes(setupKey(r)) ? setupKey(r) : 'Other');
-    const stacks = span.map((d) => ({ d, parts: keys.map((k) => sum(list.filter((r) => day(r.start) === d && series(r) === k).map(value))) }));
+    const text = (v) => (isCost ? money(v) : dur(v * 3600e3));
+    const distinct = [...new Set(list.map(setupKey))];
+    named = distinct.length <= SERIES ? distinct : TOP;
+    const free = [...Array(SERIES).keys()].filter((i) => !distinct.includes(TOP[i]));
+    extra = new Map(named.filter((k) => !TOP.includes(k)).map((k) => [k, free.shift()]));
+    const present = new Set(list.map(slot));
+    const keys = [...TOP, ...extra.keys(), 'Other'].filter((k) => present.has(k));
+    // One pass over the sessions: per day and series.
+    const byDay = new Map();
+    for (const r of list) {
+      const d = day(r.start), m = byDay.get(d) ?? new Map(), k = slot(r);
+      m.set(k, (m.get(k) ?? 0) + value(r));
+      byDay.set(d, m);
+    }
+    const stacks = span.map((d) => ({ d, parts: keys.map((k) => byDay.get(d)?.get(k) ?? 0) }));
     // A round top tick: 1, 2 or 5 times a power of ten.
     const peak = Math.max(...stacks.map((s) => sum(s.parts)), isCost ? 1 : 0.5), mag = 10 ** Math.floor(Math.log10(peak));
     const max = [1, 2, 5, 10].map((m) => m * mag).find((m) => m >= peak);
@@ -118,10 +145,24 @@ function draw() {
     const step = (W - L) / Math.max(stacks.length, 1), bw = Math.max(2, Math.min(24, step - 4));
     const y = (v) => H - B - (v / max) * (H - B - T);
     const fmt = (v) => (isCost ? `$${compact(v)}` : `${compact(v)}h`);
-    const svg = el('svg:svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${isCost ? 'Cost' : 'Agent time'} per day by setup; the table below has the values` });
+    const svg = el('svg:svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${isCost ? 'Cost' : 'Agent time'} per day by setup; the table of values below has the numbers` });
     for (const t of [0, 0.5, 1]) svg.append(el('svg:line', { x1: L, x2: W, y1: y(max * t), y2: y(max * t), stroke: 'var(--grid)', 'stroke-width': 1 }),
       el('svg:text', { x: L - 6, y: y(max * t) + 4, 'text-anchor': 'end', class: 'tick' }, fmt(max * t)));
+    // The chosen day: a band behind the bars, and its values in the readout under the legend.
+    const band = el('svg:rect', { x: 0, y: T, width: step, height: H - T - B, fill: 'var(--grid)', opacity: 0.6, visibility: 'hidden' });
+    svg.append(band);
     const tip = $('tip');
+    let active = null;
+    const clear = () => { active = null; band.setAttribute('visibility', 'hidden'); tip.replaceChildren(); $('tip-live').textContent = ''; };
+    const choose = (i, announce) => {
+      active = Math.max(0, Math.min(stacks.length - 1, i));
+      const s = stacks[active], total = sum(s.parts);
+      band.setAttribute('x', L + active * step);
+      band.setAttribute('visibility', 'visible');
+      const items = byDay.has(s.d) ? [...keys.map((k, j) => s.parts[j] && el('span', { class: 'key' }, el('span', { class: 'swatch', style: `background:${color(k)}` }), `${k} ${text(s.parts[j])}`)).filter(Boolean), el('span', {}, `Total ${text(total)}`)] : ['no sessions'];
+      tip.replaceChildren(el('strong', {}, `${s.d} `), ...items);
+      if (announce) $('tip-live').textContent = tip.textContent;
+    };
     stacks.forEach((s, i) => {
       let base = 0;
       const x = L + i * step + (step - bw) / 2;
@@ -130,26 +171,41 @@ function draw() {
         const top = y(base + v), bottom = y(base);
         // A 2px surface gap between stacked segments.
         const h = Math.max(1, bottom - top - (base ? 2 : 0));
-        const rect = el('svg:rect', { x, y: top, width: bw, height: h, rx: 2, fill: color(keys[k]) });
-        rect.addEventListener('pointerenter', (e) => { tip.textContent = `${s.d}: ${keys[k]}, ${isCost ? usd(v) : dur(v * 3600e3)}`; tip.hidden = false; tip.style.left = `${e.clientX + 12}px`; tip.style.top = `${e.clientY + 12}px`; });
-        rect.addEventListener('pointerleave', () => { tip.hidden = true; });
-        svg.append(rect);
+        svg.append(el('svg:rect', { x, y: top, width: bw, height: h, rx: 2, fill: color(keys[k]), class: 'mark' }));
         base += v;
       });
       if (i % Math.max(1, Math.ceil(stacks.length / Math.floor(W / 70))) === 0) svg.append(el('svg:text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle', class: 'tick' }, s.d.slice(5)));
+      // The hit area is the whole day, not the bar: a touch or a pointer near a thin bar still reads it.
+      const hit = el('svg:rect', { x: L + i * step, y: T, width: step, height: H - T - B, fill: 'transparent' });
+      hit.addEventListener('pointerenter', () => choose(i));
+      hit.addEventListener('pointerdown', () => choose(i));
+      hit.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') clear(); });
+      svg.append(hit);
     });
+    drawn = { count: stacks.length, get active() { return active; }, choose, clear };
+    const c = $('chart');
+    c.setAttribute('tabindex', '0'); c.setAttribute('role', 'group'); c.setAttribute('aria-label', 'Per day by setup. The left and right arrow keys read each day, Escape closes the reading.');
     $('legend').replaceChildren(...keys.map((k) => el('span', { class: 'key' }, el('span', { class: 'swatch', style: `background:${color(k)}` }), k)));
     $('chart').replaceChildren(svg);
-    $('chart-table').replaceChildren(table('Per day', ['Day', ...keys], stacks.filter((s) => sum(s.parts)).map((s) => [s.d, ...s.parts.map((v) => (isCost ? usd(v) : dur(v * 3600e3)))])));
+    if (keep != null) choose(keep);
+    $('chart-table').replaceChildren(table('Per day, days without sessions left out', ['Day', ...keys, 'Total'], stacks.filter((s) => byDay.has(s.d)).map((s) => [s.d, ...s.parts.map(text), text(sum(s.parts))])));
   }
+  // The keyboard reads the chart day by day; Escape closes the readout.
+  $('chart').addEventListener('keydown', (e) => {
+    if (!drawn || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const to = { ArrowRight: (drawn.active ?? -1) + 1, ArrowLeft: (drawn.active ?? drawn.count) - 1, Home: 0, End: drawn.count - 1 }[e.key];
+    if (e.key === 'Escape') drawn.clear();
+    else if (to != null) { drawn.choose(to, true); e.preventDefault(); }
+  });
+  $('chart').addEventListener('blur', () => drawn?.clear());
 
   function groups(list, key, caption, label) {
     const by = new Map();
-    for (const r of list) { const k = key(r); if (k != null) by.set(k, [...(by.get(k) ?? []), r]); }
+    for (const r of list) { const k = key(r); if (k == null) continue; const g = by.get(k); if (g) g.push(r); else by.set(k, [r]); }
     return table(caption, [label, 'Sessions', 'Median cost', 'Median time', 'Tests passed', 'PRs merged', 'Moved up'],
       [...by].sort((a, b) => b[1].length - a[1].length).map(([k, rs]) => {
         const tested = rs.filter((r) => r.tests), withPr = rs.filter((r) => r.prs.length), tiered = rs.filter((r) => r.tier);
-        return [k, rs.length, usd(median(rs.map((r) => r.costUSD))), dur(median(rs.map((r) => r.busyMs))), pct(tested.filter((r) => r.tests === 'pass').length, tested.length),
+        return [k, rs.length, money(median(rs.map((r) => r.costUSD))), dur(median(rs.map((r) => r.busyMs))), pct(tested.filter((r) => r.tests === 'pass').length, tested.length),
           pct(withPr.filter((r) => r.prs.some((p) => p.state === 'merged')).length, withPr.length), pct(tiered.filter((r) => r.tier.movedUp).length, tiered.length)];
       }));
   }
@@ -165,7 +221,14 @@ function draw() {
   let current = [], last = null, announced = null;
   // A region that scrolls sideways is a Tab stop, so the keyboard can scroll it; one that fits is not.
   const scrollStops = () => document.querySelectorAll('main > section').forEach((s) => (s.scrollWidth > s.clientWidth ? s.setAttribute('tabindex', '0') : s.removeAttribute('tabindex')));
-  addEventListener('resize', () => { cancelAnimationFrame(last); last = requestAnimationFrame(() => { chart(current, days(current)); scrollStops(); }); });
+  // The frame's own height changes (the page grows to fit) fire resize too: only a new width redraws.
+  let width = innerWidth;
+  addEventListener('resize', () => {
+    if (innerWidth === width) return;
+    width = innerWidth;
+    cancelAnimationFrame(last);
+    last = requestAnimationFrame(() => { if (current.length) chart(current, days(current), drawn?.active); scrollStops(); });
+  });
   function renderTable(list) {
     const q = state.q;
     const shown = list.filter((r) => !q || [r.title, r.project, r.branch, setupKey(r), r.tier?.last, r.tier?.changeType, ...r.skills].some((x) => x && x.toLowerCase().includes(q))).slice(0, 300);
@@ -174,10 +237,10 @@ function draw() {
     // Read out when typing settles, not on every key.
     clearTimeout(announced);
     announced = setTimeout(() => { $('count-live').textContent = text; }, 500);
-    $('sessions').replaceChildren(table('Sessions, newest first', ['Started', 'Project', 'Title', 'Agent', 'Tier', 'Setup', 'Cost', 'Time', 'Tests', 'Pull requests'], shown.map((r) => [
+    $('sessions').replaceChildren(!shown.length ? el('p', { class: 'muted' }, 'No sessions match.') : table('Sessions, newest first', ['Started', 'Project', 'Title', 'Agent', 'Tier', 'Setup', 'Cost', 'Time', 'Tests', 'Pull requests'], shown.map((r) => [
       r.start.slice(0, 16).replace('T', ' '), (r.project ?? '').split('/').slice(-2).join('/'), r.title ?? '-', r.agent,
       r.tier ? `${r.tier.first}${r.tier.movedUp || r.tier.last !== r.tier.first ? ` to ${r.tier.last}` : ''}${r.tier.changeType ? ` (${r.tier.changeType})` : ''}` : '-',
-      `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, usd(r.costUSD), dur(r.busyMs), r.tests ?? '-',
+      `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, money(r.costUSD), dur(r.busyMs), r.tests ?? '-',
       r.prs.length ? r.prs.map((p) => `#${p.url.split('/').pop()} ${p.state}`).join(', ') : '-',
     ])));
     scrollStops();
@@ -190,6 +253,16 @@ function draw() {
     const span = days(list);
     current = list;
     tiles(list, span);
+    if (!list.length) {
+      // One sentence per section instead of header-only tables and an empty axis.
+      drawn = null;
+      for (const a of ['tabindex', 'role', 'aria-label']) $('chart').removeAttribute(a);
+      for (const id of ['chart', 'by-tier', 'by-setup', 'by-change', 'skills']) $(id).replaceChildren(el('p', { class: 'muted' }, 'No sessions match these filters.'));
+      for (const id of ['legend', 'chart-table', 'tip', 'tip-live']) $(id).replaceChildren();
+      $('chart-table').parentElement.hidden = true;
+      renderTable(list);
+      return;
+    }
     chart(list, span);
     $('by-tier').replaceChildren(groups(list, (r) => r.tier?.last ?? null, 'Sessions by tier (the last tier line)', 'Tier'));
     $('by-setup').replaceChildren(groups(list, setupKey, 'Sessions by setup', 'Setup'));
@@ -207,10 +280,10 @@ export const CSP = `default-src 'none'; script-src '${SCRIPT_HASH}'; style-src '
 
 const STYLE = `
 :root { color-scheme: light; --page: #f8f9fa; --surface: #ffffff; --ink: #1a1b1e; --ink-2: #55565c; --grid: #e6e7e9; --line: #dee2e6;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --other: #8a8984; --accent: #1c5cab; }
-@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) { color-scheme: dark; --page: #1a1b1e; --surface: #242424; --ink: #e9ecef;
+  --s1: #2a78d6; --s2: #d9531c; --s3: #0a8f5e; --s4: #a86b00; --other: #8a8984; --accent: #1c5cab; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) { color-scheme: dark; --page: #1f1f1f; --surface: #242424; --ink: #e9ecef;
   --ink-2: #b8bcc2; --grid: #373a40; --line: #424242; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --other: #77766f; --accent: #86b6ef; } }
-:root[data-theme="dark"] { color-scheme: dark; --page: #1a1b1e; --surface: #242424; --ink: #e9ecef; --ink-2: #b8bcc2; --grid: #373a40; --line: #424242;
+:root[data-theme="dark"] { color-scheme: dark; --page: #1f1f1f; --surface: #242424; --ink: #e9ecef; --ink-2: #b8bcc2; --grid: #373a40; --line: #424242;
   --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --other: #77766f; --accent: #86b6ef; }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 16px; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; }
@@ -221,7 +294,7 @@ button, select, input { font: inherit; color: var(--ink); background: var(--surf
 #filters { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 12px 0; }
 #filters label { color: var(--ink-2); } .f { display: inline-flex; gap: 6px; align-items: center; max-width: 100%; }
 section { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 12px 0; overflow-x: auto; }
-#tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+#tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
 .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 .tile .label { color: var(--ink-2); } .tile .value { font-size: 24px; font-weight: 600; } .note { font-size: 12px; }
 #chart svg { display: block; }
@@ -233,8 +306,13 @@ caption { text-align: left; padding-bottom: 6px; }
 th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
 thead th { font-weight: 600; } tbody th { font-weight: 400; }
 .rank { display: flex; align-items: center; gap: 8px; } .rank-bar { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--s1); max-width: 240px; flex: none; }
-#tip { position: fixed; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; box-shadow: 0 2px 8px rgb(0 0 0 / 15%); }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#tip { display: flex; flex-wrap: wrap; gap: 2px 14px; min-height: 2.9em; margin: 4px 0; }
+#chart:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mark, .swatch { forced-color-adjust: none; }
+.sr, .framed h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.framed #theme, .framed .lead { display: none; }
+.framed-only { display: none; } .framed .framed-only { display: inline; }
+
 details summary { cursor: pointer; color: var(--ink-2); margin-top: 6px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 `;
@@ -255,18 +333,17 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 </head>
 <body>
 <main aria-label="Sessions board">
-<div class="head"><h1>Sessions board</h1><span class="muted">Claude Code and Codex sessions on this machine, read ${now.slice(0, 16).replace('T', ' ')} UTC</span><button id="theme" type="button">Light or dark</button></div>
+<div class="head"><h1>Sessions board</h1><span class="muted"><span class="lead">Claude Code and Codex sessions on this machine, read </span><span class="framed-only">Read </span>${now.slice(0, 16).replace('T', ' ')} UTC</span><button id="theme" type="button">Light or dark</button></div>
 <div id="filters" role="group" aria-label="Filters"></div>
 <div id="tiles"></div>
 <section aria-labelledby="h-chart"><div class="row"><h2 id="h-chart">Per day by setup</h2><label>Show <select id="metric"><option value="cost">Cost</option><option value="time">Agent time</option></select></label></div>
-<div id="legend"></div><div id="chart"></div><details><summary>Table</summary><div id="chart-table"></div></details></section>
+<div id="legend"></div><div id="chart" tabindex="0" role="group" aria-label="Per day by setup. The left and right arrow keys read each day, Escape closes the reading."></div><div id="tip"></div><span id="tip-live" class="sr" role="status"></span><details><summary>Table of values</summary><div id="chart-table"></div></details></section>
 <section aria-labelledby="h-tier"><h2 id="h-tier">By tier</h2><div id="by-tier"></div></section>
 <section aria-labelledby="h-setup"><h2 id="h-setup">By setup</h2><div id="by-setup"></div></section>
 <section aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
 <section aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>
 <section aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted"></p><span id="count-live" class="sr" role="status"></span><div id="sessions"></div></section>
 </main>
-<div id="tip" role="status" hidden></div>
 <script type="application/json" id="data">${data}</script>
 <script>${SCRIPT}</script>
 </body>

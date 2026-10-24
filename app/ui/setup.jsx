@@ -88,8 +88,8 @@ function Answers({ rows, onChange }) {
     <List listStyleType="none" spacing="xs" aria-label="Your answers">
       {rows.map(({ label, value, step }) => (
         <List.Item key={label} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
-          <Group gap="xs" wrap="nowrap" align="baseline" justify="space-between">
-            <Text size="sm"><Text span fw={600}>{label}:</Text> {value}</Text>
+          <Group gap="xs" align="baseline" justify="space-between">
+            <Text size="sm" style={{ overflowWrap: 'anywhere', flex: 1, minWidth: 0 }}><Text span fw={600}>{label}:</Text> {value}</Text>
             <Anchor component="button" type="button" size="sm" aria-label={`Change ${label}`} onClick={() => onChange(step)}>Change</Anchor>
           </Group>
         </List.Item>
@@ -104,7 +104,10 @@ function Answers({ rows, onChange }) {
 function SetupSteps({ dir, push, onFinish, prefill }) {
   const setup = useApi(`/api/project-setup?dir=${encodeURIComponent(dir)}`);
   const [a, setA] = useState(null);
-  const [step, setStep] = useState(0);
+  const [step, setStepTo] = useState(0);
+  // Set by Change on the summary: Next then returns to the summary instead of the following step.
+  const [fromSummary, setFromSummary] = useState(false);
+  const setStep = (n) => { setFromSummary(false); setStepTo(n); };
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -212,11 +215,11 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
           </Stepper.Step>
           <Stepper.Step label="Summary">
             <Stack gap="md">
-              <Answers onChange={setStep} rows={[
-                { label: 'Agents', step: 0, value: a.agents.map((id) => s.agents.find((x) => x.id === id)?.name ?? id).join(', ') || 'None' },
+              <Answers onChange={(n) => { setStepTo(n); setFromSummary(true); }} rows={[
+                { label: 'Agents', step: 0, value: a.agents.map((id) => { const x = s.agents.find((y) => y.id === id); return x ? x.name : `${id} (not installed here)`; }).join(', ') || 'None' },
                 { label: 'Where the setup lives', step: 0, value: a.share ? 'In the repository, as a pull request' : 'On this machine' },
-                { label: 'Environment', step: 1, value: `${ENV_TITLE[a.env] ?? a.env}${a.sandbox ? ', with the Claude Code sandbox' : ''}` },
-                { label: 'Packs and skills', step: 2, value: [...a.packs.map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills].join(', ') || 'None' },
+                { label: 'Environment', step: 1, value: `${(ENV_TITLE[a.env] ?? a.env).replace(/ \(recommended\)$/, '')}${a.sandbox ? ', with the Claude Code sandbox' : ''}` },
+                { label: 'Packs and skills', step: 2, value: [...a.packs.map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills.filter((k) => !s.packs.some((p) => a.packs.includes(p.id) && p.skills.includes(k)))].join(', ') || 'None' },
                 { label: 'Default tier', step: 3, value: TIER_TEXT[a.tier] ?? a.tier },
               ]} />
               <Loading state={review} label="changes">{(p) => (
@@ -249,7 +252,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
         {!a.agents.length && step < 5 && <Text size="sm" role="status">Pick at least one agent to continue.</Text>}
         <Group justify="space-between">
           <Button variant="default" disabled={step === 0 || !!result || busy} onClick={() => setStep(step - 1)}>Back</Button>
-          {step < 5 && <Button disabled={!a.agents.length || (step === 4 && !review.data)} onClick={() => setStep(step + 1)}>{step === 4 ? 'Continue' : 'Next'}</Button>}
+          {step < 5 && <Button disabled={!a.agents.length || (step === 4 && !review.data)} onClick={() => setStep(fromSummary && step < 4 ? 4 : step + 1)}>{step === 4 ? 'Continue' : fromSummary ? 'Back to summary' : 'Next'}</Button>}
           {step === 5 && !result && <Button loading={busy} onClick={create}>{!a.share ? 'Apply' : push ? 'Create branch and pull request' : 'Create branch'}</Button>}
           {result && <Button onClick={() => onFinish(result)}>Next project</Button>}
         </Group>

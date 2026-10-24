@@ -5,6 +5,8 @@ import { api } from './api.js';
 import { DiffView, RunPanel } from './run.jsx';
 import { Dot, Note, STATE_COLOR, StatusBadge, href, icon } from './shell.jsx';
 
+export const pct = (v) => (v == null ? null : Math.round(v * 100));
+
 export const Cli = ({ children }) => (
   <Stack gap={4}>
     <Text size="sm" fw={600}>CLI</Text>
@@ -218,6 +220,24 @@ export function RunProgress({ job, total, onDone }) {
           {waiting > 0 && <Table.Tr><Table.Td><StatusBadge status="waiting" /></Table.Td><Table.Td>{waiting} more</Table.Td></Table.Tr>}
         </Table.Tbody>
       </Table>
+    </Stack>
+  );
+}
+
+export function EvalJob({ job, total, onDone }) {
+  const s = useJob(job, onDone);
+  const at = s?.progress ? s.progress.index + (s.done ? 1 : 0) : 0;
+  return (
+    <Stack gap="xs">
+      <Progress value={(s?.done && !s.error ? total : s?.progress?.index ?? 0) / total * 100} aria-label="Eval sessions done" />
+      <CancelJob job={job} state={s} what="evals" />
+      <Text role="status">{s?.done ? (s.error === 'cancelled' ? 'Cancelled: targets that finished kept their results' : s.error ? `Failed: ${s.error}` : `Done: ${total} sessions`) : s?.progress ? `Session ${at + 1} of ${total}: ${s.progress.target}, case ${s.progress.case} (${s.progress.agent})` : 'Starting'}</Text>
+      {s?.results && (
+        <Table aria-label="New eval results">
+          <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
+          <Table.Tbody>{s.results.map((r) => <Table.Tr key={`${r.target}${r.agent}`}><Table.Td>{r.target}</Table.Td><Table.Td>{r.agent} {r.agentVersion}</Table.Td><Table.Td>{r.missRate == null ? '-' : `${pct(r.missRate)}%`}</Table.Td><Table.Td>{r.falseTriggerRate == null ? '-' : `${pct(r.falseTriggerRate)}%`}</Table.Td></Table.Tr>)}</Table.Tbody>
+        </Table>
+      )}
     </Stack>
   );
 }

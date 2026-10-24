@@ -169,16 +169,18 @@ function draw() {
   function renderTable(list) {
     const q = state.q;
     const shown = list.filter((r) => !q || [r.title, r.project, r.branch, setupKey(r), r.tier?.last, r.tier?.changeType, ...r.skills].some((x) => x && x.toLowerCase().includes(q))).slice(0, 300);
-    // Announced when typing settles, not on every key.
     const text = `${shown.length} of ${list.length} sessions${shown.length === 300 ? ' (first 300)' : ''}`;
+    $('count').textContent = text;
+    // Read out when typing settles, not on every key.
     clearTimeout(announced);
-    if ($('count').textContent) announced = setTimeout(() => { $('count').textContent = text; }, 500); else $('count').textContent = text;
+    announced = setTimeout(() => { $('count-live').textContent = text; }, 500);
     $('sessions').replaceChildren(table('Sessions, newest first', ['Started', 'Project', 'Title', 'Agent', 'Tier', 'Setup', 'Cost', 'Time', 'Tests', 'Pull requests'], shown.map((r) => [
       r.start.slice(0, 16).replace('T', ' '), (r.project ?? '').split('/').slice(-2).join('/'), r.title ?? '-', r.agent,
       r.tier ? `${r.tier.first}${r.tier.movedUp || r.tier.last !== r.tier.first ? ` to ${r.tier.last}` : ''}${r.tier.changeType ? ` (${r.tier.changeType})` : ''}` : '-',
       `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, usd(r.costUSD), dur(r.busyMs), r.tests ?? '-',
       r.prs.length ? r.prs.map((p) => `#${p.url.split('/').pop()} ${p.state}`).join(', ') : '-',
     ])));
+    scrollStops();
   }
 
   function render() {
@@ -194,7 +196,6 @@ function draw() {
     $('by-change').replaceChildren(groups(list, (r) => (r.tier ? `${r.tier.first}: ${r.tier.changeType ?? 'no change type'}` : null), 'Moved up per first tier and change type (report only)', 'Tier and change type'));
     skills(list);
     renderTable(list);
-    scrollStops();
   }
   render();
 }
@@ -233,6 +234,7 @@ th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid
 thead th { font-weight: 600; } tbody th { font-weight: 400; }
 .rank { display: flex; align-items: center; gap: 8px; } .rank-bar { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--s1); max-width: 240px; flex: none; }
 #tip { position: fixed; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; box-shadow: 0 2px 8px rgb(0 0 0 / 15%); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 details summary { cursor: pointer; color: var(--ink-2); margin-top: 6px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 `;
@@ -262,7 +264,7 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 <section aria-labelledby="h-setup"><h2 id="h-setup">By setup</h2><div id="by-setup"></div></section>
 <section aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
 <section aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>
-<section aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted" role="status"></p><div id="sessions"></div></section>
+<section aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted"></p><span id="count-live" class="sr" role="status"></span><div id="sessions"></div></section>
 </main>
 <div id="tip" role="status" hidden></div>
 <script type="application/json" id="data">${data}</script>

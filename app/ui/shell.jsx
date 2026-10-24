@@ -1,4 +1,4 @@
-import { Alert, Badge, Box, Grid, Group, Loader, Paper, ScrollArea, Text } from '@mantine/core';
+import { Alert, Badge, Box, Button, Grid, Group, Loader, Paper, ScrollArea, Text } from '@mantine/core';
 import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconInfoCircle } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api.js';
@@ -52,7 +52,7 @@ export function useApi(path) {
 }
 
 export function Loading({ state, label, children }) {
-  if (state.error) return <Note color="red" title={`${label} failed`}>{state.error}</Note>;
+  if (state.error) return <Note color="red" title={`${label} failed`}><Group gap="sm">{state.error}{state.reload && <Button size="xs" variant="default" onClick={state.reload}>Try again</Button>}</Group></Note>;
   // No data yet also covers the first render after the path changes, before the effect marks it loading.
   if (state.data == null) return <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading {label}</Text></Group>;
   return children(state.data);
@@ -66,7 +66,7 @@ export function SplitView({ list, detail, empty, span = 5 }) {
   return (
     <Grid gutter="lg">
       <Grid.Col span={{ base: 12, md: span }}>
-        <ScrollArea.Autosize mah="calc(100vh - 220px)" type="auto" offsetScrollbars>{list}</ScrollArea.Autosize>
+        <ScrollArea.Autosize mah={{ base: 'none', md: 'calc(100vh - 220px)' }} type="auto" offsetScrollbars>{list}</ScrollArea.Autosize>
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 12 - span }}>
         <Paper withBorder p="md" style={{ position: 'sticky', top: 'calc(var(--app-shell-header-height, 0px) + var(--mantine-spacing-md))' }}>

@@ -1,14 +1,31 @@
-import { BarChart, LineChart } from '@mantine/charts';
-import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, NavLink, Paper, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title, useComputedColorScheme } from '@mantine/core';
-import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlayerPlay, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Loader, Modal, NavLink, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title, useComputedColorScheme } from '@mantine/core';
+import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPlus, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react';
+import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { CancelJob, Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
+import { Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
-import { DoctorTable, FixEverythingButton, UpdateResults, updateProjects } from './fix.jsx';
+import { DoctorTable, FixEverythingButton, UpdateResults } from './fix.jsx';
+import { updateProjects } from './update.js';
 import { OneRunButtons } from './onerun.jsx';
 import { ProjectSetup } from './setup.jsx';
 import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
+
+// The charts load with the first eval view or skill with results, not with the first page.
+const EvalResults = lazy(() => import('./evals.jsx').then((m) => ({ default: m.EvalResults })));
+const EvalsPage = lazy(() => import('./evals.jsx').then((m) => ({ default: m.Evals })));
+const LoadingCharts = <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading charts</Text></Group>;
+// The chunk can fail to load: offline, or the server runs a newer build than this page.
+class ChartsBoundary extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    return this.state.failed
+      ? <Note color="red" title="Charts did not load"><Group gap="sm">Reload the page; if BenchKeeper was updated, it needs the new one.<Button size="xs" variant="default" onClick={() => window.location.reload()}>Reload</Button></Group></Note>
+      : this.props.children;
+  }
+}
+const Charts = ({ children }) => <ChartsBoundary><Suspense fallback={LoadingCharts}>{children}</Suspense></ChartsBoundary>;
+export const Evals = (props) => <Charts><EvalsPage {...props} /></Charts>;
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
@@ -91,8 +108,14 @@ export function Dashboard({ overview, doctor, history, params }) {
   const inv = useApi('/api/inventory');
   const panel = params.get('panel');
   useEffect(() => { if (panel) document.getElementById(panel)?.scrollIntoView(); }, [panel, doctor.data]);
-  // A new run (Fix everything, the header's jobs) changes what the inventory shows.
-  useEffect(() => { if (history.data) inv.reload(); }, [history.data?.length]);
+  // A new run or a newest run that finished (Fix everything, the header's jobs) changes what the inventory shows; the history arriving the first time does not.
+  const runs = useRef(undefined);
+  const latest = history.data?.slice(0, 3).map((r) => `${r.id}:${r.status}`).join();
+  useEffect(() => {
+    if (latest === undefined) return;
+    if (runs.current !== undefined && latest !== runs.current) inv.reload();
+    runs.current = latest;
+  }, [latest]);
   const o = overview.data, items = inv.data ?? [];
   const agents = o?.agents.filter((a) => a.installed) ?? [];
   const attention = items.filter((i) => ATTENTION.includes(i.state));
@@ -100,9 +123,9 @@ export function Dashboard({ overview, doctor, history, params }) {
   const behind = o?.projects.filter((p) => p.setupVersion !== o.version).length ?? 0;
   const nodes = [
     { label: 'Agents detected', value: `${agents.length} installed`, status: agents.length ? 'ok' : 'problem', href: href('agents') },
-    { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : 'checking', status: attention.length ? 'attention' : 'ok', href: href('agents', { plan: '1' }) },
+    { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : inv.error ? 'check failed' : 'checking', status: inv.error ? 'problem' : attention.length ? 'attention' : 'ok', href: href('agents', { plan: '1' }) },
     { label: 'Projects', value: `${o?.projects.length ?? 0} registered, ${behind} behind`, status: behind ? 'attention' : 'ok', href: href('projects') },
-    { label: 'Doctor', value: doctor.data ? `${errors} errors, ${warnings} warnings` : 'checking', status: errors ? 'problem' : warnings ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
+    { label: 'Doctor', value: doctor.data ? `${errors} errors, ${warnings} warnings` : doctor.error ? 'check failed' : 'checking', status: doctor.error || errors ? 'problem' : warnings ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
   ];
   return (
     <Stack gap="xl">
@@ -179,7 +202,10 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
 function Packs({ packs, onChange }) {
   const [error, setError] = useState(null);
   const [file, setFile] = useState(0);
+  // A pack file whose id is an own pack's: asked first, the old file goes to the backup.
+  const [replace, setReplace] = useState(null);
   const run = (f) => async (...a) => { setError(null); try { await f(...a); onChange(); } catch (e) { setError(e.message); } };
+  const importText = run(async (text) => { setReplace(null); await api('/api/packs', { action: 'import', text }); setFile((n) => n + 1); });
   return (
     <Section title="Packs">
       {error && <Note color="red" title="Failed">{error}</Note>}
@@ -205,10 +231,27 @@ function Packs({ packs, onChange }) {
       </Table.ScrollContainer>
       <Group>
         <FileButton key={file} accept="application/json,.json"
-          onChange={run(async (f) => { if (!f) return; await api('/api/packs', { action: 'import', text: await f.text() }); setFile((n) => n + 1); })}>
+          onChange={async (f) => {
+            if (!f) return;
+            setError(null);
+            let text;
+            try { text = await f.text(); } catch (e) { setError(e.message); return; }
+            let id; try { id = JSON.parse(text).id; } catch { /* the server names what is wrong */ }
+            if (packs.some((p) => p.own && p.id === id)) setReplace({ id, text }); else importText(text);
+          }}>
           {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import pack file</Button>}
         </FileButton>
       </Group>
+      <Modal opened={!!replace} onClose={() => { setReplace(null); setFile((n) => n + 1); }} withCloseButton={false} attributes={{ content: { 'aria-label': `Replace pack ${replace?.id}?` } }}>
+        <Stack gap="sm">
+          <Title order={2} size="h4">Replace pack {replace?.id}?</Title>
+          <Text size="sm">An own pack with this id exists. Its file goes to the run backups, as when a pack is removed.</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => { setReplace(null); setFile((n) => n + 1); }}>Cancel</Button>
+            <Button onClick={() => importText(replace.text)}>Replace pack {replace?.id}</Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Section>
   );
 }
@@ -270,179 +313,8 @@ function SkillDetail({ skill, results }) {
       <Text>{skill.pickWhen}</Text>
       <Text size="sm">Source: {skill.source === 'own' ? 'BenchKeeper' : <Anchor href={`https://github.com/${skill.source}/tree/${skill.ref}`} target="_blank" rel="noreferrer">{skill.source}</Anchor>}{skill.ref && <>, pinned at <Code>{skill.ref.slice(0, 12)}</Code></>}{skill.license && `, ${skill.license}`}</Text>
       {skill.agents === 'codex' && <Badge variant="default">Codex only</Badge>}
-      {results.length ? <EvalResults results={results} /> : <Text size="sm">No eval results for this skill. Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>}
+      {results.length ? <Charts><EvalResults results={results} /></Charts> : <Text size="sm">No eval results for this skill. Measurements: <Anchor href="https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md" target="_blank" rel="noreferrer">EVALUATIONS.md</Anchor></Text>}
       {skill.source === 'own' && <Loading state={text} label="skill text">{(t) => <Code block tabIndex={0}>{t.text}</Code>}</Loading>}
-    </Stack>
-  );
-}
-
-const pct = (v) => (v == null ? null : Math.round(v * 100));
-const rate = (v) => (v == null ? '-' : `${pct(v)}%`);
-const seriesOf = (r) => `${r.agent}${r.model ? ` ${r.model}` : ''}`;
-// One color per measure everywhere; the shades per scheme are set in App.jsx.
-// Recharts sorts legend items by name unless told not to; they follow this order, as the tables and tooltips do.
-const LEGEND = { itemSorter: null };
-const MEASURES = [{ name: 'Miss', key: 'missRate', color: 'var(--bk-miss)' }, { name: 'False trigger', key: 'falseTriggerRate', color: 'var(--bk-false-trigger)', strokeDasharray: '5 5' }];
-
-// The latest result per target, worst first: the higher of its two rates, then the name.
-function latestPerTarget(results) {
-  const last = new Map(results.map((r) => [r.target, r]));
-  const worst = (r) => Math.max(r.missRate ?? -1, r.falseTriggerRate ?? -1);
-  return [...last.values()].sort((a, b) => worst(b) - worst(a) || a.target.localeCompare(b.target));
-}
-
-function RatesTip({ payload, label }) {
-  if (!payload?.length) return null;
-  return (
-    <Paper px="sm" py={6} withBorder shadow="sm">
-      <Text size="sm" fw={600}>{label}</Text>
-      {MEASURES.map((m) => <Text key={m.name} size="sm">{m.name}: {payload[0].payload[m.name] == null ? 'no cases' : `${payload[0].payload[m.name]}%`}</Text>)}
-      <Text size="xs">{payload[0].payload.cases} cases, {when(payload[0].payload.time)}</Text>
-    </Paper>
-  );
-}
-
-// Which skill descriptions need work, and in which direction. A rate without cases gets no bar, not 0%.
-function TargetRates({ latest }) {
-  const rated = latest.filter((r) => r.missRate != null || r.falseTriggerRate != null);
-  if (rated.length < 2) return null;
-  const data = rated.map((r) => ({ target: r.target.replace(/^skill:/, ''), cases: r.cases, time: r.time, ...Object.fromEntries(MEASURES.map((m) => [m.name, pct(r[m.key])])) }));
-  return (
-    <Section title="Latest rates per target">
-      <Text size="sm">Miss: the skill did not load where it should. False trigger: it loaded where it should not. One case of about 6 per side moves a rate by about 17 points.</Text>
-      <BarChart h={70 + data.length * 64} data={data} dataKey="target" orientation="vertical" series={MEASURES.map(({ name, color }) => ({ name, color }))}
-        xAxisProps={{ domain: [0, 100], tickFormatter: (v) => `${v}%` }} yAxisProps={{ width: 150 }} withLegend legendProps={LEGEND} withBarValueLabel valueFormatter={(v) => (v == null ? '' : `${v}%`)}
-        barProps={{ radius: [0, 4, 4, 0] }} tooltipProps={{ content: RatesTip }} aria-label="Latest miss and false-trigger rate per target" />
-    </Section>
-  );
-}
-
-// Miss and false-trigger rates of one target over time; the table holds the same numbers.
-function EvalResults({ results }) {
-  const data = results.map((r) => ({ time: when(r.time), ...Object.fromEntries(MEASURES.map((m) => [m.name, pct(r[m.key])])) }));
-  return (
-    <Stack gap="sm">
-      <LineChart h={240} data={data} dataKey="time" series={MEASURES.map(({ key, ...m }) => m)} unit="%" yAxisProps={{ domain: [0, 100] }} withLegend legendProps={LEGEND} connectNulls />
-      <Table.ScrollContainer minWidth={560}>
-        <Table aria-label="Eval runs">
-          <Table.Thead><Table.Tr><Table.Th>Time</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Model</Table.Th><Table.Th>App</Table.Th><Table.Th>Cases</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {results.map((r, i) => (
-              <Table.Tr key={i}>
-                <Table.Td>{when(r.time)}</Table.Td><Table.Td>{r.agent} {r.agentVersion}</Table.Td><Table.Td>{r.model ?? 'default'}</Table.Td><Table.Td>{r.appVersion}</Table.Td>
-                <Table.Td>{r.cases}</Table.Td><Table.Td>{rate(r.missRate)}</Table.Td><Table.Td>{rate(r.falseTriggerRate)}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
-    </Stack>
-  );
-}
-
-export function EvalJob({ job, total, onDone }) {
-  const s = useJob(job, onDone);
-  const at = s?.progress ? s.progress.index + (s.done ? 1 : 0) : 0;
-  return (
-    <Stack gap="xs">
-      <Progress value={(s?.done ? total : at) / total * 100} aria-label="Eval sessions done" />
-      <CancelJob job={job} state={s} what="evals" />
-      <Text role="status">{s?.done ? (s.error === 'cancelled' ? 'Cancelled: targets that finished kept their results' : s.error ? `Failed: ${s.error}` : `Done: ${total} sessions`) : s?.progress ? `Session ${at + 1} of ${total}: ${s.progress.target}, case ${s.progress.case} (${s.progress.agent})` : 'Starting'}</Text>
-      {s?.results && (
-        <Table aria-label="New eval results">
-          <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>{s.results.map((r) => <Table.Tr key={`${r.target}${r.agent}`}><Table.Td>{r.target}</Table.Td><Table.Td>{r.agent} {r.agentVersion}</Table.Td><Table.Td>{r.missRate == null ? '-' : `${pct(r.missRate)}%`}</Table.Td><Table.Td>{r.falseTriggerRate == null ? '-' : `${pct(r.falseTriggerRate)}%`}</Table.Td></Table.Tr>)}</Table.Tbody>
-        </Table>
-      )}
-    </Stack>
-  );
-}
-
-// Plan first (targets and the number of agent sessions), then start them as a job.
-function RunEvals({ onDone }) {
-  const [agents, setAgents] = useState(['claude']);
-  const [all, setAll] = useState(false);
-  const [plan, setPlan] = useState(null);
-  const [job, setJob] = useState(null);
-  const [error, setError] = useState(null);
-  const query = new URLSearchParams({ agents: agents.join(','), all: all ? '1' : '0' });
-  const act = (f) => async () => { setError(null); try { await f(); } catch (e) { setError(e.message); } };
-  return (
-    <Section title="Run evals">
-      <Text size="sm">Each case is a real agent session (Claude Code in plan mode, Codex read-only) in a scratch repository, on your subscription.</Text>
-      <Group>
-        <Checkbox.Group label="Agents" value={agents} onChange={(v) => { setAgents(v); setPlan(null); }}>
-          <Group mt={4}><Checkbox value="claude" label="Claude Code" /><Checkbox value="codex" label="Codex" /></Group>
-        </Checkbox.Group>
-        <Switch label="All targets, also unchanged ones" checked={all} onChange={(e) => { setAll(e.currentTarget.checked); setPlan(null); }} />
-      </Group>
-      {error && <Note color="red" title="Failed">{error}</Note>}
-      {!job && <Group><Button leftSection={icon(IconListCheck)} variant="default" disabled={!agents.length} onClick={act(async () => setPlan(await api(`/api/eval-plan?${query}`)))}>Plan evals</Button></Group>}
-      {plan && !job && (plan.targets.length ? (
-        <Stack gap="xs">
-          <Table aria-label="Planned evals">
-            <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Cases</Table.Th></Table.Tr></Table.Thead>
-            <Table.Tbody>{plan.targets.map((t) => <Table.Tr key={`${t.target}${t.agent}`}><Table.Td>{t.target}</Table.Td><Table.Td>{t.agent}</Table.Td><Table.Td>{t.cases}</Table.Td></Table.Tr>)}</Table.Tbody>
-          </Table>
-          <Group><Button leftSection={icon(IconPlayerPlay)} onClick={act(async () => setJob(await api('/api/eval', { agents: agents.join(','), all })))}>Start {plan.sessions} agent sessions</Button></Group>
-        </Stack>
-      ) : <Text>Every target is unchanged since its last result. Turn on all targets to run them again.</Text>)}
-      {job && <EvalJob job={job.job} total={job.total} onDone={() => { setPlan(null); onDone(); }} />}
-      {job && <Group><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setJob(null)}>Plan more evals</Button></Group>}
-    </Section>
-  );
-}
-
-export function Evals({ params }) {
-  const evals = useApi('/api/evals');
-  const [picked, setPicked] = useState(null);
-  const open = params.get('target');
-  return (
-    <Stack gap="lg">
-      <Stack gap={6} maw={720}>
-        <Text>A skill only helps when the agent loads it for the tasks it is meant for, and leaves it alone otherwise. Evals test exactly that.</Text>
-        <Text size="sm">Each case is a short task. BenchKeeper gives it to a real agent session in a throwaway folder and records whether the skill loaded. Two numbers come out, and lower is better for both:</Text>
-        <List size="sm">
-          <List.Item><b>Miss</b>: the task needed the skill, but the agent did not load it.</List.Item>
-          <List.Item><b>False trigger</b>: the agent loaded the skill for a task that did not need it.</List.Item>
-        </List>
-        <Text size="sm">Run them after a skill or the setup changes, then compare with the last result. They use your agent subscription, a few minutes per skill.</Text>
-      </Stack>
-      <Loading state={evals} label="eval results">{(all) => {
-        if (!all.length) return <Text>No eval results yet: plan and run them below.</Text>;
-        // Rates of different agents and models do not compare: one of them at a time, the newest by default.
-        const keys = [...new Set(all.map(seriesOf))];
-        const series = keys.includes(picked) ? picked : seriesOf(all.at(-1));
-        const mine = all.filter((r) => seriesOf(r) === series);
-        const latest = latestPerTarget(mine);
-        return (
-          <>
-            {keys.length > 1 && <Group><Select label="Agent and model" value={series} onChange={(v) => v && setPicked(v)} data={keys} allowDeselect={false} /></Group>}
-            <TargetRates latest={latest} />
-            <SplitView empty="Choose a target for its rates over time." list={
-              <Table aria-label="Eval targets">
-                <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Cases</Table.Th><Table.Th>Miss</Table.Th><Table.Th>False trigger</Table.Th></Table.Tr></Table.Thead>
-                <Table.Tbody>
-                  {latest.map((r) => (
-                    <Table.Tr key={r.target}>
-                      <Table.Td><Anchor href={href('evals', { target: r.target })} aria-current={r.target === open ? 'true' : undefined} fw={r.target === open ? 700 : undefined}>{r.target}</Anchor></Table.Td>
-                      <Table.Td>{r.cases}</Table.Td><Table.Td>{rate(r.missRate)}</Table.Td><Table.Td>{rate(r.falseTriggerRate)}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            } detail={latest.some((r) => r.target === open) ? (
-              <Stack gap="sm" component="section" aria-label={`Eval ${open}`}>
-                <Title order={3} size="h3">{open}</Title>
-                <Text size="sm">{series}</Text>
-                <EvalResults results={mine.filter((r) => r.target === open)} />
-              </Stack>
-            ) : null} />
-          </>
-        );
-      }}</Loading>
-      <RunEvals onDone={evals.reload} />
-      <Cli>{`benchkeeper eval${open ? ` --target ${open}` : ''}\nbenchkeeper eval --all`}</Cli>
     </Stack>
   );
 }
@@ -602,7 +474,11 @@ export function Projects({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  const updateAll = act('update', async () => { await updateProjects(projects.data.map((p) => p.path), push, setProgress); reload(); });
+  const updateAll = act('update', async () => { setConfirmPrs(false); await updateProjects(projects.data.map((p) => p.path), push, setProgress); reload(); });
+  // Update all pushes a branch and opens a pull request for each project whose setup is shared or still committed.
+  const [confirmPrs, setConfirmPrs] = useState(false);
+  const prs = push ? (projects.data ?? []).filter((p) => p.share || p.committed).length : 0;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   return (
     <Stack gap="lg">
       <form onSubmit={(e) => { e.preventDefault(); act('add', async () => { await add(path); setPath(''); reload(); })(); }}>
@@ -648,26 +524,43 @@ export function Projects({ params, overview, refresh }) {
         ) : null} />
       ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
-        <Text size="sm">Per project: branch chore/agent-setup-&lt;version&gt; in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first, on the same kind of branch.</Text>
+        <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>
           <Checkbox label="Push and open a pull request when origin is on GitHub" checked={push} onChange={(e) => setPush(e.currentTarget.checked)} />
-          <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!projects.data?.length} onClick={updateAll}>Update all</Button>
+          <Button leftSection={icon(IconRefresh)} loading={busy === 'update'} disabled={!projects.data?.length} onClick={prs ? () => setConfirmPrs(true) : updateAll}>Update all</Button>
           <Button variant="default" disabled={!fresh.length} onClick={() => setSetupPaths({ paths: fresh })}>Set up {fresh.length} new projects</Button>
         </Group>
         {progress && <UpdateResults progress={progress} extra={(r) => fresh.includes(r.path) && <Button size="xs" variant="default" ml="sm" onClick={() => setSetupPaths({ paths: [r.path] })}>Set up</Button>} />}
       </Section>
+      <Modal opened={confirmPrs} onClose={() => setConfirmPrs(false)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
+        <Stack gap="sm">
+          <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
+          <Text size="sm">{plural(prs, 'project')} with a shared setup or a local one still committed get a branch pushed to origin and a pull request when origin is on GitHub (the second kind removes the committed setup). Projects with uncommitted changes are skipped.</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmPrs(false)}>Cancel</Button>
+            <Button leftSection={icon(IconRefresh)} onClick={updateAll}>Update all and open up to {plural(prs, 'pull request')}</Button>
+          </Group>
+        </Stack>
+      </Modal>
       {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
       <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }
 
+// The list shows the newest runs: a ledger of years holds thousands, and each is a link.
+const RUNS_SHOWN = 100;
+
 export function History({ history, params, refresh }) {
   const open = params.get('run');
+  const [more, setMore] = useState(false);
   return (
     <Stack gap="lg">
       <Loading state={history} label="history">{(runs) => {
-        const days = Object.entries(groupBy(runs, (r) => new Date(r.time).toLocaleDateString()));
+        // A run opened by its link stays in the list, however old.
+        const linked = runs.findIndex((r) => r.id === open);
+        const listed = more || runs.length <= RUNS_SHOWN ? runs : linked >= RUNS_SHOWN ? [...runs.slice(0, RUNS_SHOWN), runs[linked]] : runs.slice(0, RUNS_SHOWN);
+        const days = Object.entries(groupBy(listed, (r) => new Date(r.time).toLocaleDateString()));
         return runs.length ? (
           <SplitView span={4} empty="Choose a run for what it changed and undo." list={
             <Stack gap="md" component="nav" aria-label="Runs">
@@ -681,6 +574,7 @@ export function History({ history, params, refresh }) {
                   ))}
                 </Stack>
               ))}
+              {listed.length < runs.length && <Button variant="default" onClick={() => setMore(true)}>Show {runs.length - listed.length} older runs</Button>}
             </Stack>
           } detail={open ? <RunPanel key={open} id={open} order={3} onChanged={refresh} /> : null} />
         ) : <Text>No runs yet.</Text>;

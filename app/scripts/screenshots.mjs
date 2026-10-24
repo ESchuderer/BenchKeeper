@@ -51,7 +51,7 @@ const VIEWS = [
     await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();
     // The review step lists what the setup writes.
     for (let i = 0; i < 4; i++) await drawer.getByRole('button', { name: 'Next' }).click();
-    await expect(drawer.getByRole('radio', { name: /^On this machine/ })).toBeChecked();
+    await expect(drawer).toContainText(/\d+ changes in this checkout, in files git ignores/);
   }],
   ['sessions', async (page) => {
     await nav(page, 'Sessions').click();

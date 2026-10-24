@@ -1,5 +1,4 @@
 import '@mantine/core/styles.css';
-import '@mantine/charts/styles.css';
 import '@mantine/spotlight/styles.css';
 import '@fontsource-variable/inter';
 import './theme.css';

@@ -5,9 +5,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mock, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { machineContext } from '../src/cli.mjs';
 import { inside, writeAtomic } from '../src/fsx.mjs';
-import { clean, githubRemote } from '../src/git.mjs';
+import { clean, defaultBranch, githubRemote } from '../src/git.mjs';
 import { runId } from '../src/ledger.mjs';
 import { loadCases } from '../src/cases.mjs';
 import { ownPacks, removePack } from '../src/packs.mjs';
@@ -228,4 +229,58 @@ test('an eval set with a target or case id that is a path is refused when read',
   assert.throws(() => loadCases(c), /outside letters/);
   writeFileSync(join(c.config, 'evals', 'x.json'), set('rule:ok', 'c1'));
   assert.ok(loadCases(c)['rule:ok']);
+});
+
+test('a remove, a command snapshot and an undo outside the roots are refused, also through a link', () => {
+  const c = context({ home: home(), run: () => ({ code: 0, stdout: '', stderr: '' }) });
+  const out = home();
+  writeFileSync(join(out, 'victim'), 'keep');
+  symlinkSync(out, join(c.home, 'escape'));
+  const run = apply([
+    { id: 'r', step: 'r', title: 'r', kind: 'remove', path: join(out, 'victim') },
+    { id: 'l', step: 'l', title: 'l', kind: 'remove', path: join(c.home, 'escape/victim') },
+    { id: 'c', step: 'c', title: 'c', kind: 'command', argv: ['x'], snapshot: [join(out, 'victim')] },
+  ], c);
+  assert.deepEqual(run.entries.map((e) => e.status), ['failed', 'failed', 'failed']);
+  assert.equal(readFileSync(join(out, 'victim'), 'utf8'), 'keep');
+  // A ledger edited to point an undo at a file outside the roots is refused.
+  writeFileSync(join(c.home, 'mine'), 'x');
+  const mine = apply([write(c, 'mine', 'y')], c);
+  const saved = c.ledger.get(mine.id);
+  saved.entries[0].path = join(out, 'victim');
+  c.ledger.save(saved);
+  const u = undo(mine.id, c);
+  assert.match(u.entries[0].error, /is outside/);
+  assert.equal(readFileSync(join(out, 'victim'), 'utf8'), 'keep');
+});
+
+test('no code of the app runs a shell: every command is an argv', () => {
+  const dir = fileURLToPath(new URL('../src/', import.meta.url));
+  const files = [...readdirSync(dir).filter((f) => f.endsWith('.mjs')).map((f) => join(dir, f)), ...readdirSync(join(dir, 'steps')).map((f) => join(dir, 'steps', f))];
+  for (const f of files) {
+    const text = readFileSync(f, 'utf8');
+    assert.doesNotMatch(text, /shell:\s*true|\bexecSync\b|\bexec\(|\bexecFileSync\b[^;]*shell|['"]sh['"],\s*['"]-c['"]|['"]bash['"],\s*['"]-c['"]/, f);
+  }
+});
+
+test('files named like options or with a newline are recorded and restored by an undo', () => {
+  const r = repo();
+  const run = recordSession(r.ctx, r.dir, ['sh', '-c', 'echo a > ./-rf && printf b > "./a\nb" && echo more >> README.md']);
+  assert.deepEqual(run.entries[0].files.map((f) => f.path).sort(), ['-rf', 'README.md', 'a\nb']);
+  assert.equal(undo(run.id, r.ctx).status, 'done');
+  assert.equal(existsSync(join(r.dir, '-rf')), false);
+  assert.equal(readFileSync(join(r.dir, 'README.md'), 'utf8'), '# P\n');
+});
+
+test('a default branch that is an option is not used', () => {
+  const r = repo();
+  r.git('update-ref', 'refs/remotes/origin/-x', 'HEAD');
+  r.git('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/-x');
+  assert.equal(defaultBranch(r.ctx, r.dir), 'main');
+});
+
+test('the ledger keeps the argv of a command, never its environment', () => {
+  const c = context({ home: home(), run: () => ({ code: 0, stdout: '', stderr: '' }) });
+  const run = apply([{ id: 'c', step: 's', title: 'c', kind: 'command', argv: ['x'], env: { SECRET_TOKEN: 'tok-123' } }], c);
+  assert.doesNotMatch(readFileSync(join(c.config, 'ledger', `${run.id}.json`), 'utf8'), /tok-123|SECRET_TOKEN/);
 });

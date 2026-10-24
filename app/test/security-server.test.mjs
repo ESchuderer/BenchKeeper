@@ -59,3 +59,20 @@ test('a request from another port of this machine (same-site) is refused like a 
   assert.equal((await req('GET', '/api/overview', auth({ 'sec-fetch-site': 'same-site' }))).status, 403);
   assert.equal((await req('GET', '/api/inventory', auth({ 'sec-fetch-site': 'same-origin' }))).status !== 403, true);
 });
+
+test('the server listens on 127.0.0.1 only', () => {
+  assert.equal(srv.address().address, '127.0.0.1');
+});
+
+test('a body over 1 MB is a 413', async () => {
+  assert.equal((await post('/api/apply', JSON.stringify({ planId: 'x'.repeat(1.1e6) }))).status, 413);
+});
+
+test('the token is not exchanged for a session when the Host is not this server', async () => {
+  const fresh = await startServer(context({ home: mkdtempSync(join(tmpdir(), 'bk-secsrv-')) }), { token: 'tok2', routes: {} });
+  const p = fresh.server.address().port;
+  const r = await new Promise((ok, fail) => request({ host: '127.0.0.1', port: p, path: '/?token=tok2', headers: { host: 'attacker.example' } }, (res) => { res.resume(); res.on('end', () => ok(res)); }).on('error', fail).end());
+  fresh.server.close();
+  assert.equal(r.statusCode, 421);
+  assert.equal(r.headers['set-cookie'], undefined);
+});

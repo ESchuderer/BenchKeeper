@@ -6,11 +6,11 @@ import { CancelJob, ChangeList, useJob, usePrerun } from './parts.jsx';
 import { RunPanel } from './run.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
-const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
-const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
+export const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
+export const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
 
 // The query of a project plan for these first-setup answers.
-const planQuery = (dir, a) => {
+export const planQuery = (dir, a) => {
   const q = new URLSearchParams({ dir, setup: '1', agents: a.agents.join(','), env: a.env, sandbox: a.sandbox ? '1' : '0', share: a.share ? '1' : '0' });
   for (const p of a.packs) q.append('pack', p);
   for (const s of a.skills) q.append('skill', s);
@@ -19,7 +19,7 @@ const planQuery = (dir, a) => {
 };
 
 // Asks before agent sessions start: count read-only sessions, one after the other, on the chosen agent's login.
-function AdviceConsent({ opened, onClose, advisers, count = 1, onStart }) {
+export function AdviceConsent({ opened, onClose, advisers, count = 1, onStart }) {
   // The advisers may load after the dialog mounts: the first one until the user picks.
   const [picked, setAgent] = useState(null);
   const agent = picked ?? advisers[0]?.id ?? null;

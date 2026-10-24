@@ -179,6 +179,35 @@ export function api(ctx) {
         if (e.output) job.output[e.entry.id] = ((job.output[e.entry.id] ?? '') + e.output).slice(-8192);
       }).then((run) => { job.run = run; }), { kind: 'apply', title: p.scope === 'global' ? 'global setup' : p.scope });
     },
+    // One-run setup: several plans (the global one, projects) applied as one job, one section per plan, in order. Each
+    // section is a run of its own, so undo stays per run. A failed section leaves the others; a cancel stops after the
+    // change that runs and the sections after it never start.
+    'POST /api/apply-all': (b) => {
+      idle();
+      if (!Array.isArray(b.sections) || !b.sections.length) throw bad('sections must be a list of plans');
+      // Every plan is checked before any is taken, so a refused request leaves them all usable.
+      const list = b.sections.map((x) => {
+        const p = plans.get(x?.planId);
+        if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
+        return { id: x.planId, p, select: Array.isArray(x.select) ? x.select.filter((i) => typeof i === 'string') : undefined };
+      });
+      if (new Set(list.map((x) => x.id)).size < list.length) throw bad('a plan can be applied once: each section needs its own planId');
+      for (const { id } of list) plans.delete(id);
+      return start(list.length, async (job) => {
+        job.sections = list.map(({ p, select }) => ({ scope: p.scope, title: p.scope === 'global' ? 'Global setup' : p.scope, total: select?.length ?? p.changes.filter((c) => c.selected).length, status: 'waiting', run: null, error: null }));
+        for (const [i, { p, select }] of list.entries()) {
+          const s = job.sections[i];
+          if (job.ctl.signal.aborted) { s.status = 'cancelled'; continue; }
+          s.status = 'running';
+          try {
+            const run = await applyAsync(p.changes, p.ctx, { scope: p.scope, select, stop: () => job.ctl.signal.aborted }, (e) => { if (e.run) s.run = e.run; });
+            s.run = run;
+            s.status = run.status;
+            if (run.status === 'failed') s.error = run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ');
+          } catch (e) { s.status = 'failed'; s.error = e.message; }
+        }
+      }, { kind: 'apply-all', title: 'one-run setup' });
+    },
     // Each skills CLI command of a plan, rehearsed in a scratch folder: the files it would write, per change id. Three
     // run at a time; a result is kept 10 minutes or until files change through the app.
     'POST /api/prerun': (b) => {
@@ -215,7 +244,8 @@ export function api(ctx) {
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
-      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null };
+      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null,
+      sections: job.sections?.map((x) => ({ ...x, run: x.run && { ...x.run, entries: [...x.run.entries] } })) ?? null };
     },
     // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.
     'GET /api/eval-plan': (q) => {
@@ -260,6 +290,18 @@ export function api(ctx) {
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: projectState(ctx, dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
         packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })) };
+    },
+    // What a one-run setup starts from: the installed agents and advisers, and each project with its setup state. A
+    // blocked project is left to Update all: one-run writes local setups in the checkout, and that is not possible for a
+    // folder without a repository, a shared setup (a pull request) or one still committed (a pull request removes it).
+    'GET /api/one-run': async () => {
+      await originsOfProjects();
+      const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
+      return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), projects: listProjects(ctx).map((p) => {
+        const s = status(ctx, p.path);
+        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all opens its pull request' : s.committed ? 'setup still committed: Update all moves it to this machine' : null);
+        return { path: p.path, blocked, state: !s.setupVersion ? 'none' : !s.current || s.changes?.length ? 'behind' : 'current', setupVersion: s.setupVersion };
+      }) };
     },
     // An agent reads the project and suggests env, packs and skills: one read-only session, after the user agreed in the UI.
     'POST /api/setup-advice': (b) => {

@@ -7,9 +7,12 @@ import { join } from 'node:path';
 import { mock, test } from 'node:test';
 import { machineContext } from '../src/cli.mjs';
 import { inside, writeAtomic } from '../src/fsx.mjs';
+import { clean, githubRemote } from '../src/git.mjs';
 import { runId } from '../src/ledger.mjs';
+import { remoteHead } from '../src/projects.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
+import { newest } from '../src/steps/global.mjs';
 import { projectCtx } from '../src/steps/project.mjs';
 
 const home = () => mkdtempSync(join(tmpdir(), 'bk-sec-'));
@@ -158,4 +161,46 @@ test('a transcript that cannot be read does not lose the recorded session', () =
   symlinkSync(join(r.ctx.home, 'missing'), join(folder, 'x.jsonl'));
   const run = recordSession(r.ctx, r.dir, ['sh', '-c', 'echo x > n']);
   assert.equal(r.ctx.ledger.get(run.id).entries[0].files.length, 1);
+});
+
+test('a default branch named by origin is a plain branch name: no option, no refspec syntax', () => {
+  const ok = (name) => ({ code: 0, stdout: `ref: refs/heads/${name}\tHEAD\n` });
+  assert.equal(remoteHead({}, '/p', ok('main')), 'main');
+  assert.equal(remoteHead({}, '/p', ok('release/1.2')), 'release/1.2');
+  for (const bad of ['-x', '+x:refs/heads/main', 'a:b', 'a*', '../x']) {
+    const ctx = { run: () => ({ code: 1, stdout: '', stderr: '' }) };
+    assert.notEqual(remoteHead(ctx, '/p', ok(bad)), bad, bad);
+  }
+});
+
+test('only a github.com origin is a GitHub remote', () => {
+  const at = (url) => githubRemote({ run: () => ({ code: 0, stdout: `${url}\n` }) }, '/p');
+  for (const url of ['https://github.com/o/r.git', 'git@github.com:o/r.git', 'ssh://git@github.com/o/r.git', 'https://user@github.com/o/r']) assert.equal(at(url), true, url);
+  for (const url of ['https://git.example/github.com/o/r.git', 'ssh://git@evil.example/github.com/x.git', 'https://notgithub.com/o/r', '']) assert.equal(at(url), false, url);
+});
+
+test('a failing git status is not a clean tree', () => {
+  assert.equal(clean({ run: () => ({ code: 128, stdout: '', stderr: 'fatal' }) }, '/p'), false);
+});
+
+test('git gets no variable that points it at another repository', () => {
+  const a = repo(), b = repo();
+  const saved = { GIT_DIR: process.env.GIT_DIR, GIT_WORK_TREE: process.env.GIT_WORK_TREE };
+  process.env.GIT_DIR = join(a.dir, '.git');
+  process.env.GIT_WORK_TREE = a.dir;
+  try {
+    assert.equal(clean(b.ctx, b.dir), true);
+    const top = recordSession(b.ctx, b.dir, ['sh', '-c', 'echo x > n']);
+    assert.deepEqual(top.entries[0].files.map((f) => f.path), ['n']);
+    assert.equal(existsSync(join(a.dir, 'n')), false);
+  } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+});
+
+test('commands without a folder of their own run in the home, not in the folder the app was started in', () => {
+  const seen = [];
+  const c = context({ home: home(), run: (argv, o) => { seen.push(o.cwd); return { code: 0, stdout: '', stderr: '' }; } });
+  apply([{ id: 'c', step: 's', title: 'c', kind: 'command', argv: ['x'] }], c);
+  const registry = [];
+  newest({ home: c.home, run: (argv, o) => { registry.push(o.cwd); return { code: 1 }; } }, 'pkg');
+  assert.deepEqual([...seen, ...registry], [c.home, c.home]);
 });

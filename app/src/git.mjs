@@ -3,7 +3,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const git = (ctx, dir, args, extra = {}) => ctx.run(['git', '-C', dir, ...args], extra);
+// Variables that point git at another repository (set when the app runs from a hook or `git rebase --exec`) never reach it:
+// -C names the repository. index: the caller sets GIT_INDEX_FILE itself.
+const REPO_VARS = /^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|NAMESPACE|PREFIX|CONFIG_COUNT|CONFIG_PARAMETERS|CONFIG_KEY_\d+|CONFIG_VALUE_\d+)$/;
+const git = (ctx, dir, args, { index, ...extra } = {}) => ctx.run(['git', '-C', dir, ...args], { ...extra, env: Object.fromEntries(Object.entries(extra.env ?? process.env).filter(([k]) => (index && k === 'GIT_INDEX_FILE') || !REPO_VARS.test(k))) });
+
+// A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax.
+export const safeBranch = (n) => (/^[\w.][\w.\/-]*$/.test(n ?? '') && !n.includes('..') ? n : null);
 
 export const isRepo = (ctx, dir) => git(ctx, dir, ['rev-parse', '--is-inside-work-tree']).stdout.trim() === 'true';
 
@@ -28,14 +34,14 @@ export function snapshot(ctx, dir) {
   const tmp = mkdtempSync(join(tmpdir(), 'bk-index-'));
   const env = { ...process.env, GIT_INDEX_FILE: join(tmp, 'index') };
   try {
-    const add = git(ctx, dir, ['add', '-A'], { env });
+    const add = git(ctx, dir, ['add', '-A'], { env, index: true });
     if (add.code !== 0) throw new Error(`git add: ${add.stderr.trim()}`);
     const local = localSetupPaths(ctx, dir);
     if (local.length) {
-      const forced = git(ctx, dir, ['add', '-f', '--', ...local], { env });
+      const forced = git(ctx, dir, ['add', '-f', '--', ...local], { env, index: true });
       if (forced.code !== 0) throw new Error(`git add: ${forced.stderr.trim()}`);
     }
-    const tree = git(ctx, dir, ['write-tree'], { env });
+    const tree = git(ctx, dir, ['write-tree'], { env, index: true });
     if (tree.code !== 0) throw new Error(`git write-tree: ${tree.stderr.trim()}`);
     return tree.stdout.trim();
   } finally { rmSync(tmp, { recursive: true, force: true }); }
@@ -58,8 +64,7 @@ export function blob(ctx, dir, tree, path) {
 
 export function defaultBranch(ctx, dir) {
   const head = git(ctx, dir, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
-  // A name that starts with - would be read as an option by the git commands it goes into.
-  if (head && !head.startsWith('origin/-')) return head.replace(/^origin\//, '');
+  if (safeBranch(head.replace(/^origin\//, ''))) return head.replace(/^origin\//, '');
   for (const b of ['main', 'master']) if (git(ctx, dir, ['rev-parse', '--verify', '--quiet', `refs/heads/${b}`]).code === 0) return b;
   return null;
 }
@@ -70,6 +75,8 @@ export const fileMode = (ctx, root, tree, path) => git(ctx, root, ['ls-tree', tr
 export const hasTree = (ctx, root, tree) => git(ctx, root, ['cat-file', '-e', `${tree}^{tree}`]).code === 0;
 export const repoRoot = (ctx, dir) => git(ctx, dir, ['rev-parse', '--show-toplevel']).stdout.trim();
 
-export const clean = (ctx, dir) => git(ctx, dir, ['status', '--porcelain']).stdout.trim() === '';
-export const githubRemote = (ctx, dir) => /github\.com[:/]/.test(git(ctx, dir, ['remote', 'get-url', 'origin']).stdout);
+// A status that fails is not a clean tree.
+export const clean = (ctx, dir) => { const r = git(ctx, dir, ['status', '--porcelain']); return r.code === 0 && r.stdout.trim() === ''; };
+// The host of origin is github.com: https, ssh or scp form, not a folder of that name on another host.
+export const githubRemote = (ctx, dir) => /^(?:(?:https?|ssh|git):\/\/)?(?:[^@/:]+@)?github\.com[:/]/i.test(git(ctx, dir, ['remote', 'get-url', 'origin']).stdout.trim());
 export { git };

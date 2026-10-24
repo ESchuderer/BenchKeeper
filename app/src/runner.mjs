@@ -131,7 +131,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
           for (const x of entry.snapshot) if (x.backup) { copy(x.path, x.backup); if (hashPath(x.backup) !== x.hashBefore) throw new Error(`backup of ${x.path} differs from the original`); }
         }
         ctx.ledger.save(run);
-        const r = yield { argv: c.argv, opts: { cwd: c.cwd, env: c.env && { ...process.env, ...c.env } }, entry };
+        const r = yield { argv: c.argv, opts: { cwd: c.cwd ?? ctx.home, env: c.env && { ...process.env, ...c.env } }, entry };
         // Ended with an exit code: undone only when it succeeded, as before the journal.
         entry.exit = r.code;
         // A failed command with a snapshot may have changed those paths: undo still restores them.
@@ -302,7 +302,7 @@ function undoRun(id, ctx, { step } = {}) {
         if (!e.undoArgv) { entry.status = 'manual'; entry.reason = `no undo command for ${e.argv.join(' ')}`; continue; }
         Object.assign(entry, { argv: e.undoArgv, cwd: e.cwd });
         begin(entry);
-        const r = ctx.run(e.undoArgv, { cwd: e.cwd });
+        const r = ctx.run(e.undoArgv, { cwd: e.cwd ?? ctx.home });
         entry.exit = r.code;
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || `exit ${r.code}`);
       } else {

@@ -82,13 +82,32 @@ export function AdviceJob({ job, name, onDone }) {
 // A plan shown for review only, its skill installs rehearsed.
 const Rehearsed = ({ plan }) => <ChangeList plan={plan} prerun={usePrerun(plan)} />;
 
-// One project's setup, step by step: agents, where commands run, packs and skills, tier, review. Local (the default):
+// Every answer next to its step, each with a way back to change it.
+function Answers({ rows, onChange }) {
+  return (
+    <List listStyleType="none" spacing="xs" aria-label="Your answers">
+      {rows.map(({ label, value, step }) => (
+        <List.Item key={label} styles={{ itemWrapper: { width: '100%' }, itemLabel: { width: '100%' } }}>
+          <Group gap="xs" align="baseline" justify="space-between">
+            <Text size="sm" style={{ overflowWrap: 'anywhere', flex: 1, minWidth: 0 }}><Text span fw={600}>{label}:</Text> {value}</Text>
+            <Anchor component="button" type="button" size="sm" aria-label={`Change ${label}`} onClick={() => onChange(step)}>Change</Anchor>
+          </Group>
+        </List.Item>
+      ))}
+    </List>
+  );
+}
+
+// One project's setup, step by step: agents, where commands run, packs and skills, tier, summary. Local (the default):
 // written in the checkout, in files git ignores. Shared: a branch with one commit (and a pull request when origin is on
 // GitHub), as Update all makes them.
 function SetupSteps({ dir, push, onFinish, prefill }) {
   const setup = useApi(`/api/project-setup?dir=${encodeURIComponent(dir)}`);
   const [a, setA] = useState(null);
-  const [step, setStep] = useState(0);
+  const [step, setStepTo] = useState(0);
+  // Set by Change on the summary: Next then returns to the summary instead of the following step.
+  const [fromSummary, setFromSummary] = useState(false);
+  const setStep = (n) => { setFromSummary(false); setStepTo(n); };
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -194,20 +213,29 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
               <Stack gap="xs" mt="xs">{['', ...s.tiers].map((t) => <Radio key={t || 'none'} value={t} label={TIER_TEXT[t] ?? t} />)}</Stack>
             </Radio.Group>
           </Stepper.Step>
-          <Stepper.Step label="Review">
-            <Loading state={review} label="changes">{(p) => (
-              <Stack gap="sm">
-                {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-                <Text size="sm">{a.share ? <>{p.changes.length} changes on branch <Code>chore/agent-setup</Code>, nothing in your working tree.</> : <>{p.changes.length} changes in this checkout, in files git ignores.</>}</Text>
-                <Rehearsed plan={p} />
-                {!!p.prompts.length && (
-                  <Stack gap={4}>
-                    <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Then start in the project'}</Text>
-                    {p.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
-                  </Stack>
-                )}
-              </Stack>
-            )}</Loading>
+          <Stepper.Step label="Summary">
+            <Stack gap="md">
+              <Answers onChange={(n) => { setStepTo(n); setFromSummary(true); }} rows={[
+                { label: 'Agents', step: 0, value: a.agents.map((id) => { const x = s.agents.find((y) => y.id === id); return x ? x.name : `${id} (not installed here)`; }).join(', ') || 'None' },
+                { label: 'Where the setup lives', step: 0, value: a.share ? 'In the repository, as a pull request' : 'On this machine' },
+                { label: 'Environment', step: 1, value: `${(ENV_TITLE[a.env] ?? a.env).replace(/ \(recommended\)$/, '')}${a.sandbox ? ', with the Claude Code sandbox' : ''}` },
+                { label: 'Packs and skills', step: 2, value: [...a.packs.map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills.filter((k) => !s.packs.some((p) => a.packs.includes(p.id) && p.skills.includes(k)))].join(', ') || 'None' },
+                { label: 'Default tier', step: 3, value: TIER_TEXT[a.tier] ?? a.tier },
+              ]} />
+              <Loading state={review} label="changes">{(p) => (
+                <Stack gap="sm">
+                  {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
+                  <Text size="sm">{a.share ? <>{p.changes.length} changes on branch <Code>chore/agent-setup</Code>, nothing in your working tree.</> : <>{p.changes.length} changes in this checkout, in files git ignores.</>}</Text>
+                  <Rehearsed plan={p} />
+                  {!!p.prompts.length && (
+                    <Stack gap={4}>
+                      <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Then start in the project'}</Text>
+                      {p.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
+                    </Stack>
+                  )}
+                </Stack>
+              )}</Loading>
+            </Stack>
           </Stepper.Step>
           <Stepper.Completed>
             {result && (
@@ -224,7 +252,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
         {!a.agents.length && step < 5 && <Text size="sm" role="status">Pick at least one agent to continue.</Text>}
         <Group justify="space-between">
           <Button variant="default" disabled={step === 0 || !!result || busy} onClick={() => setStep(step - 1)}>Back</Button>
-          {step < 5 && <Button disabled={!a.agents.length || (step === 4 && !review.data)} onClick={() => setStep(step + 1)}>{step === 4 ? 'Continue' : 'Next'}</Button>}
+          {step < 5 && <Button disabled={!a.agents.length || (step === 4 && !review.data)} onClick={() => setStep(fromSummary && step < 4 ? 4 : step + 1)}>{step === 4 ? 'Continue' : fromSummary ? 'Back to summary' : 'Next'}</Button>}
           {step === 5 && !result && <Button loading={busy} onClick={create}>{!a.share ? 'Apply' : push ? 'Create branch and pull request' : 'Create branch'}</Button>}
           {result && <Button onClick={() => onFinish(result)}>Next project</Button>}
         </Group>

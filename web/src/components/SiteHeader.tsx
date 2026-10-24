@@ -22,6 +22,7 @@ export default function SiteHeader({ base, home = false, size = 'lg' }: { base: 
             {SECTIONS.map(([id, l]) => (
               <Anchor key={id} href={to(id)} c="dimmed" size="sm" underline="never" style={{ whiteSpace: 'nowrap' }}>{l}</Anchor>
             ))}
+            <Anchor href={`${base}/app/`} c="dimmed" size="sm" underline="never" style={{ whiteSpace: 'nowrap' }}>The app</Anchor>
           </Group>
           <Group gap="xs" wrap="nowrap" className="header-end">
             <Button component="a" href={`${base}/bench/`} variant="default" size="xs" leftSection={<IconChartBar size={16} />} visibleFrom="sm">Benchmark</Button>
@@ -51,6 +52,7 @@ export default function SiteHeader({ base, home = false, size = 'lg' }: { base: 
           {SECTIONS.map(([id, l]) => (
             <Anchor key={id} href={to(id)} c="dimmed" size="sm" underline="never" style={{ whiteSpace: 'nowrap' }}>{l}</Anchor>
           ))}
+          <Anchor href={`${base}/app/`} c="dimmed" size="sm" underline="never" style={{ whiteSpace: 'nowrap' }}>The app</Anchor>
         </Group>
       </Container>
     </Box>

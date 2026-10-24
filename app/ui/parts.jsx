@@ -14,7 +14,7 @@ export const Cli = ({ children }) => (
 
 export const Section = ({ title, children, id }) => (
   <Stack gap="sm" component="section" aria-label={title} id={id}>
-    <Title order={2} size="h3">{title}</Title>
+    <Title order={3} size="h3">{title}</Title>
     {children}
   </Stack>
 );

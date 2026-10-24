@@ -682,7 +682,7 @@ export function History({ history, params, refresh }) {
                 </Stack>
               ))}
             </Stack>
-          } detail={open ? <RunPanel key={open} id={open} onChanged={refresh} /> : null} />
+          } detail={open ? <RunPanel key={open} id={open} order={3} onChanged={refresh} /> : null} />
         ) : <Text>No runs yet.</Text>;
       }}</Loading>
       <Cli>{`benchkeeper history\nbenchkeeper undo ${open ?? '<run>'}\nbenchkeeper undo ${open ?? '<run>'} --step <step>\nbenchkeeper case add --run <session run> --target skill:<name> --expected <text>`}</Cli>

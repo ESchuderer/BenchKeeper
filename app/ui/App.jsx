@@ -1,5 +1,5 @@
 import { ActionIcon, Alert, Anchor, AppShell, Badge, Burger, Button, Code, Drawer, Group, Kbd, MantineProvider, Modal, NavLink, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
-import { useDisclosure, useHotkeys } from '@mantine/hooks';
+import { useDisclosure, useHotkeys, useMediaQuery } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
 import { IconActivity, IconBooks, IconChartBar, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPower, IconRobot, IconSearch, IconSettings, IconSun } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
@@ -131,9 +131,18 @@ function Shell() {
   const first = useRef(true);
   useEffect(() => {
     document.title = `${label} - BenchKeeper`;
-    if (first.current) { first.current = false; return; }
-    if (!document.querySelector('[role=dialog]')) document.getElementById('view-title')?.focus();
+    if (first.current) { first.current = false; return undefined; }
+    // The palette is still closing when it sends the user to a view: wait for it, but not for a drawer the user keeps.
+    let tries = 0, timer;
+    const focus = () => {
+      if (!document.querySelector('[role=dialog]')) document.getElementById('view-title')?.focus();
+      else if (++tries < 10) timer = setTimeout(focus, 100);
+    };
+    focus();
+    return () => clearTimeout(timer);
   }, [label]);
+  // A closed menu on a phone is only moved off screen: its links and buttons must not stay Tab stops.
+  const phone = useMediaQuery('(max-width: 47.99em)');
   return (
     <FixEverything version={o?.version} doctor={doctor} onClose={refresh}>
       <OneRunProvider value={setOneRun}>
@@ -156,7 +165,7 @@ function Shell() {
             </Group>
           </Group>
         </AppShell.Header>
-        <AppShell.Navbar id="app-nav" p="xs" aria-label="Views">
+        <AppShell.Navbar id="app-nav" p="xs" aria-label="Views" inert={phone && !nav ? true : undefined}>
           {VIEWS.map(([id, label, , Icon]) => (
             <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} variant="filled" color="dark" aria-current={view === id ? 'page' : undefined}
               rightSection={counts[id] ? <Badge variant="default" size="sm">{counts[id]}</Badge> : null} />

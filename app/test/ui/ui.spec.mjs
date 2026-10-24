@@ -86,7 +86,10 @@ test.describe('views', () => {
       expect(box.x + box.width).toBeLessThanOrEqual(320);
     }
     await expect(page.getByRole('banner').getByRole('button', { name: /theme$|Stop BenchKeeper/ })).toHaveCount(0);
+    // Closed, the menu is off screen and out of the Tab order.
+    await expect(page.locator('#app-nav')).toHaveAttribute('inert', '');
     await burger.click();
+    await expect(page.locator('#app-nav')).not.toHaveAttribute('inert');
     await expect(burger).toHaveAttribute('aria-expanded', 'true');
     const theme = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /theme$/ });
     await expect.poll(async () => (await theme.boundingBox()).x).toBeGreaterThanOrEqual(0);
@@ -105,6 +108,18 @@ test.describe('views', () => {
     await nav(page, 'Projects').click();
     await expect(page).toHaveTitle('Projects - BenchKeeper');
     await expect(page.getByRole('heading', { level: 2, name: 'Projects' })).toBeFocused();
+  });
+
+  test('a view chosen in the palette gets the focus on its heading once the palette has closed', async ({ page }) => {
+    await page.keyboard.press('ControlOrMeta+K');
+    const palette = page.getByRole('dialog', { name: 'Command palette' });
+    await expect(async () => {
+      await palette.getByLabel('Search').fill('');
+      await palette.getByLabel('Search').fill('Settings');
+      await expect(palette.locator('[data-selected]')).toContainText('Settings', { timeout: 1000 });
+    }).toPass();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeFocused();
   });
 
   test('Settings: the / key can be turned off', async ({ page }) => {

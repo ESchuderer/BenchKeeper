@@ -140,8 +140,8 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="parts" title="What gets installed">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-            <Part icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/rules/global.md`} scope="Global, every session">
-              Ask before assuming, checks never weakened, secrets kept out, writing without filler, sources for claims.
+            <Part icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/rules/global.md`} scope="Global, every session, full level">
+              Secrets kept out, writing without filler, sources for claims. The repository rules (ask before assuming, checks never weakened, load the workflow skill) are in <Code>rules/project.md</Code>, part of each project's block.
             </Part>
             <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/workflow/SKILL.md`} scope="Global, before repository work">
               The task kind and tier, the playbooks for software changes, docs passes and research, the check per change type, batch mode with long checks at the end.
@@ -158,6 +158,19 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Part icon={<IconContainer size={20} />} title="Devcontainer and Playwright" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="Per repository">
               Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the <Anchor href={`${REPO}/blob/main/plugins/benchkeeper/library/README.md`}>BenchKeeper library</Anchor>, stack skills from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
             </Part>
+          </SimpleGrid>
+        </Section>
+
+        <Section id="levels" title="Three sizes" intro="Start with the plugin and add what you need. Each level contains the one before.">
+          <SimpleGrid cols={{ base: 1, md: 3 }}>
+            {facts.levels.map((l) => (
+              <Paper key={l.name} withBorder p="lg" radius="lg">
+                <Title order={3} fz="lg">{l.name}</Title>
+                <Text size="sm" mt="xs">{md(l.contains)}</Text>
+                <Text size="sm" c="dimmed" mt="xs">Writes: {md(l.writes)}.</Text>
+                <Code block mt="sm" className="cmd">{l.command}</Code>
+              </Paper>
+            ))}
           </SimpleGrid>
         </Section>
 

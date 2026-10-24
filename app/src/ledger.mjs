@@ -2,7 +2,7 @@
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { real, writeAtomic } from './fsx.mjs';
+import { readText, real, writeAtomic } from './fsx.mjs';
 
 export const SCHEMA = 1;
 
@@ -41,7 +41,8 @@ export class Ledger {
 
   // One run at a time on this config folder, also across processes: a lock file with the pid of the run. A second run
   // in the same process goes on (Update all applies many times); the lock of a dead process is taken over.
-  // shortcut: a reused pid keeps a dead run's lock alive, delete <config>/lock then.
+  // shortcut: a reused pid keeps a dead run's lock alive, and two processes that reclaim one stale lock at the same
+  // instant can both pass (the window is the gap between the compare and the rmSync): delete <config>/lock then.
   lock() {
     const file = join(dirname(this.dir), 'lock');
     const release = () => { const n = held.get(file) - 1; if (n > 0) held.set(file, n); else { held.delete(file); rmSync(file, { force: true }); } };
@@ -50,11 +51,15 @@ export class Ledger {
     for (;;) {
       try { writeFileSync(file, JSON.stringify({ pid: process.pid }), { flag: 'wx', mode: 0o600 }); break; } catch (e) {
         if (e.code !== 'EEXIST') throw e;
+        let text;
+        try { text = readFileSync(file, 'utf8'); } catch (r) { if (r.code === 'ENOENT') continue; throw r; } // released just now: take it
         let pid;
-        try { pid = JSON.parse(readFileSync(file, 'utf8')).pid; } catch { /* being written right now, or torn */ }
+        try { pid = JSON.parse(text).pid; } catch { /* being written right now, or torn */ }
         const fresh = Date.now() - (statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0) < 5000;
-        if (alive(pid) || (!pid && fresh)) throw new Error(`another BenchKeeper run is in progress${pid ? ` (process ${pid})` : ''}: wait until it ends`);
-        rmSync(file, { force: true });
+        // Not held here (held is empty), so this process's own pid names a lock an earlier process with that pid left.
+        if ((pid !== process.pid && alive(pid)) || (!pid && fresh)) throw new Error(`another BenchKeeper run is in progress${pid ? ` (process ${pid})` : ''}: wait until it ends`);
+        // Only the lock just examined goes: another process that took it over meanwhile keeps it.
+        if (readText(file) === text) rmSync(file, { force: true });
       }
     }
     held.set(file, 1);

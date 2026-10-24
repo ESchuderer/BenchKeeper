@@ -47,9 +47,9 @@ What the `benchkeeper` app (`app/`) may change on a machine, what it never chang
 | Step kind | May write | Confinement |
 |---|---|---|
 | Global setup (`steps/global.mjs`) | Rules, settings and skill files of the selected agents below the home folder; removal of other rules is offered, off by default | Write root is the home folder (`ctx.roots`) |
-| Project setup (`steps/project.mjs`) | Files in the project folder and the repository's `info` folder (the exclude list); never the rest of the project's own `.git` | Roots are the project and `<git-common-dir>/info`; `.git` is denied |
+| Project setup (`steps/project.mjs`) | Files in the project folder and the repository's `info/exclude` list; never the rest of the project's own `.git` | Roots are the project and `<git-common-dir>/info/exclude`; `.git` is denied |
 | Commands (plugin installs, `npm i -g`, `npx skills`) | What the tool writes | Not confined; declared `snapshot` paths are root-checked, backed up and restored on undo |
-| Update all (`projects.mjs`) | A worktree under `.cache/benchkeeper/worktrees` in the home folder, one commit, a branch, a push and a pull request per repository | Roots are the worktree and the repository's `info`; checkout untouched |
+| Update all (`projects.mjs`) | A worktree under `.cache/benchkeeper/worktrees` in the home folder, one commit and a branch per repository, and for a GitHub origin (unless `--no-push`) a push and a pull request | Roots are the worktree and the repository's `info/exclude`; checkout untouched |
 | Recorded session (`session.mjs`) | The agent writes in its working tree; the app writes the ledger | Undo restores files inside the repository root only |
 | App state | `projects.json`, packs, eval sets and results, `board.html`, session caches | Fixed paths below the config and cache folders |
 
@@ -57,12 +57,12 @@ What the `benchkeeper` app (`app/`) may change on a machine, what it never chang
 
 - Run a command through a shell.
 - Write outside the roots of a run, also through a symlink, a dangling symlink or `..` (the commands a run starts write what their tool writes).
-- Write into a project's `.git` except its `info` folder.
+- Write into a project's `.git` except `info/exclude`.
 - Force push, push with a `+` refspec, run `git clean`, `git reset`, `git stash` or `git checkout` on a user's checkout, delete a remote branch, or merge or close a pull request.
 - Delete a local branch it did not create in the same run.
 - Edit a file that changed since the preview without telling (a whole-file write of new text is refused, an edit applies to the file as it is; a copy from a folder is not checked).
 - Start a second run while another one holds the lock.
-- Add telemetry or send file contents itself. What leaves the machine is what the tools it starts send: `git push` and `gh pr create` of Update all, the package registries, the agents' own CLIs (an advice or eval session sends what its agent reads to the agent's provider), and the update notice (an unauthenticated GET for the package version).
+- Add telemetry or send file contents itself. What leaves the machine is what the tools it starts send: `git push` and `gh pr create` of Update all (a GitHub origin, not with `--no-push`), the package registries, the agents' own CLIs (an advice or eval session sends what its agent reads to the agent's provider), and the update notice (an unauthenticated GET for the package version).
 - Apply a removal that is not selected. Removals are unselected by default, except removals of files the app identifies as its own by content (see Open, #206).
 - Open the `gh` login files: `gh` runs as a command only, and transcripts are read for names and counts.
 
@@ -76,7 +76,7 @@ A test name refers to the file named in the same row.
 |---|---|---|
 | Write, remove, snapshot and undo stay inside the roots, links resolved | `allowed` in `runner.mjs`, `inside` and `realish` in `fsx.mjs` | `engine.test.mjs` "writes outside the roots are refused, also through a link"; `security.test.mjs` "a remove, a command snapshot and an undo outside the roots are refused", "a path through a dangling link" |
 | A removed link is judged as a link, not by its target | `inside(..., follow)` | `global.test.mjs` "full apply" (dangling link removed) |
-| A project run never writes into `.git` except its `info` folder | `projectCtx` (`deny`) and `allowed` | `security.test.mjs` "a project run never writes into .git" |
+| A project run never writes into `.git` except `info/exclude` | `projectCtx` (`deny`) and `allowed` | `security.test.mjs` "a project run never writes into .git" |
 | A temporary file is never written through a planted link and is removed on failure | `writeAtomic` (`wx`, random name) | `security.test.mjs` "an atomic write that fails leaves no temporary file" |
 | The server takes plan ids and change ids, never paths or argv | `POST /api/apply` in `server.mjs` | `server.test.mjs` "apply: answers at once with a job"; `security-server.test.mjs` "a select that is not a list of ids" |
 | Ids that become file names are plain: run id, pack id, eval target and case id, skill name | `Ledger.get`, `ownPacks` and `validate` in `packs.mjs`, `readSet` in `cases.mjs`, `SKILL_NAME` in `steps/project.mjs` | `security.test.mjs` "a pack file whose id is not a plain id", "an eval set with a target or case id that is a path"; `packs.test.mjs` "pack files name library skills only"; `project.test.mjs` skill-name test |

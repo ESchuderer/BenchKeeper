@@ -429,7 +429,9 @@ export function api(ctx) {
 async function body(req) {
   let size = 0;
   const chunks = [];
-  for await (const c of req) { size += c.length; if (size > 1e6) throw Object.assign(new Error('body too large'), { status: 413 }); chunks.push(c); }
+  // Read to the end even when too large: stopping early destroys the connection before the 413 reaches the client.
+  for await (const c of req) { size += c.length; if (size <= 1e6) chunks.push(c); }
+  if (size > 1e6) throw Object.assign(new Error('body too large'), { status: 413 });
   let b;
   try { b = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw Object.assign(new Error('body is not JSON'), { status: 400 }); }
   if (!b || typeof b !== 'object' || Array.isArray(b)) throw bad('body must be a JSON object');

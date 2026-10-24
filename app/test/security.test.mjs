@@ -143,14 +143,17 @@ test('two edits of one file in a plan still apply in order', () => {
 test('a project run never writes into .git except the exclude list, also through a link', () => {
   const r = repo();
   symlinkSync('.git/config', join(r.dir, 'CLAUDE.local.md'));
+  symlinkSync('.git/info/attributes', join(r.dir, 'AGENTS.override.md'));
   const pc = projectCtx(r.ctx, r.dir);
   const run = apply([
     { id: 'a', step: 'a', title: 'a', kind: 'write', path: join(r.dir, '.git/hooks/pre-commit'), after: 'x' },
     { id: 'b', step: 'b', title: 'b', kind: 'write', path: join(r.dir, 'CLAUDE.local.md'), after: '[core]\n\tfsmonitor = x\n' },
     { id: 'c', step: 'c', title: 'c', kind: 'write', path: join(r.dir, '.git/info/exclude'), after: '/x\n' },
     { id: 'd', step: 'd', title: 'd', kind: 'write', path: join(r.dir, 'ok.md'), after: 'ok' },
+    { id: 'e', step: 'e', title: 'e', kind: 'write', path: join(r.dir, 'AGENTS.override.md'), after: '* filter=x\n' },
   ], pc);
-  assert.deepEqual(run.entries.map((e) => e.status), ['failed', 'failed', 'done', 'done']);
+  assert.deepEqual(run.entries.map((e) => e.status), ['failed', 'failed', 'done', 'done', 'failed']);
+  assert.equal(existsSync(join(r.dir, '.git/info/attributes')), false);
   assert.equal(existsSync(join(r.dir, '.git/hooks/pre-commit')), false);
   assert.doesNotMatch(readFileSync(join(r.dir, '.git/config'), 'utf8'), /fsmonitor/);
 });
@@ -164,6 +167,9 @@ test('a second run is refused while another process holds the lock; a lock of a 
   assert.equal(existsSync(join(c.home, 'a')), false);
   writeFileSync(join(c.config, 'lock'), JSON.stringify({ pid: spawnSync(process.execPath, ['-e', '']).pid }));
   assert.equal(apply([write(c, 'a', '1')], c).status, 'done');
+  // A lock that names this very process, which does not hold it, is left over from an earlier process with this pid.
+  writeFileSync(join(c.config, 'lock'), JSON.stringify({ pid: process.pid }));
+  assert.equal(apply([write(c, 'b', '1')], c).status, 'done');
   assert.equal(existsSync(join(c.config, 'lock')), false);
 });
 

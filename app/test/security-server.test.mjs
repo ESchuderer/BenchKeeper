@@ -64,8 +64,9 @@ test('the server listens on 127.0.0.1 only', () => {
   assert.equal(srv.address().address, '127.0.0.1');
 });
 
-test('a body over 1 MB is a 413', async () => {
+test('a body over 1 MB is a 413 that reaches the client, and the server keeps answering', async () => {
   assert.equal((await post('/api/apply', JSON.stringify({ planId: 'x'.repeat(1.1e6) }))).status, 413);
+  assert.equal((await req('GET', '/api/overview')).status, 401);
 });
 
 test('the token is not exchanged for a session when the Host is not this server', async () => {

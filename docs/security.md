@@ -37,7 +37,7 @@ What the `benchkeeper` app (`app/`) may change on a machine, what it never chang
 ## Trust boundaries
 
 - Browser to server: the loopback port, the session cookie and the `x-benchkeeper` key.
-- App to the user's files: every change goes through the engine with a list of write roots.
+- App to the user's files: every file change the app makes goes through the engine with a list of write roots. The writes of the commands it starts are not confined (see Commands below).
 - App to child processes: argv only, no shell; the child's own writes are not confined.
 - App to repositories: git runs under the repository's own configuration unless pinned.
 - App to the network: only through tools that fetch and run third-party code.
@@ -106,7 +106,7 @@ A test name refers to the file named in the same row.
 |---|---|---|
 | Loopback only | `listen(port, '127.0.0.1')` | `security-server.test.mjs` "listens on 127.0.0.1 only" |
 | One-time URL token becomes an HttpOnly, SameSite=Strict cookie plus an API key; the token is not exchanged under another Host | `startServer` | `server.test.mjs` "the URL token works once"; `security-server.test.mjs` "the token is not exchanged" |
-| Host, Origin and `Sec-Fetch-Site` checks: other Host 421, foreign or null Origin 403, only `same-origin` or `none` pass | `rejectReason` | `server.test.mjs` "rejected: other Host"; `security-server.test.mjs` "same-site" |
+| Host, Origin and `Sec-Fetch-Site` checks: other Host 421, foreign or null Origin 403, and when `Sec-Fetch-Site` is present only `same-origin` or `none` pass | `rejectReason` | `server.test.mjs` "rejected: other Host"; `security-server.test.mjs` "same-site" |
 | Changes only by POST with the key header; other methods refused | `rejectReason` | `server.test.mjs` "rejected: state changes on GET" |
 | Body is a JSON object, at most 1 MB; `select` is a list of strings | `body`, `POST /api/apply` | `security-server.test.mjs` "a body over 1 MB", "a body that is not an object" |
 | A bad request target or an unhandled failure ends the request, not the server | `handle` wrapper | `security-server.test.mjs` "a request target the URL parser refuses" |

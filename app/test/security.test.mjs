@@ -256,6 +256,8 @@ test('an eval set with a target or case id that is a path is refused when read',
   assert.throws(() => loadCases(c), /outside letters/);
   writeFileSync(join(c.config, 'evals', 'x.json'), JSON.stringify({ kind: 'benchkeeper-evals', schemaVersion: 1, target: 'rule:ok', cases: null }));
   assert.throws(() => loadCases(c), /outside letters/);
+  writeFileSync(join(c.config, 'evals', 'x.json'), JSON.stringify({ kind: 'benchkeeper-evals', schemaVersion: 1, target: ['rule:ok'], cases: [] }));
+  assert.throws(() => loadCases(c), /outside letters/);
   writeFileSync(join(c.config, 'evals', 'x.json'), set('rule:ok', 'c1'));
   assert.ok(loadCases(c)['rule:ok']);
 });

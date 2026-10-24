@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { contentDir } from '../src/content.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { inventory } from '../src/inventory.mjs';
-import { ASK, PLUGINS, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
+import { PLUGINS, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
 
 // Stubs: one foreign plugin, marketplace and MCP server per agent; installs and removals change what the lists show.
 function machine({ failCodexInstall = false } = {}) {
@@ -56,7 +56,9 @@ function machine({ failCodexInstall = false } = {}) {
   writeFileSync(join(home, '.claude/rules/10-other.md'), 'other');
   symlinkSync('/nowhere/skills/following-dev-workflow', join(home, '.claude/skills/following-dev-workflow'));
   writeFileSync(join(home, '.claude.json'), JSON.stringify({ mcpServers: { extra: { command: 'x' } } }));
-  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ hooks: { Stop: [{ hooks: [{ command: 'echo mine' }] }], SessionStart: [{ hooks: [{ command: 'ORCA_AGENT_HOOK_PORT=1 x' }] }], PreToolUse: [{ hooks: [{ command: 'ORCA_AGENT_HOOK_PORT=1 y' }] }, { hooks: [{ command: 'echo mine too' }] }], PostToolUse: [] }, model: 'opus', autoCompactWindow: 600000, modelSettings: { 'claude-opus-5-5': { autoCompactWindow: 800000, effortLevel: 'high' }, 'claude-fable-5-1': { autoCompactWindow: 'auto' } }, permissions: { ask: ['Bash(mine *)'] } }, null, 2));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ hooks: { Stop: [{ hooks: [{ command: 'echo mine' }] }], SessionStart: [{ hooks: [{ command: 'ORCA_AGENT_HOOK_PORT=1 x' }] }], PreToolUse: [{ hooks: [{ command: 'ORCA_AGENT_HOOK_PORT=1 y' }] }, { hooks: [{ command: 'echo mine too' }] }], PostToolUse: [] }, model: 'opus', autoCompactWindow: 600000, modelSettings: { 'claude-opus-5-5': { autoCompactWindow: 800000, effortLevel: 'high' }, 'claude-fable-5-1': { autoCompactWindow: 'auto' } }, permissions: { ask: ['Bash(mine *)', 'Bash(gh pr merge *)'] } }, null, 2));
+  mkdirSync(join(home, '.codex/rules'), { recursive: true });
+  writeFileSync(join(home, '.codex/rules/benchkeeper.rules'), 'prefix_rule(pattern = ["gh", "pr", "merge"], decision = "prompt")\n');
   writeFileSync(join(home, '.codex/config.toml'), '[analytics]\nenabled = false\n');
   writeFileSync(join(home, '.codex/AGENTS.md'), 'my codex rules\n');
   const ctx = context({ home, run, appVersion: '6.0.0' });
@@ -72,6 +74,9 @@ test('plan changes nothing and lists the other rules as destructive', () => {
   const other = plan.find((c) => c.title.includes('~/.claude/CLAUDE.md'));
   assert.equal(other.selected, false);
   assert.equal(plan.find((c) => c.step === 'settings:claude:tier-band').selected, false);
+  const ask = plan.filter((c) => c.step.startsWith('ask:'));
+  assert.deepEqual(ask.map((c) => c.step).sort(), ['ask:claude:Bash(gh pr merge *)', 'ask:claude:Bash(mine *)', 'ask:codex:benchkeeper.rules']);
+  assert.ok(ask.every((c) => c.selected === false), 'ask rules are offered, not preselected');
   assert.ok(plan.every((c) => !c.title.includes('find-skills') || c.kind === 'command'));
 });
 
@@ -91,7 +96,7 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.equal(readFileSync(join(m.home, '.claude/rules/00-global.md'), 'utf8'), rules);
   const codexRules = readFileSync(join(m.home, '.codex/AGENTS.md'), 'utf8');
   assert.ok(codexRules.startsWith('my codex rules\n') && codexRules.includes(rules.trim()), 'Codex rules merged as a block');
-  assert.equal(readFileSync(join(m.home, '.codex/rules/benchkeeper.rules'), 'utf8'), readFileSync(join(contentDir, 'rules/codex.rules'), 'utf8'));
+  assert.equal(existsSync(join(m.home, '.codex/rules/benchkeeper.rules')), false, 'old Codex ask rules removed');
   for (const p of ['.claude/CLAUDE.md', '.claude/rules/10-other.md', '.claude/skills/following-dev-workflow', '.agents/skills/old-skill']) assert.equal(existsSync(join(m.home, p)), false, p);
   const backup = run.entries.find((e) => e.path?.endsWith('.claude/CLAUDE.md')).backup;
   assert.match(backup, new RegExp(`${run.id}/\\d+/\\.claude/CLAUDE\\.md$`), 'backup keeps the path below HOME');
@@ -110,7 +115,7 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.equal(st.autoCompactWindow, 400000);
   assert.equal(st.pluginConfigs['benchkeeper@benchkeeper'].options.tierBand, true);
   assert.deepEqual(st.modelSettings, { 'claude-opus-5-5': { effortLevel: 'high' }, 'claude-sonnet-5-5': { effortLevel: 'high' } });
-  assert.deepEqual(st.permissions.ask, ['Bash(mine *)', ...ASK]);
+  assert.equal(st.permissions, undefined, 'ask rules offered and removed when selected');
   assert.equal(readFileSync(join(m.home, '.codex/config.toml'), 'utf8'), 'model_reasoning_effort = "high"\n[analytics]\nenabled = false\n\n[feedback]\nenabled = false\n');
   assert.equal(m.s.dc, '1.0.0', 'host tool at the newest release older than 7 days');
   assert.ok(existsSync(join(m.home, '.claude/skills/find-skills')) && existsSync(join(m.home, '.agents/skills/orca-cli')));

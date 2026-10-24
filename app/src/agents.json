@@ -33,8 +33,7 @@
         "skills": ".agents/skills",
         "settings": { "path": ".codex/config.toml", "format": "toml" },
         "mcp": { "path": ".codex/config.toml", "format": "toml", "key": "mcp_servers" },
-        "subagents": { "path": ".codex/agents", "format": "toml" },
-        "commandRules": ".codex/rules/benchkeeper.rules"
+        "subagents": { "path": ".codex/agents", "format": "toml" }
       },
       "project": {
         "rules": { "path": "AGENTS.md", "format": "block" },

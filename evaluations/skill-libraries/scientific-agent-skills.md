@@ -42,23 +42,23 @@ Measured at the pin:
 |---|---|---|---|---|
 | `scientific-critical-thinking` | 336 | 235 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
 | `experimental-design` | 1014 | 286 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; community bug fixed (#279, #280) |
-| `hypothesis-generation` | 342 | 291 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
-| `statistical-analysis` | 552 | 454 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
-| `statistical-power` | 893 | 226 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
-| `uncertainty-and-units` | 847 | 416 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; open PR #350 |
-| `exploratory-data-analysis` | 375 | 312 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
-| `scientific-visualization` | 279 | 308 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
-| `literature-review` | 423 | 230 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; skills.sh scans Fail/Warn |
-| `paper-lookup` | 801 | 317 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; skills.sh Gen Fail, Snyk Warn |
-| `citation-management` | 369 | 360 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; many open bug reports (#317, #318, #319, #323, #348) |
+| `hypothesis-generation` | 342 | 290 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
+| `statistical-analysis` | 552 | 453 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
+| `statistical-power` | 893 | 225 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
+| `uncertainty-and-units` | 847 | 415 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; open PR #350 |
+| `exploratory-data-analysis` | 375 | 311 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
+| `scientific-visualization` | 279 | 307 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
+| `literature-review` | 422 | 229 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; skills.sh scans Fail/Warn |
+| `paper-lookup` | 800 | 316 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; skills.sh Gen Fail, Snyk Warn |
+| `citation-management` | 368 | 359 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; many open bug reports (#317, #318, #319, #323, #348) |
 | `database-lookup` | 274 | 399 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
-| `markitdown` | 288 | 285 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; open PR #322 (install commands) |
+| `markitdown` | 287 | 284 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; open PR #322 (install commands) |
 | `scientific-writing` | 357 | 381 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
 | `peer-review` | 364 | 317 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none |
 | `venue-templates` | 309 | 297 | frontmatter MIT, six Elsevier LPPL 1.3 files | none; PR #165 merged |
 | `sympy` | 294 | 408 | frontmatter license is a URL to SymPy's license | none; open PR #307 (dead links) |
-| `pymoo` | 240 | 310 | frontmatter Apache-2.0 | none |
-| `cantera` | 322 | 140 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; 224 installs, first seen 2026-09-30 |
+| `pymoo` | 239 | 309 | frontmatter Apache-2.0 | none |
+| `cantera` | 321 | 139 | root `LICENSE.md` MIT, frontmatter `license:` MIT | none; 224 installs, first seen 2026-09-30 |
 
 Findings (every fail and borderline with file and line or URL):
 
@@ -130,7 +130,7 @@ Source notes:
 - Point 5: not archived; 1 commit on `main` since the pin (a security scan report update, 2026-10-19), 0 in the 19 folders; each folder last changed 2026-10-01.
 - License location: no license file in any of the 19 folders. Each `SKILL.md` has a frontmatter `license:` (MIT for 16; `sympy` points to SymPy's license URL, `pymoo` says Apache-2.0, `venue-templates` says MIT but bundles six Elsevier LPPL 1.3 files). The root `LICENSE.md` is MIT (Copyright (c) 2025 K-Dense Inc.), so the MIT text and copyright notice do not ship with an install.
 - Time-sensitive text is pervasive: dated "verified" and "reviewed" stamps, release dates and 2026 venue names. 16 of 19 skills are borderline on point 3 for that, for 400 or more lines, or for a missing "use when" clause; only `statistical-power`, `database-lookup` and `cantera` pass it.
-- 18 of 19 `SKILL.md` files (not `cantera`) end with a "Citing Scientific Agent Skills" section that tells the agent to add the maintainer paper (arXiv 2609.00065) to the user's references and to fetch it when online (for example `skills/scientific-writing/SKILL.md:362-380`). Not counted against point 1; counting it as a fetch from a live page would move 11 point-1 passes to borderline.
+- 18 of 19 `SKILL.md` files (not `cantera`) end with a "Citing Scientific Agent Skills" section that tells the agent to add the repository's own paper (arXiv 2609.00065) to the user's references and to fetch it when online (for example `skills/scientific-writing/SKILL.md:362-380`). Not counted against point 1; counting it as a fetch from a live page would move 11 point-1 passes to borderline.
 - skills.sh scans (2026-10-24): all three pass for 14 skills; `literature-review` and `paper-lookup` Gen Agent Trust Hub Fail (2026-10-02), `literature-review`, `paper-lookup`, `citation-management`, `venue-templates` Snyk Warn, `sympy` Gen Warn. Install counts: 224 (`cantera`) to 2.4K. Pages: skills.sh, `k-dense-ai/scientific-agent-skills/<skill name>`.
 - Open third-party defects after the pin: #260 (dead endpoints, broken install commands and stale compatibility floors across 14 skills), #317, #318, #319, #323, #348 (`citation-management`), #322 (`markitdown`), #325 (`paper-lookup`), #349, #350. Prior fixed defect: #279 (`experimental-design` dropped a treatment arm for fractional allocation ratios), fixed in #280. The repository's security scan report is maintainer evidence.
 - Link check (116 URLs from the 19 `SKILL.md` files): three 404s (`sympy:391`, `uncertainty-and-units:388`, `exploratory-data-analysis:289`, all reference lists); 14 more answered 403, 429 or 405 (bot blocking, unverified).

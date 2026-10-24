@@ -24,7 +24,7 @@ import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
+import { addProject, canon, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { scanSessions } from './sessions.mjs';
 import { benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
@@ -159,7 +159,7 @@ export function api(ctx) {
   };
   const agentsNow = () => cached('agents', () => detect(ctx));
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
-  const registered = (dir) => listProjects(ctx).some((p) => p.path === dir);
+  const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
     'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {

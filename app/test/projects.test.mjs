@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { appVersion } from '../src/content.mjs';
-import { addProject, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
+import { addProject, canon, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
@@ -41,13 +41,39 @@ test('registry: add, list, remove; scan finds folders with an agent setup', () =
   const root = mkdtempSync(join(tmpdir(), 'bk-scan-'));
   for (const d of ['a', 'b/c', 'node_modules/x']) { mkdirSync(join(root, d), { recursive: true }); writeFileSync(join(root, d, 'AGENTS.md'), '#\n'); }
   mkdirSync(join(root, 'e'));
-  assert.deepEqual(scan(root).map((d) => d.slice(root.length + 1)).sort(), ['a', 'b/c']);
+  assert.deepEqual(scan(root).map((d) => d.slice(canon(root).length + 1)).sort(), ['a', 'b/c']);
   addProject(ctx, join(root, 'a'));
   addProject(ctx, join(root, 'a'));
-  assert.deepEqual(listProjects(ctx).map((p) => p.path), [join(root, 'a')]);
+  assert.deepEqual(listProjects(ctx).map((p) => p.path), [canon(join(root, 'a'))]);
   removeProject(ctx, join(root, 'a'));
   assert.deepEqual(listProjects(ctx), []);
   assert.throws(() => addProject(ctx, join(root, 'missing')), /does not exist/);
+});
+
+test('registry: one folder is one project, also through a symlink, in the registry and in the scan', async () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const real = mkdtempSync(join(tmpdir(), 'bk-real-'));
+  mkdirSync(join(real, 'app'));
+  writeFileSync(join(real, 'app', 'AGENTS.md'), '#\n');
+  const link = join(mkdtempSync(join(tmpdir(), 'bk-link-')), 'Projects');
+  symlinkSync(real, link);
+  addProject(ctx, join(real, 'app'));
+  addProject(ctx, join(link, 'app'));
+  assert.deepEqual(listProjects(ctx).map((p) => p.path), [canon(join(real, 'app'))]);
+  // A registry written before paths were canonical: both entries merge, and a kept state survives.
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ schemaVersion: 1, projects: [
+    { path: join(real, 'app'), added: '2026-01-01T00:00:00.000Z' }, { path: join(link, 'app'), added: '2026-02-01T00:00:00.000Z', state: { setupVersion: '6.0.0' } }] }));
+  const merged = listProjects(ctx);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].added, '2026-01-01T00:00:00.000Z');
+  assert.equal(merged[0].state.setupVersion, '6.0.0');
+  // The scan below the symlink does not offer the registered folder, and removal through either path removes it.
+  const found = scan(link).filter((d) => !listProjects(ctx).some((p) => p.path === canon(d)));
+  assert.deepEqual(found, []);
+  removeProject(ctx, join(link, 'app'));
+  assert.deepEqual(listProjects(ctx), []);
 });
 
 test('Update all runs the hooks of the checkout, not those of the fetched tree', () => {

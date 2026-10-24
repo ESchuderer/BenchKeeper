@@ -2,6 +2,13 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.5 (2026-10-24)
+
+- One-run setup in the browser: the Dashboard and the command palette start Everything, Global only or Projects (a checklist; projects without a setup or behind are checked). One consent covers the agent suggestion sessions. One progress bar shows a line per item (the global plan with its skill rehearsal, per project the suggestion and the plan), one review page shows a section per plan with a checkbox per section and per change, diffs behind buttons and the project answers (agents, environment, packs, tier) editable in place, and one apply job reports progress per section with a link to each run for undo. A failed suggestion or plan shows its reason and leaves the rest; a failed section leaves the others; cancel stops after the running change.
+- Projects with a shared setup, one still committed, or no repository stay with Update all; Fix everything stays as it is.
+- Plugin `version` 6.5.0.
+- Upgrade: `npx benchkeeper@6.5.0 apply`, which updates the plugin.
+
 ## setup-v6.4 (2026-10-24)
 
 - No ask rules and no approval line in the rules: Claude Code's auto mode (its defaults) decides what needs a prompt. `gh pr merge`, force push, `git reset --hard`, `git branch -D` and `git clean` run without BenchKeeper asking first. The rule that required the user's go before hard-to-undo actions and merges is gone, as is the Codex command rules file. Global setup compares `permissions.ask` in the Claude Code settings and the files in the Codex rules folder with the set BenchKeeper wants (none) and offers each difference for removal, one change per rule or file, off by default so your own rules stay unless you pick them.

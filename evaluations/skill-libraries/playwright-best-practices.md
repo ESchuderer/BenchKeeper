@@ -13,7 +13,7 @@
 
 ## User reports
 
-- 97.1K installs, first seen 2026-01-29, Snyk, Socket and Gen Agent Trust Hub checks passed ([skills.sh](https://skills.sh/currents-dev/playwright-best-practices-skill/playwright-best-practices)). [Show HN](https://news.ycombinator.com/item?id=46903511): 7 points, no comments.
+- 98.0K installs (2026-10-24), first seen 2026-01-29, Snyk, Socket and Gen Agent Trust Hub checks passed ([skills.sh](https://skills.sh/currents-dev/playwright-best-practices-skill/playwright-best-practices)). [Show HN](https://news.ycombinator.com/item?id=46903511): 7 points, no comments.
 
 ## Skill authoring check
 
@@ -46,7 +46,7 @@ Source notes:
 
 - Point 5: not archived, 0 commits since the pin, 26 commits in total since 2026-01-28.
 - Point 2: `license: MIT` in the frontmatter (`SKILL.md:4`) and the MIT `LICENSE.md` at the root; no license file in the skill folder.
-- Measured at the pin, correcting the counts above: 58 reference files (26,051 lines, 16 of them over 500 lines), not 57. skills.sh now shows 98.0K installs.
+- Measured at the pin, correcting the counts above: 58 reference files (26,051 lines, 16 of them over 500 lines), not 57. skills.sh showed 97.1K installs before this check.
 - Install history: issues 9 and 11 (the skills CLI installed only `SKILL.md`, leaving reference links broken) were fixed by moving the skill into `playwright-best-practices/` (commit 283d5cb, the pin). Issue 14 (2026-10-23, open) is an anecdotal user report.
 
 Removal: none made. The owner decides on the fails and borderline cases in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151).

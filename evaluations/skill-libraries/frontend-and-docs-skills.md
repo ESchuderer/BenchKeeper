@@ -27,7 +27,7 @@ Facts shared with [Anthropic document skills](anthropic-document-skills.md) (sam
 ### User reports
 
 - skills.sh: 1.0M installs, first seen 2026-01-19, Gen Agent Trust Hub, Socket and Snyk all Pass ([skills.sh](https://skills.sh/anthropics/skills/frontend-design)).
-- Issues in the Claude Code repository concern the plugin distribution, not the skill text: [#79776](https://github.com/anthropics/claude-code/issues/79776) (update banner on every refresh), [#59489](https://github.com/anthropics/claude-code/issues/59489) (plugin repeatedly uninstalls, closed). No open issue about the skill text in anthropics/skills (GitHub search `frontend-design in:title,body`, 2026-10-22).
+- Issues in the Claude Code repository concern the plugin distribution, not the skill text: [#79776](https://github.com/anthropics/claude-code/issues/79776) (update banner on every refresh), [#59489](https://github.com/anthropics/claude-code/issues/59489) (plugin repeatedly uninstalls, closed). Open issues in anthropics/skills that name `frontend-design` in the title and ask for changes to the skill text (GitHub search `frontend-design in:title,body`, 2026-10-24): [#1808](https://github.com/anthropics/skills/issues/1808) (pill-shaped buttons on about half of generated pages), [#1562](https://github.com/anthropics/skills/issues/1562) (guidance for existing design systems), [#1008](https://github.com/anthropics/skills/issues/1008) (DESIGN.md), [#977](https://github.com/anthropics/skills/issues/977) (emoji rule); [#272](https://github.com/anthropics/skills/issues/272) asks to clarify the line to `web-artifacts-builder`. This replaces the 2026-10-22 result "no open issue".
 - Anecdotal blog posts exist (for example a Medium post and a UX Planet comparison); none gives a method, not cited as evidence.
 
 ### Skill authoring check
@@ -119,7 +119,7 @@ Keep, docs pack, "The docs hold architecture, sequence or flow diagrams". No evi
 
 ### User reports
 
-- skills.sh: 63.2K installs, first seen 2026-01-20, Gen Agent Trust Hub, Socket and Snyk Pass ([skills.sh](https://skills.sh/addyosmani/web-quality-skills/accessibility)). The repository has 3.0K stars and 9 issues in total: 4 closed (two on wrong examples, one commit correcting examples on 2026-05-07), 4 open, all feature or promotion requests ([issues](https://github.com/addyosmani/web-quality-skills/issues)). Different from `addyosmani/agent-skills`, which has its own file: [agent-skills](agent-skills.md).
+- skills.sh: 63.2K installs, first seen 2026-01-20, Gen Agent Trust Hub, Socket and Snyk Pass ([skills.sh](https://skills.sh/addyosmani/web-quality-skills/accessibility)). The repository has 3.0K stars and 8 issues (2026-10-24): 4 closed (two on wrong examples, one commit correcting examples on 2026-05-07), 4 open, all feature or promotion requests ([issues](https://github.com/addyosmani/web-quality-skills/issues)). Issues and pull requests together are 25 (9 open, 16 closed), a different scope from the 8 issues. Different from `addyosmani/agent-skills`, which has its own file: [agent-skills](agent-skills.md).
 
 ### Skill authoring check
 
@@ -178,7 +178,7 @@ Source notes:
 
 - Point 5: all three repositories are not archived and the pins have 0 commits since. Quiet period: softaworks/agent-toolkit has no commit since 2026-03-05 (233 days at 2026-10-24), which is why `mermaid-diagrams` is borderline on point 5.
 - License location: `frontend-design` and `mcp-builder` carry `LICENSE.txt` (Apache-2.0) in the folder. `accessibility` has `license: MIT` in the frontmatter (`SKILL.md:4`) and the root `LICENSE`. `mermaid-diagrams` has MIT only in the root `LICENSE` (Copyright (c) 2026 Leonardo Flores), so an install carries no license text.
-- Correction to the frontend-design section above: it says no open issue about the skill text; open issues with `frontend-design` in the title exist (anthropics/skills#1808, #1562, #1008, #272, #977). Correction to the accessibility section: at 2026-10-24 the repository lists 25 issues and pull requests (9 open, 16 closed).
+- Changed 2026-10-24: the `frontend-design` and `accessibility` User reports entries now carry the issue counts verified that day.
 - Independent benchmarks of `frontend-design` that the section above lacks, all on earlier texts (the skill was rewritten 2026-06-09 and 2026-09-03): [dani-z benchmark](https://github.com/dani-z/frontend-design-skill-benchmark) (3 tasks, 6 author-written assertions each, 18 of 18 with the skill against 5 of 18 without), [Justin Wetch](https://www.justinwetch.com/blog/improvingclaudefrontend/) (revised against original skill, 21 of 28 decisive blind comparisons, Opus 4.5 as judge), [happycapy skill-arena](https://happycapy.ai/skill-arena/frontend-design) (six skills, 3 tasks, one run, self-described directional).
 - skills.sh (2026-10-24): `frontend-design` 1.0M installs, `mcp-builder` 131.1K (Snyk Warn), `mermaid-diagrams` 5.1K, `accessibility` 63.7K.
 

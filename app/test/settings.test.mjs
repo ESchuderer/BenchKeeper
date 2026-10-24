@@ -183,7 +183,9 @@ test('Doctor: the other pairs, no-op keys, retention, switches that are not bool
   assert.match(messages({ advisorModel: 'claude-sonnet-5-5', model: 'claude-opus-5-5' })[0], /ranks below the main model/);
   assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5', model: 'claude-sonnet-5-5' }), []);
   assert.deepEqual(messages({ advisorModel: 'sonnet', model: 'claude-opus-5-5' }), [], 'an alias resolves to the current default: not checked');
-  assert.match(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'high' } } })[0], /likely a no-op/);
+  assert.match(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } })[0], /likely a no-op/);
+  assert.deepEqual(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'high' } } }), [], 'the same level on both is what the setup writes');
+  assert.deepEqual(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { maxEffortLevel: 'xhigh' } } }), []);
   assert.deepEqual(messages({ effortLevel: 'high' }), []);
   assert.match(messages({ includeCoAuthoredBy: false, attribution: false })[0], /includeCoAuthoredBy is deprecated/);
   assert.match(messages({ cleanupPeriodDays: 7 })[0], /below 30/);

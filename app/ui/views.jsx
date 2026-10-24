@@ -591,7 +591,7 @@ export function History({ history, params, refresh }) {
   );
 }
 
-const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+8`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
+const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+9`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
 
 function Profile({ overview, refresh }) {
   const [file, setFile] = useState(null);

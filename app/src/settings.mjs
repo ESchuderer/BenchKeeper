@@ -214,6 +214,10 @@ function holds(c, state, agentId) {
     const a = rankOf(advisor), m = rankOf(main);
     return a != null && m != null && a < m;
   }
+  if (c.op === 'effortDiffers') {
+    const top = lookup(state, agentId, 'effortLevel', ['user'])[0], saved = lookup(state, agentId, 'modelSettings', ['user'])[0];
+    return top !== undefined && Object.values(saved ?? {}).some((m) => m?.effortLevel !== undefined && m.effortLevel !== top);
+  }
   if (c.keyPrefix) return state.layers.filter((l) => !c.layer || c.layer.includes(l.layer)).some((l) => Object.keys(dig(l.data, pathOf(c.keyPrefix.replace(/\.[^.]*$/, ''))) ?? {}).some((k) => `env.${k}`.startsWith(c.keyPrefix)));
   const values = lookup(state, agentId, c.key, c.layer);
   const isZero = SWITCHES(agentId).find((s) => `${s.key}` === c.key)?.zeroIsSet;

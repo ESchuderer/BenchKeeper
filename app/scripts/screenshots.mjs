@@ -29,7 +29,7 @@ await new Promise((ok, fail) => {
   server.on('exit', (c) => fail(new Error(`the demo server exited with ${c}`)));
 });
 
-const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
+const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view === 'Settings' ? /^Settings$/ : view });
 // [file name, steps that bring the app to the pictured state, what to cut out: a locator, or the whole window]
 const VIEWS = [
   ['dashboard', async () => {}],

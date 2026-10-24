@@ -128,7 +128,7 @@ const semver = (v) => /^\d+\.\d+\.\d+$/.test(v ?? '');
 export function newest(ctx, pkg, now = Date.now()) {
   const cache = (ctx.registry ??= new Map());
   const hit = cache.get(pkg);
-  if (!hit || now - hit.at > (hit.r.code === 0 ? 6 * 3600e3 : 60e3)) cache.set(pkg, { at: now, r: ctx.run(['npm', 'view', pkg, 'time', '--json']) });
+  if (!hit || now - hit.at > (hit.r.code === 0 ? 6 * 3600e3 : 60e3)) cache.set(pkg, { at: now, r: ctx.run(['npm', 'view', pkg, 'time', '--json'], { cwd: ctx.home }) });
   const { r } = cache.get(pkg);
   if (r.code !== 0) return null;
   const times = json(r.stdout, {});

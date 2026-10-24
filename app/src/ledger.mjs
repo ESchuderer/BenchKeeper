@@ -1,13 +1,17 @@
 // Install ledger: one JSON file per run under <config>/ledger, backups under <config>/backup/<run id>.
-import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
-import { real, writeAtomic } from './fsx.mjs';
+import { randomBytes } from 'node:crypto';
+import { chmodSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { readText, real, writeAtomic } from './fsx.mjs';
 
 export const SCHEMA = 1;
 
+const held = new Map();
+const alive = (pid) => { if (!Number.isInteger(pid) || pid < 1) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
 export function runId(now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-  return `${stamp}-${Math.random().toString(36).slice(2, 6)}`;
+  return `${stamp}-${randomBytes(3).toString('hex')}`;
 }
 
 export class Ledger {
@@ -21,18 +25,53 @@ export class Ledger {
   backupPath(id, n, path) {
     const p = resolve(path);
     const rel = p.startsWith(this.home + sep) ? relative(this.home, p) : join('_root', p);
-    return join(this.backups, id, String(n), rel);
+    const out = join(this.backups, id, String(n), rel);
+    // Backups hold copies of settings files with tokens: the folders are the user's alone.
+    mkdirSync(dirname(out), { recursive: true, mode: 0o700 });
+    return out;
   }
 
   save(run) {
     this.cache = null;
-    mkdirSync(this.dir, { recursive: true });
-    writeAtomic(join(this.dir, `${run.id}.json`), `${JSON.stringify(run, null, 2)}\n`);
+    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    // Folders made by an earlier version keep their mode otherwise.
+    for (const d of [this.dir, this.backups]) { try { chmodSync(d, 0o700); } catch { /* not there yet */ } }
+    writeAtomic(join(this.dir, `${run.id}.json`), `${JSON.stringify(run, null, 2)}\n`, 0o600);
+  }
+
+  // One run at a time on this config folder, also across processes: a lock file with the pid of the run. A second run
+  // in the same process goes on (Update all applies many times); the lock of a dead process is taken over.
+  // shortcut: a reused pid keeps a dead run's lock alive, and two processes that reclaim one stale lock at the same
+  // instant can both pass (the window is the gap between the compare and the rmSync): delete <config>/lock then.
+  lock() {
+    const file = join(dirname(this.dir), 'lock');
+    const release = () => { const n = held.get(file) - 1; if (n > 0) held.set(file, n); else { held.delete(file); rmSync(file, { force: true }); } };
+    if (held.has(file)) { held.set(file, held.get(file) + 1); return release; }
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    for (;;) {
+      try { writeFileSync(file, JSON.stringify({ pid: process.pid }), { flag: 'wx', mode: 0o600 }); break; } catch (e) {
+        if (e.code !== 'EEXIST') throw e;
+        let text;
+        try { text = readFileSync(file, 'utf8'); } catch (r) { if (r.code === 'ENOENT') continue; throw r; } // released just now: take it
+        let pid;
+        try { pid = JSON.parse(text).pid; } catch { /* being written right now, or torn */ }
+        const fresh = Date.now() - (statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0) < 5000;
+        // Not held here (held is empty), so this process's own pid names a lock an earlier process with that pid left.
+        if ((pid !== process.pid && alive(pid)) || (!pid && fresh)) throw new Error(`another BenchKeeper run is in progress${pid ? ` (process ${pid})` : ''}: wait until it ends`);
+        // Only the lock just examined goes: another process that took it over meanwhile keeps it.
+        if (readText(file) === text) rmSync(file, { force: true });
+      }
+    }
+    held.set(file, 1);
+    return release;
   }
 
   get(id) {
-    if (!/^[\w-]+$/.test(id)) throw new Error(`bad run id: ${id}`);
-    return JSON.parse(readFileSync(join(this.dir, `${id}.json`), 'utf8'));
+    if (typeof id !== 'string' || !/^[\w-]+$/.test(id)) throw Object.assign(new Error(`bad run id: ${id}`), { status: 400 });
+    try { return JSON.parse(readFileSync(join(this.dir, `${id}.json`), 'utf8')); } catch (e) {
+      if (e.code === 'ENOENT') throw Object.assign(new Error(`no run ${id}`), { status: 404 });
+      throw e;
+    }
   }
 
   // Kept until the next save here or a change of the folder (each save renames a file into it, so another process's

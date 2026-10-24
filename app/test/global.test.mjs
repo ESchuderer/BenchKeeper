@@ -254,6 +254,17 @@ test('the BenchKeeper plugin behind the app is updated by apply; the next plan i
   assert.deepEqual(plan(), []);
   writeFileSync(installedFile, JSON.stringify({ version: 2, plugins: {} }));
   assert.equal(benchkeeperPlugin(ctx, 'claude').installed, null);
+  // Codex reads the version from its plugin cache; the update step is an upgrade and an add.
+  const cache = join(home, '.codex/plugins/cache/benchkeeper/benchkeeper');
+  const codexRun = (argv) => { if (argv.join(' ') === 'codex plugin add benchkeeper@benchkeeper') mkdirSync(join(cache, '6.5.0'), { recursive: true }); return { code: 0, stdout: '', stderr: '' }; };
+  const cctx = context({ home, appVersion: '6.5.0', run: codexRun });
+  mkdirSync(join(cache, '6.0.0'), { recursive: true });
+  writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.benchkeeper]\nsource = "x"\nref = "stable"\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
+  const cplan = () => globalPlan({ ctx: cctx, agents: ['codex'] }).filter((c) => c.step === 'plugin:codex:benchkeeper@benchkeeper');
+  assert.deepEqual(cplan().map((c) => c.argv.join(' ')), ['codex plugin marketplace upgrade benchkeeper', 'codex plugin add benchkeeper@benchkeeper']);
+  apply(cplan(), cctx);
+  assert.deepEqual(benchkeeperPlugin(cctx, 'codex'), { installed: '6.5.0', available: '6.5.0' });
+  assert.deepEqual(cplan(), []);
 });
 
 test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {

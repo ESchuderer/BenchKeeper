@@ -161,7 +161,7 @@ export function api(ctx) {
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
   const registered = (dir) => listProjects(ctx).some((p) => p.path === dir);
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => benchkeeperPlugin(ctx, a.id)) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
+    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx) } }));

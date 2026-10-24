@@ -163,7 +163,7 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'plan' || cmd === 'apply') {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) { out.write('no agent found (claude, codex, gemini, copilot); the app installs none\n'); return 1; }
-    if (o.level && !LEVELS.includes(o.level)) { out.write(`--level must be one of ${LEVELS.join(', ')}\n`); return 2; }
+    if (o.level !== undefined && !LEVELS.includes(o.level)) { out.write(`--level must be one of ${LEVELS.join(', ')}\n`); return 2; }
     const found = detectLevel(ctx, agents, process.cwd());
     const level = o.level ?? found.level ?? 'full';
     if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${found.adds}\n`);

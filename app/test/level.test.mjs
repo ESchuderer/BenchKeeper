@@ -117,6 +117,7 @@ test('the CLI: --level lite plans the plugin only, an unknown level exits 2, doc
   assert.match(c.text(), /Claude Code plugin benchkeeper@benchkeeper/);
   assert.doesNotMatch(c.text(), /rules|settings/);
   assert.equal(await c.exec(['plan', '--agents', 'claude', '--level', 'tiny']), 2);
+  assert.equal(await c.exec(['plan', '--agents', 'claude', '--level=']), 2);
   m.s.installed = true;
   const d = cli(m.ctx);
   await d.exec(['doctor', m.home, '--agents', 'claude']);

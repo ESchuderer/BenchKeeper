@@ -534,7 +534,7 @@ export function Projects({ params, overview, refresh }) {
       <Modal opened={confirmPrs} onClose={() => setConfirmPrs(false)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
         <Stack gap="sm">
           <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
-          <Text size="sm">{plural(prs, 'project')} with a shared setup get a branch pushed to origin and a pull request when origin is on GitHub. Projects with uncommitted changes are skipped.</Text>
+          <Text size="sm">{plural(prs, 'project')} with a shared setup or a local one still committed get a branch pushed to origin and a pull request when origin is on GitHub (the second kind removes the committed setup). Projects with uncommitted changes are skipped.</Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setConfirmPrs(false)}>Cancel</Button>
             <Button leftSection={icon(IconRefresh)} onClick={updateAll}>Update all and open up to {plural(prs, 'pull request')}</Button>
@@ -557,8 +557,9 @@ export function History({ history, params, refresh }) {
     <Stack gap="lg">
       <Loading state={history} label="history">{(runs) => {
         // A run opened by its link stays in the list, however old.
-        const cut = more || runs.length <= RUNS_SHOWN || runs.findIndex((r) => r.id === open) >= RUNS_SHOWN ? runs.length : RUNS_SHOWN;
-        const days = Object.entries(groupBy(runs.slice(0, cut), (r) => new Date(r.time).toLocaleDateString()));
+        const linked = runs.findIndex((r) => r.id === open);
+        const listed = more || runs.length <= RUNS_SHOWN ? runs : linked >= RUNS_SHOWN ? [...runs.slice(0, RUNS_SHOWN), runs[linked]] : runs.slice(0, RUNS_SHOWN);
+        const days = Object.entries(groupBy(listed, (r) => new Date(r.time).toLocaleDateString()));
         return runs.length ? (
           <SplitView span={4} empty="Choose a run for what it changed and undo." list={
             <Stack gap="md" component="nav" aria-label="Runs">
@@ -572,7 +573,7 @@ export function History({ history, params, refresh }) {
                   ))}
                 </Stack>
               ))}
-              {cut < runs.length && <Button variant="default" onClick={() => setMore(true)}>Show {runs.length - cut} older runs</Button>}
+              {listed.length < runs.length && <Button variant="default" onClick={() => setMore(true)}>Show {runs.length - listed.length} older runs</Button>}
             </Stack>
           } detail={open ? <RunPanel key={open} id={open} order={3} onChanged={refresh} /> : null} />
         ) : <Text>No runs yet.</Text>;

@@ -3,7 +3,7 @@ import { BarChart, LineChart } from '@mantine/charts';
 import '@mantine/charts/styles.css';
 import { Anchor, Button, Checkbox, Group, List, Paper, Select, Stack, Switch, Table, Text, Title } from '@mantine/core';
 import { IconListCheck, IconPlayerPlay } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, EvalJob, Section, pct } from './parts.jsx';
 import { when } from './run.jsx';
@@ -78,31 +78,34 @@ function RunEvals({ onDone }) {
   const [all, setAll] = useState(false);
   const [plan, setPlan] = useState(null);
   const [job, setJob] = useState(null);
+  const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
+  // A plan answers the selection it was asked for; a later change discards it.
+  const choice = useRef(0);
   const query = new URLSearchParams({ agents: agents.join(','), all: all ? '1' : '0' });
   const act = (f) => async () => { setError(null); try { await f(); } catch (e) { setError(e.message); } };
   return (
     <Section title="Run evals">
       <Text size="sm">Each case is a real agent session (Claude Code in plan mode, Codex read-only) in a scratch repository, on your subscription.</Text>
       <Group>
-        <Checkbox.Group label="Agents" value={agents} onChange={(v) => { setAgents(v); setPlan(null); }}>
+        <Checkbox.Group label="Agents" value={agents} onChange={(v) => { choice.current += 1; setAgents(v); setPlan(null); }}>
           <Group mt={4}><Checkbox value="claude" label="Claude Code" /><Checkbox value="codex" label="Codex" /></Group>
         </Checkbox.Group>
-        <Switch label="All targets, also unchanged ones" checked={all} onChange={(e) => { setAll(e.currentTarget.checked); setPlan(null); }} />
+        <Switch label="All targets, also unchanged ones" checked={all} onChange={(e) => { choice.current += 1; setAll(e.currentTarget.checked); setPlan(null); }} />
       </Group>
       {error && <Note color="red" title="Failed">{error}</Note>}
-      {!job && <Group><Button leftSection={icon(IconListCheck)} variant="default" disabled={!agents.length} onClick={act(async () => setPlan(await api(`/api/eval-plan?${query}`)))}>Plan evals</Button></Group>}
+      {!job && <Group><Button leftSection={icon(IconListCheck)} variant="default" disabled={!agents.length} onClick={act(async () => { const asked = choice.current, p = await api(`/api/eval-plan?${query}`); if (asked === choice.current) setPlan(p); })}>Plan evals</Button></Group>}
       {plan && !job && (plan.targets.length ? (
         <Stack gap="xs">
           <Table aria-label="Planned evals">
             <Table.Thead><Table.Tr><Table.Th>Target</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Cases</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>{plan.targets.map((t) => <Table.Tr key={`${t.target}${t.agent}`}><Table.Td>{t.target}</Table.Td><Table.Td>{t.agent}</Table.Td><Table.Td>{t.cases}</Table.Td></Table.Tr>)}</Table.Tbody>
           </Table>
-          <Group><Button leftSection={icon(IconPlayerPlay)} onClick={act(async () => setJob(await api('/api/eval', { agents: agents.join(','), all })))}>Start {plan.sessions} agent sessions</Button></Group>
+          <Group><Button leftSection={icon(IconPlayerPlay)} onClick={act(async () => { setJob(await api('/api/eval', { agents: agents.join(','), all })); setRunning(true); })}>Start {plan.sessions} agent sessions</Button></Group>
         </Stack>
       ) : <Text>Every target is unchanged since its last result. Turn on all targets to run them again.</Text>)}
-      {job && <EvalJob job={job.job} total={job.total} onDone={() => { setPlan(null); onDone(); }} />}
-      {job && <Group><Button leftSection={icon(IconListCheck)} variant="default" onClick={() => setJob(null)}>Plan more evals</Button></Group>}
+      {job && <EvalJob job={job.job} total={job.total} onDone={() => { setPlan(null); setRunning(false); onDone(); }} />}
+      {job && <Group><Button leftSection={icon(IconListCheck)} variant="default" disabled={running} onClick={() => setJob(null)}>Plan more evals</Button></Group>}
     </Section>
   );
 }

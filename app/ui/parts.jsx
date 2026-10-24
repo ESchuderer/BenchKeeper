@@ -229,7 +229,7 @@ export function EvalJob({ job, total, onDone }) {
   const at = s?.progress ? s.progress.index + (s.done ? 1 : 0) : 0;
   return (
     <Stack gap="xs">
-      <Progress value={(s?.done ? total : at) / total * 100} aria-label="Eval sessions done" />
+      <Progress value={(s?.done && !s.error ? total : s?.progress?.index ?? 0) / total * 100} aria-label="Eval sessions done" />
       <CancelJob job={job} state={s} what="evals" />
       <Text role="status">{s?.done ? (s.error === 'cancelled' ? 'Cancelled: targets that finished kept their results' : s.error ? `Failed: ${s.error}` : `Done: ${total} sessions`) : s?.progress ? `Session ${at + 1} of ${total}: ${s.progress.target}, case ${s.progress.case} (${s.progress.agent})` : 'Starting'}</Text>
       {s?.results && (

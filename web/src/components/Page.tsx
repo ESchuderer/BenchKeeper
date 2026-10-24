@@ -161,7 +161,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="start" title="Quick start" intro={<>Needs Claude Code or Codex (Gemini CLI and GitHub Copilot CLI also work, untested), Git, Node.js 22, and Docker or Podman for the dev container (<Anchor href={`${REPO}#prerequisites`}>full list</Anchor>). The app installs the Dev Containers CLI. Each setup step shows its plan before it changes anything.</>}>
+        <Section id="start" title="Quick start" intro={<>Needs Claude Code or Codex (Gemini CLI and GitHub Copilot CLI also work, untested), Git, Node.js 22, and Docker or Podman for the dev container (<Anchor href={`${REPO}#prerequisites`}>full list</Anchor>). The app installs the Dev Containers CLI. Each setup step shows its plan before it changes anything. <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
           <Stack gap="lg" maw={760}>
             {quickstart.map(([title, cmd, note], k) => (
               <Group key={title} gap="md" wrap="nowrap" align="flex-start">

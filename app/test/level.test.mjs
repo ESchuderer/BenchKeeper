@@ -93,7 +93,7 @@ test('without --level the level found counts: a standard machine is not grown to
   assert.ok(!found.some((i) => i.check === 'rules'));
   const c = cli(m.ctx);
   assert.equal(await c.exec(['plan', '--agents', 'claude']), 0);
-  assert.doesNotMatch(c.text(), /rules|settings/);
+  assert.doesNotMatch(c.text(), /Claude Code rules|Claude settings/);
   assert.match(c.text(), /benchkeeper@benchkeeper/);
 });
 

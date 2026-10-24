@@ -390,5 +390,9 @@ test('the project block carries every rule that left the global file; bare skill
   const gp = plan(g, { agents: ['gemini'], env: 'host', share: true }).changes;
   apply(preview(gp), g.ctx, { scope: g.dir, select: gp.map((c) => c.id) });
   assert.match(read(join(g.dir, 'AGENTS.md')), /load the `workflow` skill/);
+  const mixed = repo();
+  const mp = plan(mixed, { agents: ['claude', 'gemini'], env: 'host', share: true }).changes;
+  apply(preview(mp), mixed.ctx, { scope: mixed.dir, select: mp.map((c) => c.id) });
+  assert.doesNotMatch(read(join(mixed.dir, 'AGENTS.md')), /benchkeeper:workflow/, 'one shared block, a name every chosen agent knows');
   assert.doesNotMatch(read(join(g.dir, 'AGENTS.md')), /benchkeeper:workflow/);
 });

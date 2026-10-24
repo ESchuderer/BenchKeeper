@@ -164,7 +164,9 @@ async function command(argv, { out, ask, ctx }) {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) { out.write('no agent found (claude, codex, gemini, copilot); the app installs none\n'); return 1; }
     if (o.level && !LEVELS.includes(o.level)) { out.write(`--level must be one of ${LEVELS.join(', ')}\n`); return 2; }
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level: o.level ?? levelFor(ctx, agents) } }));
+    const level = o.level ?? levelFor(ctx, agents);
+    if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${detectLevel(ctx, agents).adds}\n`);
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
       plan.forEach((c) => show(c, out));

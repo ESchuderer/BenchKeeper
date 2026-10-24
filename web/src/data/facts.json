@@ -5,7 +5,7 @@
     {
       "name": "Lite",
       "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects` and `maintaining-repos` skills",
-      "writes": "nothing outside the plugin install",
+      "writes": "nothing outside the plugin install, besides the app's run record for undo",
       "command": "npx benchkeeper@6.5.0 apply --level lite"
     },
     {
@@ -18,7 +18,7 @@
       "name": "Full",
       "contains": "standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app",
       "writes": "global rule files, settings and packs",
-      "command": "npx benchkeeper@6.5.0 apply"
+      "command": "npx benchkeeper@6.5.0 apply --level full"
     }
   ],
   "core": {

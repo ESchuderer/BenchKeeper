@@ -17,9 +17,9 @@ Three levels, from the smallest: a plugin cannot ship always-on instructions, so
 <!-- generated:levels -->
 | Level | Contains | Writes | Command |
 |---|---|---|---|
-| Lite | the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects` and `maintaining-repos` skills | nothing outside the plugin install | `npx benchkeeper@6.5.0 apply --level lite` |
+| Lite | the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects` and `maintaining-repos` skills | nothing outside the plugin install, besides the app's run record for undo | `npx benchkeeper@6.5.0 apply --level lite` |
 | Standard | lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list | local files in each project you run `project apply` in | `npx benchkeeper@6.5.0 apply --level standard && npx benchkeeper@6.5.0 project apply` |
-| Full | standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.5.0 apply` |
+| Full | standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.5.0 apply --level full` |
 <!-- /generated:levels -->
 
 Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional (Gemini CLI and Copilot untested). The app configures the agents it finds on `PATH`. It does not install agent CLIs. Linux and macOS are tested; Windows runs only a CI smoke test.

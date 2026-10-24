@@ -164,7 +164,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
   // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so it
   // carries AGENTS.md's text too and is rebuilt from it on every apply).
-  const rules = forAgent(readFileSync(join(contentDir, 'rules/project.md'), 'utf8'), a.agents.find((id) => agent(id).plugins) ?? a.agents[0]);
+  const rules = forAgent(readFileSync(join(contentDir, 'rules/project.md'), 'utf8'), a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
   const lines = [...rules.split('\n').map((l) => l.replace(/^- /, '')), ENVS[a.env], a.tier && `Default tier: ${a.tier}`, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = lines.length ? lines.map((l) => `- ${l}`).join('\n') : null;
   const overrideOurs = (t) => t == null || getBlock(t, 'project') != null;

@@ -163,9 +163,9 @@ test('inventory: an edited rules file is modified, enabled plugins current, a mi
 
 test('level: the overview names the level found, the global plan takes a level and refuses an unknown one', async () => {
   const { ctx, routes } = fixture();
-  assert.equal((await routes['GET /api/overview']()).level.level, null);
+  assert.equal((await routes['GET /api/overview']()).level.level, 'lite', 'the fixture has the plugin enabled and nothing else');
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write'), ctx);
-  const full = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const full = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   assert.ok(full.changes.some((c) => c.step === 'rules:claude' || c.step.startsWith('settings:')));
   const lite = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=lite'));
   assert.ok(lite.changes.every((c) => c.kind === 'command' && c.step.endsWith('benchkeeper@benchkeeper')));
@@ -179,7 +179,7 @@ test('prerun: the global skill install is rehearsed in a job, its file diff per 
     writeFileSync(join(o.env.HOME, '.claude/skills/find-skills/SKILL.md'), '# find-skills\n');
     return { code: 0, stdout: '', stderr: '' };
   });
-  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   const skill = plan.changes.find((c) => c.step === 'tools:skill:find-skills');
   assert.equal(skill.prerun, true);
   assert.ok(plan.changes.filter((c) => c.kind === 'write').every((c) => c.prerun === false));
@@ -191,12 +191,12 @@ test('prerun: the global skill install is rehearsed in a job, its file diff per 
   assert.equal(status(() => routes['POST /api/prerun']({ planId: 'gone' })), 409);
   // A result is kept: the same command again needs no second run.
   ctx.runAsync = (argv, o) => new Promise((r) => o.signal.addEventListener('abort', () => r({ code: 130, stdout: '', stderr: 'cancelled' })));
-  const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   assert.deepEqual((await finished(routes, routes['POST /api/prerun']({ planId: again.planId }).job)).results[skill.id], s.results[skill.id]);
   // An apply drops kept results and stops a running rehearsal, whose files it changes; a rehearsal is not a running job.
   const write = (plan) => routes['POST /api/apply']({ planId: plan.planId, select: [plan.changes.find((c) => c.kind === 'write').id] }).job;
   await finished(routes, write(again));
-  const next = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const next = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   const pre = routes['POST /api/prerun']({ planId: next.planId });
   assert.deepEqual(routes['GET /api/jobs'](), []);
   const applied = write(next);
@@ -210,7 +210,7 @@ test('apply: answers at once with a job; the job shows the running command and i
   const { ctx, routes } = fixture();
   let release;
   ctx.runAsync = (argv, o) => { o.onOutput('installing\n'); return new Promise((r) => { release = () => r({ code: 0, stdout: 'ok', stderr: '' }); }); };
-  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   const command = plan.changes.find((c) => c.kind === 'command');
   const select = [plan.changes.find((c) => c.kind === 'write').id, command.id];
   const { job, total } = routes['POST /api/apply']({ planId: plan.planId, select });
@@ -225,7 +225,7 @@ test('apply: answers at once with a job; the job shows the running command and i
   assert.equal(s.output[command.id], 'installing\n');
   // A reloaded page finds the running job.
   assert.deepEqual(routes['GET /api/jobs'](), [{ id: job, kind: 'apply', title: 'global setup', total: 2 }]);
-  const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   assert.equal(status(() => routes['POST /api/apply']({ planId: again.planId })), 409);
   // Undo and Update all wait too: they would edit the files and the run the apply still writes.
   assert.equal(status(() => routes['POST /api/undo']({ run: s.run.id })), 409);
@@ -277,7 +277,7 @@ test('evals: the plan names targets and sessions; the job runs them and stores r
   delete process.env.CI;
   try {
     const { routes } = fixture();
-    const plan = routes['GET /api/eval-plan'](new URLSearchParams('agents=claude'));
+    const plan = routes['GET /api/eval-plan'](new URLSearchParams('agents=claude&level=full'));
     assert.deepEqual(plan.targets.map((t) => t.target).sort(), ['skill:designing-technical-uis', 'skill:workflow']);
     assert.equal(plan.sessions, plan.targets.reduce((n, t) => n + t.cases, 0));
     const { job, total } = routes['POST /api/eval']({ agents: 'claude' });
@@ -287,7 +287,7 @@ test('evals: the plan names targets and sessions; the job runs them and stores r
     assert.deepEqual(s.results.map((r) => r.target).sort(), ['skill:designing-technical-uis', 'skill:workflow']);
     assert.ok(s.results.every((r) => !('details' in r)));
     assert.equal(routes['GET /api/evals']().length, 2);
-    assert.equal(routes['GET /api/eval-plan'](new URLSearchParams('agents=claude')).sessions, 0);
+    assert.equal(routes['GET /api/eval-plan'](new URLSearchParams('agents=claude&level=full')).sessions, 0);
     assert.equal(status(() => routes['POST /api/eval']({ agents: 'claude' })), 400);
     process.env.CI = '1';
     assert.equal(status(() => routes['GET /api/eval-plan'](new URLSearchParams())), 400);
@@ -301,7 +301,7 @@ test('cancel: an apply skips the changes not started yet; an eval stops and stor
   delete process.env.CI;
   try {
     const { ctx, routes } = fixture();
-    const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+    const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
     const select = [plan.changes.find((c) => c.kind === 'write').id, plan.changes.find((c) => c.kind === 'command' && !c.unit).id];
     const { job } = routes['POST /api/apply']({ planId: plan.planId, select });
     // The job has its run but no change yet: the check before each change sees the cancel.
@@ -525,7 +525,7 @@ test('one-run: lists the agents, the advisers and each project with its state an
 
 // The plans of one run: the global plan and two projects, as the review page keeps them.
 function plansOf(routes) {
-  const global = routes['GET /api/global-plan'](q({ agents: 'claude' }));
+  const global = routes['GET /api/global-plan'](q({ agents: 'claude', level: 'full' }));
   const dirs = [repo('a'), repo('b')];
   const projects = dirs.map((dir) => {
     routes['POST /api/projects']({ path: dir });

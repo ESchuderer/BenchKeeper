@@ -50,6 +50,8 @@ test.describe('views', () => {
     await context.addCookies([cookie]);
     await context.addInitScript((k) => localStorage.setItem('benchkeeper-key', k), key);
     await page.goto('/');
+    // Shortcuts and the skip link exist once the app is up, behind the starting screen.
+    await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
   });
 
   for (const view of VIEWS) {
@@ -277,6 +279,46 @@ test.describe('views', () => {
     await cell.click();
     await expect(page).toHaveURL(/#\/agents\?agent=claude$/);
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
+  });
+
+  test('a slow first overview shows the starting screen, not 0 agents; a failed one offers Try again', async ({ page }) => {
+    let down = true;
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    await page.route(/\/api\/overview(\?|$)/, async (route) => {
+      if (!down) return route.continue();
+      await gate;
+      return route.abort('connectionreset');
+    });
+    await page.reload();
+    await expect(page.getByRole('status')).toContainText('Starting');
+    await expect(page.getByText('0 installed')).toHaveCount(0);
+    release();
+    await expect(page.getByRole('alert')).toContainText('Cannot read the setup');
+    down = false;
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+  });
+
+  test('a failed refresh keeps the shell and the open view', async ({ page }) => {
+    await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+    await nav(page, 'Settings').click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible();
+    let hits = 0;
+    await page.route(/\/api\/overview(\?|$)/, (r) => { hits++; return r.abort('connectionreset'); });
+    // Closing the one-run drawer calls refresh().
+    await page.keyboard.press('ControlOrMeta+K');
+    await page.getByRole('dialog', { name: 'Command palette' }).getByLabel('Search').fill('Set up projects in one run');
+    await page.keyboard.press('Enter');
+    const drawer = page.getByRole('dialog', { name: 'One-run setup' });
+    await expect(drawer).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeHidden();
+    // The read is asked twice (a lost connection is retried once), then the overview clears.
+    await expect.poll(() => hits).toBeGreaterThanOrEqual(2);
+    await page.waitForTimeout(300);
+    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible();
+    await expect(page.getByText('Starting')).toHaveCount(0);
   });
 
   test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {

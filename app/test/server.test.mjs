@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -476,4 +477,110 @@ test('Stop: the API key is needed; the server closes after its answer', async ()
   assert.deepEqual([r.status, JSON.parse(r.body)], [200, { stopping: true }]);
   await closed;
   assert.equal(srv.listening, false);
+});
+
+// Real git for the fixture's project folders; everything else answers as the fixture does.
+const realGit = (argv, o) => {
+  if (argv[0] !== 'git') return null;
+  try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o?.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; }
+};
+const repo = (name) => {
+  const d = mkdtempSync(join(tmpdir(), `bk-one-${name}-`));
+  execFileSync('git', ['init', '-q', '-b', 'main', d]);
+  writeFileSync(join(d, 'README.md'), `# ${name}\n`);
+  return d;
+};
+const q = (o) => new URLSearchParams(o);
+
+test('one-run: lists the agents, the advisers and each project with its state and why one is left to Update all', async () => {
+  const { ctx, routes } = fixture(realGit);
+  const fresh = repo('fresh'), local = repo('local'), shared = repo('shared'), plain = mkdtempSync(join(tmpdir(), 'bk-one-plain-'));
+  for (const [dir, share] of [[local, false], [shared, true]]) {
+    const pctx = { ...ctx, roots: [dir] };
+    apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host', share } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+  }
+  for (const path of [fresh, local, shared, plain]) routes['POST /api/projects']({ path });
+  const r = await routes['GET /api/one-run']();
+  assert.deepEqual(r.agents.map((a) => a.id), ['claude']);
+  assert.deepEqual(r.advisers.map((a) => a.id), ['claude']);
+  const by = Object.fromEntries(r.projects.map((p) => [p.path, p]));
+  assert.deepEqual([by[fresh].state, by[fresh].blocked], ['none', null]);
+  assert.equal(by[local].blocked, null);
+  assert.match(by[shared].blocked, /shared setup/);
+  assert.match(by[plain].blocked, /no repository/);
+});
+
+// The plans of one run: the global plan and two projects, as the review page keeps them.
+function plansOf(routes) {
+  const global = routes['GET /api/global-plan'](q({ agents: 'claude' }));
+  const dirs = [repo('a'), repo('b')];
+  const projects = dirs.map((dir) => {
+    routes['POST /api/projects']({ path: dir });
+    return routes['GET /api/project-plan'](q({ dir, setup: '1', agents: 'claude', env: 'host', sandbox: '0', share: '0', tier: '' }));
+  });
+  return { global, projects, dirs };
+}
+const defaults = (plan) => plan.changes.filter((c) => c.selected && !c.error).map((c) => c.id);
+
+test('apply-all: one job, a section per plan in order, each its own run; a failed section leaves the others; one job at a time', async () => {
+  const { ctx, routes } = fixture(realGit);
+  let release;
+  const failing = (argv) => argv[0] === 'claude' || argv[0] === 'npx';
+  ctx.runAsync = (argv, o) => (failing(argv) ? new Promise((r) => { release = () => r({ code: 1, stdout: '', stderr: 'boom' }); }) : Promise.resolve(ctx.run(argv, o)));
+  const { global, projects, dirs } = plansOf(routes);
+  const command = global.changes.find((c) => c.kind === 'command' && !c.unit);
+  const sections = [{ planId: global.planId, select: [command.id] }, ...projects.map((p) => ({ planId: p.planId, select: defaults(p) }))];
+  const { job, total } = routes['POST /api/apply-all']({ sections });
+  assert.equal(total, 3);
+  await until(() => release);
+  let s = routes['GET /api/job'](q({ id: job }));
+  assert.deepEqual(s.sections.map((x) => [x.scope, x.status]), [['global', 'running'], [dirs[0], 'waiting'], [dirs[1], 'waiting']]);
+  assert.deepEqual(routes['GET /api/jobs'](), [{ id: job, kind: 'apply-all', title: 'one-run setup', total: 3 }]);
+  assert.equal(status(() => routes['POST /api/apply-all']({ sections: [] })), 409);
+  assert.equal(status(() => routes['POST /api/undo']({ run: s.sections[0].run.id })), 409);
+  release();
+  s = await finished(routes, job);
+  assert.deepEqual(s.sections.map((x) => x.status), ['failed', 'done', 'done']);
+  assert.match(s.sections[0].error, /boom/);
+  assert.equal(s.sections[1].total, defaults(projects[0]).length);
+  for (const x of s.sections) assert.equal(ctx.ledger.get(x.run.id).scope, x.scope);
+  assert.ok(existsSync(join(dirs[1], 'CLAUDE.local.md')));
+  assert.equal(s.error, null);
+});
+
+test('apply-all: a plan that expired or was never made is a 409 and nothing runs; sections need a list', () => {
+  const { routes } = fixture(realGit);
+  assert.equal(status(() => routes['POST /api/apply-all']({})), 400);
+  assert.equal(status(() => routes['POST /api/apply-all']({ sections: [] })), 400);
+  const { projects } = plansOf(routes);
+  assert.equal(status(() => routes['POST /api/apply-all']({ sections: [{ planId: projects[0].planId }, { planId: 'gone' }] })), 409);
+  // One plan is single-use, also within one request.
+  assert.equal(status(() => routes['POST /api/apply-all']({ sections: [{ planId: projects[0].planId }, { planId: projects[0].planId }] })), 400);
+  // The plan that was fine stays usable: the whole request is refused before anything is taken.
+  const { job } = routes['POST /api/apply-all']({ sections: [{ planId: projects[0].planId, select: defaults(projects[0]) }] });
+  assert.ok(job);
+});
+
+test('apply-all: a cancel stops after the running change; later changes are skipped, later sections never start', async () => {
+  const { ctx, routes } = fixture(realGit);
+  let release, calls = 0;
+  ctx.runAsync = (argv) => (argv[0] === 'npx' && !calls++ ? new Promise((r) => { release = () => r({ code: 0, stdout: '', stderr: '' }); }) : Promise.resolve({ code: 0, stdout: '', stderr: '' }));
+  const { projects, dirs } = plansOf(routes);
+  // Skill installs are commands, one per skill: several changes after the first one.
+  const dir = repo('packs');
+  routes['POST /api/projects']({ path: dir });
+  const packs = routes['GET /api/project-plan'](q({ dir, setup: '1', agents: 'claude', env: 'host', sandbox: '0', share: '0', pack: 'frontend' }));
+  assert.ok(packs.changes.filter((c) => c.kind === 'command').length > 1);
+  const { job } = routes['POST /api/apply-all']({ sections: [{ planId: packs.planId, select: defaults(packs) }, { planId: projects[0].planId, select: defaults(projects[0]) }] });
+  await until(() => release);
+  assert.deepEqual(routes['POST /api/job-cancel']({ id: job }), { cancelled: true });
+  release();
+  const s = await finished(routes, job);
+  assert.equal(s.cancelled, true);
+  assert.deepEqual(s.sections.map((x) => x.status), ['cancelled', 'cancelled']);
+  const statuses = s.sections[0].run.entries.map((e) => e.status);
+  const first = statuses.indexOf('skipped');
+  assert.ok(first > 0 && statuses.slice(0, first).every((x) => x === 'done') && statuses.slice(first).every((x) => x === 'skipped'), statuses.join());
+  assert.equal(s.sections[1].run, null);
+  assert.ok(!existsSync(join(dirs[0], 'CLAUDE.local.md')));
 });

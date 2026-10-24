@@ -1,6 +1,6 @@
 // Playwright's web server: the UI server with a fixture home and stubbed agent commands, never the real machine.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { addProject } from '../../src/projects.mjs';
@@ -28,6 +28,18 @@ mkdirSync(join(parent, other), { recursive: true });
 writeFileSync(join(parent, `${other}/AGENTS.md`), '# Other\n');
 // A repository without a state file, for the step-by-step first setup.
 for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', join(parent, other), ...a]);
+// Four more for the one-run setup, registered by the tests: uno has a local setup with a file missing (behind), the
+// others have none. A suggestion for duo or quatro waits while GATE exists, so a test can look at the progress page.
+export const ONE = join(tmpdir(), `bk-ui-one-${PORT}`);
+export const GATE = join(tmpdir(), `bk-ui-gate-${PORT}`);
+rmSync(ONE, { recursive: true, force: true });
+rmSync(GATE, { force: true });
+for (const name of ['uno', 'duo', 'tres', 'quatro']) {
+  const d = join(ONE, name);
+  mkdirSync(d, { recursive: true });
+  writeFileSync(join(d, 'README.md'), `# ${name}\n`);
+  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', d, ...a]);
+}
 rmSync(BATCH, { recursive: true, force: true });
 for (const name of ['alpha', 'broken']) {
   const d = join(BATCH, name);
@@ -59,6 +71,10 @@ const run = (argv, o = {}) => {
   return { code: 127, stdout: '', stderr: 'not installed' };
 };
 const ctx = context({ home, run, appVersion: '6.0.0' });
+ctx.runAsync = async (argv, o) => {
+  if (argv.includes('--restricted') && /[\\/](duo|quatro)$/.test(o.cwd ?? '')) for (let i = 0; i < 400 && existsSync(GATE); i++) await new Promise((r) => setTimeout(r, 50));
+  return run(argv, o);
+};
 const first = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
 apply(first, ctx);
 appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
@@ -68,6 +84,11 @@ writeFileSync(join(dir, 'README.md'), '# Demo\n');
 const pctx = { ...ctx, roots: [dir] };
 apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
 addProject(ctx, dir);
+{
+  const uno = join(ONE, 'uno'), uctx = { ...ctx, roots: [uno] };
+  apply(preview(projectPlan({ ctx: uctx, dir: uno, answers: { agents: ['claude'], env: 'host', tier: 'quick' } }).changes).filter((c) => c.kind !== 'command'), uctx, { scope: uno });
+  rmSync(join(uno, 'CLAUDE.local.md'));
+}
 if (DEMO) addProject(ctx, join(parent, other));
 // Two eval runs of one skill for the Evals chart.
 mkdirSync(join(ctx.config, 'evals'), { recursive: true });

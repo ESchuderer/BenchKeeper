@@ -55,9 +55,21 @@ function Rehearsal({ c, prerun }) {
   );
 }
 
+// A change's diff behind a button: a long review page stays short until one is opened.
+function Folded({ title, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Stack gap={4}>
+      <Group><Button size="compact-xs" variant="default" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} diff of ${title}`} onClick={() => setOpen(!open)}>{open ? 'Hide diff' : 'Show diff'}</Button></Group>
+      {open && children}
+    </Stack>
+  );
+}
+
 // The changes of a plan with their diffs, commands and rehearsed skill installs. With select and setSelect, one
-// checkbox per change; changes of one unit go together: toggling one toggles all of them.
-export function ChangeList({ plan, select, setSelect, prerun }) {
+// checkbox per change; changes of one unit go together: toggling one toggles all of them. collapsed: each diff
+// (and the files a rehearsal wrote) opens on a button.
+export function ChangeList({ plan, select, setSelect, prerun, collapsed = false }) {
   if (!plan.changes.length) return <Text>Nothing to change.</Text>;
   const unitOf = (c) => (c.unit ? plan.changes.filter((x) => x.unit === c.unit).map((x) => x.id) : [c.id]);
   const toggle = (c) => setSelect((s) => (s.includes(c.id) ? s.filter((x) => !unitOf(c).includes(x)) : [...new Set([...s, ...unitOf(c)])]));
@@ -74,8 +86,16 @@ export function ChangeList({ plan, select, setSelect, prerun }) {
             <StateBadge state={c.state} />
           </Group>
           {c.error && <Text size="sm" c="red">{c.kind === 'command' ? 'Not applied' : 'Cannot merge'}: {c.error}</Text>}
-          {c.kind === 'command' ? <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code> : c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null}
-          {c.prerun && prerun && <Rehearsal c={c} prerun={prerun} />}
+          {c.kind === 'command' && <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code>}
+          {(() => {
+            const detail = (
+              <>
+                {c.kind !== 'command' && (c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null)}
+                {c.prerun && prerun && <Rehearsal c={c} prerun={prerun} />}
+              </>
+            );
+            return collapsed && (c.diff || (c.prerun && prerun)) && !c.diff?.startsWith('copy ') ? <Folded title={c.title}>{detail}</Folded> : detail;
+          })()}
         </Stack>
       ))}
     </Stack>

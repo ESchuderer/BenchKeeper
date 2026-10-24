@@ -1,6 +1,7 @@
-# Version updates for the `uses:` pins (SHA plus version comment) and the site's npm packages. Not covered, bumped by hand: the
-# actionlint image digest in checks.yml, and node-version. Each update waits until the release is 7 days old (cooldown): a release
-# withdrawn within that time never reaches a pull request.
+# Version updates for the `uses:` pins (SHA plus version comment) and the npm packages of the site, the app and the bench scorer.
+# Not covered, bumped by hand: the actionlint image digest in checks.yml, node-version (checks, links, pages and npm workflows) and
+# the Node image of .devcontainer/Dockerfile, which must stay equal to it. Each update waits until the release is 7 days old
+# (cooldown): a release withdrawn within that time never reaches a pull request.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -29,4 +30,13 @@ updates:
       default-days: 7
     groups:
       app:
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: /bench/scorer
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      scorer:
         update-types: [minor, patch]

@@ -6,16 +6,21 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: pages-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The site build reads the recorded trial data (bench/results/*/round-*) at build time, so it keeps the full checkout.
+  # The promotion pull request (head develop) skips it: the push to develop already built the same commit.
   build:
+    if: github.head_ref != 'develop'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     env:
       ASTRO_TELEMETRY_DISABLED: 1
     defaults:
@@ -58,6 +63,7 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       pages: write
       id-token: write

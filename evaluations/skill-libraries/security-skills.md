@@ -1,6 +1,6 @@
 # Security skills (Sentry, Trail of Bits)
 
-[Sentry repository](https://github.com/getsentry/skills), [Trail of Bits repository](https://github.com/trailofbits/skills), Category: skill libraries, Checked 2026-10-22, Decision: Per project, security pack (fp-check with a deep-path caveat)
+[Sentry repository](https://github.com/getsentry/skills), [Trail of Bits repository](https://github.com/trailofbits/skills), Category: skill libraries, Checked 2026-10-22 and 2026-10-24, Decision: Per project, security pack (fp-check with a deep-path caveat)
 
 Four skills from two sources: `gha-security-review` (getsentry/skills, Apache-2.0), `fp-check`, `variant-analysis` and `sharp-edges` (trailofbits/skills, CC-BY-SA-4.0). Pinned commits from `library.json`: Sentry `c93fb1e82454278a0caeb08e062a75a2e18feebb` (2026-10-13), Trail of Bits `e1f86a390d4caf28bf1c377a7d86707b2898669c` (2026-10-14).
 
@@ -120,6 +120,53 @@ Per project, security pack: proposed when the repository exposes an API or confi
 - ShareAlike (section 3(b)) applies to Adapted Material: a modified or translated copy that is shared must carry the same or a compatible license. A verbatim copy placed in a repository next to differently licensed code is not an adaptation of that code (unverified legal reading, no legal advice); a changed `SKILL.md` that is published is an adaptation and must be CC-BY-SA-4.0 or compatible.
 - What an install needs: the license text (the repository LICENSE) next to each skill folder, a line naming Trail of Bits as creator with the source URL and pinned commit, and per-plugin authors where given (Maciej Domanski for fp-check, Axel Mierczuk for variant-analysis per their plugin metadata). The `setting-up-projects` step 5 already requires a license file next to a CC-BY or CC-BY-SA skill; the attribution line is not required there, and the library note says the copy "keeps its license and attribution", which holds only when that step runs. Edits to the installed skills (for example removing the dangling workflow sentence) count as modifications to indicate.
 - Sentry: Apache-2.0, license text from the repository root if the copy is redistributed; no attribution line required.
+
+## Quality bar check (issue 151, 2026-10-24)
+
+Pins: getsentry/skills `c93fb1e82454278a0caeb08e062a75a2e18feebb` (2026-10-13), trailofbits/skills `e1f86a390d4caf28bf1c377a7d86707b2898669c` (2026-10-14).
+
+Grading used (the same for every source; the bar is in [library quality bar](library-quality-bar.md)): pass, borderline (soft problems only, or a reading of the bar that the owner decides) or fail (a hard limit broken). Overall is the worst point.
+
+| Skill | 1 Runs as installed | 2 License | 3 Authoring | 4 Earns its place | 5 Maintained | Overall |
+|---|---|---|---|---|---|---|
+| `gha-security-review` | pass | pass | pass | pass | pass | pass |
+| `fp-check` | fail | borderline | borderline | pass | pass | fail |
+| `variant-analysis` | borderline | borderline | pass | borderline | pass | borderline |
+| `sharp-edges` | pass | borderline | pass | pass | pass | borderline |
+
+Measured at the pin:
+
+| Skill | Description characters | `SKILL.md` lines | License | Effect evidence |
+|---|---|---|---|---|
+| `gha-security-review` | 363 | 192 | root `LICENSE` Apache-2.0 | none (maintainer PRs only); skills.sh 4.8K installs |
+| `fp-check` | 343 | 112 | root `LICENSE` CC-BY-SA-4.0 only | none; open hook issues #143, #289, #342 |
+| `variant-analysis` | 566 | 76 | root `LICENSE` CC-BY-SA-4.0 only | maintainer eval: no uplift over an unaided model |
+| `sharp-edges` | 376 | 293 | root `LICENSE` CC-BY-SA-4.0 only | none |
+
+Findings (every fail and borderline with file and line or URL):
+
+- `gha-security-review`: pass.
+  - Other: 10 files, all inside the folder (`SKILL.md:72-80` paths exist); `curl | bash` hits are attack samples in `references/`. Two See-also links return 404 (`references/runner-infrastructure.md:268`, `references/real-world-attacks.md:296`), not relied on. Pin is 11 days old; 10 later commits, none in the folder.
+- `fp-check`: fail.
+  - Point 1, fail: The deep path delegates phases to `data-flow-analyzer`, `exploitability-verifier` and `poc-builder` (`skills/fp-check/SKILL.md:82`, `references/deep-verification.md:58, 64-70`), which live in `plugins/fp-check/agents/` (405 lines) and are not copied by the skills CLI. The standard path (`SKILL.md:59-69`) is self-contained and the deep phases are written out (`deep-verification.md:74-143`), so the skill degrades instead of stopping (unlike `dimensional-analysis`). The plugin `Stop` and `SubagentStop` hooks (`hooks/hooks.json:4-27`) are outside the folder, so an install adds none. Owner call: strict reading is fail.
+  - Point 2, borderline: CC-BY-SA-4.0 (share-alike) only in the repository root `LICENSE` (`LICENSE:1`, `README.md:162-164`); no license file or `license:` field in the skill or plugin folder, so an install carries no license text. Matches `library.json`.
+  - Point 3, borderline: Reference files link to each other (`standard-verification.md:7, 24, 35, 55, 78`, `deep-verification.md:60, 80, 92, 112, 139, 143`); 22 `{baseDir}` placeholders (substitution unverified).
+- `variant-analysis`: borderline.
+  - Point 1, borderline: `SKILL.md:50-57` points to the `/variant-analysis:variants` workflow and `SKILL.md:20, 22, 23` to two other skills, none installed; nothing the skill body needs is missing. The maintainer says the workflow is the main entry for large codebases (`plugins/variant-analysis/README.md:25`).
+  - Point 2, borderline: CC-BY-SA-4.0 (share-alike) only in the repository root `LICENSE` (`LICENSE:1`, `README.md:162-164`); no license file or `license:` field in the skill or plugin folder, so an install carries no license text. Matches `library.json`.
+  - Point 4, borderline: Distinct trigger, no overlap. The maintainer's own suite shows every case at 1.00 without the plugin and 0 skill invocations in 40+ runs (`plugins/variant-analysis/evals/README.md:73-81`), and the skill fired 0 of 3 times without files on disk (`:86-90`). No independent evidence.
+- `sharp-edges`: borderline.
+  - Point 2, borderline: CC-BY-SA-4.0 (share-alike) only in the repository root `LICENSE` (`LICENSE:1`, `README.md:162-164`); no license file or `license:` field in the skill or plugin folder, so an install carries no license text. Matches `library.json`.
+  - Other: Workflow inline (`SKILL.md:199-247`), 16 reference files present; the analyzer agent (`SKILL.md:25-27`) is optional and not copied.
+
+Source notes:
+
+- Point 5: both repositories are not archived and active (newest commits 2026-10-23). Ten commits on each since the pin, none in the four skill folders.
+- License location: Apache-2.0 only in the getsentry root `LICENSE`, CC-BY-SA-4.0 only in the trailofbits root `LICENSE`; no license file or `license:` field in any skill or plugin folder. CC-BY-SA-4.0 is share-alike and not a software license, hence borderline; the Security section note in `library.json` already says the copied skill keeps its license and attribution.
+- Trail of Bits issues: fp-check plugin hooks fire in unrelated sessions and block stopping ([#143](https://github.com/trailofbits/skills/issues/143), [#289](https://github.com/trailofbits/skills/issues/289), [#342](https://github.com/trailofbits/skills/issues/342), open, fix PRs [#350](https://github.com/trailofbits/skills/pull/350), [#358](https://github.com/trailofbits/skills/pull/358)); the hooks sit in `plugins/fp-check/hooks/hooks.json`, outside the skill folder. [#376](https://github.com/trailofbits/skills/issues/376) lists the plugin's Claude-specific dependencies. The maintainer moves value into plugin workflows that a folder copy lacks ([#243](https://github.com/trailofbits/skills/pull/243), [#232](https://github.com/trailofbits/skills/pull/232)).
+- skills.sh (2026-10-24): `gha-security-review` 4.8K installs (Gen Agent Trust Hub fail, Socket warn, Snyk pass; the alerts come from attack samples in `references/`), `fp-check` 6.9K, `variant-analysis` 6.4K, `sharp-edges` 6.8K (Socket Warn).
+
+Removal: none made. The owner decides on the fails and borderline cases in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151).
 
 ## Decision
 

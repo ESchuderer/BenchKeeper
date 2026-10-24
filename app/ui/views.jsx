@@ -6,6 +6,7 @@ import { api } from './api.js';
 import { CancelJob, Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
 import { DoctorTable, FixEverythingButton, UpdateResults, updateProjects } from './fix.jsx';
+import { OneRunButtons } from './onerun.jsx';
 import { ProjectSetup } from './setup.jsx';
 import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
 
@@ -105,6 +106,10 @@ export function Dashboard({ overview, doctor, history, params }) {
   ];
   return (
     <Stack gap="xl">
+      <Stack gap="xs">
+        <Text size="sm" maw={560}>One-run setup prepares the global setup and the projects you pick without questions in between, then shows every change on one page to check before it applies them.</Text>
+        <OneRunButtons />
+      </Stack>
       <Group justify="space-between" align="flex-start">
         <Text size="sm" maw={560}>Fix everything walks through the global setup, the projects that are behind and what is left to do by hand, then applies what you checked.</Text>
         <FixEverythingButton />

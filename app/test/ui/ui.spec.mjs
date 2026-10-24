@@ -300,6 +300,27 @@ test.describe('views', () => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
   });
 
+  test('a failed refresh keeps the shell and the open view', async ({ page }) => {
+    await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+    await nav(page, 'Settings').click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible();
+    let hits = 0;
+    await page.route(/\/api\/overview(\?|$)/, (r) => { hits++; return r.abort('connectionreset'); });
+    // Closing the one-run drawer calls refresh().
+    await page.keyboard.press('ControlOrMeta+K');
+    await page.getByRole('dialog', { name: 'Command palette' }).getByLabel('Search').fill('Set up projects in one run');
+    await page.keyboard.press('Enter');
+    const drawer = page.getByRole('dialog', { name: 'One-run setup' });
+    await expect(drawer).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeHidden();
+    // The read is asked twice (a lost connection is retried once), then the overview clears.
+    await expect.poll(() => hits).toBeGreaterThanOrEqual(2);
+    await page.waitForTimeout(300);
+    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible();
+    await expect(page.getByText('Starting')).toHaveCount(0);
+  });
+
   test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {
     await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 1 registered, 0 behind ok$/ })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Global items by state' })).toContainText('modified');

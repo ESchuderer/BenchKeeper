@@ -126,7 +126,10 @@ function Shell() {
   // Spotlight binds mod+K itself.
   useHotkeys([...VIEWS.map(([id], i) => [`mod+${i + 1}`, () => go(id)]), ['mod+J', toggleTheme]]);
   useEffect(close, [view, params.toString()]);
-  const o = overview.data;
+  // A refresh that fails clears the overview: the shell stays up on the last one, only the first load shows the splash.
+  const seen = useRef(null);
+  if (overview.data) seen.current = overview.data;
+  const o = overview.data ?? seen.current;
   const counts = { dashboard: doctor.data?.length, projects: o?.projects.filter((p) => p.setupVersion !== o.version).length, history: history.data?.length };
   const actions = [
     { group: 'Views', actions: VIEWS.map(([id, label]) => ({ id: `view-${id}`, label, onClick: () => go(id) })) },

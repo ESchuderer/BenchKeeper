@@ -21,7 +21,8 @@ import { addProject, canon, listProjects, packsInUse, removeProject, scan, statu
 import { recordSession } from './session.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
-import { globalPlan, installedPlugins } from './steps/global.mjs';
+import { detectLevel } from './level.mjs';
+import { LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan } from './steps/project.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
@@ -29,15 +30,18 @@ export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the
 Usage: benchkeeper <command> [options]
 
   ui [--no-open] [--port N]         local web UI (default command)
-  plan [--agents a,b] [--pack p]    global setup: the changes, with a diff each, nothing written
-  apply [--agents a,b] [--pack p] [--yes] [--all]
+  plan [--agents a,b] [--pack p] [--level l]
+                                    global setup: the changes, with a diff each, nothing written
+  apply [--agents a,b] [--pack p] [--level l] [--yes] [--all]
                                     global setup: asks per change; --yes takes the default selection,
-                                    --all also the removals
+                                    --all also the removals. --level lite|standard: the BenchKeeper plugin
+                                    alone, nothing else on the machine (standard: then project apply writes
+                                    the local block per repository); full (default): rules, settings, plugins, tools
   profile export [file] [--agents a,b]
                                     agents, packs, own packs and registered projects with their answers as one file
   profile import <file> [--yes]     shows the global and project changes, applies the chosen ones; missing paths are skipped
   doctor [dir] [--agents a,b] [--baseline auto|oss|private-advisory] [--baseline-ref ref]
-                                    setup problems with a fix each, nothing written; exit 1 on an error;
+                                    the install level, setup problems with a fix each, nothing written; exit 1 on an error;
                                     --baseline also compares the GitHub settings and caller workflows with a
                                     repo-baseline profile (read-only gh api; auto: advisory for private repositories)
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
@@ -83,7 +87,7 @@ const OPTIONS = {
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
-  target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
+  level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
 };
@@ -158,7 +162,8 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'plan' || cmd === 'apply') {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) { out.write('no agent found (claude, codex, gemini, copilot); the app installs none\n'); return 1; }
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx) } }));
+    if (o.level && !LEVELS.includes(o.level)) { out.write(`--level must be one of ${LEVELS.join(', ')}\n`); return 2; }
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level: o.level } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
       plan.forEach((c) => show(c, out));
@@ -284,7 +289,10 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'doctor') {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
-    const found = doctor(ctx, { agents: selectedAgents(ctx, o.agents), dir: resolve(arg ?? '.'), baseline: o.baseline && { profile: o.baseline, ref: o['baseline-ref'] } });
+    const agents = selectedAgents(ctx, o.agents), dir = resolve(arg ?? '.');
+    const { level, adds } = detectLevel(ctx, agents, dir);
+    out.write(`level    ${level ?? 'none'}${adds ? `: ${adds}` : ''}\n`);
+    const found = doctor(ctx, { agents, dir, baseline: o.baseline && { profile: o.baseline, ref: o['baseline-ref'] } });
     for (const i of found) out.write(`${(i.tag ?? i.level).padEnd(8)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
     out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
     return found.some((i) => i.level === 'error') ? 1 : 0;

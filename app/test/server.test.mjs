@@ -161,6 +161,17 @@ test('inventory: an edited rules file is modified, enabled plugins current, a mi
   assert.ok(items.every((i) => i.agent === (i.step.split(':')[1] === 'claude' ? 'claude' : 'machine')));
 });
 
+test('level: the overview names the level found, the global plan takes a level and refuses an unknown one', async () => {
+  const { ctx, routes } = fixture();
+  assert.equal((await routes['GET /api/overview']()).level.level, null);
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write'), ctx);
+  const full = routes['GET /api/global-plan'](new URLSearchParams('agents=claude'));
+  assert.ok(full.changes.some((c) => c.step === 'rules:claude' || c.step.startsWith('settings:')));
+  const lite = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=lite'));
+  assert.ok(lite.changes.every((c) => c.kind === 'command' && c.step.endsWith('benchkeeper@benchkeeper')));
+  assert.equal(status(() => routes['GET /api/global-plan'](new URLSearchParams('level=tiny'))), 400);
+});
+
 test('prerun: the global skill install is rehearsed in a job, its file diff per change id; the real home stays as it is', async () => {
   const { ctx, routes } = fixture((argv, o) => {
     if (argv[2] !== SKILLS_SPEC) return null;

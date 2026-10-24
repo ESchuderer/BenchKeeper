@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
-import { appVersion } from '../src/content.mjs';
+import { appVersion, contentDir } from '../src/content.mjs';
 import { ENVS, STATE, projectCtx, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
@@ -374,4 +374,21 @@ test('a broken state file is reported, not thrown at listings', () => {
   writeFileSync(join(r.dir, STATE), '{ broken');
   assert.throws(() => readState(r.dir), /state\.json: /);
   assert.equal(tryState(r.dir), null);
+});
+
+test('the project block carries every rule that left the global file; bare skill names without plugin agents', () => {
+  const before = read(new URL('./fixtures/rules-before-190.md', import.meta.url).pathname).split('\n').filter((l) => l.startsWith('- '));
+  const global = read(join(contentDir, 'rules/global.md')).split('\n');
+  const moved = before.filter((l) => !global.includes(l));
+  assert.equal(moved.length, 3, 'workflow load, open questions and fix the cause moved');
+  const r = repo();
+  const { changes } = plan(r, { agents: ['claude'], env: 'host', share: true });
+  assert.equal(apply(preview(changes), r.ctx, { scope: r.dir, select: changes.map((c) => c.id) }).status, 'done');
+  const block = read(join(r.dir, 'AGENTS.md'));
+  for (const l of moved) assert.ok(block.includes(l), l);
+  const g = repo();
+  const gp = plan(g, { agents: ['gemini'], env: 'host', share: true }).changes;
+  apply(preview(gp), g.ctx, { scope: g.dir, select: gp.map((c) => c.id) });
+  assert.match(read(join(g.dir, 'AGENTS.md')), /load the `workflow` skill/);
+  assert.doesNotMatch(read(join(g.dir, 'AGENTS.md')), /benchkeeper:workflow/);
 });

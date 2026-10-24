@@ -17,6 +17,11 @@ const MODES = {
   global: 'Prepares the global setup: rules, settings, plugins and skills for the installed agents. Nothing is written until you apply.',
   projects: 'Prepares the projects you check: an agent suggests the setup of a project without one, then each project gets its plan. Nothing is written until you apply.',
 };
+const LEVEL_OPTIONS = [
+  { value: 'lite', label: 'Lite: the BenchKeeper plugin only, nothing else on the machine' },
+  { value: 'standard', label: 'Standard: the plugin, plus the local block in each project you pick' },
+  { value: 'full', label: 'Full: standard plus global rules, settings, other plugins and host tools' },
+];
 const base = (p) => p.split(/[\\/]/).filter(Boolean).at(-1) ?? p;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FINISHED = ['ready', 'failed', 'cancelled'];
@@ -96,7 +101,7 @@ function Flow({ mode, setBusy, setReviewing }) {
       if (cancelled.current) { patch(it.key, { status: 'cancelled' }); continue; }
       patch(it.key, { status: 'running', detail: it.key === 'global' ? 'building the plan' : 'reading the setup choices' });
       try {
-        if (it.key === 'global') await prepareGlobal(patch);
+        if (it.key === 'global') await prepareGlobal(patch, form.level);
         else await prepareProject(it, adviser, patch);
       } catch (e) { patch(it.key, { status: 'failed', detail: e.message }); }
     }
@@ -104,8 +109,8 @@ function Flow({ mode, setBusy, setReviewing }) {
     setBusy(false); setPrepared(true);
     if (!cancelled.current) setStage('review');
   };
-  const prepareGlobal = async (patchItem) => {
-    const plan = await api('/api/global-plan');
+  const prepareGlobal = async (patchItem, level) => {
+    const plan = await api(`/api/global-plan?level=${level}`);
     // The skill installs are rehearsed now, so the review shows their files at once (the server keeps the result).
     if (plan.changes.some((c) => c.prerun)) {
       patchItem('global', { detail: 'rehearsing the skill installs' });
@@ -150,13 +155,14 @@ function Start({ mode, onStart }) {
   useEffect(() => {
     if (!data.data || form) return;
     const open = data.data.projects.filter((p) => !p.blocked);
-    setForm({ global: mode !== 'projects', picked: mode === 'everything' ? open.map((p) => p.path) : mode === 'projects' ? open.filter((p) => p.state !== 'current').map((p) => p.path) : [] });
+    setForm({ global: mode !== 'projects', level: 'full', picked: mode === 'everything' ? open.map((p) => p.path) : mode === 'projects' ? open.filter((p) => p.state !== 'current').map((p) => p.path) : [] });
   }, [data.data]);
   return (
     <Loading state={data} label="projects">{(d) => (!form ? null : (
       <Stack gap="md">
         <Text size="sm">{MODES[mode]}</Text>
         <Checkbox label="Global setup" description="Rules, settings, plugins and skills for the installed agents" checked={form.global} onChange={(e) => setForm({ ...form, global: e.currentTarget.checked })} />
+        {form.global && <NativeSelect label="Level" data={LEVEL_OPTIONS} value={form.level} onChange={(e) => setForm({ ...form, level: e.currentTarget.value })} />}
         {d.projects.length ? (
           <Checkbox.Group label="Projects" value={form.picked} onChange={(picked) => setForm({ ...form, picked })}>
             <Stack gap="xs" mt="xs">

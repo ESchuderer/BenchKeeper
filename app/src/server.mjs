@@ -27,7 +27,8 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { addProject, canon, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { scanSessions } from './sessions.mjs';
-import { benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
+import { detectLevel } from './level.mjs';
+import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, suggest } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
@@ -162,10 +163,12 @@ export function api(ctx) {
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
+    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
-      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx) } }));
+      const level = q.get('level') ?? 'full';
+      if (!LEVELS.includes(level)) throw bad(`level must be one of ${LEVELS.join(', ')}`);
+      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx), level } }));
       return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
     },
     // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.
@@ -419,7 +422,7 @@ export function api(ctx) {
       if (typeof b.root !== 'string' || !isAbsolute(b.root)) throw bad('root must be an absolute path');
       return scan(b.root).filter((d) => !registered(d));
     },
-    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed())),
+    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed(), { level: detectLevel(ctx, installed()).level ?? 'full' })),
   };
   // A change drops the cached machine reads.
   for (const k of Object.keys(routes)) if (k.startsWith('POST ')) { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }

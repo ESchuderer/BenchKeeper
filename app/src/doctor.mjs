@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
+import { detectLevel } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
 import { preview } from './runner.mjs';
@@ -37,9 +38,9 @@ function featureVars(ctx, env) {
 }
 
 // The global plan's pending changes: rules or the workflow plugin missing are errors, other drift warnings.
-export function globalDrift(ctx, agents, devcontainerCli) {
+export function globalDrift(ctx, agents, devcontainerCli, level) {
   let plan;
-  try { plan = preview(globalPlan({ ctx, agents, devcontainerCli })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
+  try { plan = preview(globalPlan({ ctx, agents, devcontainerCli, options: { level } })); } catch (e) { return [issue('error', 'global', `global setup cannot be read: ${e.message}`, 'fix the file named above, then run benchkeeper plan')]; }
   // An optional step left off is not drift.
   const found = plan.filter((c) => !c.optional).map((c) => {
     if (c.error) return issue('error', 'global', `${c.title}: ${c.error}`, 'edit the file by hand; the app does not merge this form');
@@ -88,10 +89,14 @@ export function projectChecks(ctx, dir) {
 
 // baseline: { profile, ref } adds the drift of dir's GitHub settings and caller workflows against a repo-baseline profile (reads only).
 export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
-  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli)];
-  if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
-  const skillsCli = newest(ctx, 'skills', now);
-  if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));
+  // Below full, the global plan is the plugin alone: rules, settings and host tools are not expected.
+  const level = detectLevel(ctx, agents, dir).level ?? 'full';
+  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level)];
+  if (level === 'full') {
+    if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
+    const skillsCli = newest(ctx, 'skills', now);
+    if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));
+  }
   if (dir && (tryState(dir) || exists(join(dir, '.benchkeeper')) || exists(join(dir, 'AGENTS.md')))) out.push(...projectChecks(ctx, dir));
   if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));
   return out;

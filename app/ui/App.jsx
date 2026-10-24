@@ -128,7 +128,7 @@ function Shell() {
   useEffect(close, [view, params.toString()]);
   // A refresh that fails clears the overview: the shell stays up on the last one, only the first load shows the splash.
   const seen = useRef(null);
-  if (overview.data) seen.current = overview.data;
+  useEffect(() => { if (overview.data) seen.current = overview.data; }, [overview.data]);
   const o = overview.data ?? seen.current;
   const counts = { dashboard: doctor.data?.length, projects: o?.projects.filter((p) => p.setupVersion !== o.version).length, history: history.data?.length };
   const actions = [

@@ -117,6 +117,17 @@ test('a ruleset set by hand under another name counts when it targets the same b
   assert.deepEqual(messages(baselineIssues(ctx, checkout(), { profile: 'oss' })), ['ruleset main is missing']);
 });
 
+test('control characters from a workflow file or a check name never reach the report', () => {
+  const db = compliant();
+  db.rulesets[1] = withChecks(OSS.rulesets[1], ['build', 'x\u001b]0;pwned\u0007']);
+  const { ctx } = machine(db);
+  const dir = checkout({ promote: `${BASELINE_REPO}/.github/workflows/promote.yml@v1\u001b[2J` });
+  const text = baselineIssues(ctx, dir, { profile: 'oss' }).map((i) => i.message).join('\n');
+  assert.match(text, /not pinned to a commit \(v1\?\[2J\)/);
+  assert.match(text, /x\?\]0;pwned\?/);
+  assert.ok(!/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/.test(text));
+});
+
 test('rulesets without checks and a caller that is not pinned to a commit are reported', () => {
   const db = compliant();
   db.rulesets = OSS.rulesets.map((r, i) => structuredClone({ ...r, id: i + 1, source_type: 'Repository' }));

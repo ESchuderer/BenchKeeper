@@ -158,7 +158,8 @@ export function filesDrift(profile, dir) {
 // Doctor issues for one checkout: { level, check: 'baseline', message, fix, tag? }. profile: a name or 'auto' (private
 // repositories get the advisory profile). The caller files come from the checkout, the settings from GitHub.
 export function baselineIssues(ctx, dir, { profile = 'auto', ref } = {}) {
-  const issue = (message, fix, tag) => ({ level: 'warning', check: 'baseline', message, fix, ...(tag ? { tag } : {}) });
+  // Names and refs come from GitHub and from the checkout's workflow files: control characters never reach the terminal.
+  const issue = (message, fix, tag) => ({ level: 'warning', check: 'baseline', message: message.replace(/[\x00-\x1f\x7f-\x9f]/g, '?'), fix, ...(tag ? { tag } : {}) });
   const slug = githubSlug(ctx, dir);
   if (!slug) return [issue('GitHub settings not checked: no GitHub origin', 'add origin or skip --baseline')];
   const live = readLive(ctx, slug);

@@ -6,12 +6,12 @@ import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
 import { api } from './api.js';
-import { RunProgress } from './parts.jsx';
+import { EvalJob, RunProgress } from './parts.jsx';
 import { Dot, MOD, go, href, icon, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
 import { FixEverything } from './fix.jsx';
 import { ApplyProgress, OneRunDrawer, OneRunProvider } from './onerun.jsx';
-import { Agents, Catalog, Dashboard, EvalJob, Evals, History, Projects, Sessions, Settings } from './views.jsx';
+import { Agents, Catalog, Dashboard, Evals, History, Projects, Sessions, Settings } from './views.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
@@ -56,19 +56,24 @@ function RunningJobs({ onDone }) {
   const [open, setOpen] = useState(false);
   const seen = useRef(0);
   useEffect(() => {
-    let live = true, timer;
+    let live = true, timer, busy = false;
+    // A hidden tab neither asks nor keeps a timer; it asks at once when it is shown again.
     const poll = async () => {
+      if (document.hidden) return;
+      busy = true;
       try {
         const j = await api('/api/jobs');
         if (!live) return;
         if (j.length < seen.current) onDone();
         seen.current = j.length;
         setJobs(j);
-      } catch { /* the next poll tries again */ }
-      timer = setTimeout(poll, 2000);
+      } catch { /* the next poll tries again */ } finally { busy = false; }
+      if (live) timer = setTimeout(poll, 2000);
     };
+    const shown = () => { if (!document.hidden && !busy) { clearTimeout(timer); poll(); } };
+    document.addEventListener('visibilitychange', shown);
     poll();
-    return () => { live = false; clearTimeout(timer); };
+    return () => { live = false; clearTimeout(timer); document.removeEventListener('visibilitychange', shown); };
   }, []);
   if (!jobs.length && !open) return null;
   return (

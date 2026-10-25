@@ -20,12 +20,13 @@ export function childEnv(extra, env = process.env) {
 }
 
 // Variables an agent reads its own login, endpoint and model from.
-const AGENT_PREFIXES = ['ANTHROPIC_', 'OPENAI_', 'CODEX_', 'CLAUDE_', 'GEMINI_', 'COPILOT_'];
+const AGENT_PREFIXES = { claude: ['ANTHROPIC_', 'CLAUDE_'], codex: ['OPENAI_', 'CODEX_'], gemini: ['GEMINI_'], copilot: ['COPILOT_'] };
 
-// The environment of an agent session the app starts (eval, setup advice): childEnv, plus the agent's own login variables.
-// A session reads project files and runs the user's hooks and MCP servers, so GH_TOKEN, NPM_TOKEN, SSH_AUTH_SOCK and the
-// like stay out. Another agent's or a hook's variable comes through BENCHKEEPER_PASS_ENV.
-export function agentEnv(env = process.env) {
-  const login = Object.entries(repoEnv(env)).filter(([k, v]) => v !== undefined && AGENT_PREFIXES.some((p) => k.toUpperCase().startsWith(p)));
+// The environment of an agent session the app starts (eval, setup advice): childEnv, plus that agent's own login variables.
+// A session reads project files and runs the user's hooks and MCP servers, so another agent's key, GH_TOKEN, NPM_TOKEN,
+// SSH_AUTH_SOCK and the like stay out. A variable a hook or a cloud login needs comes through BENCHKEEPER_PASS_ENV.
+export function agentEnv(agent, env = process.env) {
+  const prefixes = AGENT_PREFIXES[agent] ?? [];
+  const login = Object.entries(repoEnv(env)).filter(([k, v]) => v !== undefined && prefixes.some((p) => k.toUpperCase().startsWith(p)));
   return { ...childEnv({}, env), ...Object.fromEntries(login) };
 }

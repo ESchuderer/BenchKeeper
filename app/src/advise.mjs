@@ -14,7 +14,7 @@ export function noTrace(ctx, agent) {
   if (!probed.has(ctx)) probed.set(ctx, new Map());
   const seen = probed.get(ctx);
   if (!seen.has(agent)) {
-    const r = ctx.run(help, { timeout: 30e3, env: agentEnv() });
+    const r = ctx.run(help, { timeout: 30e3, env: agentEnv(agent) });
     seen.set(agent, r.code === 0 && new RegExp(`(^|\\s)${flag}(\\s|$)`, 'm').test(r.stdout));
   }
   return seen.get(agent) ? [flag] : [];
@@ -36,7 +36,7 @@ function codexHome() {
 // nothing, and has no network; no web search, and every MCP server the project or user config names turned off.
 function codexArgv(ctx, dir, q, out) {
   // Without the list no server can be turned off, so the session does not start.
-  const list = ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir, timeout: 30e3, env: agentEnv() });
+  const list = ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir, timeout: 30e3, env: agentEnv('codex') });
   let servers;
   try { servers = JSON.parse(list.stdout).map((s) => s.name); } catch { throw new Error(`codex mcp list --json failed (${list.code}): ${(list.stderr || list.stdout).trim().slice(-200)}`); }
   const odd = servers.findIndex((n) => typeof n !== 'string' || !/^[\w-]+$/.test(n));
@@ -86,7 +86,7 @@ export async function adviseSetup(ctx, { dir, agent, lib, signal }) {
   const tmp = mkdtempSync(join(tmpdir(), 'bk-advice-'));
   const out = join(tmp, 'answer.txt');
   try {
-    const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, advicePrompt(lib), out), { cwd: dir, timeout: 5 * 60e3, signal, env: agentEnv() });
+    const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, advicePrompt(lib), out), { cwd: dir, timeout: 5 * 60e3, signal, env: agentEnv(agent) });
     // A session that ended on its own before the cancel keeps its answer.
     if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
     if (r.code !== 0) throw new Error(`${agent} exited with ${r.code}: ${(r.stderr || r.stdout || '').trim().slice(-300)}`);

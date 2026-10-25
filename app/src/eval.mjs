@@ -78,7 +78,7 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
         if (kind === 'skill' && exists(lib)) cpSync(lib, join(dir, a.skills, name), { recursive: true });
         onCase({ index: n++, total, target: p.target, agent: p.agent, case: c.id });
         // The whole stream: the skill call comes early in a long session.
-        const r = await session(a.argv(c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv() });
+        const r = await session(a.argv(c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
         if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
         if (kind === 'skill') details.push({ id: c.id, should: c.should, triggered: triggered(r.stdout, name), exit: r.code });
         else {

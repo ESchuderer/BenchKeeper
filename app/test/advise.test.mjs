@@ -85,11 +85,14 @@ test('advice keeps no session on disk where the installed CLI has the flag, read
   }
 });
 
-test('an agent session gets its own login variables and nothing else that looks like a credential', async () => {
+test('an agent session gets its own agent\'s login variables and nothing else that looks like a credential', async () => {
   const env = { PATH: '/bin', HOME: '/h', ANTHROPIC_API_KEY: 'a', ANTHROPIC_BASE_URL: 'u', CLAUDE_CODE_OAUTH_TOKEN: 'o', OPENAI_API_KEY: 'p', CODEX_HOME: '/c', GEMINI_API_KEY: 'g', COPILOT_GITHUB_TOKEN: 'c',
     GH_TOKEN: 'x', GITHUB_TOKEN: 'x', NPM_TOKEN: 'x', SSH_AUTH_SOCK: '/s', AWS_SECRET_ACCESS_KEY: 'x', DATABASE_URL: 'x', GIT_DIR: '/g', npm_config__authToken: 'x', MY_SECRET: 'x' };
-  assert.deepEqual(Object.keys(agentEnv(env)).sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CODEX_HOME', 'COPILOT_GITHUB_TOKEN', 'GEMINI_API_KEY', 'HOME', 'OPENAI_API_KEY', 'PATH']);
-  assert.ok('GH_TOKEN' in agentEnv({ ...env, BENCHKEEPER_PASS_ENV: 'gh_token' }));
+  assert.deepEqual(Object.keys(agentEnv('claude', env)).sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CODEX_HOME', 'HOME', 'PATH']);
+  assert.deepEqual(Object.keys(agentEnv('codex', env)).sort(), ['CODEX_HOME', 'HOME', 'OPENAI_API_KEY', 'PATH']);
+  assert.deepEqual(Object.keys(agentEnv('gemini', env)).sort(), ['CODEX_HOME', 'GEMINI_API_KEY', 'HOME', 'PATH']);
+  assert.ok(!('GH_TOKEN' in agentEnv('claude', env)) && !('OPENAI_API_KEY' in agentEnv('claude', env)) && !('ANTHROPIC_API_KEY' in agentEnv('codex', env)));
+  assert.ok('GH_TOKEN' in agentEnv('claude', { ...env, BENCHKEEPER_PASS_ENV: 'gh_token' }));
   // Both sessions pass it: advice through ctx.run, an eval case through the session runner.
   let seen;
   await adviseSetup({ run: (a, o) => { if (!a.includes('--help')) seen = o.env; return { code: 0, stdout: JSON.stringify({ result: '{}' }), stderr: '' }; } }, { dir: '/p', agent: 'claude', lib });

@@ -8,6 +8,9 @@ import { contentDir } from '../content.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
 
+// lite: the BenchKeeper plugin alone (nothing outside the plugin install). standard: the same on the machine, plus the local block
+// that `project apply` writes per project. full: everything below (global rules, settings, other plugins, host tools).
+export const LEVELS = ['lite', 'standard', 'full'];
 export const SKILLS_CLI = '1.7.2';
 // As an npm alias: npx runs a package from the project's node_modules when its version satisfies a plain spec, so a
 // cloned repository could ship its own "skills" 1.7.2. An alias range never matches a local package (npm 10 libnpmexec).
@@ -139,14 +142,20 @@ export function newest(ctx, pkg, now = Date.now()) {
 }
 
 export function globalPlan(env) {
-  const { ctx, agents, options = {} } = env;
+  const { ctx, options = {} } = env;
+  const level = options.level ?? 'full';
+  if (!LEVELS.includes(level)) throw new Error(`level must be one of ${LEVELS.join(', ')}`);
+  const full = level === 'full';
+  const { agents } = env;
   const home = ctx.home;
   const at = (p) => join(home, p);
   const rules = readFileSync(join(contentDir, 'rules/global.md'), 'utf8');
   const changes = [];
   const add = (step, title, c, extra = {}) => changes.push({ id: `${step}:${changes.length}`, step, title, ...c, ...extra });
 
-  // Rules
+  // Rules: lite and standard have none (the block shadows agents)
+  {
+  const agents = full ? env.agents : [];
   for (const id of agents) {
     const r = agent(id).global.rules;
     add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: at(r.path), edit: (cur) => renderRules(r.format, cur, forAgent(rules, id)) });
@@ -168,11 +177,13 @@ export function globalPlan(env) {
     for (const f of (exists(dir) ? readdirSync(dir) : []).filter((x) => !CODEX_OWN_RULES.includes(x))) add(`ask:codex:${f}`, `Codex command rules file ${f} (BenchKeeper adds none)`, { kind: 'remove', path: join(dir, f) });
   }
 
+  }
+
   // Plugins (Claude Code, Codex) or skill copies (agents without plugins).
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {
     const { listed, markets, refs } = pluginState(ctx, a);
     const name = agent(a).name;
-    for (const p of PLUGINS[a]) {
+    for (const p of PLUGINS[a].filter((x) => full || x.id.startsWith('benchkeeper@'))) {
       const have = listed.find((x) => x.id === p.id && x.enabled);
       const off = !have && listed.find((x) => x.id === p.id);
       // An installed pack plugin is kept current without its pack being chosen again.
@@ -214,10 +225,10 @@ export function globalPlan(env) {
       if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step });
       add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step });
     }
-    for (const { id } of listed) {
+    for (const { id } of full ? listed : []) {
       if (!keepPlugin(id, a)) add(`other:${a}:plugin`, `remove the ${agent(a).name} plugin ${id}`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', id] : ['codex', 'plugin', 'remove', id], destructive: true });
     }
-    for (const m of markets) if (!KEEP_MARKETPLACES[a].includes(m) && !/^openai-curated/.test(m)) add(`other:${a}:marketplace`, `remove the ${agent(a).name} marketplace ${m}`, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'remove', m], destructive: true });
+    for (const m of full ? markets : []) if (!KEEP_MARKETPLACES[a].includes(m) && !/^openai-curated/.test(m)) add(`other:${a}:marketplace`, `remove the ${agent(a).name} marketplace ${m}`, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'remove', m], destructive: true });
   }
   for (const id of agents.filter((x) => !agent(x).plugins)) {
     for (const name of readdirSync(join(contentDir, 'skills'))) {
@@ -227,6 +238,8 @@ export function globalPlan(env) {
       }
     }
   }
+
+  if (!full) return changes;
 
   // Global skills and MCP servers not part of the setup.
   const skillDirs = { claude: '.claude/skills', codex: '.agents/skills' };

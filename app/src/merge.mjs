@@ -77,7 +77,7 @@ export function getBlock(text, id, comment) {
   return a < 0 || b < a ? null : text.slice(a + start.length, b).trim();
 }
 
-const tomlLiteral = (v) => (typeof v === 'string' ? JSON.stringify(v) : String(v));
+const tomlLiteral = (v) => (typeof v === 'string' ? JSON.stringify(v) : Array.isArray(v) ? `[${v.map(tomlLiteral).join(', ')}]` : String(v));
 const keyRe = (key) => new RegExp(`^(\\s*)(${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|"${key}")\\s*=`);
 
 // Sets one scalar key in a table (or at the root with table ''). The edit is a line edit, accepted only when the
@@ -103,9 +103,12 @@ export function setToml(text, table, key, value) {
     lines.splice(lines.length - (lines.at(-1) === '' ? 1 : 0), 0, ...(src.trim() ? [''] : []), `[${table}]`, line);
   } else {
     const at = lines.slice(from, to).findIndex((l) => keyRe(key).test(l));
-    if (at >= 0) lines[from + at] = line;
+    // A comment after the old value stays with the line.
+    if (at >= 0) lines[from + at] = `${line}${lines[from + at].match(/^\s*[^\s=]+\s*=\s*(?:"(?:[^"\\]|\\.)*"|'[^']*'|\[[^\]]*\]|[^#\s]+)(\s*#.*)$/)?.[1] ?? ''}`;
     else {
       let end = to;
+      // Comments directly above the next table belong to it: the key goes above them.
+      if (to < lines.length) while (end > from && /^\s*#/.test(lines[end - 1])) end--;
       while (end > from && lines[end - 1].trim() === '') end--;
       lines.splice(end, 0, line);
     }
@@ -117,6 +120,70 @@ export function setToml(text, table, key, value) {
   const target = table ? table.split('.').reduce((o, k) => (o[k] ??= {}), expect) : expect;
   target[key] = value;
   if (JSON.stringify(sortKeys(after)) !== JSON.stringify(sortKeys(expect))) throw new MergeError(`${table || 'root'}.${key}: this form needs manual editing`);
+  return out.endsWith('\n') || !out ? out : `${out}\n`;
+}
+
+// The same line edit for removing a key from a table (or the root with table ''). A key that is not on a line of its
+// own in that table (dotted or inline form, a multi-line value) is reported for manual editing.
+export function removeToml(text, table, key) {
+  const src = text ?? '';
+  if (src.includes('\r')) throw new MergeError('CRLF line endings: edit by hand');
+  let before;
+  try { before = parseToml(src); } catch (e) { throw new MergeError(`invalid TOML: ${e.message.split('\n')[0]}`); }
+  const scope = table ? table.split('.').reduce((o, k) => o?.[k], before) : before;
+  if (scope?.[key] === undefined) return src;
+  const lines = src.split('\n');
+  const header = (l) => /^\s*\[/.test(l);
+  let from = 0, to = lines.findIndex(header);
+  if (table) {
+    from = lines.findIndex((l) => l.trim() === `[${table}]`);
+    if (from < 0) throw new MergeError(`${table}.${key}: this form needs manual editing`);
+    from++;
+    to = lines.slice(from).findIndex(header);
+    to = to < 0 ? lines.length : from + to;
+  }
+  if (to === -1) to = lines.length;
+  const at = lines.slice(from, to).findIndex((l) => keyRe(key).test(l));
+  if (at < 0) throw new MergeError(`${table || 'root'}.${key}: this form needs manual editing`);
+  lines.splice(from + at, 1);
+  return checkedToml(lines.join('\n'), before, table ? table.split('.') : [], key, `${table || 'root'}.${key}`);
+}
+
+// Removes a whole [a."b"] table: its header line and the lines up to the next header; comments above stay.
+export function removeTable(text, path) {
+  const src = text ?? '';
+  if (src.includes('\r')) throw new MergeError('CRLF line endings: edit by hand');
+  let before;
+  try { before = parseToml(src); } catch (e) { throw new MergeError(`invalid TOML: ${e.message.split('\n')[0]}`); }
+  if (path.reduce((o, k) => o?.[k], before) === undefined) return src;
+  const lines = src.split('\n');
+  const keys = (l) => {
+    if (!/^\s*\[[^[]/.test(l)) return null;
+    try { let o = parseToml(`${l.trim()}\n`); const ks = []; while (o && typeof o === 'object' && Object.keys(o).length === 1) { const k = Object.keys(o)[0]; ks.push(k); o = o[k]; } return ks; } catch { return null; }
+  };
+  const from = lines.findIndex((l) => { const ks = keys(l); return ks && ks.length === path.length && ks.every((k, i) => k === path[i]); });
+  if (from < 0) throw new MergeError(`${path.join('.')}: this form needs manual editing`);
+  let to = lines.slice(from + 1).findIndex((l) => /^\s*\[/.test(l));
+  to = to < 0 ? lines.length : from + 1 + to;
+  lines.splice(from, to - from);
+  return checkedToml(lines.join('\n'), before, path.slice(0, -1), path.at(-1), path.join('.'));
+}
+
+// Accepts an edited text only when it parses to the original with that one key gone.
+function checkedToml(out, before, parents, key, label) {
+  let after;
+  try { after = parseToml(out); } catch { throw new MergeError(`${label}: this form needs manual editing`); }
+  const expect = structuredClone(before);
+  delete parents.reduce((o, k) => o[k], expect)[key];
+  // A table left empty stays when its header line does, and is gone when it was only implied by the removed one.
+  const pruned = structuredClone(expect);
+  for (let i = parents.length; i > 0; i--) {
+    const holder = parents.slice(0, i - 1).reduce((o, k) => o[k], pruned);
+    if (Object.keys(holder[parents[i - 1]]).length) break;
+    delete holder[parents[i - 1]];
+  }
+  const got = JSON.stringify(sortKeys(after));
+  if (got !== JSON.stringify(sortKeys(expect)) && got !== JSON.stringify(sortKeys(pruned))) throw new MergeError(`${label}: this form needs manual editing`);
   return out.endsWith('\n') || !out ? out : `${out}\n`;
 }
 

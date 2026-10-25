@@ -1,10 +1,11 @@
 // Code metrics of a built app's own source (no dependencies, build output, tests or configuration): cyclomatic
 // complexity per function and erosion, the share of all complexity that sits in functions above complexity 10.
-// Usage: node bench/scorer/erosion.mjs <app-dir>   prints JSON; needs `typescript` (bench/scorer/package.json)
+// Usage: node bench/scorer/erosion.mjs <app-dir: /app or a folder of the temp folder>   prints JSON; needs `typescript` (bench/scorer/package.json)
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { appFolder } from './mounts.mjs';
 
 const SOURCE = /\.(js|jsx|ts|tsx|mjs|cjs|mts|cts)$/;
 const SKIP_DIR = /^(node_modules|dist|build|coverage|\.git|\.next|out|tests?|__tests__|e2e|openspec|\.specify|\.claude|\.agents|docs)$/;
@@ -55,4 +56,4 @@ export function metrics(dir) {
   return { source_lines: lines, functions: count, complexity: total, max_complexity: max, erosion: total ? Math.round(1000 * over / total) / 1000 : 0 };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(metrics(process.argv[2])));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(metrics(appFolder(process.argv[2]))));

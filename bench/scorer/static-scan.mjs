@@ -1,11 +1,12 @@
 // Static scan of an app's own source (same file selection as erosion.mjs) with the scorer's ESLint config.
-// Usage: node static-scan.mjs <app-dir> <out-dir>   writes <out-dir>/static-scan.json; needs bench/scorer/node_modules
+// Usage: node static-scan.mjs <app-dir: /app or a folder of the temp folder> <out-dir: /out or a folder of the temp folder>   writes <out-dir>/static-scan.json; needs bench/scorer/node_modules
 // Files that fail to parse as modules are linted again as scripts; files that fail both count in totals.parse_errors.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ESLint } from 'eslint';
 import { files } from './erosion.mjs';
+import { appFolder, choose, tempFolders } from './mounts.mjs';
 import { makeConfig } from './static-scan.config.mjs';
 
 const SONAR = JSON.parse(readFileSync(new URL('./sonar-types.json', import.meta.url), 'utf8'));
@@ -50,7 +51,8 @@ export async function scan(app, paths = files(app).filter((f) => /\.(js|mjs|cjs)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const out = await scan(process.argv[2]);
-  mkdirSync(process.argv[3], { recursive: true });
-  writeFileSync(join(process.argv[3], 'static-scan.json'), JSON.stringify(out, null, 2) + '\n');
+  const out = await scan(appFolder(process.argv[2]));
+  const dest = choose(process.argv[3], [resolve('/out'), ...tempFolders()]);
+  mkdirSync(dest, { recursive: true });
+  writeFileSync(join(dest, 'static-scan.json'), JSON.stringify(out, null, 2) + '\n');
 }

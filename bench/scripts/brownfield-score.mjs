@@ -2,10 +2,11 @@
 // 45, review 35, suite 10, cross-step checks 10. A brief with a "score" block in its brief.json (mistreevous) uses its
 // own weights: hidden-test checks (S), static checks (Q), the suite per step, process checks from each step's workflow
 // trace, and the review (scoreBrief). Cost and minutes are reported, not scored.
-// Usage: node bench/scripts/brownfield-score.mjs <run-dir>   writes <run-dir>/brownfield-score.json and prints a table
+// Usage: node bench/scripts/brownfield-score.mjs <run-dir: a folder of bench/runs, bench/results or the temp folder>   writes <run-dir>/brownfield-score.json and prints a table
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { runDir } from './run-dirs.mjs';
 import { validity } from './trial.mjs';
 
 // Step checks per step (bench/briefs/openballistics/checks/step<k>.sh): a step not reached counts all of them as failed.
@@ -94,7 +95,7 @@ export function scoreBrief(trial, reviews, conf) {
 const json = (p) => (existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : null);
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const run = process.argv[2];
+  const run = runDir(process.argv[2]);
   const brief = /brief=(\S+)/.exec(readFileSync(join(run, 'manifest.txt'), 'utf8'))?.[1];
   const conf = json(new URL(`../briefs/${brief}/brief.json`, import.meta.url).pathname)?.score ?? null;
   const rows = [], excluded = [];

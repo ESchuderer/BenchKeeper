@@ -99,7 +99,7 @@ export function frameworkChanges({ a, dir, prev, lib = library() }) {
 // What the state file records of the frameworks. ran(key): whether the fetch or install planned under that key ran in this run
 // (null: none was planned). A plugin install that did not run is not recorded; a file is the setup's own (agentOwned) once
 // fetched, and its ref is the one fetched. Nothing is recorded for files and refs of a run that failed or skipped them.
-export function frameworkState({ a, prev, ran = () => null, lib = library() }) {
+export function frameworkState({ a, prev, ran, lib = library() }) {
   const cat = catalog(lib).filter((f) => a.frameworks.includes(f.id));
   const was = new Set(prev?.agentOwned ?? []), refs = prev?.frameworkRefs ?? {};
   const files = cat.flatMap((f) => f.install.files?.map((x) => x.path) ?? []).filter((p) => a.agentFiles.includes(p));

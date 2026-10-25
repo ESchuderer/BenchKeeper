@@ -28,7 +28,7 @@ Medians of 3 rounds, compared with plain Claude Code (A). Cost is the API-equiva
 | AL | BenchKeeper setup-v4.0 + Matt Pocock | 84.08 | -2.89 | 13.1 | 0.58x | 2.28 | 0.61x |
 
 - How to read score differences: one arm's score varies by up to about 8 points between rounds (AN: 79.18 to 88.95). With 3 rounds, a median difference below about 3 points is not measurable.
-- Weighing cost against score: at equal quality, the cheaper and faster setup is the better choice. A higher cost needs a score gain beyond the spread: a median at least 3 points higher and a lead in at least 2 of 3 rounds (the win rule of the openballistics run).
+- Weighing cost against score: at equal quality, the cheaper and faster setup is the better choice. A higher cost needs a score gain beyond the spread: a median at least 3 points higher and a lead in at least 2 of 3 rounds (the rule of the earlier brownfield run, whose data was removed in #266).
 - Only ECC (H) meets that rule against plain Claude Code: +3.15 and ahead in 2 of 3 rounds, for 2.0 times the cost and 1.6 times the time.
 - Superpowers (G) scores 2.34 above A at slightly less cost and time. Ponytail alone (B) matches A at 0.58 times the cost and 0.59 times the time.
 - setup-v5.0 (AM) against setup-v4.0 (AL): +4.90 median, ahead in 3 of 3 rounds, review part 22.5 against 20.2 (mean, of 25), process checks 6 to 7 of 11 against 3 to 5. It costs 2.1 times as much (4.79 against 2.28 USD) and takes 1.9 times as long. The setup-v4.0 rule that stopped AL without a devcontainer is gone in setup-v5.0.

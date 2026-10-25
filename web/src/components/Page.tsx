@@ -79,9 +79,9 @@ const quickstart: [string, string, string][] = [
 ];
 
 const reasons: [string, string][] = [
-  ['Quality', 'in BenchKeeper\'s brownfield runs no setup scored measurably above plain Claude Code (medians 82.9 to 86.2, Sonnet 5.5, k = 3).'],
-  ['Time', 'it depends on the version: setup-v3.3 with Matt Pocock\'s skills took a median 8.1 minutes against 12.8 for plain Claude Code, setup-v5.0 took 17.7. setup-v6.0 is not measured yet.'],
-  ['Cost', 'Ponytail cost less in all 6 recorded winery-react pairs (one trial each); external results range from 10% less to 55% more.'],
+  ['Quality', 'in BenchKeeper\'s mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock\'s skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3).'],
+  ['Time', 'it depends on the version: setup-v4.0 with Matt Pocock\'s skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9. setup-v6.0 is not measured yet.'],
+  ['Cost', 'Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3); external results range from 10% less to 55% more.'],
   ['Skills by level', 'the full flow runs only for full-tier work. Small changes load one targeted skill.'],
   ['One install', 'one machine setup covers every repository. Each repository adds only its tracker, docs and stack.'],
 ];

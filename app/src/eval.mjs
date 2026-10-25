@@ -95,6 +95,9 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
       cases: details.length, missRate: rate(pos, (d) => !d.triggered), falseTriggerRate: rate(neg, (d) => d.triggered), details };
     mkdirSync(userEvals(ctx), { recursive: true, mode: 0o700 });
     appendFileSync(results(ctx), `${JSON.stringify(result)}\n`, { mode: 0o600 });
+    // Files and folders of an earlier version, and the skill-only path that wrote no output, keep their modes otherwise.
+    chmodSync(userEvals(ctx), 0o700);
+    chmodSync(results(ctx), 0o600);
     onResult(result);
     out.push(result);
   }

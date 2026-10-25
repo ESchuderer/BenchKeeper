@@ -59,7 +59,7 @@ export function addCase(ctx, { target, expected, should = true, project, transcr
   // A prompt copied from a transcript may hold a pasted token.
   const q = mask(text, { keys: false });
   const c = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, time: new Date().toISOString(), query: q, should, expected,
-    source: Object.fromEntries(Object.entries({ project, transcript, description, run }).filter(([, v]) => v)) };
+    source: Object.fromEntries(Object.entries({ project, transcript, description: description && mask(description, { keys: false }), run }).filter(([, v]) => v)) };
   const path = join(userEvals(ctx), fileName(target));
   const change = { id: 'case:0', step: 'case', title: `eval case for ${target}: ${should ? 'should' : 'should not'} ${expected}`, kind: 'write', path,
     edit: (t) => { const set = t ? JSON.parse(t) : { kind: 'benchkeeper-evals', schemaVersion: CASE_SCHEMA, target, cases: [] }; set.cases.push(c); return `${JSON.stringify(set, null, 2)}\n`; } };

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -9,7 +9,7 @@ import { childEnv } from '../src/childenv.mjs';
 import { cooled } from '../src/cooldown.mjs';
 import { diffLines } from '../src/diff.mjs';
 import { Ledger, runId } from '../src/ledger.mjs';
-import { mask, redactArgv } from '../src/redact.mjs';
+import { keyed, mask, redactArgv } from '../src/redact.mjs';
 import { runEval } from '../src/eval.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
@@ -118,7 +118,9 @@ test('an undo command reports the last lines of its output, masked', () => {
   assert.doesNotMatch(u.entries[0].error, /abc123/);
 });
 
-test('a new agent settings file is private; an existing one keeps its mode', () => {
+// POSIX modes: Windows has none to check.
+const posix = { skip: process.platform === 'win32' };
+test('a new agent settings file is private; an existing one keeps its mode', posix, () => {
   const home = tmp();
   const ctx = context({ home });
   const s = join(home, '.claude/settings.json'), c = join(home, '.codex/config.toml'), rules = join(home, '.claude/rules/00-global.md'), old = join(home, '.gemini/settings.json');
@@ -166,7 +168,7 @@ test('backups of runs older than the retention period go; newer and setup.sh one
   assert.deepEqual(l.prune(0, now), [], '0 keeps every backup');
 });
 
-test('eval outputs and results are private, also in folders an earlier version made', async () => {
+test('eval outputs and results are private, also in folders an earlier version made', posix, async () => {
   const home = tmp();
   const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : { code: 0, stdout: '{"type":"system"}\n', stderr: '' }) });
   const evals = join(home, '.config/benchkeeper/evals');
@@ -187,4 +189,13 @@ test('mask stays linear on a long dotted token and leaves ordinary words alone',
   mask(long);
   assert.ok(Date.now() - t < 1000);
   assert.equal(mask('"theme": "dark"'), '"theme": "dark"');
+});
+
+test('mask: a quoted value with spaces goes whole; .env files with a suffix are keyed; a described case is masked', () => {
+  assert.equal(mask('--password "correct horse" next'), '--password *** next');
+  assert.equal(mask("--token 'a b' x"), '--token *** x');
+  assert.ok(keyed('/p/.env.local') && keyed('/p/.env') && keyed('/h/.npmrc') && !keyed('/h/rules.md'));
+  const ctx = context({ home: tmp() });
+  const { path } = addCase(ctx, { target: 'skill:x', expected: 'e', description: `use ${TOKEN}` });
+  assert.doesNotMatch(readFileSync(path, 'utf8'), /sk-ant/);
 });

@@ -16,8 +16,11 @@ const frontMatter = (text) => text?.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
 export function skillDescription(text) {
   const front = frontMatter(text);
   const at = front.split('\n').findIndex((l) => /^description:/.test(l));
-  return { text: front.match(/^description:\s*"?(.*?)"?\s*$/m)?.[1] ?? '', line: at + 2 };
+  return { text: (front.match(/^description:[ \t]*(.*)$/m)?.[1] ?? '').trim().replace(/^"|"$/g, ''), line: at + 2 };
 }
+
+// Sentence punctuation after a path in prose.
+const trimPunctuation = (s) => { let n = s.length; while (n && '.,;:!?)]'.includes(s[n - 1])) n--; return s.slice(0, n); };
 
 // @path imports of a memory file: not inside fenced code blocks or code spans, not in the middle of a word (an e-mail
 // address). Claude Code reads a path up to the first space unless the space has a backslash.
@@ -31,7 +34,7 @@ export function importsOf(text) {
     if (mark && (!fence || mark[0] === fence[0])) { fence = fence ? null : mark; return; }
     if (fence) return;
     for (const [, path] of raw.replace(/`[^`]*`/g, '').matchAll(/(?<![^\s])@((?:\\ |\S)+)/g)) {
-      const target = path.replace(/[.,;:!?)\]]+$/, '');
+      const target = trimPunctuation(path);
       if (/^(?:\.{0,2}\/|~)|\.\w+$/.test(target)) out.push({ line: i + 1, target: target.replaceAll('\\ ', ' ') });
     }
   });

@@ -21,7 +21,7 @@ export function classify(rule) {
   const m = typeof rule === 'string' ? rule.trim().match(/^([A-Za-z_][\w.-]*)(?:\((.*)\))?$/) : null;
   if (!m) return null;
   const [, tool, spec] = m;
-  if (spec === undefined || spec.trim() === '*') return SHELL_TOOLS.has(tool) ? { level: 'warning', why: `every ${tool} call` } : WIDE_TOOLS.has(tool) ? { level: 'info', why: `every ${tool} call` } : null;
+  if (!spec || spec.trim() === '*') return SHELL_TOOLS.has(tool) ? { level: 'warning', why: `every ${tool} call` } : WIDE_TOOLS.has(tool) ? { level: 'info', why: `every ${tool} call` } : null;
   if (!SHELL_TOOLS.has(tool)) return null;
   // The documented :* suffix is a trailing wildcard.
   const words = spec.replace(/:\*$/, ' *').trim().split(/\s+/);
@@ -35,14 +35,14 @@ export function classify(rule) {
 // shortcut: a regex over the file, not a Starlark parser; a pattern built from variables is not seen.
 export function codexAllows(text) {
   const out = [];
-  const code = text.replace(/^\s*#.*$/gm, '');
+  const code = text.replace(/^[ \t]*#.*$/gm, '');
   for (const m of code.matchAll(/prefix_rule\s*\(([\s\S]*?)(?=prefix_rule\s*\(|$)/g)) {
     const pattern = m[1].match(/pattern\s*=\s*(\[(?:[^[\]]|\[[^\]]*\])*\])/)?.[1];
     const decision = m[1].match(/decision\s*=\s*["'](\w+)["']/)?.[1] ?? 'allow';
     if (!pattern || decision !== 'allow') continue;
-    const first = pattern.match(/^\[\s*(?:\[([^\]]*)\]|(["'][^"']*["']))((?:\s*,\s*["'][^"']*["'])*)\s*,?\s*\]$/);
-    const programs = (first?.[1] ?? first?.[2] ?? '').match(/[^"',\s]+/g) ?? [];
-    const rest = (first?.[3] ?? '').match(/[^"',\s]+/g) ?? [];
+    const parts = pattern.slice(1, -1).match(/\[[^\]]*\]|"[^"]*"|'[^']*'/g) ?? [];
+    const words = (t) => t.match(/[^"',[\]\s]+/g) ?? [];
+    const programs = words(parts[0] ?? ''), rest = parts.slice(1).flatMap(words);
     if (programs.some((p) => SHELLS.has(basename(p))) && rest.every((w) => CODE_FLAGS.has(w))) out.push({ rule: `pattern = ${pattern.replace(/\s+/g, ' ')}`, line: code.slice(0, m.index).split('\n').length, why: `${programs.join(' or ')} runs any code`, level: 'warning' });
   }
   return out;

@@ -44,7 +44,7 @@ function projectCheck(dir) {
   const plain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
   let file;
   try { file = JSON.parse(readText(join(dir, 'skills-lock.json')) ?? '{}'); } catch { file = null; }
-  const lock = plain(file) ? file.skills ?? {} : null;
+  const lock = plain(file) ? (Object.hasOwn(file, 'skills') ? file.skills : {}) : null;
   if (!plain(lock)) return [check(`project skills match the library pins (${dir})`, ['skills-lock.json is not a valid lock file'])];
   const problems = [];
   const lib = library();

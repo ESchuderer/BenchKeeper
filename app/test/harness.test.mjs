@@ -55,7 +55,7 @@ test('benchkeeper test: a skills-lock.json that is not a lock file is a problem,
   const dir = tmp('bk-harn-proj-');
   const pctx = { ...ctx, roots: [...ctx.roots, dir] };
   apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host', skills: ['accessibility'] } }).changes), pctx, { scope: dir });
-  for (const text of ['{broken', 'null', '[]', '{"skills":"x"}']) {
+  for (const text of ['{broken', 'null', '[]', '{"skills":"x"}', '{"skills":null}']) {
     writeFileSync(join(dir, 'skills-lock.json'), text);
     const c = harnessTest(ctx, { agents: [], dir }).at(-1);
     assert.equal(c.ok, false, text);

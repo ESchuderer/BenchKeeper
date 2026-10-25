@@ -1,6 +1,6 @@
 # Evaluations
 
-Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Quality bar check (skill libraries only, [library quality bar](evaluations/skill-libraries/library-quality-bar.md)), Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-24 (each file names its date).
+Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Quality bar check (skill libraries only, [library quality bar](evaluations/skill-libraries/library-quality-bar.md)), Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-25 (each file names its date).
 
 SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#external-benchmark-pilot-slopcodebench-v123) separates natural skill selection from delivery and scoring failures, and pins the current setup as AO. Reference calibration also exposed a missing MIME database in the scorer image, and an `sg` name clash that skipped scb-check's ast-grep rules. No new skill-effectiveness results.
 
@@ -49,7 +49,8 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (arms G, J, M, D, k=1) | cost higher in every test but one 6-task run (1.33x on v6.4.2). Pass rate n.s. (p about 0.235) |
+| [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (arms G, J, M, D, k=1) | cost higher in every test but one 6-task run (1.33x on v6.4.2). Pass rate n.s. (p about 0.235). Project setup (setup-v6.7) installs it per project as the workflow owner, never preselected |
+| [agency-agents](evaluations/workflow-frameworks/agency-agents.md) | Optional parts, a pick of agent files (setup-v6.7) | no outcome measurement found (search for independent measurements not done, unverified). Agents only, no hooks, installed from a pinned commit |
 | [OpenSpec](evaluations/workflow-frameworks/openspec.md) | Out (setup-v3.0) | specs and tickets live in the issue tracker of Matt Pocock's skills. Brownfield: tied with plain Claude Code, one stop after the proposal with the layer |
 | [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no baseline with a skill collection. Overlaps the workflow's specs in the issue, and Matt Pocock's skills when installed |
 | [GSD](evaluations/workflow-frameworks/gsd.md) | Not in | one task: about 1.2M tokens vs 200K vanilla, outputs indistinguishable |

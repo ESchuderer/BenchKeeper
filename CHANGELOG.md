@@ -2,6 +2,14 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.7 (2026-10-25)
+
+- Frameworks: project setup can add Superpowers, ECC, agency-agents and Matt Pocock's skills inside the project, after showing each with its evaluation. One workflow owner per project (Superpowers is one): choosing it takes BenchKeeper's workflow skill and the issue-tracker specs out of that project's block, and the `workflow` skill defers to a `Workflow owner:` line. `benchkeeper project apply --framework <id> [--agent-file <path>]`, `benchkeeper frameworks`; the setup form has a Frameworks section.
+- Superpowers is a Claude Code plugin enabled for the project only (scope project when shared, local otherwise). ECC is four single skills at a pinned commit (no plugin, no hooks). agency-agents is a pick of agent files fetched at a pinned commit. Codex gets none of these (no project scope or no converter).
+- Doctor reports a second workflow owner, and an owner framework installed for the user or the project that the setup does not record.
+- Plugin `version` 6.7.0.
+- Upgrade: `npx benchkeeper@6.7.0 apply`, then Update all.
+
 ## setup-v6.6 (2026-10-25)
 
 - Install levels: `benchkeeper apply --level lite|standard|full`. Lite and standard install only the BenchKeeper plugin on the machine (lite relies on the `workflow` skill description to trigger; the trigger rate is not measured yet, see `evaluations/practices/lite-install.md`); standard adds the local project block that `project apply` writes. Without `--level`, `plan` and `apply` use the level found on the machine, full on a machine without BenchKeeper.

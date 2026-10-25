@@ -2,6 +2,7 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Loader, Mod
 import { IconBulb, IconPlayerPlay } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
+import { FrameworkChoice } from './frameworks.jsx';
 import { CancelJob, ChangeList, useJob, usePrerun } from './parts.jsx';
 import { RunPanel } from './run.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
@@ -14,6 +15,8 @@ export const planQuery = (dir, a) => {
   const q = new URLSearchParams({ dir, setup: '1', agents: a.agents.join(','), env: a.env, sandbox: a.sandbox ? '1' : '0', share: a.share ? '1' : '0' });
   for (const p of a.packs) q.append('pack', p);
   for (const s of a.skills) q.append('skill', s);
+  // Named whenever the answers have them (an empty choice takes the frameworks of a saved setup out); the one-run form has none.
+  if (a.frameworks) { q.set('framework', a.frameworks.join(',')); q.set('agent-file', (a.agentFiles ?? []).join(',')); }
   q.set('tier', a.tier);
   return q;
 };
@@ -116,8 +119,8 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     if (!setup.data || a) return;
     // A project set up before starts from its state file, so only what the user changes is cleaned up.
     const st = setup.data.state;
-    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '', share: st.share === true }
-      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], tier: '', share: false });
+    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], frameworks: st.frameworks ?? [], agentFiles: st.agentFiles ?? [], tier: st.tier ?? '', share: st.share === true }
+      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], frameworks: [], agentFiles: [], tier: '', share: false });
   }, [setup.data]);
   // An environment the user chose is kept: a suggestion fills it only while it still has its starting value.
   const envTouched = useRef(false);
@@ -194,7 +197,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             )}
             <Checkbox.Group label="Packs" value={a.packs} onChange={set('packs')}>
               <Stack gap="xs" mt="xs">
-                {s.packs.map((p) => {
+                {s.packs.filter((p) => !s.frameworks.some((f) => f.pack === p.id)).map((p) => {
                   const hint = s.suggested.packs.find((x) => x.id === p.id);
                   return (
                     <Paper key={p.id} withBorder p="xs">
@@ -207,6 +210,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             </Checkbox.Group>
             <MultiSelect mt="md" label="Single skills besides the packs" searchable value={a.skills} onChange={set('skills')}
               data={s.skills.filter((x) => !s.packs.filter((p) => a.packs.includes(p.id)).some((p) => p.skills.includes(x.name))).map((x) => ({ value: x.name, label: x.name }))} />
+            <FrameworkChoice rows={s.frameworks} a={a} set={set} />
           </Stepper.Step>
           <Stepper.Step label="Tier">
             <Radio.Group label="Default tier in AGENTS.md" value={a.tier} onChange={set('tier')}>
@@ -219,7 +223,8 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
                 { label: 'Agents', step: 0, value: a.agents.map((id) => { const x = s.agents.find((y) => y.id === id); return x ? x.name : `${id} (not installed here)`; }).join(', ') || 'None' },
                 { label: 'Where the setup lives', step: 0, value: a.share ? 'In the repository, as a pull request' : 'On this machine' },
                 { label: 'Environment', step: 1, value: `${(ENV_TITLE[a.env] ?? a.env).replace(/ \(recommended\)$/, '')}${a.sandbox ? ', with the Claude Code sandbox' : ''}` },
-                { label: 'Packs and skills', step: 2, value: [...a.packs.map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills.filter((k) => !s.packs.some((p) => a.packs.includes(p.id) && p.skills.includes(k)))].join(', ') || 'None' },
+                { label: 'Packs and skills', step: 2, value: [...a.packs.filter((id) => !s.frameworks.some((f) => f.pack === id)).map((id) => s.packs.find((p) => p.id === id)?.title ?? id), ...a.skills.filter((k) => !s.packs.some((p) => a.packs.includes(p.id) && p.skills.includes(k)))].join(', ') || 'None' },
+                { label: 'Frameworks', step: 2, value: [...s.frameworks.filter((f) => (f.kind === 'pack' ? a.packs.includes(f.pack) : a.frameworks.includes(f.id))).map((f) => f.title), ...(a.agentFiles.length ? [`${a.agentFiles.length} agent files`] : [])].join(', ') || 'None' },
                 { label: 'Default tier', step: 3, value: TIER_TEXT[a.tier] ?? a.tier },
               ]} />
               <Loading state={review} label="changes">{(p) => (

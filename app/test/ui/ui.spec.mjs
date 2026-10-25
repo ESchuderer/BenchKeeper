@@ -773,6 +773,16 @@ test.describe('views', () => {
     // Community skills need npx, which the fixture lacks: no pack here.
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).not.toBeChecked();
     await noAxe(page);
+    // Frameworks are listed with their evidence and chosen explicitly; none is preselected, and agency-agents asks for a pick of files.
+    const fw = drawer.getByRole('region', { name: 'Frameworks' });
+    await expect(fw.getByRole('radio', { name: /^BenchKeeper's workflow skill/ })).toBeChecked();
+    await fw.getByRole('radio', { name: /^Superpowers/ }).check();
+    await expect(fw).toContainText('cost higher in every with/without test but one');
+    await fw.getByRole('checkbox', { name: /^agency-agents/ }).check();
+    await expect(fw.getByRole('checkbox', { name: 'engineering-frontend-developer' })).not.toBeChecked();
+    await noAxe(page);
+    await fw.getByRole('checkbox', { name: /^agency-agents/ }).uncheck();
+    await fw.getByRole('radio', { name: /^BenchKeeper's workflow skill/ }).check();
     // An agent suggests skills only after the user agrees to its session.
     await drawer.getByRole('button', { name: 'Suggest with an agent' }).click();
     const ask = page.getByRole('dialog', { name: 'Start an agent session?' });

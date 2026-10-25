@@ -17,7 +17,7 @@ import { launch, openBrowser, startServer } from './server.mjs';
 import { listFiles, writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
-import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, pushTargets, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
+import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, pushTargets, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
@@ -73,8 +73,16 @@ Usage: benchkeeper <command> [options]
                                     --caller writes that repo-baseline workflow file (never GitHub settings)
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (~/.config/benchkeeper/packs/)
-  projects [list|add <dir>..|scan <root>|remove <dir>]
-                                    projects Update all covers (~/.config/benchkeeper/projects.json)
+  projects [list|add <dir>..|scan <root>|remove <dir>..]
+                                    projects Update all covers (projects.json in the config folder); add refuses another worktree
+                                    of a registered repository unless --worktree; remove only unregisters
+  projects rename <dir> [name] [--notes text]
+                                    display name and notes (in projects.json only; an empty one clears it)
+  projects relocate <old> <new>     the folder moved: the entry, its answers and its history follow it
+  projects remove <dir>.. --setup [--yes] [--no-push]
+                                    takes BenchKeeper's setup out of each project and keeps it registered: a local setup in the
+                                    checkout (one run, undo with benchkeeper undo <run>), a shared one as a pull request
+                                    (branch chore/remove-agent-setup); lists the files, then asks
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
@@ -101,6 +109,7 @@ const OPTIONS = {
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
   agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
+  setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -165,14 +174,30 @@ export async function main(argv, { out = process.stdout, input = process.stdin, 
   try { return await command(argv, { out, ask, ctx }); } finally { ask.close(); }
 }
 
+// projects remove --setup: every file first, then one question for all projects named.
+async function removeSetups(ctx, dirs, { o, out, ask }) {
+  if (!dirs.length) { out.write('projects remove --setup needs at least one directory\n'); return 2; }
+  const plans = dirs.map((d) => ({ path: canon(d), ...setupRemoval(ctx, d) }));
+  for (const p of plans) {
+    out.write(`${p.path}  ${p.shared ? 'shared setup: a pull request on branch chore/remove-agent-setup' : 'local setup: removed in the checkout'}\n`);
+    for (const c of p.changes) out.write(`  ${c.title}\n`);
+    if (!p.changes.length) out.write('  nothing to remove\n');
+  }
+  if (!o.yes && !(await ask(`Remove the BenchKeeper setup of ${plans.length} ${plans.length === 1 ? 'project' : 'projects'} (they stay registered)?`))) return 1;
+  const results = plans.map((p) => removeSetup(ctx, p.path, { push: !o['no-push'] }));
+  for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.run ? `  undo: benchkeeper undo ${r.run}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+  return results.some((r) => r.status === 'stopped') ? 1 : 0;
+}
+
 async function command(argv, { out, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   const [cmd = 'ui', arg] = positionals;
   if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
   if (cmd === 'ui') {
     const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });
-    out.write(`BenchKeeper UI: ${url}\nThe link works once. Ctrl+C stops the server.\n`);
-    if (!o['no-open']) openBrowser(url);
+    out.write(`BenchKeeper UI: ${url}\nThe link works once and for 10 minutes. Ctrl+C stops the server.\n`);
+    // null: a snap or Flatpak browser, or no redirect file; the app never hands the token to a program in its arguments.
+    if (!o['no-open'] && openBrowser(url) === null) out.write('No browser was opened (a snap or Flatpak browser cannot read the redirect file, or it could not be written): paste the link above into your browser.\n');
     await new Promise((done) => server.on('close', done));
     return 0;
   }
@@ -226,8 +251,18 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'projects') {
     const dirs = positionals.slice(2);
-    if (arg === 'add') dirs.forEach((d) => out.write(`added ${addProject(ctx, d)}\n`));
+    if (arg === 'add') dirs.forEach((d) => out.write(`added ${addProject(ctx, d, { worktree: o.worktree })}\n`));
     else if (arg === 'scan') for (const d of scan(dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === canon(d)) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
+    else if (arg === 'rename') {
+      if (!dirs[0]) { out.write('projects rename needs a directory\n'); return 2; }
+      renameProject(ctx, dirs[0], { name: dirs[1] ?? (o.notes === undefined ? '' : undefined), notes: o.notes });
+      out.write(`renamed ${canon(dirs[0])}\n`);
+    }
+    else if (arg === 'relocate') {
+      if (dirs.length !== 2) { out.write('projects relocate needs the old and the new directory\n'); return 2; }
+      out.write(`relocated ${canon(dirs[0])} to ${relocateProject(ctx, dirs[0], dirs[1])}\n`);
+    }
+    else if (arg === 'remove' && o.setup) return removeSetups(ctx, dirs, { o, out, ask });
     else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.write(`removed ${resolve(d)}\n`); });
     else if (arg === 'unshare') {
       const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);

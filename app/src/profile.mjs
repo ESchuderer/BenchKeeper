@@ -61,7 +61,7 @@ export function importChoices(ctx, p) {
   const packs = (p.packs ?? []).map((x) => savePack(ctx, x).id);
   const projects = [], refused = [];
   for (const x of (p.projects ?? []).filter((y) => existsSync(y.path))) {
-    try { projects.push(addProject(ctx, x.path)); } catch (e) { refused.push(e.message); }
+    try { projects.push(addProject(ctx, x.path, { worktree: true })); } catch (e) { refused.push(e.message); }
   }
   return { packs, projects, refused };
 }

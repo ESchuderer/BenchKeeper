@@ -63,6 +63,7 @@ const run = (argv, o = {}) => {
     if (argv[3] === 'add') { mkdirSync(at, { recursive: true }); writeFileSync(join(at, 'SKILL.md'), `---\nname: ${name}\n---\n`); } else rmSync(at, { recursive: true, force: true });
     return { code: 0, stdout: '', stderr: '' };
   }
+  if (argv[1]?.endsWith('verify.mjs')) return { code: 0, stdout: '', stderr: '' };
   if (argv[0] === 'zenity') return { code: 0, stdout: `${parent}\n`, stderr: '' };
   if (argv[0] === 'claude' && argv[1] === '--version') return { code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' };
   // Setup advice: a restricted read-only session answers with one library skill.

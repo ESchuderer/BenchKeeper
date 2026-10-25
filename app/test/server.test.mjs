@@ -110,7 +110,10 @@ test('rejected: state changes on GET, without the custom header, other methods',
   const ok = await post({});
   assert.equal(ok.status, 200);
   assert.deepEqual(changed, [{ planId: 'x' }]);
-  assert.equal((await req('POST', '/api/apply', auth(), 'not json')).status, 400);
+  assert.equal((await req('POST', '/api/apply', auth({ 'content-type': 'application/json' }), 'not json')).status, 400);
+  assert.equal((await req('POST', '/api/apply', auth(), '{}')).status, 415);
+  assert.equal((await req('POST', '/api/apply', auth({ 'content-type': 'text/plain' }), '{}')).status, 415);
+  assert.equal((await req('POST', '/api/apply', auth({ 'content-type': 'application/x-www-form-urlencoded' }), 'a=b')).status, 415);
 });
 
 test('static files stay inside the build folder; unknown paths get the app page', async () => {
@@ -134,6 +137,7 @@ function fixture(extra = () => null) {
     const ok = (stdout = '') => ({ code: 0, stdout, stderr: '' });
     const r = extra(argv, o);
     if (r) return r;
+    if (argv[1]?.endsWith('verify.mjs')) return ok();
     if (cmd === 'claude --version') return ok('2.1.0 (Claude Code)');
     if (cmd === 'claude plugin list --json') return ok(JSON.stringify([{ id: 'benchkeeper@benchkeeper', enabled: true, scope: 'user' }, { id: 'ponytail@ponytail', enabled: true, scope: 'user' }]));
     if (cmd === 'claude plugin marketplace list --json') return ok(JSON.stringify([{ name: 'benchkeeper' }, { name: 'ponytail' }]));
@@ -209,7 +213,7 @@ test('prerun: the global skill install is rehearsed in a job, its file diff per 
 test('apply: answers at once with a job; the job shows the running command and its output, then the run; one at a time', async () => {
   const { ctx, routes } = fixture();
   let release;
-  ctx.runAsync = (argv, o) => { o.onOutput('installing\n'); return new Promise((r) => { release = () => r({ code: 0, stdout: 'ok', stderr: '' }); }); };
+  ctx.runAsync = (argv, o) => { if (argv[1]?.endsWith('verify.mjs')) return Promise.resolve(ctx.run(argv, o)); o.onOutput('installing\n'); return new Promise((r) => { release = () => r({ code: 0, stdout: 'ok', stderr: '' }); }); };
   const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   const command = plan.changes.find((c) => c.kind === 'command');
   const select = [plan.changes.find((c) => c.kind === 'write').id, command.id];
@@ -476,10 +480,71 @@ test('the browser opens a file only this user can read, which forwards to the UR
   assert.match(readFileSync(file, 'utf8'), /content="0;url=http:\/\/127\.0\.0\.1:1\/\?token=a&#38;b"/);
 });
 
-test('a snap or Flatpak browser cannot read the file and gets the URL', () => {
-  let opened;
-  openBrowser('http://127.0.0.1:1/?token=a', { open: (f) => { opened = f; }, confined: () => true });
-  assert.equal(opened, 'http://127.0.0.1:1/?token=a');
+test('a snap or Flatpak browser is not launched: the token stays out of the arguments and the CLI prints the URL', () => {
+  let opened = null;
+  assert.equal(openBrowser('http://127.0.0.1:1/?token=a', { open: (f) => { opened = f; }, confined: () => true }), null);
+  assert.equal(opened, null);
+});
+
+test('a redirect file that cannot be written launches nothing either', { skip: process.platform === 'win32' }, (t) => {
+  const saved = process.env.TMPDIR;
+  t.after(() => { if (saved === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = saved; });
+  process.env.TMPDIR = join(tmpdir(), 'bk-no-such-folder');
+  let opened = null;
+  assert.equal(openBrowser('http://127.0.0.1:1/?token=a', { open: (f) => { opened = f; }, confined: () => false }), null);
+  assert.equal(opened, null);
+});
+
+test('a removal runs only with confirmDestructive: naming its id in select is not enough, in apply and in apply-all', async () => {
+  const { ctx, routes } = fixture();
+  const foreign = join(ctx.home, '.claude/skills/foreign');
+  mkdirSync(foreign, { recursive: true });
+  writeFileSync(join(foreign, 'SKILL.md'), '# foreign\n');
+  const plan = () => routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const first = plan();
+  const rm = first.changes.find((c) => c.kind === 'remove' && c.path === foreign);
+  assert.ok(rm.destructive && rm.selected === false);
+  const text = (f) => { try { f(); } catch (e) { return e.message; } return null; };
+  for (const confirm of [undefined, false, 'true', 1]) {
+    assert.equal(status(() => routes['POST /api/apply']({ planId: first.planId, select: [rm.id], confirmDestructive: confirm })), 400, String(confirm));
+  }
+  assert.match(text(() => routes['POST /api/apply']({ planId: first.planId, select: [rm.id] })), /confirmDestructive is needed to apply: .*foreign/);
+  assert.ok(existsSync(foreign), 'nothing was removed');
+  assert.equal(status(() => routes['POST /api/apply-all']({ sections: [{ planId: first.planId, select: [rm.id] }] })), 400);
+  assert.ok(existsSync(foreign));
+  // The refused request did not use up the plan.
+  await finished(routes, routes['POST /api/apply']({ planId: first.planId, select: [rm.id], confirmDestructive: true }).job);
+  assert.ok(!existsSync(foreign), 'confirmed: moved to the backup');
+  // A change that is not destructive needs no confirmation.
+  const second = plan();
+  const write = second.changes.find((c) => c.kind === 'write' && !c.destructive);
+  await finished(routes, routes['POST /api/apply']({ planId: second.planId, select: [write.id] }).job);
+  // apply-all carries one flag for all sections.
+  mkdirSync(foreign, { recursive: true });
+  const third = plan();
+  const again = third.changes.find((c) => c.kind === 'remove' && c.path === foreign);
+  await finished(routes, routes['POST /api/apply-all']({ sections: [{ planId: third.planId, select: [again.id] }], confirmDestructive: true }).job);
+  assert.ok(!existsSync(foreign));
+});
+
+test('registry, pack and profile writes wait for a running apply; a profile import that registers nothing does not', async () => {
+  const { ctx, routes } = fixture();
+  let release;
+  ctx.runAsync = (argv, o) => (argv[1]?.endsWith('verify.mjs') ? Promise.resolve(ctx.run(argv, o)) : new Promise((r) => { release = () => r({ code: 0, stdout: '', stderr: '' }); }));
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const command = plan.changes.find((c) => c.kind === 'command' && !c.destructive);
+  const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
+  await until(() => release);
+  const dir = join(ctx.home, 'proj');
+  mkdirSync(dir);
+  assert.equal(status(() => routes['POST /api/projects']({ path: dir })), 409);
+  assert.equal(status(() => routes['POST /api/projects']({ path: dir, action: 'remove' })), 409);
+  assert.equal(status(() => routes['POST /api/packs']({ id: 'x', packs: {} })), 409);
+  assert.equal(status(() => routes['POST /api/profile-import']({ register: true, profile: {} })), 409);
+  assert.notEqual(status(() => routes['POST /api/profile-import']({ profile: {} })), 409);
+  release();
+  await finished(routes, job);
+  assert.notEqual(status(() => routes['POST /api/projects']({ path: dir, action: 'remove' })), 409);
 });
 
 // Last: it stops the shared server.

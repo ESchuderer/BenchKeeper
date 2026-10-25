@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { context } from '../src/runner.mjs';
-import { api, startServer } from '../src/server.mjs';
+import { TOKEN_MS, api, startServer } from '../src/server.mjs';
 
 let srv, port, cookie, key;
 before(async () => {
@@ -76,4 +76,29 @@ test('the token is not exchanged for a session when the Host is not this server'
   fresh.server.close();
   assert.equal(r.statusCode, 421);
   assert.equal(r.headers['set-cookie'], undefined);
+});
+
+test('the URL token stops working after its lifetime', async () => {
+  const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-secsrv-')) });
+  const open = async (tokenMs) => {
+    const s = await startServer(ctx, { token: 'tok3', routes: {}, tokenMs });
+    const p = s.server.address().port;
+    const r = await new Promise((ok, fail) => request({ host: '127.0.0.1', port: p, path: '/?token=tok3', headers: { host: `127.0.0.1:${p}` } }, (res) => { res.resume(); res.on('end', () => ok(res)); }).on('error', fail).end());
+    s.server.close();
+    return r;
+  };
+  assert.ok((await open(60e3)).headers['set-cookie'], 'inside its lifetime the token becomes the session');
+  assert.equal((await open(0)).headers['set-cookie'], undefined, 'after its lifetime it does not');
+  assert.equal(TOKEN_MS, 10 * 60e3);
+});
+
+test('every answer forbids a base tag and form posts; a POST that is not JSON is a 415 before the route runs', async () => {
+  const r = await req('GET', '/api/overview', auth());
+  assert.match(r.headers['content-security-policy'], /base-uri 'none'/);
+  assert.match(r.headers['content-security-policy'], /form-action 'none'/);
+  assert.match(r.headers['content-security-policy'], /frame-ancestors 'none'/);
+  for (const type of [undefined, 'text/plain', 'multipart/form-data; boundary=x', 'application/x-www-form-urlencoded', 'application/jsonx']) {
+    assert.equal((await req('POST', '/api/apply', auth(type ? { 'content-type': type } : {}), '{}')).status, 415, String(type));
+  }
+  assert.notEqual((await req('POST', '/api/apply', auth({ 'content-type': 'Application/JSON; charset=utf-8' }), '{}')).status, 415);
 });

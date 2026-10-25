@@ -22,7 +22,7 @@ const SECRET_WORD = /^(?:\w*key|\w*token|\w*secret|\w*password|passwd|credential
 export const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
 const MASK = '(set)';
 // A masked value must never come back as an edit: the placeholder would replace the stored secret.
-const hasMask = (v) => (typeof v === 'string' ? v.includes(MASK) : v != null && typeof v === 'object' && Object.values(v).some(hasMask));
+const hasMask = (v) => (typeof v === 'string' ? v === MASK || v.includes(`"${MASK}"`) : v != null && typeof v === 'object' && Object.values(v).some(hasMask));
 
 // Masks every value whose key name suggests a secret, at any depth.
 export function maskSecrets(v, name = '') {
@@ -34,9 +34,9 @@ export function maskSecrets(v, name = '') {
 }
 
 // A diff or text with the values of secret-looking names masked ("NAME": "x", NAME = "x", inline or on a line of its own).
-const SECRET_PAIR = /("?)(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|(?:(?:Bearer|Basic)\s+)?[^\s,}\]]+)/gi;
-// A value nested deeper than 8 pairs ("a=a=a=...") is masked whole instead of exhausting the stack.
-const redactAt = (text, depth) => text.replace(SECRET_PAIR, (_, q, name, sep, value) => `${q}${name}${q}${sep}${isSecretName(name) || depth >= 8 ? `"${MASK}"` : redactAt(value, depth + 1)}`);
+const SECRET_PAIR = /("?)(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|(?:(?:Bearer|Basic)\s+)?[^\s,{[}\]][^\s,}\]]*)/gi;
+// A value nested deeper than 32 pairs ("a=a=a=...") is masked whole instead of exhausting the stack.
+const redactAt = (text, depth) => text.replace(SECRET_PAIR, (_, q, name, sep, value) => `${q}${name}${q}${sep}${isSecretName(name) || depth >= 32 ? `"${MASK}"` : redactAt(value, depth + 1)}`);
 export const redact = (text) => (text == null ? text : redactAt(text, 0));
 // Only settings files carry such pairs: a rules file that mentions API_KEY = x stays as it is.
 export const isSettingsFile = (path) => /(^|\/)(settings(\.local)?\.json|config\.toml|managed_config\.toml|\.claude\.json)$/.test(String(path));
@@ -319,9 +319,10 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const def = describeKey(agentId, k);
     const vals = valuesOf(layers, agentId, k);
     // A value holding a secret is shown masked, so it is not edited here: the text typed back would be the placeholder.
-    const masked = vals.some((x) => !same(maskSecrets(x.value, k), x.value));
+    const sets = vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) }));
+    const masked = sets.some((x, i) => !same(x.value, vals[i].value));
     const asTable = def.types?.length > 0 && def.types.every((t) => t === 'object');
-    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), value: vals[0] ? maskSecrets(vals[0].value, k) : undefined, layer: vals[0]?.layer ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) })), changed: vals.length > 0 };
+    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), value: sets[0]?.value, layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
   });
   const known = new Set([...have, ...keys, ...REFERENCE.map((r) => r.key), ...schemaKeys(agentId)]);
   result.outside = unknownKeys(agentId, layers, known);
@@ -387,6 +388,7 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
   const target = layers.find((l) => l.layer === layer);
   if (target.error) throw new Error(`${target.path} cannot be read (${target.error}): fix it first`);
   // The state of the target layer after the edits, to refuse what an agent would silently ignore: another layer's value is not this edit's fault.
+  // shortcut: a refuse rule that must read another layer sees none here; pass them with this layer replaced when one is added.
   const after = structuredClone(target.data);
   const problems = [];
   const changes = [];

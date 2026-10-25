@@ -333,8 +333,11 @@ test('masking: whole words of the name, tokens inside values, no false hits', ()
   assert.deepEqual(maskSecrets({ includeCoAuthoredBy: false, MAX_THINKING_TOKENS: '5', apiKeyHelper: 'x', ANTHROPIC_AUTH_TOKEN: 'y' }), { includeCoAuthoredBy: false, MAX_THINKING_TOKENS: '5', apiKeyHelper: '(set)', ANTHROPIC_AUTH_TOKEN: '(set)' });
   assert.equal(redact('"commit": "Co-Authored-By: Name <x>"'), '"commit": "Co-Authored-By: Name <x>"');
   assert.ok(!redact('curl -H "Authorization: Bearer abc123"').includes('abc123'));
+  assert.ok(!redact('{"a": {"token": "SEKRET"}}').includes('SEKRET'), 'a pair inside a one-line object');
+  assert.ok(!redact('{"env": {"API_KEY": "SEKRET"}, "b": [{"password": "SEKRET2"}]}').match(/SEKRET/));
+  assert.equal(redact('https://h/?a=1&b=2&c=3&d=4&e=5&f=6&g=7&h=8&i=9&j=10&k=11 -x'), 'https://h/?a=1&b=2&c=3&d=4&e=5&f=6&g=7&h=8&i=9&j=10&k=11 -x');
   assert.doesNotThrow(() => redact('a='.repeat(50000)), 'a long chain of pairs does not exhaust the stack');
-  assert.ok(!redact(`${'a='.repeat(20)}${SECRET}`).includes(SECRET), 'a chain deeper than the cap is masked whole');
+  assert.ok(!redact(`${'a='.repeat(40)}${SECRET}`).includes(SECRET), 'a chain deeper than the cap is masked whole');
   assert.ok(!maskSecrets({ hooks: { command: "export API_KEY=abc123 && run" } }).hooks.command.includes('abc123'));
 });
 
@@ -346,6 +349,7 @@ test('a row whose shown value is masked is not editable, and a masked value is n
   assert.equal(rows.env.editable, false);
   assert.equal(rows.hooks.editable, false);
   assert.equal(rows.availableModels.editable, true, 'a value without a secret stays editable');
+  assert.equal(settingsChanges(ctx, 'claude', { edits: { availableModels: ['Bash(set)'] } }).length, 1, 'text that only contains (set) is a value');
   for (const value of ['(set)', { MY_API_TOKEN: '(set)', KEEP: 'y' }, { Stop: [{ command: 'export API_KEY="(set)" && run' }] }]) {
     assert.throws(() => settingsChanges(ctx, 'claude', { edits: { env: value } }), /placeholder/);
     assert.throws(() => settingsChanges(ctx, 'claude', { edits: { hooks: value } }), /placeholder/);

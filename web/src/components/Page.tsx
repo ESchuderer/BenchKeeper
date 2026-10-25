@@ -204,7 +204,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 ))}
               </div>
               {facts.quickstart.paths.map((p, i) => (
-                <div key={p.name} id={`qs-panel-${i}`} className="qs-panel" aria-labelledby={`qs-tab-${i}`}>
+                <div key={p.name} id={`qs-panel-${i}`} className="qs-panel">
                   <Title order={3} fz="lg" mb="sm" className="qs-h">{p.name}</Title>
                   <Stack gap="md">
                     {p.steps.map((st) => <CmdRow key={st.command} cmd={st.command} note={md(st.text)} />)}

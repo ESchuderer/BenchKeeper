@@ -101,7 +101,7 @@ try {
       }
       qs.classList.add('qs-js');
       qs.querySelector('[role="tablist"]').hidden = false;
-      panels.forEach(function (p) { p.setAttribute('role', 'tabpanel'); });
+      panels.forEach(function (p, i) { p.setAttribute('role', 'tabpanel'); p.setAttribute('aria-labelledby', 'qs-tab-' + i); });
       tabs.forEach(function (t, i) {
         t.addEventListener('click', function () { pick(i); });
         t.addEventListener('keydown', function (e) {

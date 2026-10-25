@@ -1,6 +1,7 @@
 // Setup problems with a fix each; changes nothing. Values of environment variables are never read into the report.
 import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
@@ -85,11 +86,13 @@ export function projectChecks(ctx, dir) {
   return out;
 }
 
-export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now } = {}) {
+// baseline: { profile, ref } adds the drift of dir's GitHub settings and caller workflows against a repo-baseline profile (reads only).
+export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
   const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli)];
   if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
   const skillsCli = newest(ctx, 'skills', now);
   if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));
   if (dir && (tryState(dir) || exists(join(dir, '.benchkeeper')) || exists(join(dir, 'AGENTS.md')))) out.push(...projectChecks(ctx, dir));
+  if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));
   return out;
 }

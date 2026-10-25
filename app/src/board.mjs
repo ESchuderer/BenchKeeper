@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { writeAtomic } from './fsx.mjs';
 import { listProjects } from './projects.mjs';
 
-// Runs in the browser only: toString() of this function is the page script.
+// Runs in the browser only: toString() of this function is the page script. The UI tests cover it, not the unit coverage.
+/* node:coverage disable */
 function draw() {
   const D = JSON.parse(document.getElementById('data').textContent);
   const rows = D.rows, now = Date.parse(D.now);
@@ -272,6 +273,7 @@ function draw() {
   }
   render();
 }
+/* node:coverage enable */
 
 export const SCRIPT = `(${draw})();`;
 export const SCRIPT_HASH = `sha256-${createHash('sha256').update(SCRIPT).digest('base64')}`;

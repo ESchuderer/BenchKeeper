@@ -69,15 +69,20 @@ export function importPack(ctx, text, id) {
 const STOP = new Set(['the', 'a', 'an', 'or', 'and', 'of', 'to', 'in', 'for', 'with', 'has', 'adds', 'repository', 'project', 'uses', 'its', 'is', 'on']);
 const words = (t = '') => new Set(t.toLowerCase().match(/[a-z]+/g)?.filter((w) => w.length > 2 && !STOP.has(w)) ?? []);
 
-// Warnings for a project's skill list: pairs whose "pick when" texts share most words, so an agent may load the wrong one.
+// Whether two "pick when" texts share most words, so an agent may load the wrong skill.
+export function overlap(textA, textB) {
+  const a = words(textA), b = words(textB);
+  const shared = [...a].filter((w) => b.has(w)).length;
+  return shared > 0 && shared / Math.min(a.size, b.size) >= 0.5;
+}
+
+// Warnings for a project's skill list: pairs whose "pick when" texts overlap.
 export function warnings(names, lib = library()) {
   const out = [];
   const skills = lib.skills.filter((s) => names.includes(s.name));
   for (let i = 0; i < skills.length; i++) {
     for (let j = i + 1; j < skills.length; j++) {
-      const a = words(skills[i].pickWhen), b = words(skills[j].pickWhen);
-      const shared = [...a].filter((w) => b.has(w)).length;
-      if (shared && shared / Math.min(a.size, b.size) >= 0.5) out.push(`${skills[i].name} and ${skills[j].name} have overlapping descriptions`);
+      if (overlap(skills[i].pickWhen, skills[j].pickWhen)) out.push(`${skills[i].name} and ${skills[j].name} have overlapping descriptions`);
     }
   }
   return out;

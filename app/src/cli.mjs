@@ -88,6 +88,10 @@ Usage: benchkeeper <command> [options]
   record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
 
+--json (doctor, test, plan, project plan, history, projects list, packs list)
+                                    one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
+                                    level error, 2 usage or read failure; keys in app/README.md
+
 Agents: claude, codex, gemini, copilot (default: the installed ones). Packs: see plugins/benchkeeper/library/README.md.
 Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
 
@@ -99,7 +103,7 @@ const OPTIONS = {
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
-  agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
+  json: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -153,15 +157,22 @@ function show(c, out) {
   else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }
 
-export async function main(argv, { out = process.stdout, input = process.stdin, ctx = machineContext() } = {}) {
+export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
   const ask = asker(input, out);
-  try { return await command(argv, { out, ask, ctx }); } finally { ask.close(); }
+  try { return await command(argv, { out, err, ask, ctx }); } catch (e) {
+    // With --json a failure is a document too: an unknown option, an unreadable file.
+    if (!argv.includes('--json')) throw e;
+    err.write(`${e.message}\n`);
+    out.write(jsonDoc(argv.find((a) => !a.startsWith('-')) ?? 'ui', { error: redact(e.message) }));
+    return 2;
+  } finally { ask.close(); }
 }
 
-async function command(argv, { out, ask, ctx }) {
+async function command(argv, { out, err, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   const [cmd = 'ui', arg] = positionals;
   if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
+  if (o.json && cmd !== 'test') return jsonCommand({ cmd, arg, o, positionals, out, err, ctx });
   if (cmd === 'ui') {
     const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });
     out.write(`BenchKeeper UI: ${url}\nThe link works once. Ctrl+C stops the server.\n`);
@@ -188,10 +199,7 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'project') {
     const dir = resolve(positionals[2] ?? '.');
     if (o.share && o.local) { out.write('--share and --local exclude each other\n'); return 2; }
-    const pctx = projectCtx(ctx, dir);
-    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller };
-    const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
-    const plan = preview(changes);
+    const { pctx, plan, prompts, skills, warnings } = planProject(ctx, o, dir);
     if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
     for (const w of warnings) out.write(`warning: ${w}\n`);
     if (arg === 'plan') {
@@ -322,6 +330,7 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'test') {
     const checks = harnessTest(ctx, { agents: selectedAgents(ctx, o.agents), dir: arg ? resolve(arg) : undefined });
+    if (o.json) return testJson(checks, out);
     for (const c of checks) out.write(`${c.ok ? 'ok  ' : 'fail'}  ${c.name}${c.problems.map((p) => `\n      ${p}`).join('')}\n`);
     return checks.every((c) => c.ok) ? 0 : 1;
   }
@@ -354,6 +363,63 @@ async function command(argv, { out, ask, ctx }) {
   }
   out.write(`unknown command ${cmd}\n\n${HELP}\n`);
   return 2;
+}
+
+function planProject(ctx, o, dir) {
+  const pctx = projectCtx(ctx, dir);
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller };
+  const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
+  return { pctx, plan: preview(changes), prompts, skills, warnings };
+}
+
+// ---- --json: one document on stdout, logs on stderr. Exit 0 clean, 1 findings of level error, 2 usage or read failure.
+// A document never holds file contents or values of environment variables: changes list title, kind and path, not the diff.
+
+export const JSON_SCHEMA_VERSION = 1;
+const FINDING_KEYS = ['level', 'tag', 'check', 'message', 'fix', 'dir', 'file', 'line', 'scope', 'rule', 'repos'];
+const finding = (i) => Object.fromEntries(FINDING_KEYS.filter((k) => i[k] !== undefined).map((k) => [k, i[k]]));
+const changeDoc = (c) => ({ id: c.id, step: c.step, title: c.title, kind: c.kind, destructive: !!c.destructive, optional: !!c.optional, selected: !!c.selected, ...(c.path ? { path: c.path } : {}), ...(c.argv ? { argv: c.argv } : {}), ...(c.error ? { error: redact(c.error) } : {}) });
+const jsonDoc = (command, doc) => `${JSON.stringify({ schemaVersion: JSON_SCHEMA_VERSION, command, ...doc }, null, 2)}\n`;
+function testJson(checks, out) {
+  const ok = checks.every((c) => c.ok);
+  out.write(jsonDoc('test', { ok, checks: checks.map((c) => ({ name: c.name, ok: c.ok, problems: c.problems })) }));
+  return ok ? 0 : 1;
+}
+const count = (list, level) => list.filter((i) => i.level === level).length;
+
+async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
+  const name = ['project', 'projects', 'packs'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd;
+  const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
+  const fail = (message) => { err.write(`${message}\n`); return emit({ error: redact(message) }, 2); };
+  if (cmd === 'doctor') {
+    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) return fail(`--baseline must be auto, ${PROFILES.join(' or ')}`);
+    const agents = selectedAgents(ctx, o.agents), dir = resolve(arg ?? '.');
+    const { level, adds } = detectLevel(ctx, agents, dir);
+    const found = doctor(ctx, { agents, dir, baseline: o.baseline && { profile: o.baseline, ref: o['baseline-ref'] } });
+    return emit({ level: level ?? null, adds: adds ?? null, findings: found.map(finding), summary: { error: count(found, 'error'), warning: count(found, 'warning'), info: count(found, 'info') } }, count(found, 'error') ? 1 : 0);
+  }
+  if (cmd === 'plan') {
+    const agents = selectedAgents(ctx, o.agents);
+    if (!agents.length) return fail('no agent found (claude, codex, gemini, copilot); the app installs none');
+    if (o.level !== undefined && !LEVELS.includes(o.level)) return fail(`--level must be one of ${LEVELS.join(', ')}`);
+    const level = o.level ?? detectLevel(ctx, agents, process.cwd()).level ?? 'full';
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
+    return emit({ agents, level, changes: plan.map(changeDoc) }, plan.some((c) => c.error) ? 1 : 0);
+  }
+  if (cmd === 'project') {
+    if (arg !== 'plan') return fail('--json works with project plan');
+    if (o.share && o.local) return fail('--share and --local exclude each other');
+    const dir = resolve(positionals[2] ?? '.');
+    const { plan, skills, warnings } = planProject(ctx, o, dir);
+    return emit({ dir, changes: plan.map(changeDoc), skills, warnings }, plan.some((c) => c.error) ? 1 : 0);
+  }
+  if (cmd === 'history') {
+    const runs = ctx.ledger.list().map((r) => ({ id: r.id, kind: r.kind, status: r.status ?? 'interrupted', scope: r.scope, time: r.time, changes: r.entries.length, ...(r.of ? { of: r.of } : {}), ...(r.note?.case ? { evalCase: r.note.case, target: r.note.target } : {}) }));
+    return emit({ runs, backups: legacyBackups(ctx) });
+  }
+  if (cmd === 'projects' && (!arg || arg === 'list')) return emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
+  if (cmd === 'packs' && (!arg || arg === 'list')) return emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
+  return fail('--json works with doctor, test, plan, project plan, history, projects list and packs list');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

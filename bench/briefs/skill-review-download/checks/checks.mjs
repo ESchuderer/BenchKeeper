@@ -6,12 +6,13 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const SECRET = 'do-not-serve-7f3a';
 
 async function serve(t) {
-  const dir = mkdtempSync('/tmp/att-');
+  const dir = mkdtempSync(join(tmpdir(), 'att-'));
   for (const d of ['attachments', 'attachments-old', 'attachments/sub']) mkdirSync(join(dir, d));
   writeFileSync(join(dir, 'secret.txt'), SECRET);
   writeFileSync(join(dir, 'attachments-old', 'old.txt'), SECRET);

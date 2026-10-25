@@ -4,11 +4,13 @@
 // (S1-persist).
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const T0 = 1_000_000_000;
-const file = () => join(mkdtempSync('/tmp/kv-'), 'store.json');
-const store = async (t, f = file(), clock = { t: T0 }) => ({ s: (await t.load('src/store.js')).openStore(f, { now: () => clock.t }), f, clock });
+const file = () => join(mkdtempSync(join(tmpdir(), 'kv-')), 'store.json');
+const newClock = () => ({ t: T0 });
+const store = async (t, f = file(), clock = newClock()) => ({ s: (await t.load('src/store.js')).openStore(f, { now: () => clock.t }), f, clock });
 
 export default {
   'S1-ttl': async (t) => {

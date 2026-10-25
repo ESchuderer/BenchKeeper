@@ -1,6 +1,6 @@
 {
   "name": "benchkeeper",
-  "version": "6.10.0",
+  "version": "6.11.0",
   "description": "Task kind and tier with their checks (software change, docs pass, research), plus project setup and repository maintenance skills. Uses Matt Pocock's skills and Ponytail when installed.",
   "author": { "name": "ESchuderer", "url": "https://github.com/ESchuderer" },
   "homepage": "https://eschuderer.github.io/BenchKeeper/",

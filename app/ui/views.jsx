@@ -578,7 +578,7 @@ export function Projects({ params, overview, refresh }) {
         </Group>
       </form>
       {error && <Note color="red" title="Failed">{error}</Note>}
-      <AddNotices {...notices} onAddWorktree={() => addTyped(true)()} onDismiss={() => setNotices({})} />
+      <AddNotices {...notices} onAddWorktree={act('add', async () => { if (await add(notices.worktree.path, true)) reload(); })} onDismiss={() => setNotices({})} />
       {found && (
         <Section title="Found projects">
           {found.length ? (

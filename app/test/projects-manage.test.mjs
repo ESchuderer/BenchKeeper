@@ -97,6 +97,8 @@ test('relocate: the entry, its answers and the history follow the folder; undo o
   addProject(ctx, p.dir);
   renameProject(ctx, p.dir, { name: 'Shop', notes: 'n' });
   const first = ctx.ledger.list().find((r) => r.scope === p.dir);
+  // An Update all run has a worktree as its scope and names the project in its note.
+  ctx.ledger.save({ schema: 1, id: 'pr-run', time: new Date().toISOString(), kind: 'apply', scope: '/tmp/some-worktree', note: { updateAll: p.dir, branch: 'b' }, entries: [] });
   const moved = join(mkdtempSync(join(TMP, 'bk-moved-')), 'renamed');
   renameSync(p.dir, moved);
   assert.equal(status(ctx, p.dir).missing, true);
@@ -115,6 +117,7 @@ test('relocate: the entry, its answers and the history follow the folder; undo o
   // The run is under the new path, its backups stay where they were, and undo works in the new place.
   const run = ctx.ledger.get(first.id);
   assert.equal(run.scope, moved);
+  assert.deepEqual(ctx.ledger.get('pr-run').note, { updateAll: moved, branch: 'b' });
   assert.ok(run.entries.every((e) => !e.path || e.path.startsWith(moved)));
   assert.ok(run.entries.filter((e) => e.backup).every((e) => e.backup.startsWith(ctx.config)));
   assert.equal(undo(first.id, projectCtx(ctx, moved)).status, 'done');

@@ -9,13 +9,13 @@ on:
         description: Version to publish, equal to app/package.json
         required: true
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   publish:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write

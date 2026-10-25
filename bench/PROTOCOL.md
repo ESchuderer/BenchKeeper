@@ -1,6 +1,6 @@
 # Benchmark protocol
 
-> The run machinery and raw run data described here (briefs, scorer, arm definitions, run scripts, transcripts, app archives, screenshots) were removed in [#256](https://github.com/ESchuderer/BenchKeeper/issues/256) and are no longer in the working tree. Paths below name files of the last commit that had them, 9c243d2, until the history purge of #256 removes them from the repository. The written results stay in `bench/results`.
+> The run machinery and raw run data described here (briefs, scorer, arm definitions, run scripts, transcripts, app archives, screenshots) were removed in [#256](https://github.com/ESchuderer/BenchKeeper/issues/256) and are no longer in the working tree. Paths below name files of the last release that had them, setup-v6.8, until the history purge of #256 removes them from the repository. The written results stay in `bench/results`.
 
 Version 1.23, 2026-10-21
 
@@ -79,7 +79,7 @@ Owner decision 2026-10-14: each skill framework runs alone, with OpenSpec, with 
 BenchKeeper layer versions:
 
 - v1 (every published run):
-  - Rules. agent-skills arms: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` at `7e17860`. Superpowers, ECC and Matt Pocock's skills arms: `bench/arms/superpowers.rules.md`, `ecc.rules.md` and `mattpocock.rules.md`, the same rules with the SDLC and the lines naming agent-skills mapped to the framework's own skills and agents (from `bench/arms/superpowers.md`, `ecc.md` and `mattpocock.md`).
+  - Rules. agent-skills arms: `bench/arms/bk-rules.md`, the pinned copy of `rules/global.md` of 2026-10-14, before the first setup tag. Superpowers, ECC and Matt Pocock's skills arms: `bench/arms/superpowers.rules.md`, `ecc.rules.md` and `mattpocock.rules.md`, the same rules with the SDLC and the lines naming agent-skills mapped to the framework's own skills and agents (from `bench/arms/superpowers.md`, `ecc.md` and `mattpocock.md`).
   - The candidate rules `bench/arms/candidate.rules.md`, Ponytail v5.2.0 `full`, find-skills (vercel-labs/skills v1.7.2), the BenchKeeper skills `project-setup` and `global-setup`, Playwright MCP 0.0.83 with Chromium inside the container.
   - A project set up by `/project-setup` (`bench/arms/project-setup/`): `AGENTS.md`, `CLAUDE.md` with `@AGENTS.md`, devcontainer config, the `playwright-best-practices` skill at commit `283d5cb`, the MCP server approved for the project. With OpenSpec also `openspec init --tools claude` and the convention line in `AGENTS.md`.
 - v2 (`bench/arms/bk-v2/`, not run yet): the rules and `sdlc` skill of setup-v2.2, built with `--build-arg BK=v2` for the agent-skills arms L and C.

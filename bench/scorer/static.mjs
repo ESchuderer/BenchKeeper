@@ -1,9 +1,10 @@
 // Static file server for briefs scored with "serve": "static" (brief.json). Usage: node static.mjs <dir>; port from PORT.
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 
 const root = resolve(process.argv[2]);
+const realRoot = await realpath(root);
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
@@ -15,7 +16,9 @@ createServer(async (req, res) => {
     if (p.endsWith('/')) p += 'index.html';
     const file = join(root, p);
     if (!file.startsWith(root + sep)) throw new Error('outside the root');
-    const body = await readFile(file);
+    const real = await realpath(file);
+    if (!real.startsWith(realRoot + sep)) throw new Error('outside the root');
+    const body = await readFile(real);
     res.writeHead(200, { 'content-type': TYPES[extname(p)] || 'application/octet-stream' });
     res.end(body);
   } catch {

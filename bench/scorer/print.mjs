@@ -3,7 +3,7 @@
 // Drawing locator and page count as in bench/briefs/cartridges/hidden/acceptance.spec.mjs. Needs Chromium (Playwright image).
 // Usage: node bench/scorer/print.mjs <app-dir> <brief.md> [rendered-detail.html]   prints JSON; the app is served on localhost
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
@@ -16,13 +16,16 @@ export const cartridgeNames = (brief) => readFileSync(brief, 'utf8').split('\n')
 
 export function serve(dir) {
   const root = resolve(dir);
+  const realRoot = realpathSync(root);
   const server = createServer((req, res) => {
     try {
       let p = normalize(decodeURIComponent(new URL(req.url, 'https://localhost').pathname));
       if (p.endsWith('/')) p += 'index.html';
       const file = join(root, p);
       if (!file.startsWith(root + sep)) throw new Error('outside the root');
-      const body = readFileSync(file);
+      const real = realpathSync(file);
+      if (!real.startsWith(realRoot + sep)) throw new Error('outside the root');
+      const body = readFileSync(real);
       res.writeHead(200, { 'content-type': MIME[extname(p)] || 'application/octet-stream' }).end(body);
     } catch { res.writeHead(404).end(); }
   });

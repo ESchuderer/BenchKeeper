@@ -439,9 +439,11 @@ test('byCode orders like the default sort: by code unit, uppercase before lowerc
   assert.deepEqual([...names].sort(byCode), [...names].sort());
 });
 
-test('commandText drops heredoc bodies and written file names, and keeps an unterminated heredoc', () => {
-  assert.equal(commandText('cat > a.txt <<EOF\nnpm test\n  EOF\nnpm run lint'), 'cat  <<EOF\nnpm run lint');
+test('commandText drops heredoc bodies and written file names, and ends an unterminated heredoc at the end', () => {
+  assert.equal(commandText('cat > a.txt <<EOF\nnpm test\nEOF\nnpm run lint'), 'cat  <<EOF\nnpm run lint');
   assert.equal(commandText("cat <<-'X'\nbody\nX"), "cat <<-'X'");
-  assert.equal(commandText('cat <<EOF\nnpm test\nno terminator'), 'cat <<EOF\nnpm test\nno terminator');
+  assert.equal(commandText('cat <<-EOF\n\tnpm test\n\tEOF\nnpm run lint'), 'cat <<-EOF\nnpm run lint');
+  assert.equal(commandText('cat <<EOF\nnpm test\n  EOF\nnpm run lint'), 'cat <<EOF');
+  assert.equal(commandText('cat <<EOF\nnpm test\nno terminator'), 'cat <<EOF');
   assert.equal(commandText('echo hi | tee -a out.log && pip install pytest'), 'echo hi |  && pip install');
 });

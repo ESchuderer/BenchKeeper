@@ -24,14 +24,11 @@ export function shellWriteTarget(command) {
     || /(?:^|[;&|]\s*)tee\s+(?:-a\s+)?['"]?([^\s'"<>;&|]+)/.exec(c)?.[1] || null;
 }
 
-const isBlank = (c) => c === ' ' || c === '\t';
-const trimBlanks = (line) => { let a = 0, b = line.length; while (a < b && isBlank(line[a])) a++; while (b > a && isBlank(line[b - 1])) b--; return line.slice(a, b); };
-
-// Heredoc bodies and their terminator line are file contents; only the `<<DELIM` header stays. A line scan instead of one
-// regex with a lazy body. shortcut: a header without a terminator still reads to the end of the command, so many of them
-// cost headers times length; commands are short, add a memo if that changes.
+// Heredoc bodies and their terminator line are file contents; only the `<<DELIM` header stays. As in the shell, `<<` ends
+// at a line equal to the delimiter, `<<-` also after leading tabs; a header without a terminator swallows the rest of the
+// command. A line scan instead of one regex with a lazy body.
 function withoutHeredocBodies(text) {
-  const header = /<<-?[ \t]*\\?(['"]?)([\w.-]+)\1[^\n]*/g;
+  const header = /<<(-?)[ \t]*\\?(['"]?)([\w.-]+)\2[^\n]*/g;
   let out = '', pos = 0, m;
   while ((m = header.exec(text))) {
     const bodyStart = m.index + m[0].length;
@@ -40,11 +37,12 @@ function withoutHeredocBodies(text) {
     for (let s = bodyStart + 1; s <= text.length && end < 0;) {
       const nl = text.indexOf('\n', s);
       const e = nl < 0 ? text.length : nl;
-      if (trimBlanks(text.slice(s, e)) === m[2]) end = e;
+      const line = text.slice(s, e);
+      if ((m[1] ? line.replace(/^\t+/, '') : line) === m[3]) end = e;
       s = e + 1;
     }
-    if (end < 0) continue;
     out += text.slice(pos, bodyStart);
+    if (end < 0) return out;
     pos = header.lastIndex = end;
   }
   return out + text.slice(pos);

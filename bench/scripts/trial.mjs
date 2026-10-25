@@ -82,6 +82,12 @@ const claudeUses = (events) => events.filter((e) => e.type === 'assistant').flat
   .filter((c) => c.type === 'tool_use').map((c) => ({ name: c.name, input: c.input || {}, sub: Boolean(e.parent_tool_use_id) })));
 
 // uses: [{ name, input: { file_path, skill, subagent_type, command }, sub }]; OpenCode trials pass theirs (opencode.mjs).
+// The tier word of a `Tier: quick` line (only non-word characters before `Tier`), else undefined. Anchored matches on one line.
+const tierOf = (line) => {
+  const t = /tier/i.exec(line);
+  return t && /^\W*$/.test(line.slice(0, t.index)) ? /^[^\w:]*:\W*(\w+)/.exec(line.slice(t.index + 4))?.[1].toLowerCase() : undefined;
+};
+
 export function workflow(events, uses = claudeUses(events)) {
   // Files written by edit tools or by shell commands (`cat > f <<EOF`, which OpenCode agents use often).
   const targets = uses.map((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) ? String(u.input.file_path || '')
@@ -107,7 +113,7 @@ export function workflow(events, uses = claudeUses(events)) {
   const last = uses.at(-1);
   // Tier lines the agent wrote (`Tier: quick`), from the main thread's text.
   const tiers = events.filter((e) => e.type === 'assistant' && !e.parent_tool_use_id).flatMap((e) => (e.message?.content || [])
-    .filter((c) => c.type === 'text').flatMap((c) => [...(c.text || '').matchAll(/^[^\w\n]*Tier[^\w\n:]*:[^\w\n]*(\w+)/gim)].map((m) => m[1].toLowerCase())));
+    .filter((c) => c.type === 'text').flatMap((c) => (c.text || '').split('\n').map(tierOf).filter(Boolean)));
   return {
     tool_calls: uses.length,
     subagent_tool_calls: uses.filter((u) => u.sub).length,

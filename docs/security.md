@@ -82,7 +82,7 @@ A test name refers to the file named in the same row.
 | Ids that become file names are plain: run id, pack id, eval target and case id, skill name | `Ledger.get`, `ownPacks` and `validate` in `packs.mjs`, `readSet` in `cases.mjs`, `SKILL_NAME` in `steps/project.mjs` | `security.test.mjs` "a pack file whose id is not a plain id", "an eval set with a target or case id that is a path"; `packs.test.mjs` "pack files name library skills only"; `project.test.mjs` skill-name test |
 | Folder arguments are registered projects | `server.mjs` routes | `server.test.mjs` "reveal opens registered projects only", "scan needs an absolute root" |
 | An empty `BENCHKEEPER_HOME` is not the working directory | `machineContext` | `security.test.mjs` "an empty BENCHKEEPER_HOME" |
-| Any folder can be registered as a project | none | open: [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) |
+| The root of a drive, the home folder, a parent of it and the config folder are no project (registration, a profile import, `projectCtx`, the scope of an undo); the server takes absolute paths only | `unfit` in `roots.mjs`, `addProject`, `projectCtx`, `scopeCtx` in `steps/project.mjs` | `bounds.test.mjs` "the root of a drive, the home folder ...", "a profile import registers no home folder", "undo takes the scope of a run ..." |
 | A command's own writes are not confined | none (snapshots cover declared paths); the preview runs with a scratch `HOME` and the machine's context home, not the real one, and refuses a seeded folder over 5000 files or 64 MB (links followed) | `prerun.test.mjs` "no credentials reach the command, the home is the context home, and a link loop is refused unrun"; open: [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) |
 
 ### Commands and argv
@@ -101,7 +101,10 @@ A test name refers to the file named in the same row.
 | `record` runs the command the user typed with the full environment and no confinement | none, by design: the user chooses the command and the agent needs its own login | none |
 | A preview runs the skills CLI in a scratch folder and so downloads and runs third-party code: it starts on a click, never when a plan loads | `usePrerun` in `ui/parts.jsx`; the server rehearses only on `POST /api/prerun` | `ui.spec.mjs` "Fix everything walks through" (no file diff before the click) |
 | PR URLs are matched before `gh pr view` | `sessions.mjs` | `sessions.test.mjs` "PR states" |
-| Read-only git commands run under the repository's own config | none | open: [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) |
+| A `.git` file that points at another repository does not make that repository's `info/exclude` a write root (a worktree's gitdir file or a submodule's `core.worktree` must point back at the project) | `redirectedElsewhere` in `steps/project.mjs` | `bounds.test.mjs` "a .git file that points at another repository ..." |
+| `core.fsmonitor` (a command the repository's config names) never runs for the git calls of the app; filter drivers still run for paths whose attributes name them, as in the user's own git (git-lfs needs them), and so does the rest of the repository's config on push and commit | `git` in `git.mjs` (`-c core.fsmonitor=false`) | `bounds.test.mjs` "a repository that names a core.fsmonitor command ..." |
+| `-c` settings of an outer git command (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT` with its pairs) are dropped when a repository variable shows the app runs from a hook; a container's own pairs pass | `repoEnv` in `git.mjs` | `bounds.test.mjs` "the -c settings of an outer git command ..." |
+| A branch name that git allows (`@`, `+` inside, non-ASCII) is taken; option and refspec syntax is not | `safeBranch` in `git.mjs` | `bounds.test.mjs` "safeBranch takes the names git allows ..." |
 | Plugin ids, marketplace names and MCP server names read from agent files must match `^[A-Za-z0-9][\w.@:-]*$` before they become an argument or a path; others are skipped | `SAFE_NAME` in `steps/global.mjs` | `global.test.mjs` "names from agent files that start with a dash" |
 
 ### Local server
@@ -182,7 +185,10 @@ A test name refers to the file named in the same row.
 | One run at a time per config folder, across processes; a dead process's lock is taken over | `Ledger.lock` | `security.test.mjs` "a second run is refused while another process holds the lock" |
 | Changes of one unit go together; a cancel finishes its unit | `applySteps` | `engine.test.mjs` "changes of one unit go together" |
 | Run ids do not repeat | `runId` | `security.test.mjs` "run ids do not repeat in one second" |
-| Undo trusts the ledger file; synchronous git and gh calls have no timeout | none | open: [#205](https://github.com/ESchuderer/BenchKeeper/issues/205), [#202](https://github.com/ESchuderer/BenchKeeper/issues/202) |
+| Undo runs only the plugin and marketplace commands plans produce (`undoable`), in a folder below the home or a root, with a time limit; it restores only from backups in this config folder and takes the scope from a folder that could be a project. Someone who writes the ledger can still make undo restore files inside those roots (same user, out of scope beyond this) | `undoable`, `stored` and `undoRun` in `runner.mjs`, `scopeCtx` | `bounds.test.mjs` "undo runs the plugin commands plans produce ...", "undo restores from backups inside this config folder only" |
+| A failed snapshot command's undo keeps a later hand edit; overlapping snapshot paths and an undo that failed midway can be undone (a file never reached is left alone) | `undoRun` | `bounds.test.mjs` "undo of a failed snapshot command ...", "an undo of overlapping snapshot paths ...", "an undo that fails midway ..." |
+| `doctor` names files changed or back outside the ledger (also restore entries), unfinished runs, unreadable run files and invalid pack files; `restore` and `apply --all` list what they write or remove and ask first | `integrity` in `integrity.mjs`, `choose` in `cli.mjs` | `bounds.test.mjs` "doctor names an edited file ...", "apply --all names the removals ..." |
+| The lock is taken over from a dead run under a guard file, and a reused pid does not keep it | `Ledger.lock` | `bounds.test.mjs` "a dead lock is taken over under a guard ..." |
 
 ### Destructive actions and Update all
 
@@ -193,14 +199,19 @@ A test name refers to the file named in the same row.
 | The branch holds only commits the app made (by id from the ledger); a diverged remote branch is an error, never a force push | `viaPullRequest` | `projects.test.mjs` "Update all adds to its own unmerged branch, refuses an amended commit" |
 | Push and pull request only for a github.com origin; `--no-push` is respected | `githubRemote` | `projects.test.mjs` "a GitHub origin gets a push and a pull request", "update-all ... --no-push"; `security.test.mjs` "only a github.com origin" |
 | An Update all commit run is not undone locally | `undoRun` | `projects.test.mjs` (a local undo of an Update all run is refused) |
+| A failed fetch of origin stops a pushed Update all (the local default branch may hold unpushed commits); `--no-push` still starts at the local branch | `viaPullRequest` | `bounds.test.mjs` "a failed fetch never starts a pushed branch ..." |
+| At most 25 repositories with a GitHub origin per pushed run (`--max N`, the server's `max`; `projects unshare` too); `--dry-run` (the server's `dryRun`) lists the plan and changes nothing | `updateAll` (`MAX_PROJECTS`), `update-all` in `cli.mjs`, `POST /api/update-all` | `bounds.test.mjs` "Update all pushes to a bounded number ...", "update-all --dry-run ..." |
+| git push, ls-remote, commit, worktree add and `gh pr create` run with a time limit, and the network calls without a password or passphrase prompt; the synchronous undo command has one too | `LOCAL`, `NET` and `quiet` in `projects.mjs`, `runCommand` (`SIGKILL` on timeout) | `bounds.test.mjs` "git push, ls-remote, commit, worktree add and gh pr create run with a time limit ..." |
+| Only the app's own stale worktree record is removed, never `git worktree prune` on the user's repository; a project in a subfolder of a repository stops | `viaPullRequest` | `bounds.test.mjs` "Update all clears only its own stale worktree record ...", "... a project in a subfolder stops" |
+| Removals the setup preselects are files whose whole content is BenchKeeper's (its block alone, an import-only `CLAUDE.md`, an `AGENTS.override.md` as written); text added by hand makes the removal an offer | `projectPlan` in `steps/project.mjs` | `bounds.test.mjs` "a hand-edited AGENTS.override.md is offered ..." |
 | Remove BenchKeeper setup changes only files the setup wrote (the recorded skills, BenchKeeper's blocks and files, the state folder), inside the project roots, as one run that undo restores byte for byte; a shared setup becomes a pull request | `localSetup` and `committedSetup` in `steps/project.mjs`, `removeSetup` in `projects.mjs` | `projects-manage.test.mjs` "Remove BenchKeeper setup, local", "keeps a hand-written CLAUDE.local.md", "shared" |
 | A project's display name and notes are bounded text without control characters and are kept in `projects.json` only; Relocate rewrites the history of that folder under the run lock | `renameProject`, `relocateProject` in `projects.mjs`, `Ledger.relocate` | `projects-manage.test.mjs` "display name and notes", "relocate" |
-| Update all can publish unpushed local commits when the fetch fails; no repository cap, no dry run | none | open: [#202](https://github.com/ESchuderer/BenchKeeper/issues/202) |
-| Removal changes that identify their own files by content are preselected although marked destructive | none | open: [#206](https://github.com/ESchuderer/BenchKeeper/issues/206) |
 
 ## Open
 
-[#202](https://github.com/ESchuderer/BenchKeeper/issues/202) Update all bounds, [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) hostile repositories and registration, [#205](https://github.com/ESchuderer/BenchKeeper/issues/205) ledger trust, doctor check, dry-run default, [#206](https://github.com/ESchuderer/BenchKeeper/issues/206) low-severity findings.
+[#206](https://github.com/ESchuderer/BenchKeeper/issues/206) what is left of the low-severity findings: `claude mcp remove` and `codex mcp remove` have no undo (a snapshot of `.claude.json` would copy credentials into the backup), a run killed with SIGKILL leaves its child process groups running while the ledger says `running`, undo copies onto the path instead of a temporary file and a rename, a session undo covers neither commits, branch switches nor ignored files, and session snapshots are unreferenced trees that `git gc` removes after about two weeks (undo then fails loudly).
+
+Not changed on purpose: `POST /api/scan` still walks any absolute root (read only, three levels, it lists folders with an agent setup), a repository's filter drivers and its config on push and commit are the user's own git behavior, and the server's Update all has no plan token (the cap, `dryRun` and the UI's own confirmation bound it).
 
 ## Keeping this current
 

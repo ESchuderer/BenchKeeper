@@ -8,6 +8,10 @@ export const SCHEMA = 1;
 
 const held = new Map();
 const alive = (pid) => { if (!Number.isInteger(pid) || pid < 1) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+// Start time of a process (Linux: field 22 of /proc/<pid>/stat), undefined where the OS does not tell.
+const startOf = (pid) => { try { return readFileSync(`/proc/${pid}/stat`, 'utf8').replace(/^.*\) /, '').split(' ')[19]; } catch { return undefined; } };
+// The process that wrote a lock still runs: its pid is alive and, where both are known, started when the lock says.
+const holds = ({ pid, start }) => alive(pid) && !(start && startOf(pid) && startOf(pid) !== start);
 
 export function runId(now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
@@ -54,27 +58,35 @@ export class Ledger {
     writeAtomic(join(this.dir, `${run.id}.json`), `${JSON.stringify(run, null, 2)}\n`, 0o600);
   }
 
-  // One run at a time on this config folder, also across processes: a lock file with the pid of the run. A second run
-  // in the same process goes on (Update all applies many times); the lock of a dead process is taken over.
-  // shortcut: a reused pid keeps a dead run's lock alive, and two processes that reclaim one stale lock at the same
-  // instant can both pass (the window is the gap between the compare and the rmSync): delete <config>/lock then.
+  // One run at a time on this config folder, also across processes: a lock file with the pid (and start time, where the OS
+  // tells it: a reused pid is not the dead run) of the run. A second run in the same process goes on (Update all applies
+  // many times). The lock of a dead process is taken over under a second file made with wx, so two processes that find the
+  // same dead lock cannot both remove it: the one that holds the guard compares the lock with what it examined before removing.
+  // shortcut: a takeover guard left by a crash is removed after 5 s by the next run (check-then-remove on that file only).
   lock() {
-    const file = join(dirname(this.dir), 'lock');
+    const file = join(dirname(this.dir), 'lock'), guard = `${file}.takeover`;
     const release = () => { const n = held.get(file) - 1; if (n > 0) held.set(file, n); else { held.delete(file); rmSync(file, { force: true }); } };
     if (held.has(file)) { held.set(file, held.get(file) + 1); return release; }
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    const busy = (pid) => new Error(`another BenchKeeper run is in progress${pid ? ` (process ${pid})` : ''}: wait until it ends`);
     for (;;) {
-      try { writeFileSync(file, JSON.stringify({ pid: process.pid }), { flag: 'wx', mode: 0o600 }); break; } catch (e) {
+      try { writeFileSync(file, JSON.stringify({ pid: process.pid, start: startOf(process.pid) }), { flag: 'wx', mode: 0o600 }); break; } catch (e) {
         if (e.code !== 'EEXIST') throw e;
         let text;
         try { text = readFileSync(file, 'utf8'); } catch (r) { if (r.code === 'ENOENT') continue; throw r; } // released just now: take it
-        let pid;
-        try { pid = JSON.parse(text).pid; } catch { /* being written right now, or torn */ }
+        let holder = {};
+        try { holder = JSON.parse(text) ?? {}; } catch { /* being written right now, or torn */ }
         const fresh = Date.now() - (statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0) < 5000;
         // Not held here (held is empty), so this process's own pid names a lock an earlier process with that pid left.
-        if ((pid !== process.pid && alive(pid)) || (!pid && fresh)) throw new Error(`another BenchKeeper run is in progress${pid ? ` (process ${pid})` : ''}: wait until it ends`);
+        if ((holder.pid !== process.pid && holds(holder)) || (!holder.pid && fresh)) throw busy(holder.pid);
+        try { writeFileSync(guard, String(process.pid), { flag: 'wx', mode: 0o600 }); } catch (g) {
+          if (g.code !== 'EEXIST') throw g;
+          if (Date.now() - (statSync(guard, { throwIfNoEntry: false })?.mtimeMs ?? Date.now()) < 5000) throw busy();
+          rmSync(guard, { force: true });
+          continue;
+        }
         // Only the lock just examined goes: another process that took it over meanwhile keeps it.
-        if (readText(file) === text) rmSync(file, { force: true });
+        try { if (readText(file) === text) rmSync(file, { force: true }); } finally { rmSync(guard, { force: true }); }
       }
     }
     held.set(file, 1);
@@ -85,7 +97,8 @@ export class Ledger {
     if (typeof id !== 'string' || !/^[\w-]+$/.test(id)) throw Object.assign(new Error(`bad run id: ${id}`), { status: 400 });
     try { return JSON.parse(readFileSync(join(this.dir, `${id}.json`), 'utf8')); } catch (e) {
       if (e.code === 'ENOENT') throw Object.assign(new Error(`no run ${id}`), { status: 404 });
-      throw e;
+      // Never the raw parser error: it names no run and, in the server, reads like a crash.
+      throw Object.assign(new Error(`the ledger file of run ${id} is unreadable (${e instanceof SyntaxError ? 'not valid JSON' : e.code ?? 'read error'}): move it out of ${this.dir}`), { status: 500 });
     }
   }
 
@@ -100,6 +113,13 @@ export class Ledger {
     }).filter((r) => r?.schema === SCHEMA);
     this.cache = { gen, count: names.length, runs };
     return runs;
+  }
+
+  // Names of run files that do not parse: list() leaves them out, so doctor names them.
+  broken() {
+    let names = [];
+    try { names = readdirSync(this.dir).filter((n) => n.endsWith('.json')); } catch { return []; }
+    return names.filter((n) => { try { const v = JSON.parse(readFileSync(join(this.dir, n), 'utf8')); return v === null || typeof v !== 'object' || Array.isArray(v); } catch { return true; } }).sort();
   }
 
   // A moved project folder: the runs of that scope (and the Update all and removal runs, whose scope is a worktree and

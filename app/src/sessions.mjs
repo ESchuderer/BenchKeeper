@@ -41,8 +41,8 @@ async function claudeFile(file) {
     if (e.type === 'cost-state') d.cost = { usd: e.totalCostUSD, busy: (e.totalAPIDuration ?? 0) + (e.totalToolDuration ?? 0), models: e.modelUsage ?? {} };
     else if (e.type === 'ai-title') d.title = e.aiTitle;
     else if (e.type === 'agent-name') d.title ??= e.agentName;
-    else if (e.type === 'pr-link' && e.prUrl) d.prs.add(e.prUrl);
-    else if (e.type === 'attachment' && e.attachment?.type === 'skill_listing' && Array.isArray(e.attachment.names)) d.installed = e.attachment.names;
+    else if (e.type === 'pr-link' && typeof e.prUrl === 'string') d.prs.add(e.prUrl);
+    else if (e.type === 'attachment' && e.attachment?.type === 'skill_listing' && Array.isArray(e.attachment.names)) d.installed = e.attachment.names.filter((n) => typeof n === 'string');
     // A prompt typed while the agent works arrives as a queued command.
     else if (e.type === 'attachment' && e.attachment?.humanTurn === true) d.turns++;
     else if (e.type === 'assistant') {

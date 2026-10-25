@@ -181,17 +181,17 @@ test('writes outside the roots are refused, also through a link', () => {
 
 test('failed commands skip the rest of their step; command undo runs its undo argv', () => {
   const calls = [];
-  const c = context({ home: home(), run: (argv) => { calls.push(argv.join(' ')); return { code: argv[1] === 'bad' ? 1 : 0, stdout: '', stderr: 'boom' }; } });
+  const c = context({ home: home(), run: (argv) => { calls.push(argv.join(' ')); return { code: argv.includes('bad') ? 1 : 0, stdout: '', stderr: 'boom' }; } });
   const run = apply([
-    { id: '1', step: 'p', title: 'bad', kind: 'command', argv: ['x', 'bad'] },
-    { id: '2', step: 'p', title: 'after', kind: 'command', argv: ['x', 'after'] },
-    { id: '3', step: 'q', title: 'ok', kind: 'command', argv: ['x', 'install'], undoArgv: ['x', 'uninstall'] },
-    { id: '4', step: 'q', title: 'no undo', kind: 'command', argv: ['x', 'add'] },
+    { id: '1', step: 'p', title: 'bad', kind: 'command', argv: ['claude', 'plugin', 'install', 'bad'] },
+    { id: '2', step: 'p', title: 'after', kind: 'command', argv: ['claude', 'plugin', 'install', 'after'] },
+    { id: '3', step: 'q', title: 'ok', kind: 'command', argv: ['claude', 'plugin', 'install', 'ok'], undoArgv: ['claude', 'plugin', 'uninstall', 'ok'] },
+    { id: '4', step: 'q', title: 'no undo', kind: 'command', argv: ['claude', 'plugin', 'install', 'add'] },
   ], c);
   assert.deepEqual(run.entries.map((e) => e.status), ['failed', 'skipped', 'done', 'done']);
   const u = undo(run.id, c);
   assert.deepEqual(u.entries.map((e) => e.status), ['manual', 'done']);
-  assert.ok(calls.includes('x uninstall'));
+  assert.ok(calls.includes('claude plugin uninstall ok'));
 });
 
 test('a cancel finishes the unit it lands in, then skips the rest', () => {

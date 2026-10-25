@@ -6,10 +6,11 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
-import { exists, listFiles, readText } from '../fsx.mjs';
+import { exists, isLink, listFiles, readText, realish } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
+import { unfit } from '../roots.mjs';
 import { PLUGINS, SKILLS_SPEC, SKILLS_VERIFY, marketRef } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
@@ -176,15 +177,42 @@ export const tracksState = (ctx, dir) => git(ctx, dir, ['ls-files', '--', STATE]
 // A project run writes inside the project, plus the git exclude list, which a linked worktree or a project in a
 // subfolder keeps outside it. Never into the project's own .git (hooks, config): a committed link must not aim a write there.
 export function projectCtx(ctx, dir) {
+  // Not for a folder that would make the whole home a write root (a ledger file or a typed path may name one).
+  const why = unfit(ctx, dir);
+  if (why) throw new Error(`${resolve(dir)} is ${why}: a project is its own folder`);
   const exclude = excludeFile(ctx, dir);
   return { ...ctx, roots: [resolve(dir), ...(exclude ? [exclude] : [])], deny: [resolve(dir, '.git')] };
 }
 
+// The context to undo a run of this scope: global, or a folder that could be a project (a ledger file names the scope, and
+// a changed one must not widen the write roots).
+export function scopeCtx(ctx, scope) {
+  if (scope === 'global') return ctx;
+  if (typeof scope !== 'string' || !exists(scope)) throw new Error(`the scope of this run is not a folder here: ${scope}`);
+  return projectCtx(ctx, scope);
+}
+
 // The exclude file of the repository dir is in, shared by all its worktrees; null outside a git repository.
 function excludeFile(ctx, dir) {
+  if (redirectedElsewhere(dir)) return null;
   const r = git(ctx, dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const common = r.code === 0 ? r.stdout.trim() : '';
   return isAbsolute(common) && exists(common) ? join(common, 'info', 'exclude') : null;
+}
+
+// A .git file sends git to another folder. Its info/exclude is a write root only when that folder points back at dir (a
+// worktree's gitdir file, a submodule's core.worktree), never when it is another repository's. A .git symlink is not
+// followed: it can aim at any repository's .git, and a project that links its .git simply gets no exclude root.
+function redirectedElsewhere(dir) {
+  const link = join(dir, '.git');
+  if (isLink(link)) return true;
+  const text = readText(link);
+  if (text == null) return false;
+  const target = resolve(dir, text.match(/^gitdir:[ \t]*(\S.*)$/m)?.[1]?.trim() ?? '\0');
+  const back = readText(join(target, 'gitdir'))?.trim();
+  if (back && realish(resolve(target, back)) === realish(link)) return false;
+  const worktree = readText(join(target, 'config'))?.match(/^[ \t]*worktree[ \t]*=[ \t]*(\S.*)$/m)?.[1]?.trim();
+  return !(worktree && realish(resolve(target, worktree)) === realish(dir));
 }
 
 // Skills a project gets: the chosen packs' skills plus single skills, minus those the catalog limits to other agents.
@@ -237,7 +265,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (setBlock(localClaude, 'project', null).replace(/^@AGENTS\.md\n*/, '').trim()) add('local-claude', `remove the BenchKeeper block from ${LOCAL_CLAUDE} (${gone('claude')})`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '') });
     else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block; ${gone('claude')})`, { kind: 'remove', path: at(LOCAL_CLAUDE), selected: true });
   }
-  if ((a.share || !a.agents.includes('codex')) && exists(at(OVERRIDE)) && overrideOurs(readText(at(OVERRIDE)))) add('local-codex', `remove ${OVERRIDE} (BenchKeeper's; ${gone('codex')})`, { kind: 'remove', path: at(OVERRIDE), selected: true });
+  if ((a.share || !a.agents.includes('codex')) && exists(at(OVERRIDE)) && overrideOurs(readText(at(OVERRIDE)))) {
+    // Preselected only when the file is AGENTS.md plus BenchKeeper's block, as the setup wrote it: text added by hand is offered, not preselected.
+    const asWritten = setBlock(readText(at(OVERRIDE)), 'project', null).trim() === (readText(at('AGENTS.md')) ?? '').trim();
+    add('local-codex', `remove ${OVERRIDE} (${asWritten ? "BenchKeeper's" : 'BenchKeeper block plus text of your own'}; ${gone('codex')})`, { kind: 'remove', path: at(OVERRIDE), selected: asWritten });
+  }
   if (a.agents.includes('gemini')) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]) });

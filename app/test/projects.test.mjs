@@ -370,6 +370,25 @@ test('projects unshare: a pull request without the committed setup; the checkout
   assert.ok(!existsSync(join(p.dir, 'CLAUDE.local.md')));
 });
 
+test('a pushed run fetches origin again even when status fetched it a moment ago', () => {
+  const h = home();
+  const p = project(h);
+  let offline = false;
+  const base = context({ home: h });
+  const ctx = context({ home: h, run: (argv, o) => {
+    if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
+    if (argv.includes('fetch') && offline) return { code: 128, stdout: '', stderr: 'Could not resolve host: github.com' };
+    return base.run(argv, o);
+  } });
+  // status fetches and caches it for a minute; origin is unreachable afterwards.
+  assert.equal(status(ctx, p.dir).origin, 'origin/main');
+  offline = true;
+  const [r] = updateAll(ctx, { paths: [p.dir] });
+  assert.equal(r.status, 'stopped');
+  assert.match(r.reason, /could not fetch origin\/main/);
+  assert.equal(p.git('branch', '--list', r.branch).trim(), '');
+});
+
 test('unshare keeps the answers first; after a failed push, the next run pushes the commit and opens the pull request', () => {
   const h = home();
   const p = project(h);

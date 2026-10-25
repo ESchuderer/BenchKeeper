@@ -9,7 +9,7 @@ const job = (fields) => JSON.stringify({ jobs: [{ name: 'a', command: 'true', ..
 export default {
   'S1-parse': async (t) => {
     const { parseDuration } = await t.load('src/duration.js');
-    assert.deepEqual(['1h30m', '2m30s', '1m500ms', '1h0m1s', '90s'].map(parseDuration), [5_400_000, 150_000, 60_500, 3_601_000, 90_000]);
+    assert.deepEqual(['1h30m', '2m30s', '1m500ms', '1h0m1s', '90s'].map((s) => parseDuration(s)), [5_400_000, 150_000, 60_500, 3_601_000, 90_000]);
     return true;
   },
   'S1-config': async (t) => {

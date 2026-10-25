@@ -17,6 +17,7 @@ const total = (t, guests) => Math.round(guests * t.price * (guests >= 6 ? 0.9 : 
 const csv = (v) => `"${String(v).replace(/"/g, '""')}"`;
 
 const app = express();
+app.disable('x-powered-by');
 app.use(express.json());
 app.get('/api/tastings', (req, res) => res.json(tastings.map((t) => ({ ...t, left: left(t) }))));
 app.post('/api/bookings', (req, res) => {
@@ -25,7 +26,7 @@ app.post('/api/bookings', (req, res) => {
   const guests = Number(req.body.guests);
   const errors = {};
   if (!name.trim()) errors.name = 'Enter your name.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Enter a valid email address.';
+  if (!/^[^\s@]+@[^\s@][^\s@.]*\.[^\s@]+$/.test(email)) errors.email = 'Enter a valid email address.';
   if (!Number.isInteger(guests) || guests < 1 || guests > 8) errors.guests = 'Guests must be 1 to 8.';
   else if (t && guests > left(t)) errors.guests = `Only ${left(t)} seats left.`;
   if (!t || Object.keys(errors).length) return res.status(422).json({ errors });

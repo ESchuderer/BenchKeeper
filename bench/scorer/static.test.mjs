@@ -14,15 +14,16 @@ const request = (port, path) => new Promise((ok, fail) => get({ host: '127.0.0.1
   res.on('data', (c) => { body += c; }).on('end', () => ok({ status: res.statusCode, body }));
 }).on('error', fail));
 
-// <tmp>/site with index.html, sub/a.txt and link.txt (a symlink to <tmp>/secret.txt, which sits outside it).
+// A temp folder with index.html, sub/a.txt and link.txt (a symlink to secret.txt in another temp folder, outside it).
 function site() {
-  const tmp = mkdtempSync(join(tmpdir(), 'static-'));
-  mkdirSync(join(tmp, 'site/sub'), { recursive: true });
-  writeFileSync(join(tmp, 'site/index.html'), 'home');
-  writeFileSync(join(tmp, 'site/sub/a.txt'), 'a');
-  writeFileSync(join(tmp, 'secret.txt'), 'secret');
-  symlinkSync(join(tmp, 'secret.txt'), join(tmp, 'site/link.txt'));
-  return join(tmp, 'site');
+  const dir = mkdtempSync(join(tmpdir(), 'static-'));
+  const outside = mkdtempSync(join(tmpdir(), 'static-outside-'));
+  mkdirSync(join(dir, 'sub'));
+  writeFileSync(join(dir, 'index.html'), 'home');
+  writeFileSync(join(dir, 'sub/a.txt'), 'a');
+  writeFileSync(join(outside, 'secret.txt'), 'secret');
+  symlinkSync(join(outside, 'secret.txt'), join(dir, 'link.txt'));
+  return dir;
 }
 
 async function check(port) {
@@ -55,5 +56,5 @@ test('print.mjs server serves files under its root and nothing outside it', asyn
 test('both servers refuse a folder outside /app and the temp folder', () => {
   const r = spawnSync(process.execPath, [fileURLToPath(new URL('./static.mjs', import.meta.url)), '/etc'], { stdio: 'ignore' });
   assert.notEqual(r.status, 0);
-  assert.throws(() => serve('/etc'), /not a folder/);
+  assert.throws(() => serve('/etc'), /not \/app or a folder/);
 });

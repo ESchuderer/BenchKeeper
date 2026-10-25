@@ -1,15 +1,14 @@
-// Static file server for briefs scored with "serve": "static" (brief.json). Usage: node static.mjs <dir>; port from PORT.
+// Static file server for briefs scored with "serve": "static" (brief.json). Usage: node static.mjs <dir, /app or a folder of the temp folder>; port from PORT.
 import { createServer } from 'node:http';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { extname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
+import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 
-// The served folder must lie under /app or the OS temp folder (tests); anything else is refused.
-const BASES = [resolve('/app'), tmpdir()];
-const under = (base, p) => { const r = relative(base, p); return r !== '..' && !r.startsWith('..' + sep) && !isAbsolute(r); };
-const root = resolve(process.argv[2]);
-if (!BASES.some((b) => under(b, root)) || !statSync(root).isDirectory()) throw new Error('not a folder under /app or the temp folder');
+// The served folder is /app or a folder of the OS temp folder (tests): the argument only selects one of these, it is never used as a path.
+const folders = [resolve('/app'), ...readdirSync(tmpdir(), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join(tmpdir(), e.name))];
+const root = folders.find((f) => f === resolve(process.argv[2]));
+if (!root) throw new Error('not /app or a folder of the temp folder');
 // The request path only selects an entry of this list of regular files (a symbolic link is none), so it never names a file itself.
 const files = new Map(readdirSync(root, { recursive: true, withFileTypes: true }).filter((e) => e.isFile())
   .map((e) => { const file = join(e.parentPath, e.name); return ['/' + relative(root, file).split(sep).join('/'), file]; }));

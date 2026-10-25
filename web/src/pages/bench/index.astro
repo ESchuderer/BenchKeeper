@@ -14,6 +14,6 @@ const runs = summarizeRuns(trials, readdirSync(results).filter((f) => f.endsWith
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <BenchLayout title="Benchmarks, BenchKeeper"
-  description="BenchKeeper benchmark summary: the winners and the top 10 of each published run, with a page per run for every arm, its review notes and screenshots.">
+  description="BenchKeeper benchmark summary: the winners and the top 10 of each published run, with a page per run for every arm and its review notes.">
   <BenchSummary base={base} runs={runs} notes={notes} />
 </BenchLayout>

@@ -59,7 +59,7 @@ test('trials: one per arm directory, model, effort and k from the manifest, revi
     validity: { ok: false, problems: ['delivery audit missing or failed'] },
     key: 'run-1/round-1/B', run: 'run-1', round: 1, brief: 'winery-react', model: 'Sonnet 5.5', effort: 'high', k: '1', runtime: 'Claude Code', arm: 'B',
     setup: 'Ponytail', features: 1, robustness: null, featuresOf: 2, robustnessOf: null, minutes: 10, cost: 1.23, overall: 8, protocol: '1.10', criteria: 2,
-    final: null, mutation: null, drawings: null, brownfield: null, notes: { verdict: null, strengths: [], issues: [] }, screenshots: [],
+    final: null, mutation: null, drawings: null, brownfield: null, notes: { verdict: null, strengths: [], issues: [] },
   });
   assert.doesNotMatch(JSON.stringify(x), /0\.4/);
 });
@@ -80,17 +80,16 @@ test('trials: final score, mutation score and the drawing review, a drawing faul
   assert.deepEqual(x.drawings, { of: 3, correct: 1, partly: 2, wrong: 0, correctAlphaApart: 2, alphaOnly: 1 });
 });
 
-test('trials: brownfield score per round and arm, review notes, screenshots sorted and images only', () => {
+test('trials: brownfield score per round and arm, review notes', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-'));
   const t = join(root, 'run-1', 'round-2', 'AD');
-  mkdirSync(join(t, 'screenshots'), { recursive: true });
+  mkdirSync(t, { recursive: true });
   writeFileSync(join(root, 'run-1', 'manifest.txt'), 'brief=openballistics model=claude-sonnet-5-5 effort=high k=3 seed=71\n');
   writeFileSync(join(root, 'run-1', 'brownfield-score.json'), JSON.stringify({ trials: [{ round: 'round-1', arm: 'AD', total: 1 }, { round: 'round-2', arm: 'AD', total: 85.21 }] }));
   writeFileSync(join(t, 'trial.json'), JSON.stringify({ arm: 'AD', runtime: 'claude-code', wall_seconds: 60 }));
   writeFileSync(join(t, 'review.json'), JSON.stringify({ review: { overall: 7, verdict: 'Good.', strengths: ['s'], issues: ['i'] } }));
-  for (const f of ['step3-b.jpg', 'step2-a.jpg', 'notes.txt']) writeFileSync(join(t, 'screenshots', f), '');
   const [x] = loadTrials(root);
-  assert.deepEqual([x.round, x.brownfield, x.notes, x.screenshots], [2, 85.21, { verdict: 'Good.', strengths: ['s'], issues: ['i'] }, ['step2-a.jpg', 'step3-b.jpg']]);
+  assert.deepEqual([x.round, x.brownfield, x.notes], [2, 85.21, { verdict: 'Good.', strengths: ['s'], issues: ['i'] }]);
 });
 
 test('arms of a run: median over rounds of the final, brownfield or review score, shared ranks, fewer minutes first, review ranked per runtime', () => {

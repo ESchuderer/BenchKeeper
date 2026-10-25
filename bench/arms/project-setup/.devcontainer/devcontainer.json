@@ -1,6 +1,0 @@
-{
-  "name": "project",
-  "image": "localhost/benchkeeper-arm-c",
-  "remoteUser": "node",
-  "workspaceFolder": "/work"
-}

@@ -369,7 +369,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       for (const { dir: d } of rest) {
         for (const { file, text } of ownSkillFiles(s.name, a.paths[s.name])) {
           const path = join(d, s.name, file), held = itemState(path, text, ctx) === 'modified';
-          add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the library: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, ...(held && !reseat ? { selected: false } : {}) });
+          add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the library: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, ...(held && !reseat ? { selected: false, held: true } : {}) });
         }
       }
     } else {
@@ -383,7 +383,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       // The folder differs from what the install left: its edits are backed up by the snapshot, and kept unless reset.
       const held = !reseat && targets.some(({ dir: d }) => editedHere(d, s.name, installedHashes.get(s.name)));
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
-        kind: 'command', outdated: !!was && was !== s.ref, cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false } : {}),
+        kind: 'command', outdated: !!was && was !== s.ref, cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
         argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }

@@ -353,7 +353,7 @@ export function api(ctx) {
       const paths = (b.paths ?? []).filter(registered);
       const answers = Object.fromEntries(Object.entries(b.answers ?? {}).filter(([p]) => paths.includes(p)).map(([p, a]) => [p, setupAnswers(a)]));
       // dryRun: what each project would get (setup version, changes, whether it is clean), nothing changed.
-      if (b.dryRun === true) return paths.map((p) => status(ctx, p));
+      if (b.dryRun === true) return paths.map((p) => { const s = status(ctx, p); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(ctx, p)) }; });
       return input(() => updateAll(ctx, { paths, push: b.push !== false, answers, max: Number.isInteger(b.max) && b.max > 0 ? b.max : undefined }));
     },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),

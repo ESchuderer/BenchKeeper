@@ -1,7 +1,8 @@
 // Records what an interactive agent session changes in a project: a snapshot before and after, the changed files,
 // the exit code and the agent's transcript. Undo restores the files from the snapshot before (runner.undo).
 import { openSync, readSync, closeSync, readdirSync, statSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, join } from 'node:path';
+import { realish } from './fsx.mjs';
 import { changedFiles, isRepo, repoRoot, snapshot } from './git.mjs';
 import { SCHEMA, runId } from './ledger.mjs';
 import { redactArgv } from './redact.mjs';
@@ -11,7 +12,8 @@ function codexCwd(file) {
   let fd;
   try {
     fd = openSync(file, 'r');
-    const buf = Buffer.alloc(65536);
+    // The session_meta line carries the instructions text and can be long: read up to 1 MiB of it.
+    const buf = Buffer.alloc(1 << 20);
     const first = buf.toString('utf8', 0, readSync(fd, buf, 0, buf.length, 0)).split('\n')[0];
     return JSON.parse(first)?.payload?.cwd ?? null;
   } catch { return null; } finally { if (fd !== undefined) closeSync(fd); }
@@ -32,7 +34,7 @@ export function transcript(home, dir, since, agent) {
     }
   };
   if (agent === 'claude') scan(claude, 0);
-  else if (agent === 'codex') { scan(join(home, '.codex/sessions'), 3); found.splice(0, found.length, ...found.filter(([, p]) => codexCwd(p) != null && resolve(codexCwd(p)) === resolve(dir))); }
+  else if (agent === 'codex') { scan(join(home, '.codex/sessions'), 3); found.splice(0, found.length, ...found.filter(([, p]) => codexCwd(p) != null && realish(codexCwd(p)) === realish(dir))); }
   return found.sort((a, b) => b[0] - a[0])[0]?.[1] ?? null;
 }
 

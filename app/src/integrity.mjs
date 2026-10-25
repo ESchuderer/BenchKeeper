@@ -16,7 +16,8 @@ export function ledgerIssues(ctx) {
   const out = ctx.ledger.broken().map((n) => ({ message: `ledger file ${n} is unreadable`, fix: `move it out of ${ctx.ledger.dir}: history and undo skip it until then` }));
   const seen = new Set();
   for (const run of ctx.ledger.list()) {
-    if (!run.status) out.push({ message: `run ${run.id} did not finish`, fix: `benchkeeper undo ${run.id} restores what it changed` });
+    // A run another process is still applying has no status yet: only one older than an hour counts as unfinished.
+    if (!run.status && Date.now() - Date.parse(run.time) > 3600e3) out.push({ message: `run ${run.id} did not finish`, fix: `benchkeeper undo ${run.id} restores what it changed` });
     if (run.scope !== 'global' && !exists(run.scope)) continue;
     for (const e of [...run.entries].reverse()) {
       for (const [path, hash] of left(e)) {

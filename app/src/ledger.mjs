@@ -119,7 +119,7 @@ export class Ledger {
   broken() {
     let names = [];
     try { names = readdirSync(this.dir).filter((n) => n.endsWith('.json')); } catch { return []; }
-    return names.filter((n) => { try { return typeof JSON.parse(readFileSync(join(this.dir, n), 'utf8')) !== 'object'; } catch { return true; } }).sort();
+    return names.filter((n) => { try { const v = JSON.parse(readFileSync(join(this.dir, n), 'utf8')); return v === null || typeof v !== 'object' || Array.isArray(v); } catch { return true; } }).sort();
   }
 
   // The newest applied, not undone, write entry for a path.

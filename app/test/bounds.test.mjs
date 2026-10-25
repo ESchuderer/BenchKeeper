@@ -20,6 +20,7 @@ import { hashPath, hashText } from '../src/fsx.mjs';
 import { clean, repoEnv, safeBranch, snapshot } from '../src/git.mjs';
 import { importChoices, importPlan, readProfile } from '../src/profile.mjs';
 import { MAX_PROJECTS, addProject, updateAll } from '../src/projects.mjs';
+import { api } from '../src/server.mjs';
 import { apply, context, preview, runCommand, undo, undoable } from '../src/runner.mjs';
 import { STATE, projectCtx, projectPlan, scopeCtx } from '../src/steps/project.mjs';
 
@@ -123,8 +124,11 @@ test('Update all pushes to a bounded number of repositories and a project in a s
   const h = home();
   const c = context({ home: h });
   assert.equal(MAX_PROJECTS, 25);
-  assert.throws(() => updateAll(c, { paths: ['/a', '/b', '/c'], max: 2 }), /at most 2 repositories/);
-  assert.equal(updateAll(c, { paths: ['/a', '/b', '/c'], max: 2, push: false }).length, 3);
+  // The cap counts repositories with a GitHub origin: local projects and a --no-push run are not bounded by it.
+  const hub = context({ home: h, run: (argv, o) => (argv.includes('get-url') ? { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' } : c.run(argv, o)) });
+  assert.throws(() => updateAll(hub, { paths: ['/a', '/b', '/c'], max: 2 }), /3 repositories to push to: .* at most 2/);
+  assert.equal(updateAll(hub, { paths: ['/a', '/b', '/c'], max: 2, push: false }).length, 3);
+  assert.equal(updateAll(c, { paths: ['/a', '/b', '/c'], max: 2 }).length, 3);
   const p = project(h, 'sub');
   addProject(c, p.dir);
   const [r] = updateAll(c, { paths: [p.dir], push: false });
@@ -193,7 +197,8 @@ test('Update all clears only its own stale worktree record, never the records of
 
 test('update-all --dry-run stops after the plan, --max must be a number, a cap stops the run', async () => {
   const h = home();
-  const ctx = context({ home: h });
+  const base = context({ home: h });
+  const ctx = context({ home: h, run: (argv, o) => (argv.includes('get-url') ? { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' } : base.run(argv, o)) });
   const a = project(h), b = project(h);
   let text = '';
   const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
@@ -204,7 +209,7 @@ test('update-all --dry-run stops after the plan, --max must be a number, a cap s
   assert.equal(git(a.dir, 'branch', '--list', 'chore/*').trim(), '');
   assert.equal(await exec(['update-all', '--max', 'x']), 2);
   assert.equal(await exec(['update-all', '--yes', '--max', '1']), 1);
-  assert.match(text, /at most 1 repositories/);
+  assert.match(text, /2 repositories to push to: Update all pushes to at most 1 per run/);
   assert.equal(git(a.dir, 'branch', '--list', 'chore/*').trim(), '');
 });
 
@@ -434,4 +439,15 @@ test('a hand-edited AGENTS.override.md is offered for removal, not preselected; 
   const [edited] = share();
   assert.equal(edited.selected, false);
   assert.match(edited.title, /text of your own/);
+});
+
+test('the Update all dry run of the server leaves out file contents, like every plan route', () => {
+  const h = home();
+  const c = context({ home: h });
+  const p = project(h);
+  addProject(c, p.dir);
+  const [row] = api(c)['POST /api/update-all']({ paths: [p.dir], dryRun: true });
+  assert.ok(row.changes.length > 0);
+  assert.equal(row.changes.some((x) => 'after' in x || 'edit' in x), false);
+  assert.equal(git(p.dir, 'branch', '--list', 'chore/*').trim(), '');
 });

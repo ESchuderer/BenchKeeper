@@ -302,7 +302,9 @@ function undoRun(id, ctx, { step } = {}) {
         // Undo of a session undo: the files go back to that run's backups, while they are as it left them. A file a failed
         // undo never reached (no hash recorded) was not touched by it, so there is nothing to put back.
         // One whose set-aside did not happen (the move failed: its backup is missing, the file is as recorded) was not either.
-        const files = e.files.filter((f) => ('hashAfter' in f || 'hashBackup' in f) && !(!('hashAfter' in f) && f.backup && !exists(f.backup) && hashPath(f.path) === f.hashBackup));
+        const reached = (f) => 'hashAfter' in f || 'hashBackup' in f;
+        const moveFailed = (f) => !('hashAfter' in f) && f.backup && !exists(f.backup) && hashPath(f.path) === f.hashBackup;
+        const files = e.files.filter((f) => reached(f) && !moveFailed(f));
         for (const f of files) {
           within(f.path);
           stored(f.backup);

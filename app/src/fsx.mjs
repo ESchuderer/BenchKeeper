@@ -38,7 +38,7 @@ export function writeAtomic(p, text, mode = existsSync(p) ? statSync(p).mode & 0
   try {
     if (mode != null) chmodSync(tmp, mode);
     // On disk before it replaces the file: a power loss must not leave the ledger or a settings file empty.
-    const fd = openSync(tmp, 'r');
+    const fd = openSync(tmp, 'r+'); // Windows fsync needs write access
     try { fsyncSync(fd); } finally { closeSync(fd); }
     renameSync(tmp, p);
   } catch (e) { rmSync(tmp, { force: true }); throw e; }

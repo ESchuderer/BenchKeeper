@@ -84,7 +84,7 @@ const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: pr
 
 // Commands run synchronously, so each has a time limit: a push that waits for a passphrase or a commit that waits for a
 // signing prompt would freeze a server for good (Stop cannot reach it). Local steps and network steps get their own limit.
-const LOCAL = 60e3, NET = 120e3;
+const LOCAL = 300e3, NET = 120e3;
 // Git talks to origin without waiting on a password or passphrase prompt (terminal or askpass helper).
 function quiet(ctx, path) {
   const env = { ...repoEnv(), GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
@@ -193,8 +193,11 @@ export const MAX_PROJECTS = 25;
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
 // answers[path] sets up a project without a state file the same way. A local setup (the default) is applied in the
 // checkout; a shared one lands on branch chore/agent-setup-<version> with one commit and a pull request.
+// The projects of paths a pushed run would push: those with a GitHub origin.
+export const pushTargets = (ctx, paths) => paths.filter((p) => githubRemote(ctx, p));
 export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), push = true, answers = {}, max = MAX_PROJECTS } = {}) {
-  if (push && paths.length > max) throw new Error(`${paths.length} projects: Update all pushes to at most ${max} repositories per run (--max N raises it, --no-push stays local)`);
+  const targets = push ? pushTargets(ctx, paths).length : 0;
+  if (targets > max) throw new Error(`${targets} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)`);
   return paths.map((path) => {
     const result = { path };
     try {

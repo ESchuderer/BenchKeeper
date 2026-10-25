@@ -20,7 +20,7 @@ const git = (ctx, dir, args, { index, ...extra } = {}) => ctx.run(['git', '-C', 
 
 // A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax, and a valid git ref
 // (non-ASCII letters, @ and + inside the name are allowed; a leading + is a force refspec, @{ and a bare @ are reflog syntax).
-export const safeBranch = (n) => (/^[\p{L}\p{N}_.][\p{L}\p{N}_.\/@+-]*$/u.test(n ?? '') && !/\.\.|@\{|\/\/|\/\.|\.lock(\/|$)|[./]$/.test(n) && n !== '@' ? n : null);
+export const safeBranch = (n) => (/^[\p{L}\p{N}_.][\p{L}\p{N}_.\/@+-]*$/u.test(n ?? '') && !/\.\.|@\{|\/\/|(^|\/)\.|\.lock(\/|$)|[./]$/.test(n) && n !== '@' ? n : null);
 
 export const isRepo = (ctx, dir) => git(ctx, dir, ['rev-parse', '--is-inside-work-tree']).stdout.trim() === 'true';
 

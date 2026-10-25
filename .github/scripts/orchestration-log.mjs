@@ -2,9 +2,22 @@
 // Usage: node .github/scripts/orchestration-log.mjs <events.jsonl>   exit 1 when a check fails.
 // An event: { project, actor: "coordinator"|"worker", kind: "start"|"settled"|"merge"|"release"|"worktree_remove"|"user_turn"|"command", issue?, outcome?: "done"|"blocked"|"failed", text? }
 import { readFileSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const BYPASS = /--no-verify|\bgit\s+commit\b[^\n&;|]*\s-[a-z]*n[a-z]*(\s|$)|core\.hooksPath|\.git\/hooks|HUSKY=0|LEFTHOOK=0|\bSKIP=|\b(rm|mv|cp|sed|tee|chmod|truncate|ln)\b[^\n]*hooks?\b/
+const SKIPS = /--no-verify|core\.hooksPath|\.git\/hooks|HUSKY=0|LEFTHOOK=0|\bSKIP=/;
+const WRITERS = new Set(['rm', 'mv', 'cp', 'sed', 'tee', 'chmod', 'truncate', 'ln']);
+
+// A quoted string (a commit message) is not a flag; each command of a chain is read on its own.
+export function bypasses(text) {
+  return text.replace(/"[^"]*"|'[^']*'/g, '""').split(/&&|;|\|/).some((part) => {
+    const t = part.trim().split(/\s+/);
+    const commit = t.indexOf('commit');
+    return SKIPS.test(part)
+      || (t[commit - 1] === 'git' && t.slice(commit + 1).some((a) => /^-[a-z]*n[a-z]*$/.test(a)))
+      || (WRITERS.has(t[0]) && t.some((a) => /hooks?\//.test(a)));
+  });
+}
 
 const KINDS = ['start', 'settled', 'merge', 'release', 'worktree_remove', 'user_turn', 'command'];
 
@@ -29,13 +42,15 @@ export function check(events) {
     if (done.includes(-1)) return false;
     return !rest.slice(0, Math.max(...done)).some((n) => n.kind === 'user_turn');
   });
-  // A quoted string (a commit message) is not a flag.
-  const noBypass = !events.some((e) => e.kind === 'command' && BYPASS.test((e.text ?? '').replace(/"[^"]*"|'[^']*'/g, '""')));
+  const noBypass = !events.some((e) => e.kind === 'command' && bypasses(e.text ?? ''));
   return { blockedReplaced, cleanedUp, noBypass };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const result = check(parse(readFileSync(process.argv[2], 'utf8')));
+  // The log is a .jsonl file below the current directory.
+  const file = resolve(process.argv[2] ?? '');
+  if (!file.endsWith('.jsonl') || !file.startsWith(process.cwd() + sep)) throw new Error('usage: orchestration-log.mjs <events.jsonl below the current directory>');
+  const result = check(parse(readFileSync(file, 'utf8')));
   console.log(JSON.stringify(result));
   process.exit(Object.values(result).every(Boolean) ? 0 : 1);
 }

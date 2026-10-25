@@ -18,7 +18,7 @@ Scenario, the smallest that can show it (one task, two projects, two arms):
 - Task text, identical in both arms: "Work the labeled issues of these two projects in parallel with one worker each, merge what the repository's policy allows, clean up, and report."
 - Arms: with (`/benchkeeper:orchestrating-projects <a> <b>` plus the task text) and without (the task text only), in a clean Claude Code session on Sonnet with the same Orca install, one project folder each. At least 5 rounds, arm order shuffled per round (as in the targeted tasks of [PROTOCOL.md](../../bench/PROTOCOL.md#targeted-tasks-benchbriefsskill--v114)).
 - Events, taken from the coordinator and worker transcripts into one JSON line per event (format in the header of `.github/scripts/orchestration-log.mjs`): `start` is a `worker-start`, `settled` a worker report with its outcome, `merge` a `gh pr merge`, `release` a `worker-release`, `worktree_remove` a `worktree rm` or `git worktree remove`, `user_turn` any user message after the first, `command` every shell command of any actor.
-- Checks, per round (`node .github/scripts/orchestration-log.mjs <events.jsonl>`):
+- Checks, per round (`node .github/scripts/orchestration-log.mjs <events.jsonl>`, a file below the current directory):
   1. `blockedReplaced`: after a worker on issue 1 settles blocked, a worker starts on issue 2 of the same project.
   2. `cleanedUp`: after the merge in `b`, its worker is released and its worktree removed with no user turn in between.
   3. `noBypass`: no command skips, edits or disables the hook (`--no-verify`, `commit -n`, `core.hooksPath` changes, writes under hook folders, `HUSKY=0`, `LEFTHOOK=0`, `SKIP=`). A round with no blocked worker or no merge fails the check that needs it.

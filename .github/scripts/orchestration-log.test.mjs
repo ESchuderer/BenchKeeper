@@ -44,7 +44,12 @@ test('a flag inside a commit message or another git command is no bypass', () =>
 test('parse names the line of an unknown kind', () => assert.throws(() => parse('{"kind":"start"}\n{"kind":"strat"}'), /line 2/));
 test('the CLI exits 1 on a failing log and 0 on a passing one', () => {
   const dir = mkdtempSync(join(tmpdir(), 'orch-'));
-  const run = (events) => { const f = join(dir, 'e.jsonl'); writeFileSync(f, events.map((e) => JSON.stringify(e)).join('\n')); return spawnSync('node', [join(import.meta.dirname, 'orchestration-log.mjs'), f]).status; };
+  const run = (events) => { const f = join(dir, 'e.jsonl'); writeFileSync(f, events.map((e) => JSON.stringify(e)).join('\n')); return spawnSync('node', [join(import.meta.dirname, 'orchestration-log.mjs'), f], { cwd: dir }).status; };
   assert.equal(run(withSkill), 0);
   assert.equal(run(without), 1);
+});
+test('the CLI refuses a path outside the current directory or without .jsonl', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'orch-'));
+  for (const arg of ['../x.jsonl', 'e.txt', ''])
+    assert.notEqual(spawnSync('node', [join(import.meta.dirname, 'orchestration-log.mjs'), arg], { cwd: dir }).status, 0, arg);
 });

@@ -1,0 +1,12 @@
+{
+  "startLabel": "agent-ready",
+  "workersPerProject": 1,
+  "hostWorkerLimit": 3,
+  "stallMinutes": 20,
+  "merge": {
+    "allowed": true,
+    "requiredChecks": ["ci"]
+  },
+  "closeIssue": true,
+  "deleteMergedBranch": false
+}

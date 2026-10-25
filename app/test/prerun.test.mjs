@@ -110,4 +110,11 @@ test('prerun: a failed signature check stops the rehearsal before the command ru
   assert.deepEqual(r.files, []);
   assert.match(r.error, /signature check failed: npm error signature mismatch/);
   assert.deepEqual(calls, ['verify']);
+  // A passed check is not repeated for the next preview of the same package.
+  const seen = [];
+  const pass = { home, run: (argv) => { seen.push(argv[0]); return { code: 0, stdout: '', stderr: '' }; } };
+  const c = { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '--copy', '-y'], verify: ['verify-once', 'skills@9.9.9'] };
+  await rehearse(pass, c);
+  await rehearse(pass, c);
+  assert.deepEqual(seen, ['verify-once', 'npx', 'npx']);
 });

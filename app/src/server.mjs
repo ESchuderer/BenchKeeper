@@ -130,10 +130,10 @@ export function api(ctx) {
     rehearsals.clear();
   };
   // A removal runs only when the request says it was confirmed: an id of a destructive change in select is not enough.
-  // Without a select, the plan's preselected changes run, and those the plan preselects are the ones it marks safe.
+  // Without a select the plan's preselected changes run, so a destructive one among them needs the flag too.
   const confirmed = (p, select, ok) => {
     const ids = new Set((select ?? []).filter((i) => typeof i === 'string'));
-    const named = p.changes.filter((c) => c.destructive && ids.has(c.id));
+    const named = p.changes.filter((c) => c.destructive && (select ? ids.has(c.id) : c.selected && !c.error));
     if (named.length && ok !== true) throw bad(`confirmDestructive is needed to apply: ${named.map((c) => c.title).join('; ')}`);
   };
   // A job runs work(job) in the background; the newest 20 finished jobs are kept.

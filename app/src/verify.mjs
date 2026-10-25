@@ -12,7 +12,7 @@ import { runCommand } from './runner.mjs';
 export const verifyArgv = (spec) => [process.execPath, fileURLToPath(import.meta.url), spec];
 
 // An exact name@version, so the check and the install that follows name the same release.
-const EXACT = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*@\d+\.\d+\.\d+$/;
+const EXACT = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*@\d+\.\d+\.\d+(-[\w.]+)?$/;
 
 export function verifyPackage(spec, env = childEnv({})) {
   if (!EXACT.test(spec)) return { code: 2, stderr: `${spec} is not an exact name@version\n` };

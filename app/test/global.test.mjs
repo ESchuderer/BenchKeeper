@@ -313,6 +313,8 @@ test('pins: an installed Claude Code plugin at the pin version from another comm
   assert.deepEqual(steps(), []);
   installed({});
   assert.deepEqual(steps(), [], 'no recorded commit: nothing to compare');
+  installed({ gitCommitSha: PONYTAIL_COMMIT.slice(0, 12) });
+  assert.deepEqual(steps(), [], 'an abbreviated commit is the same commit');
   installed({ gitCommitSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' });
   const [flag] = steps();
   assert.equal(steps().length, 1);
@@ -349,13 +351,14 @@ test('signature check: the host tool and the skills CLI run only after npm audit
   bad.s.failVerify = true;
   const failed = apply(bad.plan().filter((c) => c.step.startsWith('tools:')), bad.ctx, { select: all(bad.plan().filter((c) => c.step.startsWith('tools:'))) });
   assert.equal(failed.status, 'failed');
-  assert.ok(failed.entries.every((e) => e.status === 'failed' && /signature check failed: npm error signature mismatch/.test(e.error)));
+  assert.ok(failed.entries.every((e) => e.status === 'failed' && !e.touched && /signature check failed: npm error signature mismatch/.test(e.error)));
   assert.ok(!bad.s.calls.some((c) => c.startsWith('npm i -g') || c.startsWith('npx')));
   assert.equal(bad.s.dc, undefined);
 });
 
 test('verifyPackage takes only an exact name@version and reports a package it cannot fetch', () => {
   for (const spec of ['', '--registry=x', 'skills', 'skills@latest', 'skills@^1.7.2', 'a b@1.0.0', '../x@1.0.0']) assert.equal(verifyPackage(spec).code, 2, spec);
+  assert.notEqual(verifyPackage('skills@1.7.2-rc.1', { PATH: '/nonexistent' }).code, 2, 'a prerelease is exact too');
   const r = verifyPackage('skills@1.7.2', { PATH: '/nonexistent' });
   assert.notEqual(r.code, 0);
   assert.match(r.stderr, /could not fetch skills@1\.7\.2 to verify it/);

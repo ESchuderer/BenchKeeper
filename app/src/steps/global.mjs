@@ -55,6 +55,8 @@ export function pin(p, appVersion) {
 }
 // What a marketplace add names for an agent: Codex the pinned commit, Claude Code the tag or branch.
 export const marketRef = (p, a, appVersion) => (a === 'codex' ? pin(p, appVersion).commit ?? p.ref : p.ref);
+// A recorded commit may be abbreviated.
+const sameCommit = (a, b) => a.length >= 7 && b.length >= 7 && (a.startsWith(b) || b.startsWith(a));
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
@@ -236,7 +238,7 @@ export function globalPlan(env) {
       if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
       if (have) {
         // Same version, other commit: the tag moved after the marketplace was added (Claude Code takes no commit, so the commit it recorded is checked).
-        if (p.commit && have.commit && semver(have.version) && bySemver(have.version, version) === 0 && have.commit !== p.commit) {
+        if (p.commit && have.commit && semver(have.version) && bySemver(have.version, version) === 0 && !sameCommit(have.commit, p.commit)) {
           add(step, `${name} plugin ${p.id} ${have.version}: installed from another commit than the pin: by hand`, { kind: 'command', argv: addMarket, error: `${p.id} was installed from commit ${have.commit.slice(0, 12)}, the pin for ${have.version} is ${p.commit.slice(0, 12)}: the tag moved, or the files changed. Review it, then: ${a} plugin uninstall ${p.id}, ${byHand}` });
           continue;
         }

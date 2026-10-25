@@ -28,10 +28,12 @@ export const StateBadge = ({ state }) => (state ? <Badge variant="default" style
 export function usePrerun(plan) {
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
-  const [asked, setAsked] = useState(false);
+  // The plan the user asked for: another plan is not asked for, in the same render that shows it.
+  const [askedFor, setAskedFor] = useState(null);
+  const asked = plan?.planId != null && askedFor === plan.planId;
   const want = plan?.changes.some((c) => c.prerun);
   useEffect(() => {
-    setAsked(false); setJob(null); setError(null);
+    setJob(null); setError(null);
   }, [plan?.planId]);
   useEffect(() => {
     if (!want || !asked) return undefined;
@@ -41,7 +43,7 @@ export function usePrerun(plan) {
     return () => { live = false; cancel(); };
   }, [plan?.planId, want, asked]);
   const state = useJob(job);
-  return want ? { job, asked, start: () => setAsked(true), state: error ? { done: true, error } : state } : null;
+  return want ? { job, asked, start: () => setAskedFor(plan.planId), state: error ? { done: true, error } : state } : null;
 }
 
 function Rehearsal({ c, prerun }) {

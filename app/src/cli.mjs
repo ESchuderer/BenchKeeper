@@ -166,7 +166,7 @@ async function command(argv, { out, ask, ctx }) {
     const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });
     out.write(`BenchKeeper UI: ${url}\nThe link works once and for 10 minutes. Ctrl+C stops the server.\n`);
     // null: a snap or Flatpak browser, or no redirect file; the app never hands the token to a program in its arguments.
-    if (!o['no-open'] && openBrowser(url) === null) out.write('No browser was opened (a snap or Flatpak browser cannot read the redirect file): paste the link above into your browser.\n');
+    if (!o['no-open'] && openBrowser(url) === null) out.write('No browser was opened (a snap or Flatpak browser cannot read the redirect file, or it could not be written): paste the link above into your browser.\n');
     await new Promise((done) => server.on('close', done));
     return 0;
   }

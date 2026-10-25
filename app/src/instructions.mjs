@@ -11,7 +11,7 @@ const MAX_LINES = 200;
 const MAX_HOPS = 4;
 const issue = (level, check, message, fix, where) => ({ level, check, message, fix, ...where });
 
-const frontMatter = (text) => text?.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
+export const frontMatter = (text) => text?.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
 // The description of a SKILL.md and the line it starts on.
 export function skillDescription(text) {
   const front = frontMatter(text);
@@ -42,31 +42,43 @@ export function importsOf(text) {
 }
 
 // A path as the report shows it: relative to the project, or from the home folder.
-const display = (ctx, dir, p) => (dir && p.startsWith(`${dir}${sep}`) ? relative(dir, p) : p.startsWith(`${ctx.home}${sep}`) ? join('~', relative(ctx.home, p)) : p);
-const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
-const markdownIn = (d) => (existsSync(d) ? readdirSync(d, { recursive: true }).filter((f) => f.endsWith('.md')).sort().map((f) => join(d, f)) : []);
+export const display = (ctx, dir, p) => (dir && p.startsWith(`${dir}${sep}`) ? relative(dir, p) : p.startsWith(`${ctx.home}${sep}`) ? join('~', relative(ctx.home, p)) : p);
+export const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
+export const markdownIn = (d) => (existsSync(d) ? readdirSync(d, { recursive: true }).filter((f) => f.endsWith('.md')).sort().map((f) => join(d, f)) : []);
+
+// Files and the files they @import (four hops, inside the project or the home folder), each once.
+// file(path, text, hops) sees each readable file; missing(path, line, target) each import that points nowhere.
+export function walkInstructions(ctx, dir, roots, { file = () => {}, missing = () => {} } = {}) {
+  const seen = new Set();
+  const visit = (path, hops) => {
+    if (seen.has(path)) return;
+    seen.add(path);
+    const text = readText(path);
+    if (text == null) return;
+    file(path, text, hops);
+    for (const { line, target } of importsOf(text)) {
+      const to = target.startsWith('~') ? join(ctx.home, target.slice(1)) : isAbsolute(target) ? target : resolve(dirname(path), target);
+      if (!existsSync(to)) missing(path, line, target);
+      // An import that leaves the project and the home folder is Claude Code's to approve; it is not read here.
+      else if (hops < MAX_HOPS && [dir, ctx.home].some((r) => r && to.startsWith(`${r}${sep}`)) && isFile(to)) visit(to, hops + 1);
+    }
+  };
+  for (const f of roots) visit(f, 0);
+}
 
 // Instruction files, imports and size. dir: that project's files; without it the files of the home folder.
 export function instructionChecks(ctx, { dir } = {}) {
   const claude = join(dir ?? ctx.home, '.claude');
   const roots = [join(claude, 'CLAUDE.md'), ...(dir ? [join(dir, 'CLAUDE.md'), join(dir, 'CLAUDE.local.md')] : []), ...markdownIn(join(claude, 'rules'))];
   const shown = (p) => display(ctx, dir, p);
-  const out = [], seen = new Set();
-  const visit = (file, hops) => {
-    if (seen.has(file)) return;
-    seen.add(file);
-    const text = readText(file);
-    if (text == null) return;
-    const lines = text.replace(/\n$/, '').split('\n').length;
-    if (lines > MAX_LINES) out.push(issue('warning', 'instructions', `${shown(file)} has ${lines} lines, ${lines - MAX_LINES} over the ${MAX_LINES} the memory documentation recommends`, `split it into path-scoped rules or skills; imports do not reduce the context cost (${MEMORY_DOC})`, { file: shown(file), line: MAX_LINES + 1 }));
-    for (const { line, target } of importsOf(text)) {
-      const path = target.startsWith('~') ? join(ctx.home, target.slice(1)) : isAbsolute(target) ? target : resolve(dirname(file), target);
-      if (!existsSync(path)) out.push(issue('error', 'instructions', `${shown(file)}:${line} imports ${target}, which does not exist`, `fix the path or remove the import (${MEMORY_DOC})`, { file: shown(file), line }));
-      // An import that leaves the project and the home folder is Claude Code's to approve; it is not read here.
-      else if (hops < MAX_HOPS && [dir, ctx.home].some((r) => r && path.startsWith(`${r}${sep}`)) && isFile(path)) visit(path, hops + 1);
-    }
-  };
-  for (const f of roots) visit(f, 0);
+  const out = [];
+  walkInstructions(ctx, dir, roots, {
+    file: (path, text) => {
+      const lines = text.replace(/\n$/, '').split('\n').length;
+      if (lines > MAX_LINES) out.push(issue('warning', 'instructions', `${shown(path)} has ${lines} lines, ${lines - MAX_LINES} over the ${MAX_LINES} the memory documentation recommends`, `split it into path-scoped rules or skills; imports do not reduce the context cost (${MEMORY_DOC})`, { file: shown(path), line: MAX_LINES + 1 }));
+    },
+    missing: (path, line, target) => out.push(issue('error', 'instructions', `${shown(path)}:${line} imports ${target}, which does not exist`, `fix the path or remove the import (${MEMORY_DOC})`, { file: shown(path), line })),
+  });
   return out;
 }
 

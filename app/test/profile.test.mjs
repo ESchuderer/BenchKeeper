@@ -29,7 +29,9 @@ test('export holds choices only; import registers projects, saves packs, sets up
   rmSync(gone, { recursive: true });
   const text = exportProfile(a, { agents: ['claude'], packs: [] });
   const p = readProfile(text);
-  assert.deepEqual(p.projects[0], { path: proj, answers: { agents: ['claude'], env: 'host', sandbox: false, share: false, packs: ['ui'], singles: [], tier: 'quick', paths: {}, disabled: [] } });
+  const { rules, ...entry } = p.projects[0];
+  assert.deepEqual(rules.map((r) => [r.path, r.owner, r.state]), [['CLAUDE.local.md', 'BenchKeeper', 'always']]);
+  assert.deepEqual(entry, { path: proj, answers: { agents: ['claude'], env: 'host', sandbox: false, share: false, packs: ['ui'], singles: [], tier: 'quick', paths: {}, disabled: [] } });
   assert.ok(!text.includes('TOKEN') && !text.includes('accessibility/SKILL'));
 
   // The other machine has the clone without the state file.

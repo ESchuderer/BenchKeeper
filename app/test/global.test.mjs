@@ -69,12 +69,11 @@ function machine({ failCodexInstall = false } = {}) {
 const all = (plan) => plan.map((c) => c.id);
 const settings = (home) => JSON.parse(readFileSync(join(home, '.claude/settings.json'), 'utf8'));
 
-test('plan changes nothing and lists the other rules as destructive', () => {
+test('plan changes nothing, leaves rule files of the user alone and lists the other items as destructive', () => {
   const m = machine();
   const plan = m.plan();
   assert.equal(readFileSync(join(m.home, '.claude/CLAUDE.md'), 'utf8'), 'old rules');
-  const other = plan.find((c) => c.title.includes('~/.claude/CLAUDE.md'));
-  assert.equal(other.selected, false);
+  assert.ok(!plan.some((c) => c.step.startsWith('rules:claude:other') || c.title.includes('CLAUDE.md') || c.title.includes('10-other')), 'rule files of the user are not part of the plan');
   assert.equal(plan.find((c) => c.step === 'settings:claude:tier-band').selected, false);
   const ask = plan.filter((c) => c.step.startsWith('ask:'));
   assert.deepEqual(ask.map((c) => c.step).sort(), ['ask:claude:Bash(gh pr merge *)', 'ask:claude:Bash(mine *)', 'ask:codex:benchkeeper.rules']);
@@ -99,10 +98,10 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   const codexRules = readFileSync(join(m.home, '.codex/AGENTS.md'), 'utf8');
   assert.ok(codexRules.startsWith('my codex rules\n') && codexRules.includes(rules.trim()), 'Codex rules merged as a block');
   assert.equal(existsSync(join(m.home, '.codex/rules/benchkeeper.rules')), false, 'old Codex ask rules removed');
-  for (const p of ['.claude/CLAUDE.md', '.claude/rules/10-other.md', '.claude/skills/following-dev-workflow', '.agents/skills/old-skill']) assert.equal(existsSync(join(m.home, p)), false, p);
-  const backup = run.entries.find((e) => e.path?.endsWith('.claude/CLAUDE.md')).backup;
-  assert.match(backup, new RegExp(`${run.id}/\\d+/\\.claude/CLAUDE\\.md$`), 'backup keeps the path below HOME');
-  assert.equal(readFileSync(backup, 'utf8'), 'old rules');
+  for (const p of ['.claude/skills/following-dev-workflow', '.agents/skills/old-skill']) assert.equal(existsSync(join(m.home, p)), false, p);
+  for (const p of ['.claude/CLAUDE.md', '.claude/rules/10-other.md']) assert.equal(existsSync(join(m.home, p)), true, `${p} is the user's: kept`);
+  const backup = run.entries.find((e) => e.path?.endsWith('.claude/skills/following-dev-workflow')).backup;
+  assert.match(backup, new RegExp(`${run.id}/\\d+/\\.claude/skills/following-dev-workflow$`), 'backup keeps the path below HOME');
   assert.deepEqual([...m.s.claude].sort(), ['benchkeeper@benchkeeper', 'mattpocock-skills@claude-plugins-official', 'ponytail@ponytail']);
   assert.ok(m.s.removed.has('c-pu') && m.s.removed.has('c-mr') && m.s.removed.has('x-pu') && m.s.removed.has('x-mcp'));
   assert.deepEqual(JSON.parse(readFileSync(join(m.home, '.claude.json'), 'utf8')).mcpServers, {});

@@ -1,19 +1,10 @@
 ---
-import { join } from 'node:path';
-import { readdirSync } from 'node:fs';
 import BenchLayout from '../../layouts/BenchLayout.astro';
 import BenchSummary from '../../components/Bench';
-import { notes } from '../../data/bench-notes';
-import { OFF_SITE, loadTrials, rankArms, summarizeRuns } from '../../../scripts/bench-data.mjs';
 
-// The build runs in web/ (npm run build), next to bench/.
-const results = join(process.cwd(), '..', 'bench', 'results');
-const trials = loadTrials(results).filter((t) => !OFF_SITE.has(t.run));
-const runs = summarizeRuns(trials, readdirSync(results).filter((f) => f.endsWith('.md')))
-  .map((run) => ({ run, ranking: rankArms(trials.filter((t) => t.run === run.run)) }));
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <BenchLayout title="Benchmarks, BenchKeeper"
-  description="BenchKeeper benchmark summary: the winners and the top 10 of each published run, with a page per run for every arm, its review notes and screenshots.">
-  <BenchSummary base={base} runs={runs} notes={notes} />
+  description="Headline numbers of the BenchKeeper benchmark, how to reproduce a run, and the link to the BenchKeeper-Eval repository with briefs, scorer and recorded results.">
+  <BenchSummary base={base} />
 </BenchLayout>

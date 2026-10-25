@@ -37,7 +37,6 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci --ignore-scripts
       - run: node scripts/readme.mjs --check
-      - run: node --test scripts/*.test.mjs
       - run: npm run build
         env:
           GITHUB_TOKEN: ${{ github.token }}

@@ -1,8 +1,8 @@
 # Library quality bar
 
-Category: skill libraries, Checked 2026-10-24, Decision: Owner decision pending (issue 151): 6 fail, 38 borderline, 6 pass of 50 library skills
+Category: skill libraries, Checked 2026-10-24 and 2026-10-25, Decision: Owner decision pending (issue 151): 7 fail, 40 borderline, 7 pass of 54 library skills
 
-Result of checking every skill in `plugins/benchkeeper/library/library.json` (50 skills, 11 sources, each at its pinned commit) against the five-point bar of [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151). One Sonnet subagent per source read the skill folder at the pin and the source repository's metadata; each failure and borderline result below cites file and line or a URL in the source's evaluation file. Nothing is removed: the owner decides.
+Result of checking every skill in `plugins/benchkeeper/library/library.json` (54 skills, 12 sources, each at its pinned commit; the four ECC skills added in #247 were checked on 2026-10-25 by one reader, the other 50 on 2026-10-24) against the five-point bar of [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151). One Sonnet subagent per source read the skill folder at the pin and the source repository's metadata; each failure and borderline result below cites file and line or a URL in the source's evaluation file. Nothing is removed: the owner decides.
 
 ## The bar
 
@@ -11,10 +11,10 @@ A skill stays when it passes all five at its pinned commit:
 1. **Runs as installed.** Its workflow needs no files outside the skill folder that the skills CLI copies. It downloads no code at run time, fetches no rules from a branch URL and adds no hooks or telemetry. Fail: a file outside the folder, fetched instructions or code, hooks or telemetry. Borderline: unpinned package installs or live reference pages, or optional pointers outside the folder.
 2. **License.** Permissive and present. Pass: MIT, Apache-2.0 or similar in the skill folder, its frontmatter or the repository root (the install copies the folder only, so a root-only license ships no notice text; noted per source). Borderline: copyleft or share-alike, or a label that contradicts the repository license. Fail: missing, non-commercial or proprietary.
 3. **Authoring checklist** (`evaluations/practices/skill-authoring.md`). Valid `name`, `description` of at most 1,024 characters saying what and when, body under 500 lines or references one level deep, no dead links the workflow relies on, no time-sensitive text. Fail: a hard limit broken or a dead link the workflow relies on. Borderline: soft problems (dated text, 400 to 500 lines, no "use when", nested references).
-4. **Earns its place.** A distinct "pick when", no overlap with an own or library skill, and an evaluation file with the evidence found. Pass: distinct and evidence recorded (maintenance, issues, independent results; an independent measurement of the effect is not required, the column "Effect evidence" shows what exists). Borderline: partial overlap, or the maintainer's own data shows no benefit. Fail: duplicates another skill. No evidence at all would be recorded as such, not as a pass: none of the 50 is in that state.
+4. **Earns its place.** A distinct "pick when", no overlap with an own or library skill, and an evaluation file with the evidence found. Pass: distinct and evidence recorded (maintenance, issues, independent results; an independent measurement of the effect is not required, the column "Effect evidence" shows what exists). Borderline: partial overlap, or the maintainer's own data shows no benefit. Fail: duplicates another skill. No evidence at all would be recorded as such, not as a pass: none of the 54 is in that state.
 5. **Maintained source.** Repository not archived; the pin is not more than 12 months behind an active default branch without a reason. Borderline: a quiet repository (no commit for 6 to 12 months) or a pin 9 to 12 months old. Fail: archived, or a stale pin on an active branch.
 
-Overall is the worst of the five. Checks ran on 2026-10-24. No code of the audited repositories was run.
+Overall is the worst of the five. Checks ran on 2026-10-24 (50 skills) and 2026-10-25 (the four ECC skills). No code of the audited repositories was run.
 
 ## Results
 
@@ -70,10 +70,14 @@ Overall is the worst of the five. Checks ran on 2026-10-24. No code of the audit
 | [`compliance-check`](data-and-operations-skills.md) | `anthropics/knowledge-work-plugins` | pass | pass | borderline | borderline | pass | borderline | none; skills.sh 3.3K installs |
 | [`synthesize-research`](data-and-operations-skills.md) | `anthropics/knowledge-work-plugins` | borderline | pass | pass | borderline | pass | borderline | none; skills.sh 3.0K installs, Snyk Warn without reason |
 | [`gdpr-compliant`](data-and-operations-skills.md) | `github/awesome-copilot` | pass | pass | borderline | borderline | pass | borderline | none; skills.sh 1.6K installs, scans pass |
+| [`tdd-workflow`](ecc-skills.md) | `affaan-m/ECC` | fail | pass | fail | borderline | pass | fail | third party, n = 6, runs not stated; open bugs #3530, #3545 |
+| [`verification-loop`](ecc-skills.md) | `affaan-m/ECC` | borderline | pass | pass | borderline | pass | borderline | none found; open feedback #3679 |
+| [`error-handling`](ecc-skills.md) | `affaan-m/ECC` | pass | pass | pass | pass | pass | pass | none found |
+| [`architecture-decision-records`](ecc-skills.md) | `affaan-m/ECC` | borderline | pass | pass | borderline | pass | borderline | none found |
 
 Detail per skill, with file and line or URL for every fail and borderline: the linked evaluation file, section "Quality bar check". The own skill `designing-technical-uis` is recorded here: point 4 borderline because it partly overlaps `frontend-design` on UI text (own `SKILL.md:12-24, 37-38` against `frontend-design/SKILL.md:61-71`, with different empty-state advice) and its only evidence is the author's own check on an earlier text (`evaluations/practices/skill-authoring.md:33`, n = 1; 12 trigger cases in `plugins/benchkeeper/evals/skill-designing-technical-uis.json` without recorded results). Its folder has no license file (root `LICENSE` is MIT), 451 description characters, 57 lines, last folder commit 82da7f1 (2026-10-18).
 
-Totals: 6 fail, 38 borderline, 6 pass.
+Totals: 7 fail, 40 borderline, 7 pass.
 
 ## Fails
 
@@ -84,10 +88,12 @@ Totals: 6 fail, 38 borderline, 6 pass.
 - `xlsx`, point 2: Same `LICENSE.txt` as `docx`: `:1`, `:16-17`, `:20`, `:21`.
 - `scientific-critical-thinking`, point 1: `SKILL.md:66-72` tells the agent to run `python skills/scientific-schematics/scripts/generate_schematic.py` from the repository root: a sibling skill that is not in this folder or the library, and it needs `OPENROUTER_API_KEY` and sends prompts to OpenRouter (`:78`). The section is optional, the script path is the preferred one. Owner call: fail or borderline.
 - `fp-check`, point 1: The deep path delegates phases to `data-flow-analyzer`, `exploitability-verifier` and `poc-builder` (`skills/fp-check/SKILL.md:82`, `references/deep-verification.md:58, 64-70`), which live in `plugins/fp-check/agents/` (405 lines) and are not copied by the skills CLI. The standard path (`SKILL.md:59-69`) is self-contained and the deep phases are written out (`deep-verification.md:74-143`), so the skill degrades instead of stopping (unlike `dimensional-analysis`). The plugin `Stop` and `SubagentStop` hooks (`hooks/hooks.json:4-27`) are outside the folder, so an install adds none. Owner call: strict reading is fail.
+- `tdd-workflow`, point 1: Step 0 runs `node scripts/setup-package-manager.js --detect` (`SKILL.md:95`), a script of the ECC plugin outside the folder; step 2 falls back to reading `package.json`, so it degrades. Open upstream [#3530](https://github.com/affaan-m/ECC/issues/3530), [#3545](https://github.com/affaan-m/ECC/issues/3545). Owner call: borderline if degradation counts (the same rule as `fp-check`).
+- `tdd-workflow`, point 3: 583 lines, no reference files (`SKILL.md:1-583`).
 
 ## Pass
 
-`database-lookup`, `cantera`, `product-marketing`, `schema`, `site-architecture`, `gha-security-review`.
+`database-lookup`, `cantera`, `product-marketing`, `schema`, `site-architecture`, `gha-security-review`, `error-handling`.
 
 ## Judgment calls
 
@@ -106,10 +112,10 @@ Changes to the subagent grades: the four marketing `tools/` skills (fail to bord
 
 ## Borderline by cause
 
-- Point 1, Runs as installed (23 borderline, 2 fail): unpinned package installs or live pages in the instructions (most of them), references to files or agents outside the folder that are optional (`variant-analysis`, `incident-response`, `synthesize-research`, `copywriting`, and the partner `tools/` links in `ai-seo`, `launch`, `content-strategy`, `analytics`), a branch-URL README fetch (`mcp-builder`), downloads at run time (`venue-templates`, `directory-submissions`)
+- Point 1, Runs as installed (25 borderline, 3 fail): unpinned package installs or live pages in the instructions (most of them), references to files or agents outside the folder that are optional (`variant-analysis`, `incident-response`, `synthesize-research`, `copywriting`, and the partner `tools/` links in `ai-seo`, `launch`, `content-strategy`, `analytics`), a branch-URL README fetch (`mcp-builder`), downloads at run time (`venue-templates`, `directory-submissions`)
 - Point 2, License (6 borderline, 4 fail): copyleft share-alike (the three Trail of Bits skills), and license labels that do not match the root MIT (`sympy`, `pymoo`, `venue-templates`)
-- Point 3, Authoring (30 borderline, 1 fail): time-sensitive text (most K-Dense skills, `ai-seo`, `seo-audit`, `directory-submissions`, `compliance-check`, `mermaid-diagrams`, `pptx`, `frontend-design`, `mcp-builder`), `SKILL.md` of 400 to 500 lines (`statistical-analysis`, `uncertainty-and-units`, `sympy`, `database-lookup`, `copy-editing`, `seo-audit`, `ai-seo`, `content-strategy`, `accessibility`), no "use when" clause (several K-Dense skills), nested references (`fp-check`, `ai-seo`, `playwright-best-practices`), broken reference links (`gdpr-compliant`, `accessibility`)
-- Point 4, Earns its place (23 borderline): partial overlap with a library neighbour (`statistical-analysis` and `statistical-power`, `paper-lookup` and `citation-management`, `scientific-writing` and `venue-templates`, `scientific-critical-thinking`, `markitdown` and the Anthropic document skills, `copywriting` and `copy-editing` and `cro`, `compliance-check` and `gdpr-compliant`, `validate-data`, `synthesize-research`, `frontend-design` and `designing-technical-uis`), the maintainer's own eval shows no uplift (`variant-analysis`), a CRITICAL scan result (`directory-submissions`)
+- Point 3, Authoring (30 borderline, 2 fail): time-sensitive text (most K-Dense skills, `ai-seo`, `seo-audit`, `directory-submissions`, `compliance-check`, `mermaid-diagrams`, `pptx`, `frontend-design`, `mcp-builder`), `SKILL.md` of 400 to 500 lines (`statistical-analysis`, `uncertainty-and-units`, `sympy`, `database-lookup`, `copy-editing`, `seo-audit`, `ai-seo`, `content-strategy`, `accessibility`), no "use when" clause (several K-Dense skills), nested references (`fp-check`, `ai-seo`, `playwright-best-practices`), broken reference links (`gdpr-compliant`, `accessibility`)
+- Point 4, Earns its place (26 borderline): partial overlap with a library neighbour (`statistical-analysis` and `statistical-power`, `paper-lookup` and `citation-management`, `scientific-writing` and `venue-templates`, `scientific-critical-thinking`, `markitdown` and the Anthropic document skills, `copywriting` and `copy-editing` and `cro`, `compliance-check` and `gdpr-compliant`, `validate-data`, `synthesize-research`, `frontend-design` and `designing-technical-uis`), the maintainer's own eval shows no uplift (`variant-analysis`), a CRITICAL scan result (`directory-submissions`)
 - Point 5, Maintained (1 borderline): `mermaid-diagrams` only: no repository commit for 233 days
 
 Defects worth the owner's attention among the borderline skills (each is in the source's evaluation file):
@@ -127,6 +133,6 @@ Defects worth the owner's attention among the borderline skills (each is in the 
 
 ## Decision
 
-Not decided. The removal list, the exclusion entries, the `library.json` and pack changes, the CHANGELOG line and the version bump wait for the owner's answer in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151). Recommendation to the owner: remove the four Anthropic document skills (point 2 fail, source-available license that bars copies and derivatives), `fp-check` and `scientific-critical-thinking` (point 1 fail), decide `mcp-builder` and `directory-submissions` first among the borderline cases, re-pin `ai-seo` or drop it, and treat the rest as keep with the recorded defects.
+Not decided. The removal list, the exclusion entries, the `library.json` and pack changes, the CHANGELOG line and the version bump wait for the owner's answer in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151). Recommendation to the owner: remove the four Anthropic document skills (point 2 fail, source-available license that bars copies and derivatives), `fp-check`, `scientific-critical-thinking` and `tdd-workflow` (point 1 fail; `tdd-workflow` also fails point 3 with 583 lines), decide `mcp-builder` and `directory-submissions` first among the borderline cases, re-pin `ai-seo` or drop it, and treat the rest as keep with the recorded defects.
 
 [All evaluations](../../EVALUATIONS.md)

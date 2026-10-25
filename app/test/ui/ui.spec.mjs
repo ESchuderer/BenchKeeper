@@ -278,8 +278,8 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/projects$/);
   });
 
-  test('Dashboard shows the edited rules file as modified in the coverage matrix', async ({ page }) => {
-    const cell = page.getByRole('table', { name: 'Coverage' }).getByRole('link', { name: 'rules for Claude Code: modified, open the plan' });
+  test('Dashboard shows the edited rules file as modified in the setup by part', async ({ page }) => {
+    const cell = page.getByRole('table', { name: 'Global setup by part' }).getByRole('link', { name: 'rules for Claude Code: modified, open the plan' });
     await cell.click();
     await expect(page).toHaveURL(/#\/agents\?agent=claude$/);
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
@@ -327,11 +327,40 @@ test.describe('views', () => {
 
   test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {
     await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 1 registered, 0 behind ok$/ })).toBeVisible();
-    await expect(page.getByRole('list', { name: 'Global items by state' })).toContainText('modified');
+    await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
     await expect(page.getByRole('region', { name: 'BenchKeeper plugin' })).toContainText(/available \d+\.\d+\.\d+/);
     await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
     await expect(page).toHaveURL(/#\/history\?run=/);
+  });
+
+  test('Dashboard: installed, health and coverage figures are links with a keyboard path; the catalog by pack is a sorted list', async ({ page }) => {
+    const installed = page.getByRole('table', { name: 'Installed skills and packs' });
+    await expect(installed.getByRole('row', { name: /^Global/ }).getByRole('link', { name: /^Claude Code \d+$/ })).toHaveAttribute('href', '#/agents?agent=claude');
+    await expect(installed.getByRole('row', { name: /bk-ui-proj/ }).getByRole('link', { name: 'frontend' })).toHaveAttribute('href', '#/catalog?pack=frontend');
+    // The legend counts what the bar draws; the table of values repeats every figure.
+    const health = page.getByRole('region', { name: 'Health' });
+    await expect(health.getByRole('list', { name: 'Items by state, all scopes' }).getByRole('link', { name: /modified/ })).toBeVisible();
+    await health.getByText('Table of values').click();
+    await expect(health.getByRole('link', { name: /^Global: 1 modified$/ })).toHaveAttribute('href', '#/agents?plan=1');
+    // A cell of the coverage matrix: reached with Tab-order focus and opened with Enter, the projects with that pack and agent.
+    const cell = page.getByRole('table', { name: 'Pack coverage' }).getByRole('link', { name: 'Frontend for Claude Code: 1 project' });
+    await cell.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#\/projects\?pack=frontend&agent=claude$/);
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row', { name: /bk-ui-proj/ })).toBeVisible();
+    await nav(page, 'Dashboard').click();
+    const bars = page.getByRole('list', { name: 'Skills per pack' }).getByRole('listitem');
+    await expect(bars.first()).toBeVisible();
+    const counts = await bars.evaluateAll((li) => li.map((x) => Number(x.lastElementChild.textContent)));
+    expect(counts.length).toBeGreaterThan(3);
+    expect([...counts].sort((a, b) => b - a)).toEqual(counts);
+  });
+
+  test('Catalog opens with the pack and agent a link names', async ({ page }) => {
+    await page.goto('/#/catalog?pack=frontend&agent=codex');
+    await expect(page.getByRole('combobox', { name: 'Pack' })).toHaveValue('Frontend');
+    await expect(page.getByRole('combobox', { name: 'Agent' })).toHaveValue('Codex');
   });
 
   test('Dashboard: a doctor finding opens the plan that fixes it', async ({ page }) => {
@@ -830,6 +859,20 @@ test.describe('views', () => {
     await expect(run.getByRole('table', { name: 'Planned evals' })).toContainText('skill:workflow');
     await expect(run.getByRole('button', { name: /^Start \d+ agent sessions$/ })).toBeVisible();
     await noAxe(page);
+  });
+
+  test('Settings: the sessions cache has a retention and Clear', async ({ page }) => {
+    await nav(page, 'Settings').click();
+    const history = page.getByRole('region', { name: 'Sessions history' });
+    await expect(history).toContainText('sessions in the cache');
+    await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
+    await expect(history.getByText('Retention set.')).toBeVisible();
+    await expect(history.getByRole('textbox', { name: 'Days since the last activity' })).toHaveValue('30');
+    await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
+    await expect(history.getByText('Summaries are kept.')).toBeVisible();
+    await history.getByRole('button', { name: 'Clear the sessions cache' }).click();
+    await expect(history.getByText('Cache cleared.')).toBeVisible();
+    await expect(history).toContainText('0 sessions in the cache');
   });
 
   test('Settings: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {

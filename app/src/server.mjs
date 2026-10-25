@@ -26,6 +26,7 @@ import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
+import { dashboard } from './dashboard.mjs';
 import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { detectLevel, levelFor } from './level.mjs';
@@ -169,6 +170,7 @@ export function api(ctx) {
   };
   const agentsNow = () => cached('agents', () => detect(ctx));
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
+  const inventoryNow = () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) }));
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
     'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
@@ -501,7 +503,9 @@ export function api(ctx) {
       const changes = preview(input(() => settingsChanges(sctx, agentId, { layer, dir, edits })));
       return { planId: keep(changes, sctx, dir ?? 'global'), changes: serialize(changes, sctx) };
     },
-    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) })),
+    'GET /api/inventory': inventoryNow,
+    // The Dashboard: installed, health, coverage and catalog by pack, from one read of the inventory and the projects.
+    'GET /api/dashboard': () => cached('dashboard', () => dashboard(ctx, installed(), inventoryNow())),
   };
   // Registry, pack and profile writes wait for a running apply too: they change what a plan reads or an apply writes.
   const guarded = { 'POST /api/projects': () => true, 'POST /api/packs': () => true, 'POST /api/profile-import': (b) => b.register };

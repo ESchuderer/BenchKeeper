@@ -37,7 +37,7 @@ const SANDBOX_OUT = ['devcontainer exec *', 'podman *'];
 const sandboxOff = (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], remove: true }, { path: ['sandbox', 'excludedCommands'], pull: SANDBOX_OUT }, { path: ['sandbox'], prune: true }]);
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]*$/;
 // Skills the skills CLI installed in the project, by its lockfile.
-const lockedSkills = (dir) => Object.keys(tryJson(readText(join(dir, LOCK)))?.skills ?? {}).filter((n) => SKILL_NAME.test(n));
+export const lockedSkills = (dir) => Object.keys(tryJson(readText(join(dir, LOCK)))?.skills ?? {}).filter((n) => SKILL_NAME.test(n));
 
 // The skills BenchKeeper or the skills CLI installed (recorded in the state file or locked), the lockfile and the state
 // folder, as removals: what both kinds of setup leave in a project.
@@ -359,7 +359,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
-        kind: 'command', cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
+        kind: 'command', outdated: !!was && was !== s.ref, cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
         argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }

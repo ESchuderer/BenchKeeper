@@ -11,6 +11,7 @@ import { writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
+import { status as projectStatus } from '../src/projects.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -407,6 +408,35 @@ test('project-plan: disable and enable only name skills the project has', () => 
   assert.equal(status(() => routes['GET /api/project-plan'](q([['enable', '../../etc']]))), 400);
   const off = routes['GET /api/project-plan'](q([['disable', skill]]));
   assert.ok(off.chosen.find((s) => s.name === skill).disabled);
+});
+
+test('dashboard: the numbers equal the inventory and the project status; one read per load; coverage and catalog by pack', () => {
+  const { ctx, routes } = fixture();
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write'), ctx);
+  appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'a local line\n');
+  const dir = mkdtempSync(join(TMP, 'bk-dash-'));
+  const pctx = { ...ctx, roots: [dir] };
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude', 'codex'], packs: ['frontend'] } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+  routes['POST /api/projects']({ action: 'add', path: dir });
+  // An edited skill file is modified; a skill folder nobody installed is untracked.
+  appendFileSync(join(dir, '.claude/skills/designing-technical-uis/SKILL.md'), 'local\n');
+  mkdirSync(join(dir, '.claude/skills/mine'), { recursive: true });
+  writeFileSync(join(dir, '.claude/skills/mine/SKILL.md'), '---\nname: mine\n---\n');
+  const d = routes['GET /api/dashboard']();
+  assert.equal(routes['GET /api/dashboard'](), d);
+  const items = routes['GET /api/inventory']();
+  assert.deepEqual(Object.fromEntries(Object.entries(d.global.states).filter(([k]) => k !== 'untracked' && d.global.states[k])), Object.fromEntries(['current', 'absent', 'outdated', 'missing', 'modified', 'removed', 'foreign', 'error'].map((k) => [k, items.filter((i) => i.state === k).length]).filter(([, n]) => n)));
+  assert.equal(Object.values(d.global.states).reduce((n, x) => n + x, 0), items.length);
+  const [p] = d.projects;
+  const st = projectStatus(ctx, dir);
+  assert.deepEqual([p.path, p.packs, p.skills, p.agents], [dir, st.packs, st.skills, st.agents]);
+  assert.deepEqual([p.states.modified >= 1, p.states.current > 0, p.untracked], [true, true, 1]);
+  assert.deepEqual(d.coverage.agents.map((a) => a.id), ['claude', 'codex']);
+  assert.deepEqual(d.coverage.packs.find((x) => x.id === 'frontend').cells, { claude: 1, codex: 1 });
+  assert.deepEqual(d.coverage.packs.find((x) => x.id === 'docs').cells, { claude: 0, codex: 0 });
+  // Packs with a skill list only, the most skills first.
+  assert.ok(d.catalog.every((x, i, all) => i === 0 || all[i - 1].skills >= x.skills));
+  assert.ok(!d.catalog.some((x) => x.id === 'matt-pocock'));
 });
 
 test('packs: save, export, import and remove; bad input is a 400', () => {

@@ -32,7 +32,8 @@ await new Promise((ok, fail) => {
 const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view === 'Settings' ? /^Settings$/ : view });
 // [file name, steps that bring the app to the pictured state, what to cut out: a locator, or the whole window]
 const VIEWS = [
-  ['dashboard', async () => {}],
+  // Scrolled to Health: the flow boxes above it are four numbers, the health, coverage and catalog figures are the view.
+  ['dashboard', async (page) => { await page.getByRole('region', { name: 'Health' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); }); }],
   ['doctor', async (page) => { await page.getByRole('region', { name: 'Doctor' }).scrollIntoViewIfNeeded(); }, (page) => page.getByRole('region', { name: 'Doctor' })],
   ['fix', async (page) => {
     await page.getByRole('button', { name: 'Fix everything' }).click();

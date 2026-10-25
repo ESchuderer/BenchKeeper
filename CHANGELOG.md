@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.8 (2026-10-25)
+
+- The tier band hook returns once per step (SonarCloud S3516); behaviour is unchanged. The rest of the release is the app's SonarCloud fixes: promises handled, linear-time regexes, sorts with a compare function, system tools by full path, scorer commands that accept only known paths, no install scripts in the benchmark arm image.
+- Plugin `version` 6.8.0.
+- Upgrade: `npx benchkeeper@6.8.0 apply`.
+
 ## setup-v6.6 (2026-10-25)
 
 - Install levels: `benchkeeper apply --level lite|standard|full`. Lite and standard install only the BenchKeeper plugin on the machine (lite relies on the `workflow` skill description to trigger; the trigger rate is not measured yet, see `evaluations/practices/lite-install.md`); standard adds the local project block that `project apply` writes. Without `--level`, `plan` and `apply` use the level found on the machine, full on a machine without BenchKeeper.

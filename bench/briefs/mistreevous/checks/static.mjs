@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const git = (dir, ...a) => execFileSync('git', ['-c', 'safe.directory=*', '-c', 'core.fsmonitor=false', '-C', dir, ...a], { encoding: 'utf8' });
+const git = (dir, ...a) => execFileSync('/usr/bin/git', ['-c', 'safe.directory=*', '-c', 'core.fsmonitor=false', '-C', dir, ...a], { encoding: 'utf8' });
 const read = (dir, f) => (existsSync(join(dir, f)) ? readFileSync(join(dir, f), 'utf8') : null);
 const json = (dir, f) => { try { return JSON.parse(read(dir, f)); } catch { return null; } };
 

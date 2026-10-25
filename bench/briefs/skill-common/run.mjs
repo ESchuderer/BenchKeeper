@@ -8,6 +8,7 @@
 // Usage (in the container of checks.sh): node /common/run.mjs [id] < hidden.json
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -22,7 +23,7 @@ const testFiles = (root, dir = root) => readdirSync(dir, { withFileTypes: true }
 function helpers(ws) {
   // timedOut: stopped at the time limit (code is then 1, so a caller that counts a failure must check it).
   const sh = (cmd, cwd = ws, timeout = 90000) => {
-    const r = spawnSync('sh', ['-c', cmd], { cwd, encoding: 'utf8', timeout, killSignal: 'SIGKILL' });
+    const r = spawnSync('/bin/sh', ['-c', cmd], { cwd, encoding: 'utf8', timeout, killSignal: 'SIGKILL' });
     return { code: r.status ?? 1, timedOut: r.error?.code === 'ETIMEDOUT', out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
   };
   return {
@@ -51,7 +52,7 @@ const checks = async () => Object.fromEntries(Object.entries({ ...builtin, ...(a
 const id = process.argv[2];
 const hidden = JSON.parse(readFileSync(0, 'utf8') || '{}');
 if (id) {
-  const ws = mkdtempSync('/tmp/ws-');
+  const ws = mkdtempSync(join(tmpdir(), 'ws-'));
   cpSync('/ws', ws, { recursive: true });
   let r;
   try { r = await (await checks())[id](helpers(ws)); } catch (e) { r = { ok: false, detail: String(e?.message ?? e).slice(0, 400) }; }

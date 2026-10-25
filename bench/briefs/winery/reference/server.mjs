@@ -27,7 +27,7 @@ async function body(req) {
 
 createServer(async (req, res) => {
   const send = (html, code = 200, h = {}) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...h }); res.end(html); };
-  const url = new URL(req.url, 'http://x');
+  const url = new URL(req.url, 'https://x');
   const sid = /sid=([\w-]+)/.exec(req.headers.cookie || '')?.[1];
   const staff = sid && sessions.has(sid);
   const [, kind, id] = url.pathname.split('/');
@@ -40,7 +40,7 @@ createServer(async (req, res) => {
     const v = await body(req);
     const guests = Number(v.guests);
     const error = !v.name?.trim() ? 'Enter your name.'
-      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email || '') ? 'Enter a valid email address.'
+      : !/^[^\s@]+@[^\s@][^\s@.]*\.[^\s@]+$/.test(v.email || '') ? 'Enter a valid email address.'
       : !Number.isInteger(guests) || guests < 1 || guests > 8 ? 'Guests must be 1 to 8.'
       : guests > left(t) ? `Only ${left(t)} seats left.` : '';
     if (error) return send(form(t, error, v), 422);

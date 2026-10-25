@@ -17,7 +17,7 @@ run reference "" ""
 run capacity F3,R1 's/ : guests > left(t) ? `Only ${left(t)} seats left.` : '"''"'/ : '"''"'/'
 run staff-open F5,R7,R12 's/const staff = sid && sessions.has(sid);/const staff = true;/'
 run cancel-noop F6 's/if (i >= 0) bookings.splice(i, 1);//'
-run email-unchecked F4,R6 's#!/^\[^\\s@\]+@\[^\\s@\]+\\.\[^\\s@\]+$/.test(v.email || '"''"')#false#'
+run email-unchecked F4,R6 's#!/^\[^\\s@\]+@\[^\\s@\]\[^\\s@.\]\*\\.\[^\\s@\]+$/.test(v.email || '"''"')#false#'
 run race R1 's/    if (error) return send(form(t, error, v), 422);/&\n    await new Promise((r) => setTimeout(r, 300));/'
 run guests-zero R2 's/guests < 1 ||/guests < 0 ||/'
 run guests-nine R3 's/guests > 8 ?/guests > 9 ?/'

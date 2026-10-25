@@ -25,7 +25,7 @@ export const card = (page, title) => page.locator('body *').filter({ hasText: ti
 export async function seatsLeft(page, title) {
   await page.goto('/');
   // innerText keeps the separators between table cells, so "EUR 25" and "12 seats left" do not merge.
-  const m = /(-?\d+(?:[.,]\d+)?)\s+seats? left/i.exec(await card(page, title).innerText());
+  const m = /(-?(?<!\d)\d+(?:[.,]\d+)?)\s+seats? left/i.exec(await card(page, title).innerText());
   expect(m, `seat count for ${title}`).not.toBeNull();
   return Number(m[1].replace(',', '.'));
 }

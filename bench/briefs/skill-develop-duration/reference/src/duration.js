@@ -7,6 +7,6 @@ export function parseDuration(text) {
   const s = String(text);
   if (!DURATION.test(s)) throw new RangeError(`invalid duration ${text}`);
   let ms = 0;
-  for (const [, n, unit] of s.matchAll(/(\d+)(ms|s|m|h)/g)) ms += Number(n) * UNIT[unit];
+  for (const [, n, unit] of s.matchAll(/(?<!\d)(\d+)(ms|s|m|h)/g)) ms += Number(n) * UNIT[unit];
   return ms;
 }

@@ -656,6 +656,92 @@ test.describe('views', () => {
     await unregister(page, ['mv-local']);
   });
 
+  test('Projects: pack switches preview the removal of a pack and Copy packs from project sets them; no axe violations', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, join(ONE, 'uno'));
+    await table.getByRole('link', { name: /^bk-ui-proj/ }).click();
+    const packs = page.getByRole('region', { name: 'Packs' });
+    const frontend = packs.getByRole('switch', { name: 'Frontend' });
+    await expect(frontend).toBeChecked();
+    await frontend.click();
+    await expect(frontend).not.toBeChecked();
+    const changes = page.getByRole('region', { name: /^Changes in / });
+    await expect(changes).toContainText('Remove:');
+    await expect(changes).toContainText('designing-technical-uis');
+    await noAxe(page);
+    await frontend.click();
+    await expect(frontend).toBeChecked();
+    // Copy packs from a project with none: the pack goes off in the plan, nothing is written yet.
+    await choose(page, 'Copy packs from project', 'uno: no packs');
+    await expect(frontend).not.toBeChecked();
+    await expect(changes).toContainText('Remove:');
+    await unregister(page, ['uno']);
+  });
+
+  test('Catalog: skill states, activate and deactivate, reset a modified skill with its diff, adopt and remove; untracked folders stay; no axe violations', async ({ page }) => {
+    test.slow();
+    const dir = folder('sk-proj');
+    const skills = join(dir, '.claude/skills');
+    mkdirSync(join(dir, '.benchkeeper'));
+    writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 1, setupVersion: '6.0.0', agents: ['claude'], env: 'host', share: false, packs: [], singles: ['designing-technical-uis'], tier: null, paths: {}, disabled: [],
+      skills: [{ name: 'designing-technical-uis', source: 'own' }] }));
+    for (const [name, text] of [['designing-technical-uis', 'edited here\n'], ['mine', 'my own skill\n'], ['mermaid-diagrams', 'a library skill put here by hand\n']]) {
+      mkdirSync(join(skills, name), { recursive: true });
+      writeFileSync(join(skills, name, 'SKILL.md'), text);
+    }
+    await nav(page, 'Projects').click();
+    await addFolder(page, dir);
+    await nav(page, 'Catalog').click();
+    const states = page.getByRole('table', { name: 'Skill states' });
+    const mine = states.getByRole('row').filter({ hasText: 'sk-proj' });
+    const own = mine.filter({ hasText: 'designing-technical-uis' });
+    await expect(own).toContainText('modified');
+    await expect(own).toContainText('BenchKeeper');
+    const untracked = page.getByRole('table', { name: 'Untracked folders' });
+    await expect(untracked.getByRole('row').filter({ hasText: 'mine' })).toContainText('left alone');
+    await expect(untracked.getByRole('row').filter({ hasText: 'mermaid-diagrams' }).getByRole('button', { name: /^Adopt/ })).toBeVisible();
+    await noAxe(page);
+    // Deactivate: the plan parks the skill; closing it writes nothing.
+    // Mantine's track covers the input, so Playwright's own pointer check refuses it.
+    await own.getByRole('switch', { name: /^Active/ }).click({ force: true });
+    const off = page.getByRole('dialog', { name: 'Deactivate designing-technical-uis in sk-proj' });
+    await expect(off).toContainText('.benchkeeper/disabled/');
+    await noAxe(page);
+    await off.getByRole('button', { name: 'Close' }).click();
+    await expect(off).toBeHidden();
+    expect(existsSync(join(skills, 'designing-technical-uis/SKILL.md'))).toBe(true);
+    // Reset: the diff against the library comes first; the edit is in the run's backup.
+    await own.getByRole('button', { name: /^Reset/ }).click();
+    const reset = page.getByRole('dialog', { name: 'Reset designing-technical-uis in sk-proj' });
+    await expect(reset.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toContainText('edited here');
+    await noAxe(page);
+    await reset.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(reset.getByRole('button', { name: 'Undo run' })).toBeVisible();
+    await reset.getByRole('button', { name: 'Close' }).click();
+    await expect(own).toContainText('current');
+    // Adopt a library skill that is there without a setup: it becomes a single pick, its folder kept.
+    await untracked.getByRole('row').filter({ hasText: 'mermaid-diagrams' }).getByRole('button', { name: /^Adopt/ }).click();
+    const adopt = page.getByRole('dialog', { name: 'Adopt mermaid-diagrams in sk-proj' });
+    await adopt.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(adopt.getByRole('button', { name: 'Undo run' })).toBeVisible();
+    await adopt.getByRole('button', { name: 'Close' }).click();
+    const adopted = mine.filter({ hasText: 'mermaid-diagrams' });
+    await expect(adopted).toBeVisible();
+    expect(existsSync(join(skills, 'mine/SKILL.md'))).toBe(true);
+    // Remove takes the single pick out of the project; the untracked folder is still there.
+    await adopted.getByRole('button', { name: /^Remove/ }).click();
+    const remove = page.getByRole('dialog', { name: 'Remove mermaid-diagrams in sk-proj' });
+    await expect(remove).toContainText('remove skill mermaid-diagrams');
+    await remove.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(remove.getByRole('button', { name: 'Undo run' })).toBeVisible();
+    await remove.getByRole('button', { name: 'Close' }).click();
+    await expect(mine.filter({ hasText: 'mermaid-diagrams' })).toHaveCount(0);
+    expect(existsSync(join(skills, 'mine/SKILL.md'))).toBe(true);
+    await nav(page, 'Projects').click();
+    await unregister(page, ['sk-proj']);
+  });
+
   test('Projects: a project without a state file is set up step by step, local or on a branch', async ({ page }) => {
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'other', exact: true }).click();

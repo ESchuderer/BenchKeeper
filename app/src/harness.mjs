@@ -41,9 +41,13 @@ function pluginCheck(ctx, agents) {
 function projectCheck(dir) {
   const state = readState(dir);
   if (!state) return [];
-  const lock = JSON.parse(readText(join(dir, 'skills-lock.json')) ?? '{"skills":{}}').skills ?? {};
-  const lib = library();
+  const plain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  let file;
+  try { file = JSON.parse(readText(join(dir, 'skills-lock.json')) ?? '{}'); } catch { file = null; }
+  const lock = plain(file) ? file.skills ?? {} : null;
+  if (!plain(lock)) return [check(`project skills match the library pins (${dir})`, ['skills-lock.json is not a valid lock file'])];
   const problems = [];
+  const lib = library();
   for (const s of state.skills.filter((x) => !(state.disabled ?? []).includes(x.name))) {
     const pinned = lib.skills.find((x) => x.name === s.name);
     if (s.source === 'own') {

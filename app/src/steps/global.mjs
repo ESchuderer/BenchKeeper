@@ -59,7 +59,7 @@ export const marketRef = (p, a, appVersion) => (a === 'codex' ? pin(p, appVersio
 const sameCommit = (a, b) => a.length >= 7 && b.length >= 7 && (a.startsWith(b) || b.startsWith(a));
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
-const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
+export const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
 

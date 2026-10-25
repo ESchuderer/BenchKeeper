@@ -6,11 +6,12 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
-import { exists, isLink, listFiles, readText, realish } from '../fsx.mjs';
+import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
+import { itemState } from '../runner.mjs';
 import { PLUGINS, SKILLS_SPEC, SKILLS_VERIFY, marketRef } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
@@ -117,13 +118,18 @@ export function readState(dir) {
 // For listings: an unreadable state file counts as none, so one broken project does not hide the others.
 export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
 
-// answers: { agents, env, sandbox, packs, skills (single skills besides the packs'), disable, enable, tier,
+// answers: { agents, env, sandbox, packs, skills (single skills besides the packs'), disable, enable, packOn, packOff (packs
+// switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), tier,
 // paths: { skill: 'glob, glob' }, share, callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
-export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = {}) {
+export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], ...answers } = {}) {
   const prev = readState(dir) ?? {};
   const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
+  // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
+  a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
+  a.skills = [...new Set([...a.skills, ...pick])].filter((n) => !drop.includes(n));
+  a.reset = reset;
   a.share = a.share === true;
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
@@ -220,6 +226,18 @@ export function chosenSkills(a, lib = library()) {
   const names = new Set([...a.packs.flatMap((p) => lib.packs.find((x) => x.id === p)?.skills ?? []), ...a.skills]);
   return lib.skills.filter((s) => names.has(s.name) && (s.agents !== 'codex' || a.agents.includes('codex')));
 }
+
+// A library skill's own files as a project gets them: with the path globs of the setup in the front matter.
+export function ownSkillFiles(name, paths) {
+  const src = join(contentDir, 'library', name);
+  return listFiles(src).map((file) => {
+    const text = readFileSync(join(src, file), 'utf8');
+    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
+  });
+}
+
+// A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
+export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
 export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const a = resolveAnswers(dir, answers);
@@ -331,6 +349,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // The install command of each community skill: the state file records its new commit only once that ran.
   const installs = new Map();
   const installedRefs = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{40}$/.test(x.ref ?? '')).map((x) => [x.name, x.ref]));
+  const installedHashes = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{64}$/.test(x.hash ?? '')).map((x) => [x.name, x.hash]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
     const dirs = skillDirs(ids, 'project', dir);
@@ -341,25 +360,27 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const back = dirs.filter(({ dir: d }) => exists(parked(d, s.name)) && !exists(join(d, s.name)));
     for (const { dir: d } of back) moveDir(`on:${s.name}`, parked(d, s.name), join(d, s.name));
     const rest = dirs.filter((x) => !back.includes(x));
+    // A copy edited here, or one BenchKeeper never wrote, is replaced only when asked for (reset): the plan shows its diff.
+    const reseat = a.reset.includes(s.name);
     if (s.source === 'own') {
-      const src = join(contentDir, 'library', s.name);
       for (const { dir: d } of rest) {
-        for (const f of listFiles(src)) {
-          let text = readFileSync(join(src, f), 'utf8');
-          if (f === 'SKILL.md' && a.paths[s.name]) text = text.replace(/^(description: .*)$/m, `$1\npaths: ${a.paths[s.name]}`);
-          add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}`, { kind: 'write', path: join(d, s.name, f), after: text });
+        for (const { file, text } of ownSkillFiles(s.name, a.paths[s.name])) {
+          const path = join(d, s.name, file), held = ['modified', 'foreign'].includes(itemState(path, text, ctx));
+          add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the library: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, ...(held && !reseat ? { selected: false } : {}) });
         }
       }
     } else {
       // A skill the state file records at another commit is added again at the library's pin.
       const was = installedRefs.get(s.name);
-      const targets = rest.filter(({ dir: d }) => (was && was !== s.ref) || !exists(join(d, s.name)));
+      const targets = rest.filter(({ dir: d }) => (was && was !== s.ref) || reseat || !exists(join(d, s.name)));
       const missing = targets.flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
-      add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
-        kind: 'command', outdated: !!was && was !== s.ref, cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
+      // The folder differs from what the install left: its edits are backed up by the snapshot, and kept unless reset.
+      const held = !reseat && targets.some(({ dir: d }) => editedHere(d, s.name, installedHashes.get(s.name)));
+      add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
+        kind: 'command', outdated: !!was && was !== s.ref, cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false } : {}),
         argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }
@@ -389,12 +410,16 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // The state file, read by Update all and by setting-up-projects.
   // A community skill keeps its earlier commit while it is turned off (the parked copy is that one), and when its
   // install was not chosen or failed in the run that writes this file (apply passes the run to edit).
+  // Its hash is the folder as the install left it (a later edit shows as a difference); kept while no install ran.
   const recorded = (s, run) => {
     if (s.source === 'own' || !s.ref) return {};
     const id = installs.get(s.name);
     const ran = !id || !run || run.entries.some((e) => e.id === id && e.status === 'done');
+    const fresh = id && run && ran && !a.disabled.includes(s.name);
     const ref = a.disabled.includes(s.name) || !ran ? installedRefs.get(s.name) : s.ref;
-    return ref ? { ref } : {};
+    const at1 = fresh && skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => join(x.dir, s.name)).find(exists);
+    const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
+    return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
   const state = (run) => ({ schemaVersion: 1, setupVersion: appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run) })) });

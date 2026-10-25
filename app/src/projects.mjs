@@ -42,6 +42,8 @@ export function packsInUse(ctx) {
   const states = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
   return states.length ? [...new Set(states.flatMap((s) => s.packs ?? []))] : null;
 }
+// The registered projects whose setup names the pack.
+export const projectsUsing = (ctx, id) => listProjects(ctx).filter((p) => projectState(ctx, p.path)?.packs?.includes(id)).map((p) => p.path);
 function save(ctx, projects) {
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);
 }

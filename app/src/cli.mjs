@@ -17,15 +17,16 @@ import { launch, openBrowser, startServer } from './server.mjs';
 import { listFiles, writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
-import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
+import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
 import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
-import { LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
-import { projectCtx, projectPlan, scopeCtx } from './steps/project.mjs';
+import { PLUGINS, LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
+import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
+import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -80,7 +81,18 @@ Usage: benchkeeper <command> [options]
                                     --disable moves a skill to .benchkeeper/disabled/, --enable moves it back;
                                     --caller writes that repo-baseline workflow file (never GitHub settings)
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
-                                    library packs and own packs (~/.config/benchkeeper/packs/)
+                                    library packs and own packs (own ones in packs/ of the config folder); remove
+                                    refuses a pack a registered project still names
+  packs enable|disable <id>.. [--project dir | --global] [--yes]
+                                    switches packs on top of the current state, as a plan with a diff (undo restores it):
+                                    a project's packs (default: the current folder), or the plugins of a pack that
+                                    installs one (--global). Disabling removes the skills no other pack or single pick needs
+  skills [list|update|reset|remove|adopt] [name..] [--project dir] [--yes]
+                                    skills of a project: state (current, outdated, modified, removed, disabled), the commit
+                                    installed and the one the library offers, and folders no setup installed (untracked,
+                                    never touched). update: to the library's copy (no name: every outdated one); reset: a
+                                    skill edited here goes back to the library's (the edit is backed up, the diff shown);
+                                    remove: a single pick leaves the project; adopt: an untracked library skill becomes a pick
   projects [list|add <dir>..|scan <root>|remove <dir>..]
                                     projects Update all covers (projects.json in the config folder); add refuses another worktree
                                     of a registered repository unless --worktree; remove only unregisters
@@ -121,7 +133,7 @@ const OPTIONS = {
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
   json: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
-  setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' },
+  setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -254,11 +266,13 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const p of prompts) out.write(`  benchkeeper record --project ${dir} -- ${p.agent} '${p.prompt}'   (${p.why})\n`);
     return 0;
   }
+  if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
+  if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
     else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
     else if (arg === 'import') out.write(`imported ${importPack(ctx, readFileSync(positionals[2], 'utf8'), o.id).id}\n`);
-    else if (arg === 'remove') { removePack(ctx, positionals[2]); out.write(`removed ${positionals[2]}\n`); }
+    else if (arg === 'remove') { removePack(ctx, positionals[2], { usedBy: projectsUsing(ctx, positionals[2]) }); out.write(`removed ${positionals[2]}\n`); }
     else if (arg && arg !== 'list') { out.write(`unknown packs command ${arg}\n`); return 2; }
     else {
       for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
@@ -438,11 +452,67 @@ async function command(argv, { out, err, ask, ctx }) {
   return 2;
 }
 
-function planProject(ctx, o, dir) {
+// extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
+function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller, ...extra };
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
-  return { pctx, plan: preview(changes), prompts, skills, warnings };
+  return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
+}
+
+// The plan of one folder, shown and applied the way project apply does; the plugin installs of a pack stay with the global plan.
+async function runProjectPlan(ctx, dir, { o, out, ask }, planned) {
+  const { pctx, plan, skills, warnings } = planned;
+  if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
+  for (const w of warnings) out.write(`warning: ${w}\n`);
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  return report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out);
+}
+
+// packs enable|disable: a plan on top of the current state; nothing new is stored. --global: the plugin of a pack that has one.
+async function switchPacks(ctx, { o, positionals, out, ask }) {
+  const on = positionals[1] === 'enable', ids = positionals.slice(2);
+  if (!ids.length) { out.write(`packs ${positionals[1]} needs a pack id, see benchkeeper packs list\n`); return 2; }
+  if (o.global && o.project) { out.write('--project and --global exclude each other\n'); return 2; }
+  const known = libraryWith(ctx).packs;
+  const unknown = ids.filter((id) => !known.some((p) => p.id === id));
+  if (unknown.length) { out.write(`unknown pack ${unknown.join(', ')}, see benchkeeper packs list\n`); return 1; }
+  if (!o.global) {
+    const dir = resolve(o.project ?? '.');
+    if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper project apply --agents a,b --pack ${ids[0]}\n`); return 1; }
+    return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, on ? { packOn: ids } : { packOff: ids }));
+  }
+  const skillsOnly = ids.filter((id) => !known.find((p) => p.id === id).plugins);
+  if (skillsOnly.length) { out.write(`${skillsOnly.join(', ')} install library skills per project, not on the machine: use --project <dir>\n`); return 1; }
+  const agents = selectedAgents(ctx, o.agents), have = installedPacks(ctx);
+  const steps = new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => ids.includes(p.pack)).map((p) => `plugin:${a}:${p.id}`)));
+  // The other installed packs stay as they are; the pack asked for is the only one on or off.
+  const packs = on ? [...new Set([...have, ...ids])] : have.filter((p) => !ids.includes(p));
+  const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true }));
+  for (const id of on ? [] : ids) { const users = projectsUsing(ctx, id); if (users.length) out.write(`note: ${users.join(', ')} still name${users.length === 1 ? 's' : ''} ${id}\n`); }
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
+}
+
+const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt'];
+// skills list|update|reset|remove|adopt: the Catalog's skill management, through the same plan, diff and undo.
+async function skillsCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub = 'list', ...names] = positionals;
+  const dir = resolve(o.project ?? '.');
+  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { out.write(`skills needs list, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
+  const rows = projectSkills(ctx, dir);
+  if (sub === 'list') {
+    for (const s of rows?.skills ?? []) out.write(`${s.name.padEnd(30)} ${s.state.padEnd(9)} ${s.own ? 'BenchKeeper' : `${s.pinned?.slice(0, 12) ?? 'not installed'} (library ${s.newest?.slice(0, 12) ?? '-'})`}${s.packs.length ? `  pack ${s.packs.join(', ')}` : ''}${s.single ? '  single pick' : ''}\n`);
+    for (const u of rows?.untracked ?? []) out.write(`${u.name.padEnd(30)} untracked ${u.folders.join(', ')}${u.library ? `  (benchkeeper skills adopt ${u.name})` : ''}\n`);
+    for (const u of globalUntracked(ctx, selectedAgents(ctx, o.agents))) out.write(`${u.name.padEnd(30)} untracked global ${u.folders.join(', ')}\n`);
+    if (!rows) out.write(`${dir} has no setup yet\n`);
+    return 0;
+  }
+  if (!rows) { out.write(`${dir} has no setup yet: benchkeeper project apply --agents a,b\n`); return 1; }
+  let action;
+  try { action = skillAction(rows, sub, names); } catch (e) { out.write(`${e.message}\n`); return 1; }
+  if (!action.names.length) { out.write('nothing to change\n'); return 0; }
+  return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names }));
 }
 
 // ---- --json: one document on stdout, logs on stderr. Exit 0 clean, 1 findings of level error, 2 usage or read failure.

@@ -56,7 +56,9 @@ export function savePack(ctx, { id, title = id, skills }) {
 }
 
 // id of an own pack, or the file name of an invalid pack file (taken from the listing, never joined from the argument).
-export function removePack(ctx, id) {
+// usedBy: the projects whose setup still names the pack; it stays until they switch it off.
+export function removePack(ctx, id, { usedBy = [] } = {}) {
+  if (usedBy.length) throw new Error(`pack ${id} is in use by ${usedBy.join(', ')}: switch it off there first (benchkeeper packs disable ${id} --project <dir>)`);
   const { packs, invalid } = scan(ctx);
   const file = invalid.find((x) => x.file === id || x.file === `${id}.json`)?.file ?? (packs.some((p) => p.id === id) ? `${id}.json` : null);
   if (!file) throw new Error(`no own pack ${id}`);

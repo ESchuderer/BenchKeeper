@@ -8,8 +8,9 @@ on:
 
 permissions: {}
 
+# Pushes and manual runs share one group and queue (one running, the newest pending): bundle reads both branch tips and deploy publishes them, so one run at a time keeps an older snapshot from replacing a newer one.
 concurrency:
-  group: pages-${{ github.ref }}
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.ref) || 'pages-deploy' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -63,10 +64,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Same group as deploy: the branch tips are read inside the queue, so an older run cannot publish an older snapshot over a newer one.
-    concurrency:
-      group: pages-deploy
-      cancel-in-progress: false
     permissions:
       contents: read
     env:
@@ -134,10 +131,6 @@ jobs:
     needs: bundle
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # One deployment at a time: a push to main and one to develop both publish the whole site.
-    concurrency:
-      group: pages-deploy
-      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write

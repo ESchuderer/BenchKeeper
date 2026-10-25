@@ -3,7 +3,8 @@ name: Release
 # The plugin version in plugins/benchkeeper/*/plugin.json is the setup version (CHANGELOG.md).
 # Pull requests: a change under plugins/benchkeeper/ raises it and adds its CHANGELOG entry.
 # main: the first push with a new version tags setup-v<major>.<minor>, moves the branch stable (the ref the app adds
-# BenchKeeper's marketplace at) to that commit, and publishes a GitHub Release with that entry.
+# BenchKeeper's marketplace at) to that commit, and publishes a GitHub Release (titled benchkeeper <major>.<minor>) with that entry.
+# Then, if npm does not have app/package.json's version yet, it starts npm.yml, which publishes it: merge to main is the release.
 on:
   push:
     branches: [main]
@@ -59,4 +60,33 @@ jobs:
           git push origin "$GITHUB_SHA:refs/heads/stable"
           sh .github/scripts/release.sh notes > "$RUNNER_TEMP/notes.md"
           # An existing tag (pushed by hand) is kept; otherwise the tag is created on this commit.
-          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file "$RUNNER_TEMP/notes.md"
+          gh release create "$tag" --target "$GITHUB_SHA" --title "benchkeeper ${tag#setup-v}" --notes-file "$RUNNER_TEMP/notes.md"
+
+  npm:
+    needs: release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: app/package.json
+          sparse-checkout-cone-mode: false
+      # npm.yml holds the trusted-publisher binding and the OIDC token; this job can only start it. Events made with
+      # GITHUB_TOKEN do not start workflows, except a dispatch. A push to main without a new version, or a rerun after
+      # a published version, finds the version on npm and does nothing; a failed publish is retried by rerunning this job.
+      - name: Start npm publish for a new version
+        run: |
+          v=$(jq -r .version app/package.json)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://registry.npmjs.org/benchkeeper/$v")
+          case $code in
+            200) echo "benchkeeper@$v is on npm" ;;
+            404) gh workflow run npm.yml --ref main -f "version=$v" ;;
+            *) echo "::error::registry answered $code for benchkeeper@$v"; exit 1 ;;
+          esac

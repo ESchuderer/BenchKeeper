@@ -1,1 +1,0 @@
-../../winery/hidden/acceptance.spec.mjs

@@ -1,5 +1,0 @@
-interface:
-  display_name: "Setting up projects"
-  short_description: "Devcontainer, workflow, issue tracker setup"
-policy:
-  allow_implicit_invocation: false

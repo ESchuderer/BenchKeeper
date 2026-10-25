@@ -29,6 +29,13 @@ const blocks = {
     '|---|---|---|---|',
     ...facts.parallelTools.map((t) => `| ${link(t.name, t.url)} | ${cell(t.platforms)} | ${cell(t.points.join('; '))} | ${cell(t.when)} |`),
   ],
+  frameworks: [
+    facts.frameworks.rule,
+    '',
+    '| Framework | Role | Installs | Evaluation |',
+    '|---|---|---|---|',
+    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} | [${cell(f.evaluation.split('/').pop())}](${f.evaluation}) |`),
+  ],
   openhands: [
     `**Unattended or isolated runs: [${facts.openhands.name}](${facts.openhands.url}).** ${facts.openhands.summary}`,
     '',

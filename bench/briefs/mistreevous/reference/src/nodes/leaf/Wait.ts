@@ -86,7 +86,7 @@ export default class Wait extends Leaf {
             const deltaTime = this.options.getDeltaTime();
 
             // Our delta time must be a valid number and cannot be NaN.
-            if (typeof deltaTime !== "number" || isNaN(deltaTime)) {
+            if (typeof deltaTime !== "number" || Number.isNaN(deltaTime)) {
                 throw new Error("The delta time must be a valid number and not NaN.");
             }
 

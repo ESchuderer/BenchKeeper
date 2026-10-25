@@ -18,7 +18,7 @@ run reference "" ""
 run capacity F3,R1 's/  else if (t \&\& guests > left(t)) errors.guests = `Only ${left(t)} seats left.`;//'
 run staff-open F5,R7,R12 's/const staff = (req) => sessions.has(.*$/const staff = () => true;/'
 run cancel-noop F6 's/  if (i >= 0) bookings.splice(i, 1);//'
-run email-unchecked F4,R6 "s#  if (!/^\[^\\\\s@\]+@\[^\\\\s@\]+\\\\.\[^\\\\s@\]+\$/.test(email)) errors.email = 'Enter a valid email address.';##"
+run email-unchecked F4,R6 "s#  if (!/^\[^\\\\s@\]+@\[^\\\\s@\]\[^\\\\s@.\]\*\\\\.\[^\\\\s@\]+\$/.test(email)) errors.email = 'Enter a valid email address.';##"
 run race R1 "s#app.post('/api/bookings', (req, res)#app.post('/api/bookings', async (req, res)#; s#^  bookings.push(b);#  await new Promise((r) => setTimeout(r, 300));\n&#"
 run guests-zero R2 's/guests < 1 ||/guests < 0 ||/'
 run guests-nine R3 's/guests > 8)/guests > 9)/'
@@ -26,7 +26,7 @@ run guests-fraction R4,R9 's/!Number.isInteger(guests)/!Number.isFinite(guests)/
 run name-empty R5,R10 's/  if (!name.trim()) errors.name.*$//'
 run email-empty R6 's/.test(email)) errors.email/.test(email) \&\& email) errors.email/'
 # The bookings API without a session check, and a staff page that asks for the password before it loads them (F5 passes).
-run staff-leak R7 "s#(req, res) => (staff(req) ? res.json(bookings)#(req, res) => (true ? res.json(bookings)#; s#  useEffect(() => { load(); }, \[\]);##" "server.mjs src/main.jsx"
+run staff-leak R7 "s#(req, res) => (staff(req) ? res.json(bookings)#(req, res) => (true ? res.json(bookings)#; s#  useEffect(() => { void load(); }, \[\]);##" "server.mjs src/main.jsx"
 run name-markup R8 's#<li key={b.ref}>{b.name},#<li key={b.ref}><span dangerouslySetInnerHTML={{ __html: b.name }} />,#' src/main.jsx
 # Guests checked only in the browser before the request, not by the server.
 run server-guests R9 "s#const f = Object.fromEntries(new FormData(e.target));#&\n      if (!/^[1-8]\$/.test(f.guests)) return setErrors({ guests: \"Guests must be 1 to 8.\" });#; s#if (!Number.isInteger(guests) || guests < 1 || guests > 8) errors.guests#if (false) errors.guests#" "server.mjs src/main.jsx"
@@ -39,5 +39,5 @@ run variant "" 's#{field(.guests., .Guests.)}#<p><label htmlFor="guests">Guests<
 s#  const \[error, setError\] = useState(.*);#&\n  const [ready, setReady] = useState(false);#
 s#  const load = () => api(./api/staff/bookings.).then((r) => (r.ok ? r.json().then(setList) : setList(null)));#  const load = () => api("/api/staff/bookings").then((r) => (r.ok ? r.json().then(setList) : setList(null))).finally(() => setReady(true));#
 s#  if (!list) {#  if (!ready) return <main><p>Loading</p></main>;\n  if (!list) {#
-s#  useEffect(() => { load(); }, \[\]);#  useEffect(() => { setTimeout(load, 800); }, []);#
+s#  useEffect(() => { void load(); }, \[\]);#  useEffect(() => { setTimeout(load, 800); }, []);#
 s#{t.left} seats left#{t.left} {t.left === 1 ? "seat" : "seats"} left#' src/main.jsx

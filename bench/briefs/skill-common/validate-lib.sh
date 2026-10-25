@@ -21,14 +21,18 @@ build_reference() {
   jq -e .ok "$tmp/reference-suite/suite.json" > /dev/null && echo "reference suite: ok" || { echo "reference suite: failed"; exit 1; }
 }
 case_() { # <name> <expected failing ids, comma-separated, in check order> [command on the copy]; name baseline: the baseline
-  src=$tmp/reference; [ "$1" != baseline ] || src=$tmp/baseline
+  src=$tmp/reference; case $1 in baseline) src=$tmp/baseline ;; esac
   d=$tmp/case-$1; rm -rf "$d" "$d-out"; cp -a "$src" "$d"
-  if [ -n "${3:-}" ]; then
-    in_dir "$d" "$3"
-    ! diff -rq "$src" "$d" > /dev/null || { echo "$1: mutation not applied"; exit 1; }
-  fi
+  case ${3:-} in
+    '') ;;
+    *)
+      in_dir "$d" "$3"
+      ! diff -rq "$src" "$d" > /dev/null || { echo "$1: mutation not applied"; exit 1; } ;;
+  esac
   "$here/checks/step1.sh" "$d" "$d-out" > /dev/null 2>&1 || { echo "$1: checks did not run"; exit 1; }
   got=$(jq -r '[.checks[] | select(.ok != true) | .id] | join(",")' "$d-out/checks.json")
-  [ "$got" = "$2" ] && echo "$1: ok (failing: ${got:-none})" \
-    || { echo "$1: expected '$2', got '$got'"; jq -c '.checks[] | select(.ok != true)' "$d-out/checks.json"; exit 1; }
+  case $got in
+    "$2") echo "$1: ok (failing: ${got:-none})" ;;
+    *) echo "$1: expected '$2', got '$got'"; jq -c '.checks[] | select(.ok != true)' "$d-out/checks.json"; exit 1 ;;
+  esac
 }

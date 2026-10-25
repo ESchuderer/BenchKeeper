@@ -230,12 +230,13 @@ async function command(argv, { out, ask, ctx }) {
     else if (arg === 'scan') for (const d of scan(dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === canon(d)) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
     else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.write(`removed ${resolve(d)}\n`); });
     else if (arg === 'unshare') {
+      const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
+      if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
       const due = (dirs.length ? dirs.map((d) => resolve(d)) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
       if (!due.length) { out.write('no project carries a committed setup\n'); return 0; }
       for (const p of due) out.write(`${p.path}  setup ${p.origin ?? '-'} on origin${p.clean ? '' : ', working tree has changes: skipped'}\n`);
       const ready = due.filter((p) => p.clean);
       if (!ready.length) return 1;
-      const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
       if (!o['no-push'] && ready.length > max) { out.write(`${ready.length} pull requests: at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
       if (!o.yes && !(await ask(`Open ${ready.length} pull requests (branch chore/agent-setup-local)${o['no-push'] ? ' without pushing' : ''}?`))) return 1;
       const results = ready.map((p) => unshare(ctx, p.path, { push: !o['no-push'] }));

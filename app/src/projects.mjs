@@ -193,10 +193,19 @@ export const MAX_PROJECTS = 25;
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
 // answers[path] sets up a project without a state file the same way. A local setup (the default) is applied in the
 // checkout; a shared one lands on branch chore/agent-setup-<version> with one commit and a pull request.
-// The projects of paths a pushed run would push: those with a GitHub origin.
-export const pushTargets = (ctx, paths) => paths.filter((p) => githubRemote(ctx, p));
+// The setup that counts for a project says whether it is shared: the checkout's, the one kept from a removal pull request,
+// or origin's.
+const setupFor = (ctx, path, local = readState(path)) => local ?? kept(ctx, path) ?? (isRepo(ctx, path) ? setupOf(ctx, path, local).state : null);
+// The paths a pushed run would push: a GitHub origin and a pull request (a shared setup, or a committed one that goes local).
+// A local setup is applied in the checkout and pushes nothing.
+export const pushTargets = (ctx, paths, answers = {}) => paths.filter((p) => {
+  try {
+    if (!githubRemote(ctx, p)) return false;
+    return (answers[p]?.share ?? setupFor(ctx, p)?.share ?? false) || (!answers[p] && tracksState(ctx, p));
+  } catch { return false; }
+});
 export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), push = true, answers = {}, max = MAX_PROJECTS } = {}) {
-  const targets = push ? pushTargets(ctx, paths).length : 0;
+  const targets = push ? pushTargets(ctx, paths, answers).length : 0;
   if (targets > max) throw new Error(`${targets} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)`);
   return paths.map((path) => {
     const result = { path };
@@ -204,7 +213,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       const local = readState(path), repo = isRepo(ctx, path);
       // The setup that counts says whether it is shared: the checkout's, the one kept from a removal pull request, or
       // origin's.
-      const setup = local ?? kept(ctx, path) ?? (repo ? setupOf(ctx, path, local).state : null);
+      const setup = setupFor(ctx, path, local);
       if (!answers[path] && !setup) throw new Error(`no ${STATE}: set the project up first`);
       if (!(answers[path]?.share ?? setup?.share ?? false)) {
         // Still committed: a local apply would change tracked files, and pulling the removal later would fail on them.

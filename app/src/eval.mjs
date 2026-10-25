@@ -58,7 +58,7 @@ export function evalPlan(ctx, { agents = ['claude'], model, all = false, only } 
 // signal aborts: the running session is stopped and the target it belongs to gets no result; finished targets keep theirs.
 export async function runEval(ctx, plan, { now = () => new Date().toISOString(), onCase = () => {}, onResult = () => {}, signal } = {}) {
   // The query is the agent's last argument: one that starts with - would be read as an option. Nothing starts before every case is checked.
-  for (const p of plan) for (const c of p.cases) if (typeof c.query !== 'string' || c.query.startsWith('-')) throw new Error(`case ${c.id} of ${p.target}: the query is empty or starts with a dash (an agent CLI would read it as an option)`);
+  for (const p of plan) for (const c of p.cases) if (typeof c.query !== 'string' || !c.query || c.query.startsWith('-')) throw new Error(`case ${c.id} of ${p.target}: the query is empty or starts with a dash (an agent CLI would read it as an option)`);
   const out = [];
   const session = ctx.runAsync ?? ctx.run;
   const total = plan.reduce((n, p) => n + p.cases.length, 0);

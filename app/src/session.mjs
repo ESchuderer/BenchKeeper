@@ -34,7 +34,7 @@ export function transcript(home, dir, since, agent) {
     }
   };
   if (agent === 'claude') scan(claude, 0);
-  else if (agent === 'codex') { scan(join(home, '.codex/sessions'), 3); found.splice(0, found.length, ...found.filter(([, p]) => codexCwd(p) != null && realish(codexCwd(p)) === realish(dir))); }
+  else if (agent === 'codex') { scan(join(home, '.codex/sessions'), 3); found.splice(0, found.length, ...found.filter(([, p]) => { const cwd = codexCwd(p); return typeof cwd === 'string' && realish(cwd) === realish(dir); })); }
   return found.sort((a, b) => b[0] - a[0])[0]?.[1] ?? null;
 }
 

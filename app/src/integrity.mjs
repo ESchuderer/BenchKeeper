@@ -23,7 +23,9 @@ export function ledgerIssues(ctx) {
       for (const [path, hash] of left(e)) {
         if (!path || seen.has(path)) continue;
         seen.add(path);
-        if (hashPath(path) !== hash) out.push({ message: hash == null ? `${path} is back after run ${run.id} removed it` : `${path} changed since run ${run.id}`, fix: 'edit it back, or run the step again (benchkeeper plan shows it); undo refuses a file changed after its run' });
+        let now;
+        try { now = hashPath(path); } catch (err) { out.push({ message: `${path} cannot be read (${err.code ?? 'read error'}) to compare it with run ${run.id}`, fix: 'fix its permissions, then run benchkeeper doctor again' }); continue; }
+        if (now !== hash) out.push({ message: hash == null ? `${path} is back after run ${run.id} removed it` : `${path} changed since run ${run.id}`, fix: 'edit it back, or run the step again (benchkeeper plan shows it); undo refuses a file changed after its run' });
       }
     }
   }

@@ -124,10 +124,13 @@ test('Update all pushes to a bounded number of repositories and a project in a s
   const h = home();
   const c = context({ home: h });
   assert.equal(MAX_PROJECTS, 25);
-  // The cap counts repositories with a GitHub origin: local projects and a --no-push run are not bounded by it.
+  // The cap counts the repositories a run pushes to (a GitHub origin and a pull request): local setups and a --no-push run are not bounded by it.
   const hub = context({ home: h, run: (argv, o) => (argv.includes('get-url') ? { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' } : c.run(argv, o)) });
-  assert.throws(() => updateAll(hub, { paths: ['/a', '/b', '/c'], max: 2 }), /3 repositories to push to: .* at most 2/);
-  assert.equal(updateAll(hub, { paths: ['/a', '/b', '/c'], max: 2, push: false }).length, 3);
+  const paths = ['/a', '/b', '/c'];
+  const answers = (share) => Object.fromEntries(paths.map((p) => [p, { share }]));
+  assert.throws(() => updateAll(hub, { paths, max: 2, answers: answers(true) }), /3 repositories to push to: .* at most 2/);
+  assert.equal(updateAll(hub, { paths, max: 2, push: false, answers: answers(true) }).length, 3);
+  assert.equal(updateAll(hub, { paths, max: 2, answers: answers(false) }).length, 3);
   assert.equal(updateAll(c, { paths: ['/a', '/b', '/c'], max: 2 }).length, 3);
   const p = project(h, 'sub');
   addProject(c, p.dir);
@@ -208,6 +211,7 @@ test('update-all --dry-run stops after the plan, --max must be a number, a cap s
   assert.match(text, /dry run: 2 projects would be updated, nothing changed/);
   assert.equal(git(a.dir, 'branch', '--list', 'chore/*').trim(), '');
   assert.equal(await exec(['update-all', '--max', 'x']), 2);
+  assert.equal(await exec(['projects', 'unshare', '--max', '0']), 2);
   assert.equal(await exec(['update-all', '--yes', '--max', '1']), 1);
   assert.match(text, /2 repositories to push to: Update all pushes to at most 1 per run/);
   assert.equal(git(a.dir, 'branch', '--list', 'chore/*').trim(), '');
@@ -401,6 +405,8 @@ test('the transcript of a recorded session is the one of that agent, started in 
   rollout('rollout-b.jsonl', other);
   assert.equal(transcript(h, dir, 0, 'codex'), mine);
   assert.equal(transcript(h, dir, 0, 'claude'), join(claude, 'c.jsonl'));
+  writeFileSync(join(day, 'rollout-c.jsonl'), `${JSON.stringify({ type: 'session_meta', payload: { cwd: 7 } })}\n`);
+  assert.equal(transcript(h, dir, 0, 'codex'), mine);
   assert.equal(transcript(h, dir, 0, 'gemini'), null);
   assert.equal(transcript(h, other, 0, 'claude'), null);
 });
@@ -426,6 +432,7 @@ test('a query that starts with a dash is no eval case', async () => {
   const c = context({ home: home(), run: () => ({ code: 0, stdout: '', stderr: '' }) });
   assert.throws(() => addCase(c, { target: 'skill:x', expected: 'it triggers', query: '--help me' }), /starts with a dash/);
   await assert.rejects(runEval(c, [{ target: 'skill:x', agent: 'claude', cases: [{ id: 'k', query: '-p x', should: true }] }]), /starts with a dash/);
+  await assert.rejects(runEval(c, [{ target: 'skill:x', agent: 'claude', cases: [{ id: 'k', query: '', should: true }] }]), /empty/);
 });
 
 test('a hand-edited AGENTS.override.md is offered for removal, not preselected; one as written is preselected', () => {
@@ -466,4 +473,18 @@ test('a .git file that points at another repository gives the project no info/ex
   const sub = repo();
   git(main, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'mod');
   assert.deepEqual(projectCtx(c, join(main, 'mod')).roots.length, 2);
+});
+
+test('doctor names a recorded file it cannot read and goes on', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, () => {
+  const h = home();
+  const c = context({ home: h, run: () => ({ code: 0, stdout: '', stderr: '' }) });
+  apply([write(c, 'dir/a', '1'), write(c, 'b', '1')], c);
+  writeFileSync(join(h, 'b'), 'edited by hand');
+  mkdirSync(join(h, 'dir/sub'));
+  chmodSync(join(h, 'dir/a'), 0);
+  try {
+    const messages = integrity(c).map((i) => i.message);
+    assert.ok(messages.some((m) => m.startsWith(`${join(h, 'dir/a')} cannot be read`)));
+    assert.ok(messages.some((m) => m.startsWith(`${join(h, 'b')} changed since`)));
+  } finally { chmodSync(join(h, 'dir/a'), 0o644); }
 });

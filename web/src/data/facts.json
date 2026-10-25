@@ -215,7 +215,7 @@
         "url": "https://github.com/msitarzewski/agency-agents",
         "role": "parts",
         "installs": "a pick of agent files fetched at a pinned commit",
-        "evaluation": "evaluations/workflow-frameworks/agency-agents.md"
+        "evaluation": "EVALUATIONS.md"
       }
     ]
   }

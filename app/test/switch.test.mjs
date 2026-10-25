@@ -119,6 +119,17 @@ test('skill states: current, modified, outdated, removed, disabled; an edit is n
   assert.equal(row().state, 'disabled');
 });
 
+test('a copy no run on this machine wrote (a clone, another worktree) counts as outdated and is replaced with its diff shown', () => {
+  const r = repo();
+  run(r, { agents: ['claude'], env: 'host', packs: ['ui-a'] });
+  const other = mkdtempSync(join(TMP, 'bk-swhome-'));
+  const fresh = { ...r.ctx, ledger: context({ home: other }).ledger };
+  writeFileSync(r.skill, 'written elsewhere\n');
+  assert.equal(projectSkills(fresh, r.dir).skills.find((x) => x.name === SKILL).state, 'outdated');
+  const change = preview(projectPlan({ ctx: fresh, dir: r.dir, answers: {}, plugins: {} }).changes).find((c) => c.path === r.skill);
+  assert.deepEqual([change.selected, change.diff.includes('-written elsewhere')], [true, true]);
+});
+
 test('community skills: outdated by commit, modified by the hash recorded at install, removed with the folder', () => {
   const r = repo();
   const folders = ['frontend-design', 'accessibility'].map((n) => join(r.dir, '.claude/skills', n));
@@ -175,6 +186,12 @@ test('an untracked skill survives project apply, a pack switch and Update all; a
   const adopted = projectPlan({ ctx: r.ctx, dir: r.dir, answers: { pick: ['mermaid-diagrams'] }, plugins: {} });
   assert.deepEqual(adopted.skills.added, ['mermaid-diagrams']);
   assert.ok(!adopted.changes.some((c) => c.kind === 'command' && /mermaid-diagrams/.test(c.title)), 'the folder is there: no install');
+  // No commit is claimed for a folder BenchKeeper did not install; the setup version stays when only a skill changes.
+  writeFileSync(join(r.dir, STATE), JSON.stringify({ ...JSON.parse(readFileSync(join(r.dir, STATE), 'utf8')), setupVersion: '5.0.0' }));
+  const partial = projectPlan({ ctx: r.ctx, dir: r.dir, answers: { pick: ['mermaid-diagrams'], partial: true }, plugins: {} });
+  apply(preview(focusOn(partial.changes, ['mermaid-diagrams'])), r.ctx, { scope: r.dir });
+  const after = readState(r.dir);
+  assert.deepEqual([after.setupVersion, after.singles, after.skills.find((x) => x.name === 'mermaid-diagrams').ref], ['5.0.0', ['mermaid-diagrams'], undefined]);
 });
 
 test('skill actions: remove takes a single pick and names the pack for the others; focus keeps one skill', () => {
@@ -188,6 +205,7 @@ test('skill actions: remove takes a single pick and names the pack for the other
   const p = projectPlan({ ctx: r.ctx, dir: r.dir, answers: a.answers, plugins: {} });
   assert.ok(focusOn(p.changes, a.names).every((c) => /^(remove:mermaid-diagrams|state|exclude)$/.test(c.step)), p.changes.map((c) => c.step).join());
   assert.deepEqual(skillAction(rows, 'update', []).names, []);
+  assert.throws(() => skillAction(rows, 'update', ['typo']), /not a skill of this project/);
 });
 
 test('an own pack a project names cannot be removed; the message names the project', () => {

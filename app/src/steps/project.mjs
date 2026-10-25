@@ -119,10 +119,11 @@ export function readState(dir) {
 export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
 
 // answers: { agents, env, sandbox, packs, skills (single skills besides the packs'), disable, enable, packOn, packOff (packs
-// switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), tier,
+// switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), partial
+// (a change of some skills only: the state file keeps its setup version), tier,
 // paths: { skill: 'glob, glob' }, share, callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
-export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], ...answers } = {}) {
+export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
   const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
@@ -130,6 +131,8 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
   a.skills = [...new Set([...a.skills, ...pick])].filter((n) => !drop.includes(n));
   a.reset = reset;
+  a.pick = pick;
+  a.partial = partial;
   a.share = a.share === true;
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
@@ -360,12 +363,12 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const back = dirs.filter(({ dir: d }) => exists(parked(d, s.name)) && !exists(join(d, s.name)));
     for (const { dir: d } of back) moveDir(`on:${s.name}`, parked(d, s.name), join(d, s.name));
     const rest = dirs.filter((x) => !back.includes(x));
-    // A copy edited here, or one BenchKeeper never wrote, is replaced only when asked for (reset): the plan shows its diff.
+    // A copy edited here (it differs from what a run of this machine left) is replaced only when asked for (reset): the plan shows its diff.
     const reseat = a.reset.includes(s.name);
     if (s.source === 'own') {
       for (const { dir: d } of rest) {
         for (const { file, text } of ownSkillFiles(s.name, a.paths[s.name])) {
-          const path = join(d, s.name, file), held = ['modified', 'foreign'].includes(itemState(path, text, ctx));
+          const path = join(d, s.name, file), held = itemState(path, text, ctx) === 'modified';
           add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the library: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, ...(held && !reseat ? { selected: false } : {}) });
         }
       }
@@ -416,12 +419,14 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const id = installs.get(s.name);
     const ran = !id || !run || run.entries.some((e) => e.id === id && e.status === 'done');
     const fresh = id && run && ran && !a.disabled.includes(s.name);
-    const ref = a.disabled.includes(s.name) || !ran ? installedRefs.get(s.name) : s.ref;
+    // A skill adopted with its folder as it is has no commit to claim: reset takes it to the pin.
+    const adopted = !id && a.pick.includes(s.name) && !installedRefs.has(s.name);
+    const ref = a.disabled.includes(s.name) || !ran || adopted ? installedRefs.get(s.name) : s.ref;
     const at1 = fresh && skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => join(x.dir, s.name)).find(exists);
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run) => ({ schemaVersion: 1, setupVersion: appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
+  const state = (run) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run) })) });
   add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), edit: (_, run) => `${JSON.stringify(state(run), null, 2)}\n` });
 

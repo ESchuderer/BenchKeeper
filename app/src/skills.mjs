@@ -17,9 +17,10 @@ const subfolders = (dir) => { try { return readdirSync(dir).filter((n) => NAME.t
 function ownState(ctx, dir, skill, a) {
   const ids = a.agents.filter((x) => skill.agents !== 'codex' || x === 'codex');
   const seen = skillDirs(ids, 'project', dir).flatMap(({ dir: d }) => ownSkillFiles(skill.name, a.paths?.[skill.name]).map(({ file, text }) => itemState(join(d, skill.name, file), text, ctx)));
-  if (seen.some((s) => ['modified', 'foreign'].includes(s))) return 'modified';
+  if (seen.includes('modified')) return 'modified';
   if (seen.some((s) => ['removed', 'absent'].includes(s))) return 'removed';
-  return seen.includes('outdated') ? 'outdated' : 'current';
+  // Foreign: no run of this machine wrote it (a clone, another worktree), so the library's copy counts as the newer one.
+  return seen.some((s) => ['outdated', 'foreign'].includes(s)) ? 'outdated' : 'current';
 }
 
 function communityState(dir, rec, skill, a) {
@@ -65,12 +66,12 @@ export function globalUntracked(ctx, agents) {
 // The skill answers of one action. remove: a single pick goes, a skill a pack brings stays with the pack.
 export function skillAction(rows, action, names) {
   const row = (n) => rows.skills.find((s) => s.name === n);
-  if (action === 'update') return { names: names.length ? names : rows.skills.filter((s) => s.state === 'outdated').map((s) => s.name), answers: {} };
   for (const n of names) {
     if (action === 'adopt' && !rows.untracked.some((u) => u.name === n && u.library)) throw new Error(`${n} is not an untracked library skill of this project`);
     if (action !== 'adopt' && !row(n)) throw new Error(`${n} is not a skill of this project`);
     if (action === 'remove' && !row(n).single) throw new Error(`${n} comes from ${row(n).packs.length ? `the pack ${row(n).packs.join(', ')}` : 'the setup'}: switch the pack off (benchkeeper packs disable ${row(n).packs[0] ?? '<pack>'}) or turn the skill off (benchkeeper project apply --disable ${n})`);
   }
+  if (action === 'update' && !names.length) return { names: rows.skills.filter((s) => s.state === 'outdated').map((s) => s.name), answers: {} };
   return { names, answers: { reset: action === 'reset' ? names : [], drop: action === 'remove' ? names : [], pick: action === 'adopt' ? names : [] } };
 }
 

@@ -512,7 +512,7 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
   let action;
   try { action = skillAction(rows, sub, names); } catch (e) { out.write(`${e.message}\n`); return 1; }
   if (!action.names.length) { out.write('nothing to change\n'); return 0; }
-  return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names }));
+  return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names, partial: true }));
 }
 
 // ---- --json: one document on stdout, logs on stderr. Exit 0 clean, 1 findings of level error, 2 usage or read failure.

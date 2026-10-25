@@ -100,7 +100,7 @@ export function SkillStates({ refresh }) {
             {(!!untracked.length || !!d.global.length) && (
               <Stack gap="xs" component="section" aria-label="Untracked skill folders">
                 <Title order={4} size="h5">Untracked skill folders</Title>
-                <Text size="sm">No BenchKeeper setup installed these. An update or an apply never touches them.</Text>
+                <Text size="sm">No BenchKeeper setup installed these. A skill action, a project apply and Update all never touch them.</Text>
                 {!!untracked.length && (
                   <Table.ScrollContainer minWidth={520}>
                     <Table aria-label="Untracked folders">
@@ -120,7 +120,7 @@ export function SkillStates({ refresh }) {
                     </Table>
                   </Table.ScrollContainer>
                 )}
-                {!!d.global.length && <Text size="sm">In an agent's global folder: {d.global.map((g) => `${g.name} (${g.folders.join(', ')})`).join(', ')}. Left alone.</Text>}
+                {!!d.global.length && <Text size="sm">In an agent's global folder: {d.global.map((g) => `${g.name} (${g.folders.join(', ')})`).join(', ')}. The global setup offers to move these to the backup, never preselected.</Text>}
               </Stack>
             )}
           </>

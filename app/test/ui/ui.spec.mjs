@@ -686,7 +686,7 @@ test.describe('views', () => {
     mkdirSync(join(dir, '.benchkeeper'));
     writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 1, setupVersion: '6.0.0', agents: ['claude'], env: 'host', share: false, packs: [], singles: ['designing-technical-uis'], tier: null, paths: {}, disabled: [],
       skills: [{ name: 'designing-technical-uis', source: 'own' }] }));
-    for (const [name, text] of [['designing-technical-uis', 'edited here\n'], ['mine', 'my own skill\n'], ['mermaid-diagrams', 'a library skill put here by hand\n']]) {
+    for (const [name, text] of [['mine', 'my own skill\n'], ['mermaid-diagrams', 'a library skill put here by hand\n']]) {
       mkdirSync(join(skills, name), { recursive: true });
       writeFileSync(join(skills, name, 'SKILL.md'), text);
     }
@@ -696,8 +696,19 @@ test.describe('views', () => {
     const states = page.getByRole('table', { name: 'Skill states' });
     const mine = states.getByRole('row').filter({ hasText: 'sk-proj' });
     const own = mine.filter({ hasText: 'designing-technical-uis' });
-    await expect(own).toContainText('modified');
+    // The folder is gone: Update writes it again through a run (undoable), which also makes a later edit visible as modified.
+    await expect(own).toContainText('removed');
     await expect(own).toContainText('BenchKeeper');
+    await own.getByRole('button', { name: /^Update/ }).click();
+    const update = page.getByRole('dialog', { name: 'Update designing-technical-uis in sk-proj' });
+    await update.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(update.getByRole('button', { name: 'Undo run' })).toBeVisible();
+    await update.getByRole('button', { name: 'Close' }).click();
+    await expect(own).toContainText('current');
+    writeFileSync(join(skills, 'designing-technical-uis/SKILL.md'), 'edited here\n');
+    await nav(page, 'Projects').click();
+    await nav(page, 'Catalog').click();
+    await expect(own).toContainText('modified');
     const untracked = page.getByRole('table', { name: 'Untracked folders' });
     await expect(untracked.getByRole('row').filter({ hasText: 'mine' })).toContainText('left alone');
     await expect(untracked.getByRole('row').filter({ hasText: 'mermaid-diagrams' }).getByRole('button', { name: /^Adopt/ })).toBeVisible();

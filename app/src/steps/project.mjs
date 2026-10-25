@@ -3,8 +3,9 @@
 // run in an agent session the app records (session.mjs).
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { agent, skillDirs } from '../agents.mjs';
+import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
+import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
@@ -27,7 +28,7 @@ export const TIERS = ['quick', 'standard', 'full', 'research'];
 // Own keys only: "constructor" or ["container"] must not pass as an environment.
 export const isEnv = (id) => typeof id === 'string' && Object.hasOwn(ENVS, id);
 // The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
-const NPX_ENV = { DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/' };
+const NPX_ENV = { DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/', npm_config_ignore_scripts: 'true' };
 
 const tryJson = (t) => { try { return t == null ? null : parseJson(t); } catch { return null; } };
 const SANDBOX_OUT = ['devcontainer exec *', 'podman *'];
@@ -74,13 +75,14 @@ export function readState(dir) {
 export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
 
 // answers: { agents, env, sandbox, packs, skills (single skills besides the packs'), disable, enable, tier,
-// paths: { skill: 'glob, glob' }, share }; missing answers come from the state file. share: the setup is committed to the
+// paths: { skill: 'glob, glob' }, share, callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   a.share = a.share === true;
+  for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
   if (!isEnv(a.env)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
   if (a.tier && !TIERS.includes(a.tier)) throw new Error(`tier must be one of ${TIERS.join(', ')}`);
@@ -158,15 +160,16 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, ...c });
   const skills = chosenSkills(a, lib);
 
-  // One block with where commands run, the default tier, and the pointer lines of own skills. Shared: in AGENTS.md, with
+  // One block with the repository rules (rules/project.md), where commands run, the default tier, and the pointer lines of own skills. Shared: in AGENTS.md, with
   // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
   // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so it
   // carries AGENTS.md's text too and is rebuilt from it on every apply).
-  const lines = [ENVS[a.env], a.tier && `Default tier: ${a.tier}`, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
+  const rules = forAgent(readFileSync(join(contentDir, 'rules/project.md'), 'utf8'), a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
+  const lines = [...rules.split('\n').map((l) => l.replace(/^- /, '')), ENVS[a.env], a.tier && `Default tier: ${a.tier}`, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = lines.length ? lines.map((l) => `- ${l}`).join('\n') : null;
   const overrideOurs = (t) => t == null || getBlock(t, 'project') != null;
   if (a.share) {
-    add('agents-md', 'AGENTS.md: where commands run, default tier, skill pointers', { kind: 'write', path: at('AGENTS.md'), edit: (t) => setBlock(t, 'project', blockText) });
+    add('agents-md', 'AGENTS.md: rules, where commands run, default tier, skill pointers', { kind: 'write', path: at('AGENTS.md'), edit: (t) => setBlock(t, 'project', blockText) });
     if (a.agents.includes('claude')) add('claude-md', 'CLAUDE.md imports AGENTS.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => (t?.includes('@AGENTS.md') ? t : t?.trim() ? `@AGENTS.md\n\n${t}` : '@AGENTS.md\n') });
   } else {
     // A committed setup stays until a pull request removes it (projects unshare): a local one beside it would load
@@ -175,13 +178,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const agentsMd = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);
     if (a.agents.includes('claude')) {
       const imports = /^@AGENTS\.md$/m.test(readText(at('CLAUDE.md')) ?? '') || !agentsMd.trim();
-      add('local-claude', `${LOCAL_CLAUDE}: where commands run, default tier, skill pointers`, { kind: 'write', path: at(LOCAL_CLAUDE),
+      add('local-claude', `${LOCAL_CLAUDE}: rules, where commands run, default tier, skill pointers`, { kind: 'write', path: at(LOCAL_CLAUDE),
         edit: (t) => { const s = setBlock(t, 'project', blockText); return imports || /^@AGENTS\.md$/m.test(s) ? s : `@AGENTS.md\n\n${s}`; } });
     }
     if (a.agents.includes('codex')) {
       // A hand-written override is the user's: replacing it is offered, not preselected.
       const ours = overrideOurs(readText(at(OVERRIDE)));
-      add('local-codex', `${OVERRIDE}: AGENTS.md plus where commands run, default tier, skill pointers${ours ? '' : ' (replaces your own file)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours,
+      add('local-codex', `${OVERRIDE}: AGENTS.md plus rules, where commands run, default tier, skill pointers${ours ? '' : ' (replaces your own file)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours,
         edit: () => setBlock(agentsMd, 'project', blockText) });
     }
   }
@@ -203,6 +206,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const moved = readText(at('CLAUDE.md')).match(block)[0].trim();
     add('agent-skills-block', 'move the ## Agent skills block from CLAUDE.md to AGENTS.md (Codex reads AGENTS.md)', { kind: 'write', path: at('AGENTS.md'), edit: (t) => `${(t ?? '').trimEnd()}\n\n${moved}\n`, unit: 'agent-skills-block' });
     add('agent-skills-block', 'remove the moved block from CLAUDE.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => `${t.replace(block, '').trimEnd()}\n`, unit: 'agent-skills-block' });
+  }
+  // repo-baseline's caller workflows, on request: files in the checkout. One that differs from the bundled caller is the project's own: offered, not preselected.
+  for (const m of a.callers) {
+    const f = callerFile(m), have = readText(at(f.path));
+    add(`caller:${m}`, `${f.path}: ${BASELINE_REPO} ${m} caller${have != null && have !== f.text ? ' (replaces your own file)' : ''}`, { kind: 'write', path: at(f.path), after: f.text, selected: have == null || have === f.text });
   }
   const prev = readState(dir);
   const dropped = (prev?.agents ?? []).filter((x) => !a.agents.includes(x));

@@ -4,14 +4,25 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { agent, forAgent, renderRules } from '../agents.mjs';
+import { childEnv } from '../childenv.mjs';
 import { contentDir } from '../content.mjs';
+import { cooled } from '../cooldown.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
 
+// lite: the BenchKeeper plugin alone (nothing outside the plugin install). standard: the same on the machine, plus the local block
+// that `project apply` writes per project. full: everything below (global rules, settings, other plugins, host tools).
+export const LEVELS = ['lite', 'standard', 'full'];
 export const SKILLS_CLI = '1.7.2';
 // As an npm alias: npx runs a package from the project's node_modules when its version satisfies a plain spec, so a
 // cloned repository could ship its own "skills" 1.7.2. An alias range never matches a local package (npm 10 libnpmexec).
 export const SKILLS_SPEC = `skills@npm:skills@${SKILLS_CLI}`;
+// The global skills' repositories at a commit (bumped by hand with SKILLS_CLI): the skills CLI reads a tree URL with a
+// commit as a pin, so a push to the default branch changes nothing here and the preview shows what the run installs.
+export const SKILL_SOURCES = {
+  'vercel-labs/skills': 'https://github.com/vercel-labs/skills/tree/a80e4c9d12d607631249d4d7d059f835d4b2f13a',
+  'https://github.com/stablyai/orca': 'https://github.com/stablyai/orca/tree/9c5d789a42701188f25f101ef5dc7dd3015a2112',
+};
 export const PONYTAIL_REF = 'v5.3.2';
 export const MATT_POCOCK_REF = 'v1.3.1';
 // Pinned plugins: ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
@@ -43,7 +54,7 @@ const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropi
 // permissions.ask or in Codex's rules folder differs from that set and is offered for removal.
 export const PERMISSION_ASK = [];
 const CODEX_OWN_RULES = ['default.rules'];
-const CLAUDE_KEYS = [
+export const CLAUDE_KEYS = [
   [['advisorModel'], 'opus'], [['remoteControlAtStartup'], true], [['showClearContextOnPlanAccept'], true],
   [['cleanupPeriodDays'], 14], [['autoUpdatesChannel'], 'stable'],
   [['attribution'], { commit: 'Assisted-by: generative AI', pr: 'Created with the assistance of generative AI.', sessionUrl: false }],
@@ -123,30 +134,34 @@ const bySemver = (a, b) => a.split('.').map(Number).reduce((d, x, i) => d || x -
 // A version that is not x.y.z (a commit, "unknown") cannot be compared: it counts as current.
 const semver = (v) => /^\d+\.\d+\.\d+$/.test(v ?? '');
 
-// The highest x.y.z release public for at least 7 days, or null.
+// The highest x.y.z release public for at least 7 days and still installable, or null.
 // The registry answer is kept per context, 6 hours, a failed one 1 minute, so a long-running server asks again.
+// The comparison uses this machine's clock and the registry's publish times: a registry that lies about either is trusted.
 export function newest(ctx, pkg, now = Date.now()) {
   const cache = (ctx.registry ??= new Map());
   const hit = cache.get(pkg);
-  if (!hit || now - hit.at > (hit.r.code === 0 ? 6 * 3600e3 : 60e3)) cache.set(pkg, { at: now, r: ctx.run(['npm', 'view', pkg, 'time', '--json'], { cwd: ctx.home }) });
+  if (!hit || now - hit.at > (hit.r.code === 0 ? 6 * 3600e3 : 60e3)) cache.set(pkg, { at: now, r: ctx.run(['npm', 'view', pkg, 'time', 'versions', '--json'], { cwd: ctx.home, env: childEnv(), timeout: 30e3 }) });
   const { r } = cache.get(pkg);
   if (r.code !== 0) return null;
-  const times = json(r.stdout, {});
-  const list = Array.isArray(times) ? Object.assign({}, ...times) : times;
-  const ok = Object.entries(list).filter(([v, t]) => /^\d+\.\d+\.\d+$/.test(v) && Date.parse(t) < now - 7 * 864e5).map(([v]) => v);
-  ok.sort(bySemver);
-  return ok.at(-1) ?? null;
+  const { time, versions } = json(r.stdout, {});
+  return cooled(time, versions, now).sort(bySemver).at(-1) ?? null;
 }
 
 export function globalPlan(env) {
-  const { ctx, agents, options = {} } = env;
+  const { ctx, options = {} } = env;
+  const level = options.level ?? 'full';
+  if (!LEVELS.includes(level)) throw new Error(`level must be one of ${LEVELS.join(', ')}`);
+  const full = level === 'full';
+  const { agents } = env;
   const home = ctx.home;
   const at = (p) => join(home, p);
   const rules = readFileSync(join(contentDir, 'rules/global.md'), 'utf8');
   const changes = [];
   const add = (step, title, c, extra = {}) => changes.push({ id: `${step}:${changes.length}`, step, title, ...c, ...extra });
 
-  // Rules
+  // Rules: lite and standard have none (the block shadows agents)
+  {
+  const agents = full ? env.agents : [];
   for (const id of agents) {
     const r = agent(id).global.rules;
     add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: at(r.path), edit: (cur) => renderRules(r.format, cur, forAgent(rules, id)) });
@@ -168,11 +183,13 @@ export function globalPlan(env) {
     for (const f of (exists(dir) ? readdirSync(dir) : []).filter((x) => !CODEX_OWN_RULES.includes(x))) add(`ask:codex:${f}`, `Codex command rules file ${f} (BenchKeeper adds none)`, { kind: 'remove', path: join(dir, f) });
   }
 
+  }
+
   // Plugins (Claude Code, Codex) or skill copies (agents without plugins).
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {
     const { listed, markets, refs } = pluginState(ctx, a);
     const name = agent(a).name;
-    for (const p of PLUGINS[a]) {
+    for (const p of PLUGINS[a].filter((x) => full || x.id.startsWith('benchkeeper@'))) {
       const have = listed.find((x) => x.id === p.id && x.enabled);
       const off = !have && listed.find((x) => x.id === p.id);
       // An installed pack plugin is kept current without its pack being chosen again.
@@ -214,10 +231,10 @@ export function globalPlan(env) {
       if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step });
       add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step });
     }
-    for (const { id } of listed) {
+    for (const { id } of full ? listed : []) {
       if (!keepPlugin(id, a)) add(`other:${a}:plugin`, `remove the ${agent(a).name} plugin ${id}`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', id] : ['codex', 'plugin', 'remove', id], destructive: true });
     }
-    for (const m of markets) if (!KEEP_MARKETPLACES[a].includes(m) && !/^openai-curated/.test(m)) add(`other:${a}:marketplace`, `remove the ${agent(a).name} marketplace ${m}`, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'remove', m], destructive: true });
+    for (const m of full ? markets : []) if (!KEEP_MARKETPLACES[a].includes(m) && !/^openai-curated/.test(m)) add(`other:${a}:marketplace`, `remove the ${agent(a).name} marketplace ${m}`, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'remove', m], destructive: true });
   }
   for (const id of agents.filter((x) => !agent(x).plugins)) {
     for (const name of readdirSync(join(contentDir, 'skills'))) {
@@ -227,6 +244,8 @@ export function globalPlan(env) {
       }
     }
   }
+
+  if (!full) return changes;
 
   // Global skills and MCP servers not part of the setup.
   const skillDirs = { claude: '.claude/skills', codex: '.agents/skills' };
@@ -279,8 +298,13 @@ export function globalPlan(env) {
   // Host tools
   const want = env.devcontainerCli ?? newest(ctx, '@devcontainers/cli');
   const have = (ctx.run(['devcontainer', '--version']).stdout || '').trim();
-  if (want && have !== want) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', `@devcontainers/cli@${want}`] });
-  const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', repo, '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1' } });
+  // A newer installed release stays: the cooldown picks what to install, it never downgrades.
+  if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`] });
+  // Lifecycle scripts stay off (the skills CLI needs none); the snapshot makes the install undoable: the skill folders and the lock.
+  const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, {
+    kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true' },
+    snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
+  });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(ctx.run(['orca', '--version']).code === 0 ? [['https://github.com/stablyai/orca', 'orca-cli'], ['https://github.com/stablyai/orca', 'orchestration']] : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(repo, name, f); }

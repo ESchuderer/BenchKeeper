@@ -93,6 +93,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 |---|---|---|
 | [Skill authoring guide (Anthropic)](evaluations/practices/skill-authoring.md) | In | 8 benchmarked collections ranked: Ponytail 3.9 first, Spec Kit 2.8 last. Only agent-skills ships evaluations |
 | [Project summary and layout in AGENTS.md](evaluations/practices/agents-md-overviews.md) | Not in | context files raised cost over 20%, no success gain, arXiv 2602.11988 |
+| [Lite install, the workflow skill without a rule line](evaluations/practices/lite-install.md) | Lite level in, trigger rate unverified | 13 eval cases exist for `workflow`; the rate without the always-on line has not been run |
 
 Not evaluated, offered by the app without evidence gathered: Gemini CLI and GitHub Copilot CLI support (untested), Docker Sandboxes (`--env sandbox`, untested), and the Codex permission profile for setup suggestions (its arguments are tested, its enforcement in a real Codex session is unverified).
 

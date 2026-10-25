@@ -11,7 +11,7 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // A transition may start a frame after the dialog is visible: let it start, then wait until dialogs and overlays are fully opaque.
@@ -24,7 +24,8 @@ async function noAxe(page) {
     expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
   }
 }
-const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
+// Settings is also a part of another link's name.
+const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view === 'Settings' ? /^Settings$/ : view });
 
 test.describe.configure({ mode: 'serial' });
 let cookie, key;
@@ -71,7 +72,7 @@ test.describe('views', () => {
     for (const scheme of ['light', 'dark']) {
       test(`no axe violations in ${view}, ${scheme} mode, phone width`, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.goto(`/#/${view.toLowerCase()}`);
+        await page.goto(`/#/${view.toLowerCase().replace(' ', '-')}`);
         await expect(page.getByText('CLI', { exact: true })).toBeVisible();
         await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
         const { violations } = await new AxeBuilder({ page }).analyze();
@@ -118,11 +119,11 @@ test.describe('views', () => {
     const palette = page.getByRole('dialog', { name: 'Command palette' });
     await expect(async () => {
       await palette.getByLabel('Search').fill('');
-      await palette.getByLabel('Search').fill('Settings');
-      await expect(palette.locator('[data-selected]')).toContainText('Settings', { timeout: 1000 });
+      await palette.getByLabel('Search').fill('Agent settings');
+      await expect(palette.locator('[data-selected]')).toContainText('Agent settings', { timeout: 1000 });
     }).toPass();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeFocused();
+    await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeFocused();
   });
 
   test('Settings: the / key can be turned off', async ({ page }) => {
@@ -325,6 +326,7 @@ test.describe('views', () => {
     await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 1 registered, 0 behind ok$/ })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Global items by state' })).toContainText('modified');
     await expect(page.getByRole('region', { name: 'BenchKeeper plugin' })).toContainText(/available \d+\.\d+\.\d+/);
+    await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
     await expect(page).toHaveURL(/#\/history\?run=/);
   });
@@ -698,6 +700,46 @@ test.describe('views', () => {
   });
 
 
+  test('Agent settings: the list with its notes, a change as plan and diff, undo; advanced lists every key; no axe violations', async ({ page }) => {
+    await nav(page, 'Agent settings').click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeVisible();
+    // The app's own preferences stay in Settings.
+    await expect(page.getByRole('link', { name: 'Settings', exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.claude/settings.json');
+    // The fixture home holds the setup's advisor model: its row says what it is, and BenchKeeper's setup writes it too.
+    const advisor = page.getByRole('row', { name: /advisorModel/ }).first();
+    await expect(advisor).toContainText('The model that answers when Claude calls the advisor tool');
+    await expect(advisor).toContainText("BenchKeeper's setup writes this key too");
+    await noAxe(page);
+    // A change is a plan with a diff and an undo.
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('cleanupPeriodDays');
+    await expect(changes.getByText('21').first()).toBeVisible();
+    // The hover color of the button under the pointer is lighter than the checked contrast.
+    await page.mouse.move(0, 0);
+    await noAxe(page);
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    // An environment switch is set or removed; the advisor with a telemetry switch shows the note on both rows.
+    await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    await expect(page.getByRole('region', { name: 'Changes' })).toContainText('"DISABLE_TELEMETRY": "1"');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    // Advanced: every key, searchable; keys the app does not know are listed and kept.
+    await page.getByRole('switch', { name: 'Advanced: every key' }).check();
+    await expect(page.getByRole('table', { name: 'Advanced keys' })).toBeVisible();
+    await page.getByLabel('Search settings').fill('modelSettings');
+    await expect(page.getByRole('table', { name: 'Advanced keys' })).toContainText('modelSettings');
+    await noAxe(page);
+    // Codex: its own file and keys.
+    await page.getByText('Codex', { exact: true }).click();
+    await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
+  });
+
   // The one-run setup, last: it applies project setups and registers four more projects.
   const addProjects = async (page, names) => {
     await nav(page, 'Projects').click();
@@ -726,6 +768,19 @@ test.describe('views', () => {
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Close' }).click();
     await expect(drawer).toBeHidden();
+  });
+
+  test('One-run: the level choice sets the global plan, lite plans the plugin alone', async ({ page }) => {
+    await page.getByRole('button', { name: 'Set up global only' }).click();
+    const drawer = oneRun(page);
+    await drawer.getByLabel('Level').selectOption('lite');
+    const asked = page.waitForRequest((r) => r.url().includes('/api/global-plan?level=lite'));
+    await drawer.getByRole('button', { name: 'Start', exact: true }).click();
+    await asked;
+    const global = drawer.getByRole('region', { name: 'Global setup' });
+    await expect(global).toBeVisible();
+    await expect(global).not.toContainText('Claude settings');
+    await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
   test('One-run, Everything with two projects (one without a setup): one progress bar, one review page, one apply', async ({ page }) => {

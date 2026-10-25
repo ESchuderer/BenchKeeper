@@ -222,7 +222,7 @@ for r in $(seq "$k"); do
         2> /dev/null | waiting
     }
     # Step briefs: a turn that leaves the repository as the step found it is not done either (protocol 1.21).
-    state() { (cd "$t/workspace" && find . \( -name node_modules -o -name .venv -o -name __pycache__ -o -path ./dist -o -path ./.git/objects -o -path ./.git/logs -o -path ./.git/index \) -prune -o -type f -print0 | sort -z | xargs -0 sha1sum) | sha1sum; }
+    state() { (cd "$t/workspace" && find . \( -name node_modules -o -name .venv -o -name __pycache__ -o -path ./dist -o -path ./.git/objects -o -path ./.git/logs -o -path ./.git/index \) -prune -o -type f -print0 | sort -z | xargs -0 sha256sum) | sha256sum; }
     n=0
     if [ "$steps" = sessions ]; then
       # Step briefs (steps/<k>.md): each step in a new session on the same workspace, the follow-up rule within that

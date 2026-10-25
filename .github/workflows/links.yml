@@ -1,23 +1,38 @@
 name: Links
 
+# `lychee` is the required check: a gate over the link check and the bench tests. The weekly run and a manual run
+# check links only; the promotion pull request (develop into main) skips everything, as the push to develop already ran it.
+# No Markdown file lives under bench/results/*/round-*, so both jobs check out without the recorded trial data.
 on:
   push:
-    branches: [main, develop]
+    branches: [develop]
   pull_request:
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lychee:
+  link-check:
+    # Skips only the promotion pull request (this repository's develop into main), whose jobs the push to develop already ran; a fork branch named develop is not skipped.
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /*
+            !/bench/results/*/round-*/
+          sparse-checkout-cone-mode: false
       # github.com pages are rate-limited for runners; those links are checked through the API below. Gists stay with lychee (the Actions token cannot read the gists API).
       # git.example.com: the made-up remote of the targeted tasks' fixture repositories (bench/briefs/skill-*).
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
@@ -29,15 +44,53 @@ jobs:
         with:
           node-version: 22.23.3
       - run: node --test .github/scripts/github-links.test.mjs
+      - run: git ls-files -z '*.md' | xargs -0 node .github/scripts/github-links.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  bench-tests:
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) && github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /*
+            !/bench/results/*/round-*/
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
       - run: node --test bench/scripts/*.test.mjs
       - run: sh bench/scripts/waits.test.sh
       - run: sh bench/scripts/claims.test.sh
       - run: npm ci --prefix bench/scorer --ignore-scripts --no-audit --no-fund
       # print.test.mjs measures pages in Chromium
-      - run: npx --prefix bench/scorer playwright install --with-deps chromium
+      - run: bench/scorer/node_modules/.bin/playwright install --with-deps chromium
       - run: node --test bench/scorer/*.test.mjs
       - run: node --test bench/briefs/*/checks/*.test.mjs
       - run: node bench/scripts/arm-rules.mjs --check
-      - run: git ls-files -z '*.md' | xargs -0 node .github/scripts/github-links.mjs
+
+  # Required check. The bench tests are skipped on the weekly and manual runs only.
+  lychee:
+    if: ${{ always() && !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    needs: [link-check, bench-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Needed jobs passed
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINK: ${{ needs.link-check.result }}
+          BENCH: ${{ needs.bench-tests.result }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$LINK" != success ]; then echo "::error::link-check ended as $LINK"; exit 1; fi
+          case "$EVENT" in
+            schedule | workflow_dispatch) want=skipped ;;
+            *) want=success ;;
+          esac
+          if [ "$BENCH" != "$want" ]; then echo "::error::bench-tests ended as $BENCH, expected $want"; exit 1; fi

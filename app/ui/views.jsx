@@ -138,6 +138,9 @@ export function Dashboard({ overview, doctor, history, params }) {
         <FixEverythingButton />
       </Group>
       <Section title="Setup flow"><Flow nodes={nodes} /></Section>
+      <Section title="Install level">
+        <Text size="sm">{o?.level?.level ?? 'none'}{o?.level?.adds ? `: ${o.level.adds}` : ''}</Text>
+      </Section>
       {agents.some((a) => a.plugin) && (
         <Section title="BenchKeeper plugin">
           {agents.filter((a) => a.plugin).map((a) => (
@@ -591,7 +594,7 @@ export function History({ history, params, refresh }) {
   );
 }
 
-const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+8`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
+const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+9`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
 
 function Profile({ overview, refresh }) {
   const [file, setFile] = useState(null);

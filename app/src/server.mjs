@@ -27,7 +27,9 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { addProject, canon, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { scanSessions } from './sessions.mjs';
-import { benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
+import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
+import { detectLevel, levelFor } from './level.mjs';
+import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, suggest } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
@@ -91,7 +93,7 @@ function committed(ctx, run, e) {
 
 // Changes without their edit functions, with the item state the Dashboard groups by.
 function serialize(changes, ctx) {
-  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
+  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, ...(c.diff && isSettingsFile(c.path) ? { diff: redact(c.diff) } : {}), prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
 }
 
 // First-setup answers from a query or a request body: only these keys, as strings and string lists.
@@ -162,10 +164,12 @@ export function api(ctx) {
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
+    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
-      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx) } }));
+      const level = q.get('level') ?? levelFor(ctx, agents);
+      if (!LEVELS.includes(level)) throw bad(`level must be one of ${LEVELS.join(', ')}`);
+      const changes = preview(globalPlan({ ctx, agents, options: { packs: q.getAll('pack'), packsInUse: packsInUse(ctx), level } }));
       return { planId: keep(changes, ctx, 'global'), agents, changes: serialize(changes, ctx) };
     },
     // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.
@@ -299,7 +303,7 @@ export function api(ctx) {
     'GET /api/one-run': async () => {
       await originsOfProjects();
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
-      return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), projects: listProjects(ctx).map((p) => {
+      return { agents, level: levelFor(ctx, agents.map((a) => a.id)), advisers: agents.filter((a) => ADVISERS.includes(a.id)), projects: listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
         const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all opens its pull request' : s.committed ? 'setup still committed: Update all moves it to this machine' : null);
         return { path: p.path, blocked, state: !s.setupVersion ? 'none' : !s.current || s.changes?.length ? 'behind' : 'current', setupVersion: s.setupVersion };
@@ -360,7 +364,8 @@ export function api(ctx) {
         if (isDir(e.path)) return { ...e, folder: true };
         const next = run.entries.slice(i + 1).find((x) => x.path === e.path && x.backup && x.hashBefore === e.hashAfter);
         const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : committed(ctx, run, e);
-        return { ...e, diff: now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path) };
+        const d = now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path);
+        return { ...e, diff: isSettingsFile(e.path) ? redact(d) : d };
       }) };
     },
     'POST /api/undo': (b) => {
@@ -419,7 +424,29 @@ export function api(ctx) {
       if (typeof b.root !== 'string' || !isAbsolute(b.root)) throw bad('root must be an absolute path');
       return scan(b.root).filter((d) => !registered(d));
     },
-    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed())),
+    // Agent settings of one layer set (user, plus a registered project's project and local files) with their notes. Values
+    // of secret-looking names are masked by the module.
+    'GET /api/settings': (q) => {
+      const agentId = q.get('agent') ?? 'claude';
+      if (!settingsAgents.includes(agentId)) throw bad(`agent must be one of ${settingsAgents.join(', ')}`);
+      const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      return input(() => listSettings(ctx, agentId, { dir, advanced: q.get('advanced') === '1', env: process.env }));
+    },
+    // A plan for edits { key: value | null } (null removes the key) or a bundle in one layer; applied through /api/apply.
+    'POST /api/settings-plan': (b) => {
+      const agentId = b.agent ?? 'claude';
+      if (!settingsAgents.includes(agentId)) throw bad(`agent must be one of ${settingsAgents.join(', ')}`);
+      const layer = b.layer ?? 'user';
+      const dir = layer === 'user' ? undefined : resolve(String(b.dir ?? ''));
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const edits = b.bundle ? input(() => bundleEdits(agentId, b.bundle)) : b.edits;
+      if (!edits || typeof edits !== 'object' || Array.isArray(edits)) throw bad('edits must be an object of key and value');
+      const sctx = dir ? projectCtx(ctx, dir) : ctx;
+      const changes = preview(input(() => settingsChanges(sctx, agentId, { layer, dir, edits })));
+      return { planId: keep(changes, sctx, dir ?? 'global'), changes: serialize(changes, sctx) };
+    },
+    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) })),
   };
   // A change drops the cached machine reads.
   for (const k of Object.keys(routes)) if (k.startsWith('POST ')) { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }

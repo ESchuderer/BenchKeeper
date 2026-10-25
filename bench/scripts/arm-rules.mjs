@@ -8,7 +8,7 @@ export const FRAMEWORKS = ['superpowers', 'ecc', 'mattpocock'];
 
 export function parse(spec) {
   const sections = {};
-  for (const m of spec.matchAll(/<!-- section: (.+?) -->\n([\s\S]*?)(?=\n<!-- |\s*$)/g)) sections[m[1]] = m[2].trim() + '\n';
+  for (const m of spec.matchAll(/<!-- section: (.+?) -->\n([\s\S]*?)(?=\n<!-- |$)/g)) sections[m[1]] = m[2].trim() + '\n';
   const replace = [...spec.matchAll(/<!-- replace: (.+?) ==> (.*?) -->/g)].map((m) => [m[1], m[2]]);
   return { sections, replace };
 }

@@ -2,6 +2,14 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.6 (2026-10-25)
+
+- Install levels: `benchkeeper apply --level lite|standard|full`. Lite and standard install only the BenchKeeper plugin on the machine (lite relies on the `workflow` skill description to trigger; the trigger rate is not measured yet, see `evaluations/practices/lite-install.md`); standard adds the local project block that `project apply` writes. Without `--level`, `plan` and `apply` use the level found on the machine, full on a machine without BenchKeeper.
+- The repository rules (load the workflow skill, ask open questions in one message, fix the cause of a failed check) moved from the global rules into the project block (`rules/project.md`). Global rules keep secrets and writing. Run `update-all` so each project carries them.
+- Doctor, the Dashboard and the one-run setup show and choose the level; below full, doctor expects the plugin only.
+- Plugin `version` 6.6.0.
+- Upgrade: `npx benchkeeper@6.6.0 apply`, then Update all.
+
 ## setup-v6.5 (2026-10-24)
 
 - One-run setup in the browser: the Dashboard and the command palette start Everything, Global only or Projects (a checklist; projects without a setup or behind are checked). One consent covers the agent suggestion sessions. One progress bar shows a line per item (the global plan with its skill rehearsal, per project the suggestion and the plan), one review page shows a section per plan with a checkbox per section and per change, diffs behind buttons and the project answers (agents, environment, packs, tier) editable in place, and one apply job reports progress per section with a link to each run for undo. A failed suggestion or plan shows its reason and leaves the rest; a failed section leaves the others; cancel stops after the running change.

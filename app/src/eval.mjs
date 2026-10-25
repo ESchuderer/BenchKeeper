@@ -1,8 +1,8 @@
 // benchkeeper eval: skill trigger rates per skill, agent and model. It starts real agent sessions on the owner's
 // subscription, so it never runs in CI. Rule cases run too, and their output is kept for review, not scored.
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { contentDir } from './content.mjs';
 import { exists, hashPath, hashText, readText } from './fsx.mjs';
 import { loadCases, userEvals } from './cases.mjs';
@@ -81,8 +81,10 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
         if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
         if (kind === 'skill') details.push({ id: c.id, should: c.should, triggered: triggered(r.stdout, name), exit: r.code });
         else {
-          mkdirSync(keep, { recursive: true });
-          writeFileSync(join(keep, `${c.id}.jsonl`), r.stdout);
+          // Session output can quote files and tokens the agent read: for this user alone, also in folders made before.
+          mkdirSync(keep, { recursive: true, mode: 0o700 });
+          for (const d of [userEvals(ctx), dirname(keep), keep]) chmodSync(d, 0o700);
+          writeFileSync(join(keep, `${c.id}.jsonl`), r.stdout, { mode: 0o600 });
           details.push({ id: c.id, should: c.should, expected: c.expected, review: join(keep, `${c.id}.jsonl`), exit: r.code });
         }
       } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -91,8 +93,11 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
     const rate = (list, f) => (list.length ? list.filter(f).length / list.length : null);
     const result = { time: now(), target: p.target, agent: p.agent, agentVersion: version, model: p.model ?? null, hash: p.hash, appVersion: ctx.appVersion,
       cases: details.length, missRate: rate(pos, (d) => !d.triggered), falseTriggerRate: rate(neg, (d) => d.triggered), details };
-    mkdirSync(userEvals(ctx), { recursive: true });
-    appendFileSync(results(ctx), `${JSON.stringify(result)}\n`);
+    mkdirSync(userEvals(ctx), { recursive: true, mode: 0o700 });
+    appendFileSync(results(ctx), `${JSON.stringify(result)}\n`, { mode: 0o600 });
+    // Files and folders of an earlier version, and the skill-only path that wrote no output, keep their modes otherwise.
+    chmodSync(userEvals(ctx), 0o700);
+    chmodSync(results(ctx), 0o600);
     onResult(result);
     out.push(result);
   }

@@ -5,10 +5,12 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { files } from './erosion.mjs';
 
+// npm next to the running node, not found through PATH
+const NPM = join(dirname(process.execPath), 'npm');
 const C8 = join(import.meta.dirname, 'node_modules/c8/bin/c8.js');
 const UNIT = /^node\s+--test\b(?!.*\b(e2e|browser)\b)/;
 
@@ -34,11 +36,12 @@ export function coverage(dir, timeout = 300_000) {
     // NODE_TEST_CONTEXT is set when this runs inside `node --test`; the app's own `node --test` would then run as a child.
     const env = { ...process.env, CI: '1', NODE_V8_COVERAGE: `${work}/v8` };
     delete env.NODE_TEST_CONTEXT;
-    const r = spawnSync('npm', cmd, { cwd: app, encoding: 'utf8', timeout, env });
+    const r = spawnSync(NPM, cmd, { cwd: app, encoding: 'utf8', timeout, env });
+    if (r.error?.code === 'ENOENT') return none('npm not found next to node');
     // A suite that fails only under instrumentation (timing assertions) still counts; one that also fails plain gives null.
     let instrumented = false;
     if (r.status !== 0) {
-      const plain = spawnSync('npm', cmd, { cwd: app, encoding: 'utf8', timeout, env: { ...env, NODE_V8_COVERAGE: '' } });
+      const plain = spawnSync(NPM, cmd, { cwd: app, encoding: 'utf8', timeout, env: { ...env, NODE_V8_COVERAGE: '' } });
       if (plain.status !== 0) return none(`unit tests failed (exit ${r.status ?? r.signal})`);
       instrumented = true;
     }

@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
+import { PROFILES, baselineIssues } from './baseline.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { addCase } from './cases.mjs';
 import { doctor } from './doctor.mjs';
@@ -18,9 +19,11 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
 import { addProject, canon, listProjects, packsInUse, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
+import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
-import { globalPlan, installedPlugins } from './steps/global.mjs';
+import { detectLevel } from './level.mjs';
+import { LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan } from './steps/project.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
@@ -28,14 +31,28 @@ export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the
 Usage: benchkeeper <command> [options]
 
   ui [--no-open] [--port N]         local web UI (default command)
-  plan [--agents a,b] [--pack p]    global setup: the changes, with a diff each, nothing written
-  apply [--agents a,b] [--pack p] [--yes] [--all]
+  plan [--agents a,b] [--pack p] [--level l]
+                                    global setup: the changes, with a diff each, nothing written
+  apply [--agents a,b] [--pack p] [--level l] [--yes] [--all]
                                     global setup: asks per change; --yes takes the default selection,
-                                    --all also the removals
+                                    --all also the removals. --level lite|standard: the BenchKeeper plugin
+                                    alone, nothing else on the machine (standard: then project apply writes
+                                    the local block per repository); full: rules, settings, plugins, tools.
+                                    Default: the level found (doctor shows it), full on a machine without BenchKeeper
   profile export [file] [--agents a,b]
                                     agents, packs, own packs and registered projects with their answers as one file
   profile import <file> [--yes]     shows the global and project changes, applies the chosen ones; missing paths are skipped
-  doctor [dir] [--agents a,b]       setup problems with a fix each, nothing written; exit 1 on an error
+  doctor [dir] [--agents a,b] [--baseline auto|oss|private-advisory] [--baseline-ref ref]
+                                    the install level, setup problems with a fix each, nothing written; exit 1 on an error;
+                                    --baseline also compares the GitHub settings and caller workflows with a
+                                    repo-baseline profile (read-only gh api; auto: advisory for private repositories)
+  settings list [--agent claude|codex] [--advanced] [--project dir]
+  settings get <key> [--agent a] [--project dir]
+  settings set <key> <value> | --unset | --bundle <id> [--agent a] [--layer user|project|local] [--project dir] [--yes]
+                                    agent settings (Claude Code settings.json, Codex config.toml) with notes on keys
+                                    that cancel each other; a change is a plan with a diff, undo restores it;
+                                    environment switches are set (value "set") or removed, never 0 or false;
+                                    managed settings are never written
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--transcript file] [--description text] [--query text]
                                     records an observed miss as an eval case (~/.config/benchkeeper/evals/)
@@ -48,11 +65,12 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
-                    [--disable s] [--enable s] [--share|--local]
+                    [--disable s] [--enable s] [--share|--local] [--caller promote|lint-js|lint-python|sonar]
                                     project setup; answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
-                                    --disable moves a skill to .benchkeeper/disabled/, --enable moves it back
+                                    --disable moves a skill to .benchkeeper/disabled/, --enable moves it back;
+                                    --caller writes that repo-baseline workflow file (never GitHub settings)
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (~/.config/benchkeeper/packs/)
   projects [list|add <dir>..|scan <root>|remove <dir>]
@@ -60,9 +78,11 @@ Usage: benchkeeper <command> [options]
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
-  update-all [--yes] [--no-push]    per project: local setup (the default) applied in the checkout; shared setup
+  update-all [--yes] [--no-push] [--baseline auto|oss|private-advisory]
+                                    per project: local setup (the default) applied in the checkout; shared setup
                                     (project apply --share) on branch chore/agent-setup-<version> in a worktree,
-                                    one commit, push and pull request when origin is on GitHub
+                                    one commit, push and pull request when origin is on GitHub;
+                                    --baseline also reports each project's GitHub settings drift, changing none
   board [--no-open]                 sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
   record [--project dir] -- <agent> [args]
@@ -76,8 +96,10 @@ const OPTIONS = {
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
-  target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
+  level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
+  baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
+  agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -128,7 +150,7 @@ export function selectedAgents(ctx, list) {
 function show(c, out) {
   out.write(`${c.destructive ? 'remove ' : 'change '}${c.title}${c.error ? `\n  cannot merge: ${c.error}` : ''}\n`);
   if (c.kind === 'command') out.write(`  $ ${c.argv.join(' ')}\n`);
-  else if (c.diff) out.write(`${c.diff.split('\n').map((l) => `  ${l}`).join('\n')}\n`);
+  else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }
 
 export async function main(argv, { out = process.stdout, input = process.stdin, ctx = machineContext() } = {}) {
@@ -150,7 +172,11 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'plan' || cmd === 'apply') {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) { out.write('no agent found (claude, codex, gemini, copilot); the app installs none\n'); return 1; }
-    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx) } }));
+    if (o.level !== undefined && !LEVELS.includes(o.level)) { out.write(`--level must be one of ${LEVELS.join(', ')}\n`); return 2; }
+    const found = detectLevel(ctx, agents, process.cwd());
+    const level = o.level ?? found.level ?? 'full';
+    if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${found.adds}\n`);
+    const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
       plan.forEach((c) => show(c, out));
@@ -163,7 +189,7 @@ async function command(argv, { out, ask, ctx }) {
     const dir = resolve(positionals[2] ?? '.');
     if (o.share && o.local) { out.write('--share and --local exclude each other\n'); return 2; }
     const pctx = projectCtx(ctx, dir);
-    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable };
+    const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller };
     const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
     const plan = preview(changes);
     if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
@@ -209,6 +235,7 @@ async function command(argv, { out, ask, ctx }) {
     return 0;
   }
   if (cmd === 'update-all') {
+    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
     const projects = listProjects(ctx).map((p) => status(ctx, p.path));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
     for (const p of projects) {
@@ -217,6 +244,12 @@ async function command(argv, { out, ask, ctx }) {
         : p.changes ? `${p.changes.length} changes` : `setup ${p.setupVersion} on ${p.origin}, checkout ${p.checkout ?? 'without one'}${p.current ? ': pull it' : ''}`);
       out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
       if ((p.clean || !commits) && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
+    }
+    if (o.baseline) {
+      for (const p of projects) {
+        out.write(`${p.path}  GitHub settings against profile ${o.baseline} (report only)\n`);
+        for (const i of baselineIssues(ctx, p.path, { profile: o.baseline, ref: o['baseline-ref'] })) out.write(`  ${(i.tag ?? i.level).padEnd(8)} ${i.message}\n`);
+      }
     }
     // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
     const ready = projects.filter((p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
@@ -268,11 +301,16 @@ async function command(argv, { out, ask, ctx }) {
     return code;
   }
   if (cmd === 'doctor') {
-    const found = doctor(ctx, { agents: selectedAgents(ctx, o.agents), dir: resolve(arg ?? '.') });
+    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
+    const agents = selectedAgents(ctx, o.agents), dir = resolve(arg ?? '.');
+    const { level, adds } = detectLevel(ctx, agents, dir);
+    out.write(`level    ${level ?? 'none'}${adds ? `: ${adds}` : ''}\n`);
+    const found = doctor(ctx, { agents, dir, baseline: o.baseline && { profile: o.baseline, ref: o['baseline-ref'] } });
     for (const i of found) out.write(`${(i.tag ?? i.level).padEnd(8)} ${i.check.padEnd(10)} ${i.message}\n        fix: ${i.fix}\n`);
     out.write(found.length ? `${found.filter((i) => i.level === 'error').length} errors, ${found.filter((i) => i.level === 'warning').length} warnings\n` : 'no problems found\n');
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
+  if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
     // A session run gives the project and transcript.
@@ -316,4 +354,60 @@ async function command(argv, { out, ask, ctx }) {
   }
   out.write(`unknown command ${cmd}\n\n${HELP}\n`);
   return 2;
+}
+
+const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
+
+// settings list|get|set: the editor of the UI on the command line, through the same plan, diff and undo.
+async function settingsCommand({ o, positionals, out, ask, ctx }) {
+  const [, sub, key, ...rest] = positionals;
+  const agentId = o.agent ?? 'claude';
+  if (!settingsAgents.includes(agentId)) { out.write(`agent must be one of ${settingsAgents.join(', ')}\n`); return 2; }
+  const dir = o.project ? resolve(o.project) : undefined;
+  const view = () => listSettings(ctx, agentId, { dir, advanced: key === undefined ? !!o.advanced : true, env: process.env });
+  const noteLines = (notes) => notes.forEach((n) => out.write(`  ${n.level}: ${n.message} (${n.source})\n`));
+  if (sub === 'list') {
+    const l = view();
+    for (const f of l.layers) out.write(`${f.layer.padEnd(8)} ${f.path}${f.exists ? '' : ' (missing)'}${f.error ? ` (unreadable: ${f.error})` : ''}${f.readOnly ? ' (read-only)' : ''}\n`);
+    for (const s of l.settings) {
+      out.write(`${s.key.padEnd(44)} ${s.layer ? `${show1(s.value)} (${s.layer})` : `default: ${s.default}`}\n`);
+      noteLines(s.notes);
+    }
+    for (const a of l.advanced ?? []) if (a.changed || o.advanced) out.write(`${a.key.padEnd(44)} ${a.layer ? `${show1(a.value)} (${a.layer})` : '-'}\n`);
+    for (const x of l.outside ?? []) out.write(`${x.key.padEnd(44)} ${show1(x.value)} (${x.layer}, not in the app's list, kept)\n`);
+    for (const e of l.env ?? []) out.write(`env.${e.name.padEnd(40)} ${show1(e.value)} (${e.layer})\n`);
+    return 0;
+  }
+  if (sub === 'get') {
+    if (!key) { out.write('settings get needs a key\n'); return 2; }
+    const l = view();
+    const s = [...l.settings, ...(l.advanced ?? [])].find((x) => x.key === key);
+    if (!s) { out.write(`${key} is not a key of ${l.name}'s reference or schema\n`); return 1; }
+    out.write(`${show1(s.value)}${s.layer ? ` (${s.layer})` : `  (unset; default: ${s.default ?? 'built-in'})`}\n`);
+    for (const x of s.sets ?? []) out.write(`  ${x.layer}: ${show1(x.value)}\n`);
+    noteLines(s.notes ?? []);
+    return 0;
+  }
+  if (sub !== 'set') { out.write('settings needs list, get or set\n'); return 2; }
+  const layer = o.layer ?? 'user';
+  let edits;
+  try {
+    if (o.bundle) edits = bundleEdits(agentId, o.bundle);
+    else {
+      if (!key) { out.write('settings set needs a key and a value, or --unset, or --bundle\n'); return 2; }
+      const def = describeKey(agentId, key) ?? (agentId === 'codex' && key.startsWith('projects.') ? { key, type: 'any' } : null);
+      if (!def) { out.write(`${key} is not a key of the ${agentId} reference or schema\n`); return 1; }
+      if (o.unset) edits = { [key]: null };
+      else if (rest.length === 0 && def.type !== 'switch') { out.write(`settings set ${key} needs a value or --unset\n`); return 2; }
+      else edits = { [key]: parseInput(def, rest.length ? rest.join(' ') : 'set') };
+    }
+  } catch (e) { out.write(`${e.message}\n`); return 2; }
+  let plan;
+  try {
+    const changes = settingsChanges(ctx, agentId, { layer, dir, edits });
+    plan = preview(changes);
+  } catch (e) { out.write(`${e.message}\n`); return 1; }
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  const sctx = layer === 'user' ? ctx : projectCtx(ctx, dir);
+  return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
 }

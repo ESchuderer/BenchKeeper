@@ -4,6 +4,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { changedFiles, isRepo, repoRoot, snapshot } from './git.mjs';
 import { SCHEMA, runId } from './ledger.mjs';
+import { redactArgv } from './redact.mjs';
 
 // The newest agent transcript written since the session started.
 export function transcript(home, dir, since) {
@@ -30,10 +31,12 @@ export function recordSession(ctx, dir, argv) {
   const before = snapshot(ctx, root);
   const start = Date.now();
   const r = ctx.run(argv, { cwd: dir, stdio: 'inherit' });
+  // The ledger keeps what the user typed with secrets masked (best effort: a secret in an unflagged argument is kept).
+  const shown = redactArgv(argv);
   const after = snapshot(ctx, root);
   const run = {
     schema: SCHEMA, id: runId(), time: new Date(start).toISOString(), appVersion: ctx.appVersion, kind: 'session', scope: root,
-    entries: [{ id: 'session', step: 'session', title: `agent session: ${argv.join(' ')}`, kind: 'session', argv, cwd: root, started: dir, exit: r.code, before, after, files: changedFiles(ctx, root, before, after), transcript: transcript(ctx.home, dir, start - 1000), status: 'done' }],
+    entries: [{ id: 'session', step: 'session', title: `agent session: ${shown.join(' ')}`, kind: 'session', argv: shown, cwd: root, started: dir, exit: r.code, before, after, files: changedFiles(ctx, root, before, after), transcript: transcript(ctx.home, dir, start - 1000), status: 'done' }],
   };
   run.status = 'done';
   ctx.ledger.save(run);

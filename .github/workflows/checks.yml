@@ -1,22 +1,38 @@
 name: Checks
 
+# The promotion pull request (develop into main) skips every job: the push to develop already ran them on the same commit,
+# and those results are the ones the main ruleset requires. `checks` is the required check, a gate over the two
+# parallel jobs. Jobs that never read the recorded trial data (bench/results/*/round-*, 595 MB) check out without it.
 on:
   push:
-    branches: [main, develop]
+    branches: [develop]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  checks:
+  checks-core:
+    # Skips only the promotion pull request (this repository's develop into main), whose jobs the push to develop already ran; a fork branch named develop is not skipped.
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
     env:
       LC_ALL: C.UTF-8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /*
+            !/bench/results/*/round-*/
+          sparse-checkout-cone-mode: false
+      # The image digest is bumped by hand: Dependabot does not read `run:` lines.
       - name: actionlint
         run: docker run --rm -v "$PWD":/repo -w /repo docker.io/rhysd/actionlint@sha256:9d36088643581e728c969f35141f88139fec77280b2be23c1f66f8e40e1025e7 -color # 1.7.12
       - uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
@@ -46,22 +62,65 @@ jobs:
       # Install commands in the docs name the app version (npx benchkeeper@<version>, the clone tag).
       - name: Version pins
         run: node --test .github/scripts/version-pins.test.mjs && node .github/scripts/version-pins.mjs --check
-      # The web UI against a fixture home: request checks are in the app tests, views and axe (light, dark) here.
+
+  # The web UI against a fixture home: request checks are in the app tests, views and axe (light, dark) here.
+  app-ui-tests:
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    env:
+      LC_ALL: C.UTF-8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /*
+            !/bench/results/*/round-*/
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
       - name: App UI tests
         working-directory: app
-        run: npm ci --ignore-scripts --no-audit --no-fund && npx playwright install --with-deps chromium && npm run build && npm run test:ui
+        run: npm ci --ignore-scripts --no-audit --no-fund && node_modules/.bin/playwright install --with-deps chromium && npm run build && npm run test:ui
+
+  # Required check: passes when both parallel jobs pass, and is skipped with them on the promotion pull request.
+  checks:
+    if: ${{ always() && !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    needs: [checks-core, app-ui-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every needed job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for r in $RESULTS; do
+            if [ "$r" != success ]; then echo "::error::a needed job ended as $r"; exit 1; fi
+          done
 
   # The installer app: engine, steps, CLI and server against temporary home directories with stub agent commands.
   app:
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /*
+            !/bench/results/*/round-*/
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.3
@@ -71,20 +130,32 @@ jobs:
 
   # Windows is untested by the owner: start, plan, apply with a ledger run only.
   app-windows-smoke:
+    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          sparse-checkout: |
+            /*
+            !/bench/results/*/round-*/
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.3
       - name: Smoke test
         working-directory: app
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund && node scripts/smoke.mjs
+
   dependency-review:
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event_name == 'pull_request' && !(github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:

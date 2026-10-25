@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { validity } from './trial.mjs';
+import { byCode, validity } from './trial.mjs';
 
 const median = (xs) => {
   const s = xs.filter(Number.isFinite).sort((a, b) => a - b);
@@ -19,7 +19,7 @@ const round = (d) => (x) => (Number.isFinite(x) ? Math.round(x * 10 ** d) / 10 *
 
 // Iterative briefs: steps passed strictly, erosion and duplication at the last step, per arm.
 export function stepsTable(trials) {
-  const arms = [...new Set(trials.filter((t) => t.checkpoints).map((t) => t.arm))].sort();
+  const arms = [...new Set(trials.filter((t) => t.checkpoints).map((t) => t.arm))].sort(byCode);
   const rows = arms.map((arm) => {
     const ts = trials.filter((t) => t.arm === arm && t.checkpoints && validity(t).ok);
     const col = (f, d = 1) => range(ts.map(f).map(round(d)));
@@ -32,7 +32,7 @@ export function stepsTable(trials) {
 // Step briefs (trials with `steps`): one row per arm and step; checks passed of the checkable ones, suite green, first
 // turn waited for the user, follow-ups, minutes, cost and the share of the 5-hour and weekly limits in percentage points.
 export function sessionsTable(trials) {
-  const arms = [...new Set(trials.filter((t) => t.steps).map((t) => t.arm))].sort();
+  const arms = [...new Set(trials.filter((t) => t.steps).map((t) => t.arm))].sort(byCode);
   const rows = arms.flatMap((arm) => {
     const ts = trials.filter((t) => t.arm === arm && t.steps && validity(t).ok);
     const ks = [...new Set(ts.flatMap((t) => t.steps.map((s) => s.k)))].sort((a, b) => a - b);
@@ -50,10 +50,10 @@ export function sessionsTable(trials) {
 
 // Natural skill selection is evidence, never an eligibility condition.
 export function workflowTable(trials) {
-  const arms = [...new Set(trials.map((t) => t.arm))].sort();
+  const arms = [...new Set(trials.map((t) => t.arm))].sort(byCode);
   const rows = arms.map((arm) => {
     const ws = trials.filter((t) => t.arm === arm && validity(t).ok).map((t) => t.workflow || {});
-    const names = (key) => [...new Set(ws.flatMap((w) => w[key] || []))].sort().join(', ') || 'not observed';
+    const names = (key) => [...new Set(ws.flatMap((w) => w[key] || []))].sort(byCode).join(', ') || 'not observed';
     return `| ${arm} | ${ws.length} | ${names('tiers')} | ${names('skills')} | ${ws.reduce((n, w) => n + (w.skill_errors?.length || 0), 0)} |`;
   });
   return ['| Arm | Valid trials | Tier lines observed | Skill calls observed | Skill tool errors |', '|---|---|---|---|---|', ...rows].join('\n');
@@ -69,7 +69,7 @@ export function scbTable(trials) {
 }
 
 export function table(trials) {
-  const arms = [...new Set(trials.map((t) => t.arm))].sort();
+  const arms = [...new Set(trials.map((t) => t.arm))].sort(byCode);
   const rows = arms.map((arm) => {
     const ts = trials.filter((t) => t.arm === arm);
     const valid = ts.filter((t) => validity(t).ok);

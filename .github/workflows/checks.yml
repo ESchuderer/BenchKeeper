@@ -51,6 +51,9 @@ jobs:
       # Own skills: front matter, name, quoted description, size, link targets, Codex policy (AGENTS.md conventions).
       - name: Skill lint
         run: node --test .github/scripts/skill-lint.test.mjs && node .github/scripts/skill-lint.mjs
+      # Coordinator scenario: the checks over a recorded run (evaluations/practices/orchestrating-projects.md).
+      - name: Orchestration log checks
+        run: node --test .github/scripts/orchestration-log.test.mjs
       # library/README.md tables are generated from library.json.
       - name: Library catalog
         run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check

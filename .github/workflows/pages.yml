@@ -13,7 +13,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The site build reads the recorded trial data (bench/results/*/round-*) at build time, so it keeps the full checkout.
   # The promotion pull request (develop into main) skips it: the push to develop already built the same commit.
   build:
     # Skips only the promotion pull request (this repository's develop into main), whose jobs the push to develop already ran; a fork branch named develop is not skipped.

@@ -1,2 +1,5 @@
 # Playwright MCP snapshots and logs
 .playwright-mcp/
+
+# Trial workspaces of the benchmark, now in BenchKeeper-Eval; kept out of git where a local copy remains
+/bench/runs/

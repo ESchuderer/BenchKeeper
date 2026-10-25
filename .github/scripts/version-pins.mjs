@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // Recorded history and benchmark arms keep the versions they name.
-const SKIP = /^(bench\/|evaluations\/|EVALUATIONS\.md|CHANGELOG\.md|app\/test\/)|package-lock\.json$/;
+const SKIP = /^(evaluations\/|EVALUATIONS\.md|CHANGELOG\.md|app\/test\/)|package-lock\.json$/;
 
 export function pins(text, version) {
   const [major, minor] = version.split('.');

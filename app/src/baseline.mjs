@@ -27,7 +27,7 @@ const valid = (p, name) => p?.schemaVersion === 1 && p.name === name && typeof p
 export function loadProfile(ctx, name, ref = REF) {
   if (!PROFILES.includes(name)) throw new Error(`profile must be one of ${PROFILES.join(', ')}`);
   if (!REF_OK.test(ref)) throw new Error(`not a ref: ${ref}`);
-  const r = ctx.run(['gh', 'api', '-H', 'Accept: application/vnd.github.raw', `repos/${BASELINE_REPO}/contents/profiles/${name}.json?ref=${ref}`], { env: GH_ENV, timeout: 20e3 });
+  const r = ctx.run(['gh', 'api', '--hostname', 'github.com', '-H', 'Accept: application/vnd.github.raw', `repos/${BASELINE_REPO}/contents/profiles/${name}.json?ref=${ref}`], { env: GH_ENV, timeout: 20e3 });
   let why = r.stderr.trim().split('\n')[0] || 'no answer';
   if (r.code === 0) {
     try {
@@ -58,7 +58,7 @@ const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefin
 // The repository's settings in the shape of a profile; a part gh cannot read (plan, rights, offline) is named in unreadable.
 export function readLive(ctx, slug) {
   const unreadable = {};
-  const run = (path) => ctx.run(['gh', 'api', `repos/${slug}${path}`], { env: GH_ENV, timeout: 20e3 });
+  const run = (path) => ctx.run(['gh', 'api', '--hostname', 'github.com', `repos/${slug}${path}`], { env: GH_ENV, timeout: 20e3 });
   const get = (key, path) => {
     const r = run(path);
     if (r.code !== 0) { unreadable[key] = { http: r.stderr.match(/HTTP (\d{3})/)?.[1] ?? null, message: r.stderr.trim().split('\n')[0] }; return undefined; }

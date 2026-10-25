@@ -35,6 +35,8 @@ function stub(db) {
     if (argv[0] === 'git') return runCommand(argv, o);
     if (argv[0] !== 'gh') return { code: 1, stdout: '', stderr: '' };
     calls.push(argv);
+    // GH_HOST must not redirect a call: every api request names github.com.
+    if (argv[1] === 'api' && argv[argv.indexOf('--hostname') + 1] !== 'github.com') return bad(400, 'missing --hostname github.com');
     if (db.offline) return { code: 1, stdout: '', stderr: 'error connecting to api.github.com\n' };
     const target = argv.find((a) => a.startsWith('repos/'));
     if (db.deny?.some((d) => target.includes(d))) return bad(403, 'Resource not accessible by personal access token');

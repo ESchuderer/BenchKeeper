@@ -37,9 +37,6 @@ export function arm(id) {
   return { framework, spec: a.spec || 'none', bk: Boolean(a.bk), ponytail: a.ponytail ?? Boolean(a.bk), setup: a.label || parts.join(' + ') || 'plain' };
 }
 
-// Runs kept off the site (owner, 2026-10-16: no Haiku). Their data and Markdown report stay in bench/results.
-export const OFF_SITE = new Set(['2026-10-15-winery-react-haiku', '2026-10-16-cartridges-haiku']);
-
 const json = (f) => (existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : null);
 // Drawing review per app (drawing-review.json, one verdict per drawing). Reviewers differed on the shoulder angle drawn as
 // a leader label instead of an angle dimension: a drawing faulted only for that counts as correct in correctAlphaApart.

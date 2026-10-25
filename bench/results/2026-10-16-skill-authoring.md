@@ -9,16 +9,16 @@ Checked 2026-10-16 against Anthropic's [skill authoring guide](https://platform.
 
 By the review's overall score (mean of the applicable areas). Ties broken by shipped evaluations, then the static pass rate.
 
-| Rank | Collection | Version | Skills | Review overall | Static checks passed | Evaluations shipped | Fired in trials |
-|---|---|---|---|---|---|---|---|
-| 1 | Ponytail | 5.2.0 | 6 | 3.9 | 97% | no | 1 of 6 |
-| 2 | agent-skills | 0.6.13 | 25 | 3.4 | 99% | yes (`evals/cases/<skill>.json`, results on Opus only) | 11 of 25 |
-| 3 | Matt Pocock | 1.3.1 | 37 | 3.4 | 99% | no | 6 of 27 recorded |
-| 4 | Superpowers | 7.0.0 | 15 | 3.2 | 93% | partial (unstructured pressure scenarios in one skill) | 8 of 15 |
-| 5 | OpenSpec (generated) | 1.14.1 | 6 | 3.1 | 100% | no | 4 of 6 |
-| 5 | BenchKeeper | setup-v2.5 | 4 | 3.1 | 100% | no | not in the published runs (layer v1) |
-| 7 | ECC (minimal profile) | 2.2.3 | 48 | 2.9 | 98% | no (unit tests for scripts only) | 0 of 48 |
-| 8 | Spec Kit (generated) | 1.2.0 | 10 | 2.8 | 90% | no | 6 of 10 |
+| Rank | Collection | Version | Skills | Review overall | Static checks passed | Evaluations shipped |
+|---|---|---|---|---|---|---|
+| 1 | Ponytail | 5.2.0 | 6 | 3.9 | 97% | no |
+| 2 | agent-skills | 0.6.13 | 25 | 3.4 | 99% | yes (`evals/cases/<skill>.json`, results on Opus only) |
+| 3 | Matt Pocock | 1.3.1 | 37 | 3.4 | 99% | no |
+| 4 | Superpowers | 7.0.0 | 15 | 3.2 | 93% | partial (unstructured pressure scenarios in one skill) |
+| 5 | OpenSpec (generated) | 1.14.1 | 6 | 3.1 | 100% | no |
+| 5 | BenchKeeper | setup-v2.5 | 4 | 3.1 | 100% | no |
+| 7 | ECC (minimal profile) | 2.2.3 | 48 | 2.9 | 98% | no (unit tests for scripts only) |
+| 8 | Spec Kit (generated) | 1.2.0 | 10 | 2.8 | 90% | no |
 
 Confidence: medium for the order of the top and bottom groups, low for neighbors within 0.2. Smaller collections are easier to keep consistent (Ponytail has 6 short skills).
 
@@ -100,10 +100,6 @@ False positives found: `windows-paths` on paths the skill tells the user about (
   - Task and implement disagree on phase names.
   - No fallback when no user can answer.
 
-## Authoring quality and usage
+## Authoring quality
 
-Descriptive only, no causal claim. Usage is "fired in at least one saved trial" from [2026-10-16-skills-inventory.md](2026-10-16-skills-inventory.md) (winery-react, Haiku and Sonnet, k=1).
-
-- No relation shows across collections: ECC (0 of 48 fired) and Spec Kit (6 of 10) both rank low. Spec Kit skills fire because the workflow calls them by name, ECC works mainly through subagents, which the inventory does not count.
-- Within a collection, skills whose description fails the trigger check fired as often as the others (8 of 25 against 28 of 112 over the matched skills). Matt Pocock, the only collection with both groups before user-invoked skills were exempted, gave 4 of 12 against 2 of 15. Too few trials to separate.
 - The targeted tasks (`bench/PROTOCOL.md`) record whether each skill fired and can check the descriptions the reviews call broad or overlapping (Ponytail review, agent-skills "stress-test", Superpowers catch-all triggers, Spec Kit).

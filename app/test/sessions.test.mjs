@@ -139,3 +139,14 @@ test('retention drops the summaries of deleted transcripts after the days; Clear
   assert.deepEqual(sessionCache(ctx), { keepDays: 9, sessions: 0 });
   assert.equal(Object.keys(byId(await scanSessions(ctx))).length, 2);
 });
+
+test('the cache count equals the board rows, also when a Codex parent has expired and its subagent rollout stays', async () => {
+  const { home, ctx } = fixture();
+  await scanSessions(ctx);
+  removeS1(home);
+  rmSync(join(home, '.codex/sessions/2026/10/21/rollout-2026-10-21T11-00-00-c1.jsonl'));
+  keepSessionsFor(ctx, 1);
+  const rows = await scanSessions(ctx);
+  assert.deepEqual(rows.map((r) => r.id).sort(), ['c2', 's2']);
+  assert.equal(sessionCache(ctx).sessions, rows.length);
+});

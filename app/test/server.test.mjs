@@ -411,7 +411,9 @@ test('project-plan: disable and enable only name skills the project has', () => 
 });
 
 test('dashboard: the numbers equal the inventory and the project status; one read per load; coverage and catalog by pack', () => {
-  const { ctx, routes } = fixture();
+  // git runs for real (a tracked state file is told by git ls-files).
+  const git = (argv, o) => { if (argv[0] !== 'git') return null; try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o?.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } };
+  const { ctx, routes } = fixture(git);
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write'), ctx);
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'a local line\n');
   const dir = mkdtempSync(join(TMP, 'bk-dash-'));
@@ -429,6 +431,15 @@ test('dashboard: the numbers equal the inventory and the project status; one rea
   const d = routes['GET /api/dashboard']();
   assert.equal(routes['GET /api/dashboard'](), d);
   assert.equal(d.projects.find((x) => x.path === gone).states, null);
+  // A setup the repository still tracks cannot be planned: the project keeps what its state file says and shows the reason.
+  const tracked = mkdtempSync(join(TMP, 'bk-tracked-'));
+  const tctx = { ...ctx, roots: [tracked] };
+  execFileSync('git', ['init', '-q', '-b', 'main', tracked]);
+  apply(preview(projectPlan({ ctx: tctx, dir: tracked, answers: { agents: ['claude'], packs: ['frontend'] } }).changes).filter((c) => c.kind !== 'command'), tctx, { scope: tracked });
+  execFileSync('git', ['-C', tracked, 'add', '-f', '.benchkeeper/state.json']);
+  routes['POST /api/projects']({ action: 'add', path: tracked });
+  const t = routes['GET /api/dashboard']().projects.find((x) => x.path === tracked);
+  assert.deepEqual([t.setup, t.packs, t.states, /committed/.test(t.error)], [true, ['frontend'], null, true]);
   const items = routes['GET /api/inventory']();
   assert.deepEqual(Object.fromEntries(Object.entries(d.global.states).filter(([k]) => k !== 'untracked' && d.global.states[k])), Object.fromEntries(['current', 'absent', 'outdated', 'missing', 'modified', 'removed', 'foreign', 'error'].map((k) => [k, items.filter((i) => i.state === k).length]).filter(([, n]) => n)));
   assert.equal(Object.values(d.global.states).reduce((n, x) => n + x, 0), items.length);

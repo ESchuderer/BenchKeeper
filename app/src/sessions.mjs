@@ -136,7 +136,13 @@ const writeCache = (ctx, files, keepDays) => {
   // Titles and paths of the user's sessions: this user only.
   writeAtomic(cachePath(ctx), JSON.stringify({ schema: SCHEMA, keepDays, files }), 0o600);
 };
-export const sessionCache = (ctx) => { const { files, keepDays } = readCache(ctx); return { keepDays, sessions: Object.values(files).filter((x) => x.kind !== 'sub' && !x.d?.parent).length }; };
+// sessions: the rows the board shows. A Codex subagent rollout counts only while its parent is cached; without it the board shows it as a session.
+export const sessionCache = (ctx) => {
+  const { files, keepDays } = readCache(ctx);
+  const all = Object.values(files);
+  const codex = new Set(all.filter((x) => x.kind === 'codex').map((x) => x.d?.id));
+  return { keepDays, sessions: all.filter((x) => x.kind !== 'sub' && !(x.d?.parent && codex.has(x.d.parent))).length };
+};
 // days: a whole number from 1 to 3650, or null to keep summaries for good. The next scan drops what is older.
 export function keepSessionsFor(ctx, days) {
   if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= MAX_DAYS)) throw new Error(`days must be a whole number from 1 to ${MAX_DAYS}, or none`);

@@ -64,7 +64,11 @@ export function dashboard(ctx, agents, items) {
       const state = projectState(ctx, p.path);
       if (!state) return row;
       const ids = (state.agents ?? []).filter((a) => { try { return !!agent(a); } catch { return false; } });
-      return { ...row, setup: true, agents: ids, packs: state.packs ?? [], skills: skillCounts(p.path, ids), states: count(projectItems(ctx, p.path, { ...state, agents: ids })), untracked: untracked(p.path, { ...state, agents: ids }) };
+      // What the state file says stays when the plan cannot be built (a setup still committed to the repository).
+      const base = { ...row, setup: true, agents: ids, packs: state.packs ?? [], skills: skillCounts(p.path, ids) };
+      try {
+        return { ...base, states: count(projectItems(ctx, p.path, { ...state, agents: ids })), untracked: untracked(p.path, { ...state, agents: ids }) };
+      } catch (e) { return { ...base, error: e.message }; }
     } catch (e) { return { ...row, error: e.message }; }
   });
   const global = { skills: Object.fromEntries(agents.map((a) => [a, globalSkills(ctx, a)])), packs: globalPacks(ctx, agents), states: count(items) };

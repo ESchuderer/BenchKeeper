@@ -45,7 +45,7 @@ function Installed({ data, names }) {
           <Table.Tr><Table.Th scope="row">Global</Table.Th><Table.Td>{skills(data.global.skills, (id) => href('agents', { agent: id }))}</Table.Td><Table.Td>{packs(globalPacks)}</Table.Td></Table.Tr>
           {data.projects.map((p) => (
             <Table.Tr key={p.path}>
-              <Table.Th scope="row"><Anchor href={href('projects', { path: p.path })}>{label(p)}</Anchor></Table.Th>
+              <Table.Th scope="row"><Anchor href={href('projects', { path: p.path })}>{label(p)}</Anchor>{p.error && <Text size="xs" fw={400}>{p.error}</Text>}</Table.Th>
               <Table.Td>{p.setup ? skills(p.skills, () => href('projects', { path: p.path })) : p.error ? 'cannot be read' : 'not set up'}</Table.Td>
               <Table.Td>{p.setup ? packs(p.packs) : 'none'}</Table.Td>
             </Table.Tr>

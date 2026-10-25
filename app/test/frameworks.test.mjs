@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { library } from '../src/content.mjs';
 import { doctor } from '../src/doctor.mjs';
-import { catalog, checkOwners, frameworkChecks, frameworkRows } from '../src/frameworks.mjs';
+import { catalog, checkOwners, frameworkChecks, frameworkRemovals, frameworkRows } from '../src/frameworks.mjs';
 import { apply, context, preview, runCommand, undo, undoable } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { committedSetup, localSetup, projectPlan, readState, resolveAnswers } from '../src/steps/project.mjs';
@@ -135,16 +135,52 @@ test('one workflow owner: a second is refused, unknown ids and codex-only projec
   assert.throws(() => plan(r, { ...base, agents: ['codex'], frameworks: ['superpowers'] }), /installs for Claude Code only/);
 });
 
-test('a state file from a clone cannot name an unknown framework or an agent file outside the catalog', () => {
+test('a state file from a clone: ids and paths the catalog lacks are ignored, never planned or run; unknown answers are refused', () => {
   const r = repo();
   const state = (x) => { mkdirSync(join(r.dir, '.benchkeeper'), { recursive: true }); writeFileSync(join(r.dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 1, agents: ['claude'], env: 'host', ...x })); };
-  state({ frameworks: ['../x'] });
-  assert.throws(() => resolveAnswers(r.dir), /unknown framework/);
-  state({ frameworks: ['agency-agents'], agentFiles: ['../../etc/passwd'] });
-  assert.throws(() => resolveAnswers(r.dir), /not an agent file of the catalog/);
-  state({ frameworks: [], agentFiles: [FILE] });
-  assert.throws(() => resolveAnswers(r.dir), /need their framework chosen/);
+  state({ frameworks: ['../x'], agentFiles: ['../../etc/passwd'], agentOwned: ['../../etc/passwd'] });
+  assert.deepEqual([resolveAnswers(r.dir).frameworks, resolveAnswers(r.dir).agentFiles], [[], []]);
+  assert.deepEqual(frameworkSteps(plan(r, {})), []);
+  state({ frameworks: [], agentFiles: [FILE], agentOwned: [FILE] });
+  assert.deepEqual(resolveAnswers(r.dir).agentFiles, [], 'a file of a framework that is not chosen');
+  assert.throws(() => plan(r, { ...base, frameworks: ['../x'] }), /unknown framework/);
+  assert.throws(() => plan(r, { ...base, frameworks: ['agency-agents'], agentFiles: ['../../etc/passwd'] }), /not an agent file of the catalog/);
   assert.throws(() => plan(r, { ...base, frameworks: ['agency-agents'], agentFiles: ['engineering/../../x.md'] }), /not an agent file/);
+  // The owned list never reaches a removal: only catalog paths do.
+  state({ frameworks: ['agency-agents'], agentFiles: [FILE], agentOwned: ['../../etc/passwd'] });
+  assert.deepEqual(frameworkRemovals(r.dir, readState(r.dir), 'local'), []);
+});
+
+test('an agent file that was there before is the project\'s: kept, not fetched, not removed when unpicked', () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.claude/agents'), { recursive: true });
+  writeFileSync(join(r.dir, AGENT), 'mine\n');
+  const other = 'testing/testing-reality-checker.md';
+  run(r, { ...base, frameworks: ['agency-agents'], agentFiles: [FILE, other] });
+  assert.equal(r.calls.filter((c) => c.argv[0] === 'curl').length, 1, 'only the missing file is fetched');
+  assert.deepEqual(readState(r.dir).agentOwned, [other]);
+  run(r, { agentFiles: [other] });
+  assert.equal(readFileSync(join(r.dir, AGENT), 'utf8'), 'mine\n');
+});
+
+test('an install that did not run is not recorded: a failed plugin install, a failed fetch', () => {
+  const r = repo();
+  const failing = { ...r.ctx, run: (argv, o) => (['claude', 'curl'].includes(argv[0]) ? { code: 1, stdout: '', stderr: 'no network' } : r.ctx.run(argv, o)) };
+  const p = projectPlan({ ctx: failing, dir: r.dir, answers: { ...base, frameworks: ['superpowers', 'agency-agents'], agentFiles: [FILE] }, plugins: {} });
+  const changes = preview(p.changes);
+  const result = apply(changes, failing, { scope: r.dir, select: changes.filter((c) => c.selected).map((c) => c.id) });
+  assert.equal(result.status, 'failed');
+  const state = readState(r.dir);
+  assert.deepEqual([state.frameworks, state.agentOwned, state.frameworkRefs], [['agency-agents'], [], undefined]);
+  // Applied again, it plans both once more.
+  assert.equal(frameworkSteps(plan(r, { frameworks: ['superpowers', 'agency-agents'] })).length, 2);
+});
+
+test('--framework without --agent-file keeps the picks of the frameworks still chosen', () => {
+  const r = repo();
+  run(r, { ...base, frameworks: ['agency-agents'], agentFiles: [FILE] });
+  assert.deepEqual(resolveAnswers(r.dir, { frameworks: ['agency-agents', 'superpowers'] }).agentFiles, [FILE]);
+  assert.deepEqual(resolveAnswers(r.dir, { frameworks: [] }).agentFiles, []);
 });
 
 test('agency-agents: a pick of agent files fetched at the pinned commit, second plan empty, a dropped pick removed, undo restores', () => {
@@ -219,6 +255,10 @@ test('doctor of a project reads the user plugins from the agent files', () => {
   mkdirSync(join(r.home, '.claude/plugins'), { recursive: true });
   writeFileSync(join(r.home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'superpowers@superpowers-marketplace': [{ scope: 'user', version: '7.0.0' }] } }));
   writeFileSync(join(r.home, '.claude/plugins/known_marketplaces.json'), '{}');
+  // A plugin the user turned off does not count: only an enabled one drives the work.
+  writeFileSync(join(r.home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'superpowers@superpowers-marketplace': false } }));
+  assert.equal(doctor(r.ctx, { agents: ['claude'], dir: r.dir }).filter((i) => i.check === 'frameworks').length, 0);
+  writeFileSync(join(r.home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'superpowers@superpowers-marketplace': true } }));
   const found = doctor(r.ctx, { agents: ['claude'], dir: r.dir }).filter((i) => i.check === 'frameworks');
   assert.equal(found.length, 1);
   assert.match(found[0].fix, /claude plugin uninstall superpowers@claude-plugins-official/);

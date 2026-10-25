@@ -48,6 +48,17 @@ export function resolveFrameworks(a, lib = library()) {
 // The owner chosen, if any: the project block gives BenchKeeper's workflow way to it.
 export const ownerOf = (a, lib = library()) => catalog(lib).find((f) => f.role === 'owner' && a.frameworks.includes(f.id)) ?? null;
 
+// Agent files of the catalog that belong to a framework in ids.
+const filesOf = (ids, lib) => new Set(catalog(lib).filter((f) => ids.includes(f.id)).flatMap((f) => f.install.files?.map((x) => x.path) ?? []));
+export const agentFilesOf = (ids, files, lib = library()) => files.filter((p) => filesOf(ids, lib).has(p));
+
+// What a state file still says that this app's catalog knows: an id or path it does not know (a newer app, a renamed file) is
+// ignored, so the project can still be planned; the doctor reports it.
+export function keptFrom(prev, lib = library()) {
+  const frameworks = (prev?.frameworks ?? []).filter((id) => catalog(lib).some((f) => f.id === id));
+  return { frameworks, agentFiles: agentFilesOf(frameworks, prev?.agentFiles ?? [], lib), agentOwned: agentFilesOf(frameworks, prev?.agentOwned ?? [], lib) };
+}
+
 // Where an agent file lands for the first agent that reads agent files in the project.
 const agentDir = (dir, f) => join(dir, agent(f.install.agents[0]).project[f.install.dest].path);
 const rawUrl = (f, path) => `https://raw.githubusercontent.com/${f.install.source}/${f.install.ref}/${path}`;
@@ -65,30 +76,39 @@ export function frameworkChanges({ a, dir, prev, lib = library() }) {
         const present = enabledIn(dir, scope, id), wanted = on && scope === scopeOf(a);
         const argv = (verb) => ['claude', 'plugin', verb, id, '--scope', scope];
         // Only an install this setup recorded is taken out again: another scope's copy may be the project's own.
-        if (wanted && !present) out.push({ step: `framework:${f.id}`, title: `Claude Code plugin ${id} for this project only (scope ${scope})`, kind: 'command', cwd: dir, argv: argv('install'), undoArgv: argv('uninstall') });
+        if (wanted && !present) out.push({ key: `plugin:${f.id}`, step: `framework:${f.id}`, title: `Claude Code plugin ${id} for this project only (scope ${scope})`, kind: 'command', cwd: dir, argv: argv('install'), undoArgv: argv('uninstall') });
         else if (!wanted && present && was.has(f.id)) out.push({ step: `framework:${f.id}`, title: `remove Claude Code plugin ${id} (scope ${scope})`, kind: 'command', cwd: dir, argv: argv('uninstall'), undoArgv: argv('install'), selected: true });
       }
     }
     if (f.install.kind === 'agents') {
-      const have = new Map(Object.entries(prev?.frameworkRefs ?? {}));
+      const have = new Map(Object.entries(prev?.frameworkRefs ?? {})), owned = new Set(prev?.agentOwned ?? []);
       for (const { path } of f.install.files) {
         const target = join(agentDir(dir, f), `${stemOf(path)}.md`);
-        const picked = on && a.agentFiles.includes(path), recorded = (prev?.agentFiles ?? []).includes(path);
-        if (picked && (!exists(target) || (recorded && have.get(f.id) !== f.install.ref))) {
-          out.push({ step: `framework:${f.id}`, title: `agent ${stemOf(path)} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`, kind: 'command', cwd: dir, snapshot: [target],
+        // Only a file this setup fetched (agentOwned) is refreshed or taken out again: one that was there before is the project's.
+        const picked = on && a.agentFiles.includes(path), mine = owned.has(path);
+        if (picked && (!exists(target) || (mine && have.get(f.id) !== f.install.ref))) {
+          out.push({ key: `file:${path}`, step: `framework:${f.id}`, title: `agent ${stemOf(path)} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`, kind: 'command', cwd: dir, snapshot: [target],
             argv: ['curl', '-fsSL', '--proto', '=https', '--proto-redir', '=https', '--create-dirs', '-o', target, rawUrl(f, path)] });
-        } else if (!picked && recorded && exists(target)) out.push({ step: `framework:${f.id}`, title: `remove agent ${stemOf(path)} (not picked)`, kind: 'remove', path: target, selected: true });
+        } else if (!picked && mine && exists(target)) out.push({ step: `framework:${f.id}`, title: `remove agent ${stemOf(path)} (not picked)`, kind: 'remove', path: target, selected: true });
       }
     }
   }
   return out;
 }
 
-// What the state file records of the frameworks, for the answers that follow.
-export const frameworkState = (a, lib = library()) => ({
-  frameworks: a.frameworks, agentFiles: a.agentFiles,
-  frameworkRefs: Object.fromEntries(catalog(lib).filter((f) => a.frameworks.includes(f.id) && f.install.ref).map((f) => [f.id, f.install.ref])),
-});
+// What the state file records of the frameworks. ran(key): whether the fetch or install planned under that key ran in this run
+// (null: none was planned). A plugin install that did not run is not recorded; a file is the setup's own (agentOwned) once
+// fetched, and its ref is the one fetched. Nothing is recorded for files and refs of a run that failed or skipped them.
+export function frameworkState({ a, prev, ran = () => null, lib = library() }) {
+  const cat = catalog(lib).filter((f) => a.frameworks.includes(f.id));
+  const was = new Set(prev?.agentOwned ?? []), refs = prev?.frameworkRefs ?? {};
+  const files = cat.flatMap((f) => f.install.files?.map((x) => x.path) ?? []).filter((p) => a.agentFiles.includes(p));
+  const frameworks = cat.filter((f) => f.install.kind !== 'plugin' || ran(`plugin:${f.id}`) !== false).map((f) => f.id);
+  const fetched = (f) => (f.install.files ?? []).some((x) => ran(`file:${x.path}`) === true);
+  const frameworkRefs = Object.fromEntries(cat.filter((f) => f.install.ref && (fetched(f) || refs[f.id])).map((f) => [f.id, fetched(f) ? f.install.ref : refs[f.id]]));
+  const agentOwned = files.filter((p) => ran(`file:${p}`) === true || was.has(p));
+  return { ...(frameworks.length ? { frameworks } : {}), ...(files.length ? { agentFiles: files, agentOwned } : {}), ...(Object.keys(frameworkRefs).length ? { frameworkRefs } : {}) };
+}
 
 // Paths (relative to the project) the framework installs write, for the git exclude list of a local setup.
 export function frameworkPaths(a, dir, lib = library()) {
@@ -108,7 +128,7 @@ export function frameworkRemovals(dir, state, scope, lib = library()) {
   for (const f of cat) {
     if (f.install.kind === 'plugin' && enabledIn(dir, scope, f.install.plugin)) out.push({ step: 'framework', title: `${SETTINGS[scope]} without the plugin ${f.install.plugin}`, kind: 'write', path: join(dir, SETTINGS[scope]),
       edit: (t) => mergeJson(t, [{ path: ['enabledPlugins', f.install.plugin], remove: true }, { path: ['enabledPlugins'], prune: true }]) });
-    if (f.install.kind === 'agents') for (const { path } of f.install.files.filter((x) => (state.agentFiles ?? []).includes(x.path))) {
+    if (f.install.kind === 'agents') for (const { path } of f.install.files.filter((x) => (state.agentOwned ?? []).includes(x.path))) {
       const target = join(agentDir(dir, f), `${stemOf(path)}.md`);
       if (exists(target)) out.push({ step: 'framework', title: `remove agent ${stemOf(path)}`, kind: 'remove', path: target });
     }

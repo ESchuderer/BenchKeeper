@@ -7,7 +7,7 @@ import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
-import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, ownerOf, resolveFrameworks } from '../frameworks.mjs';
+import { agentFilesOf, frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, ownerOf, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
@@ -129,7 +129,7 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, frameworks: prev.frameworks ?? [], agentFiles: prev.agentFiles ?? [], callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
@@ -139,7 +139,8 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.partial = partial;
   a.share = a.share === true;
   a.frameworks = [a.frameworks].flat();
-  a.agentFiles = [a.agentFiles].flat();
+  // Naming the frameworks without naming agent files keeps the saved picks of the frameworks still chosen.
+  a.agentFiles = answers.frameworks !== undefined && answers.agentFiles === undefined ? agentFilesOf(a.frameworks, prev.agentFiles ?? []) : [a.agentFiles].flat();
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
   if (!isEnv(a.env)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
@@ -350,7 +351,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   }
 
   // Frameworks: a plugin enabled for this project only, or agent files fetched at a pinned commit; packs go with the packs above.
-  for (const { step, title, ...c } of frameworkChanges({ a, dir, prev })) add(step, title, c);
+  const fwIds = new Map();
+  for (const { step, title, key, ...c } of frameworkChanges({ a, dir, prev })) { add(step, title, c); if (key) fwIds.set(key, changes.at(-1).id); }
+  // Whether a framework install or fetch ran in the run that writes the state file (null: none planned).
+  const ranFw = (run) => (key) => (!fwIds.has(key) ? null : !run || run.entries.some((e) => e.id === fwIds.get(key) && e.status === 'done'));
 
   // A skill turned off moves to .benchkeeper/disabled/<skill folder>/<name>; turned on, it moves back.
   const rel = (p) => relative(dir, p);
@@ -446,7 +450,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...(a.frameworks.length ? frameworkState(a) : {}),
+  const state = (run) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, prev, ran: ranFw(run) }),
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), edit: (_, run) => `${JSON.stringify(state(run), null, 2)}\n` });
 

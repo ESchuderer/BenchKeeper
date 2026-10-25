@@ -83,7 +83,8 @@ Usage: benchkeeper <command> [options]
                                     --disable moves a skill to .benchkeeper/disabled/, --enable moves it back;
                                     --caller writes that repo-baseline workflow file (never GitHub settings);
                                     --framework names the frameworks of this project (one workflow owner at most,
-                                    none clears them), --agent-file picks the agent files of agency-agents
+                                    none clears the plugin and agent ones; a pack
+                                    framework is a pack: packs disable), --agent-file picks the agent files of agency-agents
   frameworks [list]                 the frameworks a project can add, with the evidence and what each install writes
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (own ones in packs/ of the config folder); remove
@@ -464,7 +465,7 @@ async function command(argv, { out, err, ask, ctx }) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller, frameworks: o.framework?.filter((f) => f !== 'none'), agentFiles: o['agent-file'] ?? (o.framework ? [] : undefined), ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller, frameworks: o.framework?.filter((f) => f !== 'none'), agentFiles: o['agent-file'], ...extra };
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }

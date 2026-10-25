@@ -92,7 +92,7 @@ export function projectChecks(ctx, dir, agents) {
   if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper update-all, or benchkeeper project apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   let userPlugins = [];
-  try { userPlugins = agents.includes('claude') ? pluginState(ctx, 'claude').listed : []; } catch { /* the global plan reports unreadable plugin files */ }
+  try { userPlugins = !agents || agents.includes('claude') ? pluginState(ctx, 'claude').listed.filter((p) => p.enabled) : []; } catch { /* the global plan reports unreadable plugin files */ }
   out.push(...frameworkChecks({ dir, state, userPlugins }));
   out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.

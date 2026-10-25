@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
-import { hashText, realish, writeAtomic } from './fsx.mjs';
+import { exists, hashText, readText, realish, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, safeBranch } from './git.mjs';
 import { apply, preview } from './runner.mjs';
@@ -26,6 +26,12 @@ export function listProjects(ctx) {
     merged.set(path, prev ? { ...prev, ...(!prev.state && p.state ? { state: p.state } : {}) } : { ...p, path });
   }
   return [...merged.values()];
+}
+// Why the registry cannot be read, null when it is fine or missing (listProjects reads such a file as empty).
+export function registryProblem(ctx) {
+  const text = readText(file(ctx));
+  if (text == null) return exists(file(ctx)) ? 'the registered projects file cannot be read' : null;
+  try { return Array.isArray(JSON.parse(text).projects) ? null : 'the registered projects file has no projects list'; } catch (e) { return `the registered projects file is not valid JSON (${e.message.split('\n')[0]})`; }
 }
 // Packs the registered projects use; null when none has a state file, so nothing counts as unused.
 export function packsInUse(ctx) {

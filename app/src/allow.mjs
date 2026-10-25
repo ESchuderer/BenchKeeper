@@ -14,7 +14,9 @@ const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 const WIDE_TOOLS = new Set(['Edit', 'Write', 'WebFetch']);
 // Flags that take code as the argument: a rule that allows any such argument allows any code.
 const CODE_FLAGS = new Set(['-c', '-e', '-p', '-lc', '-ic', '-ec', '--eval', '--command']);
-const runsAnyCode = (words) => SHELLS.has(basename(words[0])) && words.includes('*') && words.slice(1, words.indexOf('*')).every((w) => CODE_FLAGS.has(w));
+// python3.12 and the like count as python.
+const isShell = (program) => SHELLS.has(basename(program)) || /^python[\d.]+$/.test(basename(program));
+const runsAnyCode = (words) => isShell(words[0]) && words.includes('*') && words.slice(1, words.indexOf('*')).every((w) => CODE_FLAGS.has(w));
 
 // null for a safe rule, else { level, why } for a Claude Code rule such as Bash(*) or Bash(python *).
 export function classify(rule) {
@@ -45,7 +47,7 @@ export function codexAllows(text) {
     const head = inner.startsWith('[') ? inner.slice(0, inner.indexOf(']') + 1) : inner.split(',')[0];
     const words = (t) => t.match(/[^"',[\]\s]+/g) ?? [];
     const programs = words(head), rest = words(inner.slice(head.length));
-    if (programs.some((p) => SHELLS.has(basename(p))) && rest.every((w) => CODE_FLAGS.has(w))) out.push({ rule: `pattern = ${pattern.replace(/\s+/g, ' ')}`, line: code.slice(0, m.index).split('\n').length, why: `${programs.join(' or ')} runs any code`, level: 'warning' });
+    if (programs.some(isShell) && rest.every((w) => CODE_FLAGS.has(w))) out.push({ rule: `pattern = ${pattern.replace(/\s+/g, ' ')}`, line: code.slice(0, m.index).split('\n').length, why: `${programs.join(' or ')} runs any code`, level: 'warning' });
   }
   return out;
 }

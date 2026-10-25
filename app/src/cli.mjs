@@ -17,7 +17,7 @@ import { launch, openBrowser, startServer } from './server.mjs';
 import { writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
-import { addProject, canon, listProjects, packsInUse, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
+import { addProject, canon, listProjects, packsInUse, registryProblem, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
@@ -162,8 +162,9 @@ export async function main(argv, { out = process.stdout, err = process.stderr, i
   try { return await command(argv, { out, err, ask, ctx }); } catch (e) {
     // With --json a failure is a document too: an unknown option, an unreadable file.
     if (!argv.includes('--json')) throw e;
-    err.write(`${e.message}\n`);
-    out.write(jsonDoc(argv.find((a) => !a.startsWith('-')) ?? 'ui', { error: redact(e.message) }));
+    err.write(`${redact(e.message)}\n`);
+    const [cmd = 'ui', arg] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    out.write(jsonDoc(commandName(cmd, arg), { error: redact(e.message) }));
     return 2;
   } finally { ask.close(); }
 }
@@ -385,12 +386,14 @@ function testJson(checks, out) {
   out.write(jsonDoc('test', { ok, checks: checks.map((c) => ({ name: c.name, ok: c.ok, problems: c.problems })) }));
   return ok ? 0 : 1;
 }
+// The name a document carries: the command, with its subcommand where the table lists one.
+const commandName = (cmd, arg) => (['project', 'projects', 'packs'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
-  const name = ['project', 'projects', 'packs'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd;
+  const name = commandName(cmd, arg);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
-  const fail = (message) => { err.write(`${message}\n`); return emit({ error: redact(message) }, 2); };
+  const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
   if (cmd === 'doctor') {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) return fail(`--baseline must be auto, ${PROFILES.join(' or ')}`);
     const agents = selectedAgents(ctx, o.agents), dir = resolve(arg ?? '.');
@@ -417,7 +420,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const runs = ctx.ledger.list().map((r) => ({ id: r.id, kind: r.kind, status: r.status ?? 'interrupted', scope: r.scope, time: r.time, changes: r.entries.length, ...(r.of ? { of: r.of } : {}), ...(r.note?.case ? { evalCase: r.note.case, target: r.note.target } : {}) }));
     return emit({ runs, backups: legacyBackups(ctx) });
   }
-  if (cmd === 'projects' && (!arg || arg === 'list')) return emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
+  if (cmd === 'projects' && (!arg || arg === 'list')) return registryProblem(ctx) ? fail(registryProblem(ctx)) : emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
   if (cmd === 'packs' && (!arg || arg === 'list')) return emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
   return fail('--json works with doctor, test, plan, project plan, history, projects list and packs list');
 }

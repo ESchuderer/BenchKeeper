@@ -76,7 +76,7 @@ test('global instruction files and plugin skills', () => {
 
 test('classify: broad rules, safe rules and rules written as prose', () => {
   const level = (r) => classify(r)?.level ?? null;
-  assert.deepEqual(['Bash', 'Bash(*)', 'Bash(python *)', 'Bash(node:*)', 'Bash(bash -c *)', 'Bash(* --help)', 'Edit', 'Bash(git * main)'].map(level), ['warning', 'warning', 'warning', 'warning', 'warning', 'warning', 'info', 'info']);
+  assert.deepEqual(['Bash', 'Bash(*)', 'Bash(python *)', 'Bash(node:*)', 'Bash(python3.12 *)', 'Bash(bash -c *)', 'Bash(* --help)', 'Edit', 'Bash(git * main)'].map(level), ['warning', 'warning', 'warning', 'warning', 'warning', 'warning', 'warning', 'info', 'info']);
   for (const safe of ['Bash(npm run test *)', 'Bash(git log *)', 'Bash(python scripts/check.py)', 'Bash(python -m pytest *)', 'Bash(node --test *)', 'Bash(npx prettier *)', 'Bash(node scripts/*.mjs)', 'Read', 'WebSearch', 'mcp__server__tool', 'Edit(src/**)', 'WebFetch(domain:example.com)', '$defaults', 'Trusted repo: the working one', 42]) assert.equal(classify(safe), null, String(safe));
 });
 
@@ -112,4 +112,17 @@ test('allow rules: safe rules and no setting give no finding', () => {
   assert.deepEqual(only(doctor(ctx, { agents: ['claude', 'codex'], dir, env: {} }), 'allow-rules'), []);
   put(join(home, '.claude/settings.json'), JSON.stringify({ permissions: { allow: ['Bash(npm run test *)'], deny: ['Bash'] } }));
   assert.deepEqual(allowChecks(ctx), []);
+});
+
+test('a project with only skills or settings is checked, and its project-scoped plugins count', () => {
+  const { ctx, home, dir } = machine();
+  skill(join(dir, '.claude/skills'), 'browser-tests', 'Writing Playwright browser tests');
+  const plugin = join(home, '.claude/plugins/cache/m/p/1.0.0');
+  skill(join(plugin, 'skills'), 'playwright', 'Playwright browser tests');
+  put(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'p@m': [{ scope: 'project', projectPath: dir, installPath: plugin }] } }));
+  assert.deepEqual(only(doctor(ctx, { agents: [], dir, env: {} }), 'skills'), [], 'not enabled for the project');
+  put(join(dir, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'p@m': true } }));
+  const found = only(doctor(ctx, { agents: [], dir, env: {} }), 'skills');
+  assert.equal(found.length, 1);
+  assert.match(found[0].message, /browser-tests \(project, .*and playwright \(plugin p, /);
 });

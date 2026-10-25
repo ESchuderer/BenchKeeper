@@ -76,9 +76,14 @@ test('--json: a clean doctor exits 0; usage failures exit 2 with an error docume
   assert.equal(ok.code, 0);
   assert.equal(ok.doc.summary.error, 0);
   assert.deepEqual((await run(ctx, ['history', '--json'])).doc.runs, []);
-  const bad = await run(ctx, ['doctor', '--nope', '--json']);
+  const bad = await run(ctx, ['--agents', 'claude', 'doctor', '--nope', '--json']);
   assert.equal(bad.code, 2);
   assert.equal(bad.doc.command, 'doctor');
+  put(join(home, '.config/benchkeeper/projects.json'), '{ not json');
+  const registry = await run(ctx, ['projects', 'list', '--json']);
+  assert.equal(registry.code, 2);
+  assert.equal(registry.doc.command, 'projects list');
+  assert.match(registry.doc.error, /registered projects file is not valid JSON/);
   assert.match(bad.doc.error, /nope/);
   for (const [args, message] of [[['plan', '--agents', 'claude', '--level', 'nope'], /--level must be one of/], [['doctor', '--baseline', 'x'], /--baseline must be/], [['plan'], /no agent found/], [['project', 'apply'], /--json works with project plan/], [['apply'], /--json works with/], [['packs', 'save'], /--json works with/]]) {
     const r = await run(ctx, [...args, '--json']);

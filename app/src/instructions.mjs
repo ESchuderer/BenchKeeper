@@ -71,13 +71,16 @@ export function instructionChecks(ctx, { dir } = {}) {
 }
 
 // Skills the enabled Claude Code plugins of the user ship, from the files the CLI keeps.
-export function pluginSkills(ctx) {
+// With dir, also the plugins installed for that project (scope project or local) and enabled in its settings.
+export function pluginSkills(ctx, dir) {
   const at = (p) => join(ctx.home, p);
-  let installed, enabled;
-  try { installed = JSON.parse(readText(at('.claude/plugins/installed_plugins.json'))).plugins; enabled = JSON.parse(readText(at('.claude/settings.json')) ?? '{}').enabledPlugins ?? {}; } catch { return []; }
+  const enabledIn = (file) => { try { return JSON.parse(readText(file) ?? '{}').enabledPlugins ?? {}; } catch { return {}; } };
+  const enabled = { user: enabledIn(at('.claude/settings.json')), project: dir ? enabledIn(join(dir, '.claude/settings.json')) : {}, local: dir ? enabledIn(join(dir, '.claude/settings.local.json')) : {} };
+  let installed;
+  try { installed = JSON.parse(readText(at('.claude/plugins/installed_plugins.json'))).plugins; } catch { return []; }
   const out = [];
   for (const [id, list] of Object.entries(installed ?? {})) {
-    for (const p of enabled[id] === true && Array.isArray(list) ? list.filter((x) => x.scope === 'user') : []) {
+    for (const p of Array.isArray(list) ? list.filter((x) => enabled[x.scope]?.[id] === true && (x.scope === 'user' || (dir && x.projectPath && resolve(x.projectPath) === resolve(dir)))) : []) {
       const root = join(String(p.installPath), 'skills');
       if (!resolve(root).startsWith(at('.claude/plugins') + sep) || !exists(root)) continue;
       for (const name of readdirSync(root)) {

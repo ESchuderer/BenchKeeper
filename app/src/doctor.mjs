@@ -91,7 +91,7 @@ export function projectChecks(ctx, dir) {
   out.push(...settingsChecks(ctx, { dir }), ...allowChecks(ctx, { dir }), ...instructionChecks(ctx, { dir }));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
   const scoped = (scope, list) => list.map((f) => ({ ...f, scope }));
-  out.push(...skillOverlap(ctx, dir, [...scoped('project', skillFiles(dir)), ...scoped('global', skillFiles(ctx.home)), ...pluginSkills(ctx)], 'project'));
+  out.push(...skillOverlap(ctx, dir, [...scoped('project', skillFiles(dir)), ...scoped('global', skillFiles(ctx.home)), ...pluginSkills(ctx, dir)], 'project'));
   return out;
 }
 
@@ -106,7 +106,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
     const skillsCli = newest(ctx, 'skills', now);
     if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));
   }
-  if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude/rules'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir));
+  if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir));
   if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));
   return out;
 }

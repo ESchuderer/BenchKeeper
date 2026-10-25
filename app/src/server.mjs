@@ -269,7 +269,7 @@ export function api(ctx) {
       await originsOfProjects();
       // The newest run per project folder (the ledger lists newest first): the last change, for sorting.
       const last = new Map();
-      for (const r of ctx.ledger.list()) if (!last.has(r.scope)) last.set(r.scope, r.time);
+      for (const r of ctx.ledger.list()) { const key = r.note?.updateAll ?? r.scope; if (!last.has(key)) last.set(key, r.time); }
       return listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
         const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));

@@ -271,6 +271,9 @@ test('server routes: the removal plan lists the files, remove-setup runs it, His
   assert.equal(row.name, 'Shop');
   assert.deepEqual(row.agents, ['claude', 'codex']);
   assert.equal(typeof row.last, 'string');
+  // A run in a worktree counts for the project its note names.
+  p.ctx.ledger.save({ schema: 1, id: '9999-pr-run', time: '2999-01-01T00:00:00.000Z', kind: 'apply', scope: '/tmp/some-worktree', note: { updateAll: p.dir, branch: 'b' }, entries: [] });
+  assert.equal((await routes['GET /api/projects']())[0].last, '2999-01-01T00:00:00.000Z');
   const moved = `${p.dir}-moved`;
   renameSync(p.dir, moved);
   assert.equal(routes['POST /api/projects']({ action: 'relocate', path: p.dir, to: moved })[0].path, moved);

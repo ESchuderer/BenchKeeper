@@ -1,5 +1,5 @@
 // Static scan of an app's own source (same file selection as erosion.mjs) with the scorer's ESLint config.
-// Usage: node static-scan.mjs <app-dir: /app or a folder of the temp folder> <out-dir: /out or a folder of the temp folder>   writes <out-dir>/static-scan.json; needs bench/scorer/node_modules
+// Usage: node static-scan.mjs <app-dir: /app or a folder of the temp folder> <out-dir: /out or an existing folder of the temp folder>   writes <out-dir>/static-scan.json; needs bench/scorer/node_modules
 // Files that fail to parse as modules are linted again as scripts; files that fail both count in totals.parse_errors.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';

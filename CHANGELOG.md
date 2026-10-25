@@ -4,7 +4,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 
 ## setup-v6.8 (2026-10-25)
 
-- The tier band hook returns once per step (SonarCloud S3516); behaviour is unchanged. The rest of the release is the app's SonarCloud fixes: promises handled, linear-time regexes, sorts with a compare function, system tools by full path, scorer commands that accept only known paths, no install scripts in the benchmark arm image.
+- The tier band hook returns once per step (SonarCloud S3516); behaviour is unchanged. The rest of the release is the app's SonarCloud fixes: promises handled, linear-time regexes, sorts with a compare function, system tools by full path, scorer commands that accept only known paths, the benchmark arm image installs Claude Code, ECC and the skills CLI without their packages' install scripts (only Claude Code's own `install.cjs` runs) and Spec Kit from its PyPI wheel without a source build.
 - Plugin `version` 6.8.0.
 - Upgrade: `npx benchkeeper@6.8.0 apply`.
 

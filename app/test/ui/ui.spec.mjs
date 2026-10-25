@@ -325,6 +325,7 @@ test.describe('views', () => {
     await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 1 registered, 0 behind ok$/ })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Global items by state' })).toContainText('modified');
     await expect(page.getByRole('region', { name: 'BenchKeeper plugin' })).toContainText(/available \d+\.\d+\.\d+/);
+    await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
     await expect(page).toHaveURL(/#\/history\?run=/);
   });
@@ -726,6 +727,19 @@ test.describe('views', () => {
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Close' }).click();
     await expect(drawer).toBeHidden();
+  });
+
+  test('One-run: the level choice sets the global plan, lite plans the plugin alone', async ({ page }) => {
+    await page.getByRole('button', { name: 'Set up global only' }).click();
+    const drawer = oneRun(page);
+    await drawer.getByLabel('Level').selectOption('lite');
+    const asked = page.waitForRequest((r) => r.url().includes('/api/global-plan?level=lite'));
+    await drawer.getByRole('button', { name: 'Start', exact: true }).click();
+    await asked;
+    const global = drawer.getByRole('region', { name: 'Global setup' });
+    await expect(global).toBeVisible();
+    await expect(global).not.toContainText('Claude settings');
+    await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
   test('One-run, Everything with two projects (one without a setup): one progress bar, one review page, one apply', async ({ page }) => {

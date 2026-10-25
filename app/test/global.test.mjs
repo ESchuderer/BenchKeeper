@@ -139,8 +139,7 @@ test('agents without plugins get the rules as a block and skill copies with bare
   const plan = preview(globalPlan({ ctx: m.ctx, agents: ['gemini'], options: {} , devcontainerCli: null }));
   apply(plan, m.ctx, { select: all(plan) });
   const rules = readFileSync(join(m.home, '.gemini/GEMINI.md'), 'utf8');
-  assert.match(rules, /`workflow`/);
-  assert.doesNotMatch(rules, /benchkeeper:workflow/);
+  assert.match(rules, /Keep secrets out of output/);
   assert.ok(existsSync(join(m.home, '.gemini/skills/workflow/SKILL.md')));
 });
 

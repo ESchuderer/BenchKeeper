@@ -1,7 +1,4 @@
 ## Work
-- Before changing a repository, working on issues or pull requests, or researching two or more items: load the `benchkeeper:workflow` skill. It picks the workflow and the tier.
-- When goal, scope or expected result is open, ask all open questions in one message (Claude Code: `AskUserQuestion`), including risks and options the user has not named. Settle from the code, the docs or a sensible default what they answer. Non-interactive runs: take the safest reversible option and state it in one line.
-- When a check fails, fix the cause. Skip, delete or loosen a check, or use `--no-verify`, only when the user asks.
 - Keep secrets out of output, logs and commits: read them from files or the environment and refer to them by name.
 
 ## Writing (answers, docs, comments, commits, issues, pull requests, UI text)

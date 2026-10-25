@@ -24,7 +24,7 @@ import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
+import { addProject, canon, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { scanSessions } from './sessions.mjs';
 import { benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
@@ -44,7 +44,8 @@ export function rejectReason(req, { port, session, key, api = true }) {
   const self = `127.0.0.1:${port}`;
   if (req.headers.host !== self) return [421, 'wrong host'];
   if ('origin' in req.headers && req.headers.origin !== `http://${self}`) return [403, 'foreign origin'];
-  if (req.headers['sec-fetch-site'] === 'cross-site') return [403, 'cross-site request'];
+  // The page's own requests are same-origin: another port on this machine is same-site, and no more welcome.
+  if ('sec-fetch-site' in req.headers && !['same-origin', 'none'].includes(req.headers['sec-fetch-site'])) return [403, 'cross-site request'];
   const name = `${cookieName(port)}=`;
   const cookie = (req.headers.cookie ?? '').split(/;\s*/).find((c) => c.startsWith(name))?.slice(name.length);
   if (!session || !same(cookie, session)) return [401, 'no session'];
@@ -159,7 +160,7 @@ export function api(ctx) {
   };
   const agentsNow = () => cached('agents', () => detect(ctx));
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
-  const registered = (dir) => listProjects(ctx).some((p) => p.path === dir);
+  const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
     'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
@@ -170,6 +171,7 @@ export function api(ctx) {
     // Starts the apply and answers at once; GET /api/job shows each change as it runs. One job at a time.
     'POST /api/apply': (b) => {
       idle();
+      if (b.select !== undefined && !(Array.isArray(b.select) && b.select.every((i) => typeof i === 'string'))) throw bad('select must be a list of change ids');
       const p = plans.get(b.planId);
       if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
       plans.delete(b.planId);
@@ -427,18 +429,26 @@ export function api(ctx) {
 async function body(req) {
   let size = 0;
   const chunks = [];
-  for await (const c of req) { size += c.length; if (size > 1e6) throw Object.assign(new Error('body too large'), { status: 413 }); chunks.push(c); }
-  try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw Object.assign(new Error('body is not JSON'), { status: 400 }); }
+  // Read to the end even when too large: stopping early destroys the connection before the 413 reaches the client.
+  for await (const c of req) { size += c.length; if (size <= 1e6) chunks.push(c); }
+  if (size > 1e6) throw Object.assign(new Error('body too large'), { status: 413 });
+  let b;
+  try { b = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw Object.assign(new Error('body is not JSON'), { status: 400 }); }
+  if (!b || typeof b !== 'object' || Array.isArray(b)) throw bad('body must be a JSON object');
+  return b;
 }
 
 export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx) } = {}) {
   let urlToken = token, session = null, key = null;
-  const server = createServer(async (req, res) => {
+  // A failure nobody handled ends this request, never the server.
+  const server = createServer((req, res) => handle(req, res).catch(() => { if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":"internal error"}'); }));
+  const handle = async (req, res) => {
     const send = (code, data, type = 'application/json; charset=utf-8', headers = {}) => {
       res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'", ...headers });
       res.end(type.startsWith('application/json') ? JSON.stringify(data) : data);
     };
-    const url = new URL(req.url, 'http://127.0.0.1');
+    let url;
+    try { url = new URL(req.url, 'http://127.0.0.1'); } catch { return send(400, { error: 'bad request' }); }
     const p = server.address().port;
     // The URL token works once: it becomes the session cookie and the API key, which the page reads from the fragment
     // (never sent to a server) and keeps in this origin's storage.
@@ -482,7 +492,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     // Vite names built assets by their content hash, so they never change under one name; the page itself always reloads.
     const hashed = file.startsWith(join(dist, 'assets') + sep);
     return send(200, await readFile(file), TYPES[extname(file)] ?? 'application/octet-stream', hashed ? { 'cache-control': 'public, max-age=31536000, immutable' } : {});
-  });
+  };
   // Longer than the browser keeps an idle connection: a request the page sends just as Node closes one would fail as a
   // network error (browsers retry only GETs). Headers must be allowed longer than that.
   server.keepAliveTimeout = 65e3;

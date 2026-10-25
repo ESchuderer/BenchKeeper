@@ -9,9 +9,11 @@ import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
 import { appVersion } from '../src/content.mjs';
 import { ENVS, STATE, projectCtx, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
+// Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
+const TMP = realpathSync(tmpdir());
 
 function repo() {
-  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  const dir = mkdtempSync(join(TMP, 'bk-proj-'));
   const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 't@example.com');
@@ -19,7 +21,7 @@ function repo() {
   writeFileSync(join(dir, 'README.md'), '# P\n');
   git('add', '-A');
   git('commit', '-qm', 'init');
-  const home = mkdtempSync(join(tmpdir(), 'bk-home-'));
+  const home = mkdtempSync(join(TMP, 'bk-home-'));
   const ctx = context({ home, roots: [home, dir], appVersion: '6.0.0' });
   return { dir, ctx, git };
 }
@@ -115,7 +117,7 @@ test('a recorded session in a local setup holds the skills git ignores, so undo 
 
 test('local in a linked worktree: the exclude list of the main repository, outside the worktree, is written and undone', () => {
   const r = repo();
-  const wt = join(mkdtempSync(join(tmpdir(), 'bk-wt-')), 'wt');
+  const wt = join(mkdtempSync(join(TMP, 'bk-wt-')), 'wt');
   r.git('worktree', 'add', '-q', '-b', 'side', wt);
   const pctx = projectCtx(r.ctx, wt);
   const run = apply(preview(projectPlan({ ctx: pctx, dir: wt, answers: { agents: ['claude'], env: 'host-agent' } }).changes), pctx, { scope: wt });
@@ -332,7 +334,7 @@ test('a change journaled as running (a crash) can be undone from its backup', ()
 });
 
 test('recording needs a git repository', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'bk-nogit-'));
+  const dir = mkdtempSync(join(TMP, 'bk-nogit-'));
   const ctx = context({ home: dir });
   assert.throws(() => recordSession(ctx, dir, ['true']), /not a git repository/);
   assert.equal(existsSync(join(dir, STATE)), false);

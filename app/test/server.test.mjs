@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,12 +10,14 @@ import { CSP as BOARD_CSP } from '../src/board.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
+// Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
+const TMP = realpathSync(tmpdir());
 
 let srv, port, cookie, key;
 const changed = [];
 before(async () => {
-  const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-srv-')), run: () => ({ code: 1, stdout: '', stderr: '' }) });
-  const dist = mkdtempSync(join(tmpdir(), 'bk-dist-'));
+  const ctx = context({ home: mkdtempSync(join(TMP, 'bk-srv-')), run: () => ({ code: 1, stdout: '', stderr: '' }) });
+  const dist = mkdtempSync(join(TMP, 'bk-dist-'));
   writeFileSync(join(dist, 'index.html'), '<!doctype html><title>BenchKeeper</title>');
   mkdirSync(join(dist, 'assets'));
   writeFileSync(join(dist, 'assets/app.js'), 'console.log(1)');
@@ -126,7 +128,7 @@ test('static files stay inside the build folder; unknown paths get the app page'
 
 // Routes against a fixture home with Claude Code installed and its plugins enabled.
 function fixture(extra = () => null) {
-  const home = mkdtempSync(join(tmpdir(), 'bk-routes-'));
+  const home = mkdtempSync(join(TMP, 'bk-routes-'));
   const run = (argv, o) => {
     const cmd = argv.join(' ');
     const ok = (stdout = '') => ({ code: 0, stdout, stderr: '' });
@@ -235,7 +237,7 @@ test('setup advice: one restricted, read-only agent session; only library ids pa
   const ci = process.env.CI;
   delete process.env.CI;
   try {
-    const dir = mkdtempSync(join(tmpdir(), 'bk-advice-proj-'));
+    const dir = mkdtempSync(join(TMP, 'bk-advice-proj-'));
     const answer = { env: { id: 'container', reason: 'has .devcontainer/' }, packs: [{ id: 'frontend', reason: 'package.json uses react' }, { id: 'nope' }], skills: [{ name: '../x' }], extra: 1 };
     let seen, release;
     const { ctx, routes } = fixture();
@@ -243,7 +245,7 @@ test('setup advice: one restricted, read-only agent session; only library ids pa
     routes['POST /api/projects']({ path: dir });
     assert.deepEqual(routes['GET /api/project-setup'](new URLSearchParams({ dir })).advisers.map((a) => a.id), ['claude']);
     assert.equal(status(() => routes['POST /api/setup-advice']({ dir, agent: 'codex' })), 400);
-    assert.equal(status(() => routes['POST /api/setup-advice']({ dir: tmpdir(), agent: 'claude' })), 400);
+    assert.equal(status(() => routes['POST /api/setup-advice']({ dir: TMP, agent: 'claude' })), 400);
     const { job } = routes['POST /api/setup-advice']({ dir, agent: 'claude' });
     await until(() => seen);
     assert.ok(seen.cwd === dir && ['--restricted', '--strict-mcp-config', 'Read,Grep,Glob'].every((x) => seen.argv.includes(x)) && !seen.argv.includes('Bash'));
@@ -321,7 +323,7 @@ test('reveal opens registered projects only', () => {
   const { ctx, routes } = fixture();
   const opened = [];
   ctx.open = (p) => opened.push(p);
-  const dir = mkdtempSync(join(tmpdir(), 'bk-reveal-'));
+  const dir = mkdtempSync(join(TMP, 'bk-reveal-'));
   assert.equal(status(() => routes['POST /api/reveal']({ path: dir })), 400);
   routes['POST /api/projects']({ path: dir });
   routes['POST /api/reveal']({ path: dir });
@@ -350,7 +352,7 @@ test('scan needs an absolute root and leaves out registered folders; doctor and 
   const { routes } = fixture();
   assert.equal(status(() => routes['POST /api/scan']({ root: 'code' })), 400);
   assert.equal(status(() => routes['POST /api/scan']({})), 400);
-  const root = mkdtempSync(join(tmpdir(), 'bk-scan-'));
+  const root = mkdtempSync(join(TMP, 'bk-scan-'));
   for (const d of ['a', 'b']) { mkdirSync(join(root, d)); writeFileSync(join(root, d, 'AGENTS.md'), '# x\n'); }
   routes['POST /api/projects']({ action: 'add', path: join(root, 'a') });
   assert.deepEqual(routes['POST /api/scan']({ root }), [join(root, 'b')]);
@@ -362,7 +364,7 @@ test('scan needs an absolute root and leaves out registered folders; doctor and 
 
 test('project-plan: disable and enable only name skills the project has', () => {
   const { ctx, routes } = fixture();
-  const dir = mkdtempSync(join(tmpdir(), 'bk-pp-'));
+  const dir = mkdtempSync(join(TMP, 'bk-pp-'));
   const pctx = { ...ctx, roots: [dir] };
   apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], packs: ['frontend'] } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
   routes['POST /api/projects']({ action: 'add', path: dir });
@@ -403,7 +405,7 @@ test('profile import: a bad kind is a 400; register saves packs and projects, th
   // An unknown agent fails before any pack or project is saved.
   assert.equal(status(() => imp({ register: true, text: JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['nope'] }, packs: [{ id: 'early', skills: ['x'] }], projects: [] }) })), 400);
   assert.ok(!routes['GET /api/catalog']().packs.some((p) => p.id === 'early'));
-  const dir = mkdtempSync(join(tmpdir(), 'bk-prof-'));
+  const dir = mkdtempSync(join(TMP, 'bk-prof-'));
   const skill = routes['GET /api/catalog']().skills[0].name;
   const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] }, packs: [{ id: 'own', skills: [skill] }],
     projects: [{ path: dir, answers: { agents: ['claude'], packs: ['own'] } }, { path: '/nowhere/x' }] });
@@ -485,7 +487,7 @@ const realGit = (argv, o) => {
   try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o?.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; }
 };
 const repo = (name) => {
-  const d = mkdtempSync(join(tmpdir(), `bk-one-${name}-`));
+  const d = mkdtempSync(join(TMP, `bk-one-${name}-`));
   execFileSync('git', ['init', '-q', '-b', 'main', d]);
   writeFileSync(join(d, 'README.md'), `# ${name}\n`);
   return d;
@@ -494,7 +496,7 @@ const q = (o) => new URLSearchParams(o);
 
 test('one-run: lists the agents, the advisers and each project with its state and why one is left to Update all', async () => {
   const { ctx, routes } = fixture(realGit);
-  const fresh = repo('fresh'), local = repo('local'), shared = repo('shared'), plain = mkdtempSync(join(tmpdir(), 'bk-one-plain-'));
+  const fresh = repo('fresh'), local = repo('local'), shared = repo('shared'), plain = mkdtempSync(join(TMP, 'bk-one-plain-'));
   for (const [dir, share] of [[local, false], [shared, true]]) {
     const pctx = { ...ctx, roots: [dir] };
     apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host', share } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });

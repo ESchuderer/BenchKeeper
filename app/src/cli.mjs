@@ -16,7 +16,7 @@ import { launch, openBrowser, startServer } from './server.mjs';
 import { writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
-import { addProject, listProjects, packsInUse, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
+import { addProject, canon, listProjects, packsInUse, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
@@ -116,7 +116,7 @@ function report(run, out) {
 }
 
 export function machineContext(env = process.env) {
-  const home = env.BENCHKEEPER_HOME ?? homedir();
+  const home = env.BENCHKEEPER_HOME || homedir();
   return context({ home, appVersion });
 }
 
@@ -191,7 +191,7 @@ async function command(argv, { out, ask, ctx }) {
   if (cmd === 'projects') {
     const dirs = positionals.slice(2);
     if (arg === 'add') dirs.forEach((d) => out.write(`added ${addProject(ctx, d)}\n`));
-    else if (arg === 'scan') for (const d of scan(dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === d) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
+    else if (arg === 'scan') for (const d of scan(dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === canon(d)) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
     else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.write(`removed ${resolve(d)}\n`); });
     else if (arg === 'unshare') {
       const due = (dirs.length ? dirs.map((d) => resolve(d)) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);

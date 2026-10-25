@@ -86,6 +86,14 @@ Setup scopes container mounts to the project: no host home, engine socket, privi
 
 `benchkeeper board` writes `~/.config/benchkeeper/board.html` and opens it; the browser UI shows the same page under Sessions and rewrites the file on each scan, and the tier band's board button opens it. Per Claude Code and Codex session on this machine: project, tier and change type (first and last tier line), the setup installed at the time (BenchKeeper version, Matt Pocock's skills, Ponytail, packs), the skills used, the last test run, pull request state, time, tokens and, for Claude Code, the API-equivalent cost its transcript records. Filters by project (preset to the projects registered in the app and their Git worktrees when they have sessions, All shows every session), agent, tier, setup and period; the charts have tables beside them. It reads the transcripts in `~/.claude/projects/` and `~/.codex/sessions/`, the app's run ledger and `gh pr view`, caches in `~/.cache/benchkeeper/`; only the `gh` requests leave the machine.
 
+## What the app writes and what it never does
+
+Writes: the rules, settings and skill files of the agents you select (below your home folder), the files of a project you register (inside the folder, never its `.git` except `info/exclude`), a ledger and backups in the `.config/benchkeeper` folder of your home (created readable by you only), and, for Update all, a worktree, one commit and a branch per repository, plus a push and a pull request when `origin` is on GitHub and you did not pass `--no-push`. Commands such as plugin installs run the agents' own CLIs and write what those write; the app backs up and restores only the paths it names.
+
+The app itself never: runs a command through a shell, writes outside the folders of a run (also through links), force pushes, deletes a remote branch, merges a pull request, runs `git clean` or `git reset` on your checkout, starts a second run while one is active, or adds telemetry. Removals are off until you select them, except removals of files the app identifies as its own by content. What leaves the machine: what `git`, `gh`, the package registries and the agents' own CLIs send (Update all's push and pull request for a GitHub origin; whatever an advice or eval session lets its agent read), and the update notice. The local server listens on 127.0.0.1 only, behind a one-time token, a cookie and a key header, and checks Host and Origin.
+
+Which control enforces each limit, which tests cover it and which limits are still open: [docs/security.md](docs/security.md). Report a vulnerability as described in [SECURITY.md](SECURITY.md).
+
 ## Benchmarks
 
 Each setup runs as its own arm on the same greenfield and brownfield briefs. Scores, time per task and app reviews per arm: [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](bench/results). Method: [bench/PROTOCOL.md](bench/PROTOCOL.md).

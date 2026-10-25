@@ -4,17 +4,28 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
-import { hashText, writeAtomic } from './fsx.mjs';
+import { hashText, realish, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
-import { blob, clean, defaultBranch, git, githubRemote, isRepo } from './git.mjs';
+import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, safeBranch } from './git.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, committedSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
 
+// One folder, one project: links are resolved, so a path through a symlink and the folder it points to are the same.
+export const canon = (p) => { try { return realish(p); } catch { return resolve(p); } };
+// Entries that name one folder under two paths merge into one (the first keeps its date, a kept state survives), so
+// a registry written before paths were canonical shows no duplicates; the next save writes the merged list.
 export function listProjects(ctx) {
-  try { return JSON.parse(readFileSync(file(ctx), 'utf8')).projects; } catch { return []; }
+  let list;
+  try { list = JSON.parse(readFileSync(file(ctx), 'utf8')).projects; } catch { return []; }
+  const merged = new Map();
+  for (const p of list) {
+    const path = canon(p.path), prev = merged.get(path);
+    merged.set(path, prev ? { ...prev, ...(!prev.state && p.state ? { state: p.state } : {}) } : { ...p, path });
+  }
+  return [...merged.values()];
 }
 // Packs the registered projects use; null when none has a state file, so nothing counts as unused.
 export function packsInUse(ctx) {
@@ -26,10 +37,11 @@ function save(ctx, projects) {
 }
 // The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the
 // project has its own again (local, untracked).
-const kept = (ctx, path) => listProjects(ctx).find((p) => p.path === path)?.state ?? null;
+const kept = (ctx, path) => listProjects(ctx).find((p) => p.path === canon(path))?.state ?? null;
 // A registered project's answers: its state file, or the one kept after a removal pull request.
 export const projectState = (ctx, path) => tryState(path) ?? kept(ctx, path);
-function keepState(ctx, path, state) {
+function keepState(ctx, dir, state) {
+  const path = canon(dir);
   const list = listProjects(ctx);
   if (!list.some((p) => p.path === path)) list.push({ path, added: new Date().toISOString() });
   save(ctx, list.map((p) => (p.path !== path ? p : state ? { ...p, state } : (({ state: _, ...rest }) => rest)(p))));
@@ -37,7 +49,7 @@ function keepState(ctx, path, state) {
 // A state file as answers for a local setup.
 const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
 export function addProject(ctx, path) {
-  const p = resolve(path);
+  const p = canon(path);
   if (!existsSync(p)) throw new Error(`${p} does not exist`);
   if (!statSync(p).isDirectory()) throw new Error(`${p} is not a folder`);
   const list = listProjects(ctx);
@@ -45,7 +57,7 @@ export function addProject(ctx, path) {
   return p;
 }
 export function removeProject(ctx, path) {
-  save(ctx, listProjects(ctx).filter((x) => x.path !== resolve(path)));
+  save(ctx, listProjects(ctx).filter((x) => x.path !== canon(path)));
 }
 
 const MARKERS = ['AGENTS.md', 'skills-lock.json', STATE];
@@ -60,7 +72,7 @@ export function scan(root, depth = 3) {
     try { entries = readdirSync(d, { withFileTypes: true }); } catch { return; }
     for (const e of entries) if (e.isDirectory() && !SKIP.has(e.name) && !e.name.startsWith('.')) walk(join(d, e.name), n - 1);
   };
-  walk(resolve(root), depth);
+  walk(canon(root), depth);
   return found;
 }
 
@@ -69,7 +81,7 @@ const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: pr
 
 // Git talks to origin without waiting on a password or passphrase prompt (terminal or askpass helper).
 function quiet(ctx, path) {
-  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
+  const env = { ...repoEnv(), GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
   if (!env.GIT_SSH_COMMAND && !git(ctx, path, ['config', '--get', 'core.sshCommand']).stdout.trim()) env.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes';
   return env;
 }
@@ -86,12 +98,13 @@ function fetchBase(ctx, path, base) {
 // Origin's default branch: origin/HEAD, or asked from origin when the clone has none (a local main or master may not be it).
 function remoteDefault(ctx, path) {
   const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
-  if (head) return head.startsWith('origin/-') ? null : head.replace(/^origin\//, '');
+  if (head) return safeBranch(head.replace(/^origin\//, ''));
   return remoteHead(ctx, path, git(ctx, path, ['ls-remote', '--symref', 'origin', 'HEAD'], { env: quiet(ctx, path), timeout: 20e3 }));
 }
-function remoteHead(ctx, path, r) {
+// origin names its default branch itself: the name goes into a fetch refspec, so only plain branch names pass.
+export function remoteHead(ctx, path, r) {
   const name = r.code === 0 ? r.stdout.match(/^ref: refs\/heads\/(\S+)\tHEAD$/m)?.[1] : null;
-  if (name) return name.startsWith('-') ? null : name;
+  if (name) return safeBranch(name);
   // Origin names none (no HEAD there, or unreachable): the local main or master.
   return defaultBranch(ctx, path);
 }
@@ -123,7 +136,7 @@ export async function prefetchOrigins(ctx, paths) {
   const net = (path, args) => ctx.runAsync(['git', '-C', path, ...args], { env: quiet(ctx, path), timeout: 20e3 });
   const one = async (path) => {
     const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
-    const base = head ? (head.startsWith('origin/-') ? null : head.replace(/^origin\//, '')) : remoteHead(ctx, path, await net(path, ['ls-remote', '--symref', 'origin', 'HEAD']));
+    const base = head ? safeBranch(head.replace(/^origin\//, '')) : remoteHead(ctx, path, await net(path, ['ls-remote', '--symref', 'origin', 'HEAD']));
     if (!base) return;
     const key = `${path}\0${base}`;
     if (!(Date.now() - (fetched.get(key) ?? 0) < 60e3)) {

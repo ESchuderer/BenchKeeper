@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -8,8 +8,10 @@ import { library } from '../src/content.mjs';
 import { exportPack, importPack, libraryWith, ownPacks, removePack, savePack, warnings } from '../src/packs.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { projectPlan, readState } from '../src/steps/project.mjs';
+// Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
+const TMP = realpathSync(tmpdir());
 
-const ctxAt = () => { const h = mkdtempSync(join(tmpdir(), 'bk-home-')); return context({ home: h }); };
+const ctxAt = () => { const h = mkdtempSync(join(TMP, 'bk-home-')); return context({ home: h }); };
 
 test('own packs: save, export, import under a new id, remove', () => {
   const ctx = ctxAt();
@@ -60,7 +62,7 @@ test('the library: every skill has a pick-when text of its own, so a pack choice
 
 test('a project turns a skill off and on, uses an own pack, and drops a pack it no longer has', () => {
   const ctx0 = ctxAt();
-  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  const dir = mkdtempSync(join(TMP, 'bk-proj-'));
   execFileSync('git', ['init', '-q', dir]);
   const ctx = { ...ctx0, roots: [...ctx0.roots, dir] };
   savePack(ctx, { id: 'mine', skills: ['designing-technical-uis'] });

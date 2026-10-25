@@ -1,6 +1,6 @@
 import { Badge, Button, Code, Drawer, Group, Select, Stack, Switch, Table, Text, Title } from '@mantine/core';
 import { IconEye } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, Section } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
@@ -59,7 +59,7 @@ function Files({ agent, dir, onPlan, onPreview }) {
   const [error, setError] = useState(null);
   const toggle = async (row, on) => {
     setBusy(row.path); setError(null);
-    try { onPlan({ row, plan: await api('/api/rules-plan', { agent: agent.id, file: row.path, dir, on }) }); } catch (e) { setError(e.message); }
+    try { onPlan({ row, dir, plan: await api('/api/rules-plan', { agent: agent.id, file: row.path, dir, on }) }); } catch (e) { setError(e.message); }
     setBusy(null);
   };
   if (!agent.rows.length) return <Text size="sm">No instruction file found.</Text>;
@@ -101,6 +101,9 @@ export function Rules({ overview, params, refresh }) {
   const [pending, setPending] = useState(null);
   const [preview, setPreview] = useState(null);
   const chosen = dir === GLOBAL ? undefined : dir;
+  // A plan asked for under another selection is dropped when it arrives.
+  const shown = useRef(chosen);
+  shown.current = chosen;
   const state = useApi(`/api/rules${chosen ? `?${new URLSearchParams({ dir: chosen })}` : ''}`);
   const choose = (v) => { setDir(v ?? GLOBAL); setPending(null); };
   return (
@@ -115,7 +118,7 @@ export function Rules({ overview, params, refresh }) {
                 <Title order={2} size="h3">{a.name}</Title>
                 <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
                 <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
-                  <Files agent={a} dir={chosen} onPlan={setPending} onPreview={(file) => setPreview({ agent: a.id, file })} />
+                  <Files agent={a} dir={chosen} onPlan={(p) => { if (p.dir === shown.current) setPending(p); }} onPreview={(file) => setPreview({ agent: a.id, file })} />
                 </Section>
               </Stack>
             ))}

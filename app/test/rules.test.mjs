@@ -1,7 +1,7 @@
 // The Rules view: owners, load states, the size budget, the switch (plan, apply, undo) and what stays out of reports.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -192,6 +192,14 @@ test('the budget counts rule files, imports, skill descriptions and auto memory,
   assert.equal(budget.over, budget.total > BUDGET_TOKENS);
   // Another project's memory and a switched-off file are not counted.
   assert.equal(view(ctx, 'claude', project()).budget.items.some((i) => i.kind === 'memory'), false);
+});
+
+test('a skills folder that is a dangling link or a file does not fail the view', () => {
+  const ctx = machine();
+  mkdirSync(join(ctx.home, '.claude'), { recursive: true });
+  symlinkSync(join(ctx.home, 'gone'), join(ctx.home, '.claude/skills'));
+  write(join(ctx.home, '.agents/skills'), 'a file, not a folder\n');
+  assert.deepEqual(rulesView(ctx).agents.map((a) => a.budget.total), [0, 0]);
 });
 
 test('auto memory of 25 KB is the most that counts, and a project turns it off in its settings', () => {

@@ -7,7 +7,7 @@
 import { readdirSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
-import { exists, readText, real, realish } from './fsx.mjs';
+import { exists, isDir, readText, real, realish } from './fsx.mjs';
 import { git } from './git.mjs';
 import { display, frontMatter, markdownIn, pluginSkills, skillDescription, walkInstructions } from './instructions.mjs';
 import { allowed } from './runner.mjs';
@@ -41,7 +41,7 @@ const charClass = (t) => {
 };
 export function globRegex(glob) {
   let depth = 0;
-  const body = glob.replace(/\[[!^]?[^\]]+\]|\*\*\/|\*\*|[*?{},.+^$()|\\]/g, (t) => {
+  const body = glob.replace(/\[[^\]]+\]|\*\*\/|\*\*|[*?{},.+^$()|\\]/g, (t) => {
     if (t.length > 1 && t[0] === '[') return charClass(t);
     if (t === '**/') return '(?:.*/)?';
     if (t === '**') return '.*';
@@ -133,7 +133,7 @@ function parkedRows(ctx, id, dir) {
 // Skill descriptions an agent keeps in context: name and description of each skill it can use, per folder.
 function skillRows(ctx, id, dir) {
   const groups = [['global', join(ctx.home, agent(id).global.skills)], ...(dir ? [['project', join(dir, agent(id).project.skills)]] : [])]
-    .map(([scope, folder]) => [scope, exists(folder) ? readdirSync(folder).map((name) => ({ name, text: readText(join(folder, name, 'SKILL.md')) })) : []]);
+    .map(([scope, folder]) => [scope, isDir(folder) ? readdirSync(folder).map((name) => ({ name, text: readText(join(folder, name, 'SKILL.md')) })) : []]);
   if (id === 'claude') {
     for (const s of pluginSkills(ctx, dir)) groups.push([s.scope, [{ name: s.name, text: s.text }]]);
   }

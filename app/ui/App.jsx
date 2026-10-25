@@ -126,7 +126,7 @@ function Shell() {
   const refresh = () => { overview.reload(); doctor.reload(); history.reload(); catalog.reload(); };
   const toggleTheme = () => setColorScheme(scheme === 'dark' ? 'light' : 'dark');
   // Spotlight binds mod+K itself.
-  useHotkeys([...VIEWS.map(([id], i) => [`mod+${i + 1}`, () => go(id)]), ['mod+J', toggleTheme]]);
+  useHotkeys([...VIEWS.slice(0, 9).map(([id], i) => [`mod+${i + 1}`, () => go(id)]), ['mod+J', toggleTheme]]);
   useEffect(close, [view, params.toString()]);
   // A refresh that fails clears the overview: the shell stays up on the last one, only the first load shows the splash.
   const seen = useRef(null);
@@ -199,7 +199,7 @@ function Shell() {
             <Button hiddenFrom="sm" variant="default" leftSection={icon(scheme === 'dark' ? IconSun : IconMoon)} onClick={toggleTheme}>{scheme === 'dark' ? 'Light theme' : 'Dark theme'}</Button>
             <Button hiddenFrom="sm" variant="default" leftSection={icon(IconPower)} onClick={stopModal.open}>Stop BenchKeeper</Button>
           </Stack>
-          <Text size="xs" mt="auto" p="xs" visibleFrom="sm">{MOD}+1 to {MOD}+{VIEWS.length}: views</Text>
+          <Text size="xs" mt="auto" p="xs" visibleFrom="sm">{MOD}+1 to {MOD}+{Math.min(VIEWS.length, 9)}: views</Text>
         </AppShell.Navbar>
         <AppShell.Main>
           <Title order={2} size="h3" id="view-title" tabIndex={-1} mb="md" style={{ outline: 'none' }}>{label}</Title>

@@ -10,7 +10,6 @@
 }
 .bk-plus { color: var(--mantine-color-teal-text); }
 .bk-minus { color: var(--mantine-color-red-text); }
-.bk-diff-body { overflow-x: auto; }
 .bk-diff table {
   border-collapse: collapse;
   width: 100%;
@@ -19,6 +18,7 @@
   line-height: 1.6;
 }
 .bk-diff td { padding: 0 8px; vertical-align: top; white-space: pre; }
+.bk-diff td.t { white-space: pre-wrap; overflow-wrap: anywhere; }
 .bk-diff td.n {
   width: 1%;
   text-align: right;

@@ -16,6 +16,7 @@ import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
 import { listFiles, writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
+import { frameworkRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
 import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
 import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
@@ -74,12 +75,16 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
+                    [--framework f|none] [--agent-file path]
                     [--disable s] [--enable s] [--share|--local] [--caller promote|lint-js|lint-python|sonar]
                                     project setup; answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
                                     --disable moves a skill to .benchkeeper/disabled/, --enable moves it back;
-                                    --caller writes that repo-baseline workflow file (never GitHub settings)
+                                    --caller writes that repo-baseline workflow file (never GitHub settings);
+                                    --framework names the frameworks of this project (one workflow owner at most,
+                                    none clears them), --agent-file picks the agent files of agency-agents
+  frameworks [list]                 the frameworks a project can add, with the evidence and what each install writes
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (own ones in packs/ of the config folder); remove
                                     refuses a pack a registered project still names
@@ -127,7 +132,7 @@ Env (where the agent runs): container (default; host-agent or host when AGENTS.m
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
-  env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
+  env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, framework: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
@@ -268,6 +273,10 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
   if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'frameworks') {
+    for (const f of frameworkRows()) out.write(`${f.id.padEnd(14)} ${f.role.padEnd(6)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen}\n`).join('')}`);
+    return 0;
+  }
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
     else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
@@ -455,7 +464,7 @@ async function command(argv, { out, err, ask, ctx }) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller, ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller, frameworks: o.framework?.filter((f) => f !== 'none'), agentFiles: o['agent-file'] ?? (o.framework ? [] : undefined), ...extra };
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }

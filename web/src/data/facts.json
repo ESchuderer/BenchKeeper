@@ -1,24 +1,24 @@
 {
-  "description": "BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.6.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.",
+  "description": "BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.7.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.",
   "tagline": "Short rules, a workflow skill and a per-repository setup for Claude Code and Codex, installed by an app that shows each change first and can undo it.",
   "levels": [
     {
       "name": "Lite",
       "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects` and `maintaining-repos` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
-      "command": "npx benchkeeper@6.6.0 apply --level lite"
+      "command": "npx benchkeeper@6.7.0 apply --level lite"
     },
     {
       "name": "Standard",
       "contains": "lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list",
       "writes": "local files in each project you run `project apply` in",
-      "command": "npx benchkeeper@6.6.0 apply --level standard && npx benchkeeper@6.6.0 project apply"
+      "command": "npx benchkeeper@6.7.0 apply --level standard && npx benchkeeper@6.7.0 project apply"
     },
     {
       "name": "Full",
       "contains": "standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app",
       "writes": "global rule files, settings and packs",
-      "command": "npx benchkeeper@6.6.0 apply --level full"
+      "command": "npx benchkeeper@6.7.0 apply --level full"
     }
   ],
   "core": {
@@ -183,6 +183,39 @@
         "sub": "retro, architecture, audit",
         "tip": "After a session that went sideways: retro. On request: /maintaining-repos (audit, debt, dependencies, pins, docs drift, unused skills). benchkeeper doctor for setup drift. Findings become new requests.",
         "text": "After a session that went sideways: `/retro` (Matt Pocock's skills). On request (`/maintaining-repos`): Ponytail's audit and debt, dependency audit, version pins, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene, and with Matt Pocock's skills `/improve-codebase-architecture` and `/triage`. `benchkeeper doctor` reports setup drift on the machine and in the project. Findings become new requests."
+      }
+    ]
+  },
+  "frameworks": {
+    "rule": "Project setup asks first: it shows the list and installs nothing you did not choose. A framework that owns the workflow is a singleton: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Parts sit beside it. Everything installs inside the project; what cannot is labelled.",
+    "items": [
+      {
+        "name": "Superpowers",
+        "url": "https://github.com/obra/superpowers",
+        "role": "workflow owner",
+        "installs": "a Claude Code plugin enabled for this project only",
+        "evaluation": "evaluations/workflow-frameworks/superpowers.md"
+      },
+      {
+        "name": "Matt Pocock's skills",
+        "url": "https://github.com/mattpocock/skills",
+        "role": "parts",
+        "installs": "the `matt-pocock` pack",
+        "evaluation": "evaluations/skill-libraries/mattpocock-skills.md"
+      },
+      {
+        "name": "ECC",
+        "url": "https://github.com/affaan-m/ECC",
+        "role": "parts",
+        "installs": "four single skills at a pinned commit, no plugin and no hooks",
+        "evaluation": "EVALUATIONS.md"
+      },
+      {
+        "name": "agency-agents",
+        "url": "https://github.com/msitarzewski/agency-agents",
+        "role": "parts",
+        "installs": "a pick of agent files fetched at a pinned commit",
+        "evaluation": "evaluations/workflow-frameworks/agency-agents.md"
       }
     ]
   }

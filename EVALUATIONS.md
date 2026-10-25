@@ -50,6 +50,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 | Component | Decision | Summary |
 |---|---|---|
 | [Superpowers](evaluations/workflow-frameworks/superpowers.md) | Not in yet (arms G, J, M, D, k=1) | cost higher in every test but one 6-task run (1.33x on v6.4.2). Pass rate n.s. (p about 0.235) |
+| [agency-agents](evaluations/workflow-frameworks/agency-agents.md) | Optional parts, a pick of agent files (setup-v6.7) | no outcome measurement. Agents only, no hooks, installed from a pinned commit |
 | [OpenSpec](evaluations/workflow-frameworks/openspec.md) | Out (setup-v3.0) | specs and tickets live in the issue tracker of Matt Pocock's skills. Brownfield: tied with plain Claude Code, one stop after the proposal with the layer |
 | [Spec Kit](evaluations/workflow-frameworks/spec-kit.md) | Not in | +0.15 judge score (p<0.05), no baseline with a skill collection. Overlaps the workflow's specs in the issue, and Matt Pocock's skills when installed |
 | [GSD](evaluations/workflow-frameworks/gsd.md) | Not in | one task: about 1.2M tokens vs 200K vanilla, outputs indistinguishable |

@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
+import { frameworkChecks } from './frameworks.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
 import { integrity } from './integrity.mjs';
 import { levelFor } from './level.mjs';
@@ -12,7 +13,7 @@ import { warnings } from './packs.mjs';
 import { rulesChecks } from './rules.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
-import { SKILLS_CLI, globalPlan, newest } from './steps/global.mjs';
+import { SKILLS_CLI, globalPlan, newest, pluginState } from './steps/global.mjs';
 import { readState, tracksState, tryState } from './steps/project.mjs';
 
 export const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
@@ -90,6 +91,9 @@ export function projectChecks(ctx, dir, agents) {
   if (state && state.share !== true && tracksState(ctx, dir)) out.push(issue('warning', 'project', 'the setup is local, but the repository still has it committed', 'benchkeeper projects unshare: a pull request removes the committed copies'));
   if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper update-all, or benchkeeper project apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
+  let userPlugins = [];
+  try { userPlugins = agents.includes('claude') ? pluginState(ctx, 'claude').listed : []; } catch { /* the global plan reports unreadable plugin files */ }
+  out.push(...frameworkChecks({ dir, state, userPlugins }));
   out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
   const scoped = (scope, own, list) => list.map((f) => ({ ...f, scope, own }));

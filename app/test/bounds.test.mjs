@@ -1,7 +1,7 @@
 // Bounds of Update all, project registration, the ledger and undo (docs/security.md, #202, #203, #205, #206).
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -16,7 +16,7 @@ import { integrity, ledgerIssues } from '../src/integrity.mjs';
 import { removePack } from '../src/packs.mjs';
 import { transcript } from '../src/session.mjs';
 import { scanSessions } from '../src/sessions.mjs';
-import { hashPath, hashText } from '../src/fsx.mjs';
+import { copy, hashPath, hashText } from '../src/fsx.mjs';
 import { clean, repoEnv, safeBranch, snapshot } from '../src/git.mjs';
 import { importChoices, importPlan, readProfile } from '../src/profile.mjs';
 import { MAX_PROJECTS, addProject, updateAll } from '../src/projects.mjs';
@@ -518,4 +518,19 @@ test('doctor names a recorded file it cannot read and goes on', { skip: process.
     assert.ok(messages.some((m) => m.startsWith(`${join(h, 'dir/a')} cannot be read`)));
     assert.ok(messages.some((m) => m.startsWith(`${join(h, 'b')} changed since`)));
   } finally { chmodSync(join(h, 'dir/a'), 0o644); }
+});
+
+test('a copy that fails midway leaves no half-written path and no temporary file', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, () => {
+  const h = home();
+  mkdirSync(join(h, 'from/sub'), { recursive: true });
+  writeFileSync(join(h, 'from/a'), 'a');
+  writeFileSync(join(h, 'from/sub/b'), 'b');
+  chmodSync(join(h, 'from/sub/b'), 0);
+  try {
+    assert.throws(() => copy(join(h, 'from'), join(h, 'to')));
+    assert.deepEqual(readdirSync(h), ['from']);
+  } finally { chmodSync(join(h, 'from/sub/b'), 0o644); }
+  copy(join(h, 'from'), join(h, 'to'));
+  assert.equal(hashPath(join(h, 'to')), hashPath(join(h, 'from')));
+  assert.deepEqual(readdirSync(h).sort(), ['from', 'to']);
 });

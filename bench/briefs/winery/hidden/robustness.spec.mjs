@@ -11,7 +11,7 @@ async function roomiest(page) {
   const left = [];
   for (const t of TITLES) {
     const text = await card(page, t).innerText({ timeout: 5000 }).catch(() => '');
-    left.push([Number((/(-?\d+(?:[.,]\d+)?)\s+seats? left/i.exec(text)?.[1] ?? '-1').replace(',', '.')), t]);
+    left.push([Number((/(-?(?<!\d)\d+(?:[.,]\d+)?)\s+seats? left/i.exec(text)?.[1] ?? '-1').replace(',', '.')), t]);
   }
   return left.sort((a, b) => b[0] - a[0])[0][1];
 }

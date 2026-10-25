@@ -203,7 +203,7 @@ test('skill actions: remove takes a single pick and names the pack for the other
   const a = skillAction(rows, 'remove', ['mermaid-diagrams']);
   assert.deepEqual(a.answers.drop, ['mermaid-diagrams']);
   const p = projectPlan({ ctx: r.ctx, dir: r.dir, answers: a.answers, plugins: {} });
-  assert.ok(focusOn(p.changes, a.names).every((c) => /^(remove:mermaid-diagrams|state|exclude)$/.test(c.step)), p.changes.map((c) => c.step).join());
+  assert.ok(focusOn(p.changes, a.names).every((c) => /^(remove:mermaid-diagrams|state|exclude|local-claude)$/.test(c.step)), p.changes.map((c) => c.step).join());
   assert.deepEqual(skillAction(rows, 'update', []).names, []);
   assert.throws(() => skillAction(rows, 'update', ['typo']), /not a skill of this project/);
 });
@@ -286,7 +286,7 @@ test('server: project-plan switches packs and acts on one skill; /api/skills lis
   // One skill's reset: its changes only, with the records of them.
   writeFileSync(r.skill, 'edited\n');
   const reset = routes['GET /api/project-plan'](q([['reset', SKILL], ['focus', SKILL]]));
-  assert.ok(reset.changes.every((c) => /^(skill:designing-technical-uis|state|exclude)$/.test(c.step)), reset.changes.map((c) => c.step).join());
+  assert.ok(reset.changes.every((c) => /^(skill:designing-technical-uis|state|exclude|local-claude)$/.test(c.step)), reset.changes.map((c) => c.step).join());
   const edit = reset.changes.find((c) => c.path === r.skill);
   assert.deepEqual([edit.selected, edit.diff.includes('-edited')], [true, true]);
   mkdirSync(join(r.dir, '.claude/skills/mine'));
@@ -303,4 +303,19 @@ test('server: project-plan switches packs and acts on one skill; /api/skills lis
   // The global plan offers moving a skill it did not install to the backup, never preselected.
   const move = preview(globalPlan({ ctx: r.ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).find((c) => /theirs/.test(c.title));
   assert.deepEqual([move.destructive, move.selected], [true, false]);
+});
+
+test('a focused plan keeps the rules block that points to an own skill; adopting a folder of an own skill replaces it only on reset', () => {
+  const r = repo();
+  run(r, { agents: ['claude'], env: 'host', packs: ['ui-a'] });
+  assert.match(readFileSync(join(r.dir, 'CLAUDE.local.md'), 'utf8'), /designing-technical-uis/);
+  const off = focusOn(projectPlan({ ctx: r.ctx, dir: r.dir, answers: { disable: [SKILL] }, plugins: {} }).changes, [SKILL]);
+  const rules = preview(off).find((c) => c.step === 'local-claude');
+  assert.ok(rules?.diff.includes(`-- UI screens`) || rules?.diff.includes(SKILL), 'the pointer line leaves the block with the skill');
+  // A folder of that name nobody installed: adopt shows it, a reset replaces it.
+  const other = repo();
+  mkdirSync(join(other.dir, '.claude/skills', SKILL), { recursive: true });
+  writeFileSync(join(other.dir, '.claude/skills', SKILL, 'SKILL.md'), 'not ours\n');
+  const write = (answers) => preview(projectPlan({ ctx: other.ctx, dir: other.dir, answers: { agents: ['claude'], env: 'host', packs: [], ...answers }, plugins: {} }).changes).find((c) => c.path === other.skill);
+  assert.deepEqual([write({ pick: [SKILL] }).selected, write({ pick: [SKILL], reset: [SKILL] }).selected], [false, true]);
 });

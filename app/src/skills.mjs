@@ -75,8 +75,8 @@ export function skillAction(rows, action, names) {
   return { names, answers: { reset: action === 'reset' ? names : [], drop: action === 'remove' ? names : [], pick: action === 'adopt' ? names : [] } };
 }
 
-// Only the changes of the skills named, with the state file and the git exclude list that record them.
+// Only the changes of the skills named, with the state file, the git exclude list and the rules block (it points to own skills).
 export const focusOn = (changes, names) => changes.filter((c) => {
   const m = c.step.match(/^(?:skill|on|off|remove):(.+)$/);
-  return m ? names.includes(m[1]) : ['state', 'exclude'].includes(c.step);
+  return m ? names.includes(m[1]) : ['state', 'exclude', 'agents-md', 'local-claude', 'local-codex'].includes(c.step);
 });

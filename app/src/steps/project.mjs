@@ -363,12 +363,14 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const back = dirs.filter(({ dir: d }) => exists(parked(d, s.name)) && !exists(join(d, s.name)));
     for (const { dir: d } of back) moveDir(`on:${s.name}`, parked(d, s.name), join(d, s.name));
     const rest = dirs.filter((x) => !back.includes(x));
-    // A copy edited here (it differs from what a run of this machine left) is replaced only when asked for (reset): the plan shows its diff.
+    // A copy edited here (it differs from what a run of this machine left), or a folder of that name being adopted, is replaced only
+    // when asked for (reset): the plan shows its diff.
     const reseat = a.reset.includes(s.name);
     if (s.source === 'own') {
       for (const { dir: d } of rest) {
         for (const { file, text } of ownSkillFiles(s.name, a.paths[s.name])) {
-          const path = join(d, s.name, file), held = itemState(path, text, ctx) === 'modified';
+          const path = join(d, s.name, file);
+          const found = itemState(path, text, ctx), held = found === 'modified' || (found === 'foreign' && a.pick.includes(s.name));
           add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the library: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, ...(held && !reseat ? { selected: false, held: true } : {}) });
         }
       }

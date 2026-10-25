@@ -141,7 +141,7 @@ export const sessionCache = (ctx) => {
   const { files, keepDays } = readCache(ctx);
   const all = Object.values(files);
   const codex = new Set(all.filter((x) => x.kind === 'codex').map((x) => x.d?.id));
-  return { keepDays, sessions: all.filter((x) => x.kind !== 'sub' && !(x.d?.parent && codex.has(x.d.parent))).length };
+  return { keepDays, sessions: all.filter((x) => x.kind !== 'sub' && x.d?.start && !(x.d?.parent && codex.has(x.d.parent))).length };
 };
 // days: a whole number from 1 to 3650, or null to keep summaries for good. The next scan drops what is older.
 export function keepSessionsFor(ctx, days) {

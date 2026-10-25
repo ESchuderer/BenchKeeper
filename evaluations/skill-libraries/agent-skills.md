@@ -24,11 +24,11 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arms: F (agent-skills alone), I (with OpenSpec), L (with the BenchKeeper layer), C (with both). OpenCode arms: T, U, and Q (selected skills with OpenSpec). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arms: F (agent-skills alone), I (with OpenSpec), L (with the BenchKeeper layer), C (with both). OpenCode arms: T, U, and Q (selected skills with OpenSpec). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-15-winery-react.md), [cartridges](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/SCENARIOS.md).
 
 ## Skill authoring check
 
-Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with per-skill evaluations (results on Opus only). Conciseness 2: long bodies explain what Claude already knows. 24 links leave the skill folder. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md).
+Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with per-skill evaluations (results on Opus only). Conciseness 2: long bodies explain what Claude already knows. 24 links leave the skill folder. Details: [bench/results/2026-10-16-skill-authoring.md](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-16-skill-authoring.md).
 
 ## Decision
 

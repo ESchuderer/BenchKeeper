@@ -34,11 +34,11 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arms: G (Superpowers alone), J (with OpenSpec), M (with the BenchKeeper layer), D (with both). OpenCode arms: R, and S (oso with OpenSpec). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arms: G (Superpowers alone), J (with OpenSpec), M (with the BenchKeeper layer), D (with both). OpenCode arms: R, and S (oso with OpenSpec). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-15-winery-react.md), [cartridges](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/SCENARIOS.md).
 
 ## Skill authoring check
 
-Rank 4 of 8, review 3.2, static checks 93% (7.0.0), workflows 5 (highest of the 8 collections), examples 5 (tied with Matt Pocock). Descriptions leave out the "what" by house rule. Two bodies over 500 lines. The brainstorming server loads a remote logo unless a telemetry variable is set. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md).
+Rank 4 of 8, review 3.2, static checks 93% (7.0.0), workflows 5 (highest of the 8 collections), examples 5 (tied with Matt Pocock). Descriptions leave out the "what" by house rule. Two bodies over 500 lines. The brainstorming server loads a remote logo unless a telemetry variable is set. Details: [bench/results/2026-10-16-skill-authoring.md](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-16-skill-authoring.md).
 
 ## Decision
 

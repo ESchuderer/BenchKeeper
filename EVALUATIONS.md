@@ -2,7 +2,7 @@
 
 Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Quality bar check (skill libraries only, [library quality bar](evaluations/skill-libraries/library-quality-bar.md)), Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-25 (each file names its date).
 
-SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#external-benchmark-pilot-slopcodebench-v123) separates natural skill selection from delivery and scoring failures, and pins the current setup as AO. Reference calibration also exposed a missing MIME database in the scorer image, and an `sg` name clash that skipped scb-check's ast-grep rules. No new skill-effectiveness results.
+SCB preparation updated on 2026-10-21: [protocol 1.23](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/PROTOCOL.md#external-benchmark-pilot-slopcodebench-v123) separates natural skill selection from delivery and scoring failures, and pins the current setup as AO. Reference calibration also exposed a missing MIME database in the scorer image, and an `sg` name clash that skipped scb-check's ast-grep rules. No new skill-effectiveness results.
 
 ## Rules
 
@@ -19,7 +19,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 
 | Component | Decision | Summary |
 |---|---|---|
-| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms L, M, N, X, C, D, E, Y (layer v1, one trial per arm and model): [winery-react](bench/results/2026-10-15-winery-react.md), [cartridges](bench/results/2026-10-16-cartridges.md). AD, AE (layer v3, three rounds per arm): [openballistics](bench/results/2026-10-17-openballistics.md). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
+| [BenchKeeper layer](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/SCENARIOS.md) | the setup itself | arms L, M, N, X, C, D, E, Y (layer v1, one trial per arm and model): [winery-react](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-15-winery-react.md), [cartridges](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-16-cartridges.md). AD, AE (layer v3, three rounds per arm): [Svelte site brownfield run](https://github.com/ESchuderer/BenchKeeper-Eval/tree/develop/bench/results). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
 
 ### Behavior modes
 

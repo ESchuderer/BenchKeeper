@@ -20,11 +20,11 @@ Contradictions: JetBrains reports cost -10.3% (SkillsBench, Sonnet 5, rules inje
 
 ## Benchmark
 
-Arms: B (Ponytail alone), O and P (with OpenSpec or Spec Kit), and every BenchKeeper layer arm (L, M, N, X, C, D, E, Y, and the layer v3 arms AD and AE). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only. winery-react: Ponytail cost less (API-equivalent USD) in all 6 pairs, B vs A, O vs AB and P vs AC on both models (Sonnet B 0.39 vs A 0.92). Reports: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arms: B (Ponytail alone), O and P (with OpenSpec or Spec Kit), and every BenchKeeper layer arm (L, M, N, X, C, D, E, Y, and the layer v3 arms AD and AE). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only. winery-react: Ponytail cost less (API-equivalent USD) in all 6 pairs, B vs A, O vs AB and P vs AC on both models (Sonnet B 0.39 vs A 0.92). Reports: [winery-react](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-15-winery-react.md), [cartridges](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/SCENARIOS.md).
 
 ## Skill authoring check
 
-Rank 1 of 8, review 3.9, static checks 97% (5.2.0), conciseness 4, structure 4. A SubagentStart hook injects the core skill into every subagent. `ponytail-review` and `ponytail-audit` are nearly identical. No evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](../../bench/results/2026-10-16-skill-authoring.md).
+Rank 1 of 8, review 3.9, static checks 97% (5.2.0), conciseness 4, structure 4. A SubagentStart hook injects the core skill into every subagent. `ponytail-review` and `ponytail-audit` are nearly identical. No evaluations. Details: [bench/results/2026-10-16-skill-authoring.md](https://github.com/ESchuderer/BenchKeeper-Eval/blob/develop/bench/results/2026-10-16-skill-authoring.md).
 
 ## Decision
 

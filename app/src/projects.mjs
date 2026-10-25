@@ -58,6 +58,18 @@ function keepState(ctx, dir, state) {
 }
 // A state file as answers for a local setup.
 const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
+// The whole plan of a registered project that has a setup (the checkout's state file, or the one kept after a removal
+// pull request), unfiltered, for the Dashboard's item states; null without a setup.
+export function projectItemPlan(ctx, path) {
+  const own = tryState(path), local = own ?? kept(ctx, path);
+  // What the Projects view calls a change: selected ones, and commands that run in the project.
+  return local ? projectPlan({ ctx: projectCtx(ctx, path), dir: path, answers: own ? {} : localAnswers(local) }).changes.filter((c) => c.selected !== false && (c.kind !== 'command' || c.cwd)) : null;
+}
+// Per chosen agent, the skills in the project folder it reads.
+export function skillCounts(path, agents) {
+  const files = skillFiles(path);
+  return Object.fromEntries(agents.map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
+}
 // One repository position: the git common directory (shared by all worktrees) and the folder's place below the worktree
 // root, so two worktrees of one repository match and two folders of a monorepo do not. null outside a repository.
 function repoKey(ctx, path) {
@@ -253,8 +265,7 @@ export function status(ctx, path) {
     try { changes = projectChanges(ctx, path, own ? undefined : localAnswers(local)).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
   // Per chosen agent, the skills in the project folder it reads.
-  const files = skillFiles(path);
-  const skills = Object.fromEntries((state?.agents ?? []).map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
+  const skills = skillCounts(path, state?.agents ?? []);
   return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
     share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
 }

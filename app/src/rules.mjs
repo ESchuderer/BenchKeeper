@@ -41,7 +41,7 @@ const charClass = (t) => {
 };
 export function globRegex(glob) {
   let depth = 0;
-  const body = glob.replace(/\[[^\]]+\]|\*\*\/|\*\*|[*?{},.+^$()|\\]/g, (t) => {
+  const body = glob.replace(/\[[^\][]+\]|\*\*\/|\*\*|[*?{},.+^$()|\\]/g, (t) => {
     if (t.length > 1 && t[0] === '[') return charClass(t);
     if (t === '**/') return '(?:.*/)?';
     if (t === '**') return '.*';

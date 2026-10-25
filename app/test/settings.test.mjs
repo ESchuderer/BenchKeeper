@@ -384,6 +384,6 @@ test('an existing file that cannot be read is an error, not an empty layer', () 
 test('Doctor fix for a stale Codex trust entry quotes the path', () => {
   const ctx = machine();
   write(codexUser(ctx), "[projects.\"/gone/my 'dir\"]\ntrust_level = \"trusted\"\n");
-  const fix = doctor(ctx, {}).find((i) => i.check === 'agent-settings' && /no longer exists/.test(i.message))?.fix;
+  const fix = doctor(ctx, { agents: ['codex'], env: {} }).find((i) => i.check === 'agent-settings' && /no longer exists/.test(i.message))?.fix;
   assert.ok(fix?.includes("'projects./gone/my '\\''dir'"), fix);
 });

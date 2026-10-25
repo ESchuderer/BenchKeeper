@@ -138,6 +138,9 @@ export function Dashboard({ overview, doctor, history, params }) {
         <FixEverythingButton />
       </Group>
       <Section title="Setup flow"><Flow nodes={nodes} /></Section>
+      <Section title="Install level">
+        <Text size="sm">{o?.level?.level ?? 'none'}{o?.level?.adds ? `: ${o.level.adds}` : ''}</Text>
+      </Section>
       {agents.some((a) => a.plugin) && (
         <Section title="BenchKeeper plugin">
           {agents.filter((a) => a.plugin).map((a) => (

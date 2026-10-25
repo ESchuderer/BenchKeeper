@@ -3,7 +3,7 @@ import { IconPlayerPlay, IconPlayerStop, IconTool, IconWand } from '@tabler/icon
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { updateProjects } from './update.js';
-import { ChangeList, RunProgress, defaultSelect, usePrerun } from './parts.jsx';
+import { ChangeList, RunProgress, confirms, defaultSelect, usePrerun } from './parts.jsx';
 import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
 
 // Doctor findings the setup can fix open the plan that fixes them; the others keep their fix text only.
@@ -162,7 +162,7 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
     if (!select?.length) { projects(); return; }
-    api('/api/apply', { planId: plan.planId, select }).then(setJob, (e) => { setError(e.message); halt('failed to start'); });
+    api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) }).then(setJob, (e) => { setError(e.message); halt('failed to start'); });
   }, []);
   return (
     <Stack gap="md">

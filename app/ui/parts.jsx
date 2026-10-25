@@ -23,25 +23,30 @@ export const Section = ({ title, children, id }) => (
 
 export const StateBadge = ({ state }) => (state ? <Badge variant="default" style={{ flexShrink: 0 }} leftSection={<Dot color={STATE_COLOR[state] ?? 'gray'} />}>{state}</Badge> : null);
 
-// Skill installs of a plan, rehearsed on the server in a scratch folder: the job state with results per change id.
-// Leaving the plan stops a rehearsal still running.
+// Skill installs of a plan, rehearsed on the server in a scratch folder when the user asks (the rehearsal runs third-party
+// code): start() begins it, the job state holds results per change id. Leaving the plan stops a rehearsal still running.
 export function usePrerun(plan) {
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
+  const [asked, setAsked] = useState(false);
   const want = plan?.changes.some((c) => c.prerun);
   useEffect(() => {
-    if (!want) return undefined;
+    setAsked(false); setJob(null); setError(null);
+  }, [plan?.planId]);
+  useEffect(() => {
+    if (!want || !asked) return undefined;
     let live = true, id = null;
     const cancel = () => id && api('/api/job-cancel', { id }).catch(() => {});
     api('/api/prerun', { planId: plan.planId }).then((r) => { id = r.job; if (live) setJob(r.job); else cancel(); }, (e) => live && setError(e.message));
     return () => { live = false; cancel(); };
-  }, [plan?.planId, want]);
+  }, [plan?.planId, want, asked]);
   const state = useJob(job);
-  return want ? { job, state: error ? { done: true, error } : state } : null;
+  return want ? { job, asked, start: () => setAsked(true), state: error ? { done: true, error } : state } : null;
 }
 
 function Rehearsal({ c, prerun }) {
   const r = prerun.state?.results?.[c.id];
+  if (!prerun.asked) return null;
   if (!r) {
     if (!prerun.state?.done) return <Group gap="xs" role="status"><Loader size="xs" /><Text size="sm">Rehearsing in a scratch folder for the files it writes</Text></Group>;
     return <Text size="sm">{prerun.state.cancelled ? 'Preview cancelled.' : `No preview${prerun.state.error ? `: ${prerun.state.error}` : ''}.`}</Text>;
@@ -77,6 +82,12 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
   const toggle = (c) => setSelect((s) => (s.includes(c.id) ? s.filter((x) => !unitOf(c).includes(x)) : [...new Set([...s, ...unitOf(c)])]));
   return (
     <Stack gap="sm">
+      {prerun && !prerun.asked && (
+        <Group gap="xs">
+          <Button size="xs" variant="default" onClick={prerun.start}>Preview the files the skill installs write</Button>
+          <Text size="sm">Runs the install in a scratch folder: it downloads and runs third-party code.</Text>
+        </Group>
+      )}
       {prerun && <CancelJob job={prerun.job} state={prerun.state} what="the preview" />}
       {plan.changes.map((c, i) => (
         <Stack key={`${c.id}:${i}`} gap={4}>
@@ -104,6 +115,9 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
   );
 }
 
+// The server runs a removal only with this flag: the user sees each one as a checked "Remove:" item.
+export const confirms = (plan, select) => ({ confirmDestructive: plan.changes.some((c) => c.destructive && select?.includes(c.id)) });
+
 export const defaultSelect = (plan) => plan.changes.filter((c) => c.selected && !c.error).map((c) => c.id);
 
 // A plan from the server: its changes (removals off by default), then apply.
@@ -125,7 +139,7 @@ export function Plan({ plan, onDone }) {
   if (!plan.changes.length) return <Text>Nothing to change.</Text>;
   const run = async () => {
     setBusy(true);
-    try { setJob(await api('/api/apply', { planId: plan.planId, select })); } catch (e) { setError(e.message); }
+    try { setJob(await api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) })); } catch (e) { setError(e.message); }
     setBusy(false);
   };
   if (job) return <RunProgress job={job.job} total={job.total} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); onDone?.(run, output); }} />;

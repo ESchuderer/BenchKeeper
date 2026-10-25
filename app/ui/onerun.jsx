@@ -2,7 +2,7 @@ import { Anchor, Button, Checkbox, Code, Drawer, Group, NativeSelect, Progress, 
 import { IconPlayerPlay, IconWand } from '@tabler/icons-react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { CancelJob, ChangeList, defaultSelect, useJob, usePrerun } from './parts.jsx';
+import { CancelJob, ChangeList, confirms, defaultSelect, useJob, usePrerun } from './parts.jsx';
 import { AdviceConsent, ENV_TITLE, TIER_TEXT, planQuery } from './setup.jsx';
 import { Loading, Note, StatusBadge, href, icon, useApi } from './shell.jsx';
 
@@ -111,12 +111,6 @@ function Flow({ mode, setBusy, setReviewing }) {
   };
   const prepareGlobal = async (patchItem, level) => {
     const plan = await api(`/api/global-plan?level=${level}`);
-    // The skill installs are rehearsed now, so the review shows their files at once (the server keeps the result).
-    if (plan.changes.some((c) => c.prerun)) {
-      patchItem('global', { detail: 'rehearsing the skill installs' });
-      const r = await api('/api/prerun', { planId: plan.planId }).catch(() => ({ job: null }));
-      if (r.job) { current.current = r.job; await waitJob(r.job); }
-    }
     patchItem('global', { status: 'ready', detail: `${plan.changes.length} changes`, plan, include: true, select: defaultSelect(plan) });
   };
   const prepareProject = async (it, adviser, patchItem) => {
@@ -223,7 +217,7 @@ function Review({ items, patch, onStartOver, onApply }) {
   const apply = async () => {
     setBusy(true); setError(null);
     try {
-      const r = await api('/api/apply-all', { sections: sections.map((i) => ({ planId: i.plan.planId, select: i.select })) });
+      const r = await api('/api/apply-all', { sections: sections.map((i) => ({ planId: i.plan.planId, select: i.select })), confirmDestructive: sections.some((i) => confirms(i.plan, i.select).confirmDestructive) });
       onApply(r);
     } catch (e) { setError(e.message); }
     setBusy(false);

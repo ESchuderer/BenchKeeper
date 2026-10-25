@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -14,6 +15,8 @@ const GATE = join(tmpdir(), 'bk-ui-gate-4410');
 const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
+  // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
+  await page.mouse.move(0, 0);
   // A transition may start a frame after the dialog is visible: let it start, then wait until dialogs and overlays are fully opaque.
   await page.waitForTimeout(250);
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running')
@@ -479,6 +482,149 @@ test.describe('views', () => {
   test('Projects: skills per agent, in the project and in all', async ({ page }) => {
     await nav(page, 'Projects').click();
     await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1)).toContainText(/\d+ here, \d+ in all/);
+  });
+
+  // Folders for the list tests: made here, registered in the page and unregistered again, so the other tests see the
+  // projects they expect.
+  const folder = (name) => { const d = join(mkdtempSync(join(tmpdir(), 'bk-ui-mv-')), name); mkdirSync(d); return d; };
+  const addFolder = async (page, dir) => { await page.getByLabel('Project folder').fill(dir); await page.getByRole('button', { name: 'Add project' }).click(); };
+  const choose = async (page, label, option) => { await page.getByRole('combobox', { name: label }).click(); await page.getByRole('option', { name: option, exact: true }).click(); };
+  const bar = (page) => page.getByRole('group', { name: 'Selected projects' });
+  const unregister = async (page, names) => {
+    const table = page.getByRole('table', { name: 'Projects' });
+    for (const n of names) await table.getByRole('checkbox', { name: `Select ${n}` }).check();
+    await bar(page).getByRole('button', { name: 'Remove from list' }).click();
+    const ask = page.getByRole('dialog', { name: `Remove ${names.length} project${names.length === 1 ? '' : 's'} from the list?` });
+    await noAxe(page);
+    await ask.getByRole('button', { name: /^Remove \d+ projects? from the list$/ }).click();
+    await expect(ask).toBeHidden();
+    for (const n of names) await expect(table.getByRole('link', { name: n, exact: true })).toHaveCount(0);
+  };
+
+  test('Projects: display name and notes, search, filter and sort, selection by keyboard', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, folder('mv-app'));
+    await table.getByRole('link', { name: 'mv-app', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await page.getByLabel('Display name').fill('Marketing site');
+    await page.getByLabel('Notes').fill('owner: ana');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(table.getByRole('link', { name: 'Marketing site', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: /^Project \// })).toContainText('owner: ana');
+    // The name and the notes are searched; the filter and the sort narrow and order the rows.
+    await page.getByLabel('Search projects').fill('ana');
+    await expect(table.getByRole('row')).toHaveCount(2);
+    await page.getByLabel('Search projects').fill('zzz');
+    await expect(page.getByText('No project matches the search and filter.')).toBeVisible();
+    await page.getByLabel('Search projects').fill('');
+    await choose(page, 'Show', 'Not set up');
+    await expect(table.getByRole('row')).toHaveCount(3);
+    await expect(table).not.toContainText('bk-ui-proj');
+    await choose(page, 'Show', 'All projects');
+    await choose(page, 'Sort by', 'Name');
+    await expect(table.getByRole('row').nth(1)).toContainText('bk-ui-proj');
+    await choose(page, 'Sort by', 'Order added');
+    // Selection with the keyboard: focus the checkbox, Space; the bar names the count.
+    const box = table.getByRole('checkbox', { name: 'Select Marketing site' });
+    await box.focus();
+    await page.keyboard.press('Space');
+    await expect(box).toBeChecked();
+    await expect(bar(page)).toContainText('1 selected');
+    await expect(bar(page).getByRole('button', { name: 'Update' })).toBeDisabled();
+    await noAxe(page);
+    await table.getByRole('checkbox', { name: 'Select all shown projects' }).check();
+    await expect(bar(page)).toContainText('3 selected');
+    await table.getByRole('checkbox', { name: 'Select all shown projects' }).uncheck();
+    await unregister(page, ['Marketing site']);
+  });
+
+  test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {
+    const dir = folder('mv-gone');
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, dir);
+    await table.getByRole('link', { name: 'mv-gone', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await page.getByLabel('Display name').fill('Docs site');
+    await page.getByRole('button', { name: 'Save' }).click();
+    const moved = join(dir, '..', 'mv-moved');
+    renameSync(dir, moved);
+    await page.reload();
+    await choose(page, 'Show', 'Folder not found');
+    await expect(table.getByRole('row')).toHaveCount(2);
+    await expect(table.getByRole('row').nth(1)).toContainText('Folder not found');
+    await table.getByRole('link', { name: 'Docs site', exact: true }).click();
+    const detail = page.getByRole('region', { name: /^Project \// });
+    await expect(detail.getByRole('button', { name: 'Remove from list' })).toBeVisible();
+    await expect(detail.getByRole('button', { name: 'Open folder' })).toHaveCount(0);
+    await expect(detail.getByRole('region', { name: 'Project doctor' })).toHaveCount(0);
+    await noAxe(page);
+    await detail.getByLabel('New folder').fill(join(moved, 'nope'));
+    await detail.getByRole('button', { name: 'Relocate', exact: true }).last().click();
+    await expect(detail.getByText(/is not a folder/)).toBeVisible();
+    await detail.getByLabel('New folder').fill(moved);
+    await detail.getByRole('button', { name: 'Relocate', exact: true }).last().click();
+    await choose(page, 'Show', 'All projects');
+    await expect(table.getByRole('link', { name: 'Docs site', exact: true })).toBeVisible();
+    await expect(table).not.toContainText('Folder not found');
+    await unregister(page, ['Docs site']);
+  });
+
+  test('Projects: another worktree of a registered repository is offered, not added; bulk removal from the list names the count', async ({ page }) => {
+    const main = folder('mv-main');
+    const git = (...a) => execFileSync('git', ['-C', main, '-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { stdio: 'pipe' });
+    git('init', '-q', '-b', 'main');
+    git('commit', '-q', '--allow-empty', '-m', 'init');
+    const tree = join(main, '..', 'mv-tree');
+    git('worktree', 'add', '-q', tree);
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, main);
+    await expect(table.getByRole('link', { name: 'mv-main', exact: true })).toBeVisible();
+    await addFolder(page, tree);
+    const note = page.getByRole('alert').filter({ hasText: 'Same repository, other worktree.' });
+    await expect(note).toBeVisible();
+    await expect(table.getByRole('link', { name: 'mv-tree', exact: true })).toHaveCount(0);
+    await noAxe(page);
+    await note.getByRole('button', { name: 'Add as a second project' }).click();
+    await expect(table.getByRole('link', { name: 'mv-tree', exact: true })).toBeVisible();
+    await unregister(page, ['mv-main', 'mv-tree']);
+  });
+
+  test('Projects: Remove BenchKeeper setup lists every file, removes a local setup and leaves the project registered', async ({ page }) => {
+    const dir = folder('mv-local');
+    mkdirSync(join(dir, '.benchkeeper'));
+    writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 1, setupVersion: '6.0.0', agents: ['claude'], share: false, packs: [], skills: [] }));
+    writeFileSync(join(dir, 'CLAUDE.local.md'), '<!-- benchkeeper:project start -->\n- a rule\n<!-- benchkeeper:project end -->\n');
+    writeFileSync(join(dir, 'AGENTS.md'), '# Mine\n');
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, dir);
+    await table.getByRole('checkbox', { name: 'Select mv-local' }).check();
+    await bar(page).getByRole('button', { name: 'Remove setup' }).click();
+    const ask = page.getByRole('dialog', { name: 'Remove the BenchKeeper setup of 1 project' });
+    await expect(ask.getByRole('list', { name: /^Changes in / })).toContainText('remove CLAUDE.local.md');
+    await expect(ask.getByRole('list', { name: /^Changes in / })).toContainText('remove .benchkeeper/');
+    await expect(ask).toContainText('AGENTS.md text, docs/agents/ and .devcontainer/ stay');
+    await noAxe(page);
+    await ask.getByRole('button', { name: 'Remove setup of 1 project' }).click();
+    await expect(ask.getByRole('table', { name: 'Remove setup results' })).toContainText('removed');
+    await expect(ask.getByRole('link', { name: 'Open report' })).toBeVisible();
+    expect(existsSync(join(dir, '.benchkeeper'))).toBe(false);
+    expect(existsSync(join(dir, 'CLAUDE.local.md'))).toBe(false);
+    expect(existsSync(join(dir, 'AGENTS.md'))).toBe(true);
+    await ask.getByRole('button', { name: 'Close' }).click();
+    await expect(table.getByRole('row').filter({ hasText: 'mv-local' })).toContainText('no state file');
+    // A shared setup is listed too, and becomes a pull request.
+    await table.getByRole('checkbox', { name: 'Select mv-local' }).uncheck();
+    await table.getByRole('checkbox', { name: /^Select bk-ui-proj/ }).check();
+    await bar(page).getByRole('button', { name: 'Remove setup' }).click();
+    await expect(ask).toContainText('Shared setup: a pull request removes these files');
+    await ask.getByRole('button', { name: 'Cancel' }).click();
+    await expect(ask).toBeHidden();
+    await table.getByRole('checkbox', { name: /^Select bk-ui-proj/ }).uncheck();
+    await unregister(page, ['mv-local']);
   });
 
   test('Projects: a project without a state file is set up step by step, local or on a branch', async ({ page }) => {

@@ -40,9 +40,11 @@ export function codexAllows(text) {
     const pattern = m[1].match(/pattern\s*=\s*(\[(?:[^[\]]|\[[^\]]*\])*\])/)?.[1];
     const decision = m[1].match(/decision\s*=\s*["'](\w+)["']/)?.[1] ?? 'allow';
     if (!pattern || decision !== 'allow') continue;
-    const parts = pattern.slice(1, -1).match(/\[[^\]]*\]|"[^"]*"|'[^']*'/g) ?? [];
+    // The first element is a program or a list of alternatives; the rest are its arguments.
+    const inner = pattern.slice(1, -1).trim();
+    const head = inner.startsWith('[') ? inner.slice(0, inner.indexOf(']') + 1) : inner.split(',')[0];
     const words = (t) => t.match(/[^"',[\]\s]+/g) ?? [];
-    const programs = words(parts[0] ?? ''), rest = parts.slice(1).flatMap(words);
+    const programs = words(head), rest = words(inner.slice(head.length));
     if (programs.some((p) => SHELLS.has(basename(p))) && rest.every((w) => CODE_FLAGS.has(w))) out.push({ rule: `pattern = ${pattern.replace(/\s+/g, ' ')}`, line: code.slice(0, m.index).split('\n').length, why: `${programs.join(' or ')} runs any code`, level: 'warning' });
   }
   return out;

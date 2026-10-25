@@ -15,8 +15,8 @@ const frontMatter = (text) => text?.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
 // The description of a SKILL.md and the line it starts on.
 export function skillDescription(text) {
   const front = frontMatter(text);
-  const at = front.split('\n').findIndex((l) => /^description:/.test(l));
-  return { text: (front.match(/^description:[ \t]*(.*)$/m)?.[1] ?? '').trim().replace(/^"|"$/g, ''), line: at + 2 };
+  const lines = front.split('\n'), at = lines.findIndex((l) => l.startsWith('description:'));
+  return { text: at < 0 ? '' : lines[at].slice('description:'.length).trim().replace(/^"|"$/g, ''), line: at + 2 };
 }
 
 // Sentence punctuation after a path in prose.

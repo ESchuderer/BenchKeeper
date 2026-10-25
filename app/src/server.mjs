@@ -22,7 +22,7 @@ import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
 import { blob } from './git.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
-import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
+import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
@@ -30,7 +30,7 @@ import { scanSessions } from './sessions.mjs';
 import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, suggest } from './steps/project.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
@@ -389,7 +389,9 @@ export function api(ctx) {
       idle();
       const paths = (b.paths ?? []).filter(registered);
       const answers = Object.fromEntries(Object.entries(b.answers ?? {}).filter(([p]) => paths.includes(p)).map(([p, a]) => [p, setupAnswers(a)]));
-      return updateAll(ctx, { paths, push: b.push !== false, answers });
+      // dryRun: what each project would get (setup version, changes, whether it is clean), nothing changed.
+      if (b.dryRun === true) return paths.map((p) => { const s = status(ctx, p); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(ctx, p)) }; });
+      return input(() => updateAll(ctx, { paths, push: b.push !== false, answers, max: Number.isInteger(b.max) && b.max > 0 ? b.max : undefined }));
     },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
     // One run with the diff of each file it wrote: its backup (or nothing) against the file as the change left it,
@@ -413,12 +415,12 @@ export function api(ctx) {
     'POST /api/undo': (b) => {
       idle();
       const scope = ctx.ledger.get(b.run).scope;
-      return undo(b.run, scope === 'global' ? ctx : projectCtx(ctx, scope), { step: b.step || undefined });
+      return undo(b.run, input(() => scopeCtx(ctx, scope)), { step: b.step || undefined });
     },
     'GET /api/catalog': () => {
       const lib = libraryWith(ctx);
       const projects = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
-      return { ...lib, skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
+      return { ...lib, invalidPacks: invalidPacks(ctx), skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
     },
     'GET /api/skill': (q) => {
       const name = q.get('name');

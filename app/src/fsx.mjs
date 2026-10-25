@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, cpSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 
 export const exists = (p) => existsSync(p) || isLink(p);
@@ -37,6 +37,9 @@ export function writeAtomic(p, text, mode = existsSync(p) ? statSync(p).mode & 0
   writeFileSync(tmp, text, { flag: 'wx', ...(mode != null ? { mode } : {}) });
   try {
     if (mode != null) chmodSync(tmp, mode);
+    // On disk before it replaces the file: a power loss must not leave the ledger or a settings file empty.
+    const fd = openSync(tmp, 'r+'); // Windows fsync needs write access
+    try { fsyncSync(fd); } finally { closeSync(fd); }
     renameSync(tmp, p);
   } catch (e) { rmSync(tmp, { force: true }); throw e; }
 }
@@ -46,7 +49,10 @@ export function move(from, to) {
   mkdirSync(dirname(to), { recursive: true });
   try { renameSync(from, to); } catch (e) {
     if (e.code !== 'EXDEV') throw e;
+    // Across devices the source goes only after the copy hashes as the source did.
+    const before = hashPath(from);
     cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+    if (hashPath(to) !== before) { rmSync(to, { recursive: true, force: true }); throw new Error(`the copy of ${from} differs from the original`); }
     rmSync(from, { recursive: true, force: true });
   }
 }
@@ -78,6 +84,6 @@ export function inside(p, roots, follow = true) {
   const real = realish(p, follow);
   return roots.some((r) => {
     const root = realish(r);
-    return real === root || real.startsWith(root + sep);
+    return real === root || real.startsWith(root.endsWith(sep) ? root : root + sep);
   });
 }

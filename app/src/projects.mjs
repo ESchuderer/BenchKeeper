@@ -1,14 +1,14 @@
 // Registered projects and Update all: one branch, one commit and one pull request per project, built in a git
 // worktree so the user's checkout stays as it is.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
-import { exists, hashText, readText, realish, writeAtomic } from './fsx.mjs';
+import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, safeBranch } from './git.mjs';
 import { apply, preview } from './runner.mjs';
-import { STATE, committedSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
+import { STATE, committedSetup, localSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -57,16 +57,76 @@ function keepState(ctx, dir, state) {
 }
 // A state file as answers for a local setup.
 const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
-export function addProject(ctx, path) {
+// One repository position: the git common directory (shared by all worktrees) and the folder's place below the worktree
+// root, so two worktrees of one repository match and two folders of a monorepo do not. null outside a repository.
+function repoKey(ctx, path) {
+  const r = git(ctx, path, ['rev-parse', '--path-format=absolute', '--git-common-dir', '--show-prefix']);
+  const [common, prefix = ''] = r.stdout.split('\n');
+  return r.code === 0 && isAbsolute(common) && existsSync(common) ? `${canon(common)}\0${prefix}` : null;
+}
+// What adding a folder runs into: it is registered already (same), another worktree of a registered project's repository
+// is (worktree), or it lies inside a registered project (inside). Throws when the folder is not a folder.
+export function checkAdd(ctx, path) {
   const p = canon(path);
   if (!existsSync(p)) throw new Error(`${p} does not exist`);
   if (!statSync(p).isDirectory()) throw new Error(`${p} is not a folder`);
-  const list = listProjects(ctx);
-  if (!list.some((x) => x.path === p)) save(ctx, [...list, { path: p, added: new Date().toISOString() }]);
-  return p;
+  const all = listProjects(ctx), same = all.some((x) => x.path === p);
+  const list = all.filter((x) => x.path !== p);
+  const key = repoKey(ctx, p);
+  return { path: p, same,
+    worktree: (!same && key && list.find((x) => repoKey(ctx, x.path) === key)?.path) || null,
+    inside: list.find((x) => p.startsWith(x.path + sep))?.path ?? null };
 }
+// worktree: add a folder that is another worktree of a registered project's repository as a project of its own.
+export function addProject(ctx, path, { worktree = false } = {}) {
+  const found = checkAdd(ctx, path);
+  if (found.worktree && !worktree) throw new Error(`${found.path} is the same repository as ${found.worktree} (another worktree): not added as a second project`);
+  if (!found.same) save(ctx, [...listProjects(ctx), { path: found.path, added: new Date().toISOString() }]);
+  return found.path;
+}
+// path or a list of them; the files in the folders stay.
 export function removeProject(ctx, path) {
-  save(ctx, listProjects(ctx).filter((x) => x.path !== canon(path)));
+  const gone = new Set([path].flat().map(canon));
+  save(ctx, listProjects(ctx).filter((x) => !gone.has(x.path)));
+}
+const registeredEntry = (ctx, path) => {
+  const p = canon(path), entry = listProjects(ctx).find((x) => x.path === p);
+  if (!entry) throw new Error(`${p} is not a registered project`);
+  return entry;
+};
+// Control characters other than the line break and tab of notes.
+const control = (c, multiline) => { const n = c.charCodeAt(0); return n === 127 || (n < 32 && !(multiline && (n === 10 || n === 9))); };
+const field = (v, what, max, multiline) => {
+  if (v == null || v === '') return null;
+  if (typeof v !== 'string') throw new Error(`${what} must be text`);
+  if (v.length > max) throw new Error(`${what} is longer than ${max} characters`);
+  if ([...v].some((c) => control(c, multiline))) throw new Error(`${what} has control characters`);
+  return v.trim() || null;
+};
+// Display name and notes live in projects.json only. A missing key stays as it is; an empty one clears it.
+export function renameProject(ctx, path, { name, notes } = {}) {
+  const entry = registeredEntry(ctx, path);
+  const next = { ...entry };
+  for (const [key, v] of [['name', name === undefined ? undefined : field(name, 'the name', 80, false)], ['notes', notes === undefined ? undefined : field(notes, 'the notes', 2000, true)]]) {
+    if (v === undefined) continue;
+    if (v == null) delete next[key]; else next[key] = v;
+  }
+  save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? next : x)));
+}
+// A moved or renamed folder: the entry (name, notes, kept answers) takes the new path, and so does every run of the
+// project in the history, so undo and the drift checks find its files there. The state file moved with the folder.
+export function relocateProject(ctx, path, to) {
+  const entry = registeredEntry(ctx, path);
+  const dest = canon(to);
+  if (!existsSync(dest) || !statSync(dest).isDirectory()) throw new Error(`${dest} is not a folder`);
+  if (dest === entry.path) throw new Error(`${dest} is the folder already registered`);
+  if (listProjects(ctx).some((x) => x.path === dest)) throw new Error(`${dest} is registered already: remove one of the two first`);
+  const release = ctx.ledger.lock();
+  try {
+    ctx.ledger.relocate(entry.path, dest);
+    try { save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? { ...x, path: dest } : x))); } catch (e) { ctx.ledger.relocate(dest, entry.path); throw e; }
+  } finally { release(); }
+  return dest;
 }
 
 const MARKERS = ['AGENTS.md', 'skills-lock.json', STATE];
@@ -167,6 +227,8 @@ export function setupOf(ctx, path, checkout = tryState(path)) {
 // Per project: setup version (checkout: the checked-out one, when origin's counts instead), branch, clean tree, and
 // the changes Update all would make, from the checkout's state file only when that is the one that counts.
 export function status(ctx, path) {
+  // A moved or deleted folder: nothing to read, Relocate and Remove are what is left.
+  if (!isDir(path)) return { path, missing: true, setupVersion: null, current: false, checkout: null, origin: null, repo: false, branch: null, clean: null, changes: null, error: null, skills: {}, share: false, committed: false, agents: [], packs: [], tier: null };
   let local = null, error = null;
   try { local = readState(path); } catch (e) { error = e.message; }
   const own = local;
@@ -187,7 +249,7 @@ export function status(ctx, path) {
   const files = skillFiles(path);
   const skills = Object.fromEntries((state?.agents ?? []).map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
   return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
-    share, committed };
+    share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
 }
 
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
@@ -197,6 +259,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
   return paths.map((path) => {
     const result = { path };
     try {
+      if (!isDir(path)) throw new Error('folder not found: relocate the project or remove it from the list');
       const local = readState(path), repo = isRepo(ctx, path);
       // The setup that counts says whether it is shared: the checkout's, the one kept from a removal pull request, or
       // origin's.
@@ -243,6 +306,52 @@ export function unshare(ctx, path, { push = true } = {}) {
       title: 'chore: keep the agent setup local',
       body: 'BenchKeeper now keeps the per-project agent setup on each machine, in files git ignores (`.git/info/exclude`): `CLAUDE.local.md`, `AGENTS.override.md`, `.claude/settings.local.json`, the installed skills and `.benchkeeper/`. This removes the committed copies: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.\n\nAfter merging, pull, then run Update all in BenchKeeper (`npx benchkeeper update-all`): it writes the local setup from the answers it kept. Other machines: `npx benchkeeper project apply --agents ...` once.',
     });
+  } catch (e) {
+    result.status = 'stopped';
+    result.reason = e.message;
+  }
+  return result;
+}
+
+// What "Remove BenchKeeper setup" would do: the files of a local setup in the checkout, or, for a shared setup (and a
+// local one git still tracks), the committed copies as a pull request. The state file kept in the registry counts as a
+// setup too.
+export function setupRemoval(ctx, path) {
+  registeredEntry(ctx, path);
+  const state = tryState(path);
+  const shared = state?.share === true;
+  // A local setup git still tracks leaves with a pull request too, next to the local files git ignores.
+  const pr = shared || (isRepo(ctx, path) && tracksState(ctx, path));
+  const key = repoKey(ctx, path);
+  const keepExclude = !!key && listProjects(ctx).some((x) => x.path !== canon(path) && repoKey(ctx, x.path) === key);
+  const local = shared ? [] : preview(localSetup(ctx, path, { keepExclude }));
+  const committed = pr ? preview(committedSetup(path)) : [];
+  return { shared: pr, local, pr: committed, changes: [...local, ...committed], kept: !!kept(ctx, path) };
+}
+const REMOVAL_BRANCH = 'chore/remove-agent-setup';
+// Takes the BenchKeeper setup out of a project and leaves it registered, as "not set up". A local setup is one run in the
+// checkout (undo in History); a shared one is a pull request, which is undone by closing it. The project's own AGENTS.md
+// text, docs/agents/ and .devcontainer/ stay.
+export function removeSetup(ctx, path, { push = true } = {}) {
+  const result = { path };
+  try {
+    const { shared, local, changes, kept: keptState } = setupRemoval(ctx, path);
+    if (!changes.length && !keptState) throw new Error('no BenchKeeper setup to remove');
+    if (local.length) {
+      const run = apply(local, projectCtx(ctx, path), { scope: path, note: { removeSetup: path } });
+      result.run = run.id;
+      if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
+    }
+    if (shared) {
+      viaPullRequest(ctx, path, result, {
+        branch: REMOVAL_BRANCH, push,
+        work: (tree) => apply(preview(committedSetup(tree)), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: REMOVAL_BRANCH } }),
+        title: 'chore: remove the BenchKeeper agent setup',
+        body: 'Removes the BenchKeeper setup of this repository: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.',
+      });
+    } else result.status = 'removed';
+    // The answers kept for a later local setup would bring the setup back with the next Update all.
+    if (keptState) keepState(ctx, path, null);
   } catch (e) {
     result.status = 'stopped';
     result.reason = e.message;

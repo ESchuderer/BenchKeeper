@@ -3,7 +3,7 @@ import { IconPlayerPlay, IconPlayerStop, IconTool, IconWand } from '@tabler/icon
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { updateProjects } from './update.js';
-import { ChangeList, RunProgress, defaultSelect, usePrerun } from './parts.jsx';
+import { ChangeList, RunProgress, confirms, defaultSelect, usePrerun } from './parts.jsx';
 import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
 
 // Doctor findings the setup can fix open the plan that fixes them; the others keep their fix text only.
@@ -38,14 +38,14 @@ export function DoctorTable({ found, onAction }) {
   );
 }
 
-export function UpdateResults({ progress, extra }) {
+export function UpdateResults({ progress, extra, what = 'Update all' }) {
   const done = progress.filter((r) => !['pending', 'running'].includes(r.status)).length;
   const by = Object.entries(groupBy(progress.slice(0, done), (r) => r.status)).map(([s, rs]) => `${rs.length} ${s}`).join(', ');
   return (
     <>
-      <Text size="sm" role="status">{done < progress.length ? `${done} of ${progress.length} projects done${by ? `: ${by}` : ''}` : `Update all finished: ${by}`}</Text>
-      <Progress.Root size="lg"><Progress.Section value={(done / progress.length) * 100} aria-label={`Update all: ${done} of ${progress.length} projects`} /></Progress.Root>
-      <Table aria-label="Update all results">
+      <Text size="sm" role="status">{done < progress.length ? `${done} of ${progress.length} projects done${by ? `: ${by}` : ''}` : `${what} finished: ${by}`}</Text>
+      <Progress.Root size="lg"><Progress.Section value={(done / progress.length) * 100} aria-label={`${what}: ${done} of ${progress.length} projects`} /></Progress.Root>
+      <Table aria-label={`${what} results`}>
         <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Result</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{progress.map((r) => (
           <Table.Tr key={r.path}>
@@ -80,7 +80,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
   const manual = (doctor.data ?? []).filter((i) => !fixAction(i)), covered = (doctor.data?.length ?? 0) - manual.length;
   const list = (projects.data ?? []).filter(offered);
   const open = list.filter((p) => !blocked(p)).map((p) => p.path);
-  const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error).length;
+  const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error && !p.missing).length;
   const nothing = !select?.length && !picked.length;
   return (
     <Stack gap="md">
@@ -162,7 +162,7 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
     if (!select?.length) { projects(); return; }
-    api('/api/apply', { planId: plan.planId, select }).then(setJob, (e) => { setError(e.message); halt('failed to start'); });
+    api('/api/apply', { planId: plan.planId, select, ...confirms(plan, select) }).then(setJob, (e) => { setError(e.message); halt('failed to start'); });
   }, []);
   return (
     <Stack gap="md">

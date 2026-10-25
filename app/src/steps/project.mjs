@@ -10,7 +10,7 @@ import { exists, listFiles, readText } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
-import { PLUGINS, SKILLS_SPEC, pin } from './global.mjs';
+import { PLUGINS, SKILLS_SPEC, SKILLS_VERIFY, marketRef } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
 // A local setup's files: Claude Code's personal instructions and settings, and Codex's override of AGENTS.md.
@@ -38,6 +38,17 @@ const SKILL_NAME = /^[a-z0-9][a-z0-9-]*$/;
 // Skills the skills CLI installed in the project, by its lockfile.
 const lockedSkills = (dir) => Object.keys(tryJson(readText(join(dir, LOCK)))?.skills ?? {}).filter((n) => SKILL_NAME.test(n));
 
+// The skills BenchKeeper or the skills CLI installed (recorded in the state file or locked), the lockfile and the state
+// folder, as removals: what both kinds of setup leave in a project.
+function installedFiles(dir, state, add, skip = () => false) {
+  const names = [...new Set([...(state?.skills ?? []).map((s) => s.name), ...lockedSkills(dir)])].filter((n) => SKILL_NAME.test(n ?? ''));
+  for (const { dir: d } of skillDirs(['claude', 'codex', 'gemini', 'copilot'], 'project', dir)) {
+    for (const n of names) if (exists(join(d, n)) && !skip(join(d, n))) add(`skill:${n}`, `remove ${relative(dir, join(d, n))}`, { kind: 'remove', path: join(d, n) });
+  }
+  if (exists(join(dir, LOCK)) && !skip(join(dir, LOCK))) add('lock', `remove ${LOCK}`, { kind: 'remove', path: join(dir, LOCK) });
+  if (exists(join(dir, '.benchkeeper')) && !skip(join(dir, '.benchkeeper'))) add('state', 'remove .benchkeeper/', { kind: 'remove', path: join(dir, '.benchkeeper') });
+}
+
 // The committed setup of a repository (dir: a checkout of it), as changes that take it out: the BenchKeeper block in
 // AGENTS.md, a CLAUDE.md that only imports AGENTS.md, the sandbox keys BenchKeeper set in .claude/settings.json, the
 // state folder, and the skills BenchKeeper or the skills CLI installed, with the lockfile. What the project wrote itself
@@ -57,12 +68,43 @@ export function committedSetup(dir) {
     add('sandbox', '.claude/settings.json without the sandbox keys BenchKeeper set', { kind: 'write', path: at('.claude/settings.json'),
       edit: sandboxOff });
   }
-  const names = [...new Set([...(state?.skills ?? []).map((s) => s.name), ...lockedSkills(dir)])].filter((n) => SKILL_NAME.test(n ?? ''));
-  for (const { dir: d } of skillDirs(['claude', 'codex', 'gemini', 'copilot'], 'project', dir)) {
-    for (const n of names) if (exists(join(d, n))) add(`skill:${n}`, `remove ${relative(dir, join(d, n))}`, { kind: 'remove', path: join(d, n) });
+  installedFiles(dir, state, add);
+  return changes;
+}
+
+// A local setup as changes that take it out, for "Remove BenchKeeper setup": the BenchKeeper block in CLAUDE.local.md
+// (the file when nothing else is in it), AGENTS.override.md when it is BenchKeeper's, the sandbox keys in
+// .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, and the
+// installed files, except what git tracks (the project's own commits). Everything else of the project stays, its own
+// AGENTS.md text, docs/agents/ and .devcontainer/ included. keepExclude: another registered folder of the repository
+// shares the exclude list, so its block stays for it.
+export function localSetup(ctx, dir, { keepExclude = false } = {}) {
+  const at = (p) => join(dir, p);
+  const state = tryState(dir);
+  const changes = [];
+  const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, selected: true, ...c });
+  const claude = readText(at(LOCAL_CLAUDE));
+  if (getBlock(claude, 'project') != null) {
+    const strip = (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '');
+    if (strip(claude).trim()) add('local-claude', `${LOCAL_CLAUDE} without the BenchKeeper block`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: strip });
+    else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block)`, { kind: 'remove', path: at(LOCAL_CLAUDE) });
   }
-  if (exists(at(LOCK))) add('lock', `remove ${LOCK}`, { kind: 'remove', path: at(LOCK) });
-  if (exists(at('.benchkeeper'))) add('state', 'remove .benchkeeper/', { kind: 'remove', path: at('.benchkeeper') });
+  if (getBlock(readText(at(OVERRIDE)), 'project') != null) add('local-codex', `remove ${OVERRIDE} (BenchKeeper's)`, { kind: 'remove', path: at(OVERRIDE) });
+  const settings = readText(at(LOCAL_SETTINGS));
+  if (state?.sandbox && tryJson(settings)?.sandbox) {
+    // A settings file that held only the sandbox keys was BenchKeeper's.
+    if (Object.keys(tryJson(sandboxOff(settings)) ?? {}).length) add('sandbox', `${LOCAL_SETTINGS} without the sandbox keys BenchKeeper set`, { kind: 'write', path: at(LOCAL_SETTINGS), edit: sandboxOff });
+    else add('sandbox', `remove ${LOCAL_SETTINGS} (only the sandbox keys BenchKeeper set)`, { kind: 'remove', path: at(LOCAL_SETTINGS) });
+  }
+  if (state?.agents?.includes('gemini')) {
+    const g = agent('gemini').project.rules.setting;
+    const v = g.key.reduce((o, k) => o?.[k], tryJson(readText(at(g.path))));
+    if (JSON.stringify(v) === JSON.stringify(g.value)) add('gemini-context', 'Gemini CLI no longer reads AGENTS.md', { kind: 'write', path: at(g.path), edit: (t) => mergeJson(t, [{ path: g.key, remove: true }, { path: g.key.slice(0, -1), prune: true }]) });
+  }
+  installedFiles(dir, state, add, (p) => git(ctx, dir, ['ls-files', '--', p]).stdout.trim() !== '');
+  const exclude = keepExclude ? null : excludeFile(ctx, dir);
+  const id = `local:/${git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim()}`;
+  if (exclude && getBlock(readText(exclude), id, '#') != null) add('exclude', 'git ignores the local setup no longer (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t) => setBlock(t, id, null, '#') });
   return changes;
 }
 
@@ -237,7 +279,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     for (const ag of Object.keys(pack.plugins ?? {}).filter((x) => a.agents.includes(x))) {
       const p = PLUGINS[ag].find((x) => x.pack === id);
       if (p && !(plugins[ag] ?? []).includes(p.id)) {
-        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', `${p.source}${ag === 'claude' ? '#' : '@'}${pin(p, appVersion).ref}`], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace], unit: `pack:${id}:${ag}` });
+        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', `${p.source}${ag === 'claude' ? '#' : '@'}${marketRef(p, ag, appVersion)}`], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace], unit: `pack:${id}:${ag}` });
         add(`pack:${id}:${ag}`, `${agent(ag).name} plugin ${p.id}`, { unit: `pack:${id}:${ag}`, ...(ag === 'claude' ? { kind: 'command', argv: ['claude', 'plugin', 'install', p.id], undoArgv: ['claude', 'plugin', 'uninstall', p.id] } : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] }) });
       }
     }
@@ -285,7 +327,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
-        kind: 'command', cwd: dir, env: NPX_ENV, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
+        kind: 'command', cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
         argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }
@@ -301,7 +343,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
+      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
         argv: ['npx', '-y', SKILLS_SPEC, 'remove', name, ...flags, '-y'] });
     // A name the library does not know is not one BenchKeeper installed: offered, not preselected.
     } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: !!s });

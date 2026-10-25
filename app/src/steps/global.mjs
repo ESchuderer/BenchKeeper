@@ -9,6 +9,7 @@ import { contentDir } from '../content.mjs';
 import { cooled } from '../cooldown.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
+import { verifyArgv } from '../verify.mjs';
 
 // lite: the BenchKeeper plugin alone (nothing outside the plugin install). standard: the same on the machine, plus the local block
 // that `project apply` writes per project. full: everything below (global rules, settings, other plugins, host tools).
@@ -17,6 +18,8 @@ export const SKILLS_CLI = '1.7.2';
 // As an npm alias: npx runs a package from the project's node_modules when its version satisfies a plain spec, so a
 // cloned repository could ship its own "skills" 1.7.2. An alias range never matches a local package (npm 10 libnpmexec).
 export const SKILLS_SPEC = `skills@npm:skills@${SKILLS_CLI}`;
+// Run before a command that fetches the skills CLI: npm's registry signatures of the CLI and its dependencies.
+export const SKILLS_VERIFY = verifyArgv(`skills@${SKILLS_CLI}`);
 // The global skills' repositories at a commit (bumped by hand with SKILLS_CLI): the skills CLI reads a tree URL with a
 // commit as a pin, so a push to the default branch changes nothing here and the preview shows what the run installs.
 export const SKILL_SOURCES = {
@@ -25,6 +28,10 @@ export const SKILL_SOURCES = {
 };
 export const PONYTAIL_REF = 'v5.3.2';
 export const MATT_POCOCK_REF = 'v1.3.1';
+// The commits the tags point to (git ls-remote <repository> '<tag>^{}'), bumped with the tags. Codex adds a marketplace at
+// a commit. Claude Code only takes a branch or tag there, so the installed commit it records is compared with this one.
+export const PONYTAIL_COMMIT = '16352ac229eb08a9598dcae48fe9f2b342567d86';
+export const MATT_POCOCK_COMMIT = '24fe0ef7737efae15c87225755e9f6f5965e4888';
 // Pinned plugins: ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
 // BenchKeeper's marketplace follows the branch stable, which each release moves, so an update is a marketplace refresh: moving
 // a marketplace to another ref removes it and the plugin's data. Matt Pocock's Claude Code plugin comes from the official
@@ -32,20 +39,26 @@ export const MATT_POCOCK_REF = 'v1.3.1';
 export const PLUGINS = {
   claude: [
     { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
-    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, version: PONYTAIL_REF.slice(1) },
+    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, commit: PONYTAIL_COMMIT, version: PONYTAIL_REF.slice(1) },
     { id: 'mattpocock-skills@claude-plugins-official', marketplace: 'claude-plugins-official', version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
   ],
   codex: [
     { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
-    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, version: PONYTAIL_REF.slice(1) },
-    { id: 'mattpocock-skills@mattpocock', marketplace: 'mattpocock', source: 'mattpocock/skills', ref: MATT_POCOCK_REF, version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
+    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, commit: PONYTAIL_COMMIT, version: PONYTAIL_REF.slice(1) },
+    { id: 'mattpocock-skills@mattpocock', marketplace: 'mattpocock', source: 'mattpocock/skills', ref: MATT_POCOCK_REF, commit: MATT_POCOCK_COMMIT, version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
   ],
 };
 // The ref and version a plugin is pinned to, for this app version.
 export function pin(p, appVersion) {
   const app = (x) => (x === 'app' ? appVersion : x);
-  return { ref: p.ref, version: app(p.version) };
+  return { ref: p.ref, ...(p.commit ? { commit: p.commit } : {}), version: app(p.version) };
 }
+// What a marketplace add names for an agent: Codex the pinned commit, Claude Code the tag or branch.
+export const marketRef = (p, a, appVersion) => (a === 'codex' ? pin(p, appVersion).commit ?? p.ref : p.ref);
+// A recorded commit may be abbreviated.
+const sameCommit = (a, b) => a.length >= 7 && b.length >= 7 && (a.startsWith(b) || b.startsWith(a));
+// Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
+const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
@@ -86,6 +99,10 @@ export function globalSkills(ctx, a) {
 // each list command takes about 0.5 s. The CLI answers when the files are missing or unreadable.
 // shortcut: the files are internal CLI formats; if a CLI release changes them, the CLI fallback stays correct but slow.
 export function pluginState(ctx, a) {
+  const state = readPluginState(ctx, a);
+  return { ...state, listed: state.listed.filter((p) => SAFE_NAME.test(p.id ?? '')), markets: state.markets.filter((m) => SAFE_NAME.test(m ?? '')) };
+}
+function readPluginState(ctx, a) {
   const at = (p) => join(ctx.home, p);
   try {
     if (a === 'claude') {
@@ -93,7 +110,7 @@ export function pluginState(ctx, a) {
       const markets = JSON.parse(readText(at('.claude/plugins/known_marketplaces.json')));
       const on = parseJson(readText(at('.claude/settings.json')) ?? '{}').enabledPlugins ?? {};
       if (installed?.version === 2 && installed.plugins && markets) {
-        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, enabled: on[id] === true })));
+        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, ...(p.gitCommitSha ? { commit: p.gitCommitSha } : {}), enabled: on[id] === true })));
         return { listed, markets: Object.keys(markets), refs: Object.fromEntries(Object.entries(markets).map(([m, v]) => [m, v?.source?.ref])) };
       }
     } else {
@@ -202,12 +219,15 @@ export function globalPlan(env) {
       }
       const { ref, version } = pin(p, ctx.appVersion);
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
-      const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', `${p.source}${a === 'claude' ? '#' : '@'}${ref}`, ...sparse];
+      const marketAt = marketRef(p, a, ctx.appVersion);
+      const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', `${p.source}${a === 'claude' ? '#' : '@'}${marketAt}`, ...sparse];
       const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
       // A marketplace added at another ref stays there: moving it means removing it, which deletes the plugin's
       // options and data in Claude Code. The plan names the commands instead of promising the version.
-      const stuck = refs[p.marketplace] && p.source && refs[p.marketplace] !== ref && markets.includes(p.marketplace);
-      const manual = (title, outdated = false) => add(step, `${title}: by hand`, { kind: 'command', argv: addMarket, outdated, error: `the ${p.marketplace} marketplace is at ${refs[p.marketplace]}, not ${ref}; moving it removes the plugin's data. By hand: ${a} plugin marketplace remove ${p.marketplace}, then ${addMarket.join(' ')}, then ${install.join(' ')}` });
+      // The tag and the commit it points to are the same pin.
+      const stuck = refs[p.marketplace] && p.source && ![ref, p.commit].includes(refs[p.marketplace]) && markets.includes(p.marketplace);
+      const byHand = `By hand: ${a} plugin marketplace remove ${p.marketplace}, then ${addMarket?.join(' ')}, then ${install.join(' ')}`;
+      const manual = (title, outdated = false) => add(step, `${title}: by hand`, { kind: 'command', argv: addMarket, outdated, error: `the ${p.marketplace} marketplace is at ${refs[p.marketplace]}, not ${marketAt}; moving it removes the plugin's data. ${byHand}` });
       // Installed but turned off: Claude Code turns it on in settings (undone by the file's backup); Codex by hand.
       if (off) {
         if (a === 'claude') add(step, `${name} plugin ${p.id}: turn on`, { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['enabledPlugins', p.id], value: true }]) });
@@ -217,6 +237,11 @@ export function globalPlan(env) {
       // The entry is there, its files are not: install again.
       if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
       if (have) {
+        // Same version, other commit: the tag moved after the marketplace was added (Claude Code takes no commit, so the commit it recorded is checked).
+        if (p.commit && have.commit && semver(have.version) && bySemver(have.version, version) === 0 && !sameCommit(have.commit, p.commit)) {
+          add(step, `${name} plugin ${p.id} ${have.version}: installed from another commit than the pin: by hand`, { kind: 'command', argv: addMarket, error: `${p.id} was installed from commit ${have.commit.slice(0, 12)}, the pin for ${have.version} is ${p.commit.slice(0, 12)}: the tag moved, or the files changed. Review it, then: ${a} plugin uninstall ${p.id}, ${byHand}` });
+          continue;
+        }
         if (stuck && semver(have.version) && bySemver(have.version, version) < 0) { manual(`${name} plugin ${p.id} ${have.version} to ${version}`, true); continue; }
         // Older than the pin: refresh the marketplace and update. Newer stays (Codex installs Ponytail from its main
         // branch whatever the ref). Removing the marketplace to move its ref would delete the plugin's options and
@@ -254,11 +279,11 @@ export function globalPlan(env) {
     for (const s of readdirSync(at(d))) if (!KEEP_SKILLS.includes(s)) add(`other:${a}:skill`, `move the global skill ~/${d}/${s} to the backup`, { kind: 'remove', path: at(join(d, s)) });
   }
   if (agents.includes('claude')) {
-    const servers = Object.keys(parseJsonSafe(readText(at('.claude.json'))).mcpServers ?? {});
+    const servers = Object.keys(parseJsonSafe(readText(at('.claude.json'))).mcpServers ?? {}).filter((n) => SAFE_NAME.test(n));
     for (const s of servers) add('other:claude:mcp', `remove the Claude user MCP server ${s} (projects configure their own)`, { kind: 'command', argv: ['claude', 'mcp', 'remove', '--scope', 'user', s], destructive: true });
   }
   if (agents.includes('codex')) {
-    for (const s of json(ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: home }).stdout, []).map((x) => x.name)) add('other:codex:mcp', `remove the Codex MCP server ${s} (projects configure their own)`, { kind: 'command', argv: ['codex', 'mcp', 'remove', s], cwd: home, destructive: true });
+    for (const s of json(ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: home }).stdout, []).map((x) => x.name).filter((n) => SAFE_NAME.test(n ?? ''))) add('other:codex:mcp', `remove the Codex MCP server ${s} (projects configure their own)`, { kind: 'command', argv: ['codex', 'mcp', 'remove', s], cwd: home, destructive: true });
   }
   // Hooks per event, Orca's kept (Orca writes its own back).
   const hookFiles = [agents.includes('claude') && at('.claude/settings.json'), agents.includes('codex') && at('.codex/hooks.json')].filter(Boolean);
@@ -299,10 +324,10 @@ export function globalPlan(env) {
   const want = env.devcontainerCli ?? newest(ctx, '@devcontainers/cli');
   const have = (ctx.run(['devcontainer', '--version']).stdout || '').trim();
   // A newer installed release stays: the cooldown picks what to install, it never downgrades.
-  if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`] });
+  if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`], verify: verifyArgv(`@devcontainers/cli@${want}`) });
   // Lifecycle scripts stay off (the skills CLI needs none); the snapshot makes the install undoable: the skill folders and the lock.
   const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, {
-    kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true' },
+    kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true' }, verify: SKILLS_VERIFY,
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
   });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();

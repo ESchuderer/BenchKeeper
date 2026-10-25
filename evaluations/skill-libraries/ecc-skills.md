@@ -10,8 +10,10 @@ Four single skills of ECC's `workflow-quality` module, installed without the plu
 
 ## Independent evidence
 
-- `tdd-workflow`: one third party, a port to another platform, 6 paired tasks, runs not stated: quality +0.20 (scale not given), +21 s and +74k tokens per task ([discussion #2504](https://github.com/affaan-m/ECC/discussions/2504#discussioncomment-17852942)).
-- `verification-loop`, `error-handling`, `architecture-decision-records`: none found (`gh search issues` and discussions of the repository, 2026-10-25).
+- `tdd-workflow`, signals only (6 and 14 tasks, runs per arm not stated), not measurements:
+  - One third party, a port to another agent platform: 6 paired tasks, quality +0.20 (scale not given), +21 s and +74k tokens per task. Platform version, model and effort not stated ([discussion #2504](https://github.com/affaan-m/ECC/discussions/2504#discussioncomment-17852942)).
+  - [SWE-Skills-Bench, arXiv 2603.15401](https://arxiv.org/abs/2603.15401), as recorded in [studies and sources](../studies.md#cross-tool-findings): a `tdd-workflow` skill whose source is unverified (it may not be this one), Claude Code with Haiku 4.5, 14 tasks, pass rate 21.4% to 28.6%, tokens +78.6%. Version and effort not stated.
+- `verification-loop`, `error-handling`, `architecture-decision-records`: none found. Searched on 2026-10-25: the sources to follow in [studies and sources](../studies.md#sources-to-follow) (the skill leaderboard does not list ECC), arXiv (the API, by repository and skill names: no result), then GitHub issues and discussions of the repository (`gh search issues`).
 
 ## User reports
 
@@ -35,7 +37,7 @@ Measured at the pin:
 
 | Skill | Description characters | `SKILL.md` lines | License | Last folder commit | Effect evidence |
 |---|---|---|---|---|---|
-| `tdd-workflow` | 294 | 583 | root `LICENSE` MIT, none in folder or frontmatter | 0765f7a (2026-09-27) | third party, n = 6, runs not stated |
+| `tdd-workflow` | 294 | 583 | root `LICENSE` MIT, none in folder or frontmatter | 0765f7a (2026-09-27) | signals only: third party n = 6, SWE-Skills-Bench n = 14 (source unverified) |
 | `verification-loop` | 306 | 129 | `license: MIT` in frontmatter (`SKILL.md:4`) | 0765f7a (2026-09-27) | none found |
 | `error-handling` | 288 | 377 | root `LICENSE` MIT, none in folder or frontmatter | d29cf65 (2026-08-12) | none found |
 | `architecture-decision-records` | 318 | 180 | root `LICENSE` MIT, none in folder or frontmatter | 0765f7a (2026-09-27) | none found |

@@ -70,7 +70,7 @@ Overall is the worst of the five. Checks ran on 2026-10-24 (50 skills) and 2026-
 | [`compliance-check`](data-and-operations-skills.md) | `anthropics/knowledge-work-plugins` | pass | pass | borderline | borderline | pass | borderline | none; skills.sh 3.3K installs |
 | [`synthesize-research`](data-and-operations-skills.md) | `anthropics/knowledge-work-plugins` | borderline | pass | pass | borderline | pass | borderline | none; skills.sh 3.0K installs, Snyk Warn without reason |
 | [`gdpr-compliant`](data-and-operations-skills.md) | `github/awesome-copilot` | pass | pass | borderline | borderline | pass | borderline | none; skills.sh 1.6K installs, scans pass |
-| [`tdd-workflow`](ecc-skills.md) | `affaan-m/ECC` | fail | pass | fail | borderline | pass | fail | third party, n = 6, runs not stated; open bugs #3530, #3545 |
+| [`tdd-workflow`](ecc-skills.md) | `affaan-m/ECC` | fail | pass | fail | borderline | pass | fail | signals only (n = 6, n = 14); open bugs #3530, #3545 |
 | [`verification-loop`](ecc-skills.md) | `affaan-m/ECC` | borderline | pass | pass | borderline | pass | borderline | none found; open feedback #3679 |
 | [`error-handling`](ecc-skills.md) | `affaan-m/ECC` | pass | pass | pass | pass | pass | pass | none found |
 | [`architecture-decision-records`](ecc-skills.md) | `affaan-m/ECC` | borderline | pass | pass | borderline | pass | borderline | none found |

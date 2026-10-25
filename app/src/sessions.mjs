@@ -259,7 +259,7 @@ export async function scanSessions(ctx, { since, onFile } = {}) {
       agent: kind, id: kind === 'codex' ? d.id : basename(file, '.jsonl'), project: d.cwd ?? null, branch: d.branch ?? null,
       agentVersion: d.agentVersion ?? null, title: d.title ?? null, start: d.start, end: d.end, turns: d.turns, models,
       costUSD: d.cost?.usd ?? null, busyMs: kind === 'codex' ? d.busy : d.cost?.busy ?? null, tokens,
-      tier: tierOf(d.tiers), skills: [...new Set(skills.map(bare))].sort(), tests: d.tests, setup: d.installed ? setupLabels(d.installed) : null,
+      tier: tierOf(d.tiers), skills: [...new Set(skills.map(bare))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), tests: d.tests, setup: d.installed ? setupLabels(d.installed) : null,
       setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs,
     });
   }

@@ -50,8 +50,7 @@ export const register: Register = (on, options) => {
   // Each step's visible text: the tier line comes before the first edit, not only in the final answer.
   on('turn.step', async function* ($, e, next) {
     const result = yield* next(e)
-    if (!on_ || e.agentId) return result
-    const line = lastTier(result.answer)
+    const line = on_ && !e.agentId ? lastTier(result.answer) : null
     if (line) await update($, tier, () => line)
     return result
   })

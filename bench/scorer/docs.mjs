@@ -2,12 +2,13 @@
 // Own source = files() of erosion.mjs. A function counts when it is named (declaration, method, or a function or arrow bound
 // to a variable, property or assignment); it is documented when a comment of any style (`/** */`, `/* */`, `//`) ends on the
 // line before it or on its first line. Exported = `export` keyword, `export { }`, `export default name`, `module.exports`, `exports.x`.
-// Usage: node bench/scorer/docs.mjs <app-dir>   prints JSON; needs `typescript` (bench/scorer/package.json)
+// Usage: node bench/scorer/docs.mjs <app-dir: /app or a folder of the temp folder>   prints JSON; needs `typescript` (bench/scorer/package.json)
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { files } from './erosion.mjs';
+import { appFolder } from './mounts.mjs';
 
 const read = (p) => (existsSync(p) && statSync(p).isFile() ? readFileSync(p, 'utf8') : null);
 const nonEmpty = (p) => (read(p) ?? '').trim().length > 0;
@@ -163,4 +164,4 @@ export function docs(dir) {
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(docs(process.argv[2])));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(docs(appFolder(process.argv[2]))));

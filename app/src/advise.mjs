@@ -69,9 +69,9 @@ export function advicePrompt(lib) {
 
 // The answer comes from a session that read the repository: only known ids pass, reasons are short plain text.
 export function parseAdvice(text, lib) {
-  const m = String(text ?? '').match(/\{[\s\S]*\}/);
+  const raw = String(text ?? '');
   let j;
-  try { j = JSON.parse(m?.[0]); } catch { throw new Error('the agent gave no JSON answer'); }
+  try { j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)); } catch { throw new Error('the agent gave no JSON answer'); }
   const reason = (x) => String(x ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
   const list = (x) => (Array.isArray(x) ? x : []);
   return {

@@ -99,7 +99,7 @@ function Packs({ packs, onChange }) {
             let text;
             try { text = await f.text(); } catch (e) { setError(e.message); return; }
             let id; try { id = JSON.parse(text).id; } catch { /* the server names what is wrong */ }
-            if (packs.some((p) => p.own && p.id === id)) setReplace({ id, text }); else importText(text);
+            if (packs.some((p) => p.own && p.id === id)) setReplace({ id, text }); else await importText(text);
           }}>
           {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import pack file</Button>}
         </FileButton>
@@ -194,7 +194,7 @@ export function Agents({ overview, params, refresh }) {
     if (!auto || !overview.data) return;
     const ids = auto === '*' ? installed : [auto];
     setSelect(ids);
-    load(ids);
+    load(ids).catch(console.error);
   }, [auto, !!overview.data]);
   return (
     <Loading state={overview} label="agents">{(o) => {
@@ -627,10 +627,10 @@ export function Sessions() {
   };
   const scan = async (force) => {
     setError(null);
-    try { const r = await api('/api/sessions-scan', force ? { force: true } : {}); if (r.fresh) show(); else setJob(r.job); } catch (e) { setError(e.message); }
+    try { const r = await api('/api/sessions-scan', force ? { force: true } : {}); if (r.fresh) await show(); else setJob(r.job); } catch (e) { setError(e.message); }
   };
-  useEffect(() => { scan(); }, []);
-  const state = useJob(job, (s) => { if (s.error) setError(s.error); else show(); setJob(null); });
+  useEffect(() => { scan().catch(console.error); }, []);
+  const state = useJob(job, (s) => { if (s.error) setError(s.error); else show().catch(console.error); setJob(null); });
   const p = state?.progress;
   return (
     <Stack gap="lg">

@@ -1,5 +1,0 @@
-{
-  "serve": "static",
-  "followup": "Continue until the brief is fully implemented and index.html opens the app from disk. Do not wait for approval.",
-  "axe_pages": ["list", "detail-308_win", "detail-300_win_mag", "detail-9_3_x_74_r", "detail-9_mm_luger", "detail-22_long_rifle", "detail-44_rem_mag"]
-}

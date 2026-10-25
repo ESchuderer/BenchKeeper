@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "playwright-mcp",
-      "args": ["--headless", "--browser", "chromium", "--isolated", "--no-sandbox"]
-    }
-  }
-}

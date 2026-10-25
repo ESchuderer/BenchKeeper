@@ -4,8 +4,6 @@ name: Scorecard
 # permissions (https://github.com/ossf/scorecard-action#workflow-restrictions).
 on:
   branch_protection_rule:
-  push:
-    branches: [develop] # publish_results supports only the default branch
   schedule:
     - cron: '17 5 * * 1'
 
@@ -15,6 +13,7 @@ jobs:
   analysis:
     if: github.repository == 'ESchuderer/BenchKeeper'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write

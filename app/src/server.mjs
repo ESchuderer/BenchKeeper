@@ -27,7 +27,8 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll } from './projects.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
-import { scanSessions } from './sessions.mjs';
+import { dashboard } from './dashboard.mjs';
+import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
@@ -170,6 +171,7 @@ export function api(ctx) {
   };
   const agentsNow = () => cached('agents', () => detect(ctx));
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
+  const inventoryNow = () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) }));
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
     'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
@@ -386,6 +388,17 @@ export function api(ctx) {
         job.results = { sessions: rows.length };
       }, { kind: 'scan', title: 'sessions', readOnly: true });
     },
+    // The sessions cache keeps a summary after the agent deletes its transcript: how long, and a way to clear it. Refused
+    // during a scan, which would write the old cache back.
+    'GET /api/sessions-cache': () => sessionCache(ctx),
+    'POST /api/sessions-cache': (b) => {
+      if ([...jobs.values()].some((j) => j.kind === 'scan' && !j.done)) throw Object.assign(new Error('a scan is running: wait for it to finish'), { status: 409 });
+      if (b.clear === true) clearSessionCache(ctx);
+      else if ('keepDays' in b) input(() => keepSessionsFor(ctx, b.keepDays));
+      else throw bad('send clear: true or keepDays');
+      scans.delete(ctx);
+      return sessionCache(ctx);
+    },
     'POST /api/update-all': (b) => {
       idle();
       const paths = (b.paths ?? []).filter(registered);
@@ -514,7 +527,9 @@ export function api(ctx) {
       const changes = preview(input(() => ruleChanges(ctx, { agent: b.agent, file: b.file, dir, on: b.on })));
       return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
     },
-    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) })),
+    'GET /api/inventory': inventoryNow,
+    // The Dashboard: installed, health, coverage and catalog by pack, from one read of the inventory and the projects.
+    'GET /api/dashboard': () => cached('dashboard', () => dashboard(ctx, installed(), inventoryNow())),
   };
   // Registry, pack and profile writes wait for a running apply too: they change what a plan reads or an apply writes.
   const guarded = { 'POST /api/projects': () => true, 'POST /api/packs': () => true, 'POST /api/profile-import': (b) => b.register };

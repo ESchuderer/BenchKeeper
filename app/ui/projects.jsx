@@ -31,19 +31,21 @@ export const SORT_OPTIONS = Object.entries(SORTS).map(([value, [text]]) => ({ va
 
 // The rows to show: search over name, folder and notes, then the filter, then the sort (a stable one, so ties and the
 // default keep the order the projects were added in).
-export function visibleProjects(list, { query = '', sort = 'added', filter = 'all', version } = {}) {
+export function visibleProjects(list, { query = '', sort = 'added', filter = 'all', pack = '', agent = '', version } = {}) {
   const q = query.trim().toLowerCase();
   const match = FILTERS[filter]?.[1] ?? FILTERS.all[1];
-  const rows = list.filter((p) => match(p, version) && (!q || [label(p), p.path, p.notes ?? ''].some((t) => t.toLowerCase().includes(q))));
+  const rows = list.filter((p) => match(p, version) && (!pack || p.packs?.includes(pack)) && (!agent || p.agents?.includes(agent)) && (!q || [label(p), p.path, p.notes ?? ''].some((t) => t.toLowerCase().includes(q))));
   const by = SORTS[sort]?.[1] ?? SORTS.added[1];
   return rows.map((p, i) => ({ p, i })).sort((a, b) => by(a.p, b.p, version) || a.i - b.i).map(({ p }) => p);
 }
 
-export function ProjectFilters({ query, onQuery, sort, onSort, filter, onFilter }) {
+export function ProjectFilters({ query, onQuery, sort, onSort, filter, onFilter, pack, onPack, packs = [], agent, onAgent, agents = [] }) {
   return (
     <Group align="flex-end" gap="sm">
       <TextInput label="Search projects" placeholder="Name, folder or notes" leftSection={icon(IconSearch)} value={query} onChange={(e) => onQuery(e.currentTarget.value)} w={{ base: '100%', sm: 220 }} />
       <Select label="Show" data={FILTER_OPTIONS} value={filter} onChange={(v) => onFilter(v ?? 'all')} allowDeselect={false} w={170} />
+      <Select label="Pack" placeholder="Any pack" clearable data={packs} value={pack || null} onChange={(v) => onPack(v ?? '')} w={150} />
+      <Select label="Agent" placeholder="Any agent" clearable data={agents} value={agent || null} onChange={(v) => onAgent(v ?? '')} w={150} />
       <Select label="Sort by" data={SORT_OPTIONS} value={sort} onChange={(v) => onSort(v ?? 'added')} allowDeselect={false} w={170} />
     </Group>
   );

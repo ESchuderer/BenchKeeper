@@ -189,6 +189,6 @@ function checkedToml(out, before, parents, key, label) {
 
 function sortKeys(v) {
   if (Array.isArray(v)) return v.map(sortKeys);
-  if (v && typeof v === 'object' && !(v instanceof Date)) return Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])]));
+  if (v && typeof v === 'object' && !(v instanceof Date)) return Object.fromEntries(Object.keys(v).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((k) => [k, sortKeys(v[k])]));
   return v;
 }

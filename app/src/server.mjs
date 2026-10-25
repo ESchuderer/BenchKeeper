@@ -27,7 +27,7 @@ import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
-import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
+import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
 import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
@@ -681,5 +681,5 @@ export function openBrowser(url, { wait = 120e3, open = launch, confined = confi
 // On Windows through explorer: cmd would read & or ^ in a folder name as its own syntax.
 export function openFolder(dir) {
   if (process.platform !== 'win32') return launch(dir);
-  try { spawn('explorer', [dir], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* nothing to open */ }
+  try { spawn(windowsTool('explorer.exe'), [dir], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* nothing to open */ }
 }

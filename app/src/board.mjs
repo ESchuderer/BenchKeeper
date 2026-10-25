@@ -61,7 +61,7 @@ function draw() {
   const matches = (key, f, r) => (key === 'project' && state.project === REGISTERED ? listed(r) : f(r) === state[key]);
   const bar = $('filters');
   for (const [key, label, f] of FILTERS) {
-    const values = [...new Set(rows.map(f))].sort();
+    const values = [...new Set(rows.map(f))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     const own = key === 'project' && D.registered.length ? [el('option', { value: REGISTERED, selected: state.project === REGISTERED }, 'Registered projects')] : [];
     const s = el('select', { id: `f-${key}` }, own, el('option', { value: '', selected: !state[key] }, 'All'), values.map((v) => el('option', { value: v }, v)));
     s.addEventListener('change', () => { state[key] = s.value; render(); });

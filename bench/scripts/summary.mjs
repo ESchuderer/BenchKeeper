@@ -1,8 +1,9 @@
 // Descriptive per-arm table for a brief run (no significance tests: too few trials).
-// Usage: node bench/scripts/summary.mjs <run-dir>   (reads round-*/<arm>/trial.json, prints Markdown)
+// Usage: node bench/scripts/summary.mjs <run-dir: a folder of bench/runs, bench/results or the temp folder>   (reads round-*/<arm>/trial.json, prints Markdown)
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { runDir } from './run-dirs.mjs';
 import { byCode, validity } from './trial.mjs';
 
 const median = (xs) => {
@@ -81,7 +82,7 @@ export function table(trials) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const dir = process.argv[2];
+  const dir = runDir(process.argv[2]);
   const trials = readdirSync(dir).filter((d) => d.startsWith('round-')).flatMap((r) => readdirSync(join(dir, r))
     .map((a) => join(dir, r, a, 'trial.json')).filter(existsSync).map((f) => ({ ...JSON.parse(readFileSync(f, 'utf8')), round: r.slice(6) })));
   console.log('Median (min to max) over valid trials; invalid = missing/failed delivery audit, agent infrastructure error or checkpoint scoring error; n/a = not measured (for example the app did not start).\n');

@@ -182,7 +182,7 @@ export function useJob(job, onDone) {
       }
       timer = setTimeout(poll, 400);
     };
-    poll();
+    poll().catch(console.error);
     return () => { live = false; clearTimeout(timer); };
   }, [job]);
   return state;

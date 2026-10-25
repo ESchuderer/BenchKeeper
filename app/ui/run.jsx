@@ -34,7 +34,7 @@ export function DiffView({ diff, path, mode = 'unified' }) {
   const d = useMemo(() => parseDiff(diff), [diff]);
   const [all, setAll] = useState(false);
   const wide = useMediaQuery('(min-width: 62em)');
-  const oneSided = d.hunks.length === 1 && /^@@ -0,0 |\+0,0 @@/.test(d.hunks[0].head);
+  const oneSided = d.hunks.length === 1 && /(?:^@@ -0,0 )|(?:\+0,0 @@)/.test(d.hunks[0].head);
   const split = mode === 'split' && wide && !oneSided;
   const rows = d.hunks.flatMap((h) => [{ head: h.head }, ...(split ? sideBySide(h.lines) : h.lines)]);
   const shown = all ? rows : rows.slice(0, LIMIT);
@@ -44,7 +44,7 @@ export function DiffView({ diff, path, mode = 'unified' }) {
         <Text size="xs" ff="monospace" style={{ overflowWrap: 'anywhere' }}>{path}</Text>
         <Text size="xs" ff="monospace" style={{ flexShrink: 0 }}><span className="bk-plus">+{d.added}</span> <span className="bk-minus">-{d.removed}</span></Text>
       </Group>
-      <div className="bk-diff-body" tabIndex={0} role="group" aria-label={`Diff of ${path}`}>
+      <div className="bk-diff-body" role="group" aria-label={`Diff of ${path}`}>
         <table>
           <thead className="bk-sr">
             <tr>{(split ? ['Old line', 'Before', 'New line', 'After'] : ['Old line', 'New line', 'Change']).map((h) => <th key={h} scope="col">{h}</th>)}</tr>

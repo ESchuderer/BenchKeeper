@@ -94,7 +94,7 @@ export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3 } = {}) {
     if (r.code !== 0) return { files: [], error: mask((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ')) || `exit ${r.code}` };
     // What the command left in the scratch folder, and the seeded paths it may have removed.
     const skip = (f) => !c.cwd && SKIP.some((s) => f === s || f.startsWith(`${s}${sep}`));
-    const rels = [...new Set([...listFiles(root), ...seeds.flatMap((s) => filesBelow(realOf(s)).map((f) => join(s, f)))])].filter((f) => !skip(f)).sort();
+    const rels = [...new Set([...listFiles(root), ...seeds.flatMap((s) => filesBelow(realOf(s)).map((f) => join(s, f)))])].filter((f) => !skip(f)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     const changed = rels.filter((f) => readText(realOf(f)) !== readText(join(root, f)));
     const files = changed.slice(0, MAX_FILES).map((f) => ({ path: realOf(f), diff: diffLines(readText(realOf(f)), readText(join(root, f)), realOf(f)) }));
     return { files, more: Math.max(changed.length - MAX_FILES, 0), error: null };

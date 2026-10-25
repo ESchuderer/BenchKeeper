@@ -2,7 +2,8 @@
 # podman build -f bench/image/Containerfile --build-arg ARM=<A to Z, AA to AH, AL to AO> -t benchkeeper-arm-<arm> .
 FROM docker.io/library/node:22.23.3-bookworm-slim@sha256:efd0ab5780c2d9ab1f0f869571a00d5edb17793bff4cce4a2792e3eb0ffc7562
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates jq && rm -rf /var/lib/apt/lists/*
-RUN npm i -g @anthropic-ai/claude-code@2.1.299
+# The package's own install step links the native binary: run on its own, so no dependency's install script runs.
+RUN npm i -g --ignore-scripts @anthropic-ai/claude-code@2.1.299 && node "$(npm root -g)/@anthropic-ai/claude-code/install.cjs"
 ENV DISABLE_AUTOUPDATER=1 PATH=/home/node/.local/bin:$PATH
 COPY bench/arms/bk-rules.md bench/arms/superpowers.rules.md bench/arms/ecc.rules.md bench/arms/mattpocock.rules.md bench/arms/mattpocock-agent-skills.md bench/arms/candidate.rules.md bench/arms/opencode-addy-openspec.AGENTS.md bench/image/install-arm.sh /opt/bench/
 COPY bench/arms/bk-skills /opt/bench/skills

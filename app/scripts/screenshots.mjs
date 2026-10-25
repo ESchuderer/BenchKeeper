@@ -52,7 +52,7 @@ const VIEWS = [
     await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();
     // The summary step lists the answers and what the setup writes.
     for (let i = 0; i < 4; i++) await drawer.getByRole('button', { name: 'Next' }).click();
-    await expect(drawer).toContainText(/\d+ changes in this checkout, in files git ignores/);
+    await expect(drawer).toContainText(/\d{1,9} changes in this checkout, in files git ignores/);
   }],
   ['sessions', async (page) => {
     await nav(page, 'Sessions').click();

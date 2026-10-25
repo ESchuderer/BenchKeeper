@@ -5,7 +5,8 @@ import { join } from 'node:path';
 const jsonl = (file, lines) => { mkdirSync(join(file, '..'), { recursive: true }); writeFileSync(file, `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`); };
 let work = '/work';
 const common = (t, cwd = `${work}/shop`) => ({ cwd, gitBranch: 'feat/cart', version: '2.1.300', sessionId: 's1', timestamp: t });
-const assistant = (t, id, content, usage = { input_tokens: 10, cache_read_input_tokens: 100, cache_creation_input_tokens: 0, output_tokens: 5 }) => ({ ...common(t), type: 'assistant', message: { id, model: 'claude-sonnet-5-5', content, usage } });
+const USAGE = { input_tokens: 10, cache_read_input_tokens: 100, cache_creation_input_tokens: 0, output_tokens: 5 };
+const assistant = (t, id, content, usage = USAGE) => ({ ...common(t), type: 'assistant', message: { id, model: 'claude-sonnet-5-5', content, usage } });
 const human = (t, content, extra = {}) => ({ ...common(t), type: 'user', origin: { kind: 'human' }, message: { role: 'user', content }, ...extra });
 const result = (t, id, text, isError) => ({ ...common(t), type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: text, is_error: isError }] } });
 

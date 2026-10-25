@@ -1,8 +1,8 @@
 # Library quality bar
 
-Category: skill libraries, Checked 2026-10-24 and 2026-10-25, Decision: Owner decision pending (issue 151): 7 fail, 40 borderline, 7 pass of 54 library skills
+Category: skill libraries, Checked 2026-10-24 and 2026-10-25, Decision: The 7 skills that fail are removed (issue 151, setup-v6.10); 47 remain: 40 borderline, 7 pass
 
-Result of checking every skill in `plugins/benchkeeper/library/library.json` (54 skills, 12 sources, each at its pinned commit; the four ECC skills added in #247 were checked on 2026-10-25 by one reader, the other 50 on 2026-10-24) against the five-point bar of [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151). One Sonnet subagent per source read the skill folder at the pin and the source repository's metadata; each failure and borderline result below cites file and line or a URL in the source's evaluation file. Nothing is removed: the owner decides.
+Result of checking every skill in `plugins/benchkeeper/library/library.json` (54 skills, 12 sources, each at its pinned commit; the four ECC skills added in #247 were checked on 2026-10-25 by one reader, the other 50 on 2026-10-24) against the five-point bar of [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151). One Sonnet subagent per source read the skill folder at the pin and the source repository's metadata; each failure and borderline result below cites file and line or a URL in the source's evaluation file. The seven that failed are removed from the library (section Decision); the table keeps their results.
 
 ## The bar
 
@@ -77,9 +77,9 @@ Overall is the worst of the five. Checks ran on 2026-10-24 (50 skills) and 2026-
 
 Detail per skill, with file and line or URL for every fail and borderline: the linked evaluation file, section "Quality bar check". The own skill `designing-technical-uis` is recorded here: point 4 borderline because it partly overlaps `frontend-design` on UI text (own `SKILL.md:12-24, 37-38` against `frontend-design/SKILL.md:61-71`, with different empty-state advice) and its only evidence is the author's own check on an earlier text (`evaluations/practices/skill-authoring.md:33`, n = 1; 12 trigger cases in `plugins/benchkeeper/evals/skill-designing-technical-uis.json` without recorded results). Its folder has no license file (root `LICENSE` is MIT), 451 description characters, 57 lines, last folder commit 82da7f1 (2026-10-18).
 
-Totals: 7 fail, 40 borderline, 7 pass.
+Totals of the 54 checked: 7 fail, 40 borderline, 7 pass. The library has 47 skills after the removal: 40 borderline, 7 pass.
 
-## Fails
+## Fails (removed from the library)
 
 - `docx`, point 2: `LICENSE.txt` "All rights reserved" (`LICENSE.txt:1`): no copies outside the Services (`:16-17`), no derivative works (`:20`), no distribution or sublicense (`:21`); `SKILL.md:4` says `license: Proprietary.`. The repository has no root license, and its README calls these four "source-available, not open source". `library.json` has no `license` field for them.
 - `pdf`, point 2: Same `LICENSE.txt` as `docx` (identical file): `:1` "All rights reserved", `:16-17`, `:20`, `:21`.
@@ -97,7 +97,7 @@ Totals: 7 fail, 40 borderline, 7 pass.
 
 ## Judgment calls
 
-Grades that depend on a reading of the bar. The owner's answer changes the count.
+Grades that depend on a reading of the bar. The owner decided on 2026-10-25 to follow the bar as written, so the strict readings below (`fp-check`, `scientific-critical-thinking`, `tdd-workflow`) count as fail and those skills are removed.
 
 - `mcp-builder` point 1 (borderline): it fetches the SDK READMEs from `main` branch URLs on every run (`SKILL.md:61, 65, 212-213`). They are documentation, not rules, but the Vercel skills were left out for fetching from a branch URL (`library-exclusions.md`). Fail if the owner counts documentation.
 - `fp-check` point 1 (fail): the strict reading. The standard path is self-contained and the deep phases are written out (`deep-verification.md:74-143`), so it degrades; `dimensional-analysis` could not run at all. Borderline if degradation counts.
@@ -111,6 +111,8 @@ Grades that depend on a reading of the bar. The owner's answer changes the count
 Changes to the subagent grades: the four marketing `tools/` skills (fail to borderline), licenses that sit only in the repository root (borderline to pass, per the bar's "permissive and present"), and skills with a distinct trigger whose only gap was a missing independent measurement (borderline to pass on point 4, with the column "Effect evidence" kept).
 
 ## Borderline by cause
+
+The counts include the seven removed skills.
 
 - Point 1, Runs as installed (25 borderline, 3 fail): unpinned package installs or live pages in the instructions (most of them), references to files or agents outside the folder that are optional (`variant-analysis`, `incident-response`, `synthesize-research`, `copywriting`, and the partner `tools/` links in `ai-seo`, `launch`, `content-strategy`, `analytics`), a branch-URL README fetch (`mcp-builder`), a script outside the folder (`tdd-workflow`, fail), optional ECC command or agent pointers (`verification-loop`, `architecture-decision-records`), downloads at run time (`venue-templates`, `directory-submissions`)
 - Point 2, License (6 borderline, 4 fail): copyleft share-alike (the three Trail of Bits skills), and license labels that do not match the root MIT (`sympy`, `pymoo`, `venue-templates`)
@@ -133,6 +135,6 @@ Defects worth the owner's attention among the borderline skills (each is in the 
 
 ## Decision
 
-Not decided. The removal list, the exclusion entries, the `library.json` and pack changes, the CHANGELOG line and the version bump wait for the owner's answer in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151). Recommendation to the owner: remove the four Anthropic document skills (point 2 fail, source-available license that bars copies and derivatives), `fp-check`, `scientific-critical-thinking` and `tdd-workflow` (point 1 fail; `tdd-workflow` also fails point 3 with 583 lines), decide `mcp-builder` and `directory-submissions` first among the borderline cases, re-pin `ai-seo` or drop it, and treat the rest as keep with the recorded defects.
+Owner decision on [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151): follow the bar as written. Removed from `library.json` and the packs: `docx`, `pdf`, `pptx`, `xlsx` (point 2, license forbids redistribution), `scientific-critical-thinking`, `fp-check` and `tdd-workflow` (point 1, files they need outside their folder). Each is in [library exclusions](library-exclusions.md) with the reason and the upstream issue where one exists; a skill can come back when upstream removes the cause. The library has 47 skills: 40 borderline, 7 pass. The borderline skills stay with their recorded defects. Open for the owner: `ai-seo` needs a re-pin for the robots.txt advice, and `mcp-builder` and `directory-submissions` are the first borderline cases to decide.
 
 [All evaluations](../../EVALUATIONS.md)

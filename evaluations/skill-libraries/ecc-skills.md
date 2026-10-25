@@ -1,8 +1,8 @@
-# ECC skills (tdd-workflow, verification-loop, error-handling, architecture-decision-records)
+# ECC skills (verification-loop, error-handling, architecture-decision-records; tdd-workflow removed)
 
-[Repository](https://github.com/affaan-m/ECC), Category: skill libraries, Checked 2026-10-25, Decision: Pack `ecc` (owner names ECC); owner decision pending on the quality bar (issue 151)
+[Repository](https://github.com/affaan-m/ECC), Category: skill libraries, Checked 2026-10-25, Decision: Pack `ecc` (owner names ECC) with three skills; `tdd-workflow` removed (issue 151, setup-v6.10)
 
-Four single skills of ECC's `workflow-quality` module, installed without the plugin (`plugins/benchkeeper/library/library.json`, pack `ecc`, added in #247 after the first quality bar check of 50 skills). The ECC bundle itself is evaluated under "ECC" in [EVALUATIONS.md](../../EVALUATIONS.md): no outcome measurement, hook and listing overhead reported.
+Three single skills of ECC's `workflow-quality` module (a fourth, `tdd-workflow`, was added in #247 and removed for failing the quality bar), installed without the plugin (`plugins/benchkeeper/library/library.json`, pack `ecc`, added in #247 after the first quality bar check of 50 skills). The ECC bundle itself is evaluated under "ECC" in [EVALUATIONS.md](../../EVALUATIONS.md): no outcome measurement, hook and listing overhead reported.
 
 ## Advertised
 
@@ -68,4 +68,6 @@ The pin is 24 days old on an active branch, so point 5 passes for all four.
 
 ## Decision
 
-No change to the library yet. Recommendation: remove `tdd-workflow` (fails 1 and 3, open upstream bug, 583 lines), keep `error-handling`, and treat `verification-loop` and `architecture-decision-records` as keep with the overlap noted, since both overlap a skill the user has already chosen. If the owner removes `tdd-workflow`, add it to [library exclusions](library-exclusions.md) with the failed points.
+Removed from the library (setup-v6.10, owner decision on [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151)): `tdd-workflow` fails points 1 and 3 (script outside the folder, 583 lines, open upstream bugs) and is in [library exclusions](library-exclusions.md). Kept: `error-handling` (pass), `verification-loop` and `architecture-decision-records` (borderline, overlap with a skill the user has already chosen).
+
+[All evaluations](../../EVALUATIONS.md)

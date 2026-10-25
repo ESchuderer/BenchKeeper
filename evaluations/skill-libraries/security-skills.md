@@ -1,8 +1,8 @@
 # Security skills (Sentry, Trail of Bits)
 
-[Sentry repository](https://github.com/getsentry/skills), [Trail of Bits repository](https://github.com/trailofbits/skills), Category: skill libraries, Checked 2026-10-22 and 2026-10-24, Decision: Per project, security pack (fp-check with a deep-path caveat)
+[Sentry repository](https://github.com/getsentry/skills), [Trail of Bits repository](https://github.com/trailofbits/skills), Category: skill libraries, Checked 2026-10-22 and 2026-10-24, Decision: Per project, security pack; `fp-check` removed (issue 151, setup-v6.10)
 
-Four skills from two sources: `gha-security-review` (getsentry/skills, Apache-2.0), `fp-check`, `variant-analysis` and `sharp-edges` (trailofbits/skills, CC-BY-SA-4.0). Pinned commits from `library.json`: Sentry `c93fb1e82454278a0caeb08e062a75a2e18feebb` (2026-10-13), Trail of Bits `e1f86a390d4caf28bf1c377a7d86707b2898669c` (2026-10-14).
+Four skills from two sources (`fp-check` was removed from the library on 2026-10-25, three remain): `gha-security-review` (getsentry/skills, Apache-2.0), `fp-check`, `variant-analysis` and `sharp-edges` (trailofbits/skills, CC-BY-SA-4.0). Pinned commits from `library.json`: Sentry `c93fb1e82454278a0caeb08e062a75a2e18feebb` (2026-10-13), Trail of Bits `e1f86a390d4caf28bf1c377a7d86707b2898669c` (2026-10-14).
 
 ## gha-security-review (getsentry/skills)
 
@@ -58,7 +58,7 @@ Per project, security pack: proposed when the repository has GitHub Actions work
 
 ### Decision
 
-Per project, security pack, with a caveat: proposed when security findings need triage. Candidate for removal if the owner wants no skill with a degraded path: the deep path loses its agents on install. Alternative: keep and add one line to the library note ("deep verification runs without the plugin's agents"). Retest with a brief of three scanner findings (one real, two false) against plain Claude Code before it moves into any default.
+Removed from the library on 2026-10-25 (setup-v6.10, quality bar point 1: the deep path loses its agents on install), see [library exclusions](library-exclusions.md).
 
 ## variant-analysis (trailofbits/skills)
 
@@ -166,14 +166,13 @@ Source notes:
 - Trail of Bits issues: fp-check plugin hooks fire in unrelated sessions and block stopping ([#143](https://github.com/trailofbits/skills/issues/143), [#289](https://github.com/trailofbits/skills/issues/289), [#342](https://github.com/trailofbits/skills/issues/342), open, fix PRs [#350](https://github.com/trailofbits/skills/pull/350), [#358](https://github.com/trailofbits/skills/pull/358)); the hooks sit in `plugins/fp-check/hooks/hooks.json`, outside the skill folder. [#376](https://github.com/trailofbits/skills/issues/376) lists the plugin's Claude-specific dependencies. The maintainer moves value into plugin workflows that a folder copy lacks ([#243](https://github.com/trailofbits/skills/pull/243), [#232](https://github.com/trailofbits/skills/pull/232)).
 - skills.sh (2026-10-24): `gha-security-review` 4.8K installs (Gen Agent Trust Hub fail, Socket warn, Snyk pass; the alerts come from attack samples in `references/`), `fp-check` 6.9K, `variant-analysis` 6.4K, `sharp-edges` 6.8K (Socket Warn).
 
-Removal: none made. The owner decides on the fails and borderline cases in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151).
+Removal: `fp-check` was removed on the owner's decision in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151) and is in [library exclusions](library-exclusions.md); the borderline skills stay.
 
 ## Decision
 
-Security pack (setup-v6.0), per project: `gha-security-review` for repositories with workflows, `sharp-edges` for exposed APIs or configuration, `fp-check` and `variant-analysis` for triage and follow-up on a found vulnerability. No independent evidence for any of the four. Open points for the owner:
+Security pack (setup-v6.0), per project: `gha-security-review` for repositories with workflows, `sharp-edges` for exposed APIs or configuration, `variant-analysis` for follow-up on a found vulnerability. `fp-check` (triage) was removed on 2026-10-25 because its deep verification loses its three agents on install. No independent evidence for any of the four. Open points for the owner:
 
-- `fp-check`: deep verification loses its three agents on install (standard path unaffected).
-- `variant-analysis`: points to a workflow that is not installed, and the only vendor data shows no uplift over an unaided model.
-- Attribution: add the license file and a creator line for the three Trail of Bits skills at install, or drop them.
+- `variant-analysis`: points to a workflow that is not installed, and the only maintainer data shows no uplift over an unaided model.
+- Attribution: add the license file and a creator line for the two remaining Trail of Bits skills at install, or drop them.
 
 [All evaluations](../../EVALUATIONS.md)

@@ -1,10 +1,18 @@
 // Benchmark trials for the /bench/ pages, read at build time from bench/results/<run>/round-<n>/<arm>/
-// (trial.json, review.json, drawing-review.json, screenshots/), the run's manifest.txt, final-score.json (bench/scripts/final-score.mjs)
-// and brownfield-score.json (bench/scripts/brownfield-score.mjs).
+// (trial.json, review.json, drawing-review.json), the run's manifest.txt, final-score.json and brownfield-score.json.
 // Cost: the API-equivalent USD the transcript reports (owner decision 2026-10-18). Trials bill the subscription, not the API.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { byCode, validity } from '../../bench/scripts/trial.mjs';
+
+const byCode = (a, b) => Number(a > b) - Number(a < b);
+// A trial counts only when its delivery audit passed and neither the agent's infrastructure nor the scorer failed.
+function validity(trial) {
+  const problems = [];
+  if (trial?.audit?.ok !== true) problems.push('delivery audit missing or failed');
+  if (trial?.outcome?.infra_error) problems.push('agent infrastructure error');
+  for (const s of trial?.steps ?? []) if (s.scoring_error) problems.push(`step ${s.k}: ${s.scoring_error}`);
+  return { ok: problems.length === 0, problems };
+}
 
 // Arm descriptors (bench/SCENARIOS.md). The BenchKeeper layer includes Ponytail.
 const FW = { F: 'agent-skills', G: 'Superpowers', H: 'ECC', V: 'Matt Pocock' };
@@ -62,7 +70,6 @@ export function loadTrials(results) {
         const t = json(join(dir, 'trial.json'));
         if (!t) continue;
         const r = json(join(dir, 'review.json'))?.review;
-        const shots = join(dir, 'screenshots');
         trials.push({
           validity: validity(t),
           key: `${run}/${round}/${id}`, run, round: Number(round.slice(6)), brief: meta.brief, model: MODELS[meta.model] || meta.model, effort: meta.effort, k: meta.k,
@@ -74,7 +81,6 @@ export function loadTrials(results) {
           final: (round === 'round-1' && finals.get(id)) || null, mutation: t.score?.mutation?.score ?? null, drawings: drawingReview(json(join(dir, 'drawing-review.json'))),
           brownfield: brownfield.get(`${round}/${id}`) ?? null,
           notes: r ? { verdict: r.verdict ?? null, strengths: r.strengths ?? [], issues: r.issues ?? [] } : null,
-          screenshots: existsSync(shots) ? readdirSync(shots).filter((f) => /\.(jpe?g|png)$/i.test(f)).sort() : [],
         });
       }
     }

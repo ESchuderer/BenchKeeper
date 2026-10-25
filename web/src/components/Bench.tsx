@@ -32,7 +32,7 @@ export type Trial = {
   features: number | null; robustness: number | null; brownfield: number | null; mutation: number | null;
   drawings: { of: number; correctAlphaApart: number } | null;
   final: { total: number; categories: Record<string, { score: number; max: number }> } | null;
-  notes: { verdict: string | null; strengths: string[]; issues: string[] } | null; screenshots: string[];
+  notes: { verdict: string | null; strengths: string[]; issues: string[] } | null;
 };
 export type ArmRow = { arm: string; setup: string; runtime: string; score: number | null; minutes: number | null; cost: number | null; rank: number; rounds: Trial[] };
 export type Ranking = { kind: 'final' | 'brownfield' | 'review'; groups: { runtime: string | null; rows: ArmRow[] }[] };
@@ -70,9 +70,6 @@ const SCORE_HELP: Record<Ranking['kind'], string> = {
 // An id from a runtime name ("Claude Code" -> "rank-claude-code"): ids cannot contain spaces.
 const slug = (prefix: string, runtime: string | null) => `${prefix}-${(runtime ?? 'all').toLowerCase().replace(/\s+/g, '-')}`;
 const runHref = (base: string, run: string) => `${base}/bench/${run}/`;
-const shot = (base: string, t: Trial, f: string) => `${base}/bench/shots/${t.run}/round-${t.round}/${t.arm}/${f}`;
-// "step2-compare-308_win-300_win_mag.jpg" -> "step 2, compare 308 win 300 win mag"
-const shotLabel = (f: string) => f.replace(/\.\w+$/, '').replace(/^step(\d+)-/, 'step $1, ').replace(/[-_]/g, ' ');
 
 function Meta({ r }: { r: Run }) {
   return (
@@ -130,7 +127,7 @@ function RunCard({ base, r, ranking, notes }: { base: string; r: Run; ranking: R
       })}
       <Group mt="md" gap="md">
         <Button component="a" href={runHref(base, r.run)} rightSection={<IconArrowRight size={16} />}>
-          {ranking.groups.some((g) => g.rows.some((x) => x.rounds.some((t) => t.screenshots.length > 0))) ? 'All arms, reviews and screenshots' : 'All arms and reviews'}
+          All arms and reviews
         </Button>
         {r.report && <Anchor href={`${REPO}/blob/main/bench/results/${r.report}`}>{r.report}</Anchor>}
       </Group>
@@ -145,8 +142,8 @@ export default function BenchSummary({ base, runs, notes }: { base: string; runs
         <Anchor href={`${base}/`} size="sm" underline="hover"><Group gap={4} component="span"><IconArrowLeft size={14} />Back to BenchKeeper</Group></Anchor>
         <Title order={1} fz={{ base: 32, md: 44 }}>Benchmarks</Title>
         <Text c="dimmed" size="lg">
-          The winners of each published run. Each run has its own page with every arm, the review notes and, for apps, the
-          screenshots. Method: the linked Markdown reports and the <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>.
+          The winners of each published run. Each run has its own page with every arm and the review notes. Method: the linked Markdown
+          reports and the <Anchor href={`${REPO}/blob/main/bench/PROTOCOL.md`}>protocol</Anchor>. The run scripts, briefs and raw run data (transcripts, apps, screenshots) were removed from the repository (<Anchor href={`${REPO}/issues/256`}>#256</Anchor>), the recorded results stay.
         </Text>
         <Text c="dimmed">An arm is one tested setup. The BenchKeeper layer includes Ponytail.</Text>
       </Stack>
@@ -217,23 +214,7 @@ function TopDetail({ t: x }: { t: Top }) {
   );
 }
 
-function Gallery({ base, t }: { base: string; t: Trial }) {
-  if (!t.screenshots.length) return <Text size="sm" c="dimmed" mt="xs">No screenshots (the app did not start or the step was not reached).</Text>;
-  return (
-    <ul className="gallery">
-      {t.screenshots.map((f) => (
-        <li key={f}>
-          <a href={shot(base, t, f)}>
-            <img src={shot(base, t, f)} alt={`${t.arm}, round ${t.round}: ${shotLabel(f)}`} loading="lazy" decoding="async" />
-          </a>
-          <Text size="xs" c="dimmed" mt={4}>{shotLabel(f)}</Text>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function Round({ base, r, kind, t, many, ui }: { base: string; r: Run; kind: Ranking['kind']; t: Trial; many: boolean; ui: boolean }) {
+function Round({ r, kind, t, many }: { r: Run; kind: Ranking['kind']; t: Trial; many: boolean }) {
   const facts = [
     many && kind === 'brownfield' && `score ${fmt(kind, t.brownfield)}`,
     r.featuresOf != null && `features ${of(t.features, r.featuresOf)}`, r.robustnessOf != null && `robustness ${of(t.robustness, r.robustnessOf)}`,
@@ -250,7 +231,6 @@ function Round({ base, r, kind, t, many, ui }: { base: string; r: Run; kind: Ran
           {t.notes.issues.length > 0 && <><Text size="sm" fw={700} mt="xs">Issues</Text><ul className="list">{t.notes.issues.map((x) => <li key={x}>{x}</li>)}</ul></>}
         </details>
       )}
-      {ui && <Gallery base={base} t={t} />}
     </Box>
   );
 }
@@ -258,8 +238,6 @@ function Round({ base, r, kind, t, many, ui }: { base: string; r: Run; kind: Ran
 // One run: findings, the full ranking, the top 10 in detail where the run has a final score, then every arm with its rounds.
 export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Run; ranking: Ranking; top?: Top; notes: Notes }) {
   const note = notes.runs[r.run], many = Number(r.k) > 1;
-  // A run without any screenshot is a brief without a user interface (mistreevous): no gallery and no "did not start" text.
-  const ui = ranking.groups.some((g) => g.rows.some((x) => x.rounds.some((t) => t.screenshots.length > 0)));
   return (
     <BenchShell base={base}>
       <Stack gap="xs" maw={820} mb="xl">
@@ -308,14 +286,14 @@ export function BenchRun({ base, r, ranking, top, notes }: { base: string; r: Ru
       {top && <TopDetail t={top} />}
 
       <Title order={2} fz="xl" mt={56}>Arms</Title>
-      <Text size="sm" c="dimmed">{ui ? "Review notes by Claude Opus 5.5 and the scorer's screenshots of each app. Select a screenshot to open it at full size." : 'Review notes by Claude Opus 5.5.'}</Text>
+      <Text size="sm" c="dimmed">Review notes by Claude Opus 5.5.</Text>
       {ranking.groups.flatMap((g) => g.rows).map((x) => (
         <Box key={x.arm} component="section" id={`arm-${x.arm}`} aria-labelledby={`arm-h-${x.arm}`} mt="xl" className="card">
           <Title order={3} fz="lg" id={`arm-h-${x.arm}`}>
             {x.arm}: {plain(x.setup)}{x.runtime === 'Claude Code' ? '' : ` (${x.runtime})`}
           </Title>
           <Text size="sm" c="dimmed">Rank {x.rank}, score {fmt(ranking.kind, x.score)}{many ? ' (median)' : ''}.</Text>
-          {x.rounds.map((t) => <Round key={t.key} base={base} r={r} kind={ranking.kind} t={t} many={many} ui={ui} />)}
+          {x.rounds.map((t) => <Round key={t.key} r={r} kind={ranking.kind} t={t} many={many} />)}
         </Box>
       ))}
     </BenchShell>

@@ -10,7 +10,7 @@ test('one summary per run: winners and top 10 by the run score, link to the run 
   const ratings = await table.locator('tbody tr td:nth-child(4)').allInnerTexts();
   expect(ratings.map(Number)).toEqual([...ratings.map(Number)].sort((a, b) => b - a));
   await expect(run.getByRole('link', { name: '2026-10-15-winery-react.md' })).toHaveAttribute('href', /\/blob\/main\/bench\/results\/2026-10-15-winery-react\.md$/);
-  await expect(run.getByRole('link', { name: 'All arms, reviews and screenshots' })).toHaveAttribute('href', '/BenchKeeper/bench/2026-10-15-winery-react-sonnet/');
+  await expect(run.getByRole('link', { name: 'All arms and reviews' })).toHaveAttribute('href', '/BenchKeeper/bench/2026-10-15-winery-react-sonnet/');
   const brownfield = page.locator('section', { has: page.getByRole('heading', { level: 2, name: 'openballistics, Sonnet 5.5' }) });
   await expect(brownfield.getByRole('region', { name: /top 10/ }).locator('tbody tr')).toHaveCount(8);
   await expect(page.getByRole('link', { name: 'Skill authoring check' })).toBeVisible();
@@ -18,7 +18,7 @@ test('one summary per run: winners and top 10 by the run score, link to the run 
   await expect(brownfield.getByRole('region', { name: /top 10/ }).locator('tbody tr').first()).toContainText(/\$\d+\.\d{2}/);
 });
 
-test('a run page ranks every arm and shows each arm with its rounds, review notes and screenshots', async ({ page, request }) => {
+test('a run page ranks every arm and shows each arm with its rounds and review notes', async ({ page }) => {
   await page.goto('./bench/2026-10-17-openballistics-sonnet/');
   await expect(page.getByRole('heading', { level: 1, name: 'openballistics, Sonnet 5.5' })).toBeVisible();
   const table = page.getByRole('region', { name: /ranked arms/ });
@@ -28,9 +28,7 @@ test('a run page ranks every arm and shows each arm with its rounds, review note
   const ad = page.locator('#arm-AD');
   await expect(ad.getByRole('heading', { level: 4 })).toHaveCount(3);
   await expect(ad.getByText('Review notes').first()).toBeVisible();
-  const img = ad.locator('.gallery img').first();
-  await expect(img).toHaveAttribute('alt', /^AD, round 1: step 2, compare/);
-  expect((await request.get(await img.getAttribute('src') ?? '')).status()).toBe(200);
+  await expect(ad.locator('img')).toHaveCount(0);
   await expect(page.getByRole('region', { name: /ranked arms/ }).first().getByRole('columnheader', { name: 'API cost' })).toBeVisible();
 });
 

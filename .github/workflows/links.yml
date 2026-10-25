@@ -70,7 +70,7 @@ jobs:
       - run: sh bench/scripts/claims.test.sh
       - run: npm ci --prefix bench/scorer --ignore-scripts --no-audit --no-fund
       # print.test.mjs measures pages in Chromium
-      - run: npx --prefix bench/scorer playwright install --with-deps chromium
+      - run: bench/scorer/node_modules/.bin/playwright install --with-deps chromium
       - run: node --test bench/scorer/*.test.mjs
       - run: node --test bench/briefs/*/checks/*.test.mjs
       - run: node bench/scripts/arm-rules.mjs --check

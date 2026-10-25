@@ -4,7 +4,7 @@
 // Cost: the API-equivalent USD the transcript reports (owner decision 2026-10-18). Trials bill the subscription, not the API.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { validity } from '../../bench/scripts/trial.mjs';
+import { byCode, validity } from '../../bench/scripts/trial.mjs';
 
 // Arm descriptors (bench/SCENARIOS.md). The BenchKeeper layer includes Ponytail.
 const FW = { F: 'agent-skills', G: 'Superpowers', H: 'ECC', V: 'Matt Pocock' };
@@ -91,13 +91,13 @@ const rankOrder = (a, b) => desc(a.overall, b.overall) || desc(a.features, b.fea
 export function summarizeRuns(trials, reports = []) {
   return [...new Set(trials.map((t) => t.run))].map((run) => {
     const ts = trials.filter((t) => t.run === run), [t0] = ts;
-    const report = reports.includes(`${run}.md`) ? `${run}.md` : reports.filter((f) => new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${t0.brief}\\.md$`).test(f)).sort().at(-1) ?? null;
+    const report = reports.includes(`${run}.md`) ? `${run}.md` : reports.filter((f) => new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${t0.brief}\\.md$`).test(f)).sort(byCode).at(-1) ?? null;
     return {
       run, brief: t0.brief, model: t0.model, effort: t0.effort, k: t0.k, date: run.slice(0, 10), report,
       // Test totals of the run: an app that did not start records no tests.
       featuresOf: Math.max(0, ...ts.map((t) => t.featuresOf ?? 0)) || null, robustnessOf: Math.max(0, ...ts.map((t) => t.robustnessOf ?? 0)) || null,
-      protocols: [...new Set(ts.map((t) => t.protocol).filter(Boolean))].sort(),
-      groups: [...new Set(ts.map((t) => t.runtime))].sort().map((runtime) => {
+      protocols: [...new Set(ts.map((t) => t.protocol).filter(Boolean))].sort(byCode),
+      groups: [...new Set(ts.map((t) => t.runtime))].sort(byCode).map((runtime) => {
         const rows = ts.filter((t) => t.runtime === runtime && t.validity?.ok !== false).sort(rankOrder);
         // Equal scores share a rank; minutes only order the rows.
         rows.forEach((t, i) => { const p = rows[i - 1]; t.rank = p && p.overall === t.overall && p.features === t.features && p.robustness === t.robustness ? p.rank : i + 1; });
@@ -141,7 +141,7 @@ export function rankArms(trials) {
     return rows;
   };
   const groups = kind === 'review'
-    ? [...new Set(trials.map((t) => t.runtime))].sort().map((runtime) => ({ runtime, rows: rank(trials.filter((t) => t.runtime === runtime)) }))
+    ? [...new Set(trials.map((t) => t.runtime))].sort(byCode).map((runtime) => ({ runtime, rows: rank(trials.filter((t) => t.runtime === runtime)) }))
     : [{ runtime: null, rows: rank(trials) }];
   return { kind, groups };
 }

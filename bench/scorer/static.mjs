@@ -1,9 +1,17 @@
-// Static file server for briefs scored with "serve": "static" (brief.json). Usage: node static.mjs <dir>; port from PORT.
+// Static file server for briefs scored with "serve": "static" (brief.json). Usage: node static.mjs <dir, /app or a folder of the temp folder>; port from PORT.
 import { createServer } from 'node:http';
+import { readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { tmpdir } from 'node:os';
+import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 
-const root = process.argv[2];
+// The served folder is /app or a folder of the OS temp folder (tests): the argument only selects one of these, it is never used as a path.
+const folders = [resolve('/app'), ...readdirSync(tmpdir(), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join(tmpdir(), e.name))];
+const root = folders.find((f) => f === resolve(process.argv[2]));
+if (!root) throw new Error('not /app or a folder of the temp folder');
+// The request path only selects an entry of this list of regular files (a symbolic link is none), so it never names a file itself.
+const files = new Map(readdirSync(root, { recursive: true, withFileTypes: true }).filter((e) => e.isFile())
+  .map((e) => { const file = join(e.parentPath, e.name); return ['/' + relative(root, file).split(sep).join('/'), file]; }));
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
@@ -11,10 +19,11 @@ const TYPES = {
 };
 createServer(async (req, res) => {
   try {
-    // normalize() on an absolute path never climbs above the root.
-    let p = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname));
+    let p = normalize(decodeURIComponent(new URL(req.url, 'https://localhost').pathname));
     if (p.endsWith('/')) p += 'index.html';
-    const body = await readFile(join(root, p));
+    const file = files.get(p);
+    if (!file) throw new Error('not a served file');
+    const body = await readFile(file);
     res.writeHead(200, { 'content-type': TYPES[extname(p)] || 'application/octet-stream' });
     res.end(body);
   } catch {

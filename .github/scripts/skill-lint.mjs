@@ -11,9 +11,9 @@ export function frontMatter(text) {
   if (!m) return null;
   const fields = {};
   for (const line of m[1].split('\n')) {
-    const kv = /^([a-z][\w-]*):\s*(.*)$/.exec(line);
+    const kv = /^([a-z][\w-]*):\s*(\S.*)?$/.exec(line);
     if (!kv) return null;
-    fields[kv[1]] = kv[2];
+    fields[kv[1]] = kv[2] ?? '';
   }
   return fields;
 }
@@ -48,7 +48,7 @@ export function lintSkill(dir) {
   }
   const yaml = join(dir, 'agents/openai.yaml');
   if (!existsSync(yaml)) errors.push(`${dir}: agents/openai.yaml missing`);
-  else if (fm['disable-model-invocation'] === 'true' && !/^\s+allow_implicit_invocation: false$/m.test(readFileSync(yaml, 'utf8')))
+  else if (fm['disable-model-invocation'] === 'true' && !/^[ \t]+allow_implicit_invocation: false$/m.test(readFileSync(yaml, 'utf8')))
     errors.push(`${yaml}: user-invoked skill needs policy.allow_implicit_invocation: false`);
   return errors;
 }

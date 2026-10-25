@@ -1,7 +1,7 @@
 import { Anchor, Badge, Button, Code, Group, List, Paper, SegmentedControl, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconArrowBackUp, IconCircleCheck, IconCircleX, IconHandStop, IconPlayerSkipForward, IconProgress } from '@tabler/icons-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import { parseDiff, sideBySide } from './diff.js';
 import { Dot, Loading, Note, StatusBadge, groupBy, href, icon, useApi } from './shell.jsx';
@@ -29,12 +29,28 @@ const LIMIT = 80;
 const cls = (l) => (!l ? 'none' : l.kind === '+' ? 'add' : l.kind === '-' ? 'del' : '');
 const sign = (l) => (l.kind === ' ' ? ' ' : l.kind);
 
+// A box whose content is wider than it is: only then it is a tab stop, so the arrow keys can scroll it.
+function useScrolls() {
+  const ref = useRef(null);
+  const [scrolls, setScrolls] = useState(false);
+  useEffect(() => {
+    const box = ref.current;
+    const check = () => setScrolls(box.scrollWidth > box.clientWidth);
+    const watch = new ResizeObserver(check);
+    watch.observe(box);
+    if (box.firstElementChild) watch.observe(box.firstElementChild);
+    return () => watch.disconnect();
+  }, []);
+  return [ref, scrolls];
+}
+
 // A file's diff with line numbers. Split needs room and both sides: created and deleted files stay unified.
 export function DiffView({ diff, path, mode = 'unified' }) {
   const d = useMemo(() => parseDiff(diff), [diff]);
   const [all, setAll] = useState(false);
+  const [body, scrolls] = useScrolls();
   const wide = useMediaQuery('(min-width: 62em)');
-  const oneSided = d.hunks.length === 1 && /^@@ -0,0 |\+0,0 @@/.test(d.hunks[0].head);
+  const oneSided = d.hunks.length === 1 && /(?:^@@ -0,0 )|(?:\+0,0 @@)/.test(d.hunks[0].head);
   const split = mode === 'split' && wide && !oneSided;
   const rows = d.hunks.flatMap((h) => [{ head: h.head }, ...(split ? sideBySide(h.lines) : h.lines)]);
   const shown = all ? rows : rows.slice(0, LIMIT);
@@ -44,7 +60,7 @@ export function DiffView({ diff, path, mode = 'unified' }) {
         <Text size="xs" ff="monospace" style={{ overflowWrap: 'anywhere' }}>{path}</Text>
         <Text size="xs" ff="monospace" style={{ flexShrink: 0 }}><span className="bk-plus">+{d.added}</span> <span className="bk-minus">-{d.removed}</span></Text>
       </Group>
-      <div className="bk-diff-body" tabIndex={0} role="group" aria-label={`Diff of ${path}`}>
+      <div className="bk-diff-body" ref={body} tabIndex={scrolls ? 0 : undefined} role="group" aria-label={`Diff of ${path}`}>
         <table>
           <thead className="bk-sr">
             <tr>{(split ? ['Old line', 'Before', 'New line', 'After'] : ['Old line', 'New line', 'Change']).map((h) => <th key={h} scope="col">{h}</th>)}</tr>

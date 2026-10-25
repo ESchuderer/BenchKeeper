@@ -10,6 +10,8 @@ BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill t
 **Optional: [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request).
 <!-- /generated:core -->
 
+BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](plugins/benchkeeper)), plus the [app](app) for what a plugin cannot carry: project setup, the global rules and settings, history and undo.
+
 ## Quickstart
 
 <!-- generated:quickstart -->
@@ -41,8 +43,6 @@ After either path, restart the agents. `npx benchkeeper@6.11.0 history` lists wh
 
 [Lite level, the plugin alone](#levels). [Full setup description](#setup-details).
 <!-- /generated:quickstart -->
-
-BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](plugins/benchkeeper)), plus the [app](app) for what a plugin cannot carry: project setup, the global rules and settings, history and undo.
 
 ## Levels
 

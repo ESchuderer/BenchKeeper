@@ -7,6 +7,7 @@ import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
 import { DoctorTable, UpdateResults } from './fix.jsx';
 import { updateProjects } from './update.js';
 import { ProjectSetup } from './setup.jsx';
+import { PackSwitches, SkillStates } from './skillstates.jsx';
 import { SessionsHistory } from './sessionscache.jsx';
 import { AddNotices, BulkBar, EditProject, MissingBadge, FILTER_OPTIONS, ProjectFilters, Relocate, RemoveFromList, RemoveSetup, SelectCheckbox, label, plural, visibleProjects } from './projects.jsx';
 import { Dot, Loading, MOD, Note, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
@@ -71,17 +72,18 @@ function Packs({ packs, onChange }) {
       {error && <Note color="red" title="Failed">{error}</Note>}
       <Table.ScrollContainer minWidth={520}>
         <Table aria-label="Packs">
-          <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Contents</Table.Th><Table.Th>Source</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Contents</Table.Th><Table.Th>Source</Table.Th><Table.Th>Used by</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {packs.map((p) => (
               <Table.Tr key={p.id}>
                 <Table.Td>{p.title ?? p.id}<Text size="xs">{p.id}</Text></Table.Td>
                 <Table.Td>{p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}</Table.Td>
                 <Table.Td>{p.own ? 'own' : 'library'}</Table.Td>
+                <Table.Td>{p.usedBy?.length ? p.usedBy.map((d) => d.split('/').pop()).join(', ') : '-'}</Table.Td>
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
                     {p.skills && <Button leftSection={icon(IconDownload)} size="xs" variant="default" aria-label={`Export ${p.id}`} onClick={run(async () => { const r = await api(`/api/pack-export?id=${encodeURIComponent(p.id)}`); download(r.name, r.text); })}>Export</Button>}
-                    {p.own && <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${p.id}`} onClick={run(() => api('/api/packs', { action: 'remove', id: p.id }))}>Remove</Button>}
+                    {p.own && <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${p.id}`} disabled={!!p.usedBy?.length} title={p.usedBy?.length ? `In use by ${p.usedBy.join(', ')}: switch it off there first` : undefined} onClick={run(() => api('/api/packs', { action: 'remove', id: p.id }))}>Remove</Button>}
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -156,9 +158,10 @@ export function Catalog({ catalog, params, refresh }) {
               </Table.Tbody>
             </Table>
           } detail={skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} /> : null} />
+          <SkillStates refresh={refresh} />
           <Packs packs={c.packs} onChange={refresh} />
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
-          <Cli>{`benchkeeper packs list\nbenchkeeper project apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}`}</Cli>
+          <Cli>{`benchkeeper packs list\nbenchkeeper project apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}\nbenchkeeper skills list --project <dir>\nbenchkeeper skills update|reset|remove|adopt <name> --project <dir>`}</Cli>
         </Stack>
       );
     }}</Loading>
@@ -225,19 +228,20 @@ export function Agents({ overview, params, refresh }) {
   );
 }
 
-function ProjectDetail({ project, onChange }) {
-  const [toggles, setToggles] = useState({ disable: [], enable: [] });
+const NO_TOGGLES = { disable: [], enable: [], packOn: [], packOff: [] };
+function ProjectDetail({ project, others, onChange }) {
+  const [toggles, setToggles] = useState(NO_TOGGLES);
   // The plan reloads with a new id after an apply, so the result lives here.
   const [applied, setApplied] = useState(null);
   const [form, setForm] = useState(project.missing ? 'relocate' : null);
   const q = new URLSearchParams({ dir: project.path });
-  for (const k of ['disable', 'enable']) for (const n of toggles[k]) q.append(k, n);
+  for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off']]) for (const n of toggles[k]) q.append(name, n);
   const live = !project.missing;
   const plan = useApi(live && project.setupVersion && !lags(project) ? `/api/project-plan?${q}` : null);
   const found = useApi(live ? `/api/doctor?dir=${encodeURIComponent(project.path)}` : null);
-  const flip = (s) => setToggles(({ disable, enable }) => (s.disabled
-    ? { disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
-    : { disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
+  const flip = (s) => setToggles(({ disable, enable, ...rest }) => (s.disabled
+    ? { ...rest, disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
+    : { ...rest, disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
   const closed = () => { setForm(null); onChange.done(); };
   return (
     <Stack gap="lg" component="section" aria-label={`Project ${project.path}`}>
@@ -276,6 +280,7 @@ function ProjectDetail({ project, onChange }) {
       ) : (
         <Loading state={plan} label="project plan">{(p) => (
           <>
+            <PackSwitches packs={p.packs} project={project} others={others} toggles={toggles} setToggles={setToggles} />
             {!!p.chosen.length && (
               <Section title="Skills">
                 {p.chosen.map((s) => <Switch key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} />)}
@@ -284,7 +289,7 @@ function ProjectDetail({ project, onChange }) {
             )}
             <Section title={`Changes in ${project.path}`}>
               {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles({ disable: [], enable: [] }); plan.reload(); onChange.done(); }} />
+              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onChange.done(); }} />
             </Section>
           </>
         )}</Loading>
@@ -461,7 +466,7 @@ export function Projects({ params, overview, refresh }) {
             ) : <Text size="sm" role="status">No project matches the search and filter.</Text>}
           </Stack>
         } detail={open && list.some((p) => p.path === open) ? (
-          <ProjectDetail key={open} project={list.find((p) => p.path === open)} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: withOpen('list'), removeSetup: withOpen('setup') }} />
+          <ProjectDetail key={open} project={list.find((p) => p.path === open)} others={list} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: withOpen('list'), removeSetup: withOpen('setup') }} />
         ) : null} />
       ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
@@ -486,7 +491,7 @@ export function Projects({ params, overview, refresh }) {
       {dialog?.kind === 'list' && <RemoveFromList paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(true)} />}
       {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} push={push} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
       {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
-      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename ${open ?? '<dir>'} <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove ${open ?? '<dir>'} [--setup]\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
+      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename ${open ?? '<dir>'} <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove ${open ?? '<dir>'} [--setup]\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper packs enable|disable <id> --project ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }

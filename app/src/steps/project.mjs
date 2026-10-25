@@ -164,10 +164,10 @@ function redirectedElsewhere(dir) {
   const link = join(dir, '.git');
   const text = readText(link);
   if (text == null) return false;
-  const target = resolve(dir, text.match(/^gitdir:\s*(.+)$/m)?.[1]?.trim() ?? '\0');
+  const target = resolve(dir, text.match(/^gitdir:[ \t]*(\S.*)$/m)?.[1]?.trim() ?? '\0');
   const back = readText(join(target, 'gitdir'))?.trim();
   if (back && realish(resolve(target, back)) === realish(link)) return false;
-  const worktree = readText(join(target, 'config'))?.match(/^\s*worktree\s*=\s*(.+)$/m)?.[1]?.trim();
+  const worktree = readText(join(target, 'config'))?.match(/^[ \t]*worktree[ \t]*=[ \t]*(\S.*)$/m)?.[1]?.trim();
   return !(worktree && realish(resolve(target, worktree)) === realish(dir));
 }
 

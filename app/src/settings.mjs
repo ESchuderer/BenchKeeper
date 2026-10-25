@@ -41,7 +41,7 @@ const URL_PASSWORD = /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*:\/\/[^\s/?#@:]*:)[^\s/?
 const redactAt = (text, depth) => text.replace(SECRET_PAIR, (_, q, name, sep, value) => `${q}${name}${q}${sep}${isSecretName(name) || depth >= 32 ? `"${MASK}"` : redactAt(value, depth + 1)}`);
 export const redact = (text) => (text == null ? text : redactAt(text.replace(URL_PASSWORD, `$1${MASK}@`), 0));
 // Only settings files carry such pairs: a rules file that mentions API_KEY = x stays as it is.
-export const isSettingsFile = (path) => /(^|\/)(settings(\.local)?\.json|config\.toml|managed_config\.toml|\.claude\.json)$/.test(String(path));
+export const isSettingsFile = (path) => /(^|[\\/])(settings(\.local)?\.json|config\.toml|managed_config\.toml|\.claude\.json)$/.test(String(path));
 
 // Which layers exist for an agent and where their files are. dir is a project folder; without it only user and managed.
 export function layerFiles(ctx, agentId, dir) {

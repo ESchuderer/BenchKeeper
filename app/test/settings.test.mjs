@@ -9,7 +9,7 @@ import { doctor } from '../src/doctor.mjs';
 import { removeTable, removeToml, setToml } from '../src/merge.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
-import { COUPLINGS, agentSettings, bundleEdits, describeKey, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingsAgents, settingsChanges } from '../src/settings.mjs';
+import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingsAgents, settingsChanges } from '../src/settings.mjs';
 
 const SECRET = 'sk-value-not-for-output';
 const docs = JSON.parse(readFileSync(new URL('./fixtures/settings-docs.json', import.meta.url), 'utf8'));
@@ -341,6 +341,7 @@ test('masking: whole words of the name, tokens inside values, no false hits', ()
   assert.equal(redact('"HTTPS_PROXY": "https://user:pw0rd@proxy:8080/x"'), '"HTTPS_PROXY": "https://user:(set)@proxy:8080/x"');
   assert.equal(redact('see https://example.com/a:b and git@host:x'), 'see https://example.com/a:b and git@host:x');
   assert.doesNotThrow(() => redact('A="""'.repeat(30000) + 'x'), 'unterminated multiline strings stay linear');
+  assert.ok(isSettingsFile(['C:', 'work', '.claude', 'settings.json'].join('\\')) && isSettingsFile('/work/x/.codex/config.toml') && !isSettingsFile('/work/x/AGENTS.md'), 'both path separators');
   assert.doesNotThrow(() => redact('a='.repeat(50000)), 'a long chain of pairs does not exhaust the stack');
   assert.ok(!redact(`${'a='.repeat(40)}${SECRET}`).includes(SECRET), 'a chain deeper than the cap is masked whole');
   assert.ok(!maskSecrets({ hooks: { command: "export API_KEY=abc123 && run" } }).hooks.command.includes('abc123'));

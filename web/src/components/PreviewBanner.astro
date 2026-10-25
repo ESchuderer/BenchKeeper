@@ -1,0 +1,9 @@
+---
+import { preview } from '../lib/preview';
+---
+{/* Inline style: a style block would add CSS to the released site's bundle too. No link: the page's skip link has to stay the first focusable element. */}
+{preview && (
+  <section aria-label="Development preview" style="padding: 8px 16px; text-align: center; font-size: var(--mantine-font-size-sm); background: var(--mantine-color-yellow-light); color: var(--mantine-color-text);">
+    Development preview of the develop branch, not the released site.
+  </section>
+)}

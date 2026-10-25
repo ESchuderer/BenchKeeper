@@ -122,7 +122,7 @@ git config --global user.name agent && git config --global user.email agent@loca
 case $fw in
   as) plugin addyosmani/agent-skills 0.6.13 agent-skills@addy-agent-skills ;;
   sp) plugin obra/superpowers v7.0.0 superpowers@superpowers-dev ;;
-  ecc) DO_NOT_TRACK=1 npx -y ecc-universal@2.2.3 install --profile minimal --target claude ;;
+  ecc) DO_NOT_TRACK=1 npx --ignore-scripts -y ecc-universal@2.2.3 install --profile minimal --target claude ;;
   mp) plugin mattpocock/skills 49dd158d1076134a641b33efb035946536778336 mattpocock-skills@mattpocock ;;
 esac
 if [ "$pt" = yes ]; then
@@ -176,7 +176,7 @@ elif [ "$bk" != no ]; then
   cp -r /opt/bench/project-setup "$t" && rm "$t/README.md"
   # Without OpenSpec the project has no spec-tool convention.
   [ "$spec" = openspec ] || sed -i '/^## Conventions/,$d' "$t/AGENTS.md"
-  (cd "$t" && DO_NOT_TRACK=1 npx -y skills@1.7.2 add https://github.com/currents-dev/playwright-best-practices-skill/tree/283d5cbc5d11aac1abda058b16ad22c317d54dc0 -s playwright-best-practices -a claude-code --copy -y)
+  (cd "$t" && DO_NOT_TRACK=1 npx --ignore-scripts -y skills@1.7.2 add https://github.com/currents-dev/playwright-best-practices-skill/tree/283d5cbc5d11aac1abda058b16ad22c317d54dc0 -s playwright-best-practices -a claude-code --copy -y)
   case $bk in v4|v5) cp -r "/opt/bench/bk-$bk/skills/following-dev-workflow" "$t/.claude/skills/" ;; esac
 fi
 case $spec in
@@ -185,7 +185,7 @@ case $spec in
     openspec config set delivery skills >/dev/null && openspec config set telemetry.enabled false >/dev/null
     mkdir -p "$t" && (cd "$t" && openspec init --tools claude --no-animation >/dev/null) ;;
   speckit)
-    uv tool install -q specify-cli --from git+https://github.com/github/spec-kit.git@v1.2.1
+    uv tool install -q --no-build specify-cli==1.2.1
     mkdir -p "$t" && (cd "$t" && specify init --here --integration claude --script sh --force --non-interactive --ignore-agent-tools >/dev/null) ;;
 esac
 # v4: the "## Agent skills" block goes into AGENTS.md (setting-up-projects of setup-v3.1), CLAUDE.md stays @AGENTS.md

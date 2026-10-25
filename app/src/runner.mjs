@@ -16,6 +16,8 @@ import { mask } from './redact.mjs';
 
 // New files that agents fill with tokens later are created for their user alone.
 const PRIVATE_NEW = /[\\/]\.(claude|codex|gemini|copilot)[\\/](settings(\.local)?\.json|config\.(toml|json)|hooks\.json)$|[\\/]\.claude\.json$/;
+// A Windows system tool by its full path, so the PATH search does not decide which program runs.
+export const windowsTool = (...parts) => join(process.env.SystemRoot ?? 'C:\\Windows', ...parts);
 // The last lines of a failed command's output, as stored in the ledger and shown: tokens masked.
 const failure = (r, lines = 3) => mask((r.stderr || r.stdout || '').trim().split('\n').slice(-lines).join(' ')) || `exit ${r.code}`;
 
@@ -46,7 +48,7 @@ const ownGroup = process.platform !== 'win32';
 const signalTree = (p, sig) => {
   try {
     if (ownGroup) process.kill(-p.pid, sig);
-    else if (sig === 'SIGKILL') spawnSync('taskkill', ['/pid', String(p.pid), '/T', '/F']);
+    else if (sig === 'SIGKILL') spawnSync(windowsTool('System32', 'taskkill.exe'), ['/pid', String(p.pid), '/T', '/F']);
     else p.kill(sig);
   } catch { /* already gone */ }
 };

@@ -158,7 +158,7 @@ function FixRun({ plan, select, paths, setBusy, onClose }) {
   const control = useRef({ stop: false });
   const after = useApi(finished ? '/api/doctor' : null);
   const finish = () => { setFinished(true); setBusy(false); };
-  const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, true, setProgress, control.current) : Promise.resolve()).then(finish); };
+  const projects = () => { setStopped(null); setStopAsked(false); control.current.stop = false; (paths.length ? updateProjects(paths, true, setProgress, control.current) : Promise.resolve()).then(finish).catch(console.error); };
   const halt = (why) => { if (paths.length) setStopped(why); finish(); };
   useEffect(() => {
     if (!select?.length) { projects(); return; }

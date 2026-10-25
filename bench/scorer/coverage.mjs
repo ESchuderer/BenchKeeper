@@ -1,13 +1,14 @@
 // Line and branch coverage of an app's own source (files() of erosion.mjs) while its own unit tests run under c8.
 // The unit command is `npm test` if that is `node --test ...`, else `npm run test:unit` if that is; no e2e. Null with a reason
 // when there is no such command or it fails (a suite that fails only under coverage is still measured, flagged fails_under_coverage). The app is copied to a temp dir first (tests may write).
-// Usage: node bench/scorer/coverage.mjs <app-dir>   prints JSON; needs `c8` (bench/scorer/package.json)
+// Usage: node bench/scorer/coverage.mjs <app-dir: /app or a folder of the temp folder>   prints JSON; needs `c8` (bench/scorer/package.json)
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { files } from './erosion.mjs';
+import { appFolder } from './mounts.mjs';
 
 // npm next to the running node, not found through PATH
 const NPM = join(dirname(process.execPath), 'npm');
@@ -71,4 +72,4 @@ export function coverage(dir, timeout = 300_000) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(coverage(process.argv[2])));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(coverage(appFolder(process.argv[2]))));

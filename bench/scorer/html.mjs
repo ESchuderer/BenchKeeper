@@ -1,8 +1,9 @@
 // HTML validity from a Nu HTML Checker run (`vnu --format json index.html detail.html`): errors and warnings per file and in total.
-// Usage: node bench/scorer/html.mjs <vnu.json>   prints JSON (index.html as `index`, the rendered detail page as `detail`)
+// Usage: node bench/scorer/html.mjs </o/vnu.json>   prints JSON (index.html as `index`, the rendered detail page as `detail`)
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { choose } from './mounts.mjs';
 
 export function summarize(vnu) {
   if (vnu.missing) return { checker: null, errors: null, warnings: null, reason: vnu.missing };
@@ -17,4 +18,4 @@ export function summarize(vnu) {
   return out;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(summarize(JSON.parse(readFileSync(process.argv[2], 'utf8')))));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(JSON.stringify(summarize(JSON.parse(readFileSync(choose(process.argv[2], ['/o/vnu.json']), 'utf8')))));

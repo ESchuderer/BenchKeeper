@@ -1,13 +1,14 @@
 // Print check of the cartridges app: for each cartridge, the detail view printed to PDF (A4 portrait) must be one page and
 // its drawing at least 80% of the printable width (A4 width minus the @page side margins, measured in print media).
 // Drawing locator and page count as in bench/briefs/cartridges/hidden/acceptance.spec.mjs. Needs Chromium (Playwright image).
-// Usage: node bench/scorer/print.mjs <app-dir, /app or a folder of the temp folder> <brief.md> [rendered-detail.html]   prints JSON; the app is served on localhost
+// Usage: node bench/scorer/print.mjs <app-dir: /app or a folder of the temp folder> </brief.md> [/o/detail.html]   prints JSON; the app is served on localhost
 import { createServer } from 'node:http';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
+import { appFolder, choose } from './mounts.mjs';
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
 const A4_PX = 793.7;
@@ -90,5 +91,5 @@ export async function measurePrint(dir, names, detailOut) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  console.log(JSON.stringify(await measurePrint(process.argv[2], cartridgeNames(process.argv[3]), process.argv[4])));
+  console.log(JSON.stringify(await measurePrint(appFolder(process.argv[2]), cartridgeNames(choose(process.argv[3], ['/brief.md'])), process.argv[4] && choose(process.argv[4], ['/o/detail.html']))));
 }

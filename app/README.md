@@ -1,8 +1,38 @@
 # benchkeeper
 
-Installs, updates and undoes the BenchKeeper agent setup for Claude Code, Codex, Gemini CLI and GitHub Copilot, globally and per project, from a CLI or a local web UI. What the setup contains: the [repository README](../README.md#setup-steps).
+Installs, updates and undoes the BenchKeeper agent setup for Claude Code, Codex, Gemini CLI and GitHub Copilot, globally and per project, from a CLI or a local web UI. What the setup contains: the [repository README](../README.md#setup-details).
 
-First run: `npx benchkeeper@6.11.0` opens the browser on the Dashboard, with the doctor findings, one-run setup and Fix everything. In a terminal, `plan` shows the changes and `apply` makes them.
+## Quickstart
+
+<!-- generated:quickstart -->
+Node.js 22 and at least one agent, Claude Code or Codex ([full list](../README.md#prerequisites)). Choose the App to review each change in the browser. Choose the CLI in a terminal-only session or in a script.
+
+### App
+
+```sh
+npx benchkeeper@6.11.0
+```
+
+Opens the browser on the Dashboard with the doctor findings. Fix everything runs the setup in one pass and shows each change before it applies it.
+
+### CLI
+
+```sh
+npx benchkeeper@6.11.0 plan
+```
+
+Lists each change and writes nothing.
+
+```sh
+npx benchkeeper@6.11.0 apply
+```
+
+Asks per change. `--yes` applies the default selection without questions.
+
+After either path, restart the agents. `npx benchkeeper@6.11.0 history` lists what changed, `npx benchkeeper@6.11.0 undo <run>` reverses a run.
+
+[Lite level, the plugin alone](../README.md#levels). [Full setup description](../README.md#setup-details).
+<!-- /generated:quickstart -->
 
 ## Setup
 

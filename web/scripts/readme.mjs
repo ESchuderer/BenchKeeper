@@ -3,15 +3,30 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const root = new URL('../../', import.meta.url);
 const facts = JSON.parse(readFileSync(new URL('web/src/data/facts.json', root), 'utf8'));
-const readmeUrl = new URL('README.md', root);
-const readme = readFileSync(readmeUrl, 'utf8');
-const nl = readme.includes('\r\n') ? '\r\n' : '\n';
 
 // `|` would end a table cell.
 const cell = (s) => s.replace(/\|/g, '\\|');
 const link = (name, url) => `[${cell(name)}](${url.replace(/\|/g, '%7C')})`;
 
+// Install paths as headed blocks (GitHub Markdown has no tabs). `readme` is the prefix of links into the root README.
+const quickstart = (readme) => {
+  const q = facts.quickstart;
+  return [
+    `${q.needs.replace(/\.$/, '')} ([full list](${readme}#prerequisites)). ${q.choose}`,
+    '',
+    ...q.paths.flatMap((p) => [
+      `### ${p.name}`,
+      '',
+      ...p.steps.flatMap((s) => ['```sh', s.command, '```', '', s.text, '']),
+    ]),
+    `${q.next} ${q.changes}`,
+    '',
+    q.links.map((l) => `[${l.label}](${readme}#${l.anchor})`).join('. ') + '.',
+  ];
+};
+
 const blocks = {
+  quickstart: quickstart(''),
   description: [facts.description],
   core: [`**Optional: [${facts.core.name}](${facts.core.url}) by ${facts.core.by}:** ${facts.core.role}.`],
   levels: [
@@ -43,19 +58,27 @@ const blocks = {
   ],
 };
 
-let out = readme;
-for (const [name, lines] of Object.entries(blocks)) {
-  const re = new RegExp(`(<!-- generated:${name} -->\\r?\\n)[\\s\\S]*?(\\r?\\n<!-- /generated:${name} -->)`);
-  if (!re.test(out)) throw new Error(`README marker missing: ${name}`);
-  // A function replacement keeps `$` in facts literal.
-  out = out.replace(re, (_, start, end) => `${start}${lines.join(nl)}${end}`);
-}
-
-if (process.argv.includes('--check')) {
-  if (out !== readme) {
-    console.error('README.md is out of date: run `node web/scripts/readme.mjs`');
-    process.exit(1);
+// The root README holds every block, app/README.md only the quickstart.
+const targets = [
+  ['README.md', blocks],
+  ['app/README.md', { quickstart: quickstart('../README.md') }],
+];
+let stale = false;
+for (const [file, wanted] of targets) {
+  const url = new URL(file, root);
+  const readme = readFileSync(url, 'utf8');
+  const nl = readme.includes('\r\n') ? '\r\n' : '\n';
+  let out = readme;
+  for (const [name, lines] of Object.entries(wanted)) {
+    const re = new RegExp(`(<!-- generated:${name} -->\\r?\\n)[\\s\\S]*?(\\r?\\n<!-- /generated:${name} -->)`);
+    if (!re.test(out)) throw new Error(`${file} marker missing: ${name}`);
+    // A function replacement keeps `$` in facts literal.
+    out = out.replace(re, (_, start, end) => `${start}${lines.join(nl)}${end}`);
   }
-} else {
-  writeFileSync(readmeUrl, out);
+  if (out === readme) continue;
+  if (process.argv.includes('--check')) {
+    console.error(`${file} is out of date: run \`node web/scripts/readme.mjs\``);
+    stale = true;
+  } else writeFileSync(url, out);
 }
+if (stale) process.exit(1);

@@ -27,6 +27,40 @@
     "url": "https://github.com/mattpocock/skills",
     "role": "his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)"
   },
+  "quickstart": {
+    "needs": "Node.js 22 and at least one agent, Claude Code or Codex.",
+    "choose": "Choose the App to review each change in the browser. Choose the CLI in a terminal-only session or in a script.",
+    "paths": [
+      {
+        "name": "App",
+        "steps": [
+          {
+            "command": "npx benchkeeper@6.11.0",
+            "text": "Opens the browser on the Dashboard with the doctor findings. Fix everything runs the setup in one pass and shows each change before it applies it."
+          }
+        ]
+      },
+      {
+        "name": "CLI",
+        "steps": [
+          {
+            "command": "npx benchkeeper@6.11.0 plan",
+            "text": "Lists each change and writes nothing."
+          },
+          {
+            "command": "npx benchkeeper@6.11.0 apply",
+            "text": "Asks per change. `--yes` applies the default selection without questions."
+          }
+        ]
+      }
+    ],
+    "next": "After either path, restart the agents.",
+    "changes": "`npx benchkeeper@6.11.0 history` lists what changed, `npx benchkeeper@6.11.0 undo <run>` reverses a run.",
+    "links": [
+      { "label": "Lite level, the plugin alone", "anchor": "levels" },
+      { "label": "Full setup description", "anchor": "setup-details" }
+    ]
+  },
   "prerequisites": [
     {
       "name": "Claude Code",

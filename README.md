@@ -10,7 +10,41 @@ BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill t
 **Optional: [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request).
 <!-- /generated:core -->
 
+## Quickstart
+
+<!-- generated:quickstart -->
+Node.js 22 and at least one agent, Claude Code or Codex ([full list](#prerequisites)). Choose the App to review each change in the browser. Choose the CLI in a terminal-only session or in a script.
+
+### App
+
+```sh
+npx benchkeeper@6.11.0
+```
+
+Opens the browser on the Dashboard with the doctor findings. Fix everything runs the setup in one pass and shows each change before it applies it.
+
+### CLI
+
+```sh
+npx benchkeeper@6.11.0 plan
+```
+
+Lists each change and writes nothing.
+
+```sh
+npx benchkeeper@6.11.0 apply
+```
+
+Asks per change. `--yes` applies the default selection without questions.
+
+After either path, restart the agents. `npx benchkeeper@6.11.0 history` lists what changed, `npx benchkeeper@6.11.0 undo <run>` reverses a run.
+
+[Lite level, the plugin alone](#levels). [Full setup description](#setup-details).
+<!-- /generated:quickstart -->
+
 BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](plugins/benchkeeper)), plus the [app](app) for what a plugin cannot carry: project setup, the global rules and settings, history and undo.
+
+## Levels
 
 Three levels, from the smallest: a plugin cannot ship always-on instructions, so lite relies on the `workflow` skill description to trigger (trigger rate unverified: [evaluation](evaluations/practices/lite-install.md)). Each level contains the one before.
 
@@ -40,14 +74,11 @@ Not installed by BenchKeeper.
 | [VS Code](https://code.visualstudio.com/download) | optional, attach to the devcontainer |
 <!-- /generated:prerequisites -->
 
-## Setup steps
+## Setup details
 
 The examples write `benchkeeper` for `npx benchkeeper@6.11.0`. Until the first npm release, run the app from a clone: `git clone --depth 1 --branch setup-v6.11 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The browser UI from a clone needs a build first ([app/README.md](app/README.md#setup)).
 
-1. Install the [prerequisites](#prerequisites): at least one agent and Node.js 22.
-2. Review the plan: `npx benchkeeper@6.11.0 plan`. It lists each change, file changes with their diff and commands as the command line, and writes nothing.
-3. Apply: `npx benchkeeper@6.11.0 apply` asks per change. `--yes` applies the default selection without questions, `--all` applies every change including the removals. `--pack matt-pocock` adds Matt Pocock's skills. Without a command, `npx benchkeeper@6.11.0` opens the same steps in the browser: the Dashboard shows the doctor findings, and Fix everything walks through the global plan, the projects you pick and the steps left by hand. In the browser, each skills CLI install in a plan runs first in a scratch folder, so the plan lists the files it would write.
-4. Restart the agents.
+`plan` lists each change, file changes with their diff and commands as the command line. `apply` asks per change: `--yes` applies the default selection without questions, `--all` applies every change including the removals, `--pack matt-pocock` adds Matt Pocock's skills. In the browser, the Dashboard shows the doctor findings, and Fix everything walks through the global plan, the projects you pick and the steps left by hand. Each skills CLI install in a plan runs first in a scratch folder, so the plan lists the files it would write.
 
 What a full `apply` writes (`--level lite` or `--level standard` plans the BenchKeeper plugin alone; `benchkeeper doctor` names the level it finds and what the next one adds):
 

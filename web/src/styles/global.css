@@ -116,3 +116,12 @@ code:not([data-block]) { white-space: nowrap; }
 @media (max-width: 47.99em) { .repo { padding: 3px 4px; } .repo-icon { width: 22px; height: 22px; } .repo-facts { gap: 8px; } }
 /* below lg the header has a second row with the section links */
 @media (max-width: 74.99em) { section[id] { scroll-margin-top: 104px; } .mantine-Timeline-item { scroll-margin-top: 112px; } }
+/* Quick start tabs: without JavaScript both panels are shown under their own headings; the script adds the tab bar. */
+.qs-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--mantine-color-default-border); }
+.qs-tabs[hidden] { display: none; }
+.qs-tabs [role="tab"] { margin-bottom: -1px; padding: 10px 18px; font: inherit; font-weight: 700; color: var(--mantine-color-dimmed); background: none; border: 0; border-bottom: 3px solid transparent; cursor: pointer; }
+.qs-tabs [role="tab"][aria-selected="true"] { color: var(--mantine-color-bright); border-bottom-color: var(--mantine-color-teal-6); }
+.qs-tabs [role="tab"]:focus-visible { outline: 2px solid var(--mantine-color-teal-6); outline-offset: 2px; }
+.qs-panel + .qs-panel { margin-top: 32px; }
+.qs-js .qs-h { display: none; }
+.qs-js .qs-panel + .qs-panel { margin-top: 0; }

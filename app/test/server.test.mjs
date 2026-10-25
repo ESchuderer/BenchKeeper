@@ -474,6 +474,16 @@ test('packs: save, export, import and remove; bad input is a 400', () => {
   assert.deepEqual(routes['GET /api/pack-warnings'](new URLSearchParams({ skills: 'a,b,c,d,e,f' })), []);
 });
 
+test('packs: a file that is no pack is listed by the catalog with its reason and removed by its file name', () => {
+  const { ctx, routes } = fixture();
+  mkdirSync(join(ctx.config, 'packs'), { recursive: true });
+  writeFileSync(join(ctx.config, 'packs/broken.json'), '{not json');
+  assert.deepEqual(routes['GET /api/catalog']().invalidPacks, [{ file: 'broken.json', reason: 'not valid JSON' }]);
+  assert.deepEqual(routes['POST /api/packs']({ action: 'remove', id: 'broken.json' }), { removed: 'broken.json' });
+  assert.deepEqual(routes['GET /api/catalog']().invalidPacks, []);
+  assert.equal(existsSync(join(ctx.config, 'packs/broken.json')), false);
+});
+
 test('profile import: a bad kind is a 400; register saves packs and projects, then returns the plans', async () => {
   const { routes } = fixture();
   const imp = routes['POST /api/profile-import'];

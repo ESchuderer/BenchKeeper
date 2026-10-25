@@ -1,6 +1,7 @@
 // Best-effort masking of secrets in text that is shown or stored: diff context, session argv, command output, prompts.
 // A value is masked when its key names a secret or when it has the shape of a known token; nothing else is guessed.
-const NAME = '[\\w.-]*(?:token|secret|passw(?:or)?d|credential|authorization|api[_-]?key|apikey|key)[\\w.-]*';
+// The runs around the word are bounded: a long dotted or dashed token cannot make the match quadratic.
+const NAME = '[\\w.-]{0,64}(?:token|secret|passw(?:or)?d|credential|authorization|api[_-]?key|key)[\\w.-]{0,64}';
 const SHAPES = /\b(?:sk-ant-|sk-|ghp_|gho_|ghs_|ghu_|ghr_|github_pat_|npm_|glpat-|xox[abprs]-|AKIA|AIza)[\w-]{8,}/g;
 const ASSIGN = new RegExp(`(\\b${NAME}["']?\\s*[=:]\\s*)(?:(?:Bearer|Basic)\\s+)?("(?:[^"\\\\]|\\\\.)*"|'[^']*'|[^\\s,;"']+)`, 'gi');
 const FLAG = new RegExp(`(--?${NAME}[ =])(\\S+)`, 'gi');

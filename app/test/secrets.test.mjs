@@ -180,3 +180,11 @@ test('eval outputs and results are private, also in folders an earlier version m
   for (const d of [evals, join(evals, 'outputs'), join(file, '..')]) assert.equal(mode(d), 0o700, d);
   assert.equal(mode(join(evals, 'results.jsonl')), 0o600);
 });
+
+test('mask stays linear on a long dotted token and leaves ordinary words alone', () => {
+  const long = `${'a.'.repeat(20000)}x`;
+  const t = Date.now();
+  mask(long);
+  assert.ok(Date.now() - t < 1000);
+  assert.equal(mask('"theme": "dark"'), '"theme": "dark"');
+});

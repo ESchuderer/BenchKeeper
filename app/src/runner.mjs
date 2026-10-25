@@ -17,7 +17,7 @@ import { mask } from './redact.mjs';
 // New files that agents fill with tokens later are created for their user alone.
 const PRIVATE_NEW = /[\\/]\.(claude|codex|gemini|copilot)[\\/](settings(\.local)?\.json|config\.(toml|json)|hooks\.json)$|[\\/]\.claude\.json$/;
 // The last lines of a failed command's output, as stored in the ledger and shown: tokens masked.
-const failure = (r) => mask((r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' ')) || `exit ${r.code}`;
+const failure = (r, lines = 3) => mask((r.stderr || r.stdout || '').trim().split('\n').slice(-lines).join(' ')) || `exit ${r.code}`;
 
 // A path a run may change: inside a root, and not inside ctx.deny unless that root itself lies in the denied folder
 // (a project's .git is denied, its info/exclude list is a root of its own).
@@ -313,7 +313,7 @@ function undoRun(id, ctx, { step } = {}) {
         begin(entry);
         const r = ctx.run(e.undoArgv, { cwd: e.cwd ?? ctx.home, env: childEnv() });
         entry.exit = r.code;
-        if (r.code !== 0) throw new Error(failure(r));
+        if (r.code !== 0) throw new Error(failure(r, 10));
       } else {
         within(e.path, e.kind !== 'remove');
         // Only a file as the run left it goes back, so a later change (another step's, or the user's) is not lost.

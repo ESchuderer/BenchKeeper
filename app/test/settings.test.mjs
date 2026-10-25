@@ -78,7 +78,7 @@ test('a plan is a diff that never shows a secret, and undo restores the file', (
   const plan = preview(settingsChanges(ctx, 'claude', { edits: { 'env.DISABLE_ERROR_REPORTING': true } }));
   assert.equal(plan.length, 1);
   assert.match(plan[0].diff, /DISABLE_ERROR_REPORTING/);
-  assert.ok(plan[0].diff.includes(SECRET), 'the raw diff holds it (the server and CLI redact it)');
+  assert.ok(!plan[0].diff.includes(SECRET), 'the plan diff is masked already');
   assert.ok(!redact(plan[0].diff).includes(SECRET));
   assert.match(redact('MY_PASSWORD = "x"\n{"A_KEY":"y"}\nnotes: fine'), /^MY_PASSWORD = "\(set\)"\n\{"A_KEY":"\(set\)"\}\nnotes: fine$/);
   assert.deepEqual(maskSecrets({ env: { API_KEY: 'x', PATH: 'y' }, headers: { Authorization: 'z' } }), { env: { API_KEY: '(set)', PATH: 'y' }, headers: { Authorization: '(set)' } });

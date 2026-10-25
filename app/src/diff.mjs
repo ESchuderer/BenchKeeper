@@ -1,4 +1,7 @@
-// Line diff for the plan preview: unified format with 3 lines of context.
+import { keyed, mask } from './redact.mjs';
+
+// Line diff for the plan preview: unified format with 3 lines of context. Secrets in any line shown, context included,
+// are masked (the files are written from the real text, never from this).
 export function diffLines(before, after, label = 'file') {
   if (before === after) return '';
   const all = before == null ? [] : before.split('\n');
@@ -39,7 +42,7 @@ export function diffLines(before, after, label = 'file') {
     let end = Math.min(ops.length, changed[k] + 4);
     while (k + 1 < changed.length && changed[k + 1] - 3 <= end) end = Math.min(ops.length, changed[++k] + 4);
     const hunk = ops.slice(start, end);
-    out.push(`@@ -${range(at[start][0], hunk.filter((o) => o[0] !== '+').length)} +${range(at[start][1], hunk.filter((o) => o[0] !== '-').length)} @@`, ...hunk.map((o) => o[0] + o[1]));
+    out.push(`@@ -${range(at[start][0], hunk.filter((o) => o[0] !== '+').length)} +${range(at[start][1], hunk.filter((o) => o[0] !== '-').length)} @@`, ...hunk.map((o) => o[0] + mask(o[1], { keys: keyed(label) })));
     k++;
   }
   return out.join('\n');

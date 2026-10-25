@@ -4,6 +4,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { contentDir } from './content.mjs';
 import { readText } from './fsx.mjs';
+import { mask } from './redact.mjs';
 import { apply, preview } from './runner.mjs';
 
 export const CASE_SCHEMA = 1;
@@ -53,10 +54,12 @@ export function firstPrompt(path) {
 export function addCase(ctx, { target, expected, should = true, project, transcript, description, query, run }) {
   if (!TARGET.test(target ?? '')) throw new Error('target: skill:<name> or rule:<name>');
   if (!expected) throw new Error('expected: the behavior that should or should not happen');
-  const q = query ?? (transcript && firstPrompt(transcript)) ?? description;
-  if (!q) throw new Error('a query, a transcript with a user prompt, or a description is needed');
+  const text = query ?? (transcript && firstPrompt(transcript)) ?? description;
+  if (!text) throw new Error('a query, a transcript with a user prompt, or a description is needed');
+  // A prompt copied from a transcript may hold a pasted token.
+  const q = mask(text, { keys: false });
   const c = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, time: new Date().toISOString(), query: q, should, expected,
-    source: Object.fromEntries(Object.entries({ project, transcript, description, run }).filter(([, v]) => v)) };
+    source: Object.fromEntries(Object.entries({ project, transcript, description: description && mask(description, { keys: false }), run }).filter(([, v]) => v)) };
   const path = join(userEvals(ctx), fileName(target));
   const change = { id: 'case:0', step: 'case', title: `eval case for ${target}: ${should ? 'should' : 'should not'} ${expected}`, kind: 'write', path,
     edit: (t) => { const set = t ? JSON.parse(t) : { kind: 'benchkeeper-evals', schemaVersion: CASE_SCHEMA, target, cases: [] }; set.cases.push(c); return `${JSON.stringify(set, null, 2)}\n`; } };

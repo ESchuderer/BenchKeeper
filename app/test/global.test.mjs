@@ -35,9 +35,9 @@ function machine({ failCodexInstall = false } = {}) {
       return ok();
     }
     if (cmd === 'codex mcp remove extra') { s.removed.add('x-mcp'); return ok(); }
-    if (cmd === 'npm view @devcontainers/cli time --json') return ok(JSON.stringify({ created: '2020-01-01T00:00:00Z', '1.0.0': '2020-01-01T00:00:00Z', '9.9.9': '2999-01-01T00:00:00Z' }));
+    if (cmd === 'npm view @devcontainers/cli time versions --json') return ok(JSON.stringify({ time: { created: '2020-01-01T00:00:00Z', '1.0.0': '2020-01-01T00:00:00Z', '9.9.9': '2999-01-01T00:00:00Z' }, versions: ['1.0.0', '9.9.9'] }));
     if (cmd === 'devcontainer --version') return ok(s.dc ?? '');
-    if (cmd.startsWith('npm i -g @devcontainers/cli@')) { s.dc = argv[3].split('@').pop(); return ok(); }
+    if (cmd.startsWith('npm i -g --ignore-scripts @devcontainers/cli@')) { s.dc = argv[4].split('@').pop(); return ok(); }
     if (cmd === 'orca --version') return ok('1.0.0');
     if (argv[0] === 'npx') {
       const name = argv[argv.indexOf('-s') + 1];
@@ -144,7 +144,7 @@ test('agents without plugins get the rules as a block and skill copies with bare
 });
 
 test('newest picks the highest release older than 7 days', () => {
-  const run = () => ({ code: 0, stdout: JSON.stringify({ '1.2.0': '2026-01-01T00:00:00Z', '1.10.0': '2026-02-01T00:00:00Z', '2.0.0': '2026-10-21T00:00:00Z', '2.0.0-beta': '2026-01-01T00:00:00Z' }) });
+  const run = () => ({ code: 0, stdout: JSON.stringify({ time: { '1.2.0': '2026-01-01T00:00:00Z', '1.10.0': '2026-02-01T00:00:00Z', '2.0.0': '2026-10-21T00:00:00Z', '2.0.0-beta': '2026-01-01T00:00:00Z' }, versions: ['1.2.0', '1.10.0', '2.0.0', '2.0.0-beta'] }) });
   assert.equal(newest({ run }, 'x', Date.parse('2026-10-22')), '1.10.0');
   assert.equal(newest({ run: () => ({ code: 1 }) }, 'x'), null);
   let calls = 0;

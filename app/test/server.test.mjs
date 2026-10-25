@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -422,12 +422,17 @@ test('dashboard: the numbers equal the inventory and the project status; one rea
   appendFileSync(join(dir, '.claude/skills/designing-technical-uis/SKILL.md'), 'local\n');
   mkdirSync(join(dir, '.claude/skills/mine'), { recursive: true });
   writeFileSync(join(dir, '.claude/skills/mine/SKILL.md'), '---\nname: mine\n---\n');
+  // A registered project whose folder is gone does not take the others down.
+  const gone = mkdtempSync(join(TMP, 'bk-gone-'));
+  routes['POST /api/projects']({ action: 'add', path: gone });
+  rmSync(gone, { recursive: true });
   const d = routes['GET /api/dashboard']();
   assert.equal(routes['GET /api/dashboard'](), d);
+  assert.equal(d.projects.find((x) => x.path === gone).states, null);
   const items = routes['GET /api/inventory']();
   assert.deepEqual(Object.fromEntries(Object.entries(d.global.states).filter(([k]) => k !== 'untracked' && d.global.states[k])), Object.fromEntries(['current', 'absent', 'outdated', 'missing', 'modified', 'removed', 'foreign', 'error'].map((k) => [k, items.filter((i) => i.state === k).length]).filter(([, n]) => n)));
   assert.equal(Object.values(d.global.states).reduce((n, x) => n + x, 0), items.length);
-  const [p] = d.projects;
+  const p = d.projects.find((x) => x.path === dir);
   const st = projectStatus(ctx, dir);
   assert.deepEqual([p.path, p.packs, p.skills, p.agents], [dir, st.packs, st.skills, st.agents]);
   assert.deepEqual([p.states.modified >= 1, p.states.current > 0, p.untracked], [true, true, 1]);

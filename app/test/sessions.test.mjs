@@ -133,7 +133,7 @@ test('retention drops the summaries of deleted transcripts after the days; Clear
   assert.deepEqual(sessionCache(ctx), { keepDays: 1, sessions: 2 });
   keepSessionsFor(ctx, null);
   assert.equal(sessionCache(ctx).keepDays, null);
-  for (const bad of [0, -1, 1.5, '7', NaN]) assert.throws(() => keepSessionsFor(ctx, bad), /whole number/);
+  for (const bad of [0, -1, 1.5, '7', NaN, 3651]) assert.throws(() => keepSessionsFor(ctx, bad), /whole number/);
   keepSessionsFor(ctx, 9);
   clearSessionCache(ctx);
   assert.deepEqual(sessionCache(ctx), { keepDays: 9, sessions: 0 });

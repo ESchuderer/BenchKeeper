@@ -27,9 +27,9 @@ const STYLE = `.bk-dash{${css('light')}--bk-bar:#2a78d6}:root[data-mantine-color
 const Swatch = ({ state }) => <Box component="span" aria-hidden w={10} h={10} display="inline-block" style={{ borderRadius: 2, background: `var(--bk-h-${state})` }} />;
 
 // Where a figure leads: the scopes it counts. Items that are not current are changes the plans would make.
-function target(state, here, projects) {
+function target(state, projects) {
   if (!projects) return href('agents', { plan: '1' });
-  if (state === 'current' || state === 'untracked' || here) return href('projects');
+  if (state === 'current' || state === 'untracked') return href('projects');
   return href('projects', { show: 'changes' });
 }
 
@@ -46,7 +46,7 @@ function Installed({ data, names }) {
           {data.projects.map((p) => (
             <Table.Tr key={p.path}>
               <Table.Th scope="row"><Anchor href={href('projects', { path: p.path })}>{label(p)}</Anchor></Table.Th>
-              <Table.Td>{p.setup ? skills(p.skills, () => href('projects', { path: p.path })) : 'not set up'}</Table.Td>
+              <Table.Td>{p.setup ? skills(p.skills, () => href('projects', { path: p.path })) : p.error ? 'cannot be read' : 'not set up'}</Table.Td>
               <Table.Td>{p.setup ? packs(p.packs) : 'none'}</Table.Td>
             </Table.Tr>
           ))}
@@ -72,7 +72,7 @@ function Health({ data }) {
       </div>
       <List listStyleType="none" aria-label="Items by state, all scopes" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
         {shown.map((s) => (
-          <List.Item key={s}><Group gap={6} wrap="nowrap"><Swatch state={s} /><Anchor href={target(s, total(s, rows.slice(0, 1)), total(s, rows.slice(1)))} aria-label={`${total(s)} ${s}, open what it counts`}>{total(s)} {s}</Anchor></Group></List.Item>
+          <List.Item key={s}><Group gap={6} wrap="nowrap"><Swatch state={s} /><Anchor href={target(s, total(s, rows.slice(1)))} aria-label={`${total(s)} ${s}, open what it counts`}>{total(s)} {s}</Anchor></Group></List.Item>
         ))}
       </List>
       <details>

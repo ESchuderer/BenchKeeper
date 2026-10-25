@@ -62,7 +62,8 @@ const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
 // pull request), unfiltered, for the Dashboard's item states; null without a setup.
 export function projectItemPlan(ctx, path) {
   const own = tryState(path), local = own ?? kept(ctx, path);
-  return local ? projectPlan({ ctx: projectCtx(ctx, path), dir: path, answers: own ? {} : localAnswers(local) }).changes : null;
+  // What the Projects view calls a change: selected ones, and commands that run in the project.
+  return local ? projectPlan({ ctx: projectCtx(ctx, path), dir: path, answers: own ? {} : localAnswers(local) }).changes.filter((c) => c.selected !== false && (c.kind !== 'command' || c.cwd)) : null;
 }
 // Per chosen agent, the skills in the project folder it reads.
 export function skillCounts(path, agents) {

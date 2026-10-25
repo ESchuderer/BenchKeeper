@@ -7,6 +7,7 @@ import { library } from './content.mjs';
 import { readText, writeAtomic } from './fsx.mjs';
 
 const SCHEMA = 1;
+const MAX_DAYS = 3650;
 const cacheDir = (ctx) => join(ctx.home, '.cache/benchkeeper');
 const TIERS = ['quick', 'standard', 'full'];
 const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
@@ -129,23 +130,23 @@ const plain = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v 
 const cachePath = (ctx) => join(cacheDir(ctx), 'sessions.json');
 const readCache = (ctx) => {
   const old = parse(readText(cachePath(ctx)) ?? '{}');
-  return { files: old?.schema === SCHEMA && old.files && typeof old.files === 'object' ? old.files : {}, keepDays: Number.isInteger(old?.keepDays) && old.keepDays > 0 ? old.keepDays : null };
+  return { files: old?.schema === SCHEMA && old.files && typeof old.files === 'object' ? old.files : {}, keepDays: Number.isInteger(old?.keepDays) && old.keepDays >= 1 && old.keepDays <= MAX_DAYS ? old.keepDays : null };
 };
 const writeCache = (ctx, files, keepDays) => {
   // Titles and paths of the user's sessions: this user only.
   writeAtomic(cachePath(ctx), JSON.stringify({ schema: SCHEMA, keepDays, files }), 0o600);
 };
 export const sessionCache = (ctx) => { const { files, keepDays } = readCache(ctx); return { keepDays, sessions: Object.values(files).filter((x) => x.kind !== 'sub' && !x.d?.parent).length }; };
-// days: a whole number of at least 1, or null to keep summaries for good. Applies at once and on every scan.
+// days: a whole number from 1 to 3650, or null to keep summaries for good. The next scan drops what is older.
 export function keepSessionsFor(ctx, days) {
-  if (days !== null && !(Number.isInteger(days) && days >= 1)) throw new Error('days must be a whole number of at least 1, or none');
-  writeCache(ctx, expire(readCache(ctx).files, days), days);
+  if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= MAX_DAYS)) throw new Error(`days must be a whole number from 1 to ${MAX_DAYS}, or none`);
+  writeCache(ctx, readCache(ctx).files, days);
 }
 // The summaries go, and so does the history of transcripts the agent has deleted; the next scan rebuilds the rest.
 export const clearSessionCache = (ctx) => writeCache(ctx, {}, readCache(ctx).keepDays);
 const expire = (files, keepDays, now = Date.now()) => {
   const horizon = keepDays ? new Date(now - keepDays * 864e5).toISOString() : '';
-  return Object.fromEntries(Object.entries(files).filter(([, x]) => (x.d?.end ?? x.d?.start ?? '') >= horizon));
+  return Object.fromEntries(Object.entries(files).filter(([, x]) => { const t = x.d?.end ?? x.d?.start; return !t || t >= horizon; }));
 };
 
 // Every transcript, parsed once per size and mtime (cache: sessions.json in the benchkeeper cache folder). The summary of a

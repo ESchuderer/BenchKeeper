@@ -5,4 +5,4 @@ import { updateNotice } from '../src/update.mjs';
 
 // Interactive use only, so scripts get no extra request or delay.
 if (process.stdout.isTTY) updateNotice(appVersion).then((n) => n && console.error(n));
-main(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (e) => { console.error(e.message); process.exitCode = 1; });
+main(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (e) => { console.error(e.message); process.exitCode = 2; });

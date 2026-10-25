@@ -183,12 +183,7 @@ export function globalPlan(env) {
     const r = agent(id).global.rules;
     add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: at(r.path), edit: (cur) => renderRules(r.format, cur, forAgent(rules, id)) });
   }
-  if (agents.includes('claude')) {
-    const dir = at('.claude/rules');
-    for (const f of exists(dir) ? readdirSync(dir) : []) if (f !== '00-global.md') add('rules:claude:other', `other Claude rules ~/.claude/rules/${f}`, { kind: 'remove', path: join(dir, f) });
-    if (exists(at('.claude/CLAUDE.md'))) add('rules:claude:other', 'other Claude rules ~/.claude/CLAUDE.md', { kind: 'remove', path: at('.claude/CLAUDE.md') });
-  }
-  if (agents.includes('codex') && exists(at('.codex/AGENTS.override.md'))) add('rules:codex:other', 'Codex rules override ~/.codex/AGENTS.override.md', { kind: 'remove', path: at('.codex/AGENTS.override.md') });
+  // Rule files that are not BenchKeeper's are the user's: the Rules view lists them and switches them, this plan leaves them be.
 
   // Offered, not preselected: an ask rule may be the user's own, and a Codex rules file holds the user's saved approvals too.
   if (agents.includes('claude')) {

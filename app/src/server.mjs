@@ -25,6 +25,7 @@ import { rehearsable, rehearse } from './prerun.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll } from './projects.mjs';
+import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
 import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
@@ -502,6 +503,29 @@ export function api(ctx) {
       const sctx = dir ? projectCtx(ctx, dir) : ctx;
       const changes = preview(input(() => settingsChanges(sctx, agentId, { layer, dir, edits })));
       return { planId: keep(changes, sctx, dir ?? 'global'), changes: serialize(changes, sctx) };
+    },
+    // The instruction files of the global folders, or of a registered project, with owner, load state and the context they cost.
+    'GET /api/rules': (q) => {
+      const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const agents = installed().filter((a) => RULE_AGENTS.includes(a));
+      return rulesView(ctx, { agents: agents.length ? agents : RULE_AGENTS, dir });
+    },
+    // The text of one listed file: any other path is refused. For the page on this machine only.
+    'GET /api/rule-text': (q) => {
+      const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      return input(() => ruleText(ctx, { agent: q.get('agent') || undefined, file: q.get('file'), dir }));
+    },
+    // A plan that turns one listed file on or off; applied through /api/apply, undone in History.
+    'POST /api/rules-plan': (b) => {
+      if (!RULE_AGENTS.includes(b.agent)) throw bad(`agent must be one of ${RULE_AGENTS.join(', ')}`);
+      if (typeof b.on !== 'boolean') throw bad('on must be true or false');
+      const dir = b.dir ? resolve(String(b.dir)) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const rctx = dir ? projectCtx(ctx, dir) : ctx;
+      const changes = preview(input(() => ruleChanges(ctx, { agent: b.agent, file: b.file, dir, on: b.on })));
+      return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
     },
     'GET /api/inventory': inventoryNow,
     // The Dashboard: installed, health, coverage and catalog by pack, from one read of the inventory and the projects.

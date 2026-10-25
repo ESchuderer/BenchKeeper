@@ -12,7 +12,7 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Rules', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -929,6 +929,47 @@ test.describe('views', () => {
     // Codex: its own file and keys.
     await page.getByText('Codex', { exact: true }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
+  });
+
+
+  test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
+    await nav(page, 'Rules').click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Claude Code' })).toBeVisible();
+    const files = page.getByRole('table', { name: 'Claude Code instruction files' });
+    const team = files.getByRole('row', { name: /20-team\.md/ });
+    await expect(team).toContainText('yours');
+    await expect(team).toContainText('loads');
+    // BenchKeeper's own rules file has no switch; the budget counts files, skill descriptions and says what is largest.
+    await expect(files.getByRole('row', { name: /00-global\.md/ })).toContainText('No switch: BenchKeeper wrote it');
+    await expect(page.getByRole('table', { name: 'Context budget' }).first()).toContainText('Rule files');
+    await expect(page.getByText('load at the start of every session').first()).toBeVisible();
+    await noAxe(page);
+    // The text opens on this machine only.
+    await team.getByRole('button', { name: /Show text of/ }).click();
+    const drawer = page.getByRole('dialog', { name: 'Rule file text' });
+    await expect(drawer).toContainText('Keep answers short.');
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(drawer).toBeHidden();
+    // A switch is a plan with a diff; the file itself is never changed.
+    // The switch's track lies over its input, which Playwright's hit test refuses.
+    await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('claudeMdExcludes');
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(team).toContainText('off');
+    await expect(team).toContainText('user settings');
+    await noAxe(page);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    await page.reload();
+    await expect(team).toContainText('loads');
+    // A project: its files come after the global ones, with the same switch for a global file in this project only.
+    await page.getByRole('combobox', { name: 'Show' }).click();
+    await page.getByRole('option').nth(1).click();
+    await expect(page.getByRole('heading', { level: 3, name: 'Claude Code files for this project' })).toBeVisible();
+    await noAxe(page);
   });
 
   // The one-run setup, last: it applies project setups and registers four more projects.

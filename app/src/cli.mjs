@@ -18,6 +18,7 @@ import { listFiles, writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
 import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
+import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
@@ -53,6 +54,13 @@ Usage: benchkeeper <command> [options]
                                     that cancel each other; a change is a plan with a diff, undo restores it;
                                     environment switches are set (value "set") or removed, never 0 or false;
                                     managed settings are never written
+  rules list [--agent claude|codex] [--project dir]
+  rules disable|enable <file> [--agent a] [--project dir] [--yes]
+                                    the instruction files each agent loads: owner, size, whether they load, and the
+                                    context they cost with skill descriptions, imports and auto memory; disable leaves
+                                    one file out (Claude Code: claudeMdExcludes in the user settings, or in the
+                                    project's local settings with --project; a global Codex file moves to a folder of
+                                    the app's own); nothing is deleted, the plan has a diff and undo restores it
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--transcript file] [--description text] [--query text]
                                     records an observed miss as an eval case (~/.config/benchkeeper/evals/)
@@ -375,6 +383,7 @@ async function command(argv, { out, err, ask, ctx }) {
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
     // A session run gives the project and transcript.
@@ -548,4 +557,29 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const sctx = layer === 'user' ? ctx : projectCtx(ctx, dir);
   return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
+}
+
+// rules list|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
+async function rulesCommand({ o, positionals, out, ask, ctx }) {
+  const [, sub, file] = positionals;
+  if (!['list', 'disable', 'enable'].includes(sub)) { out.write('rules needs list, disable or enable\n'); return 2; }
+  if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
+  const dir = o.project ? resolve(o.project) : undefined;
+  if (sub === 'list') {
+    const found = selectedAgents(ctx, o.agents).filter((a) => RULE_AGENTS.includes(a));
+    for (const a of rulesView(ctx, { agents: o.agent ? [o.agent] : found.length ? found : RULE_AGENTS, dir }).agents) {
+      out.write(`${a.name}\n`);
+      for (const r of a.rows) out.write(`  ${r.scope.padEnd(8)} ${r.owner.padEnd(12)} ${(r.load + (r.by ? ` (${r.by})` : '')).padEnd(24)} ${String(r.tokens).padStart(6)} tokens  ${r.shown}\n`);
+      const b = a.budget;
+      out.write(`  at the start of a session: about ${b.total} tokens (bytes / 4)${b.largest ? `, largest ${b.largest.label} with ${b.largest.tokens}` : ''}${b.over ? `, over ${b.threshold}` : ''}\n`);
+      for (const n of b.notes) out.write(`  note: ${n}\n`);
+    }
+    return 0;
+  }
+  if (!file) { out.write(`rules ${sub} needs a file\n`); return 2; }
+  let plan;
+  try { plan = preview(ruleChanges(ctx, { agent: o.agent, file: resolve(file), dir, on: sub === 'enable' })); } catch (e) { out.write(`${e.message}\n`); return 1; }
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  const rctx = dir ? projectCtx(ctx, dir) : ctx;
+  return report(apply(plan, rctx, { scope: dir ?? 'global', select: await choose(plan, o, ask, out) }), out);
 }

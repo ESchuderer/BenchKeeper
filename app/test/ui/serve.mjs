@@ -80,6 +80,8 @@ ctx.runAsync = async (argv, o) => {
 const first = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
 apply(first, ctx);
 appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
+// A rule file of the user's own: the Rules view lists it as yours, Doctor says nothing about it.
+writeFileSync(join(home, '.claude/rules/20-team.md'), '# Team notes\n\nKeep answers short.\n');
 const dir = join(parent, DEMO ? 'shop' : 'bk-ui-proj');
 execFileSync('git', ['init', '-q', '-b', 'main', dir]);
 writeFileSync(join(dir, 'README.md'), '# Demo\n');

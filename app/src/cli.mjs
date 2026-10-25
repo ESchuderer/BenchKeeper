@@ -422,7 +422,8 @@ async function command(argv, { out, err, ask, ctx }) {
     if (!o.yes && !(await ask(`Start ${sessions} agent sessions?`))) return 1;
     for (const r of await runEval(ctx, plan)) {
       const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
-      out.write(`${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}${r.details.some((d) => d.review) ? `  review: ${r.details.find((d) => d.review).review.replace(/[^/]+$/, '')}` : ''}\n`);
+      const review = r.details.find((d) => d.review)?.review;
+      out.write(`${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}${review ? `  review: ${review.slice(0, review.lastIndexOf('/') + 1)}` : ''}\n`);
     }
     return 0;
   }

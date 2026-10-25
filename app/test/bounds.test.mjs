@@ -450,6 +450,12 @@ test('advice names each pack and skill once', () => {
   assert.deepEqual([r.packs.length, r.skills.length], [1, 1]);
 });
 
+test('an answer of many opening braces and no closing one is rejected without a long scan', () => {
+  const start = Date.now();
+  assert.throws(() => parseAdvice('{'.repeat(200_000), { packs: [], skills: [] }), /no JSON/);
+  assert.ok(Date.now() - start < 2000);
+});
+
 test('a query that starts with a dash is no eval case', async () => {
   const c = context({ home: home(), run: () => ({ code: 0, stdout: '', stderr: '' }) });
   assert.throws(() => addCase(c, { target: 'skill:x', expected: 'it triggers', query: '--help me' }), /starts with a dash/);

@@ -242,6 +242,24 @@ export function ownSkillFiles(name, paths) {
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
+// The "## Agent skills" block of Matt Pocock's setup: from its heading to the next "## " heading or the end of the text.
+function agentSkillsBlock(text) {
+  const heading = '## Agent skills\n';
+  const at = text.indexOf(heading);
+  if (at < 0) return null;
+  const from = at + heading.length;
+  const next = text.indexOf('\n## ', from);
+  const end = Math.max(from, text.trimEnd().length);
+  const start = text[at - 1] === '\n' ? at - 1 : at;
+  const stop = next < 0 ? end : Math.min(next, end);
+  return { start, stop, text: text.slice(start, stop) };
+}
+
+function withoutAgentSkillsBlock(text) {
+  const b = agentSkillsBlock(text);
+  return b ? text.slice(0, b.start) + text.slice(b.stop) : text;
+}
+
 export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const a = resolveAnswers(dir, answers);
   const lib = libraryWith(ctx);
@@ -296,11 +314,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]) });
   }
   // Matt Pocock's setup writes its block into CLAUDE.md; Codex reads AGENTS.md, so it moves there.
-  const block = /\n?## Agent skills\n[\s\S]*?(?=\n## |\s*$)/;
-  if (a.agents.includes('codex') && a.agents.includes('claude') && block.test(readText(at('CLAUDE.md')) ?? '') && !/## Agent skills/.test(readText(at('AGENTS.md')) ?? '')) {
-    const moved = readText(at('CLAUDE.md')).match(block)[0].trim();
+  const skillsBlock = a.agents.includes('codex') && a.agents.includes('claude') ? agentSkillsBlock(readText(at('CLAUDE.md')) ?? '') : null;
+  if (skillsBlock && !/## Agent skills/.test(readText(at('AGENTS.md')) ?? '')) {
+    const moved = skillsBlock.text.trim();
     add('agent-skills-block', 'move the ## Agent skills block from CLAUDE.md to AGENTS.md (Codex reads AGENTS.md)', { kind: 'write', path: at('AGENTS.md'), edit: (t) => `${(t ?? '').trimEnd()}\n\n${moved}\n`, unit: 'agent-skills-block' });
-    add('agent-skills-block', 'remove the moved block from CLAUDE.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => `${t.replace(block, '').trimEnd()}\n`, unit: 'agent-skills-block' });
+    add('agent-skills-block', 'remove the moved block from CLAUDE.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => `${withoutAgentSkillsBlock(t).trimEnd()}\n`, unit: 'agent-skills-block' });
   }
   // repo-baseline's caller workflows, on request: files in the checkout. One that differs from the bundled caller is the project's own: offered, not preselected.
   for (const m of a.callers) {

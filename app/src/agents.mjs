@@ -11,7 +11,7 @@ export const agent = (id) => registry.find((a) => a.id === id) ?? (() => { throw
 export function detect(ctx) {
   return registry.map((a) => {
     const r = ctx.run([a.bin, '--version']);
-    const version = r.code === 0 ? (r.stdout.match(/\d+\.\d+\.\d+[\w.-]*/) ?? [r.stdout.trim()])[0] : null;
+    const version = r.code === 0 ? (r.stdout.match(/\d{1,9}\.\d{1,9}\.\d{1,9}[\w.-]*/) ?? [r.stdout.trim()])[0] : null;
     return { id: a.id, name: a.name, tested: a.tested, installed: r.code === 0, version };
   });
 }

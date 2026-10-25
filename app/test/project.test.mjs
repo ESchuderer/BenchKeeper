@@ -217,6 +217,17 @@ test("Matt Pocock's Agent skills block moves to AGENTS.md when Codex is selected
   assert.match(read(join(r.dir, 'AGENTS.md')), /## Agent skills\n\n### Issue tracker\n\nGitHub\./);
 });
 
+test("Matt Pocock's Agent skills block ends at the next heading and leaves the rest of CLAUDE.md", () => {
+  const r = repo();
+  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n\n### Issue tracker\n\nGitHub.\n\n## Notes\n\nMine.\n');
+  const { changes } = plan(r, { agents: ['claude', 'codex'], env: 'host' });
+  apply(preview(changes), r.ctx, { scope: r.dir });
+  assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n\n## Notes\n\nMine.\n');
+  const agents = read(join(r.dir, 'AGENTS.md'));
+  assert.match(agents, /## Agent skills\n\n### Issue tracker\n\nGitHub\./);
+  assert.doesNotMatch(agents, /Mine\./);
+});
+
 test('Gemini CLI reads AGENTS.md; the sandbox option excludes devcontainer and podman', () => {
   const r = repo();
   mkdirSync(join(r.dir, '.claude'));

@@ -101,3 +101,20 @@ test('prerun: no credentials reach the command, the home is the context home, an
   assert.ok(loop.error);
   assert.equal(seen, null);
 });
+
+test('prerun: a failed signature check stops the rehearsal before the command runs', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-prerun-verify-'));
+  const calls = [];
+  const ctx = { home, run: (argv) => { calls.push(argv[0]); return argv[0] === 'verify' ? { code: 1, stdout: '', stderr: 'npm error signature mismatch' } : { code: 0, stdout: '', stderr: '' }; } };
+  const r = await rehearse(ctx, { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '--copy', '-y'], verify: ['verify', 'skills@1.7.2'] });
+  assert.deepEqual(r.files, []);
+  assert.match(r.error, /signature check failed: npm error signature mismatch/);
+  assert.deepEqual(calls, ['verify']);
+  // A passed check is not repeated for the next preview of the same package.
+  const seen = [];
+  const pass = { home, run: (argv) => { seen.push(argv[0]); return { code: 0, stdout: '', stderr: '' }; } };
+  const c = { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '--copy', '-y'], verify: ['verify-once', 'skills@9.9.9'] };
+  await rehearse(pass, c);
+  await rehearse(pass, c);
+  assert.deepEqual(seen, ['verify-once', 'npx', 'npx']);
+});

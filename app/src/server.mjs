@@ -129,6 +129,13 @@ export function api(ctx) {
     for (const j of jobs.values()) if (j.kind === 'prerun') j.ctl.abort();
     rehearsals.clear();
   };
+  // A removal runs only when the request says it was confirmed: an id of a destructive change in select is not enough.
+  // Without a select the plan's preselected changes run, so a destructive one among them needs the flag too.
+  const confirmed = (p, select, ok) => {
+    const ids = new Set((select ?? []).filter((i) => typeof i === 'string'));
+    const named = p.changes.filter((c) => c.destructive && (select ? ids.has(c.id) : c.selected && !c.error));
+    if (named.length && ok !== true) throw bad(`confirmDestructive is needed to apply: ${named.map((c) => c.title).join('; ')}`);
+  };
   // A job runs work(job) in the background; the newest 20 finished jobs are kept.
   const start = (total, work, { kind, title, readOnly = false }) => {
     const job = { id: randomBytes(8).toString('hex'), kind, title, total, run: null, output: {}, done: false, readOnly, ctl: new AbortController() };
@@ -178,6 +185,7 @@ export function api(ctx) {
       if (b.select !== undefined && !(Array.isArray(b.select) && b.select.every((i) => typeof i === 'string'))) throw bad('select must be a list of change ids');
       const p = plans.get(b.planId);
       if (!p || Date.now() - p.at > 30 * 60e3) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
+      confirmed(p, b.select, b.confirmDestructive);
       plans.delete(b.planId);
       // Output is kept per change, its last 8 kB.
       return start(b.select?.length ?? p.changes.filter((c) => c.selected).length, (job) => applyAsync(p.changes, p.ctx, { scope: p.scope, select: b.select, stop: () => job.ctl.signal.aborted }, (e) => {
@@ -198,6 +206,7 @@ export function api(ctx) {
         return { id: x.planId, p, select: Array.isArray(x.select) ? x.select.filter((i) => typeof i === 'string') : undefined };
       });
       if (new Set(list.map((x) => x.id)).size < list.length) throw bad('a plan can be applied once: each section needs its own planId');
+      for (const { p, select } of list) confirmed(p, select, b.confirmDestructive);
       for (const { id } of list) plans.delete(id);
       return start(list.length, async (job) => {
         job.sections = list.map(({ p, select }) => ({ scope: p.scope, title: p.scope === 'global' ? 'Global setup' : p.scope, total: select?.length ?? p.changes.filter((c) => c.selected).length, status: 'waiting', run: null, error: null }));
@@ -481,6 +490,9 @@ export function api(ctx) {
     },
     'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) })),
   };
+  // Registry, pack and profile writes wait for a running apply too: they change what a plan reads or an apply writes.
+  const guarded = { 'POST /api/projects': () => true, 'POST /api/packs': () => true, 'POST /api/profile-import': (b) => b.register };
+  for (const [k, when] of Object.entries(guarded)) { const f = routes[k]; routes[k] = (b) => { if (when(b)) idle(); return f(b); }; }
   // A change drops the cached machine reads.
   for (const k of Object.keys(routes)) if (k.startsWith('POST ')) { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
   return routes;
@@ -498,13 +510,16 @@ async function body(req) {
   return b;
 }
 
-export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx) } = {}) {
+// The link works once and for this long: a token printed with --no-open does not stay valid until the server stops.
+export const TOKEN_MS = 10 * 60e3;
+export function startServer(ctx, { port = 0, token = randomBytes(32).toString('base64url'), dist = distDir, routes = api(ctx), tokenMs = TOKEN_MS } = {}) {
   let urlToken = token, session = null, key = null;
+  const expires = Date.now() + tokenMs;
   // A failure nobody handled ends this request, never the server.
   const server = createServer((req, res) => handle(req, res).catch(() => { if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' }); res.end('{"error":"internal error"}'); }));
   const handle = async (req, res) => {
     const send = (code, data, type = 'application/json; charset=utf-8', headers = {}) => {
-      res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'", ...headers });
+      res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'", ...headers });
       res.end(type.startsWith('application/json') ? JSON.stringify(data) : data);
     };
     let url;
@@ -512,7 +527,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
     const p = server.address().port;
     // The URL token works once: it becomes the session cookie and the API key, which the page reads from the fragment
     // (never sent to a server) and keeps in this origin's storage.
-    if (req.method === 'GET' && url.pathname === '/' && url.searchParams.has('token') && req.headers.host === `127.0.0.1:${p}` && urlToken && same(url.searchParams.get('token'), urlToken)) {
+    if (req.method === 'GET' && url.pathname === '/' && url.searchParams.has('token') && req.headers.host === `127.0.0.1:${p}` && urlToken && Date.now() < expires && same(url.searchParams.get('token'), urlToken)) {
       urlToken = null;
       session = randomBytes(32).toString('base64url');
       key = randomBytes(32).toString('base64url');
@@ -535,6 +550,8 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
         return send(200, boardHtml(rows, new Date(at).toISOString(), registeredPaths(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
+    // A form post cannot send JSON: only a script of this origin gets through (the Origin and key checks above stand too).
+    if (route && req.method === 'POST' && !/^application\/json(;|$)/i.test(req.headers['content-type'] ?? '')) return send(415, { error: 'content-type must be application/json' });
     if (route) {
       try { send(200, await route(req.method === 'POST' ? await body(req) : url.searchParams)); } catch (e) { return send(e.status ?? 500, { error: e.message }); }
       // After the answer: closing ends the CLI's ui command, as Ctrl+C does.
@@ -570,7 +587,8 @@ export function launch(target) {
   try { spawn(argv[0], argv.slice(1), { stdio: 'ignore', detached: true, windowsVerbatimArguments: win }).on('error', () => {}).unref(); } catch { /* the URL is printed */ }
 }
 
-// A snap or Flatpak browser has its own /tmp and cannot read the file openBrowser writes there.
+// A snap or Flatpak browser has its own /tmp and cannot read the file openBrowser writes there; handing it the URL would put
+// the token into the arguments, which other local users read with ps. It is not launched: the CLI prints the URL to paste.
 export function confinedBrowser(run = runCommand, home = process.env.HOME ?? '') {
   if (process.platform !== 'linux') return false;
   const app = run(['xdg-settings', 'get', 'default-web-browser'], { timeout: 5e3 }).stdout.trim();
@@ -580,9 +598,9 @@ export function confinedBrowser(run = runCommand, home = process.env.HOME ?? '')
 
 // Other local users can read process arguments, so the opener and the browser get a file only this user can read,
 // which forwards to the URL with the token. It goes once the browser had time to load it, or when the app ends.
-// A confined browser, or a file that cannot be written, gets the URL itself, as before.
+// A confined browser, or a file that cannot be written, launches nothing (returns null): the URL goes to the user to paste.
 export function openBrowser(url, { wait = 120e3, open = launch, confined = confinedBrowser } = {}) {
-  if (confined()) return open(url);
+  if (confined()) return null;
   let dir;
   try {
     dir = mkdtempSync(join(tmpdir(), 'bk-open-'));
@@ -596,7 +614,7 @@ export function openBrowser(url, { wait = 120e3, open = launch, confined = confi
     return file;
   } catch {
     if (dir) rmSync(dir, { recursive: true, force: true });
-    return open(url);
+    return null;
   }
 }
 // On Windows through explorer: cmd would read & or ^ in a folder name as its own syntax.

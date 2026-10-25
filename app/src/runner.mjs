@@ -114,7 +114,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
     if (unit && unit.some(picked) && !unit.every(picked)) throw new Error(`${unit.map((x) => x.title).join(' and ')} go together: choose all of them or none`);
   }
   yield { run };
-  const failedSteps = new Set(), startedUnits = new Set();
+  const failedSteps = new Set(), startedUnits = new Set(), verified = new Set();
   for (const c of changes) {
     if (!picked(c)) continue;
     const entry = { id: c.id, step: c.step, title: c.title, kind: c.kind };
@@ -138,6 +138,14 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
           for (const x of entry.snapshot) if (x.backup) { copy(x.path, x.backup); if (hashPath(x.backup) !== x.hashBefore) throw new Error(`backup of ${x.path} differs from the original`); }
         }
         ctx.ledger.save(run);
+        // c.verify: a command that checks the code this one fetches (signatures); once per run for the same check.
+        if (c.verify && !verified.has(c.verify.join(' '))) {
+          // The command's own environment: the check reads the registry the install will.
+          const v = yield { argv: c.verify, opts: { cwd: ctx.home, env: childEnv(c.env) }, entry };
+          // Nothing ran yet: the entry is not touched.
+          if (v.code !== 0) { delete entry.touched; throw new Error(`${c.argv[0]} was not run, the signature check failed: ${failure(v)}`); }
+          verified.add(c.verify.join(' '));
+        }
         const r = yield { argv: c.argv, opts: { cwd: c.cwd ?? ctx.home, env: childEnv(c.env) }, entry };
         // Ended with an exit code: undone only when it succeeded, as before the journal.
         entry.exit = r.code;

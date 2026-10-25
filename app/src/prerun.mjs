@@ -52,6 +52,8 @@ function homePath(home, rel) {
   return join(home, rel);
 }
 
+const checked = new Map();
+
 export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3 } = {}) {
   const t = mkdtempSync(join(tmpdir(), 'bk-prerun-'));
   try {
@@ -80,6 +82,14 @@ export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3 } = {}) {
     // npm reads these names in either case: the user's own upper-case ones must not win over the scratch ones.
     for (const k of Object.keys(env)) if (/^npm_config_(userconfig|cache)$/i.test(k) && k !== k.toLowerCase()) delete env[k];
     const runAsync = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
+    // The same signature check as the run: unsigned code is not downloaded for a preview either.
+    // A passed check counts for 10 minutes, so a list of previews checks the skills CLI once.
+    const key = c.verify?.join(' ');
+    if (c.verify && !(checked.get(key) > Date.now())) {
+      const v = await runAsync(c.verify, { cwd: t, env: childEnv(c.env), signal, timeout });
+      if (v.code === 0) checked.set(key, Date.now() + 10 * 60e3);
+      if (v.code !== 0) return { files: [], error: `signature check failed: ${mask((v.stderr || v.stdout).trim().split('\n').slice(-3).join(' ')) || `exit ${v.code}`}` };
+    }
     const r = await runAsync(c.argv, { cwd: root, env, signal, timeout });
     if (r.code !== 0) return { files: [], error: mask((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ')) || `exit ${r.code}` };
     // What the command left in the scratch folder, and the seeded paths it may have removed.

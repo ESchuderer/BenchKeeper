@@ -10,7 +10,7 @@ import { exists, listFiles, readText } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
-import { PLUGINS, SKILLS_SPEC, pin } from './global.mjs';
+import { PLUGINS, SKILLS_SPEC, SKILLS_VERIFY, marketRef } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
 // A local setup's files: Claude Code's personal instructions and settings, and Codex's override of AGENTS.md.
@@ -279,7 +279,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     for (const ag of Object.keys(pack.plugins ?? {}).filter((x) => a.agents.includes(x))) {
       const p = PLUGINS[ag].find((x) => x.pack === id);
       if (p && !(plugins[ag] ?? []).includes(p.id)) {
-        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', `${p.source}${ag === 'claude' ? '#' : '@'}${pin(p, appVersion).ref}`], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace], unit: `pack:${id}:${ag}` });
+        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', `${p.source}${ag === 'claude' ? '#' : '@'}${marketRef(p, ag, appVersion)}`], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace], unit: `pack:${id}:${ag}` });
         add(`pack:${id}:${ag}`, `${agent(ag).name} plugin ${p.id}`, { unit: `pack:${id}:${ag}`, ...(ag === 'claude' ? { kind: 'command', argv: ['claude', 'plugin', 'install', p.id], undoArgv: ['claude', 'plugin', 'uninstall', p.id] } : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] }) });
       }
     }
@@ -327,7 +327,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}`, {
-        kind: 'command', cwd: dir, env: NPX_ENV, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
+        kind: 'command', cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)],
         argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }
@@ -343,7 +343,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
+      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
         argv: ['npx', '-y', SKILLS_SPEC, 'remove', name, ...flags, '-y'] });
     // A name the library does not know is not one BenchKeeper installed: offered, not preselected.
     } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: !!s });

@@ -97,10 +97,12 @@ A test name refers to the file named in the same row.
 | Project `npx` uses the public registry; the skills CLI is an exact version under an alias, never a repo-local binary | `NPX_ENV`, `SKILLS_SPEC` | `project.test.mjs` (the skills command asserts the registry variable and the spec) |
 | Commands without a folder run in the home | `applySteps` in `runner.mjs`, `newest` in `steps/global.mjs` | `security.test.mjs` "commands without a folder of their own run in the home" |
 | Commands that install or look up third-party code get an environment of an allowlist (path, locale, proxy and certificate settings, tool folders), never a variable named like a credential; `BENCHKEEPER_PASS_ENV` names what the owner lets through | `childEnv` in `childenv.mjs`, used by `applySteps` and `undoRun` in `runner.mjs`, `newest` and `rehearse` | `secrets.test.mjs` "childEnv", "commands run with the filtered environment" |
-| The agent sessions of `record`, `eval` and advice keep the full environment (the agent needs its own login variables) | none, by design | open: [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) |
+| Eval and advice sessions get the same allowlist plus the login variables of the agent that runs (`ANTHROPIC_` and `CLAUDE_` for Claude Code, `OPENAI_` and `CODEX_` for Codex), never another agent's key; `GH_TOKEN`, `NPM_TOKEN`, `SSH_AUTH_SOCK` and other credential-like names stay out, and `BENCHKEEPER_PASS_ENV` lets one through (cloud logins such as AWS or Google variables for Bedrock or Vertex need it) | `agentEnv` in `childenv.mjs`, used by `eval.mjs` and `advise.mjs` | `advise.test.mjs` "an agent session gets its own login variables"; `secrets.test.mjs` "an eval session starts with the agent login variables only" |
+| `record` runs the command the user typed with the full environment and no confinement | none, by design: the user chooses the command and the agent needs its own login | none |
+| A preview runs the skills CLI in a scratch folder and so downloads and runs third-party code: it starts on a click, never when a plan loads | `usePrerun` in `ui/parts.jsx`; the server rehearses only on `POST /api/prerun` | `ui.spec.mjs` "Fix everything walks through" (no file diff before the click) |
 | PR URLs are matched before `gh pr view` | `sessions.mjs` | `sessions.test.mjs` "PR states" |
 | Read-only git commands run under the repository's own config | none | open: [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) |
-| Names from agent files are passed as arguments unchecked | none | open: [#206](https://github.com/ESchuderer/BenchKeeper/issues/206) |
+| Plugin ids, marketplace names and MCP server names read from agent files must match `^[A-Za-z0-9][\w.@:-]*$` before they become an argument or a path; others are skipped | `SAFE_NAME` in `steps/global.mjs` | `global.test.mjs` "names from agent files that start with a dash" |
 
 ### Local server
 
@@ -116,7 +118,11 @@ A test name refers to the file named in the same row.
 | Static files stay in the build folder | `inside(file, [dist])` | `server.test.mjs` "static files stay inside the build folder" |
 | One apply, eval, undo or Update all at a time in the process | `idle` | `server.test.mjs` "apply: ... one at a time" |
 | The sessions board needs a one-time ticket | `boardTickets` | `server.test.mjs` "the sessions board" |
-| The token is visible in argv for snap and Flatpak browsers; the token does not expire | none | open: [#204](https://github.com/ESchuderer/BenchKeeper/issues/204) |
+| The URL token works once and for 10 minutes; a snap or Flatpak default browser, or a redirect file that cannot be written, launches nothing, so the token is never in an argument and the CLI prints the link | `TOKEN_MS` and `startServer`, `openBrowser` | `security-server.test.mjs` "the URL token stops working after its lifetime"; `server.test.mjs` "a snap or Flatpak browser is not launched", "a redirect file that cannot be written" |
+| A POST needs `Content-Type: application/json` (415 otherwise); the page's policy forbids `base` and form targets | `handle` in `startServer` | `security-server.test.mjs` "every answer forbids a base tag" |
+| An apply that names a destructive change needs `confirmDestructive: true` in the request; the UI sends it only when a selected change is destructive | `confirmed` in `api` (`server.mjs`), `confirms` in `ui/parts.jsx` | `server.test.mjs` "a removal runs only with confirmDestructive" |
+| Registering or removing a project, saving a pack and importing a profile with registration wait for a running apply | `guarded` in `api` | `server.test.mjs` "registry, pack and profile writes wait" |
+| The UI test server (`app/test/ui/serve.mjs`) has a fixed port and token | none: a test tool that serves a fixture home only | accepted |
 
 ### Agent sessions and data they read
 
@@ -126,7 +132,8 @@ A test name refers to the file named in the same row.
 | Advice output only names known library ids; reasons are one line of at most 200 characters, rendered as text | `parseAdvice` | `advise.test.mjs` "advice: no JSON fails" |
 | Session output never becomes a path, command, branch name or pull request text | design; recorded paths come from `git diff-tree` and pass the roots check | `project.test.mjs` "a recorded session lists its files; undo restores them" |
 | Evals and the sessions board read transcripts, never build paths from them; the board escapes data and has a CSP | `sessions.mjs`, `board.mjs` | `board.test.mjs` "a title that closes the script element stays data" |
-| Eval and record sessions run with the user's own configuration | none, by design | open: [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) |
+| Advice sessions leave no session file where the installed CLI has the flag: `--no-session-persistence` (Claude Code), `--ephemeral` (Codex), found in the CLI's help, never by a prompt | `noTrace` in `advise.mjs` | `advise.test.mjs` "advice keeps no session on disk" |
+| Eval and record sessions run with the user's own configuration (plugins, hooks, login): the measurement needs it, and their hooks and MCP servers run as that user | none, by design | none |
 
 ### Supply chain and downloads
 
@@ -139,7 +146,10 @@ A test name refers to the file named in the same row.
 | The publish job holds the OIDC token and runs no repository or dependency code: dependencies are installed with `--ignore-scripts`, built and tested in a job without the token, and only the packed tarball is published | `.github/workflows/npm.yml` | CI (actionlint, zizmor) |
 | A marketplace on another ref is a manual step, not an automatic move | `steps/global.mjs` | `global.test.mjs` |
 | The app has no download or archive code of its own; lockfile with integrity hashes, runtime dependencies pinned, actions pinned to commit SHAs, npm publish by trusted publishing | `app/package-lock.json`, `.github/workflows` | CI (`checks.yml`, zizmor) |
-| Plugin sources are mutable (tags, and the branch `stable` for BenchKeeper's own marketplace), plugin installs by the agents' CLIs run what the plugin ships, the cooldown trusts the registry's publish times and this machine's clock, no `npm audit signatures` step | none | open: [#198](https://github.com/ESchuderer/BenchKeeper/issues/198) |
+| Third-party plugins are pinned to the commit their tag points to: Codex adds the marketplace at the commit; Claude Code takes only a branch or tag there, so the commit it records for the installed plugin is compared with the pin and a difference at the pin's version is a manual step, never an automatic reinstall | `PONYTAIL_COMMIT`, `MATT_POCOCK_COMMIT`, `marketRef` and the plugin loop in `steps/global.mjs` | `global.test.mjs` "pins: Codex adds a marketplace at the pinned commit", "pins: an installed Claude Code plugin at the pin version from another commit" |
+| The host tool and the skills CLI (global and per project) install only after `npm audit signatures` passed for the exact package and its dependencies, fetched without lifecycle scripts into a throwaway project; one check per run (a passed check counts for 10 minutes in the preview), and the preview runs it too | `verify.mjs`, the `verify` field of a command in `runner.mjs` and `prerun.mjs` | `global.test.mjs` "signature check", `prerun.test.mjs` "a failed signature check stops the rehearsal" |
+| BenchKeeper's own marketplace follows the branch `stable`, not a tag per release: a marketplace moved to another ref is removed first, and that removes the plugin's options and data in Claude Code on every release. Protection of `stable` and of the release tags is a repository setting of the owner | repository rules, not code | owner check |
+| The registry's publish times and this machine's clock decide the 7-day cooldown, and a registry that serves forged signatures with a forged time is trusted | none: the registry is the trust anchor of every npm install | accepted |
 | The npm package's trusted-publisher setting names the workflow and, if one is set, the environment with required reviewers | npm and GitHub settings of the owner, not code | owner check, see [#199](https://github.com/ESchuderer/BenchKeeper/issues/199) |
 
 ### Secrets
@@ -190,7 +200,7 @@ A test name refers to the file named in the same row.
 
 ## Open
 
-[#198](https://github.com/ESchuderer/BenchKeeper/issues/198) plugin pins and integrity checks, [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) previews without a click and isolation of eval, advice and record sessions, [#202](https://github.com/ESchuderer/BenchKeeper/issues/202) Update all bounds, [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) hostile repositories and registration, [#204](https://github.com/ESchuderer/BenchKeeper/issues/204) server token handling, [#205](https://github.com/ESchuderer/BenchKeeper/issues/205) ledger trust, doctor check, dry-run default, [#206](https://github.com/ESchuderer/BenchKeeper/issues/206) low-severity findings.
+[#202](https://github.com/ESchuderer/BenchKeeper/issues/202) Update all bounds, [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) hostile repositories and registration, [#205](https://github.com/ESchuderer/BenchKeeper/issues/205) ledger trust, doctor check, dry-run default, [#206](https://github.com/ESchuderer/BenchKeeper/issues/206) low-severity findings.
 
 ## Keeping this current
 

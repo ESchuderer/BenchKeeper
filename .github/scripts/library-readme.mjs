@@ -46,6 +46,13 @@ export function render(manifest) {
     if (p.prompts) parts.push(`then ${p.prompts.map((x) => `\`${x.claude}\`${x.codex ? ` (Codex \`${x.codex}\`)` : ''}`).join(', ')}`);
     out.push(row([`\`${p.id}\``, parts.join('; '), p.pickWhen]));
   }
+  out.push('', '## Frameworks', '', 'The frameworks project setup offers (`--framework <id>`). A workflow owner is a singleton: at most one per project, and BenchKeeper\'s own workflow skill gives way in it. A pack framework switches that pack; the others install as shown. Evidence per framework: its evaluation file.', '');
+  out.push(row(['Framework', 'Role', 'Installs', 'Evaluation']), row(['---', '---', '---', '---']));
+  for (const f of manifest.frameworks ?? []) {
+    const i = f.install;
+    const what = i.kind === 'pack' ? `pack \`${i.pack}\`` : i.kind === 'plugin' ? `plugin \`${i.plugin}\` for the project only` : `agent files of \`${i.source}\` at \`${i.ref.slice(0, 12)}\`: ${code(i.files.map((x) => x.path.split('/').pop().replace(/\.md$/, '')))}`;
+    out.push(row([`\`${f.id}\``, f.role, `${what}${f.limits ? `. ${f.limits}` : ''}`, `[${f.evaluation.split('/').pop()}](../../../${f.evaluation})`]));
+  }
   return out.join('\n');
 }
 

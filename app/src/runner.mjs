@@ -25,7 +25,11 @@ const failure = (r, lines = 3) => mask((r.stderr || r.stdout || '').trim().split
 // that names anything else is not run (the ledger is a file the user's other processes can write).
 const NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 const UNDO_FORMS = [['claude', 'plugin', 'uninstall'], ['claude', 'plugin', 'install'], ['claude', 'plugin', 'marketplace', 'remove'], ['codex', 'plugin', 'remove'], ['codex', 'plugin', 'add'], ['codex', 'plugin', 'marketplace', 'remove']];
-export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => argv.length === f.length + 1 && f.every((x, i) => argv[i] === x) && NAME.test(argv[f.length]));
+// Claude Code's plugin install and uninstall also take a scope that stays inside the project (a framework install): never user.
+const PROJECT_SCOPES = ['project', 'local'];
+const named = (argv, f) => f.every((x, i) => argv[i] === x) && NAME.test(argv[f.length]);
+export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => (argv.length === f.length + 1 && named(argv, f))
+  || (f.length === 3 && f[0] === 'claude' && argv.length === 6 && argv[4] === '--scope' && PROJECT_SCOPES.includes(argv[5]) && named(argv, f)));
 
 // A path a run may change: inside a root, and not inside ctx.deny unless that root itself lies in the denied folder
 // (a project's .git is denied, its info/exclude list is a root of its own).

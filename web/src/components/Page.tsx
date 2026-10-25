@@ -174,6 +174,17 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
+        <Section id="frameworks" title="Frameworks you already use" intro={facts.frameworks.rule}>
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            {facts.frameworks.items.map((f) => (
+              <Paper key={f.name} withBorder p="lg" radius="lg">
+                <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
+                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/develop/${f.evaluation}`}>Evaluation</Anchor></Text>
+              </Paper>
+            ))}
+          </SimpleGrid>
+        </Section>
+
         <Section id="start" title="Quick start" intro={<>Needs Claude Code or Codex (Gemini CLI and GitHub Copilot CLI also work, untested), Git, Node.js 22, and Docker or Podman for the dev container (<Anchor href={`${REPO}#prerequisites`}>full list</Anchor>). The app installs the Dev Containers CLI. Each setup step shows its plan before it changes anything. <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
           <Stack gap="lg" maw={760}>
             {quickstart.map(([title, cmd, note], k) => (

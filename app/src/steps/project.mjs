@@ -7,6 +7,7 @@ import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
+import { agentFilesOf, frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, ownerOf, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
@@ -70,6 +71,7 @@ export function committedSetup(dir) {
     add('sandbox', '.claude/settings.json without the sandbox keys BenchKeeper set', { kind: 'write', path: at('.claude/settings.json'),
       edit: sandboxOff });
   }
+  for (const c of frameworkRemovals(dir, state, 'project')) add(c.step, c.title, c);
   installedFiles(dir, state, add);
   return changes;
 }
@@ -103,7 +105,9 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
     const v = g.key.reduce((o, k) => o?.[k], tryJson(readText(at(g.path))));
     if (JSON.stringify(v) === JSON.stringify(g.value)) add('gemini-context', 'Gemini CLI no longer reads AGENTS.md', { kind: 'write', path: at(g.path), edit: (t) => mergeJson(t, [{ path: g.key, remove: true }, { path: g.key.slice(0, -1), prune: true }]) });
   }
-  installedFiles(dir, state, add, (p) => git(ctx, dir, ['ls-files', '--', p]).stdout.trim() !== '');
+  const tracked = (p) => git(ctx, dir, ['ls-files', '--', p]).stdout.trim() !== '';
+  for (const c of frameworkRemovals(dir, state, 'local').filter((x) => !tracked(x.path))) add(c.step, c.title, c);
+  installedFiles(dir, state, add, tracked);
   const exclude = keepExclude ? null : excludeFile(ctx, dir);
   const id = `local:/${git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim()}`;
   if (exclude && getBlock(readText(exclude), id, '#') != null) add('exclude', 'git ignores the local setup no longer (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t) => setBlock(t, id, null, '#') });
@@ -118,14 +122,14 @@ export function readState(dir) {
 // For listings: an unreadable state file counts as none, so one broken project does not hide the others.
 export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
 
-// answers: { agents, env, sandbox, packs, skills (single skills besides the packs'), disable, enable, packOn, packOff (packs
+// answers: { agents, env, sandbox, packs, frameworks (ids; one workflow owner at most), agentFiles (picked agent files of a framework), skills (single skills besides the packs'), disable, enable, packOn, packOff (packs
 // switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
 // paths: { skill: 'glob, glob' }, share, callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
@@ -134,10 +138,14 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.pick = pick;
   a.partial = partial;
   a.share = a.share === true;
+  a.frameworks = [a.frameworks].flat();
+  // Naming the frameworks without naming agent files keeps the saved picks of the frameworks still chosen.
+  a.agentFiles = answers.frameworks !== undefined && answers.agentFiles === undefined ? agentFilesOf(a.frameworks, prev.agentFiles ?? []) : [a.agentFiles].flat();
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
   if (!isEnv(a.env)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
   if (a.tier && !TIERS.includes(a.tier)) throw new Error(`tier must be one of ${TIERS.join(', ')}`);
+  Object.assign(a, resolveFrameworks(a));
   // paths values go into SKILL.md front matter.
   for (const [k, v] of Object.entries(a.paths)) if (typeof v !== 'string' || /[\r\n]/.test(v)) throw new Error(`paths for ${k}: one line of globs`);
   return a;
@@ -274,7 +282,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so it
   // carries AGENTS.md's text too and is rebuilt from it on every apply).
   const rules = forAgent(readFileSync(join(contentDir, 'rules/project.md'), 'utf8'), a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
-  const lines = [...rules.split('\n').map((l) => l.replace(/^- /, '')), ENVS[a.env], a.tier && `Default tier: ${a.tier}`, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
+  // A workflow owner chosen takes BenchKeeper's workflow skill and the issue-tracker specs out of the block: it gives way.
+  const owner = ownerOf(a);
+  const ruleLines = rules.split('\n').map((l) => l.replace(/^- /, '')).filter((l) => !owner || !/`(?:benchkeeper:)?workflow` skill/.test(l));
+  const ownerLine = owner && forAgent(`Workflow owner: ${owner.title}. Its skills plan and run the work here: do not load the \`benchkeeper:workflow\` skill or write BenchKeeper issue-tracker specs.`, a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
+  const lines = [...ruleLines, ownerLine, ENVS[a.env], a.tier && `Default tier: ${a.tier}`, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = lines.length ? lines.map((l) => `- ${l}`).join('\n') : null;
   const overrideOurs = (t) => t == null || getBlock(t, 'project') != null;
   if (a.share) {
@@ -355,6 +367,12 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       }
     }
   }
+
+  // Frameworks: a plugin enabled for this project only, or agent files fetched at a pinned commit; packs go with the packs above.
+  const fwIds = new Map();
+  for (const { step, title, key, ...c } of frameworkChanges({ a, dir, prev })) { add(step, title, c); if (key) fwIds.set(key, changes.at(-1).id); }
+  // Whether a framework install or fetch ran in the run that writes the state file (null: none planned).
+  const ranFw = (run) => (key) => (!fwIds.has(key) ? null : !run || run.entries.some((e) => e.id === fwIds.get(key) && e.status === 'done'));
 
   // A skill turned off moves to .benchkeeper/disabled/<skill folder>/<name>; turned on, it moves back.
   const rel = (p) => relative(dir, p);
@@ -450,7 +468,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
+  const state = (run) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, prev, ran: ranFw(run) }),
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), edit: (_, run) => `${JSON.stringify(state(run), null, 2)}\n` });
 
@@ -461,7 +479,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   if (exclude) {
     const prefix = git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim();
     const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox ? [LOCAL_SETTINGS] : []),
-      ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)),
+      ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)), ...frameworkPaths(a, dir),
       // Stack skills the setup session installed with the skills CLI (its lockfile names them).
       ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])].map((p) => `/${prefix}${p}`);
     const list = a.share ? null : `# BenchKeeper's local agent setup (benchkeeper project apply)\n${local.join('\n')}`;
@@ -473,7 +491,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.
   const said = agentPlace(handWritten(dir));
   const envWarning = said && said !== placeOf(a.env) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
-  return { changes, answers: a, prompts: promptsFor(a, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning] };
+  return { changes, answers: a, prompts: promptsFor(a, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning, ...frameworkNotices({ a, prev })] };
 }
 
 // What the user starts after the deterministic steps: the setup skill session, and the packs' own prompts.

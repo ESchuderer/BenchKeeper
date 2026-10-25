@@ -185,5 +185,38 @@
         "text": "After a session that went sideways: `/retro` (Matt Pocock's skills). On request (`/maintaining-repos`): Ponytail's audit and debt, dependency audit, version pins, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene, and with Matt Pocock's skills `/improve-codebase-architecture` and `/triage`. `benchkeeper doctor` reports setup drift on the machine and in the project. Findings become new requests."
       }
     ]
+  },
+  "frameworks": {
+    "rule": "Project setup asks first: it shows the list and installs nothing you did not choose. A framework that owns the workflow is a singleton: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Parts sit beside it. Everything installs inside the project; what cannot is labelled.",
+    "items": [
+      {
+        "name": "Superpowers",
+        "url": "https://github.com/obra/superpowers",
+        "role": "workflow owner",
+        "installs": "a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache",
+        "evaluation": "evaluations/workflow-frameworks/superpowers.md"
+      },
+      {
+        "name": "Matt Pocock's skills",
+        "url": "https://github.com/mattpocock/skills",
+        "role": "parts",
+        "installs": "the `matt-pocock` pack; its plugin installs for the user, outside the project",
+        "evaluation": "evaluations/skill-libraries/mattpocock-skills.md"
+      },
+      {
+        "name": "ECC",
+        "url": "https://github.com/affaan-m/ECC",
+        "role": "parts",
+        "installs": "four single skills at a pinned commit, no plugin and no hooks",
+        "evaluation": "EVALUATIONS.md"
+      },
+      {
+        "name": "agency-agents",
+        "url": "https://github.com/msitarzewski/agency-agents",
+        "role": "parts",
+        "installs": "a pick of agent files fetched at a pinned commit",
+        "evaluation": "EVALUATIONS.md"
+      }
+    ]
   }
 }

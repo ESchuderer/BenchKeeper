@@ -85,6 +85,21 @@ Where the agent runs (`--env`):
 
 Setup scopes container mounts to the project: no host home, engine socket, privileged mode or credential forwarding beyond the sign-in variable. VS Code can forward Git credentials and SSH agents automatically ([credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)). MCP, browser and language-server connections need container launchers; a host plugin or binary alone does not run in the container.
 
+## Frameworks
+
+Optional, per project: `npx benchkeeper@6.8.0 project apply --framework <id>` (`npx benchkeeper@6.8.0 frameworks` lists them with their evidence; the setup form in the browser shows the same). The doctor reports a second workflow owner, and a framework installed outside the project that the setup did not record.
+
+<!-- generated:frameworks -->
+Project setup asks first: it shows the list and installs nothing you did not choose. A framework that owns the workflow is a singleton: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Parts sit beside it. Everything installs inside the project; what cannot is labelled.
+
+| Framework | Role | Installs | Evaluation |
+|---|---|---|---|
+| [Superpowers](https://github.com/obra/superpowers) | workflow owner | a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache | [superpowers.md](evaluations/workflow-frameworks/superpowers.md) |
+| [Matt Pocock's skills](https://github.com/mattpocock/skills) | parts | the `matt-pocock` pack; its plugin installs for the user, outside the project | [mattpocock-skills.md](evaluations/skill-libraries/mattpocock-skills.md) |
+| [ECC](https://github.com/affaan-m/ECC) | parts | four single skills at a pinned commit, no plugin and no hooks | [EVALUATIONS.md](EVALUATIONS.md) |
+| [agency-agents](https://github.com/msitarzewski/agency-agents) | parts | a pick of agent files fetched at a pinned commit | [EVALUATIONS.md](EVALUATIONS.md) |
+<!-- /generated:frameworks -->
+
 ## Update
 
 - BenchKeeper's plugin and the rules and settings: after a release ([CHANGELOG.md](CHANGELOG.md)), `npx benchkeeper@<version> plan`, then `apply` (from a clone: `git -C BenchKeeper fetch --tags && git -C BenchKeeper checkout setup-v<major>.<minor>`, then the same commands through `node BenchKeeper/app/bin/benchkeeper.mjs`). The app adds BenchKeeper's marketplace at the branch `stable`, which each release moves, so the plan updates the plugin with `claude plugin marketplace update benchkeeper` and `claude plugin update benchkeeper@benchkeeper` (Codex: `codex plugin marketplace upgrade benchkeeper`). A marketplace added at another ref, for example the default branch, stays there: the plan names the commands to move it by hand, since removing a marketplace uninstalls its plugins and deletes their options and data in Claude Code.

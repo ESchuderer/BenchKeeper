@@ -5,6 +5,8 @@ description: "Picks the workflow and tier for a task: a software change (quick, 
 
 # Workflow
 
+A `Workflow owner:` line in the project's instruction files (`AGENTS.md`, `CLAUDE.local.md`, `AGENTS.override.md`) hands the work to that framework: stop here and follow its skills.
+
 1. **Classify.** Kind: software change, docs pass (several documents or product copy checked against the code), research, or a mix (one item per kind). Tier of a software change:
 
    | Tier | When |

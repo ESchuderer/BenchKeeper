@@ -49,8 +49,11 @@ for (const name of ['alpha', 'broken']) {
 }
 execFileSync('git', ['-C', join(BATCH, 'alpha'), 'remote', 'add', 'origin', 'https://github.com/acme/alpha.git']);
 const run = (argv, o = {}) => {
-  // GitHub is never reached: fetch fails as offline would, push and ls-remote answer as an empty remote, gh opens a pull request.
-  if (argv[0] === 'git' && argv.includes('fetch')) return { code: 1, stdout: '', stderr: 'offline' };
+  // GitHub is never reached: fetch answers with the local default branch as origin's, push and ls-remote answer as an empty remote, gh opens a pull request.
+  if (argv[0] === 'git' && argv.includes('fetch')) {
+    try { execFileSync('git', [...argv.slice(1, argv.indexOf('fetch')), 'update-ref', `refs/remotes/origin/${argv.at(-1)}`, 'HEAD'], { cwd: o.cwd, stdio: 'pipe' }); } catch { return { code: 1, stdout: '', stderr: 'offline' }; }
+    return { code: 0, stdout: '', stderr: '' };
+  }
   if (argv[0] === 'git' && (argv.includes('push') || argv.includes('ls-remote'))) return { code: 0, stdout: '', stderr: '' };
   if (argv[0] === 'gh' && argv[1] === 'pr' && argv[2] === 'create') return { code: 0, stdout: 'https://github.com/acme/alpha/pull/1\n', stderr: '' };
   if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }

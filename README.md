@@ -121,7 +121,7 @@ Which control enforces each limit, which tests cover it and which limits are sti
 
 ## Benchmarks
 
-Each setup runs as its own arm on the same greenfield and brownfield briefs. Scores, time per task and app reviews per arm: [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](bench/results). Method: [bench/PROTOCOL.md](bench/PROTOCOL.md).
+Each setup runs as its own arm on the same greenfield and brownfield briefs. Scores, time per task and app reviews per arm: [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](bench/results). Method: [bench/PROTOCOL.md](bench/PROTOCOL.md) (the run machinery and raw run data were removed, [#256](https://github.com/ESchuderer/BenchKeeper/issues/256)).
 
 ## Contents
 

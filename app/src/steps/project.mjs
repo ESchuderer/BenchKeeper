@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
-import { exists, listFiles, readText, realish } from '../fsx.mjs';
+import { exists, isLink, listFiles, readText, realish } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
@@ -201,9 +201,11 @@ function excludeFile(ctx, dir) {
 }
 
 // A .git file sends git to another folder. Its info/exclude is a write root only when that folder points back at dir (a
-// worktree's gitdir file, a submodule's core.worktree), never when it is another repository's.
+// worktree's gitdir file, a submodule's core.worktree), never when it is another repository's. A .git symlink is not
+// followed: it can aim at any repository's .git, and a project that links its .git simply gets no exclude root.
 function redirectedElsewhere(dir) {
   const link = join(dir, '.git');
+  if (isLink(link)) return true;
   const text = readText(link);
   if (text == null) return false;
   const target = resolve(dir, text.match(/^gitdir:[ \t]*(\S.*)$/m)?.[1]?.trim() ?? '\0');

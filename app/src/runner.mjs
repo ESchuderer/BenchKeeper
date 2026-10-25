@@ -317,6 +317,9 @@ function undoRun(id, ctx, { step } = {}) {
           within(f.path);
           stored(f.backup);
           if ('hashAfter' in f && hashPath(f.path) !== f.hashAfter) throw new Error(`${f.path} changed after this change: undo what changed it later first`);
+          // No post-change state recorded: the undo stopped at this file. It is moved away (nothing there) or not moved yet
+          // (as recorded); anything else is a path someone made since, which a replay would overwrite.
+          if (!('hashAfter' in f) && exists(f.path) && hashPath(f.path) !== f.hashBackup) throw new Error(`${f.path} changed after this change: undo what changed it later first`);
           if (f.backup && (!('hashBackup' in f) || hashPath(f.backup) !== f.hashBackup)) throw new Error(`the backup ${f.backup} is missing or changed`);
         }
         const kept = backups(files.map((f) => f.path), run.entries.length);

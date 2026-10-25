@@ -1,7 +1,7 @@
 // Bounds of Update all, project registration, the ledger and undo (docs/security.md, #202, #203, #205, #206).
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -353,6 +353,27 @@ test('an undo that fails midway can itself be undone: files it never reached are
   assert.equal(readFileSync(b, 'utf8'), 'new');
 });
 
+test('an undo stopped before it recorded a file\'s state does not replace a path made since', () => {
+  const h = home();
+  const a = join(h, 'one/a');
+  mkdirSync(dirname(a), { recursive: true });
+  writeFileSync(a, 'old');
+  const c = context({ home: h, run: () => { writeFileSync(a, 'new'); return { code: 0, stdout: '', stderr: '' }; } });
+  const u = undo(apply([cmd(c, { snapshot: [a] })], c).id, c);
+  assert.equal(u.status, 'done');
+  // The journal of that undo ends after the set-aside: hashAfter is missing, the file was moved away.
+  editRun(c, u.id, (r) => { delete r.entries[0].files[0].hashAfter; });
+  writeFileSync(a, 'made by hand');
+  const again = undo(u.id, c);
+  assert.equal(again.status, 'failed');
+  assert.match(again.entries[0].error, /changed after this change/);
+  assert.equal(readFileSync(a, 'utf8'), 'made by hand');
+  // Nothing at the path: the replay puts the file back.
+  rmSync(a);
+  assert.equal(undo(u.id, c).status, 'done');
+  assert.equal(readFileSync(a, 'utf8'), 'new');
+});
+
 test('a ledger scope outside any project is refused by the CLI undo, and a link to a drive root is no project', async () => {
   const h = home();
   const c = context({ home: h });
@@ -459,13 +480,16 @@ test('the Update all dry run of the server leaves out file contents, like every 
   assert.equal(git(p.dir, 'branch', '--list', 'chore/*').trim(), '');
 });
 
-test('a .git file that points at another repository gives the project no info/exclude root; a worktree and a submodule keep theirs', () => {
+test('a .git file or link that points at another repository gives the project no info/exclude root; a worktree and a submodule keep theirs', () => {
   const h = home();
   const c = context({ home: h, run: runCommand });
   const victim = repo();
   const planted = home();
   writeFileSync(join(planted, '.git'), `gitdir: ${join(victim, '.git')}\n`);
   assert.deepEqual(projectCtx(c, planted).roots, [planted]);
+  const linked = home();
+  symlinkSync(join(victim, '.git'), join(linked, '.git'));
+  assert.deepEqual(projectCtx(c, linked).roots, [linked]);
   const main = repo();
   const wt = join(home(), 'wt');
   git(main, 'worktree', 'add', '-q', '-b', 'w', wt);

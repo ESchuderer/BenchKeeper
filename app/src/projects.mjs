@@ -152,11 +152,12 @@ function quiet(ctx, path) {
   return env;
 }
 // Fetches origin's default branch; true when it worked. One fetch per project and minute: the CLI's status and Update all
-// share it; the server fills it first with prefetchOrigins, so its requests do not wait on the network.
+// share it; the server fills it first with prefetchOrigins, so its requests do not wait on the network. fresh skips the
+// cache: a run that pushes must see the current origin (it may be unreachable or another repository by now).
 const fetched = new Map();
-function fetchBase(ctx, path, base) {
+function fetchBase(ctx, path, base, fresh = false) {
   const key = `${path}\0${base}`;
-  if (Date.now() - (fetched.get(key) ?? 0) < 60e3) return true;
+  if (!fresh && Date.now() - (fetched.get(key) ?? 0) < 60e3) return true;
   const ok = git(ctx, path, ['fetch', '-q', 'origin', base], { env: quiet(ctx, path), timeout: 20e3 }).code === 0;
   if (ok) fetched.set(key, Date.now());
   return ok;
@@ -385,7 +386,7 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
   if (!base) throw new Error('no default branch (origin/HEAD, main or master)');
   // The branch starts at the remote's default branch when it can be fetched. The local one may hold commits that were
   // never pushed: it starts a branch only when nothing is pushed.
-  const fetchedOk = fetchBase(ctx, path, base);
+  const fetchedOk = fetchBase(ctx, path, base, push);
   if (!fetchedOk && push && githubRemote(ctx, path)) throw new Error(`could not fetch origin/${base}: the local ${base} may hold unpushed commits (try again, or --no-push)`);
   const start = fetchedOk ? `origin/${base}` : base;
   check(start);

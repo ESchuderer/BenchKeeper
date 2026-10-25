@@ -22,7 +22,7 @@ const SECRET_WORD = /^(?:\w*key|\w*token|\w*secret|\w*password|passwd|credential
 export const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
 const MASK = '(set)';
 // A masked value must never come back as an edit: the placeholder would replace the stored secret.
-const hasMask = (v) => (typeof v === 'string' ? v === MASK || v.includes(`"${MASK}"`) : v != null && typeof v === 'object' && Object.values(v).some(hasMask));
+const hasMask = (v) => (typeof v === 'string' ? v === MASK || v.includes(`"${MASK}"`) || v.includes(`:${MASK}@`) : v != null && typeof v === 'object' && Object.values(v).some(hasMask));
 
 // Masks every value whose key name suggests a secret, at any depth.
 export function maskSecrets(v, name = '') {
@@ -34,10 +34,12 @@ export function maskSecrets(v, name = '') {
 }
 
 // A diff or text with the values of secret-looking names masked ("NAME": "x", NAME = "x", inline or on a line of its own).
-const SECRET_PAIR = /("?)(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|(?:(?:Bearer|Basic)\s+)?[^\s,{[}\]][^\s,}\]]*)/gi;
+const SECRET_PAIR = /("?)(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("{3}(?:[^"\\]|\\.|"(?!""))*(?:"{3}|$)|'{3}(?:[^']|'(?!''))*(?:'{3}|$)|"(?:[^"\\]|\\.)*"|'[^']*'|(?:(?:Bearer|Basic)\s+)?[^\s,{[}\]][^\s,}\]]*)/gi;
 // A value nested deeper than 32 pairs ("a=a=a=...") is masked whole instead of exhausting the stack.
+// The password of a URL with user info ("scheme://user:password@host"); the user name stays.
+const URL_PASSWORD = /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*:\/\/[^\s/?#@:]*:)[^\s/?#@]+@/gi;
 const redactAt = (text, depth) => text.replace(SECRET_PAIR, (_, q, name, sep, value) => `${q}${name}${q}${sep}${isSecretName(name) || depth >= 32 ? `"${MASK}"` : redactAt(value, depth + 1)}`);
-export const redact = (text) => (text == null ? text : redactAt(text, 0));
+export const redact = (text) => (text == null ? text : redactAt(text.replace(URL_PASSWORD, `$1${MASK}@`), 0));
 // Only settings files carry such pairs: a rules file that mentions API_KEY = x stays as it is.
 export const isSettingsFile = (path) => /(^|\/)(settings(\.local)?\.json|config\.toml|managed_config\.toml|\.claude\.json)$/.test(String(path));
 

@@ -4,7 +4,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 
 ## setup-v6.10 (2026-10-25)
 
-- Library: seven skills that fail the quality bar are removed from `library.json` and their packs: `docx`, `pdf`, `pptx`, `xlsx` (a license that forbids copies and distribution), `scientific-critical-thinking`, `fp-check` and `tdd-workflow` (they need files outside their folder). The `ecc` pack has three skills, the `security` pack three, the `science` pack four. Each is in `evaluations/skill-libraries/library-exclusions.md` with its reason.
+- Library: seven skills that fail the quality bar are removed from `library.json` and their packs: `docx`, `pdf`, `pptx`, `xlsx` (a license that forbids copies and distribution), `scientific-critical-thinking`, `fp-check` and `tdd-workflow` (they need files outside their folder). The `ecc` pack has three skills, the `security` pack three, the `science` pack four. Each is in `evaluations/skill-libraries/library-exclusions.md` with its reason. A project that installed one gets the removal in its next project plan, offered and not preselected.
 - Plugin `version` 6.10.0.
 - Upgrade: `npx benchkeeper@6.10.0 apply`.
 

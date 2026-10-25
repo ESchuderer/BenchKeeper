@@ -2,7 +2,7 @@
 
 [Sentry repository](https://github.com/getsentry/skills), [Trail of Bits repository](https://github.com/trailofbits/skills), Category: skill libraries, Checked 2026-10-22 and 2026-10-24, Decision: Per project, security pack; `fp-check` removed (issue 151, setup-v6.10)
 
-Four skills from two sources: `gha-security-review` (getsentry/skills, Apache-2.0), `fp-check`, `variant-analysis` and `sharp-edges` (trailofbits/skills, CC-BY-SA-4.0). Pinned commits from `library.json`: Sentry `c93fb1e82454278a0caeb08e062a75a2e18feebb` (2026-10-13), Trail of Bits `e1f86a390d4caf28bf1c377a7d86707b2898669c` (2026-10-14).
+Four skills from two sources (`fp-check` was removed from the library on 2026-10-25, three remain): `gha-security-review` (getsentry/skills, Apache-2.0), `fp-check`, `variant-analysis` and `sharp-edges` (trailofbits/skills, CC-BY-SA-4.0). Pinned commits from `library.json`: Sentry `c93fb1e82454278a0caeb08e062a75a2e18feebb` (2026-10-13), Trail of Bits `e1f86a390d4caf28bf1c377a7d86707b2898669c` (2026-10-14).
 
 ## gha-security-review (getsentry/skills)
 

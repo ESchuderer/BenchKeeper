@@ -38,14 +38,14 @@ export function DoctorTable({ found, onAction }) {
   );
 }
 
-export function UpdateResults({ progress, extra }) {
+export function UpdateResults({ progress, extra, what = 'Update all' }) {
   const done = progress.filter((r) => !['pending', 'running'].includes(r.status)).length;
   const by = Object.entries(groupBy(progress.slice(0, done), (r) => r.status)).map(([s, rs]) => `${rs.length} ${s}`).join(', ');
   return (
     <>
-      <Text size="sm" role="status">{done < progress.length ? `${done} of ${progress.length} projects done${by ? `: ${by}` : ''}` : `Update all finished: ${by}`}</Text>
-      <Progress.Root size="lg"><Progress.Section value={(done / progress.length) * 100} aria-label={`Update all: ${done} of ${progress.length} projects`} /></Progress.Root>
-      <Table aria-label="Update all results">
+      <Text size="sm" role="status">{done < progress.length ? `${done} of ${progress.length} projects done${by ? `: ${by}` : ''}` : `${what} finished: ${by}`}</Text>
+      <Progress.Root size="lg"><Progress.Section value={(done / progress.length) * 100} aria-label={`${what}: ${done} of ${progress.length} projects`} /></Progress.Root>
+      <Table aria-label={`${what} results`}>
         <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Result</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{progress.map((r) => (
           <Table.Tr key={r.path}>

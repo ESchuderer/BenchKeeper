@@ -102,6 +102,17 @@ export class Ledger {
     return runs;
   }
 
+  // A moved project folder: the runs of that scope get the new path in their scope, note and entry paths (not in the
+  // backup paths, which lie in the config folder). Callers hold the lock.
+  relocate(from, to) {
+    const swap = (v, key) => {
+      if (typeof v === 'string') return key !== 'backup' && (v === from || v.startsWith(from + sep)) ? to + v.slice(from.length) : v;
+      if (Array.isArray(v)) return v.map((x) => swap(x));
+      return v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, swap(x, k)])) : v;
+    };
+    for (const run of this.list().filter((r) => r.scope === from)) this.save(swap(run));
+  }
+
   // The newest applied, not undone, write entry for a path.
   last(path) {
     const p = real(path);

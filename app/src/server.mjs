@@ -24,7 +24,7 @@ import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, listProjects, packsInUse, prefetchOrigins, projectState, removeProject, scan, setupOf, status, updateAll } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { scanSessions } from './sessions.mjs';
 import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
@@ -265,12 +265,45 @@ export function api(ctx) {
       return start(plan.reduce((n, p) => n + p.cases.length, 0), (job) => runEval(ctx, plan, { onCase: (c) => { job.progress = c; }, onResult: ({ details, ...x }) => { (job.results ??= []).push(x); }, signal: job.ctl.signal }), { kind: 'eval', title: 'evals' });
     },
     // seen: the skills each chosen agent loads there, its global ones included.
-    'GET /api/projects': async () => (await originsOfProjects(), listProjects(ctx)).map((p) => {
-      const s = status(ctx, p.path);
-      const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
-      return { ...s, seen, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
+    'GET /api/projects': async () => {
+      await originsOfProjects();
+      // The newest run per project folder (the ledger lists newest first): the last change, for sorting.
+      const last = new Map();
+      for (const r of ctx.ledger.list()) if (!last.has(r.scope)) last.set(r.scope, r.time);
+      return listProjects(ctx).map((p) => {
+        const s = status(ctx, p.path);
+        const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
+        return { ...s, seen, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path) ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
+      });
+    },
+    // What adding a folder runs into: registered already, another worktree of a registered repository, inside a project.
+    'GET /api/project-check': (q) => input(() => checkAdd(ctx, q.get('path') ?? '')),
+    'POST /api/projects': (b) => input(() => {
+      const paths = [b.paths ?? b.path].flat();
+      if (!paths.length || !paths.every((x) => typeof x === 'string' && isAbsolute(x))) throw bad('path must be an absolute path');
+      const action = b.action ?? 'add';
+      if (action === 'add') paths.forEach((x) => addProject(ctx, x, { worktree: b.worktree === true }));
+      else if (action === 'remove') removeProject(ctx, paths);
+      else if (action === 'rename') renameProject(ctx, paths[0], { name: b.name, notes: b.notes });
+      else if (action === 'relocate') {
+        idle();
+        if (typeof b.to !== 'string' || !isAbsolute(b.to)) throw bad('to must be an absolute path');
+        relocateProject(ctx, paths[0], b.to);
+      } else throw bad('action must be add, remove, rename or relocate');
+      return listProjects(ctx);
     }),
-    'POST /api/projects': (b) => (b.action === 'remove' ? removeProject(ctx, b.path) : addProject(ctx, b.path), listProjects(ctx)),
+    // The files "Remove BenchKeeper setup" would change in a project, before it runs; shared: it becomes a pull request.
+    'GET /api/remove-setup-plan': (q) => {
+      const dir = resolve(q.get('dir') ?? '');
+      if (!registered(dir)) throw bad('register the project first');
+      const { shared, changes } = input(() => setupRemoval(ctx, dir));
+      return { shared, changes: serialize(changes, projectCtx(ctx, dir)) };
+    },
+    'POST /api/remove-setup': (b) => {
+      idle();
+      const paths = [b.paths ?? []].flat().filter((x) => typeof x === 'string' && registered(x));
+      return paths.map((x) => removeSetup(ctx, canon(x), { push: b.push !== false }));
+    },
     // With setup=1 the answers come from the query (a project's first setup), else from its state file.
     'GET /api/project-plan': (q) => {
       const dir = resolve(q.get('dir') ?? '');

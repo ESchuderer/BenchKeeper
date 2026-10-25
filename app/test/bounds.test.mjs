@@ -480,7 +480,7 @@ test('the Update all dry run of the server leaves out file contents, like every 
   assert.equal(git(p.dir, 'branch', '--list', 'chore/*').trim(), '');
 });
 
-test('a .git file or link that points at another repository gives the project no info/exclude root; a worktree and a submodule keep theirs', () => {
+test('a .git file or link that points at another repository gives the project no info/exclude root; a worktree and a submodule keep theirs', { skip: process.platform === 'win32' }, () => {
   const h = home();
   const c = context({ home: h, run: runCommand });
   const victim = repo();

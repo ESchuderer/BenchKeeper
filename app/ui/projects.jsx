@@ -109,7 +109,7 @@ export function RemoveSetup({ paths, push, onClose, onDone }) {
   useEffect(() => {
     let live = true;
     const load = (path) => api(`/api/remove-setup-plan?dir=${encodeURIComponent(path)}`).then((p) => ({ path, ...p }), (e) => ({ path, error: e.message, changes: [] }));
-    Promise.all(paths.map(load)).then((r) => live && setPlans(r));
+    void Promise.all(paths.map(load)).then((r) => live && setPlans(r));
     return () => { live = false; };
   }, [paths]);
   const ready = (plans ?? []).filter((p) => !p.error && p.changes.length);

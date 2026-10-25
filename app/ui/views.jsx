@@ -569,7 +569,7 @@ export function Projects({ params, overview, refresh }) {
   const allShown = !!shown.length && shown.every((x) => selected.includes(x));
   return (
     <Stack gap="lg">
-      <form onSubmit={(e) => { e.preventDefault(); addTyped(false)(); }}>
+      <form onSubmit={(e) => { e.preventDefault(); void addTyped(false)(); }}>
         <Group align="flex-end">
           <TextInput label="Project folder" placeholder="/home/me/code/app" value={path} onChange={(e) => setPath(e.currentTarget.value)} w={{ base: '100%', sm: 420 }} />
           <Button leftSection={icon(IconFolderSearch)} variant="default" loading={busy === 'choose'} onClick={act('choose', async () => { const p = await choose(); if (p) setPath(p); })}>Choose folder</Button>

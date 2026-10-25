@@ -467,6 +467,25 @@ test.describe('views', () => {
     await expect(packs.getByRole('row', { name: /my-pack.*own/ })).toHaveCount(1);
   });
 
+  test('Catalog: a pack file that is not a pack is listed with its reason and can be removed; no axe violations', async ({ page }) => {
+    await page.route(/\/api\/catalog(\?|$)/, async (route) => {
+      const r = await route.fetch();
+      await route.fulfill({ response: r, json: { ...(await r.json()), invalidPacks: [{ file: 'broken.json', reason: 'not valid JSON' }] } });
+    });
+    await page.route(/\/api\/packs$/, (route) => route.fulfill({ json: { removed: 'broken.json' } }));
+    await page.reload();
+    await nav(page, 'Catalog').click();
+    const bad = page.getByRole('region', { name: 'Pack files that are not packs' });
+    await expect(bad).toContainText('broken.json');
+    await expect(bad).toContainText('not valid JSON');
+    await noAxe(page);
+    const sent = page.waitForRequest((q) => q.url().endsWith('/api/packs') && q.method() === 'POST');
+    await bad.getByRole('button', { name: 'Remove broken.json' }).click();
+    expect((await sent).postDataJSON()).toEqual({ action: 'remove', id: 'broken.json' });
+    await page.unroute(/\/api\/catalog(\?|$)/);
+    await page.unroute(/\/api\/packs$/);
+  });
+
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);

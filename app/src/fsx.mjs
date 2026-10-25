@@ -57,11 +57,17 @@ export function move(from, to) {
   }
 }
 
+// A new path is written beside it and renamed in: a failed or interrupted copy never leaves a half-written file or folder
+// that looks complete. shortcut: onto an existing path (a link that writes go through, a folder that is merged) it writes in place.
 export function copy(from, to) {
   mkdirSync(dirname(to), { recursive: true });
-  // cpSync follows a top-level link, which fails for a dangling one.
-  if (isLink(from)) symlinkSync(readlinkSync(from), to);
-  else cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+  const into = exists(to) ? to : `${to}.benchkeeper-${randomBytes(6).toString('hex')}`;
+  try {
+    // cpSync follows a top-level link, which fails for a dangling one.
+    if (isLink(from)) symlinkSync(readlinkSync(from), into);
+    else cpSync(from, into, { recursive: true, verbatimSymlinks: true });
+    if (into !== to) renameSync(into, to);
+  } catch (e) { if (into !== to) rmSync(into, { recursive: true, force: true }); throw e; }
 }
 
 // True when p, after resolving the links of its existing ancestors, lies inside one of the roots.

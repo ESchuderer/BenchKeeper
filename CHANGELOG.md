@@ -2,6 +2,13 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.11 (2026-10-26)
+
+- App, remaining low-severity findings of the security review (#206): `benchkeeper test` reports a `skills-lock.json` that is not a lock file (not JSON, not an object, `skills` not an object) as a problem line instead of throwing; copies to a path that does not exist yet (backups, undo restores) are written beside it and renamed in, so a failed copy leaves no half-written file or folder; the Catalog lists pack files that are not packs with their reason and removes them (as `packs list` and `packs remove` already did).
+- The other findings of #206 were already fixed on `develop` (#239) or stay open on purpose in `docs/security.md`.
+- Plugin `version` 6.11.0.
+- Upgrade: `npx benchkeeper@6.11.0 apply`.
+
 ## setup-v6.10 (2026-10-25)
 
 - Library: seven skills that fail the quality bar are removed from `library.json` and their packs: `docx`, `pdf`, `pptx`, `xlsx` (a license that forbids copies and distribution), `scientific-critical-thinking`, `fp-check` and `tdd-workflow` (they need files outside their folder). The `ecc` pack has three skills, the `security` pack three, the `science` pack four. Each is in `evaluations/skill-libraries/library-exclusions.md` with its reason. A project that installed one gets the removal in its next project plan, offered and not preselected.

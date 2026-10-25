@@ -2,14 +2,14 @@
 
 Installs, updates and undoes the BenchKeeper agent setup for Claude Code, Codex, Gemini CLI and GitHub Copilot, globally and per project, from a CLI or a local web UI. What the setup contains: the [repository README](../README.md#setup-steps).
 
-First run: `npx benchkeeper@6.10.0` opens the browser on the Dashboard, with the doctor findings, one-run setup and Fix everything. In a terminal, `plan` shows the changes and `apply` makes them.
+First run: `npx benchkeeper@6.11.0` opens the browser on the Dashboard, with the doctor findings, one-run setup and Fix everything. In a terminal, `plan` shows the changes and `apply` makes them.
 
 ## Setup
 
 Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
 
-- From npm: `npx benchkeeper@6.10.0 <command>`. Until the first npm release, run it from a clone.
-- From a clone: `git clone --depth 1 --branch setup-v6.10 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
+- From npm: `npx benchkeeper@6.11.0 <command>`. Until the first npm release, run it from a clone.
+- From a clone: `git clone --depth 1 --branch setup-v6.11 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
 Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML). The web UI (React, Mantine) is built into `dist/` and ships in the package.
 

@@ -60,6 +60,23 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
   );
 }
 
+// Files in the packs folder that are no pack: the library leaves them out, so they are listed here to be removed (the file goes to the backups).
+function InvalidPacks({ files, onChange }) {
+  const [error, setError] = useState(null);
+  const remove = async (file) => { setError(null); try { await api('/api/packs', { action: 'remove', id: file }); onChange(); } catch (e) { setError(e.message); } };
+  return (
+    <Section title="Pack files that are not packs">
+      {error && <Note color="red" title="Failed">{error}</Note>}
+      {files.map(({ file, reason }) => (
+        <Group key={file} justify="space-between" wrap="nowrap">
+          <Text size="sm"><Code>{file}</Code>: {reason}</Text>
+          <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${file}`} onClick={() => remove(file)}>Remove</Button>
+        </Group>
+      ))}
+    </Section>
+  );
+}
+
 function Packs({ packs, onChange }) {
   const [error, setError] = useState(null);
   const [file, setFile] = useState(0);
@@ -160,6 +177,7 @@ export function Catalog({ catalog, params, refresh }) {
           } detail={skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} /> : null} />
           <SkillStates refresh={refresh} />
           <Packs packs={c.packs} onChange={refresh} />
+          {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} />}
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
           <Cli>{`benchkeeper packs list\nbenchkeeper project apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}\nbenchkeeper skills list --project <dir>\nbenchkeeper skills update|reset|remove|adopt <name> --project <dir>`}</Cli>
         </Stack>

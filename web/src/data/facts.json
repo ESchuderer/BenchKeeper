@@ -1,24 +1,24 @@
 {
-  "description": "BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.8.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.",
+  "description": "BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.10.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.",
   "tagline": "Short rules, a workflow skill and a per-repository setup for Claude Code and Codex, installed by an app that shows each change first and can undo it.",
   "levels": [
     {
       "name": "Lite",
-      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects` and `maintaining-repos` skills",
+      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos` and `orchestrating-projects` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
-      "command": "npx benchkeeper@6.8.0 apply --level lite"
+      "command": "npx benchkeeper@6.10.0 apply --level lite"
     },
     {
       "name": "Standard",
       "contains": "lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list",
       "writes": "local files in each project you run `project apply` in",
-      "command": "npx benchkeeper@6.8.0 apply --level standard && npx benchkeeper@6.8.0 project apply"
+      "command": "npx benchkeeper@6.10.0 apply --level standard && npx benchkeeper@6.10.0 project apply"
     },
     {
       "name": "Full",
       "contains": "standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app",
       "writes": "global rule files, settings and packs",
-      "command": "npx benchkeeper@6.8.0 apply --level full"
+      "command": "npx benchkeeper@6.10.0 apply --level full"
     }
   ],
   "core": {
@@ -207,7 +207,7 @@
         "name": "ECC",
         "url": "https://github.com/affaan-m/ECC",
         "role": "parts",
-        "installs": "four single skills at a pinned commit, no plugin and no hooks",
+        "installs": "three single skills at a pinned commit, no plugin and no hooks",
         "evaluation": "EVALUATIONS.md"
       },
       {

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Orchestrating projects"
+  short_description: "Coordinate parallel autonomous issue work across projects"
+policy:
+  allow_implicit_invocation: false

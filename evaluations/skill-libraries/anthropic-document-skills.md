@@ -1,6 +1,6 @@
 # Anthropic document skills
 
-[Repository](https://github.com/anthropics/skills), Category: skill libraries, Checked 2026-10-14 and 2026-10-24, Decision: Not global, per project
+[Repository](https://github.com/anthropics/skills), Category: skill libraries, Checked 2026-10-14 and 2026-10-24, Decision: Removed from the library (issue 151, setup-v6.10)
 
 ## Advertised
 
@@ -56,14 +56,14 @@ Findings (every fail and borderline with file and line or URL):
 Source notes:
 
 - Point 5: repository not archived, 0 commits since the pin. Folders last changed before the pin: `docx` and `pptx` and `xlsx` 2026-07-16 (fa0fa64), `pdf` 2026-02-06 (1ed29a0).
-- License location: each document skill has a `LICENSE.txt` in its folder (one identical file, md5 f8515c3694eb11622110ca76c7c15d1b). The repository has no root `LICENSE` (the GitHub API reports none) and the README says the document skills are "source-available, not open source" ([README](https://github.com/anthropics/skills/blob/dbd4588f9e1033efb41dad4bef2f7947c8993d44/README.md)). The Codex-only listing still copies the skills into projects, which `LICENSE.txt:16-21` bars.
+- License location: each document skill has a `LICENSE.txt` in its folder (one identical file, md5 f8515c3694eb11622110ca76c7c15d1b). The repository has no root `LICENSE` (the GitHub API reports none) and the README says the document skills are "source-available, not open source" ([README](https://github.com/anthropics/skills/blob/dbd4588f9e1033efb41dad4bef2f7947c8993d44/README.md)). The library's Codex-only listing copied the skills into projects, which `LICENSE.txt:16-21` bars.
 - DocOps (arXiv 2607.19865): the numbers in the Independent evidence section above match the paper; the skill version it used is not stated.
 - skills.sh (2026-10-24): docx 206.4K installs, pdf 216.2K, pptx 241.6K, xlsx 187.2K; Socket Warn on docx, pptx and xlsx.
 
-Removal: none made. The owner decides on the fails and borderline cases in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151).
+Removal: the four were removed on the owner's decision in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151) and are in [library exclusions](library-exclusions.md).
 
 ## Decision
 
-Not global, per project: the BenchKeeper library (setup-v5.0) lists `frontend-design` and `mcp-builder` for both agents, and `docx`, `pdf`, `pptx` and `xlsx` for Codex only, since Claude Code gets them from the claude.ai skills `anthropic-skills`. `doc-coauthoring` is left out: it has no license file.
+Removed from the library (setup-v6.10, owner decision on [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151)): `docx`, `pdf`, `pptx` and `xlsx` fail point 2, their `LICENSE.txt` forbids copies outside the Anthropic services, derivative works and distribution. Claude Code keeps them through the claude.ai skills `anthropic-skills`. Not global, per project: the library lists `frontend-design` and `mcp-builder` for both agents. `doc-coauthoring` is left out: it has no license file.
 
 [All evaluations](../../EVALUATIONS.md)

@@ -1,6 +1,6 @@
 # Skill library
 
-Skills that the app (`npx benchkeeper@6.8.0 project apply --pack <id> --skill <name>`) or `setting-up-projects` installs into a project. A pack with a plugin (`matt-pocock`) installs that plugin globally, through the agent's plugin command. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. The source of these tables is `library.json` (`node .github/scripts/library-readme.mjs` writes them, CI checks them). Nothing here duplicates the global setup (Ponytail, the BenchKeeper skills, find-skills, and Matt Pocock's skills when installed) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
+Skills that the app (`npx benchkeeper@6.10.0 project apply --pack <id> --skill <name>`) or `setting-up-projects` installs into a project. A pack with a plugin (`matt-pocock`) installs that plugin globally, through the agent's plugin command. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. The source of these tables is `library.json` (`node .github/scripts/library-readme.mjs` writes them, CI checks them). Nothing here duplicates the global setup (Ponytail, the BenchKeeper skills, find-skills, and Matt Pocock's skills when installed) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
 
 Install, from the project root, for the selected agents only:
 - Own skill (folder next to this file): copy it to `.agents/skills/<name>/` (Codex) and `.claude/skills/<name>/` (Claude Code). Codex ignores the `paths` key.
@@ -17,16 +17,10 @@ Folders next to this file.
 
 ## Anthropic
 
-In Claude Code, `docx`, `pdf`, `pptx` and `xlsx` already come with the claude.ai skills `anthropic-skills`, so they are Codex only here.
-
 | Skills | Source (license) | Agents | Pick when |
 | --- | --- | --- | --- |
 | `frontend-design` | `anthropics/skills` | both | New UI or a visual redesign |
 | `mcp-builder` | `anthropics/skills` | both | The repository builds an MCP server |
-| `docx` | `anthropics/skills` | Codex only | Word documents (.docx, .dotx) are created, read or edited |
-| `pdf` | `anthropics/skills` | Codex only | PDF files are read, merged, split, filled or created |
-| `pptx` | `anthropics/skills` | Codex only | PowerPoint slide decks (.pptx, .potx) as input or output |
-| `xlsx` | `anthropics/skills` | Codex only | Spreadsheets (.xlsx, .csv, .tsv) are the input or output |
 
 ## Science
 
@@ -34,7 +28,6 @@ Python skills: read each one's dependencies before installing. Skills that need 
 
 | Skills | Source (license) | Agents | Pick when |
 | --- | --- | --- | --- |
-| Core: `scientific-critical-thinking` | `K-Dense-AI/scientific-agent-skills` (MIT) | both | Scientific claims, biases and evidence quality get judged |
 | Core: `experimental-design` | `K-Dense-AI/scientific-agent-skills` (MIT) | both | Experiments are planned before data collection: randomization, blocking, factorial designs |
 | Core: `hypothesis-generation` | `K-Dense-AI/scientific-agent-skills` (MIT) | both | Observations turn into testable hypotheses and preregistered plans |
 | Core: `statistical-analysis` | `K-Dense-AI/scientific-agent-skills` (MIT) | both | Groups are compared or hypotheses tested: test choice, assumptions, effect sizes, reporting |
@@ -75,11 +68,10 @@ The skills read `.agents/product-marketing.md` when it exists, which `product-ma
 
 ## ECC
 
-Four skills of ECC's `workflow-quality` module (the `minimal` profile), installed as single skills: no plugin, no hooks, nothing outside the project.
+Three skills of ECC's `workflow-quality` module (the `minimal` profile), installed as single skills: no plugin, no hooks, nothing outside the project.
 
 | Skills | Source (license) | Agents | Pick when |
 | --- | --- | --- | --- |
-| `tdd-workflow` | `affaan-m/ECC` (MIT) | both | A change is built test first, with a failing test before the code |
 | `verification-loop` | `affaan-m/ECC` (MIT) | both | Work needs a pass of build, types, lint and a diff review before a pull request |
 | `error-handling` | `affaan-m/ECC` (MIT) | both | The code needs one consistent way to raise, handle and report errors |
 | `architecture-decision-records` | `affaan-m/ECC` (MIT) | both | A design choice needs a record of its context, options and outcome |
@@ -91,7 +83,6 @@ CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project.
 | Skills | Source (license) | Agents | Pick when |
 | --- | --- | --- | --- |
 | `gha-security-review` | `getsentry/skills` (Apache-2.0) | both | The repository has GitHub Actions workflows |
-| `fp-check` | `trailofbits/skills` (CC-BY-SA-4.0) | both | Security findings from a scanner or review need triage |
 | `variant-analysis` | `trailofbits/skills` (CC-BY-SA-4.0) | both | A found vulnerability may repeat elsewhere in the code |
 | `sharp-edges` | `trailofbits/skills` (CC-BY-SA-4.0) | both | The repository exposes an API or configuration others can misuse |
 
@@ -127,13 +118,13 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 | `matt-pocock` | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, test-first and review skills |
 | `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
 | `testing` | `playwright-best-practices` | The repository has or adds browser tests |
-| `security` | `gha-security-review`, `fp-check`, `variant-analysis`, `sharp-edges` | CI workflows, a public API, or security findings to triage |
-| `science` | `scientific-critical-thinking`, `experimental-design`, `statistical-analysis`, `uncertainty-and-units`, `scientific-visualization` | Research, measurement or data analysis code |
+| `security` | `gha-security-review`, `variant-analysis`, `sharp-edges` | CI workflows, a public API, or security findings to triage |
+| `science` | `experimental-design`, `statistical-analysis`, `uncertainty-and-units`, `scientific-visualization` | Research, measurement or data analysis code |
 | `docs` | `designing-technical-uis`, `mermaid-diagrams` | User-facing docs or diagrams |
 | `data` | `validate-data`, `exploratory-data-analysis`, `statistical-analysis` | The repository imports, analyzes or publishes datasets |
 | `marketing` | `product-marketing`, `copywriting`, `copy-editing`, `seo-audit`, `launch` | A product site, landing pages or a public launch |
 | `operations` | `incident-response`, `compliance-check`, `gdpr-compliant` | A deployed service or regulated product |
-| `ecc` | `tdd-workflow`, `verification-loop`, `error-handling`, `architecture-decision-records` | The owner names ECC: its test-first, verification, error handling and decision record skills |
+| `ecc` | `verification-loop`, `error-handling`, `architecture-decision-records` | The owner names ECC: its verification, error handling and decision record skills |
 
 ## Frameworks
 

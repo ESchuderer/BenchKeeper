@@ -51,6 +51,9 @@ jobs:
       # Own skills: front matter, name, quoted description, size, link targets, Codex policy (AGENTS.md conventions).
       - name: Skill lint
         run: node --test .github/scripts/skill-lint.test.mjs && node .github/scripts/skill-lint.mjs
+      # Coordinator scenario: the checks over a recorded run (evaluations/practices/orchestrating-projects.md).
+      - name: Orchestration log checks
+        run: node --test .github/scripts/orchestration-log.test.mjs
       # library/README.md tables are generated from library.json.
       - name: Library catalog
         run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check
@@ -113,7 +116,7 @@ jobs:
           node-version: 22.23.3
       - name: App tests
         working-directory: app
-        run: npm ci --ignore-scripts --no-audit --no-fund && npm test && npm run smoke
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run test:coverage && npm run smoke
 
   # Windows is untested by the owner: start, plan, apply with a ledger run only.
   app-windows-smoke:

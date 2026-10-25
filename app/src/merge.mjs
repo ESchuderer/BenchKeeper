@@ -104,7 +104,7 @@ export function setToml(text, table, key, value) {
   } else {
     const at = lines.slice(from, to).findIndex((l) => keyRe(key).test(l));
     // A comment after the old value stays with the line.
-    if (at >= 0) lines[from + at] = `${line}${lines[from + at].match(/^\s*\S+?\s*=\s*(?:"(?:[^"\\]|\\.)*"|'[^']*'|\[[^\]]*\]|[^#\s]+)(\s*#.*)$/)?.[1] ?? ''}`;
+    if (at >= 0) lines[from + at] = `${line}${lines[from + at].match(/^\s*[^\s=]+\s*=\s*(?:"(?:[^"\\]|\\.)*"|'[^']*'|\[[^\]]*\]|[^#\s]+)(\s*#.*)$/)?.[1] ?? ''}`;
     else {
       let end = to;
       // Comments directly above the next table belong to it: the key goes above them.

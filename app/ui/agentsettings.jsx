@@ -83,7 +83,7 @@ function Row({ row, layer, edits, setEdit }) {
           ))}
         </Stack>
       </Table.Td>
-      <Table.Td miw={200}>{row.editable === false ? <Text size="sm">Not edited here: {row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text> : <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} />}</Table.Td>
+      <Table.Td miw={200}>{row.editable === false ? <Text size="sm">Not edited here: {row.masked ? 'it holds a secret, shown masked: edit the file by hand' : row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text> : <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} />}</Table.Td>
       <Table.Td>{row.layer ? <Stack gap={2}><Badge variant="default" miw="max-content">{row.layer === 'managed' ? 'managed (read-only)' : `from ${row.layer}`}</Badge><Text size="sm">{text(row.value)}</Text></Stack> : layerBadge(row)}</Table.Td>
     </Table.Tr>
   );

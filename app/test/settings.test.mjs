@@ -333,7 +333,41 @@ test('masking: whole words of the name, tokens inside values, no false hits', ()
   assert.deepEqual(maskSecrets({ includeCoAuthoredBy: false, MAX_THINKING_TOKENS: '5', apiKeyHelper: 'x', ANTHROPIC_AUTH_TOKEN: 'y' }), { includeCoAuthoredBy: false, MAX_THINKING_TOKENS: '5', apiKeyHelper: '(set)', ANTHROPIC_AUTH_TOKEN: '(set)' });
   assert.equal(redact('"commit": "Co-Authored-By: Name <x>"'), '"commit": "Co-Authored-By: Name <x>"');
   assert.ok(!redact('curl -H "Authorization: Bearer abc123"').includes('abc123'));
+  assert.doesNotThrow(() => redact('a='.repeat(50000)), 'a long chain of pairs does not exhaust the stack');
+  assert.ok(!redact(`${'a='.repeat(20)}${SECRET}`).includes(SECRET), 'a chain deeper than the cap is masked whole');
   assert.ok(!maskSecrets({ hooks: { command: "export API_KEY=abc123 && run" } }).hooks.command.includes('abc123'));
+});
+
+test('a row whose shown value is masked is not editable, and a masked value is never written back', () => {
+  const ctx = machine();
+  const text = JSON.stringify({ env: { MY_API_TOKEN: SECRET, KEEP: 'x' }, hooks: { Stop: [{ command: `export API_KEY=${SECRET} && run` }] }, availableModels: ['opus'] }, null, 2);
+  write(claudeUser(ctx), text);
+  const rows = Object.fromEntries(listSettings(ctx, 'claude', { advanced: true }).advanced.map((r) => [r.key, r]));
+  assert.equal(rows.env.editable, false);
+  assert.equal(rows.hooks.editable, false);
+  assert.equal(rows.availableModels.editable, true, 'a value without a secret stays editable');
+  for (const value of ['(set)', { MY_API_TOKEN: '(set)', KEEP: 'y' }, { Stop: [{ command: 'export API_KEY="(set)" && run' }] }]) {
+    assert.throws(() => settingsChanges(ctx, 'claude', { edits: { env: value } }), /placeholder/);
+    assert.throws(() => settingsChanges(ctx, 'claude', { edits: { hooks: value } }), /placeholder/);
+  }
+  assert.equal(readFileSync(claudeUser(ctx), 'utf8'), text);
+});
+
+test('environment values and plan titles mask a secret inside a value whose name looks harmless', () => {
+  const ctx = machine();
+  write(claudeUser(ctx), JSON.stringify({ env: { SETUP_COMMAND: `export API_KEY=${SECRET} && run` } }, null, 2));
+  assert.ok(!JSON.stringify(listSettings(ctx, 'claude', { advanced: true }).env).includes(SECRET));
+  const [change] = settingsChanges(ctx, 'claude', { edits: { availableModels: [`API_KEY=${SECRET}`] } });
+  assert.ok(!change.title.includes(SECRET));
+});
+
+test('a refused value depends on the layer written only, not on another layer that holds it', () => {
+  const ctx = machine();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  write(join(dir, '.claude/settings.local.json'), JSON.stringify({ permissions: { defaultMode: 'auto' } }));
+  assert.equal(settingsChanges(ctx, 'claude', { layer: 'project', dir, edits: { 'permissions.defaultMode': 'plan' } }).length, 1);
+  assert.equal(settingsChanges(ctx, 'claude', { dir, edits: { 'permissions.defaultMode': 'plan' } }).length, 1);
+  assert.throws(() => settingsChanges(ctx, 'claude', { layer: 'local', dir, edits: { 'permissions.defaultMode': 'auto' } }), /silently ignored/);
 });
 
 test('an existing file that cannot be read is an error, not an empty layer', () => {

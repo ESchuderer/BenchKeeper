@@ -21,6 +21,8 @@ export const agentSettings = (id) => CATALOG[id] ?? (() => { throw new Error(`no
 const SECRET_WORD = /^(?:\w*key|\w*token|\w*secret|\w*password|passwd|credentials?|o?auth(?:orization)?|bearer|cookie|private)$/i;
 export const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
 const MASK = '(set)';
+// A masked value must never come back as an edit: the placeholder would replace the stored secret.
+const hasMask = (v) => (typeof v === 'string' ? v.includes(MASK) : v != null && typeof v === 'object' && Object.values(v).some(hasMask));
 
 // Masks every value whose key name suggests a secret, at any depth.
 export function maskSecrets(v, name = '') {
@@ -32,8 +34,10 @@ export function maskSecrets(v, name = '') {
 }
 
 // A diff or text with the values of secret-looking names masked ("NAME": "x", NAME = "x", inline or on a line of its own).
-const SECRET_PAIR = /("?)([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|(?:(?:Bearer|Basic)\s+)?[^\s,}\]]+)/gi;
-export const redact = (text) => (text == null ? text : text.replace(SECRET_PAIR, (_, q, name, sep, value) => `${q}${name}${q}${sep}${isSecretName(name) ? `"${MASK}"` : redact(value)}`));
+const SECRET_PAIR = /("?)(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|(?:(?:Bearer|Basic)\s+)?[^\s,}\]]+)/gi;
+// A value nested deeper than 8 pairs ("a=a=a=...") is masked whole instead of exhausting the stack.
+const redactAt = (text, depth) => text.replace(SECRET_PAIR, (_, q, name, sep, value) => `${q}${name}${q}${sep}${isSecretName(name) || depth >= 8 ? `"${MASK}"` : redactAt(value, depth + 1)}`);
+export const redact = (text) => (text == null ? text : redactAt(text, 0));
 // Only settings files carry such pairs: a rules file that mentions API_KEY = x stays as it is.
 export const isSettingsFile = (path) => /(^|\/)(settings(\.local)?\.json|config\.toml|managed_config\.toml|\.claude\.json)$/.test(String(path));
 
@@ -90,7 +94,8 @@ const resolve = (schema, node) => {
   return node && description ? { ...node, description } : node;
 };
 // Types and enum values a schema node allows, through $ref, allOf, anyOf and oneOf.
-function collect(schema, node, out = { types: new Set(), values: null, description: null }, depth = 0) {
+const blank = () => ({ types: new Set(), values: null, description: null });
+function collect(schema, node, out = blank(), depth = 0) {
   node = resolve(schema, node);
   if (!node || depth > 8) return out;
   for (const t of [node.type].flat().filter(Boolean)) out.types.add(t);
@@ -309,19 +314,21 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
   if (!advanced) return result;
   // Advanced: every key of the pinned schemas and the reference, the app's own rows first.
   const have = new Set(a.settings.map((s) => s.key));
-  const keys = [...new Set([...(agentId === 'claude' ? REFERENCE.map((r) => r.key) : []), ...schemaKeys(agentId)])].filter((k) => !have.has(k)).sort();
+  const keys = [...new Set([...(agentId === 'claude' ? REFERENCE.map((r) => r.key) : []), ...schemaKeys(agentId)])].filter((k) => !have.has(k)).sort((a, b) => (a < b ? -1 : +(a > b)));
   result.advanced = keys.map((k) => {
     const def = describeKey(agentId, k);
     const vals = valuesOf(layers, agentId, k);
+    // A value holding a secret is shown masked, so it is not edited here: the text typed back would be the placeholder.
+    const masked = vals.some((x) => !same(maskSecrets(x.value, k), x.value));
     const asTable = def.types?.length > 0 && def.types.every((t) => t === 'object');
-    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, editable: !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), value: vals[0] ? maskSecrets(vals[0].value, k) : undefined, layer: vals[0]?.layer ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) })), changed: vals.length > 0 };
+    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), value: vals[0] ? maskSecrets(vals[0].value, k) : undefined, layer: vals[0]?.layer ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) })), changed: vals.length > 0 };
   });
   const known = new Set([...have, ...keys, ...REFERENCE.map((r) => r.key), ...schemaKeys(agentId)]);
   result.outside = unknownKeys(agentId, layers, known);
   // Environment entries (Claude Code): names always, values unless the name looks like a secret.
   if (agentId === 'claude') {
     const sw = SWITCH_KEYS(agentId);
-    result.env = layers.flatMap((l) => Object.entries(l.data?.env ?? {}).map(([name, v]) => ({ name, layer: l.layer, value: isSecretName(name) ? MASK : v, secret: isSecretName(name), editable: sw.has(`env.${name}`) })));
+    result.env = layers.flatMap((l) => Object.entries(l.data?.env ?? {}).map(([name, v]) => ({ name, layer: l.layer, value: maskSecrets(v, name), secret: isSecretName(name), editable: sw.has(`env.${name}`) })));
   }
   return result;
 }
@@ -379,7 +386,7 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
   const layers = readSettings(ctx, agentId, { dir });
   const target = layers.find((l) => l.layer === layer);
   if (target.error) throw new Error(`${target.path} cannot be read (${target.error}): fix it first`);
-  // The state after the edits, to refuse what an agent would silently ignore.
+  // The state of the target layer after the edits, to refuse what an agent would silently ignore: another layer's value is not this edit's fault.
   const after = structuredClone(target.data);
   const problems = [];
   const changes = [];
@@ -388,7 +395,7 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
     if (!def) { problems.push(`${key}: not a key of ${a.name}'s settings reference or schema`); continue; }
     if (agentId === 'codex' && key.startsWith('projects.') && raw != null) { problems.push(`${key}: trusted projects are only removed here`); continue; }
     const value = raw === undefined ? null : raw;
-    const bad = key.startsWith('projects.') ? null : validate(agentId, def, value, layer);
+    const bad = key.startsWith('projects.') ? null : hasMask(value) ? `${key}: the value holds the placeholder ${MASK} that stands for a hidden secret: edit the file by hand` : validate(agentId, def, value, layer);
     if (bad) { problems.push(bad); continue; }
     const stored = def.type === 'switch' && value === true ? '1' : value;
     const path = agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key);
@@ -398,11 +405,11 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
       o[path.at(-1)] = stored;
     }
     const secret = isSecretName(key) || path.some(isSecretName);
-    const shown = stored == null ? 'removed' : `= ${secret ? MASK : JSON.stringify(stored)}`;
+    const shown = stored == null ? 'removed' : `= ${secret ? MASK : JSON.stringify(maskSecrets(stored, key))}`;
     changes.push({ id: `settings:${agentId}:${layer}:${key}`, step: `settings:${agentId}`, title: `${a.name} ${layer} settings: ${key} ${shown}`, kind: 'write', path: target.path, edit: editFor(agentId, key, stored, target.path) });
   }
   const written = Object.keys(edits).filter((k) => edits[k] != null);
-  for (const n of notes(agentId, layers.map((l) => (l.layer === layer ? { ...l, data: after } : l))).filter((x) => COUPLINGS.rules.find((r) => r.id === x.rule)?.refuse && x.keys.some((k) => written.includes(k)))) problems.push(n.message);
+  for (const n of notes(agentId, [{ ...target, data: after }]).filter((x) => COUPLINGS.rules.find((r) => r.id === x.rule)?.refuse && x.keys.some((k) => written.includes(k)))) problems.push(n.message);
   if (problems.length) throw new Error(problems.join('; '));
   return changes;
 }

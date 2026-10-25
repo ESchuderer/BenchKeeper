@@ -22,6 +22,11 @@
       "note": "The skills read `.agents/product-marketing.md` when it exists, which `product-marketing` writes."
     },
     {
+      "id": "ecc",
+      "title": "ECC",
+      "note": "Four skills of ECC's `workflow-quality` module (the `minimal` profile), installed as single skills: no plugin, no hooks, nothing outside the project."
+    },
+    {
       "id": "security",
       "title": "Security",
       "note": "CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project."
@@ -518,6 +523,42 @@
       "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The repository holds user interviews, surveys or feedback to evaluate"
+    },
+    {
+      "name": "tdd-workflow",
+      "section": "ecc",
+      "source": "affaan-m/ECC",
+      "ref": "c05b2d6614f62f6db0047669aa4eefb223d478f9",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A change is built test first, with a failing test before the code"
+    },
+    {
+      "name": "verification-loop",
+      "section": "ecc",
+      "source": "affaan-m/ECC",
+      "ref": "c05b2d6614f62f6db0047669aa4eefb223d478f9",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "Work needs a pass of build, types, lint and a diff review before a pull request"
+    },
+    {
+      "name": "error-handling",
+      "section": "ecc",
+      "source": "affaan-m/ECC",
+      "ref": "c05b2d6614f62f6db0047669aa4eefb223d478f9",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "The code needs one consistent way to raise, handle and report errors"
+    },
+    {
+      "name": "architecture-decision-records",
+      "section": "ecc",
+      "source": "affaan-m/ECC",
+      "ref": "c05b2d6614f62f6db0047669aa4eefb223d478f9",
+      "license": "MIT",
+      "agents": "both",
+      "pickWhen": "A design choice needs a record of its context, options and outcome"
     }
   ],
   "packs": [
@@ -623,6 +664,117 @@
         "compliance-check",
         "gdpr-compliant"
       ]
+    },
+    {
+      "id": "ecc",
+      "title": "ECC (selected skills)",
+      "pickWhen": "The owner names ECC: its test-first, verification, error handling and decision record skills",
+      "skills": [
+        "tdd-workflow",
+        "verification-loop",
+        "error-handling",
+        "architecture-decision-records"
+      ]
+    }
+  ],
+  "frameworks": [
+    {
+      "id": "superpowers",
+      "title": "Superpowers",
+      "role": "owner",
+      "repo": "obra/superpowers",
+      "license": "MIT",
+      "pin": "the official Claude Code marketplace's pin (7.0.0 on 2026-10-25; the repository is at 7.0.1)",
+      "evaluation": "evaluations/workflow-frameworks/superpowers.md",
+      "verdict": "Not in by default: cost higher in every with/without test but one, pass rate not significantly different.",
+      "hooks": "One SessionStart hook.",
+      "gives": "BenchKeeper's workflow skill and the issue-tracker specs give way in this project.",
+      "install": {
+        "kind": "plugin",
+        "plugin": "superpowers@claude-plugins-official",
+        "agents": [
+          "claude"
+        ]
+      },
+      "limits": "Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project."
+    },
+    {
+      "id": "matt-pocock",
+      "title": "Matt Pocock's skills",
+      "role": "parts",
+      "repo": "mattpocock/skills",
+      "license": "MIT",
+      "pin": "v1.3.1",
+      "evaluation": "evaluations/skill-libraries/mattpocock-skills.md",
+      "verdict": "Optional pack: no controlled evidence, no hooks.",
+      "hooks": "None.",
+      "install": {
+        "kind": "pack",
+        "pack": "matt-pocock"
+      },
+      "limits": "The plugin installs for the user (the pack's plugin step), the project gets its docs from the setup skill."
+    },
+    {
+      "id": "ecc",
+      "title": "ECC",
+      "role": "parts",
+      "repo": "affaan-m/ECC",
+      "license": "MIT",
+      "pin": "v2.2.3 (c05b2d6614f6)",
+      "evaluation": "EVALUATIONS.md",
+      "verdict": "Not in as a plugin: no outcome measurement, hook overhead. Offered as four single skills.",
+      "hooks": "None (skills only).",
+      "install": {
+        "kind": "pack",
+        "pack": "ecc"
+      }
+    },
+    {
+      "id": "agency-agents",
+      "title": "agency-agents",
+      "role": "parts",
+      "repo": "msitarzewski/agency-agents",
+      "license": "MIT",
+      "pin": "b37b5bb33b78 (no release)",
+      "evaluation": "evaluations/workflow-frameworks/agency-agents.md",
+      "verdict": "No outcome measurement. Offered as a pick of agent files, never the whole roster.",
+      "hooks": "None (agent files only).",
+      "install": {
+        "kind": "agents",
+        "source": "msitarzewski/agency-agents",
+        "ref": "b37b5bb33b78f2c1d6567d98e25ca818e3259219",
+        "agents": [
+          "claude"
+        ],
+        "dest": "subagents",
+        "files": [
+          {
+            "path": "engineering/engineering-frontend-developer.md",
+            "pickWhen": "A web UI is built or changed"
+          },
+          {
+            "path": "engineering/engineering-backend-architect.md",
+            "pickWhen": "A service, API or data model is designed"
+          },
+          {
+            "path": "engineering/engineering-technical-writer.md",
+            "pickWhen": "The repository has user-facing docs"
+          },
+          {
+            "path": "security/security-architect.md",
+            "pickWhen": "A change needs a threat model or security design review"
+          },
+          {
+            "path": "testing/testing-accessibility-auditor.md",
+            "pickWhen": "A UI needs an accessibility check"
+          },
+          {
+            "path": "testing/testing-reality-checker.md",
+            "pickWhen": "A claim of done needs an independent check"
+          }
+        ]
+      },
+      "limits": "Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run."
     }
   ]
 }

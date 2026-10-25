@@ -22,6 +22,7 @@ import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
 import { blob } from './git.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
+import { frameworkRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
@@ -99,13 +100,18 @@ function serialize(changes, ctx) {
   return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, ...(c.diff && isSettingsFile(c.path) ? { diff: redact(c.diff) } : {}), prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
 }
 
+const named = (src, query, body) => (src instanceof URLSearchParams ? src.has(query) : body in src);
 // First-setup answers from a query or a request body: only these keys, as strings and string lists.
 function setupAnswers(src) {
   if (!src || typeof src !== 'object') return {};
   const get = (k) => (src instanceof URLSearchParams ? src.get(k) : src[k]);
   const all = (k) => (src instanceof URLSearchParams ? src.getAll(k) : [src[k] ?? []].flat()).filter((x) => typeof x === 'string');
   const list = (k) => (src instanceof URLSearchParams ? all(k).flatMap((x) => x.split(',')).filter(Boolean) : all(k));
-  return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'), // An empty tier clears the saved one; no tier keeps it.
+  return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'),
+    // Frameworks are kept unless the answers name them (a form of agents, packs and tier alone does not take them out).
+    frameworks: named(src, 'framework', 'frameworks') ? list(src instanceof URLSearchParams ? 'framework' : 'frameworks') : undefined,
+    agentFiles: named(src, 'agent-file', 'agentFiles') ? list(src instanceof URLSearchParams ? 'agent-file' : 'agentFiles') : undefined,
+    // An empty tier clears the saved one; no tier keeps it.
     tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined,
     // No share keeps the saved choice.
     share: (src instanceof URLSearchParams ? src.has('share') : 'share' in src) ? get('share') === '1' || get('share') === true : undefined };
@@ -354,7 +360,7 @@ export function api(ctx) {
       const lib = libraryWith(ctx);
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: projectState(ctx, dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
-        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })) };
+        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })), frameworks: frameworkRows() };
     },
     // What a one-run setup starts from: the installed agents and advisers, and each project with its setup state. A
     // blocked project is left to Update all: one-run writes local setups in the checkout, and that is not possible for a

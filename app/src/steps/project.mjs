@@ -352,6 +352,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // The install command of each community skill: the state file records its new commit only once that ran.
   const installs = new Map();
   const installedRefs = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{40}$/.test(x.ref ?? '')).map((x) => [x.name, x.ref]));
+  // Own skills adopted over a folder nobody installed: kept as it is until reset, also by the plans that follow.
+  const adoptedBefore = new Set((readState(dir)?.skills ?? []).filter((x) => x.adopted === true).map((x) => x.name));
+  const adoptedOwn = new Set();
   const installedHashes = new Map((readState(dir)?.skills ?? []).filter((x) => /^[0-9a-f]{64}$/.test(x.hash ?? '')).map((x) => [x.name, x.hash]));
   for (const s of skills) {
     const ids = a.agents.filter((x) => s.agents !== 'codex' || x === 'codex');
@@ -370,7 +373,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       for (const { dir: d } of rest) {
         for (const { file, text } of ownSkillFiles(s.name, a.paths[s.name])) {
           const path = join(d, s.name, file);
-          const found = itemState(path, text, ctx), held = found === 'modified' || (found === 'foreign' && a.pick.includes(s.name));
+          const found = itemState(path, text, ctx), held = found === 'modified' || (found === 'foreign' && (a.pick.includes(s.name) || adoptedBefore.has(s.name)));
+          if (found === 'foreign' && held && !reseat) adoptedOwn.add(s.name);
           add(`skill:${s.name}`, `skill ${s.name} (own) in ${d.slice(dir.length + 1)}${held ? ` (${file} differs from the library: reset the skill to replace it)` : ''}`, { kind: 'write', path, after: text, ...(held && !reseat ? { selected: false, held: true } : {}) });
         }
       }
@@ -429,7 +433,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
   const state = (run) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
-    skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run) })) });
+    skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), edit: (_, run) => `${JSON.stringify(state(run), null, 2)}\n` });
 
   // Local: everything above goes to the repository's exclude list ($GIT_COMMON_DIR/info/exclude, shared by its

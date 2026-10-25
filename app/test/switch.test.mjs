@@ -318,4 +318,8 @@ test('a focused plan keeps the rules block that points to an own skill; adopting
   writeFileSync(join(other.dir, '.claude/skills', SKILL, 'SKILL.md'), 'not ours\n');
   const write = (answers) => preview(projectPlan({ ctx: other.ctx, dir: other.dir, answers: { agents: ['claude'], env: 'host', packs: [], ...answers }, plugins: {} }).changes).find((c) => c.path === other.skill);
   assert.deepEqual([write({ pick: [SKILL] }).selected, write({ pick: [SKILL], reset: [SKILL] }).selected], [false, true]);
+  // Adopted and saved: a later plan without pick keeps the folder too, until reset.
+  run(other, { agents: ['claude'], env: 'host', packs: [], pick: [SKILL] });
+  assert.equal(readFileSync(other.skill, 'utf8'), 'not ours\n');
+  assert.deepEqual([write({}).selected, write({ reset: [SKILL] }).selected], [false, true]);
 });

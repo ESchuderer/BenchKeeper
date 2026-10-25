@@ -42,6 +42,14 @@ export function packsInUse(ctx) {
   const states = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
   return states.length ? [...new Set(states.flatMap((s) => s.packs ?? []))] : null;
 }
+// The registered projects whose setup names the pack.
+export const projectsUsing = (ctx, id) => usersByPack(ctx).get(id) ?? [];
+// Pack id to the registered projects whose setup names it, read once for all packs.
+export function usersByPack(ctx) {
+  const users = new Map();
+  for (const p of listProjects(ctx)) for (const id of projectState(ctx, p.path)?.packs ?? []) users.set(id, [...(users.get(id) ?? []), p.path]);
+  return users;
+}
 function save(ctx, projects) {
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);
 }
@@ -62,8 +70,9 @@ const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
 // pull request), unfiltered, for the Dashboard's item states; null without a setup.
 export function projectItemPlan(ctx, path) {
   const own = tryState(path), local = own ?? kept(ctx, path);
-  // What the Projects view calls a change: selected ones, and commands that run in the project.
-  return local ? projectPlan({ ctx: projectCtx(ctx, path), dir: path, answers: own ? {} : localAnswers(local) }).changes.filter((c) => c.selected !== false && (c.kind !== 'command' || c.cwd)) : null;
+  // What the Projects view calls a change: selected ones, and commands that run in the project. A skill edited here is held back
+  // from the plan, but it is a modified item all the same.
+  return local ? projectPlan({ ctx: projectCtx(ctx, path), dir: path, answers: own ? {} : localAnswers(local) }).changes.filter((c) => (c.selected !== false || c.held) && (c.kind !== 'command' || c.cwd)) : null;
 }
 // Per chosen agent, the skills in the project folder it reads.
 export function skillCounts(path, agents) {

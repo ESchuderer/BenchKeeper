@@ -23,10 +23,10 @@ export const VIEWS: { id: string; title: string; shot: string; alt: string; text
   },
   {
     id: 'projects', title: 'Projects', shot: 'projects',
-    alt: 'The Projects view: a table of two projects with setup version, skills and pending changes, and the detail of the first with its skill switches and the pending changes as commands and diffs.',
+    alt: 'The Projects view: a table of two projects with setup version, skills and pending changes, and the detail of the first with its pack and skill switches and the pending changes as commands and diffs.',
     text: [
       'Each registered project shows its setup version, skills, pending changes and Git state. A project is behind when its setup version differs from the one of the app.',
-      'The detail lists the project\'s skills, each with a switch, and the changes an update would write.',
+      'The detail lists the project\'s packs and skills, each with a switch, and the changes an update or a switched pack would write.',
     ],
   },
   {

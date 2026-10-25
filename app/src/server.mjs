@@ -24,11 +24,12 @@ import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
 import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
+import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
 import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
@@ -321,17 +322,30 @@ export function api(ctx) {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
+      // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
+      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), partial: q.has('focus') };
       // Skill toggles name skills of this project only.
-      const own = input(() => chosenSkills(resolveAnswers(dir, setup), libraryWith(ctx)).map((s) => s.name));
+      const own = input(() => chosenSkills(resolveAnswers(dir, { ...setup, ...switches }), libraryWith(ctx)).map((s) => s.name));
       const disable = q.getAll('disable'), enable = q.getAll('enable');
-      const unknown = [...disable, ...enable].filter((n) => !own.includes(n));
+      const unknown = [...disable, ...enable, ...switches.reset].filter((n) => !own.includes(n));
       if (unknown.length) throw bad(`not a skill of this project: ${unknown.join(', ')}`);
-      const p = input(() => projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: { ...setup, disable, enable } }));
+      const notInLibrary = switches.pick.filter((n) => !libraryWith(ctx).skills.some((x) => x.name === n));
+      if (notInLibrary.length) throw bad(`not in the library: ${notInLibrary.join(', ')}`);
+      const p = input(() => projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: { ...setup, ...switches, disable, enable } }));
       // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
-      const changes = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
+      // focus: one skill's action shows only that skill's changes and the records of them.
+      const focus = q.getAll('focus');
+      const all = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
+      const changes = focus.length ? focusOn(all, focus) : all;
       return { planId: keep(changes, projectCtx(ctx, dir), dir), changes: serialize(changes, projectCtx(ctx, dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
-        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })) };
+        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })),
+        packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, own: !!x.own, skills: x.skills?.length ?? null, enabled: p.answers.packs.includes(x.id) })) };
     },
+    // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
+    'GET /api/skills': () => ({
+      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path)).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path) })).filter((p) => p.skills),
+      global: globalUntracked(ctx, installed()),
+    }),
     // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the
     // packs its files point to.
     'GET /api/project-setup': (q) => {
@@ -432,9 +446,9 @@ export function api(ctx) {
       return undo(b.run, input(() => scopeCtx(ctx, scope)), { step: b.step || undefined });
     },
     'GET /api/catalog': () => {
-      const lib = libraryWith(ctx);
+      const lib = libraryWith(ctx), users = usersByPack(ctx);
       const projects = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
-      return { ...lib, invalidPacks: invalidPacks(ctx), skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
+      return { ...lib, packs: lib.packs.map((x) => ({ ...x, usedBy: users.get(x.id) ?? [] })), invalidPacks: invalidPacks(ctx), skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
     },
     'GET /api/skill': (q) => {
       const name = q.get('name');
@@ -464,7 +478,7 @@ export function api(ctx) {
     'POST /api/packs': (b) => input(() => {
       if (b.action === 'save') return savePack(ctx, { id: b.id, title: b.title || b.id, skills: b.skills });
       if (b.action === 'import') return importPack(ctx, b.text ?? '', b.id || undefined);
-      if (b.action === 'remove') return removePack(ctx, b.id), { removed: b.id };
+      if (b.action === 'remove') return removePack(ctx, b.id, { usedBy: projectsUsing(ctx, b.id) }), { removed: b.id };
       throw bad('action must be save, import or remove');
     }),
     'GET /api/profile-export': (q) => ({ text: exportProfile(ctx, { agents: q.get('agents') ? q.get('agents').split(',') : installed(), packs: installedPacks(ctx) }) }),

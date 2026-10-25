@@ -10,6 +10,10 @@ import { SKILLS_SPEC, globalPlan } from '../../src/steps/global.mjs';
 import { projectPlan } from '../../src/steps/project.mjs';
 import { writeSessions } from '../fixtures/sessions.mjs';
 
+// git from a system folder, so the PATH search does not decide which program runs.
+const GIT = ['/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git'].find((p) => existsSync(p));
+if (!GIT) throw new Error('git is not in /usr/bin, /usr/local/bin or /opt/homebrew/bin');
+
 export const PORT = 4410;
 export const TOKEN = 'ui-test-token-0123456789';
 // Two more repositories for Prefill all, registered by the test: alpha has a GitHub origin, broken gets no suggestion.
@@ -27,7 +31,7 @@ const other = DEMO ? 'blog' : 'other';
 mkdirSync(join(parent, other), { recursive: true });
 writeFileSync(join(parent, `${other}/AGENTS.md`), '# Other\n');
 // A repository without a state file, for the step-by-step first setup.
-for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', join(parent, other), ...a]);
+for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', join(parent, other), ...a]);
 // Four more for the one-run setup, registered by the tests: uno has a local setup with a file missing (behind), the
 // others have none. A suggestion for duo or quatro waits while GATE exists, so a test can look at the progress page.
 export const ONE = join(tmpdir(), `bk-ui-one-${PORT}`);
@@ -38,23 +42,23 @@ for (const name of ['uno', 'duo', 'tres', 'quatro']) {
   const d = join(ONE, name);
   mkdirSync(d, { recursive: true });
   writeFileSync(join(d, 'README.md'), `# ${name}\n`);
-  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', d, ...a]);
+  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', d, ...a]);
 }
 rmSync(BATCH, { recursive: true, force: true });
 for (const name of ['alpha', 'broken']) {
   const d = join(BATCH, name);
   mkdirSync(d, { recursive: true });
   writeFileSync(join(d, 'README.md'), `# ${name}\n`);
-  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync('git', ['-C', d, ...a]);
+  for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', d, ...a]);
 }
-execFileSync('git', ['-C', join(BATCH, 'alpha'), 'remote', 'add', 'origin', 'https://github.com/acme/alpha.git']);
+execFileSync(GIT, ['-C', join(BATCH, 'alpha'), 'remote', 'add', 'origin', 'https://github.com/acme/alpha.git']);
 const run = (argv, o = {}) => {
   // GitHub is never reached: fetch answers with the local default branch as origin's, push and ls-remote answer as an empty remote, gh opens a pull request.
   // The fetch becomes a ref update in the same repository, so origin/<branch> exists as after a real fetch.
   if (argv[0] === 'git' && argv.includes('fetch')) argv = [...argv.slice(0, argv.indexOf('fetch')), 'update-ref', `refs/remotes/origin/${argv.at(-1)}`, 'HEAD'];
   if (argv[0] === 'git' && (argv.includes('push') || argv.includes('ls-remote'))) return { code: 0, stdout: '', stderr: '' };
   if (argv[0] === 'gh' && argv[1] === 'pr' && argv[2] === 'create') return { code: 0, stdout: 'https://github.com/acme/alpha/pull/1\n', stderr: '' };
-  if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }
+  if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync(GIT, argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }
   // The skills CLI adds a skill folder with one file: in a rehearsal's scratch home, else in the fixture home, never the real one.
   if (argv[0] === 'npx' && argv[2] === SKILLS_SPEC) {
     const name = argv.includes('-s') ? argv[argv.indexOf('-s') + 1] : argv[4];
@@ -83,7 +87,7 @@ appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
 // A rule file of the user's own: the Rules view lists it as yours, Doctor says nothing about it.
 writeFileSync(join(home, '.claude/rules/20-team.md'), '# Team notes\n\nKeep answers short.\n');
 const dir = join(parent, DEMO ? 'shop' : 'bk-ui-proj');
-execFileSync('git', ['init', '-q', '-b', 'main', dir]);
+execFileSync(GIT, ['init', '-q', '-b', 'main', dir]);
 writeFileSync(join(dir, 'README.md'), '# Demo\n');
 const pctx = { ...ctx, roots: [dir] };
 apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });

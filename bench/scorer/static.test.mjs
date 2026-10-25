@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createServer, get } from 'node:http';
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -50,4 +50,10 @@ test('static.mjs serves files under its root and nothing outside it', async () =
 test('print.mjs server serves files under its root and nothing outside it', async () => {
   const server = await serve(site());
   try { await check(server.address().port); } finally { server.close(); }
+});
+
+test('both servers refuse a folder outside /app and the temp folder', () => {
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('./static.mjs', import.meta.url)), '/etc'], { stdio: 'ignore' });
+  assert.notEqual(r.status, 0);
+  assert.throws(() => serve('/etc'), /not a folder/);
 });

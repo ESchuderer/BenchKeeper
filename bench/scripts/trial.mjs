@@ -7,6 +7,9 @@ import { pathToFileURL } from 'node:url';
 import { OPENCODE_ARMS, ocAudit, ocOutcome, ocUses, sessions } from './opencode.mjs';
 import { claudePhases, commandText, opencodePhases, shellWriteTarget } from './phases.mjs';
 
+// Orders strings by UTF-16 code unit, like Array.prototype.sort() without a comparator.
+export const byCode = (a, b) => Number(a > b) - Number(a < b);
+
 // Arm table (same as bench/image/install-arm.sh): framework, Ponytail, BenchKeeper layer (1: v1 rules, 'v3' to 'v5': rules and the
 // following-dev-workflow skill, 'v6': the setup-v4.0 plugin, 'v7': the setup-v5.0 plugin), spec tool.
 export const ARMS = {
@@ -59,7 +62,7 @@ function auditInit(init, events, arm) {
   const listed = new Set([...(init.skills || []), ...(init.agents || [])]);
   const hookOut = events.filter((e) => e.subtype === 'hook_response' && e.hook_event === 'SessionStart').map((e) => e.output).join('\n');
   const problems = [];
-  if (plugins.join() !== [...want.plugins].sort().join()) problems.push(`plugins ${plugins.join(',') || 'none'}`);
+  if (plugins.join() !== [...want.plugins].sort(byCode).join()) problems.push(`plugins ${plugins.join(',') || 'none'}`);
   const expected = [...want.skills, ...(want.agents || [])];
   for (const m of expected) if (!listed.has(m)) problems.push(`missing ${m}`);
   for (const m of MARKERS) if (!expected.includes(m) && listed.has(m)) problems.push(`unexpected ${m}`);
@@ -67,7 +70,7 @@ function auditInit(init, events, arm) {
   const mcp = (init.mcp_servers || []).map((s) => `${s.name}:${s.status === 'pending' ? 'connected' : s.status}`).sort();
   if (mcp.join() !== (want.mcp || []).map((n) => `${n}:connected`).join()) problems.push(`mcp ${(init.mcp_servers || []).map((s) => `${s.name}:${s.status}`).sort().join(',') || 'none'}`);
   if (!want.hooks.length && hookOut.trim()) problems.push('unexpected SessionStart output');
-  return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins, available_skills: [...(init.skills || [])].sort() };
+  return { ok: problems.length === 0, problems, model: init.model, claude_code_version: init.claude_code_version, plugins, available_skills: [...(init.skills || [])].sort(byCode) };
 }
 
 const TEST = /(^|\/)(tests?|__tests__|e2e|spec)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)(test_[^/]*|conftest)\.py$|_test\.py$/;
@@ -79,6 +82,12 @@ const claudeUses = (events) => events.filter((e) => e.type === 'assistant').flat
   .filter((c) => c.type === 'tool_use').map((c) => ({ name: c.name, input: c.input || {}, sub: Boolean(e.parent_tool_use_id) })));
 
 // uses: [{ name, input: { file_path, skill, subagent_type, command }, sub }]; OpenCode trials pass theirs (opencode.mjs).
+// The tier word of a `Tier: quick` line (only non-word characters before `Tier`), else undefined. Anchored matches on one line.
+const tierOf = (line) => {
+  const t = /tier/i.exec(line);
+  return t && /^\W*$/.test(line.slice(0, t.index)) ? /^[^\w:]*:\W*(\w+)/.exec(line.slice(t.index + 4))?.[1].toLowerCase() : undefined;
+};
+
 export function workflow(events, uses = claudeUses(events)) {
   // Files written by edit tools or by shell commands (`cat > f <<EOF`, which OpenCode agents use often).
   const targets = uses.map((u) => ['Write', 'Edit', 'MultiEdit'].includes(u.name) ? String(u.input.file_path || '')
@@ -104,13 +113,13 @@ export function workflow(events, uses = claudeUses(events)) {
   const last = uses.at(-1);
   // Tier lines the agent wrote (`Tier: quick`), from the main thread's text.
   const tiers = events.filter((e) => e.type === 'assistant' && !e.parent_tool_use_id).flatMap((e) => (e.message?.content || [])
-    .filter((c) => c.type === 'text').flatMap((c) => [...(c.text || '').matchAll(/^[^\w\n]*Tier[^\w\n]*:[^\w\n]*(\w+)/gim)].map((m) => m[1].toLowerCase())));
+    .filter((c) => c.type === 'text').flatMap((c) => (c.text || '').split('\n').map(tierOf).filter(Boolean)));
   return {
     tool_calls: uses.length,
     subagent_tool_calls: uses.filter((u) => u.sub).length,
     skills,
     skill_errors: skillErrors,
-    available_skills: [...new Set(events.filter((e) => e.type === 'system' && e.subtype === 'init').flatMap((e) => e.skills || []))].sort(),
+    available_skills: [...new Set(events.filter((e) => e.type === 'system' && e.subtype === 'init').flatMap((e) => e.skills || []))].sort(byCode),
     agents,
     tiers,
     plan_or_spec_files: writes.filter((p) => /\.md$/i.test(p) && /(plan|spec|design|brainstorm|requirement)/i.test(p)),

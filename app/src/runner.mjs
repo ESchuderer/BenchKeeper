@@ -7,10 +7,17 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { childEnv } from './childenv.mjs';
 import { diffLines } from './diff.mjs';
 import { copy, exists, hashPath, hashText, inside, isDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
 import { blob, fileMode, hasTree } from './git.mjs';
 import { Ledger, SCHEMA, runId } from './ledger.mjs';
+import { mask } from './redact.mjs';
+
+// New files that agents fill with tokens later are created for their user alone.
+const PRIVATE_NEW = /[\\/]\.(claude|codex|gemini|copilot)[\\/](settings(\.local)?\.json|config\.(toml|json)|hooks\.json)$|[\\/]\.claude\.json$/;
+// The last lines of a failed command's output, as stored in the ledger and shown: tokens masked.
+const failure = (r) => mask((r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' ')) || `exit ${r.code}`;
 
 // A path a run may change: inside a root, and not inside ctx.deny unless that root itself lies in the denied folder
 // (a project's .git is denied, its info/exclude list is a root of its own).
@@ -131,13 +138,13 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
           for (const x of entry.snapshot) if (x.backup) { copy(x.path, x.backup); if (hashPath(x.backup) !== x.hashBefore) throw new Error(`backup of ${x.path} differs from the original`); }
         }
         ctx.ledger.save(run);
-        const r = yield { argv: c.argv, opts: { cwd: c.cwd ?? ctx.home, env: c.env && { ...process.env, ...c.env } }, entry };
+        const r = yield { argv: c.argv, opts: { cwd: c.cwd ?? ctx.home, env: childEnv(c.env) }, entry };
         // Ended with an exit code: undone only when it succeeded, as before the journal.
         entry.exit = r.code;
         // A failed command with a snapshot may have changed those paths: undo still restores them.
         if (r.code === 0 || !entry.snapshot) delete entry.touched;
         for (const x of entry.snapshot ?? []) x.hashAfter = hashPath(x.path);
-        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ') || `exit ${r.code}`);
+        if (r.code !== 0) throw new Error(failure(r));
       } else {
         const path = c.kind === 'write' && !c.from ? real(c.path) : resolve(c.path);
         if (!allowed(path, ctx, c.kind !== 'remove')) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
@@ -162,7 +169,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
         if (c.kind === 'write') {
           if (entry.existed && (c.from || isDir(path) || after == null)) rmSync(path, { recursive: true, force: true });
           if (c.from) copy(c.from, path);
-          else if (after != null) writeAtomic(path, after);
+          else if (after != null) writeAtomic(path, after, !entry.existed && PRIVATE_NEW.test(path) ? 0o600 : undefined);
         }
         entry.hashAfter = hashPath(path);
         const expected = c.from ? hashPath(c.from) : hashText(after);
@@ -185,6 +192,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
 export function apply(changes, ctx, opts) {
   const release = ctx.ledger.lock();
   try {
+    ctx.ledger.prune();
     const g = applySteps(changes, ctx, opts);
     for (let x = g.next(); ; ) {
       if (x.done) return x.value;
@@ -198,6 +206,7 @@ export function apply(changes, ctx, opts) {
 export async function applyAsync(changes, ctx, opts, onEvent = () => {}) {
   const release = ctx.ledger.lock();
   try {
+    ctx.ledger.prune();
     const g = applySteps(changes, ctx, opts);
     const runAsync = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
     for (let x = g.next(); ; ) {
@@ -302,9 +311,9 @@ function undoRun(id, ctx, { step } = {}) {
         if (!e.undoArgv) { entry.status = 'manual'; entry.reason = `no undo command for ${e.argv.join(' ')}`; continue; }
         Object.assign(entry, { argv: e.undoArgv, cwd: e.cwd });
         begin(entry);
-        const r = ctx.run(e.undoArgv, { cwd: e.cwd ?? ctx.home });
+        const r = ctx.run(e.undoArgv, { cwd: e.cwd ?? ctx.home, env: childEnv() });
         entry.exit = r.code;
-        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || `exit ${r.code}`);
+        if (r.code !== 0) throw new Error(failure(r));
       } else {
         within(e.path, e.kind !== 'remove');
         // Only a file as the run left it goes back, so a later change (another step's, or the user's) is not lost.

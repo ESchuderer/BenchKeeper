@@ -31,6 +31,21 @@ export class Ledger {
     return out;
   }
 
+  // Backups hold the old text of settings files, tokens included: a rotated token must not stay in them for good. A run's
+  // backup folder goes after `days` (BENCHKEEPER_BACKUP_DAYS, default 90, 0 keeps them); undo of that run then reports the
+  // missing backup. Only folders named like a run id go: setup.sh backups are dated folders of another form.
+  prune(days = Number(process.env.BENCHKEEPER_BACKUP_DAYS ?? 90), now = Date.now()) {
+    if (!(days > 0)) return [];
+    const gone = [];
+    let names = [];
+    try { names = readdirSync(this.backups); } catch { return gone; }
+    for (const n of names) {
+      const m = n.match(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)Z-[0-9a-f]{6}$/);
+      if (m && Date.UTC(m[1], m[2] - 1, m[3], m[4], m[5], m[6]) < now - days * 864e5) { rmSync(join(this.backups, n), { recursive: true, force: true }); gone.push(n); }
+    }
+    return gone;
+  }
+
   save(run) {
     this.cache = null;
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });

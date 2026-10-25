@@ -83,7 +83,7 @@ A test name refers to the file named in the same row.
 | Folder arguments are registered projects | `server.mjs` routes | `server.test.mjs` "reveal opens registered projects only", "scan needs an absolute root" |
 | An empty `BENCHKEEPER_HOME` is not the working directory | `machineContext` | `security.test.mjs` "an empty BENCHKEEPER_HOME" |
 | Any folder can be registered as a project | none | open: [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) |
-| A command's own writes are not confined | none (snapshots cover declared paths) | open: [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) |
+| A command's own writes are not confined | none (snapshots cover declared paths); the preview runs with a scratch `HOME` and the machine's context home, not the real one, and refuses a seeded folder over 5000 files or 64 MB (links followed) | `prerun.test.mjs` "no credentials reach the command, the home is the context home, and a link loop is refused unrun"; open: [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) |
 
 ### Commands and argv
 
@@ -96,6 +96,8 @@ A test name refers to the file named in the same row.
 | The repository's `core.hooksPath` is pinned for worktree, commit and push | `viaPullRequest` in `projects.mjs` | `projects.test.mjs` "Update all runs the hooks of the checkout" |
 | Project `npx` uses the public registry; the skills CLI is an exact version under an alias, never a repo-local binary | `NPX_ENV`, `SKILLS_SPEC` | `project.test.mjs` (the skills command asserts the registry variable and the spec) |
 | Commands without a folder run in the home | `applySteps` in `runner.mjs`, `newest` in `steps/global.mjs` | `security.test.mjs` "commands without a folder of their own run in the home" |
+| Commands that install or look up third-party code get an environment of an allowlist (path, locale, proxy and certificate settings, tool folders), never a variable named like a credential; `BENCHKEEPER_PASS_ENV` names what the owner lets through | `childEnv` in `childenv.mjs`, used by `applySteps` and `undoRun` in `runner.mjs`, `newest` and `rehearse` | `secrets.test.mjs` "childEnv", "commands run with the filtered environment" |
+| The agent sessions of `record`, `eval` and advice keep the full environment (the agent needs its own login variables) | none, by design | open: [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) |
 | PR URLs are matched before `gh pr view` | `sessions.mjs` | `sessions.test.mjs` "PR states" |
 | Read-only git commands run under the repository's own config | none | open: [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) |
 | Names from agent files are passed as arguments unchecked | none | open: [#206](https://github.com/ESchuderer/BenchKeeper/issues/206) |
@@ -131,10 +133,14 @@ A test name refers to the file named in the same row.
 | Limit | Control | Test |
 |---|---|---|
 | Library skills are pinned to a commit and chosen from the library only; imports name library skills only | `library.json`, `packs.mjs` `validate` | `packs.test.mjs` "pack files name library skills only"; `.github/scripts/library-readme.test.mjs` |
-| Host tools are installed at the newest release at least 7 days old, no prereleases | `newest` in `steps/global.mjs` | `global.test.mjs` "newest picks the highest release older than 7 days" |
+| Host tools are installed at the newest release at least 7 days old, no prereleases, only a version the registry still lists, with a string publish time; the registry lookup has a timeout; an installed newer release is not replaced; `npm i -g` and the skills CLI run without lifecycle scripts (the tools need none) | `newest` in `steps/global.mjs`, `cooled` in `cooldown.mjs` | `global.test.mjs` "newest picks the highest release older than 7 days"; `secrets.test.mjs` "cooled" |
+| The update notice offers only a release at least 7 days old | `updateNotice` in `update.mjs` | `package.test.mjs` "update check" |
+| Global skills install from a pinned commit, with a snapshot of the skill folders and the lock, so undo restores them and the preview shows what the run installs | `SKILL_SOURCES` in `steps/global.mjs` | `secrets.test.mjs` "global skills come from a commit" |
+| The publish job holds the OIDC token and runs no repository or dependency code: dependencies are installed with `--ignore-scripts`, built and tested in a job without the token, and only the packed tarball is published | `.github/workflows/npm.yml` | CI (actionlint, zizmor) |
 | A marketplace on another ref is a manual step, not an automatic move | `steps/global.mjs` | `global.test.mjs` |
 | The app has no download or archive code of its own; lockfile with integrity hashes, runtime dependencies pinned, actions pinned to commit SHAs, npm publish by trusted publishing | `app/package-lock.json`, `.github/workflows` | CI (`checks.yml`, zizmor) |
-| Plugin and global skill sources are mutable (tags, branches, default branch), the cooldown has gaps, installs run lifecycle scripts, the publish job runs dependency scripts | none | open: [#198](https://github.com/ESchuderer/BenchKeeper/issues/198), [#199](https://github.com/ESchuderer/BenchKeeper/issues/199) |
+| Plugin sources are mutable (tags, and the branch `stable` for BenchKeeper's own marketplace), plugin installs by the agents' CLIs run what the plugin ships, the cooldown trusts the registry's publish times and this machine's clock, no `npm audit signatures` step | none | open: [#198](https://github.com/ESchuderer/BenchKeeper/issues/198) |
+| The npm package's trusted-publisher setting names the workflow and, if one is set, the environment with required reviewers | npm and GitHub settings of the owner, not code | owner check, see [#199](https://github.com/ESchuderer/BenchKeeper/issues/199) |
 
 ### Secrets
 
@@ -146,7 +152,11 @@ A test name refers to the file named in the same row.
 | Commit and pull request text is built from constants; Update all commits only files the app wrote into a fresh worktree | `projects.mjs` | `projects.test.mjs` "Update all commits the new setup on a branch in a worktree" |
 | `board.html` and the session caches are mode 0600; the browser redirect file is 0600 | `board.mjs`, `sessions.mjs`, `openBrowser` | `server.test.mjs` "the browser opens a file only this user can read", "a session scan is reused"; `cli.test.mjs` |
 | Doctor reports variable names, never values | `doctor.mjs` | `doctor.test.mjs` "feature switches ... never values" |
-| Diff context can show a token next to a changed line; session argv, command output and backups can hold tokens | none | open: [#201](https://github.com/ESchuderer/BenchKeeper/issues/201) |
+| A token next to a changed line stays out of the plan: values of keys named like a secret and token shapes are masked in every diff line, context included (files are written from the real text) | `mask` in `redact.mjs`, `diffLines` | `secrets.test.mjs` "mask", "a diff of a settings file masks a token" |
+| Session argv, the last lines of command output and the first prompt copied into an eval case are masked before they are stored (best effort: a secret in an unflagged argument is kept) | `redactArgv`, `mask`; `recordSession`, `applySteps`, `undoRun`, `addCase` | `secrets.test.mjs` "a recorded session keeps its argv", "an undo command reports the last lines", "a case copied from a transcript" |
+| A new agent settings, config or hooks file is created for the user alone (mode 0600); an existing file keeps its mode | `PRIVATE_NEW` in `runner.mjs` | `secrets.test.mjs` "a new agent settings file is private" |
+| Backups of a run are deleted after 90 days (`BENCHKEEPER_BACKUP_DAYS`, 0 keeps them), so a rotated token does not stay in them; undo of that run reports the missing backup | `Ledger.prune`, run before each apply | `secrets.test.mjs` "backups of runs older than the retention period go" |
+| Eval outputs and results are written for the user alone, in folders tightened at each run | `runEval` | `secrets.test.mjs` "eval outputs and results are private" |
 
 ### Recovery and concurrency
 
@@ -178,7 +188,7 @@ A test name refers to the file named in the same row.
 
 ## Open
 
-[#198](https://github.com/ESchuderer/BenchKeeper/issues/198) supply chain pins and integrity, [#199](https://github.com/ESchuderer/BenchKeeper/issues/199) publish job scripts, [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) child environment and isolation, [#201](https://github.com/ESchuderer/BenchKeeper/issues/201) secrets in plans and backups, [#202](https://github.com/ESchuderer/BenchKeeper/issues/202) Update all bounds, [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) hostile repositories and registration, [#204](https://github.com/ESchuderer/BenchKeeper/issues/204) server token handling, [#205](https://github.com/ESchuderer/BenchKeeper/issues/205) ledger trust, doctor check, dry-run default, [#206](https://github.com/ESchuderer/BenchKeeper/issues/206) low-severity findings.
+[#198](https://github.com/ESchuderer/BenchKeeper/issues/198) plugin pins and integrity checks, [#200](https://github.com/ESchuderer/BenchKeeper/issues/200) previews without a click and isolation of eval, advice and record sessions, [#202](https://github.com/ESchuderer/BenchKeeper/issues/202) Update all bounds, [#203](https://github.com/ESchuderer/BenchKeeper/issues/203) hostile repositories and registration, [#204](https://github.com/ESchuderer/BenchKeeper/issues/204) server token handling, [#205](https://github.com/ESchuderer/BenchKeeper/issues/205) ledger trust, doctor check, dry-run default, [#206](https://github.com/ESchuderer/BenchKeeper/issues/206) low-severity findings.
 
 ## Keeping this current
 

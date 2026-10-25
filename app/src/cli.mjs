@@ -429,8 +429,12 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   const name = commandName(cmd, arg);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
   const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
+  // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
+  const registryFail = () => { const problem = registryProblem(ctx); return problem ? fail(problem) : undefined; };
   if (cmd === 'doctor') {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) return fail(`--baseline must be auto, ${PROFILES.join(' or ')}`);
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
     const agents = selectedAgents(ctx, o.agents), dir = resolve(arg ?? '.');
     const { level, adds } = detectLevel(ctx, agents, dir);
     const found = doctor(ctx, { agents, dir, baseline: o.baseline && { profile: o.baseline, ref: o['baseline-ref'] } });
@@ -440,6 +444,8 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const agents = selectedAgents(ctx, o.agents);
     if (!agents.length) return fail('no agent found (claude, codex, gemini, copilot); the app installs none');
     if (o.level !== undefined && !LEVELS.includes(o.level)) return fail(`--level must be one of ${LEVELS.join(', ')}`);
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
     const level = o.level ?? detectLevel(ctx, agents, process.cwd()).level ?? 'full';
     const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
     return emit({ agents, level, changes: plan.map(changeDoc) }, plan.some((c) => c.error) ? 1 : 0);
@@ -455,7 +461,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const runs = ctx.ledger.list().map((r) => ({ id: r.id, kind: r.kind, status: r.status ?? 'interrupted', scope: r.scope, time: r.time, changes: r.entries.length, ...(r.of ? { of: r.of } : {}), ...(r.note?.case ? { evalCase: r.note.case, target: r.note.target } : {}) }));
     return emit({ runs, backups: legacyBackups(ctx) });
   }
-  if (cmd === 'projects' && (!arg || arg === 'list')) return registryProblem(ctx) ? fail(registryProblem(ctx)) : emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
+  if (cmd === 'projects' && (!arg || arg === 'list')) return registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
   if (cmd === 'packs' && (!arg || arg === 'list')) return emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
   return fail('--json works with doctor, test, plan, project plan, history, projects list and packs list');
 }

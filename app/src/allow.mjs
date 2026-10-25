@@ -1,4 +1,4 @@
-// Doctor: allow rules that reach further than a person usually remembers. Information only: it reads settings and rule
+// Doctor: allow rules that reach further than a person usually remembers. Report only: it reads settings and rule
 // files, edits none and proposes no rule. BenchKeeper follows the agents' own defaults (auto mode) and adds no ask rules.
 import { existsSync, readdirSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';

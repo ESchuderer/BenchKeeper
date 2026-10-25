@@ -94,8 +94,8 @@ Project setup asks first: it shows the list and installs nothing you did not cho
 
 | Framework | Role | Installs | Evaluation |
 |---|---|---|---|
-| [Superpowers](https://github.com/obra/superpowers) | workflow owner | a Claude Code plugin enabled for this project only | [superpowers.md](evaluations/workflow-frameworks/superpowers.md) |
-| [Matt Pocock's skills](https://github.com/mattpocock/skills) | parts | the `matt-pocock` pack | [mattpocock-skills.md](evaluations/skill-libraries/mattpocock-skills.md) |
+| [Superpowers](https://github.com/obra/superpowers) | workflow owner | a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache | [superpowers.md](evaluations/workflow-frameworks/superpowers.md) |
+| [Matt Pocock's skills](https://github.com/mattpocock/skills) | parts | the `matt-pocock` pack; its plugin installs for the user, outside the project | [mattpocock-skills.md](evaluations/skill-libraries/mattpocock-skills.md) |
 | [ECC](https://github.com/affaan-m/ECC) | parts | four single skills at a pinned commit, no plugin and no hooks | [EVALUATIONS.md](EVALUATIONS.md) |
 | [agency-agents](https://github.com/msitarzewski/agency-agents) | parts | a pick of agent files fetched at a pinned commit | [agency-agents.md](evaluations/workflow-frameworks/agency-agents.md) |
 <!-- /generated:frameworks -->

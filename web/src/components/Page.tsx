@@ -179,7 +179,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             {facts.frameworks.items.map((f) => (
               <Paper key={f.name} withBorder p="lg" radius="lg">
                 <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
-                <Text size="sm" mt="xs">Installs {md(f.installs)}.</Text>
+                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/develop/${f.evaluation}`}>Evaluation</Anchor></Text>
               </Paper>
             ))}
           </SimpleGrid>

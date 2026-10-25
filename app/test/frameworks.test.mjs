@@ -191,7 +191,7 @@ test('agency-agents: a pick of agent files fetched at the pinned commit, second 
   assert.equal(p.run.status, 'done');
   const curl = r.calls.find((c) => c.argv[0] === 'curl');
   const ref = catalog().find((f) => f.id === 'agency-agents').install.ref;
-  assert.deepEqual(curl.argv.slice(1, 7), ['-fsSL', '--proto', '=https', '--proto-redir', '=https', '--create-dirs']);
+  assert.deepEqual(curl.argv.slice(1, 8), ['-fsSL', '--remove-on-error', '--proto', '=https', '--proto-redir', '=https', '--create-dirs']);
   assert.equal(curl.argv.at(-1), `https://raw.githubusercontent.com/msitarzewski/agency-agents/${ref}/${FILE}`);
   assert.equal(curl.argv.at(-2), join(r.dir, AGENT));
   assert.ok(existsSync(join(r.dir, AGENT)));

@@ -193,14 +193,14 @@
         "name": "Superpowers",
         "url": "https://github.com/obra/superpowers",
         "role": "workflow owner",
-        "installs": "a Claude Code plugin enabled for this project only",
+        "installs": "a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache",
         "evaluation": "evaluations/workflow-frameworks/superpowers.md"
       },
       {
         "name": "Matt Pocock's skills",
         "url": "https://github.com/mattpocock/skills",
         "role": "parts",
-        "installs": "the `matt-pocock` pack",
+        "installs": "the `matt-pocock` pack; its plugin installs for the user, outside the project",
         "evaluation": "evaluations/skill-libraries/mattpocock-skills.md"
       },
       {

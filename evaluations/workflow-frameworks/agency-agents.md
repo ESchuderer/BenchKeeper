@@ -20,8 +20,12 @@ Not collected.
 
 Not run as an arm.
 
+## Skill authoring check
+
+Not applicable: the entry ships agent files, not skills.
+
 ## Decision
 
-Optional parts, never the whole roster. Project setup offers six agent files (frontend developer, backend architect, technical writer, security architect, accessibility auditor, reality checker) and fetches each from a pinned commit into `.claude/agents/` of the project (Claude Code only). Each file is a prompt that adds context cost when the agent is chosen and nothing otherwise. No outcome measurement in either direction, so the entry stays optional.
+Optional parts, never the whole roster. Project setup offers six agent files (frontend developer, backend architect, technical writer, security architect, accessibility auditor, reality checker) and fetches each from a pinned commit into `.claude/agents/` of the project (Claude Code only). Each file is a prompt whose description is listed in the session context and whose body loads when the agent runs (unverified, not measured here). No outcome measurement found in either direction (search for independent measurements not done, unverified), so the entry stays optional.
 
 [All evaluations](../../EVALUATIONS.md)

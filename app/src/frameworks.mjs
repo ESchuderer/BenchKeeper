@@ -88,7 +88,7 @@ export function frameworkChanges({ a, dir, prev, lib = library() }) {
         const picked = on && a.agentFiles.includes(path), mine = owned.has(path);
         if (picked && (!exists(target) || (mine && have.get(f.id) !== f.install.ref))) {
           out.push({ key: `file:${path}`, step: `framework:${f.id}`, title: `agent ${stemOf(path)} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`, kind: 'command', cwd: dir, snapshot: [target],
-            argv: ['curl', '-fsSL', '--proto', '=https', '--proto-redir', '=https', '--create-dirs', '-o', target, rawUrl(f, path)] });
+            argv: ['curl', '-fsSL', '--remove-on-error', '--proto', '=https', '--proto-redir', '=https', '--create-dirs', '-o', target, rawUrl(f, path)] });
         } else if (!picked && mine && exists(target)) out.push({ step: `framework:${f.id}`, title: `remove agent ${stemOf(path)} (not picked)`, kind: 'remove', path: target, selected: true });
       }
     }

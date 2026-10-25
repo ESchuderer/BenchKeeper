@@ -1,11 +1,12 @@
 // A machine's setup as one file: agents, global packs, own packs, and the registered projects with their answers.
-// It holds choices only, no file contents, environment values or tokens.
+// It holds choices only, no file contents, environment values or tokens: rule files are listed by path and state.
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { ownPacks, savePack } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
+import { ruleStates } from './rules.mjs';
 import { unfit } from './roots.mjs';
 import { preview } from './runner.mjs';
 import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
@@ -23,10 +24,10 @@ export function installedPacks(ctx) {
 export function exportProfile(ctx, { agents, packs = [] }) {
   const projects = listProjects(ctx).map(({ path }) => {
     const s = tryState(path);
-    return { path, ...(s ? { answers: Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]])) } : {}) };
+    return { path, ...(s ? { answers: Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]])) } : {}), ...(existsSync(path) ? { rules: ruleStates(ctx, { agents, dir: path }) } : {}) };
   });
   const own = ownPacks(ctx).map(({ id, title, skills }) => ({ id, title, skills }));
-  return `${JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: PROFILE_SCHEMA, appVersion, global: { agents, packs }, packs: own, projects }, null, 2)}\n`;
+  return `${JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: PROFILE_SCHEMA, appVersion, global: { agents, packs, rules: ruleStates(ctx, { agents }) }, packs: own, projects }, null, 2)}\n`;
 }
 
 export function readProfile(text) {

@@ -1,5 +1,7 @@
 # Benchmark scenarios
 
+> The run machinery and raw run data described here (briefs, scorer, arm definitions, run scripts, transcripts, app archives, screenshots) were removed in [#256](https://github.com/ESchuderer/BenchKeeper/issues/256) and are no longer in the working tree. Paths below name files of the last commit that had them, 9c243d2, until the history purge of #256 removes them from the repository. The written results stay in `bench/results`.
+
 Comparison matrix of the arms in `bench/PROTOCOL.md`. Every arm gets the same brief, hidden tests, scorer, app review, timeout and follow-up rule. Images are built by `bench/image/Containerfile` and `bench/image/install-arm.sh`, and each trial runs in its own container with only its arm's components.
 
 ## Claude Code arms (Claude Code 2.1.299, subscription)

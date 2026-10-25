@@ -1,0 +1,82 @@
+{
+  "agents": {
+    "claude": {
+      "name": "Claude Code",
+      "layers": { "user": ".claude/settings.json", "project": ".claude/settings.json", "local": ".claude/settings.local.json" },
+      "managed": ["/etc/claude-code/managed-settings.json", "/Library/Application Support/ClaudeCode/managed-settings.json"],
+      "managedSource": "https://code.claude.com/docs/en/managed-settings",
+      "precedence": ["managed", "local", "project", "user"],
+      "settings": [
+        { "key": "attribution", "group": "Commits", "type": "attribution", "setup": true, "default": "unset (built-in trailer and text)", "sentence": "The text Claude Code adds to commit messages and pull request descriptions, or none at all.", "source": "https://code.claude.com/docs/en/settings-reference#attribution",
+          "suggest": { "value": null, "reason": "Offer built-in text, custom text or hidden (false, needs v2.1.281 or later). A project rule that already states the trailer needs no second copy." } },
+        { "key": "permissions.defaultMode", "group": "Permissions", "type": "enum", "values": ["default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"], "default": "unset (auto in terminal and VS Code sessions since v2.1.283)", "sentence": "The permission mode new sessions start in.", "source": "https://code.claude.com/docs/en/settings-reference#permissions-defaultmode",
+          "suggest": { "value": null, "reason": "Leave unset: auto is the built-in start mode since v2.1.283, and auto or bypassPermissions in a project or local file is silently ignored.", "source": "https://code.claude.com/docs/en/permission-modes" } },
+        { "key": "model", "group": "Model", "type": "string", "default": "unset (your account's default model)", "sentence": "The model Claude Code starts with, an alias or a full model ID.", "source": "https://code.claude.com/docs/en/settings-reference#model", "setup": true,
+          "suggest": { "value": null, "reason": "Leave unset." } },
+        { "key": "effortLevel", "group": "Model", "type": "enum", "values": ["low", "medium", "high", "xhigh"], "default": "unset", "sentence": "The default effort for models without a saved level of their own; in the user file Opus 5.5 and later ignore it.", "source": "https://code.claude.com/docs/en/settings-reference#effortlevel", "setup": true,
+          "suggest": { "value": null, "reason": "Leave unset; if effort is wanted, write modelSettings.<model>.effortLevel (what /effort writes) in Advanced.", "source": "https://code.claude.com/docs/en/settings-reference#modelsettings" } },
+        { "key": "advisorModel", "group": "Model", "type": "string", "default": "unset (advisor off)", "sentence": "The model that answers when Claude calls the advisor tool; it must rank at least as high as the main model.", "source": "https://code.claude.com/docs/en/settings-reference#advisormodel", "setup": true,
+          "suggest": { "value": null, "reason": "Off by default: experimental, extra token cost, Anthropic API only.", "source": "https://code.claude.com/docs/en/advisor" } },
+        { "key": "remoteControlAtStartup", "group": "Remote", "type": "bool", "default": "unset (the auto-connect default applies)", "sentence": "Connect Remote Control automatically when an interactive session starts.", "source": "https://code.claude.com/docs/en/settings-reference#remotecontrolatstartup", "setup": true },
+        { "key": "env.DISABLE_ERROR_REPORTING", "group": "Telemetry and noise", "type": "switch", "zeroIsSet": true, "default": "unset (error reporting on)", "sentence": "Opts out of error reporting; any value counts as set, including 0 and false.", "source": "https://code.claude.com/docs/en/env-vars", "setup": true, "bundle": "less-noise" },
+        { "key": "env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY", "group": "Telemetry and noise", "type": "switch", "default": "unset (surveys on)", "sentence": "Turns off the \"How is Claude doing?\" session quality surveys.", "source": "https://code.claude.com/docs/en/env-vars", "setup": true, "bundle": "less-noise" },
+        { "key": "env.DISABLE_FEEDBACK_COMMAND", "group": "Telemetry and noise", "type": "switch", "default": "unset (/feedback available)", "sentence": "Disables the /feedback command, Claude-drafted feedback, /bug and /share.", "source": "https://code.claude.com/docs/en/env-vars", "setup": true, "bundle": "less-noise" },
+        { "key": "env.DISABLE_TELEMETRY", "group": "Telemetry and noise", "type": "switch", "zeroIsSet": true, "flagFetching": true, "default": "unset (telemetry on)", "sentence": "Opts out of telemetry and stops feature-flag fetching; any value counts as set, including 0 and false.", "source": "https://code.claude.com/docs/en/env-vars",
+          "suggest": { "value": null, "reason": "Never preset: it turns flag fetching off, so the advisor stays off and idle compaction and /import go." } },
+        { "key": "env.DO_NOT_TRACK", "group": "Telemetry and noise", "type": "switch", "flagFetching": true, "default": "unset", "sentence": "Opts out of telemetry like DISABLE_TELEMETRY, including the stop of flag fetching; 0 leaves telemetry on.", "source": "https://code.claude.com/docs/en/env-vars",
+          "suggest": { "value": null, "reason": "Never preset: it turns flag fetching off." } },
+        { "key": "env.DISABLE_GROWTHBOOK", "group": "Telemetry and noise", "type": "switch", "flagFetching": true, "default": "unset", "sentence": "Stops feature-flag fetching and uses code defaults for every flag; 0 leaves fetching on.", "source": "https://code.claude.com/docs/en/env-vars",
+          "suggest": { "value": null, "reason": "Never preset: Remote Control and the advisor become unavailable." } },
+        { "key": "env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "group": "Telemetry and noise", "type": "switch", "zeroIsSet": true, "flagFetching": true, "default": "unset", "sentence": "Stops auto-updates, telemetry, error reporting, feedback and flag fetching; any value counts as set, including 0 and false.", "source": "https://code.claude.com/docs/en/env-vars",
+          "suggest": { "value": null, "reason": "Never preset: it also stops auto-updates and makes Remote Control unavailable." } },
+        { "key": "preferredNotifChannel", "group": "Interface", "type": "enum", "values": ["auto", "terminal_bell", "iterm2", "iterm2_with_bell", "kitty", "ghostty", "notifications_disabled"], "default": "auto", "sentence": "How Claude Code notifies you when a task completes or a permission prompt waits.", "source": "https://code.claude.com/docs/en/settings-reference#preferrednotifchannel",
+          "suggest": { "value": "auto", "reason": "Docs default." } },
+        { "key": "theme", "group": "Interface", "type": "enum", "values": ["auto", "dark", "light", "dark-daltonized", "light-daltonized", "dark-ansi", "light-ansi"], "also": "^custom:", "default": "dark", "sentence": "The interface color theme, built-in or a custom one.", "source": "https://code.claude.com/docs/en/settings-reference#theme" },
+        { "key": "outputStyle", "group": "Interface", "type": "string", "default": "unset (default style)", "sentence": "Changes Claude's role, tone and output format with a built-in or custom output style.", "source": "https://code.claude.com/docs/en/settings-reference#outputstyle" },
+        { "key": "statusLine", "group": "Interface", "type": "object", "default": "unset", "sentence": "A command that renders the status line below the prompt; edit it in the file, the app shows it.", "source": "https://code.claude.com/docs/en/settings-reference#statusline" },
+        { "key": "sandbox.enabled", "group": "Sandbox", "type": "bool", "default": "false", "sentence": "Runs Bash commands in a sandbox on macOS, Linux and WSL2.", "source": "https://code.claude.com/docs/en/settings-reference#sandbox-enabled",
+          "suggest": { "value": true, "reason": "On where the platform supports it, per project (project setup writes it to the local file). Linux and WSL2 need bubblewrap and socat; without them commands run unsandboxed unless failIfUnavailable is true.", "source": "https://code.claude.com/docs/en/sandboxing" } },
+        { "key": "cleanupPeriodDays", "group": "Retention and updates", "type": "int", "min": 1, "default": "30", "sentence": "Days Claude Code keeps session transcripts before a silent sweep deletes them; the Sessions board reads them.", "source": "https://code.claude.com/docs/en/settings-reference#cleanupperioddays", "setup": true,
+          "suggest": { "value": null, "reason": "Keep the default 30 or higher: transcripts are deleted without a message (anthropics/claude-code#59248), and a lower value shortens the Sessions board history." } },
+        { "key": "autoUpdatesChannel", "group": "Retention and updates", "type": "enum", "values": ["latest", "stable"], "default": "unset (latest)", "sentence": "The release channel auto-updates follow; stable is about one week old and skips major regressions.", "source": "https://code.claude.com/docs/en/settings-reference#autoupdateschannel", "setup": true,
+          "suggest": { "value": "stable", "reason": "About one week old and skips major regressions, the same idea as the app's 7-day rule for tools." } },
+        { "key": "promptCacheTtl", "group": "Model", "basic": false, "type": "enum", "values": ["5m", "1h"], "default": "unset (each request's default lifetime)", "sentence": "How long the main conversation's prompt cache holds: 5 minutes, or an hour at a higher cache write cost.", "source": "https://code.claude.com/docs/en/settings-reference#promptcachettl" },
+        { "key": "includeGitInstructions", "group": "Commits", "basic": false, "type": "bool", "default": "true", "sentence": "Includes the built-in commit and pull request instructions and the git status snapshot in Claude's context.", "source": "https://code.claude.com/docs/en/settings-reference#includegitinstructions" },
+        { "key": "autoMemoryEnabled", "group": "Memory", "basic": false, "type": "bool", "default": "true", "sentence": "Lets Claude read from and write to the auto memory directory.", "source": "https://code.claude.com/docs/en/settings-reference#automemoryenabled" },
+        { "key": "skipWebFetchPreflight", "group": "Privacy", "basic": false, "type": "bool", "default": "unset (the check runs)", "sentence": "Skips the WebFetch hostname check when Anthropic is unreachable.", "source": "https://code.claude.com/docs/en/settings-reference#skipwebfetchpreflight" },
+        { "key": "includeCoAuthoredBy", "group": "Commits", "basic": false, "type": "bool", "default": "true", "sentence": "Deprecated: use attribution; false drops the commit trailer and the pull request text unless attribution sets them.", "source": "https://code.claude.com/docs/en/settings-reference#includecoauthoredby" }
+      ],
+      "bundles": [
+        { "id": "less-noise", "label": "Less noise", "sentence": "Error reporting, the quality survey and the feedback command off; none of them turns off flag fetching, so the advisor keeps working.", "source": "https://code.claude.com/docs/en/data-usage#telemetry-services" }
+      ]
+    },
+    "codex": {
+      "name": "Codex",
+      "layers": { "user": ".codex/config.toml", "project": ".codex/config.toml" },
+      "managed": ["/etc/codex/managed_config.toml", "/etc/codex/config.toml"],
+      "managedSource": "https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/config/src/loader/README.md",
+      "precedence": ["managed", "project", "user"],
+      "settings": [
+        { "key": "model", "group": "Model", "type": "string", "default": "unset (unverified: the client picks)", "sentence": "The model Codex uses.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference" },
+        { "key": "model_reasoning_effort", "group": "Model", "type": "string", "values": ["low", "medium", "high", "xhigh"], "free": true, "default": "unset (the model's own default)", "sentence": "Reasoning effort, a value the selected model advertises, such as low, medium or high.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference", "setup": true },
+        { "key": "approval_policy", "group": "Permissions", "type": "enum", "values": ["on-request", "never"], "default": "unset (unverified)", "sentence": "When Codex pauses for approval before running commands; a granular table form exists and is shown, not edited.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference",
+          "suggest": { "value": "on-request", "reason": "Codex recommends on-request with workspace-write in version-controlled folders; it may start read-only until a directory is trusted. Never offered: never together with danger-full-access.", "source": "https://learn.chatgpt.com/docs/agent-approvals-security" } },
+        { "key": "sandbox_mode", "group": "Permissions", "type": "enum", "values": ["read-only", "workspace-write", "danger-full-access"], "default": "unset (unverified)", "sentence": "Sandbox policy for file and network access while commands run.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference",
+          "suggest": { "value": "workspace-write", "reason": "Pairs with on-request (see approval_policy); or leave both unset.", "source": "https://learn.chatgpt.com/docs/agent-approvals-security" } },
+        { "key": "web_search", "group": "Permissions", "type": "enum", "values": ["disabled", "cached", "indexed", "live"], "default": "cached", "sentence": "Web search mode: cached results by default, live only on request.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference",
+          "suggest": { "value": null, "reason": "Leave unset (cached); live only on request." } },
+        { "key": "analytics.enabled", "group": "Telemetry and noise", "type": "bool", "default": "unset (the client default applies)", "sentence": "false turns off OpenAI analytics on this machine and the custom OTLP metrics exporters.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference", "setup": true, "bundle": "less-noise",
+          "suggest": { "value": false, "reason": "The less-noise switch: documented key; also stops custom OTLP metrics exporters." } },
+        { "key": "feedback.enabled", "group": "Telemetry and noise", "type": "bool", "default": "true", "sentence": "false turns off feedback collection across Codex surfaces.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference", "setup": true, "bundle": "less-noise",
+          "suggest": { "value": false, "reason": "The less-noise switch." } },
+        { "key": "notify", "group": "Interface", "type": "strings", "default": "unset", "sentence": "A command Codex runs for notifications; it receives a JSON payload.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference" },
+        { "key": "tui.notifications", "group": "Interface", "type": "bool", "default": "true", "sentence": "Desktop notifications from the terminal UI (a list of event types is shown, not edited).", "source": "https://learn.chatgpt.com/docs/config-file/config-reference" },
+        { "key": "history.persistence", "group": "Retention and updates", "type": "enum", "values": ["save-all", "none"], "default": "save-all", "sentence": "Whether Codex saves session history to history.jsonl.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference" },
+        { "key": "check_for_update_on_startup", "group": "Retention and updates", "basic": false, "type": "bool", "default": "true", "sentence": "Checks for Codex updates on startup; set false only when updates are managed centrally.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference" }
+      ],
+      "bundles": [
+        { "id": "less-noise", "label": "Less noise", "sentence": "Analytics and feedback off.", "source": "https://learn.chatgpt.com/docs/config-file/config-reference" }
+      ]
+    }
+  }
+}

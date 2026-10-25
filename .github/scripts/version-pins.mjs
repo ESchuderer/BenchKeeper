@@ -19,7 +19,7 @@ export function pins(text, version) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { version } = JSON.parse(readFileSync(`${root}/app/package.json`, 'utf8'));
-  const files = execFileSync('git', ['ls-files', '*.md', '*.json', '*.tsx'], { cwd: root, encoding: 'utf8' }).split('\n').filter((f) => f && !SKIP.test(f));
+  const files = execFileSync('/usr/bin/git', ['ls-files', '*.md', '*.json', '*.tsx'], { cwd: root, encoding: 'utf8' }).split('\n').filter((f) => f && !SKIP.test(f));
   const stale = [];
   for (const f of files) {
     const text = readFileSync(`${root}/${f}`, 'utf8');

@@ -19,10 +19,10 @@ ARG ARM
 # BenchKeeper layer version: v1 (bench/arms/bk-rules.md, every published run) or v2 (bench/arms/bk-v2: rules and sdlc skill).
 ARG BK=v1
 # BenchKeeper arms: system libraries for the project's Playwright MCP browser (version of @playwright/mcp@0.0.83).
-RUN case "$ARM" in C|D|E|L|M|N|X|Y|AD|AE|AG|AH) npx -y playwright-core@1.64.0-alpha-1790635538000 install-deps chromium && rm -rf /var/lib/apt/lists/* /root/.npm ;; esac
+RUN case "$ARM" in C|D|E|L|M|N|X|Y|AD|AE|AG|AH) npm i -g --ignore-scripts --prefix /tmp/pwc playwright-core@1.64.0-alpha-1790635538000 && node /tmp/pwc/lib/node_modules/playwright-core/cli.js install-deps chromium && rm -rf /tmp/pwc /var/lib/apt/lists/* /root/.npm ;; esac
 # Spec Kit arm: Python 3.11 and uv 0.13.1 for specify-cli.
 RUN if [ "$ARM" = P ] || [ "$ARM" = AC ]; then apt-get update && apt-get install -y --no-install-recommends python3 curl && rm -rf /var/lib/apt/lists/* \
-    && curl -sSfL https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin --strip-components=1; fi
+    && curl --proto '=https' --tlsv1.2 -sSfL https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin --strip-components=1; fi
 # Python briefs (brief.json "python": true): Python 3 with venv and pip for the agent's own environment.
 ARG PY=
 RUN if [ "$PY" = 1 ]; then apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip && rm -rf /var/lib/apt/lists/*; fi

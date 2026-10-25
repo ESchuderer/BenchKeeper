@@ -1,10 +1,11 @@
 // Print check of the cartridges app: for each cartridge, the detail view printed to PDF (A4 portrait) must be one page and
 // its drawing at least 80% of the printable width (A4 width minus the @page side margins, measured in print media).
 // Drawing locator and page count as in bench/briefs/cartridges/hidden/acceptance.spec.mjs. Needs Chromium (Playwright image).
-// Usage: node bench/scorer/print.mjs <app-dir> <brief.md> [rendered-detail.html]   prints JSON; the app is served on localhost
+// Usage: node bench/scorer/print.mjs <app-dir, /app or a folder of the temp folder> <brief.md> [rendered-detail.html]   prints JSON; the app is served on localhost
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { extname, join, normalize } from 'node:path';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
@@ -14,13 +15,21 @@ const pdfPages = (pdf) => (pdf.toString('latin1').match(/\/Type\s*\/Page(?![s\w]
 
 export const cartridgeNames = (brief) => readFileSync(brief, 'utf8').split('\n').flatMap((l) => (l.startsWith('{') ? [JSON.parse(l).name] : []));
 
-function serve(dir) {
+export function serve(dir) {
+  // The served folder is /app or a folder of the OS temp folder (tests): the argument only selects one of these, it is never used as a path.
+  const folders = [resolve('/app'), ...readdirSync(tmpdir(), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join(tmpdir(), e.name))];
+  const root = folders.find((f) => f === resolve(dir));
+  if (!root) throw new Error('not /app or a folder of the temp folder');
+  // The request path only selects an entry of this list of regular files (a symbolic link is none), so it never names a file itself.
+  const files = new Map(readdirSync(root, { recursive: true, withFileTypes: true }).filter((e) => e.isFile())
+    .map((e) => { const file = join(e.parentPath, e.name); return ['/' + relative(root, file).split(sep).join('/'), file]; }));
   const server = createServer((req, res) => {
-    let p = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname));
-    if (p.endsWith('/')) p += 'index.html';
     try {
-      const body = readFileSync(join(dir, p));
-      res.writeHead(200, { 'content-type': MIME[extname(p)] || 'application/octet-stream' }).end(body);
+      let p = normalize(decodeURIComponent(new URL(req.url, 'https://localhost').pathname));
+      if (p.endsWith('/')) p += 'index.html';
+      const file = files.get(p);
+      if (!file) throw new Error('not a served file');
+      res.writeHead(200, { 'content-type': MIME[extname(p)] || 'application/octet-stream' }).end(readFileSync(file));
     } catch { res.writeHead(404).end(); }
   });
   return new Promise((ok) => server.listen(0, '127.0.0.1', () => ok(server)));
@@ -48,13 +57,15 @@ async function drawing(page, name) {
 }
 
 export async function measurePrint(dir, names, detailOut) {
-  // browser first: a failed launch must not leave the server open (node --test would never exit)
+  // browser first: a failed launch must not leave the server open, a refused folder must not leave the browser open (node --test would never exit)
   const browser = await chromium.launch();
-  const server = await serve(dir);
+  let server;
   const results = [];
   try {
+    server = await serve(dir);
     const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
     for (const name of names) {
+      /** @type {{ name: string, pages: number | null, width_share: number | null, pass: boolean, error?: string }} */
       const r = { name, pages: null, width_share: null, pass: false };
       try {
         await page.emulateMedia({ media: null });
@@ -73,7 +84,7 @@ export async function measurePrint(dir, names, detailOut) {
       } catch (e) { r.error = String(e.message).split('\n')[0]; }
       results.push(r);
     }
-  } finally { await browser.close(); server.close(); }
+  } finally { await browser.close(); server?.close(); }
   return { total: names.length, pass: results.filter((r) => r.pass).length, one_page: results.filter((r) => r.pages === 1).length,
     wide_enough: results.filter((r) => r.width_share >= 0.8).length, cartridges: results };
 }

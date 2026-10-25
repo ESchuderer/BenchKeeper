@@ -14,6 +14,11 @@ const link = (name, url) => `[${cell(name)}](${url.replace(/\|/g, '%7C')})`;
 const blocks = {
   description: [facts.description],
   core: [`**Optional: [${facts.core.name}](${facts.core.url}) by ${facts.core.by}:** ${facts.core.role}.`],
+  levels: [
+    '| Level | Contains | Writes | Command |',
+    '|---|---|---|---|',
+    ...facts.levels.map((l) => `| ${l.name} | ${cell(l.contains)} | ${cell(l.writes)} | \`${cell(l.command)}\` |`),
+  ],
   prerequisites: [
     '| Tool | Needed for |',
     '|---|---|',

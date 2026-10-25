@@ -74,3 +74,47 @@ test('prerun: a skills CLI command writes only in its scratch folder; the plan g
   assert.equal(hashPath(dir), dirBefore);
   assert.deepEqual(await rehearse({ home, run: () => ({ code: 1, stdout: '', stderr: 'no network\n' }) }, global), { files: [], error: 'no network' });
 });
+
+test('prerun: no credentials reach the command, the home is the context home, and a link loop is refused unrun', async (t) => {
+  const real = mkdtempSync(join(tmpdir(), 'bk-prerun-cred-'));
+  const home = join(real, 'home'), dir = join(real, 'proj');
+  put(join(home, '.npmrc'), '//registry.example/:_authToken=sekret\nregistry=https://mirror.example/\n_auth=abc\nkey=/k.pem\n//registry.example/:keyfile=/k2.pem\n');
+  mkdirSync(dir, { recursive: true });
+  const saved = { ...process.env };
+  t.after(() => { process.env = saved; });
+  for (const k of ['npm_config_userconfig', 'npm_config_cache', 'GIT_CONFIG_GLOBAL']) delete process.env[k];
+  Object.assign(process.env, { GH_TOKEN: 'ghp_leak', NPM_TOKEN: 'leak', SSH_AUTH_SOCK: '/s' });
+  let seen;
+  const ctx = { home, run: (argv, o) => { seen = { env: o.env, rc: readFileSync(o.env.npm_config_userconfig, 'utf8') }; return { code: 0, stdout: '', stderr: '' }; } };
+  const global = { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '--copy', '-y'], env: { DO_NOT_TRACK: '1' } };
+  assert.equal((await rehearse(ctx, global)).error, null);
+  for (const k of ['GH_TOKEN', 'NPM_TOKEN', 'SSH_AUTH_SOCK']) assert.equal(seen.env[k], undefined, k);
+  assert.equal(seen.env.DO_NOT_TRACK, '1');
+  assert.equal(seen.rc, 'registry=https://mirror.example/\n', 'registry settings stay, tokens go');
+  assert.equal(seen.env.npm_config_cache, join(home, '.npm'));
+
+  // A seeded folder that links back to itself is not copied: the preview fails before the command starts.
+  mkdirSync(join(dir, '.claude'));
+  symlinkSync('..', join(dir, '.claude/skills'));
+  seen = null;
+  const loop = await rehearse(ctx, { kind: 'command', cwd: dir, argv: ['npx', '-y', SKILLS_SPEC, 'add', 'u', '-s', 'y', '--copy', '-y'], snapshot: [] });
+  assert.ok(loop.error);
+  assert.equal(seen, null);
+});
+
+test('prerun: a failed signature check stops the rehearsal before the command runs', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-prerun-verify-'));
+  const calls = [];
+  const ctx = { home, run: (argv) => { calls.push(argv[0]); return argv[0] === 'verify' ? { code: 1, stdout: '', stderr: 'npm error signature mismatch' } : { code: 0, stdout: '', stderr: '' }; } };
+  const r = await rehearse(ctx, { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '--copy', '-y'], verify: ['verify', 'skills@1.7.2'] });
+  assert.deepEqual(r.files, []);
+  assert.match(r.error, /signature check failed: npm error signature mismatch/);
+  assert.deepEqual(calls, ['verify']);
+  // A passed check is not repeated for the next preview of the same package.
+  const seen = [];
+  const pass = { home, run: (argv) => { seen.push(argv[0]); return { code: 0, stdout: '', stderr: '' }; } };
+  const c = { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '--copy', '-y'], verify: ['verify-once', 'skills@9.9.9'] };
+  await rehearse(pass, c);
+  await rehearse(pass, c);
+  assert.deepEqual(seen, ['verify-once', 'npx', 'npx']);
+});

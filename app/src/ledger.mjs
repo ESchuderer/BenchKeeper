@@ -31,6 +31,21 @@ export class Ledger {
     return out;
   }
 
+  // Backups hold the old text of settings files, tokens included: a rotated token must not stay in them for good. A run's
+  // backup folder goes after `days` (BENCHKEEPER_BACKUP_DAYS, default 90, 0 keeps them); undo of that run then reports the
+  // missing backup. Only folders named like a run id go: setup.sh backups are dated folders of another form.
+  prune(days = Number(process.env.BENCHKEEPER_BACKUP_DAYS ?? 90), now = Date.now()) {
+    if (!(days > 0)) return [];
+    const gone = [];
+    let names = [];
+    try { names = readdirSync(this.backups); } catch { return gone; }
+    for (const n of names) {
+      const m = n.match(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)Z-[0-9a-f]{6}$/);
+      if (m && Date.UTC(m[1], m[2] - 1, m[3], m[4], m[5], m[6]) < now - days * 864e5) { rmSync(join(this.backups, n), { recursive: true, force: true }); gone.push(n); }
+    }
+    return gone;
+  }
+
   save(run) {
     this.cache = null;
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
@@ -85,6 +100,18 @@ export class Ledger {
     }).filter((r) => r?.schema === SCHEMA);
     this.cache = { gen, count: names.length, runs };
     return runs;
+  }
+
+  // A moved project folder: the runs of that scope (and the Update all and removal runs, whose scope is a worktree and
+  // whose note names the project) get the new path in their scope, note and entry paths (not in the
+  // backup paths, which lie in the config folder). Callers hold the lock.
+  relocate(from, to) {
+    const swap = (v, key) => {
+      if (typeof v === 'string') return key !== 'backup' && (v === from || v.startsWith(from + sep)) ? to + v.slice(from.length) : v;
+      if (Array.isArray(v)) return v.map((x) => swap(x));
+      return v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, swap(x, k)])) : v;
+    };
+    for (const run of this.list().filter((r) => r.scope === from || r.note?.updateAll === from)) this.save(swap(run));
   }
 
   // The newest applied, not undone, write entry for a path.

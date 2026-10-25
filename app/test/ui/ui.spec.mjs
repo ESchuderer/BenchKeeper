@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -11,9 +12,11 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
+  // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
+  await page.mouse.move(0, 0);
   // A transition may start a frame after the dialog is visible: let it start, then wait until dialogs and overlays are fully opaque.
   await page.waitForTimeout(250);
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running')
@@ -24,7 +27,8 @@ async function noAxe(page) {
     expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
   }
 }
-const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
+// Settings is also a part of another link's name.
+const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view === 'Settings' ? /^Settings$/ : view });
 
 test.describe.configure({ mode: 'serial' });
 let cookie, key;
@@ -71,7 +75,7 @@ test.describe('views', () => {
     for (const scheme of ['light', 'dark']) {
       test(`no axe violations in ${view}, ${scheme} mode, phone width`, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.goto(`/#/${view.toLowerCase()}`);
+        await page.goto(`/#/${view.toLowerCase().replace(' ', '-')}`);
         await expect(page.getByText('CLI', { exact: true })).toBeVisible();
         await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
         const { violations } = await new AxeBuilder({ page }).analyze();
@@ -118,11 +122,11 @@ test.describe('views', () => {
     const palette = page.getByRole('dialog', { name: 'Command palette' });
     await expect(async () => {
       await palette.getByLabel('Search').fill('');
-      await palette.getByLabel('Search').fill('Settings');
-      await expect(palette.locator('[data-selected]')).toContainText('Settings', { timeout: 1000 });
+      await palette.getByLabel('Search').fill('Agent settings');
+      await expect(palette.locator('[data-selected]')).toContainText('Agent settings', { timeout: 1000 });
     }).toPass();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeFocused();
+    await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeFocused();
   });
 
   test('Settings: the / key can be turned off', async ({ page }) => {
@@ -325,6 +329,7 @@ test.describe('views', () => {
     await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 1 registered, 0 behind ok$/ })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Global items by state' })).toContainText('modified');
     await expect(page.getByRole('region', { name: 'BenchKeeper plugin' })).toContainText(/available \d+\.\d+\.\d+/);
+    await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
     await expect(page).toHaveURL(/#\/history\?run=/);
   });
@@ -479,6 +484,149 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1)).toContainText(/\d+ here, \d+ in all/);
   });
 
+  // Folders for the list tests: made here, registered in the page and unregistered again, so the other tests see the
+  // projects they expect.
+  const folder = (name) => { const d = join(mkdtempSync(join(tmpdir(), 'bk-ui-mv-')), name); mkdirSync(d); return d; };
+  const addFolder = async (page, dir) => { await page.getByLabel('Project folder').fill(dir); await page.getByRole('button', { name: 'Add project' }).click(); };
+  const choose = async (page, label, option) => { await page.getByRole('combobox', { name: label }).click(); await page.getByRole('option', { name: option, exact: true }).click(); };
+  const bar = (page) => page.getByRole('group', { name: 'Selected projects' });
+  const unregister = async (page, names) => {
+    const table = page.getByRole('table', { name: 'Projects' });
+    for (const n of names) await table.getByRole('checkbox', { name: `Select ${n}` }).check();
+    await bar(page).getByRole('button', { name: 'Remove from list' }).click();
+    const ask = page.getByRole('dialog', { name: `Remove ${names.length} project${names.length === 1 ? '' : 's'} from the list?` });
+    await noAxe(page);
+    await ask.getByRole('button', { name: /^Remove \d+ projects? from the list$/ }).click();
+    await expect(ask).toBeHidden();
+    for (const n of names) await expect(table.getByRole('link', { name: n, exact: true })).toHaveCount(0);
+  };
+
+  test('Projects: display name and notes, search, filter and sort, selection by keyboard', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, folder('mv-app'));
+    await table.getByRole('link', { name: 'mv-app', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await page.getByLabel('Display name').fill('Marketing site');
+    await page.getByLabel('Notes').fill('owner: ana');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(table.getByRole('link', { name: 'Marketing site', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: /^Project \// })).toContainText('owner: ana');
+    // The name and the notes are searched; the filter and the sort narrow and order the rows.
+    await page.getByLabel('Search projects').fill('ana');
+    await expect(table.getByRole('row')).toHaveCount(2);
+    await page.getByLabel('Search projects').fill('zzz');
+    await expect(page.getByText('No project matches the search and filter.')).toBeVisible();
+    await page.getByLabel('Search projects').fill('');
+    await choose(page, 'Show', 'Not set up');
+    await expect(table.getByRole('row')).toHaveCount(3);
+    await expect(table).not.toContainText('bk-ui-proj');
+    await choose(page, 'Show', 'All projects');
+    await choose(page, 'Sort by', 'Name');
+    await expect(table.getByRole('row').nth(1)).toContainText('bk-ui-proj');
+    await choose(page, 'Sort by', 'Order added');
+    // Selection with the keyboard: focus the checkbox, Space; the bar names the count.
+    const box = table.getByRole('checkbox', { name: 'Select Marketing site' });
+    await box.focus();
+    await page.keyboard.press('Space');
+    await expect(box).toBeChecked();
+    await expect(bar(page)).toContainText('1 selected');
+    await expect(bar(page).getByRole('button', { name: 'Update' })).toBeDisabled();
+    await noAxe(page);
+    await table.getByRole('checkbox', { name: 'Select all shown projects' }).check();
+    await expect(bar(page)).toContainText('3 selected');
+    await table.getByRole('checkbox', { name: 'Select all shown projects' }).uncheck();
+    await unregister(page, ['Marketing site']);
+  });
+
+  test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {
+    const dir = folder('mv-gone');
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, dir);
+    await table.getByRole('link', { name: 'mv-gone', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit name and notes' }).click();
+    await page.getByLabel('Display name').fill('Docs site');
+    await page.getByRole('button', { name: 'Save' }).click();
+    const moved = join(dir, '..', 'mv-moved');
+    renameSync(dir, moved);
+    await page.reload();
+    await choose(page, 'Show', 'Folder not found');
+    await expect(table.getByRole('row')).toHaveCount(2);
+    await expect(table.getByRole('row').nth(1)).toContainText('Folder not found');
+    await table.getByRole('link', { name: 'Docs site', exact: true }).click();
+    const detail = page.getByRole('region', { name: /^Project \// });
+    await expect(detail.getByRole('button', { name: 'Remove from list' })).toBeVisible();
+    await expect(detail.getByRole('button', { name: 'Open folder' })).toHaveCount(0);
+    await expect(detail.getByRole('region', { name: 'Project doctor' })).toHaveCount(0);
+    await noAxe(page);
+    await detail.getByLabel('New folder').fill(join(moved, 'nope'));
+    await detail.getByRole('button', { name: 'Relocate', exact: true }).last().click();
+    await expect(detail.getByText(/is not a folder/)).toBeVisible();
+    await detail.getByLabel('New folder').fill(moved);
+    await detail.getByRole('button', { name: 'Relocate', exact: true }).last().click();
+    await choose(page, 'Show', 'All projects');
+    await expect(table.getByRole('link', { name: 'Docs site', exact: true })).toBeVisible();
+    await expect(table).not.toContainText('Folder not found');
+    await unregister(page, ['Docs site']);
+  });
+
+  test('Projects: another worktree of a registered repository is offered, not added; bulk removal from the list names the count', async ({ page }) => {
+    const main = folder('mv-main');
+    const git = (...a) => execFileSync('git', ['-C', main, '-c', 'user.email=t@example.com', '-c', 'user.name=t', ...a], { stdio: 'pipe' });
+    git('init', '-q', '-b', 'main');
+    git('commit', '-q', '--allow-empty', '-m', 'init');
+    const tree = join(main, '..', 'mv-tree');
+    git('worktree', 'add', '-q', tree);
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, main);
+    await expect(table.getByRole('link', { name: 'mv-main', exact: true })).toBeVisible();
+    await addFolder(page, tree);
+    const note = page.getByRole('alert').filter({ hasText: 'Same repository, other worktree.' });
+    await expect(note).toBeVisible();
+    await expect(table.getByRole('link', { name: 'mv-tree', exact: true })).toHaveCount(0);
+    await noAxe(page);
+    await note.getByRole('button', { name: 'Add as a second project' }).click();
+    await expect(table.getByRole('link', { name: 'mv-tree', exact: true })).toBeVisible();
+    await unregister(page, ['mv-main', 'mv-tree']);
+  });
+
+  test('Projects: Remove BenchKeeper setup lists every file, removes a local setup and leaves the project registered', async ({ page }) => {
+    const dir = folder('mv-local');
+    mkdirSync(join(dir, '.benchkeeper'));
+    writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 1, setupVersion: '6.0.0', agents: ['claude'], share: false, packs: [], skills: [] }));
+    writeFileSync(join(dir, 'CLAUDE.local.md'), '<!-- benchkeeper:project start -->\n- a rule\n<!-- benchkeeper:project end -->\n');
+    writeFileSync(join(dir, 'AGENTS.md'), '# Mine\n');
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, dir);
+    await table.getByRole('checkbox', { name: 'Select mv-local' }).check();
+    await bar(page).getByRole('button', { name: 'Remove setup' }).click();
+    const ask = page.getByRole('dialog', { name: 'Remove the BenchKeeper setup of 1 project' });
+    await expect(ask.getByRole('list', { name: /^Changes in / })).toContainText('remove CLAUDE.local.md');
+    await expect(ask.getByRole('list', { name: /^Changes in / })).toContainText('remove .benchkeeper/');
+    await expect(ask).toContainText('AGENTS.md text, docs/agents/ and .devcontainer/ stay');
+    await noAxe(page);
+    await ask.getByRole('button', { name: 'Remove setup of 1 project' }).click();
+    await expect(ask.getByRole('table', { name: 'Remove setup results' })).toContainText('removed');
+    await expect(ask.getByRole('link', { name: 'Open report' })).toBeVisible();
+    expect(existsSync(join(dir, '.benchkeeper'))).toBe(false);
+    expect(existsSync(join(dir, 'CLAUDE.local.md'))).toBe(false);
+    expect(existsSync(join(dir, 'AGENTS.md'))).toBe(true);
+    await ask.getByRole('button', { name: 'Close' }).click();
+    await expect(table.getByRole('row').filter({ hasText: 'mv-local' })).toContainText('no state file');
+    // A shared setup is listed too, and becomes a pull request.
+    await table.getByRole('checkbox', { name: 'Select mv-local' }).uncheck();
+    await table.getByRole('checkbox', { name: /^Select bk-ui-proj/ }).check();
+    await bar(page).getByRole('button', { name: 'Remove setup' }).click();
+    await expect(ask).toContainText('Shared setup: a pull request removes these files');
+    await ask.getByRole('button', { name: 'Cancel' }).click();
+    await expect(ask).toBeHidden();
+    await table.getByRole('checkbox', { name: /^Select bk-ui-proj/ }).uncheck();
+    await unregister(page, ['mv-local']);
+  });
+
   test('Projects: a project without a state file is set up step by step, local or on a branch', async ({ page }) => {
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'other', exact: true }).click();
@@ -614,7 +762,9 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'Fix everything' }).click();
     const fix = page.getByRole('dialog', { name: 'Fix everything' });
     await expect(fix.getByRole('checkbox', { name: /^global skill find-skills/ })).toBeChecked();
-    // The global skill install was rehearsed in a scratch folder: its file shows as a diff before anything runs.
+    // The skill install is rehearsed in a scratch folder only after a click: its file then shows as a diff before anything runs.
+    await expect(fix.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toHaveCount(0);
+    await fix.getByRole('button', { name: /^Preview the files/ }).click();
     await expect(fix.getByRole('group', { name: /^Diff of .*\.claude\/skills\/find-skills\/SKILL\.md$/ })).toBeVisible();
     await noAxe(page);
     await fix.getByRole('button', { name: 'Next' }).click();
@@ -698,6 +848,46 @@ test.describe('views', () => {
   });
 
 
+  test('Agent settings: the list with its notes, a change as plan and diff, undo; advanced lists every key; no axe violations', async ({ page }) => {
+    await nav(page, 'Agent settings').click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeVisible();
+    // The app's own preferences stay in Settings.
+    await expect(page.getByRole('link', { name: 'Settings', exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.claude/settings.json');
+    // The fixture home holds the setup's advisor model: its row says what it is, and BenchKeeper's setup writes it too.
+    const advisor = page.getByRole('row', { name: /advisorModel/ }).first();
+    await expect(advisor).toContainText('The model that answers when Claude calls the advisor tool');
+    await expect(advisor).toContainText("BenchKeeper's setup writes this key too");
+    await noAxe(page);
+    // A change is a plan with a diff and an undo.
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('cleanupPeriodDays');
+    await expect(changes.getByText('21').first()).toBeVisible();
+    // The hover color of the button under the pointer is lighter than the checked contrast.
+    await page.mouse.move(0, 0);
+    await noAxe(page);
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    // An environment switch is set or removed; the advisor with a telemetry switch shows the note on both rows.
+    await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    await expect(page.getByRole('region', { name: 'Changes' })).toContainText('"DISABLE_TELEMETRY": "1"');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    // Advanced: every key, searchable; keys the app does not know are listed and kept.
+    await page.getByRole('switch', { name: 'Advanced: every key' }).check();
+    await expect(page.getByRole('table', { name: 'Advanced keys' })).toBeVisible();
+    await page.getByLabel('Search settings').fill('modelSettings');
+    await expect(page.getByRole('table', { name: 'Advanced keys' })).toContainText('modelSettings');
+    await noAxe(page);
+    // Codex: its own file and keys.
+    await page.getByText('Codex', { exact: true }).click();
+    await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
+  });
+
   // The one-run setup, last: it applies project setups and registers four more projects.
   const addProjects = async (page, names) => {
     await nav(page, 'Projects').click();
@@ -726,6 +916,19 @@ test.describe('views', () => {
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Close' }).click();
     await expect(drawer).toBeHidden();
+  });
+
+  test('One-run: the level choice sets the global plan, lite plans the plugin alone', async ({ page }) => {
+    await page.getByRole('button', { name: 'Set up global only' }).click();
+    const drawer = oneRun(page);
+    await drawer.getByLabel('Level').selectOption('lite');
+    const asked = page.waitForRequest((r) => r.url().includes('/api/global-plan?level=lite'));
+    await drawer.getByRole('button', { name: 'Start', exact: true }).click();
+    await asked;
+    const global = drawer.getByRole('region', { name: 'Global setup' });
+    await expect(global).toBeVisible();
+    await expect(global).not.toContainText('Claude settings');
+    await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
   test('One-run, Everything with two projects (one without a setup): one progress bar, one review page, one apply', async ({ page }) => {

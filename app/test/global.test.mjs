@@ -7,12 +7,13 @@ import { test } from 'node:test';
 import { contentDir } from '../src/content.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { inventory } from '../src/inventory.mjs';
-import { PLUGINS, benchkeeperPlugin, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
+import { MATT_POCOCK_COMMIT, PLUGINS, PONYTAIL_COMMIT, benchkeeperPlugin, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
+import { verifyArgv, verifyPackage } from '../src/verify.mjs';
 
 // Stubs: one foreign plugin, marketplace and MCP server per agent; installs and removals change what the lists show.
 function machine({ failCodexInstall = false } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'bk-global-'));
-  const s = { claude: new Set(), codex: new Set(), removed: new Set(), calls: [] };
+  const s = { claude: new Set(), codex: new Set(), removed: new Set(), calls: [], verified: [] };
   const run = (argv) => {
     const cmd = argv.join(' ');
     s.calls.push(cmd);
@@ -35,10 +36,11 @@ function machine({ failCodexInstall = false } = {}) {
       return ok();
     }
     if (cmd === 'codex mcp remove extra') { s.removed.add('x-mcp'); return ok(); }
-    if (cmd === 'npm view @devcontainers/cli time --json') return ok(JSON.stringify({ created: '2020-01-01T00:00:00Z', '1.0.0': '2020-01-01T00:00:00Z', '9.9.9': '2999-01-01T00:00:00Z' }));
+    if (cmd === 'npm view @devcontainers/cli time versions --json') return ok(JSON.stringify({ time: { created: '2020-01-01T00:00:00Z', '1.0.0': '2020-01-01T00:00:00Z', '9.9.9': '2999-01-01T00:00:00Z' }, versions: ['1.0.0', '9.9.9'] }));
     if (cmd === 'devcontainer --version') return ok(s.dc ?? '');
-    if (cmd.startsWith('npm i -g @devcontainers/cli@')) { s.dc = argv[3].split('@').pop(); return ok(); }
+    if (cmd.startsWith('npm i -g --ignore-scripts @devcontainers/cli@')) { s.dc = argv[4].split('@').pop(); return ok(); }
     if (cmd === 'orca --version') return ok('1.0.0');
+    if (argv[1]?.endsWith('verify.mjs')) { s.verified.push(argv[2]); return s.failVerify ? { code: 1, stdout: '', stderr: 'npm error signature mismatch' } : ok(); }
     if (argv[0] === 'npx') {
       const name = argv[argv.indexOf('-s') + 1];
       if (argv.includes('claude-code')) mkdirSync(join(home, '.claude/skills', name), { recursive: true });
@@ -139,13 +141,12 @@ test('agents without plugins get the rules as a block and skill copies with bare
   const plan = preview(globalPlan({ ctx: m.ctx, agents: ['gemini'], options: {} , devcontainerCli: null }));
   apply(plan, m.ctx, { select: all(plan) });
   const rules = readFileSync(join(m.home, '.gemini/GEMINI.md'), 'utf8');
-  assert.match(rules, /`workflow`/);
-  assert.doesNotMatch(rules, /benchkeeper:workflow/);
+  assert.match(rules, /Keep secrets out of output/);
   assert.ok(existsSync(join(m.home, '.gemini/skills/workflow/SKILL.md')));
 });
 
 test('newest picks the highest release older than 7 days', () => {
-  const run = () => ({ code: 0, stdout: JSON.stringify({ '1.2.0': '2026-01-01T00:00:00Z', '1.10.0': '2026-02-01T00:00:00Z', '2.0.0': '2026-10-21T00:00:00Z', '2.0.0-beta': '2026-01-01T00:00:00Z' }) });
+  const run = () => ({ code: 0, stdout: JSON.stringify({ time: { '1.2.0': '2026-01-01T00:00:00Z', '1.10.0': '2026-02-01T00:00:00Z', '2.0.0': '2026-10-21T00:00:00Z', '2.0.0-beta': '2026-01-01T00:00:00Z' }, versions: ['1.2.0', '1.10.0', '2.0.0', '2.0.0-beta'] }) });
   assert.equal(newest({ run }, 'x', Date.parse('2026-10-22')), '1.10.0');
   assert.equal(newest({ run: () => ({ code: 1 }) }, 'x'), null);
   let calls = 0;
@@ -278,4 +279,87 @@ test('globalSkills: the global skill folder plus turned-on plugins, turned-off o
   writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), '{"m":{}}');
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'on@m': true, 'off@m': false } }));
   assert.equal(globalSkills(ctx, 'claude'), 3);
+});
+
+test('pins: Codex adds a marketplace at the pinned commit, Claude Code at the tag; both forms count as the pin', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-commit-'));
+  const ctx = context({ home, appVersion: '6.0.0', run: () => ({ code: 1, stdout: '', stderr: '' }) });
+  const add = (a, id, options) => globalPlan({ ctx, agents: [a], options }).find((c) => c.step === `plugin:${a}:${id}` && c.argv[3] === 'add')?.argv[4];
+  assert.equal(add('claude', 'ponytail@ponytail'), 'DietrichGebert/ponytail#v5.3.2');
+  assert.equal(add('codex', 'ponytail@ponytail'), `DietrichGebert/ponytail@${PONYTAIL_COMMIT}`);
+  assert.equal(add('codex', 'mattpocock-skills@mattpocock', { packs: ['matt-pocock'] }), `mattpocock/skills@${MATT_POCOCK_COMMIT}`);
+  assert.equal(add('codex', 'benchkeeper@benchkeeper'), 'ESchuderer/BenchKeeper@stable');
+  assert.deepEqual(pin(PLUGINS.codex[1], '6.0.0'), { ref: 'v5.3.2', commit: PONYTAIL_COMMIT, version: '5.3.2' });
+  // A marketplace recorded at the commit or at the tag is the pin: the plan installs, it does not ask for a manual move.
+  for (const ref of [PONYTAIL_COMMIT, 'v5.3.2']) {
+    mkdirSync(join(home, '.codex'), { recursive: true });
+    writeFileSync(join(home, '.codex/config.toml'), `[marketplaces.ponytail]\nsource = "x"\nref = "${ref}"\n`);
+    const steps = globalPlan({ ctx, agents: ['codex'] }).filter((c) => c.step === 'plugin:codex:ponytail@ponytail');
+    assert.deepEqual(steps.map((c) => c.argv.join(' ')), ['codex plugin add ponytail@ponytail'], ref);
+  }
+  writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.2.0"\n');
+  assert.match(globalPlan({ ctx, agents: ['codex'] }).find((c) => c.step === 'plugin:codex:ponytail@ponytail').error, new RegExp(`at v5\\.2\\.0, not ${PONYTAIL_COMMIT}`));
+});
+
+test('pins: an installed Claude Code plugin at the pin version from another commit is flagged, never reinstalled', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-sha-'));
+  const ctx = context({ home, appVersion: '6.0.0', run: () => ({ code: 1, stdout: '', stderr: '' }) });
+  mkdirSync(join(home, '.claude/plugins'), { recursive: true });
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.3.2' } } }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true } }));
+  const installed = (entry) => writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'ponytail@ponytail': [{ scope: 'user', version: '5.3.2', ...entry }] } }));
+  const steps = () => globalPlan({ ctx, agents: ['claude'] }).filter((c) => c.step === 'plugin:claude:ponytail@ponytail');
+  installed({ gitCommitSha: PONYTAIL_COMMIT });
+  assert.deepEqual(steps(), []);
+  installed({});
+  assert.deepEqual(steps(), [], 'no recorded commit: nothing to compare');
+  installed({ gitCommitSha: PONYTAIL_COMMIT.slice(0, 12) });
+  assert.deepEqual(steps(), [], 'an abbreviated commit is the same commit');
+  installed({ gitCommitSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' });
+  const [flag] = steps();
+  assert.equal(steps().length, 1);
+  assert.match(flag.error, /installed from commit deadbeefdead, the pin for 5\.3\.2 is 16352ac229eb/);
+  assert.equal(preview([flag])[0].selected, false);
+  assert.equal(apply([flag], ctx, { select: [flag.id] }).entries.length, 0);
+});
+
+test('names from agent files that start with a dash or hold a path are skipped', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-names-'));
+  const ctx = context({ home, run: (argv) => ({ code: argv[0] === 'npm' || argv[0] === 'orca' ? 1 : 0, stdout: '', stderr: '' }) });
+  mkdirSync(join(home, '.claude/plugins'), { recursive: true });
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
+    'ok@x': [{ scope: 'user', version: '1.0.0' }], '--force@x': [{ scope: 'user', version: '1.0.0' }], '../up@x': [{ scope: 'user', version: '1.0.0' }] } }));
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ fine: {}, '--all': {}, 'a/b': {} }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ok@x': true, '--force@x': true, '../up@x': true } }));
+  writeFileSync(join(home, '.claude.json'), JSON.stringify({ mcpServers: { good: {}, '-bad': {} } }));
+  const argvs = globalPlan({ ctx, agents: ['claude'] }).filter((c) => c.destructive && c.kind === 'command').map((c) => c.argv.join(' '));
+  assert.deepEqual(argvs.sort(), ['claude mcp remove --scope user good', 'claude plugin marketplace remove fine', 'claude plugin uninstall ok@x']);
+});
+
+test('signature check: the host tool and the skills CLI run only after npm audit signatures passed, once per run', () => {
+  const m = machine();
+  const tools = () => m.plan().filter((c) => c.step.startsWith('tools:'));
+  const dc = tools().find((c) => c.step === 'tools:devcontainer');
+  assert.deepEqual(dc.verify, verifyArgv('@devcontainers/cli@1.0.0'));
+  assert.deepEqual(tools().filter((c) => c.step.startsWith('tools:skill:')).map((c) => c.verify), Array(3).fill(verifyArgv('skills@1.7.2')));
+  const run = apply(tools(), m.ctx, { select: all(tools()) });
+  assert.equal(run.status, 'done');
+  assert.deepEqual(m.s.verified, ['@devcontainers/cli@1.0.0', 'skills@1.7.2']);
+  assert.ok(m.s.calls.findIndex((c) => c.startsWith('npm i -g')) > m.s.calls.findIndex((c) => c.includes('verify.mjs')));
+  // A failed check: nothing is installed, the entry says why, the run reports failure.
+  const bad = machine();
+  bad.s.failVerify = true;
+  const failed = apply(bad.plan().filter((c) => c.step.startsWith('tools:')), bad.ctx, { select: all(bad.plan().filter((c) => c.step.startsWith('tools:'))) });
+  assert.equal(failed.status, 'failed');
+  assert.ok(failed.entries.every((e) => e.status === 'failed' && !e.touched && /signature check failed: npm error signature mismatch/.test(e.error)));
+  assert.ok(!bad.s.calls.some((c) => c.startsWith('npm i -g') || c.startsWith('npx')));
+  assert.equal(bad.s.dc, undefined);
+});
+
+test('verifyPackage takes only an exact name@version and reports a package it cannot fetch', () => {
+  for (const spec of ['', '--registry=x', 'skills', 'skills@latest', 'skills@^1.7.2', 'a b@1.0.0', '../x@1.0.0']) assert.equal(verifyPackage(spec).code, 2, spec);
+  assert.notEqual(verifyPackage('skills@1.7.2-rc.1', { PATH: '/nonexistent' }).code, 2, 'a prerelease is exact too');
+  const r = verifyPackage('skills@1.7.2', { PATH: '/nonexistent' });
+  assert.notEqual(r.code, 0);
+  assert.match(r.stderr, /could not fetch skills@1\.7\.2 to verify it/);
 });

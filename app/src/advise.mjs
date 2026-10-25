@@ -2,7 +2,23 @@
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
+import { agentEnv } from './childenv.mjs';
 import { ENVS, isEnv } from './steps/project.mjs';
+
+// The flag that keeps an agent from saving the session to disk, where the installed CLI has it: read from the CLI's help
+// (cached per context), never from a prompt. A CLI without the flag runs as before.
+const NO_TRACE = { claude: ['--no-session-persistence', ['claude', '--help']], codex: ['--ephemeral', ['codex', 'exec', '--help']] };
+const probed = new WeakMap();
+export function noTrace(ctx, agent) {
+  const [flag, help] = NO_TRACE[agent];
+  if (!probed.has(ctx)) probed.set(ctx, new Map());
+  const seen = probed.get(ctx);
+  if (!seen.has(agent)) {
+    const r = ctx.run(help, { timeout: 30e3, env: agentEnv(agent) });
+    seen.set(agent, r.code === 0 && new RegExp(`(^|\\s)${flag}(\\s|$)`, 'm').test(r.stdout));
+  }
+  return seen.get(agent) ? [flag] : [];
+}
 
 // The folder Codex is installed in: its sandbox starts a helper from there, so the profile must let it read it.
 // The npm package root, else the binary's own folder (never two levels up: for ~/bin/codex that is the home folder).
@@ -20,7 +36,7 @@ function codexHome() {
 // nothing, and has no network; no web search, and every MCP server the project or user config names turned off.
 function codexArgv(ctx, dir, q, out) {
   // Without the list no server can be turned off, so the session does not start.
-  const list = ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir, timeout: 30e3 });
+  const list = ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir, timeout: 30e3, env: agentEnv('codex') });
   let servers;
   try { servers = JSON.parse(list.stdout).map((s) => s.name); } catch { throw new Error(`codex mcp list --json failed (${list.code}): ${(list.stderr || list.stdout).trim().slice(-200)}`); }
   const odd = servers.findIndex((n) => typeof n !== 'string' || !/^[\w-]+$/.test(n));
@@ -30,12 +46,12 @@ function codexArgv(ctx, dir, q, out) {
   // sandbox_mode read-only too: a Codex that ignores the profile still writes nothing. Codex 0.163 lets the profile win
   // over any sandbox_mode, also one from the user's config.
   return ['codex', 'exec', '-c', 'sandbox_mode="read-only"', '-c', 'default_permissions="benchkeeper-advice"', '-c', `permissions.benchkeeper-advice.filesystem={${read}}`, '-c', 'web_search="disabled"',
-    ...servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]), '--skip-git-repo-check', '-o', out, q];
+    ...servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]), '--skip-git-repo-check', ...noTrace(ctx, 'codex'), '-o', out, q];
 }
 
 const ARGV = {
   // --restricted ignores the project's settings (hooks) and confines the file tools, --strict-mcp-config skips its MCP servers.
-  claude: (ctx, dir, q) => ['claude', '-p', q, '--restricted', '--strict-mcp-config', '--tools', 'Read,Grep,Glob', '--output-format', 'json'],
+  claude: (ctx, dir, q) => ['claude', '-p', q, '--restricted', '--strict-mcp-config', '--tools', 'Read,Grep,Glob', '--output-format', 'json', ...noTrace(ctx, 'claude')],
   codex: codexArgv,
 };
 export const ADVISERS = Object.keys(ARGV);
@@ -70,7 +86,7 @@ export async function adviseSetup(ctx, { dir, agent, lib, signal }) {
   const tmp = mkdtempSync(join(tmpdir(), 'bk-advice-'));
   const out = join(tmp, 'answer.txt');
   try {
-    const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, advicePrompt(lib), out), { cwd: dir, timeout: 5 * 60e3, signal });
+    const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, advicePrompt(lib), out), { cwd: dir, timeout: 5 * 60e3, signal, env: agentEnv(agent) });
     // A session that ended on its own before the cancel keeps its answer.
     if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
     if (r.code !== 0) throw new Error(`${agent} exited with ${r.code}: ${(r.stderr || r.stdout || '').trim().slice(-300)}`);

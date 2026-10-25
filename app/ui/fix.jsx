@@ -10,6 +10,7 @@ import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
 export function fixAction(i) {
   if (i.check === 'unexpected') return [href('agents', { plan: '1' }), 'Review removal'];
   if (['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'global'].includes(i.check) && i.fix.startsWith('benchkeeper apply')) return [href('agents', { plan: '1' }), 'Plan fix'];
+  if (i.check === 'agent-settings') return [href('agent-settings', { ...(/^Codex/.test(i.message) ? { agent: 'codex' } : {}), ...(i.dir ? { layer: 'project', path: i.dir } : {}) }), 'Open settings'];
   if (i.check === 'project') return [href('projects', i.dir ? { path: i.dir } : {}), 'Plan project'];
   return null;
 }

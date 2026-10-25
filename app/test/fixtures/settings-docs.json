@@ -1,0 +1,36 @@
+{
+ "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
+ "fetched": "2026-10-25",
+ "pages": {
+  "https://code.claude.com/docs/en/advisor": [
+   "ccepts. * **Feature-flag fetching**: Claude Code turns the advisor on through a feature flag it fetches from Anthropic. In a session where a variable that turns flag fetching off is set, such as `DISABLE_TELEMETRY`, the advisor stays off. See [Features that need feature-flag fetching](https://code.claude.com/docs/en/env-vars.md#features-that-need-feature-f",
+   "n runs without the advisor. ## Choose an advisor model Claude Code ranks models by capability for the advisor role, and an advisor must rank at or above your session's main model. Rows run from the lowest-ranked main model to the highest: | Main model | Accepted advisors | | - | - | | Haiku 4.5 | "
+  ],
+  "https://code.claude.com/docs/en/remote-control": [
+   "s/en/env-vars.md#features-that-need-feature-flag-fetching), whether Remote Control is available depends on which one: * If you set `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` or `DISABLE_GROWTHBOOK`, Remote Control is unavailable. Unset the variable wherever it's set, in your shell environment or in the `env` block of a [`settings.json` file](https",
+   " of a [`settings.json` file](https://code.claude.com/docs/en/settings-reference#all-settings), to use Remote Control. * If you set only `DISABLE_TELEMETRY` or `DO_NOT_TRACK`, Remote Control stays available unless your organization requires [Trusted Devices](#trusted-devices). If it does, unset the variable to use Remote Control. Using Remote Control with ei"
+  ],
+  "https://code.claude.com/docs/en/env-vars": [
+   "Claude Code v2.1.232 or later | | `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | Set to any non-empty value, such as `1`, to disable nonessential network traffic: auto-updates, telemetry, error reporting, the `/feedback` command, [Claude-drafted feedback](https://code.claude.com/docs/en/tools-reference.md#sendfeedback-too",
+   " * Turn on the [You should know mod](https://code.claude.com/docs/en/interactive-mode.md#you-should-know-suggestions) * Use [the advisor tool](https://code.claude.com/docs/en/advisor.md#requirements) * Use [MCP tasks](https://code.claude.com/docs/en/mcp.md#mcp-t",
+   "en/remote-control.md#requirements) is unavailable. Messaging between sessions on this machine works with fetching off * Run [`claude import` or the `/import` command](https://code.claude.com/docs/en/cli-reference#cli-commands) * Run [`/skill-doctor`](https://code.claude.com/docs/en/ski",
+   "ng the tool by its position](https://code.claude.com/docs/en/errors.md#tool-input-schema-is-invalid) * Have Claude Code [compact a long conversation while your terminal session is idle](https://code.claude.com/docs/en/settings-reference.md#idlecompaction), shortly before a one-hour prompt cache expires #",
+   " screen command | | `DISABLE_ERROR_REPORTING` | Set to any non-empty value, such as `1`, to opt out of error reporting. **Setting it to `0` or `false` still opts out**, unlike most on/off variables; unset the variable to turn error reporting back on | | `DISABLE_EXTRA_USAGE_COMMAND` | S",
+   "nd-source-re-runs), which are local commands rather than network traffic, because they can trigger dependency installs. **Setting it to `0` or `false` still disables this traffic**, unlike most on/off variables; unset the variable to allow it again. Also disables feature-flag fetching, which makes [",
+   "s and traces go there instead of to the configured exporters. Set it in your shell, user settings, or managed settings. Ignored in [project and local settings](https://code.claude.com/docs/en/settings-reference.md#variables-claude-code-ignores-in-env) | | `CCR_FORCE_BUNDLE` | Se"
+  ],
+  "https://code.claude.com/docs/en/settings-reference": [
+   "ore it saved levels per model, and it keeps applying where it applied before, on Opus 5, Fable 5.1, and earlier models. Opus 5.5 and models released after it ignore it and start at their own default until you save a level for them, which `/effort` writes under [`modelSettings`](#modelsettings). In project, local, and managed settings, and with `--s",
+   "ll request attribution text * `false`: Claude Code omits both the commit trailer and the pull request attribution text, unless `attribution` sets `commit` or `pr`, in which case the [`attribution`](#attribution) rules apply * **Default**: `true` ```json settings.json theme={null} {",
+   "e.com/docs/en/permission-modes.md#which-mode-a-session-starts-in) for your surface. * **Scope**: [`Any file`](#scopes). `auto` and `bypassPermissions` don't take effect from project or local settings, so set them in `$HOME/.claude/settings.json` instead. Before v2.1.257, `bypassPermissions` took effect from any file. For ",
+   "uns the deletion as a background sweep after a session starts, as long as it can safely determine the retention period. The sweep deletes transcripts without showing a message, so a session you haven't used for longer than the retention period no longer appears in the [`/resume`](https://code.c"
+  ],
+  "https://learn.chatgpt.com/docs/config-file/config-reference": [
+   "ults to non-login shells. analytics.enabled boolean Enable or disable analytics for this machine/profile. In Codex CLI, false also disables custom OTLP metrics exporters. When unset, the client default applies. approval_policy on-request | never | { granular = { sandbox_approval = bool, r",
+   "ting keys. Codex ignores openai_base_url , chatgpt_base_url , apps_mcp_product_sku , model_provider , model_providers , notify , profile , profiles , experimental_realtime_ws_base_url , and otel when they appear in a project-local .codex/config.toml ; put provider, notification, and telemetry keys in user-level config instead. Config profile files live next to config",
+   " :read-only , :workspace , and :danger-full-access ; custom profile names require matching [permissions.<name>] tables. Don't combine with sandbox_mode or [sandbox_workspace_write] . desktop.custom_file_handlers.<id> table User-level only. Defines an additional Open in target for the ChatGPT desktop",
+   "n Codex CLI, false also disables custom OTLP metrics exporters. When unset, the client default applies. approval_policy on-request | never | { granular = { sandbox_approval = bool, rules = bool, mcp_elicitations = bool, request_permissions = bool, skill_approv",
+   "rkers array<string> List of project root marker filenames; used when searching parent directories for the project root. projects.<path>.trust_level string Mark a project or worktree as trusted or untrusted ( \"trusted\" | \"untrusted\" ). Untrusted projects skip project-"
+  ]
+ }
+}

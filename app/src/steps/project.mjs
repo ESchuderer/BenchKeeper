@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
-import { exists, listFiles, readText } from '../fsx.mjs';
+import { exists, listFiles, readText, realish } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
@@ -152,9 +152,23 @@ export function scopeCtx(ctx, scope) {
 
 // The exclude file of the repository dir is in, shared by all its worktrees; null outside a git repository.
 function excludeFile(ctx, dir) {
+  if (redirectedElsewhere(dir)) return null;
   const r = git(ctx, dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   const common = r.code === 0 ? r.stdout.trim() : '';
   return isAbsolute(common) && exists(common) ? join(common, 'info', 'exclude') : null;
+}
+
+// A .git file sends git to another folder. Its info/exclude is a write root only when that folder points back at dir (a
+// worktree's gitdir file, a submodule's core.worktree), never when it is another repository's.
+function redirectedElsewhere(dir) {
+  const link = join(dir, '.git');
+  const text = readText(link);
+  if (text == null) return false;
+  const target = resolve(dir, text.match(/^gitdir:\s*(.+)$/m)?.[1]?.trim() ?? '\0');
+  const back = readText(join(target, 'gitdir'))?.trim();
+  if (back && realish(resolve(target, back)) === realish(link)) return false;
+  const worktree = readText(join(target, 'config'))?.match(/^\s*worktree\s*=\s*(.+)$/m)?.[1]?.trim();
+  return !(worktree && realish(resolve(target, worktree)) === realish(dir));
 }
 
 // Skills a project gets: the chosen packs' skills plus single skills, minus those the catalog limits to other agents.

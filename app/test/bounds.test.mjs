@@ -451,3 +451,19 @@ test('the Update all dry run of the server leaves out file contents, like every 
   assert.equal(row.changes.some((x) => 'after' in x || 'edit' in x), false);
   assert.equal(git(p.dir, 'branch', '--list', 'chore/*').trim(), '');
 });
+
+test('a .git file that points at another repository gives the project no info/exclude root; a worktree and a submodule keep theirs', () => {
+  const h = home();
+  const c = context({ home: h, run: runCommand });
+  const victim = repo();
+  const planted = home();
+  writeFileSync(join(planted, '.git'), `gitdir: ${join(victim, '.git')}\n`);
+  assert.deepEqual(projectCtx(c, planted).roots, [planted]);
+  const main = repo();
+  const wt = join(home(), 'wt');
+  git(main, 'worktree', 'add', '-q', '-b', 'w', wt);
+  assert.deepEqual(projectCtx(c, wt).roots, [wt, join(main, '.git', 'info', 'exclude')]);
+  const sub = repo();
+  git(main, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'mod');
+  assert.deepEqual(projectCtx(c, join(main, 'mod')).roots.length, 2);
+});

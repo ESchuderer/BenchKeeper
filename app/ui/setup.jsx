@@ -79,7 +79,7 @@ export function AdviceJob({ job, name, onDone }) {
   );
 }
 
-// A plan shown for review only, its skill installs rehearsed.
+// A plan shown for review only; its skill installs can be rehearsed on a click.
 const Rehearsed = ({ plan }) => <ChangeList plan={plan} prerun={usePrerun(plan)} />;
 
 // Every answer next to its step, each with a way back to change it.

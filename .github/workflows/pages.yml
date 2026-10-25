@@ -63,6 +63,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Same group as deploy: the branch tips are read inside the queue, so an older run cannot publish an older snapshot over a newer one.
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
     permissions:
       contents: read
     env:

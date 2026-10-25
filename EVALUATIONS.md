@@ -19,21 +19,21 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 
 | Component | Decision | Summary |
 |---|---|---|
-| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms L, M, N, X, C, D, E, Y (layer v1, one trial per arm and model): [winery-react](bench/results/2026-10-15-winery-react.md), [cartridges](bench/results/2026-10-16-cartridges.md). AD, AE (layer v3, three rounds per arm): [openballistics](bench/results/2026-10-17-openballistics.md). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
+| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms AL, AN (setup-v4.0 with and without Ponytail) and AM (setup-v5.0), three rounds per arm: [mistreevous](bench/results/2026-10-18-mistreevous.md), AM against plain Claude Code on opusplan: [mistreevous-opusplan](bench/results/2026-10-19-mistreevous-opusplan.md). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
 
 ### Behavior modes
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Ponytail](evaluations/behavior-modes/ponytail.md) | In, evidence mixed (arm B, k=1) | lines down in every source that measured them, cost -10.3% (JetBrains) to +55% elsewhere, lower in all 6 winery-react pairs (k=1) |
+| [Ponytail](evaluations/behavior-modes/ponytail.md) | In, evidence mixed (arm B, k=3) | lines down in every source that measured them, cost -10.3% (JetBrains) to +55% elsewhere, 0.58 times plain Claude Code in mistreevous (k=3) |
 | [caveman](evaluations/behavior-modes/caveman.md) | Not in, never part of BenchKeeper | advertised -65%, measured -8.5% output tokens, score p=0.82 (JetBrains). Cost not reduced in 3 sources |
 
 ### Skill libraries
 
 | Component | Decision | Summary |
 |---|---|---|
-| [agent-skills](evaluations/skill-libraries/agent-skills.md) | Out (setup-v3.0) | replaced by Matt Pocock's skills. Own cartridges run: 7th of 29 alone, Matt Pocock's skills 3rd |
-| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | Optional pack (setup-v6.0; in from setup-v3.0) | 19 of 52 trials with them called any; no quality gain over plain Claude Code. Earlier signals: best Claude Code app on cartridges (rank 3 of 29), brownfield scores within noise, with the BenchKeeper layer the fastest arm that finished every step |
+| [agent-skills](evaluations/skill-libraries/agent-skills.md) | Out (setup-v3.0) | replaced by Matt Pocock's skills. Own mistreevous run: alone 89.7, Matt Pocock's skills alone 87.2, plain Claude Code 87.0 (inside the spread) |
+| [mattpocock/skills](evaluations/skill-libraries/mattpocock-skills.md) | Optional pack (setup-v6.0; in from setup-v3.0) | 9 of 18 trials with them called any; no quality gain over plain Claude Code (mistreevous 87.2 vs 87.0). With Ponytail or the BenchKeeper setup-v4.0 among the fastest and cheapest arms |
 | [andrej-karpathy-skills](evaluations/skill-libraries/andrej-karpathy-skills.md) | Not in | accuracy 60/60 in every arm. Cost +11.5% (skill-receipts), +6.6% (skillbench) |
 | [Anthropic document skills](evaluations/skill-libraries/anthropic-document-skills.md) | Not global, per project | DocOps: Claude Code Sonnet 4.6 0.519 with skills vs 0.552 without. Library: Codex only (Claude Code has them through the claude.ai skills). `docx`, `pdf`, `pptx`, `xlsx` ship an all-rights-reserved `LICENSE.txt`: fail on the license point (issue 151) |
 | [scientific-agent-skills](evaluations/skill-libraries/scientific-agent-skills.md) | Not global, per project | vendor paper, no task-level evaluation. Four sets in the library, other single skills through the search |

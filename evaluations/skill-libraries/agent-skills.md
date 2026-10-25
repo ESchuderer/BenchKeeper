@@ -24,7 +24,7 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arms: F (agent-skills alone), I (with OpenSpec), L (with the BenchKeeper layer), C (with both). OpenCode arms: T, U, and Q (selected skills with OpenSpec). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: F (agent-skills alone). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 89.7 against 87.0 for plain Claude Code (A), inside the round-to-round spread, at 1.3 times the cost and time. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
 
 ## Skill authoring check
 
@@ -32,6 +32,6 @@ Rank 2 of 8, review 3.4, static checks 99% (0.6.13): the only collection with pe
 
 ## Decision
 
-Out (setup-v3.0, 2026-10-17): replaced by [Matt Pocock's skills](mattpocock-skills.md), which cover the same phases (spec, TDD, debugging, review). One collection per phase keeps one owner per step. Own runs: on cartridges, agent-skills alone (F) ranked 7th of 29, below Matt Pocock's skills alone (V, 3rd). The setup BenchKeeper recommended until setup-v2.9 (BenchKeeper layer v1, agent-skills and OpenSpec, arm C) ranked 28th (its unit tests failed in the coverage run, cause unverified). Signals only: one trial per arm. The app's global plan lists an old install under other plugins as a removal, off unless chosen (`claude plugin uninstall agent-skills@addy-agent-skills`, Codex: `codex plugin remove agent-skills@agent-skills`).
+Out (setup-v3.0, 2026-10-17): replaced by [Matt Pocock's skills](mattpocock-skills.md), which cover the same phases (spec, TDD, debugging, review). One collection per phase keeps one owner per step. Own run: on mistreevous, agent-skills alone (F) scored 89.7 and Matt Pocock's skills alone (V) 87.2, plain Claude Code 87.0, all inside the spread; F cost 1.3 times plain Claude Code, V 0.99 times. Signal only: one brief, k = 3. The app's global plan lists an old install under other plugins as a removal, off unless chosen (`claude plugin uninstall agent-skills@addy-agent-skills`, Codex: `codex plugin remove agent-skills@agent-skills`).
 
 [All evaluations](../../EVALUATIONS.md)

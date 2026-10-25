@@ -13,7 +13,7 @@
 
 ## Benchmark
 
-Arms: AC (Spec Kit alone), P (with Ponytail). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: AC (Spec Kit alone). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 87.9 against 87.0 for plain Claude Code (A), at the same cost and 1.1 times the time. The agent never ran the Spec Kit tools. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
 
 ## Skill authoring check
 

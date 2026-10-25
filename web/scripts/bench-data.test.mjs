@@ -84,7 +84,7 @@ test('trials: brownfield score per round and arm, review notes', () => {
   const root = mkdtempSync(join(tmpdir(), 'bench-'));
   const t = join(root, 'run-1', 'round-2', 'AD');
   mkdirSync(t, { recursive: true });
-  writeFileSync(join(root, 'run-1', 'manifest.txt'), 'brief=openballistics model=claude-sonnet-5-5 effort=high k=3 seed=71\n');
+  writeFileSync(join(root, 'run-1', 'manifest.txt'), 'brief=brown-1 model=claude-sonnet-5-5 effort=high k=3 seed=71\n');
   writeFileSync(join(root, 'run-1', 'brownfield-score.json'), JSON.stringify({ trials: [{ round: 'round-1', arm: 'AD', total: 1 }, { round: 'round-2', arm: 'AD', total: 85.21 }] }));
   writeFileSync(join(t, 'trial.json'), JSON.stringify({ arm: 'AD', runtime: 'claude-code', wall_seconds: 60 }));
   writeFileSync(join(t, 'review.json'), JSON.stringify({ review: { overall: 7, verdict: 'Good.', strengths: ['s'], issues: ['i'] } }));

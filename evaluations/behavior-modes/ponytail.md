@@ -20,7 +20,7 @@ Contradictions: JetBrains reports cost -10.3% (SkillsBench, Sonnet 5, rules inje
 
 ## Benchmark
 
-Arms: B (Ponytail alone), O and P (with OpenSpec or Spec Kit), and every BenchKeeper layer arm (L, M, N, X, C, D, E, Y, and the layer v3 arms AD and AE). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only. winery-react: Ponytail cost less (API-equivalent USD) in all 6 pairs, B vs A, O vs AB and P vs AC on both models (Sonnet B 0.39 vs A 0.92). Reports: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arms: B (Ponytail alone), AF (with Matt Pocock's skills), and the BenchKeeper arms AL and AM (with Ponytail) and AN (AL without it). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only. Ponytail alone (B) cost 0.58 times plain Claude Code (A, API-equivalent USD) and took 0.59 times the time, at a median score of 87.6 against 87.0. With Matt Pocock's skills (AF): 0.53 times the cost, score 84.6. Without Ponytail the BenchKeeper arm (AN) scored 3.5 higher than with it (AL) at 1.8 times the cost. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
 
 ## Skill authoring check
 
@@ -28,6 +28,6 @@ Rank 1 of 8, review 3.9, static checks 97% (5.2.0), conciseness 4, structure 4. 
 
 ## Decision
 
-In, evidence mixed: line reductions are consistent across sources, and the cost direction depends on the setup. BenchKeeper's own runs: Benchmark above (one trial per arm).
+In, evidence mixed: line reductions are consistent across sources, and the cost direction depends on the setup. BenchKeeper's own run: Benchmark above (k = 3).
 
 [All evaluations](../../EVALUATIONS.md)

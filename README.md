@@ -121,7 +121,7 @@ Which control enforces each limit, which tests cover it and which limits are sti
 
 ## Benchmarks
 
-Each setup runs as its own arm on the same greenfield and brownfield briefs. Scores, time per task and app reviews per arm: [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](bench/results). Method: [bench/PROTOCOL.md](bench/PROTOCOL.md) (the run machinery and raw run data were removed, [#256](https://github.com/ESchuderer/BenchKeeper/issues/256)).
+Each setup runs as its own arm on the same brownfield brief. Scores, time per task and app reviews per arm: [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](bench/results). Method: [bench/PROTOCOL.md](bench/PROTOCOL.md) (the run machinery and raw run data were removed, [#256](https://github.com/ESchuderer/BenchKeeper/issues/256)).
 
 ## Contents
 
@@ -159,9 +159,9 @@ Another Ponytail level for the current session: `/ponytail lite` or `/ponytail u
 
 ## How this stack was selected
 
-- Quality: in BenchKeeper's brownfield runs no setup scored measurably above plain Claude Code (medians 82.9 to 86.2, Sonnet 5.5, k = 3, [report](bench/results/2026-10-17-openballistics.md)).
-- Time: it depends on the version. setup-v3.3 with Matt Pocock's skills took a median 8.1 minutes against 12.8 for plain Claude Code, setup-v5.0 took 17.7 (same report). setup-v6.0 is not measured yet ([#132](https://github.com/ESchuderer/BenchKeeper/issues/132)).
-- Cost: Ponytail cost less in all 6 recorded winery-react pairs (one trial each, [report](bench/results/2026-10-15-winery-react.md)); external results range from 10% less to 55% more ([evaluation](evaluations/behavior-modes/ponytail.md)).
+- Quality: in BenchKeeper's mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock's skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3, [report](bench/results/2026-10-18-mistreevous.md)).
+- Time: it depends on the version. setup-v4.0 with Matt Pocock's skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9 (same report). setup-v6.0 is not measured yet ([#132](https://github.com/ESchuderer/BenchKeeper/issues/132)).
+- Cost: Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3, same report); external results range from 10% less to 55% more ([evaluation](evaluations/behavior-modes/ponytail.md)).
 - Skills by level: small composable skills. The full flow runs only for full-tier work, small tiers load targeted skills.
 - Same setup everywhere: one machine install covers every repository. Each repository adds only its tracker, docs and stack.
 

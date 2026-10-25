@@ -72,9 +72,9 @@ function RunningJobs({ onDone }) {
       } catch { /* the next poll tries again */ } finally { busy = false; }
       if (live) timer = setTimeout(poll, 2000);
     };
-    const shown = () => { if (!document.hidden && !busy) { clearTimeout(timer); poll(); } };
+    const shown = () => { if (!document.hidden && !busy) { clearTimeout(timer); poll().catch(console.error); } };
     document.addEventListener('visibilitychange', shown);
-    poll();
+    poll().catch(console.error);
     return () => { live = false; clearTimeout(timer); document.removeEventListener('visibilitychange', shown); };
   }, []);
   if (!jobs.length && !open) return null;

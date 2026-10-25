@@ -252,11 +252,12 @@ export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skill
 
 // The "## Agent skills" block of Matt Pocock's setup: from its heading to the next "## " heading or the end of the text.
 function agentSkillsBlock(text) {
-  const heading = '## Agent skills\n';
-  const at = text.indexOf(heading);
-  if (at < 0) return null;
-  const from = at + heading.length;
-  const next = text.indexOf('\n## ', from);
+  const heading = text.match(/^## Agent skills[ \t]*\r?\n/m);
+  if (!heading) return null;
+  const at = heading.index;
+  const from = at + heading[0].length;
+  // From the heading's own newline, so a next heading on the very next line is found.
+  const next = text.indexOf('\n## ', from - 1);
   const end = Math.max(from, text.trimEnd().length);
   const start = text[at - 1] === '\n' ? at - 1 : at;
   const stop = next < 0 ? end : Math.min(next, end);

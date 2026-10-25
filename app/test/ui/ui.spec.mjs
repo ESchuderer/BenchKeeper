@@ -12,7 +12,7 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Rules', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -278,8 +278,8 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/projects$/);
   });
 
-  test('Dashboard shows the edited rules file as modified in the coverage matrix', async ({ page }) => {
-    const cell = page.getByRole('table', { name: 'Coverage' }).getByRole('link', { name: 'rules for Claude Code: modified, open the plan' });
+  test('Dashboard shows the edited rules file as modified in the setup by part', async ({ page }) => {
+    const cell = page.getByRole('table', { name: 'Global setup by part' }).getByRole('link', { name: 'rules for Claude Code: modified, open the plan' });
     await cell.click();
     await expect(page).toHaveURL(/#\/agents\?agent=claude$/);
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
@@ -327,11 +327,40 @@ test.describe('views', () => {
 
   test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {
     await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 1 registered, 0 behind ok$/ })).toBeVisible();
-    await expect(page.getByRole('list', { name: 'Global items by state' })).toContainText('modified');
+    await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
     await expect(page.getByRole('region', { name: 'BenchKeeper plugin' })).toContainText(/available \d+\.\d+\.\d+/);
     await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
     await expect(page).toHaveURL(/#\/history\?run=/);
+  });
+
+  test('Dashboard: installed, health and coverage figures are links with a keyboard path; the catalog by pack is a sorted list', async ({ page }) => {
+    const installed = page.getByRole('table', { name: 'Installed skills and packs' });
+    await expect(installed.getByRole('row', { name: /^Global/ }).getByRole('link', { name: /^Claude Code \d+$/ })).toHaveAttribute('href', '#/agents?agent=claude');
+    await expect(installed.getByRole('row', { name: /bk-ui-proj/ }).getByRole('link', { name: 'frontend' })).toHaveAttribute('href', '#/catalog?pack=frontend');
+    // The legend counts what the bar draws; the table of values repeats every figure.
+    const health = page.getByRole('region', { name: 'Health' });
+    await expect(health.getByRole('list', { name: 'Items by state, all scopes' }).getByRole('link', { name: /modified/ })).toBeVisible();
+    await health.getByText('Table of values').click();
+    await expect(health.getByRole('link', { name: /^Global: 1 modified$/ })).toHaveAttribute('href', '#/agents?plan=1');
+    // A cell of the coverage matrix: reached with Tab-order focus and opened with Enter, the projects with that pack and agent.
+    const cell = page.getByRole('table', { name: 'Pack coverage' }).getByRole('link', { name: 'Frontend for Claude Code: 1 project' });
+    await cell.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#\/projects\?pack=frontend&agent=claude$/);
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row', { name: /bk-ui-proj/ })).toBeVisible();
+    await nav(page, 'Dashboard').click();
+    const bars = page.getByRole('list', { name: 'Skills per pack' }).getByRole('listitem');
+    await expect(bars.first()).toBeVisible();
+    const counts = await bars.evaluateAll((li) => li.map((x) => Number(x.lastElementChild.textContent)));
+    expect(counts.length).toBeGreaterThan(3);
+    expect([...counts].sort((a, b) => b - a)).toEqual(counts);
+  });
+
+  test('Catalog opens with the pack and agent a link names', async ({ page }) => {
+    await page.goto('/#/catalog?pack=frontend&agent=codex');
+    await expect(page.getByRole('combobox', { name: 'Pack' })).toHaveValue('Frontend');
+    await expect(page.getByRole('combobox', { name: 'Agent' })).toHaveValue('Codex');
   });
 
   test('Dashboard: a doctor finding opens the plan that fixes it', async ({ page }) => {
@@ -627,6 +656,103 @@ test.describe('views', () => {
     await unregister(page, ['mv-local']);
   });
 
+  test('Projects: pack switches preview the removal of a pack and Copy packs from project sets them; no axe violations', async ({ page }) => {
+    await nav(page, 'Projects').click();
+    const table = page.getByRole('table', { name: 'Projects' });
+    await addFolder(page, join(ONE, 'uno'));
+    await table.getByRole('link', { name: /^bk-ui-proj/ }).click();
+    const packs = page.getByRole('region', { name: 'Packs' });
+    const frontend = packs.getByRole('switch', { name: 'Frontend' });
+    await expect(frontend).toBeChecked();
+    await frontend.click();
+    await expect(frontend).not.toBeChecked();
+    const changes = page.getByRole('region', { name: /^Changes in / });
+    await expect(changes).toContainText('Remove:');
+    await expect(changes).toContainText('designing-technical-uis');
+    await noAxe(page);
+    await frontend.click();
+    await expect(frontend).toBeChecked();
+    // Copy packs from a project with none: the pack goes off in the plan, nothing is written yet.
+    await choose(page, 'Copy packs from project', 'uno: no packs');
+    await expect(frontend).not.toBeChecked();
+    await expect(changes).toContainText('Remove:');
+    await unregister(page, ['uno']);
+  });
+
+  test('Catalog: skill states, activate and deactivate, reset a modified skill with its diff, adopt and remove; untracked folders stay; no axe violations', async ({ page }) => {
+    test.slow();
+    const dir = folder('sk-proj');
+    const skills = join(dir, '.claude/skills');
+    mkdirSync(join(dir, '.benchkeeper'));
+    writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 1, setupVersion: '6.0.0', agents: ['claude'], env: 'host', share: false, packs: [], singles: ['designing-technical-uis'], tier: null, paths: {}, disabled: [],
+      skills: [{ name: 'designing-technical-uis', source: 'own' }] }));
+    for (const [name, text] of [['mine', 'my own skill\n'], ['mermaid-diagrams', 'a library skill put here by hand\n']]) {
+      mkdirSync(join(skills, name), { recursive: true });
+      writeFileSync(join(skills, name, 'SKILL.md'), text);
+    }
+    await nav(page, 'Projects').click();
+    await addFolder(page, dir);
+    await nav(page, 'Catalog').click();
+    const states = page.getByRole('table', { name: 'Skill states' });
+    const mine = states.getByRole('row').filter({ hasText: 'sk-proj' });
+    const own = mine.filter({ hasText: 'designing-technical-uis' });
+    // The folder is gone: Update writes it again through a run (undoable), which also makes a later edit visible as modified.
+    await expect(own).toContainText('removed');
+    await expect(own).toContainText('BenchKeeper');
+    await own.getByRole('button', { name: /^Update/ }).click();
+    const update = page.getByRole('dialog', { name: 'Update designing-technical-uis in sk-proj' });
+    await update.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(update.getByRole('button', { name: 'Undo run' })).toBeVisible();
+    await update.getByRole('button', { name: 'Close' }).click();
+    await expect(own).toContainText('current');
+    writeFileSync(join(skills, 'designing-technical-uis/SKILL.md'), 'edited here\n');
+    await nav(page, 'Projects').click();
+    await nav(page, 'Catalog').click();
+    await expect(own).toContainText('modified');
+    const untracked = page.getByRole('table', { name: 'Untracked folders' });
+    await expect(untracked.getByRole('row').filter({ hasText: 'mine' })).toContainText('left alone');
+    await expect(untracked.getByRole('row').filter({ hasText: 'mermaid-diagrams' }).getByRole('button', { name: /^Adopt/ })).toBeVisible();
+    await noAxe(page);
+    // Deactivate: the plan parks the skill; closing it writes nothing.
+    // Mantine's track covers the input, so Playwright's own pointer check refuses it.
+    await own.getByRole('switch', { name: /^Active/ }).click({ force: true });
+    const off = page.getByRole('dialog', { name: 'Deactivate designing-technical-uis in sk-proj' });
+    await expect(off).toContainText('.benchkeeper/disabled/');
+    await noAxe(page);
+    await off.getByRole('button', { name: 'Close' }).click();
+    await expect(off).toBeHidden();
+    expect(existsSync(join(skills, 'designing-technical-uis/SKILL.md'))).toBe(true);
+    // Reset: the diff against the library comes first; the edit is in the run's backup.
+    await own.getByRole('button', { name: /^Reset/ }).click();
+    const reset = page.getByRole('dialog', { name: 'Reset designing-technical-uis in sk-proj' });
+    await expect(reset.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toContainText('edited here');
+    await noAxe(page);
+    await reset.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(reset.getByRole('button', { name: 'Undo run' })).toBeVisible();
+    await reset.getByRole('button', { name: 'Close' }).click();
+    await expect(own).toContainText('current');
+    // Adopt a library skill that is there without a setup: it becomes a single pick, its folder kept.
+    await untracked.getByRole('row').filter({ hasText: 'mermaid-diagrams' }).getByRole('button', { name: /^Adopt/ }).click();
+    const adopt = page.getByRole('dialog', { name: 'Adopt mermaid-diagrams in sk-proj' });
+    await adopt.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(adopt.getByRole('button', { name: 'Undo run' })).toBeVisible();
+    await adopt.getByRole('button', { name: 'Close' }).click();
+    const adopted = mine.filter({ hasText: 'mermaid-diagrams' });
+    await expect(adopted).toBeVisible();
+    expect(existsSync(join(skills, 'mine/SKILL.md'))).toBe(true);
+    // Remove takes the single pick out of the project; the untracked folder is still there.
+    await adopted.getByRole('button', { name: /^Remove/ }).click();
+    const remove = page.getByRole('dialog', { name: 'Remove mermaid-diagrams in sk-proj' });
+    await expect(remove).toContainText('remove skill mermaid-diagrams');
+    await remove.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
+    await expect(remove.getByRole('button', { name: 'Undo run' })).toBeVisible();
+    await remove.getByRole('button', { name: 'Close' }).click();
+    await expect(mine.filter({ hasText: 'mermaid-diagrams' })).toHaveCount(0);
+    expect(existsSync(join(skills, 'mine/SKILL.md'))).toBe(true);
+    await nav(page, 'Projects').click();
+    await unregister(page, ['sk-proj']);
+  });
+
   test('Projects: a project without a state file is set up step by step, local or on a branch', async ({ page }) => {
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'other', exact: true }).click();
@@ -832,6 +958,20 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Settings: the sessions cache has a retention and Clear', async ({ page }) => {
+    await nav(page, 'Settings').click();
+    const history = page.getByRole('region', { name: 'Sessions history' });
+    await expect(history).toContainText('sessions in the cache');
+    await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
+    await expect(history.getByText('Retention set.')).toBeVisible();
+    await expect(history.getByRole('textbox', { name: 'Days since the last activity' })).toHaveValue('30');
+    await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
+    await expect(history.getByText('Summaries are kept.')).toBeVisible();
+    await history.getByRole('button', { name: 'Clear the sessions cache' }).click();
+    await expect(history.getByText('Cache cleared.')).toBeVisible();
+    await expect(history).toContainText('0 sessions in the cache');
+  });
+
   test('Settings: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {
     await nav(page, 'Settings').click();
     const download = page.waitForEvent('download');
@@ -886,6 +1026,47 @@ test.describe('views', () => {
     // Codex: its own file and keys.
     await page.getByText('Codex', { exact: true }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
+  });
+
+
+  test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
+    await nav(page, 'Rules').click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Claude Code' })).toBeVisible();
+    const files = page.getByRole('table', { name: 'Claude Code instruction files' });
+    const team = files.getByRole('row', { name: /20-team\.md/ });
+    await expect(team).toContainText('yours');
+    await expect(team).toContainText('loads');
+    // BenchKeeper's own rules file has no switch; the budget counts files, skill descriptions and says what is largest.
+    await expect(files.getByRole('row', { name: /00-global\.md/ })).toContainText('No switch: BenchKeeper wrote it');
+    await expect(page.getByRole('table', { name: 'Context budget' }).first()).toContainText('Rule files');
+    await expect(page.getByText('load at the start of every session').first()).toBeVisible();
+    await noAxe(page);
+    // The text opens on this machine only.
+    await team.getByRole('button', { name: /Show text of/ }).click();
+    const drawer = page.getByRole('dialog', { name: 'Rule file text' });
+    await expect(drawer).toContainText('Keep answers short.');
+    await noAxe(page);
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(drawer).toBeHidden();
+    // A switch is a plan with a diff; the file itself is never changed.
+    // The switch's track lies over its input, which Playwright's hit test refuses.
+    await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('claudeMdExcludes');
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(team).toContainText('off');
+    await expect(team).toContainText('user settings');
+    await noAxe(page);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    await page.reload();
+    await expect(team).toContainText('loads');
+    // A project: its files come after the global ones, with the same switch for a global file in this project only.
+    await page.getByRole('combobox', { name: 'Show' }).click();
+    await page.getByRole('option').nth(1).click();
+    await expect(page.getByRole('heading', { level: 3, name: 'Claude Code files for this project' })).toBeVisible();
+    await noAxe(page);
   });
 
   // The one-run setup, last: it applies project setups and registers four more projects.

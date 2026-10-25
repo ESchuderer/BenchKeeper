@@ -76,8 +76,9 @@ export function parseAdvice(text, lib) {
   const list = (x) => (Array.isArray(x) ? x : []);
   return {
     env: isEnv(j?.env?.id) ? { id: j.env.id, reason: reason(j.env.reason) } : null,
-    packs: list(j?.packs).filter((p) => lib.packs.some((x) => x.id === p?.id)).map((p) => ({ id: p.id, reason: reason(p.reason) })),
-    skills: list(j?.skills).filter((s) => lib.skills.some((x) => x.name === s?.name)).map((s) => ({ name: s.name, reason: reason(s.reason) })),
+    // Each id once: the page keys its rows by it.
+    packs: list(j?.packs).filter((p, i, all) => lib.packs.some((x) => x.id === p?.id) && all.findIndex((q) => q?.id === p.id) === i).map((p) => ({ id: p.id, reason: reason(p.reason) })),
+    skills: list(j?.skills).filter((s, i, all) => lib.skills.some((x) => x.name === s?.name) && all.findIndex((q) => q?.name === s.name) === i).map((s) => ({ name: s.name, reason: reason(s.reason) })),
   };
 }
 

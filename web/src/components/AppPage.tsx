@@ -7,10 +7,10 @@ export type Shot = { width: number; height: number };
 export const VIEWS: { id: string; title: string; shot: string; alt: string; text: string[] }[] = [
   {
     id: 'dashboard', title: 'Dashboard', shot: 'dashboard',
-    alt: 'The Dashboard: a setup flow of four boxes (agents detected, global setup, projects, doctor), the install health chart, a coverage table of rules, ask rules, plugin, settings and tools per agent, recent runs and doctor findings.',
+    alt: 'The Dashboard scrolled to Health: one stacked bar of item states with the numbers as links beneath it, then the pack coverage matrix per agent and the skills per pack as a sorted bar list.',
     text: [
       'The setup flow counts the agents detected, the global items that need attention, the registered projects that are behind and the doctor findings. Each box opens the view that fixes it.',
-      'Install health counts each global item as current, missing, modified or outdated. The coverage table shows the same per part and agent; a modified cell opens the plan that would overwrite it.',
+      'Health counts the items of the global setup and of each registered project as current, modified, outdated, missing, removed, foreign or untracked, as one bar with the numbers as text. Coverage counts the projects that chose each pack, per agent, and marks skills that exist for one agent only. Every figure links to the view it counts.',
     ],
   },
   {
@@ -23,10 +23,10 @@ export const VIEWS: { id: string; title: string; shot: string; alt: string; text
   },
   {
     id: 'projects', title: 'Projects', shot: 'projects',
-    alt: 'The Projects view: a table of two projects with setup version, skills and pending changes, and the detail of the first with its skill switches and the pending changes as commands and diffs.',
+    alt: 'The Projects view: a table of two projects with setup version, skills and pending changes, and the detail of the first with its pack and skill switches and the pending changes as commands and diffs.',
     text: [
       'Each registered project shows its setup version, skills, pending changes and Git state. A project is behind when its setup version differs from the one of the app.',
-      'The detail lists the project\'s skills, each with a switch, and the changes an update would write.',
+      'The detail lists the project\'s packs and skills, each with a switch, and the changes an update or a switched pack would write.',
     ],
   },
   {

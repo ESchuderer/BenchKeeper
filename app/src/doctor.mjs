@@ -5,9 +5,11 @@ import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
+import { integrity } from './integrity.mjs';
 import { levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
+import { rulesChecks } from './rules.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
 import { SKILLS_CLI, globalPlan, newest } from './steps/global.mjs';
@@ -99,9 +101,10 @@ export function projectChecks(ctx, dir, agents) {
 export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
   // Below full, the global plan is the plugin alone: rules, settings and host tools are not expected.
   const level = levelFor(ctx, agents, dir);
-  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx)];
+  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx), ...integrity(ctx).map((i) => issue('warning', 'ledger', i.message, i.fix))];
   out.push(...skillOverlap(ctx, undefined, [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)]));
   if (level === 'full') {
+    out.push(...rulesChecks(ctx, agents));
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
     const skillsCli = newest(ctx, 'skills', now);
     if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));

@@ -6,7 +6,7 @@
 // Every change has id, step, title, and destructive (confirmed separately, off by default).
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { childEnv } from './childenv.mjs';
 import { diffLines } from './diff.mjs';
 import { copy, exists, hashPath, hashText, inside, isDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
@@ -18,6 +18,12 @@ import { mask } from './redact.mjs';
 const PRIVATE_NEW = /[\\/]\.(claude|codex|gemini|copilot)[\\/](settings(\.local)?\.json|config\.(toml|json)|hooks\.json)$|[\\/]\.claude\.json$/;
 // The last lines of a failed command's output, as stored in the ledger and shown: tokens masked.
 const failure = (r, lines = 3) => mask((r.stderr || r.stdout || '').trim().split('\n').slice(-lines).join(' ')) || `exit ${r.code}`;
+
+// The undo commands plans produce: the plugin and marketplace commands of the two agents, with a plain name. A ledger file
+// that names anything else is not run (the ledger is a file the user's other processes can write).
+const NAME = /^[A-Za-z0-9][\w.@:-]*$/;
+const UNDO_FORMS = [['claude', 'plugin', 'uninstall'], ['claude', 'plugin', 'install'], ['claude', 'plugin', 'marketplace', 'remove'], ['codex', 'plugin', 'remove'], ['codex', 'plugin', 'add'], ['codex', 'plugin', 'marketplace', 'remove']];
+export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => argv.length === f.length + 1 && f.every((x, i) => argv[i] === x) && NAME.test(argv[f.length]));
 
 // A path a run may change: inside a root, and not inside ctx.deny unless that root itself lies in the denied folder
 // (a project's .git is denied, its info/exclude list is a root of its own).
@@ -76,7 +82,7 @@ export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout =
 }
 
 export function runCommand(argv, { cwd, input, env, buffer, stdio, timeout } = {}) {
-  const r = spawnSync(argv[0], argv.slice(1), { cwd, input, env: env ?? process.env, stdio, timeout, encoding: buffer ? 'buffer' : 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync(argv[0], argv.slice(1), { cwd, input, env: env ?? process.env, stdio, timeout, encoding: buffer ? 'buffer' : 'utf8', maxBuffer: 64 * 1024 * 1024, killSignal: 'SIGKILL' });
   return { code: r.error ? 127 : r.status ?? 1, stdout: r.stdout ?? '', stderr: r.error ? r.error.message : String(r.stderr ?? '') };
 }
 
@@ -261,6 +267,20 @@ function undoRun(id, ctx, { step } = {}) {
   const save = () => { ctx.ledger.save(run); ctx.ledger.save(source); };
   const begin = (entry) => { Object.assign(entry, { status: 'running', touched: true }); save(); };
   const within = (path, follow = true) => { if (!allowed(path, ctx, follow)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`); };
+  // A backup the ledger names lies in this config folder's backups: a changed ledger file must not copy any other file in.
+  const stored = (backup) => { if (backup != null && !inside(backup, [ctx.ledger.backups])) throw new Error(`the backup ${backup} is not in ${ctx.ledger.backups}`); };
+  // One backup per path that exists now, taken before anything moves. A path inside an earlier one of the list is in that
+  // one's backup already: a second copy would hold what the first restore put back, not what is there now.
+  const backups = (paths, n) => paths.map((p, i) => (exists(p) && !paths.slice(0, i).some((q) => resolve(p).startsWith(resolve(q) + sep)) ? ctx.ledger.backupPath(run.id, `${n}-${i}`, p) : null));
+  // The current state of a path goes to its backup, with the hash it had: journaled before the move, so a later undo of this
+  // undo knows the file was moved. A path that went with an earlier one and is not back yet has nothing left to move.
+  const aside = (rec, path, copyOnly) => {
+    if (!rec.backup) return;
+    if (!exists(path)) { rec.backup = null; return; }
+    rec.hashBackup = hashPath(path);
+    save();
+    if (copyOnly) { copy(path, rec.backup); if (hashPath(rec.backup) !== rec.hashBackup) throw new Error(`backup of ${path} differs from the original`); } else move(path, rec.backup);
+  };
   for (const e of [...source.entries].reverse()) {
     if (!doneOrTouched(e) || e.undone || (step && e.step !== step)) continue;
     const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind };
@@ -270,6 +290,7 @@ function undoRun(id, ctx, { step } = {}) {
         // Files the session added are removed, changed or deleted ones come back from the snapshot before it, each
         // only while it is as the session left it.
         // A snapshot git has removed (gc drops unreferenced trees) must fail here: a missing tree reads as a deleted file.
+        within(e.cwd);
         for (const tree of [e.before, e.after]) if (!hasTree(ctx, e.cwd, tree)) throw new Error(`the snapshot ${tree} of this session is gone from ${e.cwd}: its files cannot be restored`);
         const files = e.files.map((f) => ({ f, path: join(e.cwd, f.path) }));
         for (const { f, path } of files) {
@@ -277,49 +298,62 @@ function undoRun(id, ctx, { step } = {}) {
           if (hashPath(path) !== treeHash(ctx, e.cwd, e.after, f.path)) throw new Error(`${path} changed after the session: undo what changed it later first`);
         }
         // Each file and its backup are journaled before the first one moves: after a crash undo finds them.
-        Object.assign(entry, { kind: 'restore', files: files.map(({ path }) => ({ path, backup: exists(path) ? ctx.ledger.backupPath(run.id, run.entries.length, path) : null })) });
+        const kept = backups(files.map(({ path }) => path), run.entries.length);
+        Object.assign(entry, { kind: 'restore', files: files.map(({ path }, i) => ({ path, backup: kept[i] })) });
         begin(entry);
         files.forEach(({ f, path }, i) => {
-          const rec = entry.files[i];
-          if (rec.backup) { copy(path, rec.backup); rec.hashBackup = hashPath(rec.backup); if (rec.hashBackup !== hashPath(path)) throw new Error(`backup of ${path} differs from the original`); }
+          aside(entry.files[i], path, true);
           restoreFromTree(ctx, e.cwd, e.before, f.path, path);
-          rec.hashAfter = hashPath(path);
+          entry.files[i].hashAfter = hashPath(path);
         });
       } else if (e.kind === 'restore') {
-        // Undo of a session undo: the files go back to that run's backups, while they are as it left them.
-        for (const f of e.files) {
+        // Undo of a session undo: the files go back to that run's backups, while they are as it left them. A file a failed
+        // undo never reached (no hash recorded) was not touched by it, so there is nothing to put back.
+        // One whose set-aside did not happen (the move failed: its backup is missing, the file is as recorded) was not either.
+        const reached = (f) => 'hashAfter' in f || 'hashBackup' in f;
+        const moveFailed = (f) => !('hashAfter' in f) && f.backup && !exists(f.backup) && hashPath(f.path) === f.hashBackup;
+        const files = e.files.filter((f) => reached(f) && !moveFailed(f));
+        for (const f of files) {
           within(f.path);
-          if (e.status === 'done' ? !('hashAfter' in f) || hashPath(f.path) !== f.hashAfter : false) throw new Error(`${f.path} changed after this change: undo what changed it later first`);
+          stored(f.backup);
+          if ('hashAfter' in f && hashPath(f.path) !== f.hashAfter) throw new Error(`${f.path} changed after this change: undo what changed it later first`);
+          // No post-change state recorded: the undo stopped at this file. It is moved away (nothing there) or not moved yet
+          // (as recorded); anything else is a path someone made since, which a replay would overwrite.
+          if (!('hashAfter' in f) && exists(f.path) && hashPath(f.path) !== f.hashBackup) throw new Error(`${f.path} changed after this change: undo what changed it later first`);
           if (f.backup && (!('hashBackup' in f) || hashPath(f.backup) !== f.hashBackup)) throw new Error(`the backup ${f.backup} is missing or changed`);
         }
-        Object.assign(entry, { kind: 'restore', files: e.files.map((f) => ({ path: f.path, backup: exists(f.path) ? ctx.ledger.backupPath(run.id, run.entries.length, f.path) : null })) });
+        const kept = backups(files.map((f) => f.path), run.entries.length);
+        Object.assign(entry, { kind: 'restore', files: files.map((f, i) => ({ path: f.path, backup: kept[i] })) });
         begin(entry);
-        e.files.forEach((f, i) => {
-          const rec = entry.files[i];
-          if (rec.backup) { move(f.path, rec.backup); rec.hashBackup = hashPath(rec.backup); }
+        files.forEach((f, i) => {
+          aside(entry.files[i], f.path);
           if (f.backup) copy(f.backup, f.path);
-          rec.hashAfter = hashPath(f.path);
+          entry.files[i].hashAfter = hashPath(f.path);
         });
       } else if (e.kind === 'command' && e.snapshot) {
         // The paths come back from the copies taken before the command, while they are as it left them.
         for (const x of e.snapshot) {
           within(x.path);
-          if (e.status === 'done' && hashPath(x.path) !== x.hashAfter) throw new Error(`${x.path} changed after this change: undo what changed it later first`);
+          stored(x.backup);
+          // A command that failed also recorded how it left the paths: a later hand edit is not overwritten either.
+          if ('hashAfter' in x && hashPath(x.path) !== x.hashAfter) throw new Error(`${x.path} changed after this change: undo what changed it later first`);
           if (x.existed && hashPath(x.backup) !== x.hashBefore) throw new Error(`the backup ${x.backup} is missing or changed`);
         }
-        Object.assign(entry, { kind: 'restore', files: e.snapshot.map((x, i) => ({ path: x.path, backup: exists(x.path) ? ctx.ledger.backupPath(run.id, `${run.entries.length}-${i}`, x.path) : null })) });
+        const kept = backups(e.snapshot.map((x) => x.path), run.entries.length);
+        Object.assign(entry, { kind: 'restore', files: e.snapshot.map((x, i) => ({ path: x.path, backup: kept[i] })) });
         begin(entry);
         e.snapshot.forEach((x, i) => {
-          const rec = entry.files[i];
-          if (rec.backup) { move(x.path, rec.backup); rec.hashBackup = hashPath(rec.backup); }
+          aside(entry.files[i], x.path);
           if (x.existed) copy(x.backup, x.path);
-          rec.hashAfter = hashPath(x.path);
+          entry.files[i].hashAfter = hashPath(x.path);
         });
       } else if (e.kind === 'command') {
         if (!e.undoArgv) { entry.status = 'manual'; entry.reason = `no undo command for ${e.argv.join(' ')}`; continue; }
+        if (!undoable(e.undoArgv)) throw new Error(`the undo command is not one this app plans, so it is not run: ${mask(String(e.undoArgv).slice(0, 120))}`);
+        if (e.cwd != null && !inside(e.cwd, [ctx.home, ...ctx.roots])) throw new Error(`the undo command's folder ${e.cwd} is outside ${ctx.home}`);
         Object.assign(entry, { argv: e.undoArgv, cwd: e.cwd });
         begin(entry);
-        const r = ctx.run(e.undoArgv, { cwd: e.cwd ?? ctx.home, env: childEnv() });
+        const r = ctx.run(e.undoArgv, { cwd: e.cwd ?? ctx.home, env: childEnv(), timeout: 5 * 60e3 });
         entry.exit = r.code;
         if (r.code !== 0) throw new Error(failure(r, 10));
       } else {
@@ -327,6 +361,7 @@ function undoRun(id, ctx, { step } = {}) {
         // Only a file as the run left it goes back, so a later change (another step's, or the user's) is not lost.
         // A whole run is undone newest first, so its own later edits of the file are undone before.
         if (e.status === 'done' && hashPath(e.path) !== e.hashAfter) throw new Error(`${e.path} changed after this change: undo what changed it later first`);
+        stored(e.backup);
         if (e.existed && hashPath(e.backup) !== e.hashBefore) throw new Error(`the backup ${e.backup} is missing or changed`);
         Object.assign(entry, { kind: 'write', path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path) });
         // The current state goes to this run's backup, so the undo is reversible as well.

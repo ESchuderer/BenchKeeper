@@ -9,13 +9,23 @@ import { move, writeAtomic } from './fsx.mjs';
 export const PACK_SCHEMA = 1;
 const dir = (ctx) => join(ctx.config, 'packs');
 
-export function ownPacks(ctx) {
+// A file that is not a pack with a plain id named like its file is left out of the packs (the id becomes a file name) and
+// listed as invalid, with the reason, so it can be seen and removed.
+function scan(ctx) {
   let files = [];
-  try { files = readdirSync(dir(ctx)).filter((f) => f.endsWith('.json')); } catch { return []; }
-  // A file that is not a pack with a plain id named like its file is left out: the id becomes a file name.
-  const read = (f) => { try { return { ...JSON.parse(readFileSync(join(dir(ctx), f), 'utf8')), own: true }; } catch { return null; } };
-  return files.map((f) => [f, read(f)]).filter(([f, p]) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(p?.id ?? '') && f === `${p.id}.json`).map(([, p]) => p);
+  try { files = readdirSync(dir(ctx)).filter((f) => f.endsWith('.json')); } catch { return { packs: [], invalid: [] }; }
+  const packs = [], invalid = [];
+  for (const file of files) {
+    let p;
+    try { p = { ...JSON.parse(readFileSync(join(dir(ctx), file), 'utf8')), own: true }; } catch { invalid.push({ file, reason: 'not valid JSON' }); continue; }
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(p.id ?? '')) invalid.push({ file, reason: 'the id is not a plain id' });
+    else if (file !== `${p.id}.json`) invalid.push({ file, reason: `the file name is not ${p.id}.json` });
+    else packs.push(p);
+  }
+  return { packs, invalid };
 }
+export const ownPacks = (ctx) => scan(ctx).packs;
+export const invalidPacks = (ctx) => scan(ctx).invalid;
 
 // The library with the user's packs added to its presets.
 export function libraryWith(ctx) {
@@ -45,9 +55,14 @@ export function savePack(ctx, { id, title = id, skills }) {
   return pack;
 }
 
-export function removePack(ctx, id) {
-  if (!ownPacks(ctx).some((p) => p.id === id)) throw new Error(`no own pack ${id}`);
-  move(join(dir(ctx), `${id}.json`), join(ctx.config, 'backup', 'packs', `${id}-${Date.now()}.json`));
+// id of an own pack, or the file name of an invalid pack file (taken from the listing, never joined from the argument).
+// usedBy: the projects whose setup still names the pack; it stays until they switch it off.
+export function removePack(ctx, id, { usedBy = [] } = {}) {
+  if (usedBy.length) throw new Error(`pack ${id} is in use by ${usedBy.join(', ')}: switch it off there first (benchkeeper packs disable ${id} --project <dir>)`);
+  const { packs, invalid } = scan(ctx);
+  const file = invalid.find((x) => x.file === id || x.file === `${id}.json`)?.file ?? (packs.some((p) => p.id === id) ? `${id}.json` : null);
+  if (!file) throw new Error(`no own pack ${id}`);
+  move(join(dir(ctx), file), join(ctx.config, 'backup', 'packs', `${file.replace(/\.json$/, '')}-${Date.now()}.json`));
 }
 
 // One file per pack; library presets export too, under a new id when imported.

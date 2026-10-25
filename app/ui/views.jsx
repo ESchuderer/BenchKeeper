@@ -1,15 +1,16 @@
-import { Anchor, Badge, Box, Button, Checkbox, Code, Drawer, FileButton, Grid, Group, List, Loader, Modal, NavLink, Progress, RingProgress, Select, Stack, Switch, Table, Text, TextInput, Timeline, Title, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, Select, Stack, Switch, Table, Text, TextInput, Title, useComputedColorScheme } from '@mantine/core';
 import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPencil, IconPlus, IconRefresh, IconRoute, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section, StateBadge, useJob } from './parts.jsx';
+import { Cli, Plan, Section, useJob } from './parts.jsx';
 import { RunPanel, StatusIcon, note, runTitle, when } from './run.jsx';
-import { DoctorTable, FixEverythingButton, UpdateResults } from './fix.jsx';
+import { DoctorTable, UpdateResults } from './fix.jsx';
 import { updateProjects } from './update.js';
-import { OneRunButtons } from './onerun.jsx';
 import { ProjectSetup } from './setup.jsx';
-import { AddNotices, BulkBar, EditProject, MissingBadge, ProjectFilters, Relocate, RemoveFromList, RemoveSetup, SelectCheckbox, label, plural, visibleProjects } from './projects.jsx';
-import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
+import { PackSwitches, SkillStates } from './skillstates.jsx';
+import { SessionsHistory } from './sessionscache.jsx';
+import { AddNotices, BulkBar, EditProject, MissingBadge, FILTER_OPTIONS, ProjectFilters, Relocate, RemoveFromList, RemoveSetup, SelectCheckbox, label, plural, visibleProjects } from './projects.jsx';
+import { Dot, Loading, MOD, Note, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
 
 // The charts load with the first eval view or skill with results, not with the first page.
 const EvalResults = lazy(() => import('./evals.jsx').then((m) => ({ default: m.EvalResults })));
@@ -28,158 +29,7 @@ class ChartsBoundary extends Component {
 const Charts = ({ children }) => <ChartsBoundary><Suspense fallback={LoadingCharts}>{children}</Suspense></ChartsBoundary>;
 export const Evals = (props) => <Charts><EvalsPage {...props} /></Charts>;
 
-const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
-const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
-const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
-
-function InstallHealth({ items }) {
-  const by = RANK.map((s) => [s, items.filter((i) => i.state === s).length]).filter(([, n]) => n);
-  return (
-    <Group wrap="nowrap" align="center">
-      <Box aria-hidden><RingProgress size={140} thickness={14} label={<Text ta="center" size="sm">{items.length} items</Text>} sections={by.map(([s, n]) => ({ value: (n / items.length) * 100, color: STATE_COLOR[s] }))} /></Box>
-      <List listStyleType="none" spacing={4} aria-label="Global items by state">
-        {by.map(([s, n]) => <List.Item key={s}><Group gap="xs"><StateBadge state={s} /><Text size="sm">{n}</Text></Group></List.Item>)}
-      </List>
-    </Group>
-  );
-}
-
-function Coverage({ items, agents }) {
-  const cols = [...agents.map((a) => [a.id, a.name]), ['machine', 'Machine']];
-  const rows = PARTS.filter((p) => items.some((i) => i.step.split(':')[0] === p));
-  return (
-    <Table.ScrollContainer minWidth={420}>
-      <Table aria-label="Coverage" withTableBorder>
-        <Table.Thead><Table.Tr><Table.Th>Part</Table.Th>{cols.map(([id, name]) => <Table.Th key={id}>{name}</Table.Th>)}</Table.Tr></Table.Thead>
-        <Table.Tbody>
-          {rows.map((r) => (
-            <Table.Tr key={r}>
-              <Table.Th scope="row">{r}</Table.Th>
-              {cols.map(([id, name]) => {
-                const s = worst(items.filter((i) => i.step.split(':')[0] === r && i.agent === id));
-                return (
-                  <Table.Td key={id}>
-                    {s ? <Anchor href={href('agents', id === 'machine' ? { plan: '1' } : { agent: id })} aria-label={`${r} for ${name}: ${s}, open the plan`}><StateBadge state={s} /></Anchor> : <Text size="sm">none</Text>}
-                  </Table.Td>
-                );
-              })}
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Table.ScrollContainer>
-  );
-}
-
-// Inline SVG with a link per node; below sm the text list replaces it.
-function Flow({ nodes }) {
-  const W = 180, GAP = 30;
-  return (
-    <>
-      <Box visibleFrom="sm" maw={960} c="var(--mantine-color-text)">
-        <svg viewBox={`0 0 ${nodes.length * (W + GAP) - GAP} 110`} width="100%" role="group" aria-labelledby="flow-title">
-          <title id="flow-title">Setup flow: {nodes.map((n) => n.label).join(', ')}</title>
-          <defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" /></marker></defs>
-          {nodes.map((n, i) => {
-            const x = i * (W + GAP);
-            const color = `var(--mantine-color-${STATE_COLOR[n.status]}-filled)`;
-            return (
-              <g key={n.label}>
-                {i > 0 && <line x1={x - GAP + 2} y1="55" x2={x - 4} y2="55" stroke="currentColor" strokeWidth="2" markerEnd="url(#flow-arrow)" />}
-                <a href={n.href}>
-                  <rect x={x + 1} y="4" width={W - 2} height="102" rx="8" fill="var(--mantine-color-body)" stroke={color} strokeWidth="3" />
-                  <text x={x + 12} y="32" fontWeight="600" fontSize="15" fill="currentColor">{n.label}</text>
-                  <text x={x + 12} y="60" fontSize="13" fill="currentColor">{n.value}</text>
-                  <circle cx={x + 17} cy="84" r="5" fill={color} />
-                  <text x={x + 28} y="89" fontSize="13" fill="currentColor">{n.status}</text>
-                </a>
-              </g>
-            );
-          })}
-        </svg>
-      </Box>
-      <List hiddenFrom="sm" aria-label="Setup flow">
-        {nodes.map((n) => <List.Item key={n.label}><Anchor href={n.href} underline="always">{n.label}</Anchor>: {n.value} ({n.status})</List.Item>)}
-      </List>
-    </>
-  );
-}
-
-export function Dashboard({ overview, doctor, history, params }) {
-  const inv = useApi('/api/inventory');
-  const panel = params.get('panel');
-  useEffect(() => { if (panel) document.getElementById(panel)?.scrollIntoView(); }, [panel, doctor.data]);
-  // A new run or a newest run that finished (Fix everything, the header's jobs) changes what the inventory shows; the history arriving the first time does not.
-  const runs = useRef(undefined);
-  const latest = history.data?.slice(0, 3).map((r) => `${r.id}:${r.status}`).join();
-  useEffect(() => {
-    if (latest === undefined) return;
-    if (runs.current !== undefined && latest !== runs.current) inv.reload();
-    runs.current = latest;
-  }, [latest]);
-  const o = overview.data, items = inv.data ?? [];
-  const agents = o?.agents.filter((a) => a.installed) ?? [];
-  const attention = items.filter((i) => ATTENTION.includes(i.state));
-  const errors = doctor.data?.filter((i) => i.level === 'error').length ?? 0, warnings = (doctor.data?.length ?? 0) - errors;
-  const behind = o?.projects.filter((p) => p.setupVersion !== o.version).length ?? 0;
-  const nodes = [
-    { label: 'Agents detected', value: `${agents.length} installed`, status: agents.length ? 'ok' : 'problem', href: href('agents') },
-    { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : inv.error ? 'check failed' : 'checking', status: inv.error ? 'problem' : attention.length ? 'attention' : 'ok', href: href('agents', { plan: '1' }) },
-    { label: 'Projects', value: `${o?.projects.length ?? 0} registered, ${behind} behind`, status: behind ? 'attention' : 'ok', href: href('projects') },
-    { label: 'Doctor', value: doctor.data ? `${errors} errors, ${warnings} warnings` : doctor.error ? 'check failed' : 'checking', status: doctor.error || errors ? 'problem' : warnings ? 'attention' : 'ok', href: href('dashboard', { panel: 'doctor' }) },
-  ];
-  return (
-    <Stack gap="xl">
-      <Stack gap="xs">
-        <Text size="sm" maw={560}>One-run setup prepares the global setup and the projects you pick without questions in between, then shows every change on one page to check before it applies them.</Text>
-        <OneRunButtons />
-      </Stack>
-      <Group justify="space-between" align="flex-start">
-        <Text size="sm" maw={560}>Fix everything walks through the global setup, the projects that are behind and what is left to do by hand, then applies what you checked.</Text>
-        <FixEverythingButton />
-      </Group>
-      <Section title="Setup flow"><Flow nodes={nodes} /></Section>
-      <Section title="Install level">
-        <Text size="sm">{o?.level?.level ?? 'none'}{o?.level?.adds ? `: ${o.level.adds}` : ''}</Text>
-      </Section>
-      {agents.some((a) => a.plugin) && (
-        <Section title="BenchKeeper plugin">
-          {agents.filter((a) => a.plugin).map((a) => (
-            <Text key={a.id} size="sm">{a.name}: {a.plugin.installed ? `installed ${a.plugin.installed}` : 'not installed'}, available {a.plugin.available}</Text>
-          ))}
-        </Section>
-      )}
-      <Grid gutter="xl">
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Section title="Install health"><Loading state={inv} label="inventory">{() => <InstallHealth items={items} />}</Loading></Section>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Section title="Coverage"><Loading state={inv} label="inventory">{() => <Coverage items={items} agents={agents} />}</Loading></Section>
-        </Grid.Col>
-      </Grid>
-      <Grid gutter="xl">
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Section title="Recent runs">
-            <Loading state={history} label="history">{(runs) => (runs.length ? (
-              <Timeline bulletSize={14} lineWidth={2}>
-                {runs.slice(0, 6).map((r) => (
-                  <Timeline.Item key={r.id} title={<Anchor href={href('history', { run: r.id })}>{runTitle(r)}</Anchor>}>
-                    <Text size="sm">{r.status ?? 'interrupted'}, {when(r.time)}</Text>
-                    {note(r) && <Text size="xs">{note(r)}</Text>}
-                  </Timeline.Item>
-                ))}
-              </Timeline>
-            ) : <Text>No runs yet.</Text>)}</Loading>
-          </Section>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => <DoctorTable found={found} />}</Loading></Section>
-        </Grid.Col>
-      </Grid>
-      <Cli>{'benchkeeper plan\nbenchkeeper doctor'}</Cli>
-    </Stack>
-  );
-}
+export { Dashboard } from './dashboard.jsx';
 
 function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
   const [id, setId] = useState('');
@@ -222,17 +72,18 @@ function Packs({ packs, onChange }) {
       {error && <Note color="red" title="Failed">{error}</Note>}
       <Table.ScrollContainer minWidth={520}>
         <Table aria-label="Packs">
-          <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Contents</Table.Th><Table.Th>Source</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th><Table.Th>Contents</Table.Th><Table.Th>Source</Table.Th><Table.Th>Used by</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {packs.map((p) => (
               <Table.Tr key={p.id}>
                 <Table.Td>{p.title ?? p.id}<Text size="xs">{p.id}</Text></Table.Td>
                 <Table.Td>{p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}</Table.Td>
                 <Table.Td>{p.own ? 'own' : 'library'}</Table.Td>
+                <Table.Td>{p.usedBy?.length ? p.usedBy.map((d) => d.split('/').pop()).join(', ') : '-'}</Table.Td>
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
                     {p.skills && <Button leftSection={icon(IconDownload)} size="xs" variant="default" aria-label={`Export ${p.id}`} onClick={run(async () => { const r = await api(`/api/pack-export?id=${encodeURIComponent(p.id)}`); download(r.name, r.text); })}>Export</Button>}
-                    {p.own && <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${p.id}`} onClick={run(() => api('/api/packs', { action: 'remove', id: p.id }))}>Remove</Button>}
+                    {p.own && <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${p.id}`} disabled={!!p.usedBy?.length} title={p.usedBy?.length ? `In use by ${p.usedBy.join(', ')}: switch it off there first` : undefined} onClick={run(() => api('/api/packs', { action: 'remove', id: p.id }))}>Remove</Button>}
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -270,8 +121,8 @@ function Packs({ packs, onChange }) {
 export function Catalog({ catalog, params, refresh }) {
   const evals = useApi('/api/evals');
   const [q, setQ] = useState('');
-  const [pack, setPack] = useState(null);
-  const [agent, setAgent] = useState(null);
+  const [pack, setPack] = useState(params.get('pack'));
+  const [agent, setAgent] = useState(params.get('agent'));
   const [used, setUsed] = useState(null);
   const [picked, setPicked] = useState([]);
   const [builder, setBuilder] = useState(false);
@@ -307,9 +158,10 @@ export function Catalog({ catalog, params, refresh }) {
               </Table.Tbody>
             </Table>
           } detail={skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} /> : null} />
+          <SkillStates refresh={refresh} />
           <Packs packs={c.packs} onChange={refresh} />
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
-          <Cli>{`benchkeeper packs list\nbenchkeeper project apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}`}</Cli>
+          <Cli>{`benchkeeper packs list\nbenchkeeper project apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}\nbenchkeeper skills list --project <dir>\nbenchkeeper skills update|reset|remove|adopt <name> --project <dir>`}</Cli>
         </Stack>
       );
     }}</Loading>
@@ -376,19 +228,20 @@ export function Agents({ overview, params, refresh }) {
   );
 }
 
-function ProjectDetail({ project, onChange }) {
-  const [toggles, setToggles] = useState({ disable: [], enable: [] });
+const NO_TOGGLES = { disable: [], enable: [], packOn: [], packOff: [] };
+function ProjectDetail({ project, others, onChange }) {
+  const [toggles, setToggles] = useState(NO_TOGGLES);
   // The plan reloads with a new id after an apply, so the result lives here.
   const [applied, setApplied] = useState(null);
   const [form, setForm] = useState(project.missing ? 'relocate' : null);
   const q = new URLSearchParams({ dir: project.path });
-  for (const k of ['disable', 'enable']) for (const n of toggles[k]) q.append(k, n);
+  for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off']]) for (const n of toggles[k]) q.append(name, n);
   const live = !project.missing;
   const plan = useApi(live && project.setupVersion && !lags(project) ? `/api/project-plan?${q}` : null);
   const found = useApi(live ? `/api/doctor?dir=${encodeURIComponent(project.path)}` : null);
-  const flip = (s) => setToggles(({ disable, enable }) => (s.disabled
-    ? { disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
-    : { disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
+  const flip = (s) => setToggles(({ disable, enable, ...rest }) => (s.disabled
+    ? { ...rest, disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
+    : { ...rest, disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
   const closed = () => { setForm(null); onChange.done(); };
   return (
     <Stack gap="lg" component="section" aria-label={`Project ${project.path}`}>
@@ -427,6 +280,7 @@ function ProjectDetail({ project, onChange }) {
       ) : (
         <Loading state={plan} label="project plan">{(p) => (
           <>
+            <PackSwitches packs={p.packs} project={project} others={others} toggles={toggles} setToggles={setToggles} />
             {!!p.chosen.length && (
               <Section title="Skills">
                 {p.chosen.map((s) => <Switch key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} />)}
@@ -435,7 +289,7 @@ function ProjectDetail({ project, onChange }) {
             )}
             <Section title={`Changes in ${project.path}`}>
               {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles({ disable: [], enable: [] }); plan.reload(); onChange.done(); }} />
+              <Plan key={p.planId} plan={p} onDone={(run, output) => { if (run) setApplied({ id: run.id, output }); setToggles(NO_TOGGLES); plan.reload(); onChange.done(); }} />
             </Section>
           </>
         )}</Loading>
@@ -509,7 +363,7 @@ export function Projects({ params, overview, refresh }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
   const [setupPaths, setSetupPaths] = useState(null);
-  const [view, setView] = useState({ query: '', sort: 'added', filter: 'all' });
+  const [view, setView] = useState({ query: '', sort: 'added', filter: FILTER_OPTIONS.some((f) => f.value === params.get('show')) ? params.get('show') : 'all', pack: params.get('pack') ?? '', agent: params.get('agent') ?? '' });
   const [selected, setSelected] = useState([]);
   const [dialog, setDialog] = useState(null);
   const [notices, setNotices] = useState({});
@@ -594,7 +448,9 @@ export function Projects({ params, overview, refresh }) {
       <Loading state={projects} label="projects">{(list) => (list.length ? (
         <SplitView empty="Choose a project for its plan, skills and doctor findings." list={
           <Stack gap="sm">
-            <ProjectFilters {...view} onQuery={(query) => setView({ ...view, query })} onSort={(sort) => setView({ ...view, sort })} onFilter={(filter) => setView({ ...view, filter })} />
+            <ProjectFilters {...view} onQuery={(query) => setView({ ...view, query })} onSort={(sort) => setView({ ...view, sort })} onFilter={(filter) => setView({ ...view, filter })}
+              pack={view.pack} onPack={(pack) => setView({ ...view, pack })} packs={[...new Set(all.flatMap((p) => p.packs ?? []))]}
+              agent={view.agent} onAgent={(agent) => setView({ ...view, agent })} agents={Object.entries(names).map(([value, text]) => ({ value, label: text }))} />
             {!!chosen.length && <BulkBar rows={chosen} onClear={() => setSelected([])} onUpdate={() => startUpdate(setUp(chosen))} onSetup={() => setSetupPaths({ paths: chosen.filter((p) => !p.missing && !p.setupVersion).map((p) => p.path) })}
               onRemoveList={() => setDialog({ kind: 'list', paths: chosen.map((p) => p.path) })} onRemoveSetup={() => setDialog({ kind: 'setup', paths: setUp(chosen) })} />}
             {rows.length ? (
@@ -610,7 +466,7 @@ export function Projects({ params, overview, refresh }) {
             ) : <Text size="sm" role="status">No project matches the search and filter.</Text>}
           </Stack>
         } detail={open && list.some((p) => p.path === open) ? (
-          <ProjectDetail key={open} project={list.find((p) => p.path === open)} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: withOpen('list'), removeSetup: withOpen('setup') }} />
+          <ProjectDetail key={open} project={list.find((p) => p.path === open)} others={list} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: withOpen('list'), removeSetup: withOpen('setup') }} />
         ) : null} />
       ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
@@ -635,7 +491,7 @@ export function Projects({ params, overview, refresh }) {
       {dialog?.kind === 'list' && <RemoveFromList paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(true)} />}
       {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} push={push} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
       {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
-      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename ${open ?? '<dir>'} <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove ${open ?? '<dir>'} [--setup]\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
+      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename ${open ?? '<dir>'} <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove ${open ?? '<dir>'} [--setup]\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper packs enable|disable <id> --project ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }
@@ -726,6 +582,7 @@ export function Settings({ overview, refresh, keys }) {
         </Table>
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
+      <SessionsHistory />
       <Section title="Files">
         <List spacing={4} size="sm">
           <List.Item><Code>~/.config/benchkeeper/ledger/</Code>: one JSON file per run</List.Item>
@@ -733,6 +590,7 @@ export function Settings({ overview, refresh, keys }) {
           <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>
           <List.Item><Code>~/.config/benchkeeper/packs/</Code>: own packs</List.Item>
           <List.Item><Code>~/.config/benchkeeper/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
+          <List.Item><Code>.cache/benchkeeper/sessions.json</Code> in your home folder: session summaries for the Sessions board</List.Item>
         </List>
         <Text size="sm"><Code>BENCHKEEPER_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>
       </Section>
@@ -777,7 +635,7 @@ export function Sessions() {
   return (
     <Stack gap="lg">
       <Group justify="space-between" align="flex-start">
-        <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. Nothing leaves this machine except the pull request lookups through gh.</Text>
+        <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. History older than the agent's cleanup period comes from the app's cache of summaries (never the messages) and starts when the app first scanned; Settings has its retention and Clear. Nothing leaves this machine except the pull request lookups through gh.</Text>
         <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
       </Group>
       {error && <Note color="red">{error}</Note>}

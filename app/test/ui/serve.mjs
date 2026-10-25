@@ -49,8 +49,9 @@ for (const name of ['alpha', 'broken']) {
 }
 execFileSync('git', ['-C', join(BATCH, 'alpha'), 'remote', 'add', 'origin', 'https://github.com/acme/alpha.git']);
 const run = (argv, o = {}) => {
-  // GitHub is never reached: fetch fails as offline would, push and ls-remote answer as an empty remote, gh opens a pull request.
-  if (argv[0] === 'git' && argv.includes('fetch')) return { code: 1, stdout: '', stderr: 'offline' };
+  // GitHub is never reached: fetch answers with the local default branch as origin's, push and ls-remote answer as an empty remote, gh opens a pull request.
+  // The fetch becomes a ref update in the same repository, so origin/<branch> exists as after a real fetch.
+  if (argv[0] === 'git' && argv.includes('fetch')) argv = [...argv.slice(0, argv.indexOf('fetch')), 'update-ref', `refs/remotes/origin/${argv.at(-1)}`, 'HEAD'];
   if (argv[0] === 'git' && (argv.includes('push') || argv.includes('ls-remote'))) return { code: 0, stdout: '', stderr: '' };
   if (argv[0] === 'gh' && argv[1] === 'pr' && argv[2] === 'create') return { code: 0, stdout: 'https://github.com/acme/alpha/pull/1\n', stderr: '' };
   if (argv[0] === 'git') { try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } }
@@ -79,6 +80,8 @@ ctx.runAsync = async (argv, o) => {
 const first = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
 apply(first, ctx);
 appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
+// A rule file of the user's own: the Rules view lists it as yours, Doctor says nothing about it.
+writeFileSync(join(home, '.claude/rules/20-team.md'), '# Team notes\n\nKeep answers short.\n');
 const dir = join(parent, DEMO ? 'shop' : 'bk-ui-proj');
 execFileSync('git', ['init', '-q', '-b', 'main', dir]);
 writeFileSync(join(dir, 'README.md'), '# Demo\n');

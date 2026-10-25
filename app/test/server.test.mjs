@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
 import { CSP as BOARD_CSP } from '../src/board.mjs';
+import { writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
+import { status as projectStatus } from '../src/projects.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -86,6 +88,21 @@ test('a session scan is reused for a minute: the board renders from it and is sa
   if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.deepEqual(routes['POST /api/sessions-scan']({}), { fresh: true });
   assert.ok(routes['POST /api/sessions-scan']({ force: true }).job);
+});
+
+test('the sessions cache: retention and Clear through the API drop the reused scan; both refused during a scan', async () => {
+  const { ctx, routes } = fixture();
+  writeSessions(ctx.home);
+  await finished(routes, routes['POST /api/sessions-scan']({}).job);
+  assert.equal(routes['GET /api/sessions-cache']().sessions, 3);
+  assert.deepEqual(routes['POST /api/sessions-cache']({ keepDays: 30 }), { keepDays: 30, sessions: 3 });
+  // The reused scan went with it: the next one reads again.
+  const again = routes['POST /api/sessions-scan']({});
+  assert.ok(again.job);
+  assert.throws(() => routes['POST /api/sessions-cache']({ clear: true }), /scan is running/);
+  await finished(routes, again.job);
+  assert.throws(() => routes['POST /api/sessions-cache']({ keepDays: 0 }), /whole number/);
+  assert.throws(() => routes['POST /api/sessions-cache']({}), /clear: true or keepDays/);
 });
 
 test('rejected: other Host, foreign or null Origin, cross-site fetches', async () => {
@@ -391,6 +408,51 @@ test('project-plan: disable and enable only name skills the project has', () => 
   assert.equal(status(() => routes['GET /api/project-plan'](q([['enable', '../../etc']]))), 400);
   const off = routes['GET /api/project-plan'](q([['disable', skill]]));
   assert.ok(off.chosen.find((s) => s.name === skill).disabled);
+});
+
+test('dashboard: the numbers equal the inventory and the project status; one read per load; coverage and catalog by pack', () => {
+  // git runs for real (a tracked state file is told by git ls-files).
+  const git = (argv, o) => { if (argv[0] !== 'git') return null; try { return { code: 0, stdout: execFileSync('git', argv.slice(1), { cwd: o?.cwd, encoding: 'utf8', stdio: 'pipe' }), stderr: '' }; } catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' }; } };
+  const { ctx, routes } = fixture(git);
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write'), ctx);
+  appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'a local line\n');
+  const dir = mkdtempSync(join(TMP, 'bk-dash-'));
+  const pctx = { ...ctx, roots: [dir] };
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude', 'codex'], packs: ['frontend'] } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+  routes['POST /api/projects']({ action: 'add', path: dir });
+  // An edited skill file is modified; a skill folder nobody installed is untracked.
+  appendFileSync(join(dir, '.claude/skills/designing-technical-uis/SKILL.md'), 'local\n');
+  mkdirSync(join(dir, '.claude/skills/mine'), { recursive: true });
+  writeFileSync(join(dir, '.claude/skills/mine/SKILL.md'), '---\nname: mine\n---\n');
+  // A registered project whose folder is gone does not take the others down.
+  const gone = mkdtempSync(join(TMP, 'bk-gone-'));
+  routes['POST /api/projects']({ action: 'add', path: gone });
+  rmSync(gone, { recursive: true });
+  const d = routes['GET /api/dashboard']();
+  assert.equal(routes['GET /api/dashboard'](), d);
+  assert.equal(d.projects.find((x) => x.path === gone).states, null);
+  // A setup the repository still tracks cannot be planned: the project keeps what its state file says and shows the reason.
+  const tracked = mkdtempSync(join(TMP, 'bk-tracked-'));
+  const tctx = { ...ctx, roots: [tracked] };
+  execFileSync('git', ['init', '-q', '-b', 'main', tracked]);
+  apply(preview(projectPlan({ ctx: tctx, dir: tracked, answers: { agents: ['claude'], packs: ['frontend'] } }).changes).filter((c) => c.kind !== 'command'), tctx, { scope: tracked });
+  execFileSync('git', ['-C', tracked, 'add', '-f', '.benchkeeper/state.json']);
+  routes['POST /api/projects']({ action: 'add', path: tracked });
+  const t = routes['GET /api/dashboard']().projects.find((x) => x.path === tracked);
+  assert.deepEqual([t.setup, t.packs, t.states, /committed/.test(t.error)], [true, ['frontend'], null, true]);
+  const items = routes['GET /api/inventory']();
+  assert.deepEqual(Object.fromEntries(Object.entries(d.global.states).filter(([k]) => k !== 'untracked' && d.global.states[k])), Object.fromEntries(['current', 'absent', 'outdated', 'missing', 'modified', 'removed', 'foreign', 'error'].map((k) => [k, items.filter((i) => i.state === k).length]).filter(([, n]) => n)));
+  assert.equal(Object.values(d.global.states).reduce((n, x) => n + x, 0), items.length);
+  const p = d.projects.find((x) => x.path === dir);
+  const st = projectStatus(ctx, dir);
+  assert.deepEqual([p.path, p.packs, p.skills, p.agents], [dir, st.packs, st.skills, st.agents]);
+  assert.deepEqual([p.states.modified >= 1, p.states.current > 0, p.untracked], [true, true, 1]);
+  assert.deepEqual(d.coverage.agents.map((a) => a.id), ['claude', 'codex']);
+  assert.deepEqual(d.coverage.packs.find((x) => x.id === 'frontend').cells, { claude: 1, codex: 1 });
+  assert.deepEqual(d.coverage.packs.find((x) => x.id === 'docs').cells, { claude: 0, codex: 0 });
+  // Packs with a skill list only, the most skills first.
+  assert.ok(d.catalog.every((x, i, all) => i === 0 || all[i - 1].skills >= x.skills));
+  assert.ok(!d.catalog.some((x) => x.id === 'matt-pocock'));
 });
 
 test('packs: save, export, import and remove; bad input is a 400', () => {

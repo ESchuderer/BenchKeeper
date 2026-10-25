@@ -22,15 +22,18 @@ import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
 import { blob } from './git.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
-import { exportPack, importPack, libraryWith, removePack, savePack, warnings } from './packs.mjs';
+import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
-import { scanSessions } from './sessions.mjs';
+import { dashboard } from './dashboard.mjs';
+import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
+import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
 import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, suggest } from './steps/project.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
@@ -169,6 +172,7 @@ export function api(ctx) {
   };
   const agentsNow = () => cached('agents', () => detect(ctx));
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
+  const inventoryNow = () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) }));
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
     'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
@@ -318,17 +322,30 @@ export function api(ctx) {
       const dir = resolve(q.get('dir') ?? '');
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
+      // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
+      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), partial: q.has('focus') };
       // Skill toggles name skills of this project only.
-      const own = input(() => chosenSkills(resolveAnswers(dir, setup), libraryWith(ctx)).map((s) => s.name));
+      const own = input(() => chosenSkills(resolveAnswers(dir, { ...setup, ...switches }), libraryWith(ctx)).map((s) => s.name));
       const disable = q.getAll('disable'), enable = q.getAll('enable');
-      const unknown = [...disable, ...enable].filter((n) => !own.includes(n));
+      const unknown = [...disable, ...enable, ...switches.reset].filter((n) => !own.includes(n));
       if (unknown.length) throw bad(`not a skill of this project: ${unknown.join(', ')}`);
-      const p = input(() => projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: { ...setup, disable, enable } }));
+      const notInLibrary = switches.pick.filter((n) => !libraryWith(ctx).skills.some((x) => x.name === n));
+      if (notInLibrary.length) throw bad(`not in the library: ${notInLibrary.join(', ')}`);
+      const p = input(() => projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: { ...setup, ...switches, disable, enable } }));
       // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
-      const changes = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
+      // focus: one skill's action shows only that skill's changes and the records of them.
+      const focus = q.getAll('focus');
+      const all = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
+      const changes = focus.length ? focusOn(all, focus) : all;
       return { planId: keep(changes, projectCtx(ctx, dir), dir), changes: serialize(changes, projectCtx(ctx, dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
-        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })) };
+        chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })),
+        packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, own: !!x.own, skills: x.skills?.length ?? null, enabled: p.answers.packs.includes(x.id) })) };
     },
+    // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
+    'GET /api/skills': () => ({
+      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path)).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path) })).filter((p) => p.skills),
+      global: globalUntracked(ctx, installed()),
+    }),
     // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the
     // packs its files point to.
     'GET /api/project-setup': (q) => {
@@ -385,11 +402,24 @@ export function api(ctx) {
         job.results = { sessions: rows.length };
       }, { kind: 'scan', title: 'sessions', readOnly: true });
     },
+    // The sessions cache keeps a summary after the agent deletes its transcript: how long, and a way to clear it. Refused
+    // during a scan, which would write the old cache back.
+    'GET /api/sessions-cache': () => sessionCache(ctx),
+    'POST /api/sessions-cache': (b) => {
+      if ([...jobs.values()].some((j) => j.kind === 'scan' && !j.done)) throw Object.assign(new Error('a scan is running: wait for it to finish'), { status: 409 });
+      if (b.clear === true) clearSessionCache(ctx);
+      else if ('keepDays' in b) input(() => keepSessionsFor(ctx, b.keepDays));
+      else throw bad('send clear: true or keepDays');
+      scans.delete(ctx);
+      return sessionCache(ctx);
+    },
     'POST /api/update-all': (b) => {
       idle();
       const paths = (b.paths ?? []).filter(registered);
       const answers = Object.fromEntries(Object.entries(b.answers ?? {}).filter(([p]) => paths.includes(p)).map(([p, a]) => [p, setupAnswers(a)]));
-      return updateAll(ctx, { paths, push: b.push !== false, answers });
+      // dryRun: what each project would get (setup version, changes, whether it is clean), nothing changed.
+      if (b.dryRun === true) return paths.map((p) => { const s = status(ctx, p); return { ...s, changes: s.changes && serialize(s.changes, projectCtx(ctx, p)) }; });
+      return input(() => updateAll(ctx, { paths, push: b.push !== false, answers, max: Number.isInteger(b.max) && b.max > 0 ? b.max : undefined }));
     },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
     // One run with the diff of each file it wrote: its backup (or nothing) against the file as the change left it,
@@ -413,12 +443,12 @@ export function api(ctx) {
     'POST /api/undo': (b) => {
       idle();
       const scope = ctx.ledger.get(b.run).scope;
-      return undo(b.run, scope === 'global' ? ctx : projectCtx(ctx, scope), { step: b.step || undefined });
+      return undo(b.run, input(() => scopeCtx(ctx, scope)), { step: b.step || undefined });
     },
     'GET /api/catalog': () => {
-      const lib = libraryWith(ctx);
+      const lib = libraryWith(ctx), users = usersByPack(ctx);
       const projects = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
-      return { ...lib, skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
+      return { ...lib, packs: lib.packs.map((x) => ({ ...x, usedBy: users.get(x.id) ?? [] })), invalidPacks: invalidPacks(ctx), skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
     },
     'GET /api/skill': (q) => {
       const name = q.get('name');
@@ -448,7 +478,7 @@ export function api(ctx) {
     'POST /api/packs': (b) => input(() => {
       if (b.action === 'save') return savePack(ctx, { id: b.id, title: b.title || b.id, skills: b.skills });
       if (b.action === 'import') return importPack(ctx, b.text ?? '', b.id || undefined);
-      if (b.action === 'remove') return removePack(ctx, b.id), { removed: b.id };
+      if (b.action === 'remove') return removePack(ctx, b.id, { usedBy: projectsUsing(ctx, b.id) }), { removed: b.id };
       throw bad('action must be save, import or remove');
     }),
     'GET /api/profile-export': (q) => ({ text: exportProfile(ctx, { agents: q.get('agents') ? q.get('agents').split(',') : installed(), packs: installedPacks(ctx) }) }),
@@ -488,7 +518,32 @@ export function api(ctx) {
       const changes = preview(input(() => settingsChanges(sctx, agentId, { layer, dir, edits })));
       return { planId: keep(changes, sctx, dir ?? 'global'), changes: serialize(changes, sctx) };
     },
-    'GET /api/inventory': () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) })),
+    // The instruction files of the global folders, or of a registered project, with owner, load state and the context they cost.
+    'GET /api/rules': (q) => {
+      const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const agents = installed().filter((a) => RULE_AGENTS.includes(a));
+      return rulesView(ctx, { agents: agents.length ? agents : RULE_AGENTS, dir });
+    },
+    // The text of one listed file: any other path is refused. For the page on this machine only.
+    'GET /api/rule-text': (q) => {
+      const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      return input(() => ruleText(ctx, { agent: q.get('agent') || undefined, file: q.get('file'), dir }));
+    },
+    // A plan that turns one listed file on or off; applied through /api/apply, undone in History.
+    'POST /api/rules-plan': (b) => {
+      if (!RULE_AGENTS.includes(b.agent)) throw bad(`agent must be one of ${RULE_AGENTS.join(', ')}`);
+      if (typeof b.on !== 'boolean') throw bad('on must be true or false');
+      const dir = b.dir ? resolve(String(b.dir)) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const rctx = dir ? projectCtx(ctx, dir) : ctx;
+      const changes = preview(input(() => ruleChanges(ctx, { agent: b.agent, file: b.file, dir, on: b.on })));
+      return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
+    },
+    'GET /api/inventory': inventoryNow,
+    // The Dashboard: installed, health, coverage and catalog by pack, from one read of the inventory and the projects.
+    'GET /api/dashboard': () => cached('dashboard', () => dashboard(ctx, installed(), inventoryNow())),
   };
   // Registry, pack and profile writes wait for a running apply too: they change what a plan reads or an apply writes.
   const guarded = { 'POST /api/projects': () => true, 'POST /api/packs': () => true, 'POST /api/profile-import': (b) => b.register };

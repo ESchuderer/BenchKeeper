@@ -6,7 +6,8 @@ import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
-import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, safeBranch } from './git.mjs';
+import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
+import { unfit } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, committedSetup, localSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
 import { newer } from './update.mjs';
@@ -41,6 +42,14 @@ export function packsInUse(ctx) {
   const states = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
   return states.length ? [...new Set(states.flatMap((s) => s.packs ?? []))] : null;
 }
+// The registered projects whose setup names the pack.
+export const projectsUsing = (ctx, id) => usersByPack(ctx).get(id) ?? [];
+// Pack id to the registered projects whose setup names it, read once for all packs.
+export function usersByPack(ctx) {
+  const users = new Map();
+  for (const p of listProjects(ctx)) for (const id of projectState(ctx, p.path)?.packs ?? []) users.set(id, [...(users.get(id) ?? []), p.path]);
+  return users;
+}
 function save(ctx, projects) {
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);
 }
@@ -57,6 +66,19 @@ function keepState(ctx, dir, state) {
 }
 // A state file as answers for a local setup.
 const localAnswers = (s) => ({ ...s, skills: s.singles, share: false });
+// The whole plan of a registered project that has a setup (the checkout's state file, or the one kept after a removal
+// pull request), unfiltered, for the Dashboard's item states; null without a setup.
+export function projectItemPlan(ctx, path) {
+  const own = tryState(path), local = own ?? kept(ctx, path);
+  // What the Projects view calls a change: selected ones, and commands that run in the project. A skill edited here is held back
+  // from the plan, but it is a modified item all the same.
+  return local ? projectPlan({ ctx: projectCtx(ctx, path), dir: path, answers: own ? {} : localAnswers(local) }).changes.filter((c) => (c.selected !== false || c.held) && (c.kind !== 'command' || c.cwd)) : null;
+}
+// Per chosen agent, the skills in the project folder it reads.
+export function skillCounts(path, agents) {
+  const files = skillFiles(path);
+  return Object.fromEntries(agents.map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
+}
 // One repository position: the git common directory (shared by all worktrees) and the folder's place below the worktree
 // root, so two worktrees of one repository match and two folders of a monorepo do not. null outside a repository.
 function repoKey(ctx, path) {
@@ -70,6 +92,8 @@ export function checkAdd(ctx, path) {
   const p = canon(path);
   if (!existsSync(p)) throw new Error(`${p} does not exist`);
   if (!statSync(p).isDirectory()) throw new Error(`${p} is not a folder`);
+  const why = unfit(ctx, p);
+  if (why) throw new Error(`${p} is ${why}: register the project's own folder`);
   const all = listProjects(ctx), same = all.some((x) => x.path === p);
   const list = all.filter((x) => x.path !== p);
   const key = repoKey(ctx, p);
@@ -148,6 +172,9 @@ export function scan(root, depth = 3) {
 // The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
 const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
 
+// Commands run synchronously, so each has a time limit: a push that waits for a passphrase or a commit that waits for a
+// signing prompt would freeze a server for good (Stop cannot reach it). Local steps and network steps get their own limit.
+const LOCAL = 300e3, NET = 120e3;
 // Git talks to origin without waiting on a password or passphrase prompt (terminal or askpass helper).
 function quiet(ctx, path) {
   const env = { ...repoEnv(), GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '' };
@@ -155,11 +182,12 @@ function quiet(ctx, path) {
   return env;
 }
 // Fetches origin's default branch; true when it worked. One fetch per project and minute: the CLI's status and Update all
-// share it; the server fills it first with prefetchOrigins, so its requests do not wait on the network.
+// share it; the server fills it first with prefetchOrigins, so its requests do not wait on the network. fresh skips the
+// cache: a run that pushes must see the current origin (it may be unreachable or another repository by now).
 const fetched = new Map();
-function fetchBase(ctx, path, base) {
+function fetchBase(ctx, path, base, fresh = false) {
   const key = `${path}\0${base}`;
-  if (Date.now() - (fetched.get(key) ?? 0) < 60e3) return true;
+  if (!fresh && Date.now() - (fetched.get(key) ?? 0) < 60e3) return true;
   const ok = git(ctx, path, ['fetch', '-q', 'origin', base], { env: quiet(ctx, path), timeout: 20e3 }).code === 0;
   if (ok) fetched.set(key, Date.now());
   return ok;
@@ -246,16 +274,31 @@ export function status(ctx, path) {
     try { changes = projectChanges(ctx, path, own ? undefined : localAnswers(local)).filter((c) => c.selected); } catch (e) { error = e.message; }
   }
   // Per chosen agent, the skills in the project folder it reads.
-  const files = skillFiles(path);
-  const skills = Object.fromEntries((state?.agents ?? []).map((a) => [a, files.filter((f) => f.file.startsWith(join(path, agent(a).project.skills, '/'))).length]));
+  const skills = skillCounts(path, state?.agents ?? []);
   return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
     share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
 }
 
+// One run pushes to at most this many repositories (max raises it): a registry that grew by an import or a scan does not
+// publish to every repository at once.
+export const MAX_PROJECTS = 25;
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
 // answers[path] sets up a project without a state file the same way. A local setup (the default) is applied in the
 // checkout; a shared one lands on branch chore/agent-setup-<version> with one commit and a pull request.
-export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), push = true, answers = {} } = {}) {
+// The setup that counts for a project says whether it is shared: the checkout's, the one kept from a removal pull request,
+// or origin's.
+const setupFor = (ctx, path, local = readState(path)) => local ?? kept(ctx, path) ?? (isRepo(ctx, path) ? setupOf(ctx, path, local).state : null);
+// The paths a pushed run would push: a GitHub origin and a pull request (a shared setup, or a committed one that goes local).
+// A local setup is applied in the checkout and pushes nothing.
+export const pushTargets = (ctx, paths, answers = {}) => paths.filter((p) => {
+  try {
+    if (!githubRemote(ctx, p)) return false;
+    return (answers[p]?.share ?? setupFor(ctx, p)?.share ?? false) || (!answers[p] && tracksState(ctx, p));
+  } catch { return false; }
+});
+export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), push = true, answers = {}, max = MAX_PROJECTS } = {}) {
+  const targets = push ? pushTargets(ctx, paths, answers).length : 0;
+  if (targets > max) throw new Error(`${targets} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)`);
   return paths.map((path) => {
     const result = { path };
     try {
@@ -263,7 +306,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
       const local = readState(path), repo = isRepo(ctx, path);
       // The setup that counts says whether it is shared: the checkout's, the one kept from a removal pull request, or
       // origin's.
-      const setup = local ?? kept(ctx, path) ?? (repo ? setupOf(ctx, path, local).state : null);
+      const setup = setupFor(ctx, path, local);
       if (!answers[path] && !setup) throw new Error(`no ${STATE}: set the project up first`);
       if (!(answers[path]?.share ?? setup?.share ?? false)) {
         // Still committed: a local apply would change tracked files, and pulling the removal later would fail on them.
@@ -365,15 +408,19 @@ export function removeSetup(ctx, path, { push = true } = {}) {
 function viaPullRequest(ctx, path, result, { branch, push = true, check = () => {}, work, title, body }) {
   result.branch = branch;
   if (!isRepo(ctx, path)) throw new Error('not a git repository');
+  // The pull request is built from the repository root: a project in a subfolder would get the root's files.
+  if (canon(repoRoot(ctx, path)) !== canon(path)) throw new Error('the project is a subfolder of a repository: Update all by pull request needs the repository root');
   if (!clean(ctx, path)) throw new Error('working tree has changes');
   const base = defaultBranch(ctx, path);
   if (!base) throw new Error('no default branch (origin/HEAD, main or master)');
-  // The branch starts at the remote's default branch when it can be fetched, else at the local one.
-  const start = fetchBase(ctx, path, base) ? `origin/${base}` : base;
+  // The branch starts at the remote's default branch when it can be fetched. The local one may hold commits that were
+  // never pushed: it starts a branch only when nothing is pushed.
+  const fetchedOk = fetchBase(ctx, path, base, push);
+  if (!fetchedOk && push && githubRemote(ctx, path)) throw new Error(`could not fetch origin/${base}: the local ${base} may hold unpushed commits (try again, or --no-push)`);
+  const start = fetchedOk ? `origin/${base}` : base;
   check(start);
   // Per project path, so two projects with one folder name never share (and delete) a worktree.
   const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${branch.split('/').pop()}`);
-  git(ctx, path, ['worktree', 'prune']);
   // A relative core.hooksPath resolves in the worktree, which holds the fetched tree: the checkout's hooks run instead.
   const hooksPath = git(ctx, path, ['config', '--get', 'core.hooksPath']).stdout.trim();
   const hooks = hooksPath && !isAbsolute(hooksPath) && !hooksPath.startsWith('~') ? ['-c', `core.hooksPath=${resolve(path, hooksPath)}`] : [];
@@ -388,7 +435,10 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
     const other = git(ctx, path, ['log', '--format=%H %s', `${start}..${previous}`]).stdout.split('\n').filter(Boolean).filter((l) => !made.has(l.split(' ')[0]));
     if (other.length) throw new Error(`local branch ${branch} has other commits (${other[0].slice(41)}): merge or rename it first`);
   }
-  const wt = git(ctx, path, [...hooks, ...(open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start])]);
+  // Only this worktree's own stale record (its folder is gone) is removed: `git worktree prune` would drop the records of
+  // the user's other worktrees whose folder is missing, an unmounted drive.
+  if (git(ctx, path, ['worktree', 'list', '--porcelain']).stdout.split('\n').some((l) => l.startsWith('worktree ') && canon(l.slice(9)) === canon(tree))) git(ctx, path, ['worktree', 'remove', '--force', tree]);
+  const wt = git(ctx, path, [...hooks, ...(open ? ['worktree', 'add', '-q', tree, branch] : ['worktree', 'add', '-q', '-B', branch, tree, start])], { timeout: LOCAL });
   if (wt.code !== 0) throw new Error(`git worktree add: ${wt.stderr.trim()}`);
   let keep = false, planned = false;
   try {
@@ -401,7 +451,7 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
     // request may have failed).
     if (clean(ctx, tree) && !(open && push && githubRemote(ctx, path))) { result.status = 'current'; keep = false; return result; }
     if (!clean(ctx, tree)) {
-      const commit = git(ctx, tree, [...hooks, 'commit', '-q', '-m', title, '-m', body.replace(/`/g, '')]);
+      const commit = git(ctx, tree, [...hooks, 'commit', '-q', '-m', title, '-m', body.replace(/`/g, '')], { timeout: LOCAL });
       if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
       ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim() } });
     }
@@ -410,12 +460,12 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
     result.status = 'committed';
     if (push && githubRemote(ctx, path)) {
       const head = git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim();
-      const remote = git(ctx, path, ['ls-remote', 'origin', `refs/heads/${branch}`]).stdout.split(/\s/)[0];
+      const remote = git(ctx, path, ['ls-remote', 'origin', `refs/heads/${branch}`], { env: quiet(ctx, path), timeout: NET }).stdout.split(/\s/)[0];
       if (remote !== head) {
-        const p = git(ctx, tree, [...hooks, 'push', '-q', '-u', 'origin', branch]);
+        const p = git(ctx, tree, [...hooks, 'push', '-q', '-u', 'origin', branch], { env: quiet(ctx, path), timeout: NET });
         if (p.code !== 0) throw new Error(`git push (origin may have ${branch} with other commits: merge or close its pull request first): ${p.stderr.trim()}`);
       }
-      const pr = ctx.run(['gh', 'pr', 'create', '--base', base, '--head', branch, '--title', title, '--body', body], { cwd: tree });
+      const pr = ctx.run(['gh', 'pr', 'create', '--base', base, '--head', branch, '--title', title, '--body', body], { cwd: tree, timeout: NET });
       const url = `${pr.stdout}\n${pr.stderr}`.match(/https:\/\/github\.com\/\S+\/pull\/\d+/)?.[0];
       if (pr.code !== 0 && !(url && /already exists/.test(pr.stderr))) throw new Error(`gh pr create: ${pr.stderr.trim()}`);
       result.pr = url;

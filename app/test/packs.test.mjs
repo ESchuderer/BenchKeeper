@@ -83,8 +83,11 @@ test('a project turns a skill off and on, uses an own pack, and drops a pack it 
   r = run({ enable: ['designing-technical-uis'] });
   assert.deepEqual([existsSync(skill), existsSync(parked)], [true, false]);
   assert.deepEqual(readState(dir).disabled, []);
-  // The own copy is refreshed after it moves back.
+  // The edited copy is kept until the skill is reset to the library's.
   r = run({});
+  assert.ok(!r.run.entries.some((e) => e.path === skill));
+  assert.equal(readFileSync(skill, 'utf8'), 'kept local edit\n');
+  r = run({ reset: ['designing-technical-uis'] });
   assert.ok(r.run.entries.some((e) => e.path === skill));
   const last = run({ packs: [] });
   assert.deepEqual(last.skills.removed, ['designing-technical-uis']);

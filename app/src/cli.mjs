@@ -14,17 +14,19 @@ import { doctor } from './doctor.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
-import { writeAtomic } from './fsx.mjs';
+import { listFiles, writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
-import { addProject, canon, listProjects, packsInUse, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
+import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
+import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
+import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
-import { LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
-import { projectCtx, projectPlan } from './steps/project.mjs';
+import { PLUGINS, LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
+import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
+import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -53,6 +55,13 @@ Usage: benchkeeper <command> [options]
                                     that cancel each other; a change is a plan with a diff, undo restores it;
                                     environment switches are set (value "set") or removed, never 0 or false;
                                     managed settings are never written
+  rules list [--agent claude|codex] [--project dir]
+  rules disable|enable <file> [--agent a] [--project dir] [--yes]
+                                    the instruction files each agent loads: owner, size, whether they load, and the
+                                    context they cost with skill descriptions, imports and auto memory; disable leaves
+                                    one file out (Claude Code: claudeMdExcludes in the user settings, or in the
+                                    project's local settings with --project; a global Codex file moves to a folder of
+                                    the app's own); nothing is deleted, the plan has a diff and undo restores it
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--transcript file] [--description text] [--query text]
                                     records an observed miss as an eval case (~/.config/benchkeeper/evals/)
@@ -72,7 +81,18 @@ Usage: benchkeeper <command> [options]
                                     --disable moves a skill to .benchkeeper/disabled/, --enable moves it back;
                                     --caller writes that repo-baseline workflow file (never GitHub settings)
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
-                                    library packs and own packs (~/.config/benchkeeper/packs/)
+                                    library packs and own packs (own ones in packs/ of the config folder); remove
+                                    refuses a pack a registered project still names
+  packs enable|disable <id>.. [--project dir | --global] [--yes]
+                                    switches packs on top of the current state, as a plan with a diff (undo restores it):
+                                    a project's packs (default: the current folder), or the plugins of a pack that
+                                    installs one (--global). Disabling removes the skills no other pack or single pick needs
+  skills [list|update|reset|remove|adopt] [name..] [--project dir] [--yes]
+                                    skills of a project: state (current, outdated, modified, removed, disabled), the commit
+                                    installed and the one the library offers, and folders no setup installed (untracked,
+                                    never touched). update: to the library's copy (no name: every outdated one); reset: a
+                                    skill edited here goes back to the library's (the edit is backed up, the diff shown);
+                                    remove: a single pick leaves the project; adopt: an untracked library skill becomes a pick
   projects [list|add <dir>..|scan <root>|remove <dir>..]
                                     projects Update all covers (projects.json in the config folder); add refuses another worktree
                                     of a registered repository unless --worktree; remove only unregisters
@@ -86,10 +106,11 @@ Usage: benchkeeper <command> [options]
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
-  update-all [--yes] [--no-push] [--baseline auto|oss|private-advisory]
+  update-all [--yes] [--no-push] [--dry-run] [--max N] [--baseline auto|oss|private-advisory]
                                     per project: local setup (the default) applied in the checkout; shared setup
                                     (project apply --share) on branch chore/agent-setup-<version> in a worktree,
                                     one commit, push and pull request when origin is on GitHub;
+                                    --dry-run stops after the plan; pushes go to at most 25 repositories per run (--max N);
                                     --baseline also reports each project's GitHub settings drift, changing none
   board [--no-open]                 sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
@@ -107,12 +128,12 @@ const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
-  'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
+  'no-push': { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
   json: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
-  setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' },
+  setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -131,7 +152,13 @@ function asker(input, out) {
 }
 
 async function choose(plan, o, ask, out) {
-  if (o.yes || o.all) return plan.filter((c) => !c.error && (o.all || c.selected)).map((c) => c.id);
+  if (o.yes) return plan.filter((c) => !c.error && (o.all || c.selected)).map((c) => c.id);
+  // --all alone is not a go-ahead: removals are on the list, so the question names them first.
+  if (o.all) {
+    const all = plan.filter((c) => !c.error), removals = all.filter((c) => c.destructive);
+    removals.forEach((c) => show(c, out));
+    return (await ask(`Apply ${all.length} changes${removals.length ? `, ${removals.length} of them removals (listed above)` : ''}?`)) ? all.map((c) => c.id) : [];
+  }
   const select = [], units = new Map();
   for (const c of plan) {
     show(c, out);
@@ -239,13 +266,18 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const p of prompts) out.write(`  benchkeeper record --project ${dir} -- ${p.agent} '${p.prompt}'   (${p.why})\n`);
     return 0;
   }
+  if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
+  if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
     else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
     else if (arg === 'import') out.write(`imported ${importPack(ctx, readFileSync(positionals[2], 'utf8'), o.id).id}\n`);
-    else if (arg === 'remove') { removePack(ctx, positionals[2]); out.write(`removed ${positionals[2]}\n`); }
+    else if (arg === 'remove') { removePack(ctx, positionals[2], { usedBy: projectsUsing(ctx, positionals[2]) }); out.write(`removed ${positionals[2]}\n`); }
     else if (arg && arg !== 'list') { out.write(`unknown packs command ${arg}\n`); return 2; }
-    else for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
+    else {
+      for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
+      for (const x of invalidPacks(ctx)) out.write(`${x.file.padEnd(16)} invalid: ${x.reason} (benchkeeper packs remove ${x.file})\n`);
+    }
     return 0;
   }
   if (cmd === 'projects') {
@@ -264,11 +296,14 @@ async function command(argv, { out, err, ask, ctx }) {
     else if (arg === 'remove' && o.setup) return removeSetups(ctx, dirs, { o, out, ask });
     else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.write(`removed ${resolve(d)}\n`); });
     else if (arg === 'unshare') {
+      const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
+      if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
       const due = (dirs.length ? dirs.map((d) => resolve(d)) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
       if (!due.length) { out.write('no project carries a committed setup\n'); return 0; }
       for (const p of due) out.write(`${p.path}  setup ${p.origin ?? '-'} on origin${p.clean ? '' : ', working tree has changes: skipped'}\n`);
       const ready = due.filter((p) => p.clean);
       if (!ready.length) return 1;
+      if (!o['no-push'] && ready.length > max) { out.write(`${ready.length} pull requests: at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
       if (!o.yes && !(await ask(`Open ${ready.length} pull requests (branch chore/agent-setup-local)${o['no-push'] ? ' without pushing' : ''}?`))) return 1;
       const results = ready.map((p) => unshare(ctx, p.path, { push: !o['no-push'] }));
       for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
@@ -280,6 +315,8 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'update-all') {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
+    const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
+    if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
     const projects = listProjects(ctx).map((p) => status(ctx, p.path));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
     for (const p of projects) {
@@ -298,10 +335,14 @@ async function command(argv, { out, err, ask, ctx }) {
     // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
     const ready = projects.filter((p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
+    if (o['dry-run']) { out.write(`dry run: ${ready.length} projects would be updated, nothing changed\n`); return 0; }
+    const pushing = o['no-push'] ? 0 : pushTargets(ctx, ready.map((p) => p.path)).length;
+    if (pushing > max) { out.write(`${pushing} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
     const shared = ready.filter((p) => p.share).length;
     const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
-    const results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'] });
+    let results;
+    try { results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'], max }); } catch (e) { out.write(`${e.message}\n`); return 1; }
     for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
@@ -334,6 +375,7 @@ async function command(argv, { out, err, ask, ctx }) {
     // Own packs first: the project plans can name them.
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
+    for (const r of done.refused) out.write(`refused: ${r}\n`);
     const plan = importPlan(ctx, p);
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     let code = 0;
@@ -355,6 +397,7 @@ async function command(argv, { out, err, ask, ctx }) {
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
     // A session run gives the project and transcript.
@@ -393,19 +436,83 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'undo' || cmd === 'restore') {
     if (!arg) { out.write(`${cmd} needs a name, see benchkeeper history\n`); return 2; }
-    const scope = cmd === 'undo' ? ctx.ledger.get(arg).scope : 'global';
-    const uctx = scope === 'global' ? ctx : projectCtx(ctx, scope);
-    return report(cmd === 'undo' ? undo(arg, uctx, { step: o.step }) : restoreLegacy(arg, ctx), out);
+    if (cmd === 'restore') {
+      // Files written into the home folder from a backup: listed, and asked once unless --yes.
+      if (!legacyBackups(ctx).includes(arg)) { out.write(`no setup.sh backup ${arg}, see benchkeeper history\n`); return 1; }
+      const files = listFiles(join(ctx.ledger.backups, arg));
+      files.forEach((f) => out.write(`restore ${f}\n`));
+      if (!o.yes && !(await ask(`Restore ${files.length} files into ${ctx.home}?`))) return 1;
+      return report(restoreLegacy(arg, ctx), out);
+    }
+    let uctx;
+    try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    return report(undo(arg, uctx, { step: o.step }), out);
   }
   out.write(`unknown command ${cmd}\n\n${HELP}\n`);
   return 2;
 }
 
-function planProject(ctx, o, dir) {
+// extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
+function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller, ...extra };
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
-  return { pctx, plan: preview(changes), prompts, skills, warnings };
+  return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
+}
+
+// The plan of one folder, shown and applied the way project apply does; the plugin installs of a pack stay with the global plan.
+async function runProjectPlan(ctx, dir, { o, out, ask }, planned) {
+  const { pctx, plan, skills, warnings } = planned;
+  if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
+  for (const w of warnings) out.write(`warning: ${w}\n`);
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  return report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out);
+}
+
+// packs enable|disable: a plan on top of the current state; nothing new is stored. --global: the plugin of a pack that has one.
+async function switchPacks(ctx, { o, positionals, out, ask }) {
+  const on = positionals[1] === 'enable', ids = positionals.slice(2);
+  if (!ids.length) { out.write(`packs ${positionals[1]} needs a pack id, see benchkeeper packs list\n`); return 2; }
+  if (o.global && o.project) { out.write('--project and --global exclude each other\n'); return 2; }
+  const known = libraryWith(ctx).packs;
+  const unknown = ids.filter((id) => !known.some((p) => p.id === id));
+  if (unknown.length) { out.write(`unknown pack ${unknown.join(', ')}, see benchkeeper packs list\n`); return 1; }
+  if (!o.global) {
+    const dir = resolve(o.project ?? '.');
+    if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper project apply --agents a,b --pack ${ids[0]}\n`); return 1; }
+    return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, on ? { packOn: ids } : { packOff: ids }));
+  }
+  const skillsOnly = ids.filter((id) => !known.find((p) => p.id === id).plugins);
+  if (skillsOnly.length) { out.write(`${skillsOnly.join(', ')} install library skills per project, not on the machine: use --project <dir>\n`); return 1; }
+  const agents = selectedAgents(ctx, o.agents), have = installedPacks(ctx);
+  const steps = new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => ids.includes(p.pack)).map((p) => `plugin:${a}:${p.id}`)));
+  // The other installed packs stay as they are; the pack asked for is the only one on or off.
+  const packs = on ? [...new Set([...have, ...ids])] : have.filter((p) => !ids.includes(p));
+  const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true }));
+  for (const id of on ? [] : ids) { const users = projectsUsing(ctx, id); if (users.length) out.write(`note: ${users.join(', ')} still name${users.length === 1 ? 's' : ''} ${id}\n`); }
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
+}
+
+const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt'];
+// skills list|update|reset|remove|adopt: the Catalog's skill management, through the same plan, diff and undo.
+async function skillsCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub = 'list', ...names] = positionals;
+  const dir = resolve(o.project ?? '.');
+  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { out.write(`skills needs list, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
+  const rows = projectSkills(ctx, dir);
+  if (sub === 'list') {
+    for (const s of rows?.skills ?? []) out.write(`${s.name.padEnd(30)} ${s.state.padEnd(9)} ${s.own ? 'BenchKeeper' : `${s.pinned?.slice(0, 12) ?? 'not installed'} (library ${s.newest?.slice(0, 12) ?? '-'})`}${s.packs.length ? `  pack ${s.packs.join(', ')}` : ''}${s.single ? '  single pick' : ''}\n`);
+    for (const u of rows?.untracked ?? []) out.write(`${u.name.padEnd(30)} untracked ${u.folders.join(', ')}${u.library ? `  (benchkeeper skills adopt ${u.name})` : ''}\n`);
+    for (const u of globalUntracked(ctx, selectedAgents(ctx, o.agents))) out.write(`${u.name.padEnd(30)} untracked global ${u.folders.join(', ')}\n`);
+    if (!rows) out.write(`${dir} has no setup yet\n`);
+    return 0;
+  }
+  if (!rows) { out.write(`${dir} has no setup yet: benchkeeper project apply --agents a,b\n`); return 1; }
+  let action;
+  try { action = skillAction(rows, sub, names); } catch (e) { out.write(`${e.message}\n`); return 1; }
+  if (!action.names.length) { out.write('nothing to change\n'); return 0; }
+  return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names, partial: true }));
 }
 
 // ---- --json: one document on stdout, logs on stderr. Exit 0 clean, 1 findings of level error, 2 usage or read failure.
@@ -520,4 +627,29 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const sctx = layer === 'user' ? ctx : projectCtx(ctx, dir);
   return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
+}
+
+// rules list|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
+async function rulesCommand({ o, positionals, out, ask, ctx }) {
+  const [, sub, file] = positionals;
+  if (!['list', 'disable', 'enable'].includes(sub)) { out.write('rules needs list, disable or enable\n'); return 2; }
+  if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
+  const dir = o.project ? resolve(o.project) : undefined;
+  if (sub === 'list') {
+    const found = selectedAgents(ctx, o.agents).filter((a) => RULE_AGENTS.includes(a));
+    for (const a of rulesView(ctx, { agents: o.agent ? [o.agent] : found.length ? found : RULE_AGENTS, dir }).agents) {
+      out.write(`${a.name}\n`);
+      for (const r of a.rows) out.write(`  ${r.scope.padEnd(8)} ${r.owner.padEnd(12)} ${(r.load + (r.by ? ` (${r.by})` : '')).padEnd(24)} ${String(r.tokens).padStart(6)} tokens  ${r.shown}\n`);
+      const b = a.budget;
+      out.write(`  at the start of a session: about ${b.total} tokens (bytes / 4)${b.largest ? `, largest ${b.largest.label} with ${b.largest.tokens}` : ''}${b.over ? `, over ${b.threshold}` : ''}\n`);
+      for (const n of b.notes) out.write(`  note: ${n}\n`);
+    }
+    return 0;
+  }
+  if (!file) { out.write(`rules ${sub} needs a file\n`); return 2; }
+  let plan;
+  try { plan = preview(ruleChanges(ctx, { agent: o.agent, file: resolve(file), dir, on: sub === 'enable' })); } catch (e) { out.write(`${e.message}\n`); return 1; }
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  const rctx = dir ? projectCtx(ctx, dir) : ctx;
+  return report(apply(plan, rctx, { scope: dir ?? 'global', select: await choose(plan, o, ask, out) }), out);
 }

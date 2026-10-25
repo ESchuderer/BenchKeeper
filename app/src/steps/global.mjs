@@ -59,7 +59,7 @@ export const marketRef = (p, a, appVersion) => (a === 'codex' ? pin(p, appVersio
 const sameCommit = (a, b) => a.length >= 7 && b.length >= 7 && (a.startsWith(b) || b.startsWith(a));
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
-const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
+export const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
 
@@ -183,12 +183,7 @@ export function globalPlan(env) {
     const r = agent(id).global.rules;
     add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: at(r.path), edit: (cur) => renderRules(r.format, cur, forAgent(rules, id)) });
   }
-  if (agents.includes('claude')) {
-    const dir = at('.claude/rules');
-    for (const f of exists(dir) ? readdirSync(dir) : []) if (f !== '00-global.md') add('rules:claude:other', `other Claude rules ~/.claude/rules/${f}`, { kind: 'remove', path: join(dir, f) });
-    if (exists(at('.claude/CLAUDE.md'))) add('rules:claude:other', 'other Claude rules ~/.claude/CLAUDE.md', { kind: 'remove', path: at('.claude/CLAUDE.md') });
-  }
-  if (agents.includes('codex') && exists(at('.codex/AGENTS.override.md'))) add('rules:codex:other', 'Codex rules override ~/.codex/AGENTS.override.md', { kind: 'remove', path: at('.codex/AGENTS.override.md') });
+  // Rule files that are not BenchKeeper's are the user's: the Rules view lists them and switches them, this plan leaves them be.
 
   // Offered, not preselected: an ask rule may be the user's own, and a Codex rules file holds the user's saved approvals too.
   if (agents.includes('claude')) {

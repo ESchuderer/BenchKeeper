@@ -7,6 +7,7 @@ import { library } from './content.mjs';
 import { readText, writeAtomic } from './fsx.mjs';
 
 const SCHEMA = 1;
+const MAX_DAYS = 3650;
 const cacheDir = (ctx) => join(ctx.home, '.cache/benchkeeper');
 const TIERS = ['quick', 'standard', 'full'];
 const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
@@ -41,8 +42,8 @@ async function claudeFile(file) {
     if (e.type === 'cost-state') d.cost = { usd: e.totalCostUSD, busy: (e.totalAPIDuration ?? 0) + (e.totalToolDuration ?? 0), models: e.modelUsage ?? {} };
     else if (e.type === 'ai-title') d.title = e.aiTitle;
     else if (e.type === 'agent-name') d.title ??= e.agentName;
-    else if (e.type === 'pr-link' && e.prUrl) d.prs.add(e.prUrl);
-    else if (e.type === 'attachment' && e.attachment?.type === 'skill_listing' && Array.isArray(e.attachment.names)) d.installed = e.attachment.names;
+    else if (e.type === 'pr-link' && typeof e.prUrl === 'string') d.prs.add(e.prUrl);
+    else if (e.type === 'attachment' && e.attachment?.type === 'skill_listing' && Array.isArray(e.attachment.names)) d.installed = e.attachment.names.filter((n) => typeof n === 'string');
     // A prompt typed while the agent works arrives as a queued command.
     else if (e.type === 'attachment' && e.attachment?.humanTurn === true) d.turns++;
     else if (e.type === 'assistant') {
@@ -124,11 +125,40 @@ const files = (dir, pick, depth) => {
 // Sets keep their order as lists in the cache.
 const plain = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v instanceof Set ? [...v] : v]));
 
-// Every transcript, parsed once per size and mtime (cache: ~/.cache/benchkeeper/sessions.json).
+// The cache file: parsed summaries by transcript path, and the retention (days; null keeps them for good). A summary
+// outlives its transcript, which the agent deletes after its cleanup period. Message text is never in it.
+const cachePath = (ctx) => join(cacheDir(ctx), 'sessions.json');
+const readCache = (ctx) => {
+  const old = parse(readText(cachePath(ctx)) ?? '{}');
+  return { files: old?.schema === SCHEMA && old.files && typeof old.files === 'object' ? old.files : {}, keepDays: Number.isInteger(old?.keepDays) && old.keepDays >= 1 && old.keepDays <= MAX_DAYS ? old.keepDays : null };
+};
+const writeCache = (ctx, files, keepDays) => {
+  // Titles and paths of the user's sessions: this user only.
+  writeAtomic(cachePath(ctx), JSON.stringify({ schema: SCHEMA, keepDays, files }), 0o600);
+};
+// sessions: the rows the board shows. A Codex subagent rollout counts only while its parent is cached; without it the board shows it as a session.
+export const sessionCache = (ctx) => {
+  const { files, keepDays } = readCache(ctx);
+  const all = Object.values(files);
+  const codex = new Set(all.filter((x) => x.kind === 'codex').map((x) => x.d?.id));
+  return { keepDays, sessions: all.filter((x) => x.kind !== 'sub' && x.d?.start && !(x.d?.parent && codex.has(x.d.parent))).length };
+};
+// days: a whole number from 1 to 3650, or null to keep summaries for good. The next scan drops what is older.
+export function keepSessionsFor(ctx, days) {
+  if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= MAX_DAYS)) throw new Error(`days must be a whole number from 1 to ${MAX_DAYS}, or none`);
+  writeCache(ctx, readCache(ctx).files, days);
+}
+// The summaries go, and so does the history of transcripts the agent has deleted; the next scan rebuilds the rest.
+export const clearSessionCache = (ctx) => writeCache(ctx, {}, readCache(ctx).keepDays);
+const expire = (files, keepDays, now = Date.now()) => {
+  const horizon = keepDays ? new Date(now - keepDays * 864e5).toISOString() : '';
+  return Object.fromEntries(Object.entries(files).filter(([, x]) => { const t = x.d?.end ?? x.d?.start; return !t || t >= horizon; }));
+};
+
+// Every transcript, parsed once per size and mtime (cache: sessions.json in the benchkeeper cache folder). The summary of a
+// transcript that is gone stays, until the retention drops it.
 async function parsed(ctx, onFile) {
-  const cacheFile = join(cacheDir(ctx), 'sessions.json');
-  const old = parse(readText(cacheFile) ?? '{}');
-  const cache = old?.schema === SCHEMA ? old.files : {};
+  const { files: cache } = readCache(ctx);
   const next = {};
   const claude = join(ctx.home, '.claude/projects'), codex = join(ctx.home, '.codex/sessions');
   const list = [
@@ -144,9 +174,11 @@ async function parsed(ctx, onFile) {
     // A file removed or unreadable since the walk is left out; the others still count and are cached.
     try { next[file] = { key, kind, d: plain(kind === 'codex' ? await codexFile(file) : await claudeFile(file)) }; } catch { /* skipped */ }
   }
-  // Titles and paths of the user's sessions: this user only.
-  writeAtomic(cacheFile, JSON.stringify({ schema: SCHEMA, files: next }), 0o600);
-  return next;
+  // The retention is read again here: a change made during the scan stays.
+  const { keepDays } = readCache(ctx);
+  const kept = expire(Object.fromEntries(Object.entries(cache).filter(([f]) => !(f in next))), keepDays);
+  writeCache(ctx, { ...kept, ...next }, keepDays);
+  return { ...kept, ...next };
 }
 
 // Labels of the installed skills (null when the transcript lists none): the plugins BenchKeeper sets up and the library packs whose skills are all there.

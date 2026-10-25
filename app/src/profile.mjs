@@ -1,11 +1,13 @@
 // A machine's setup as one file: agents, global packs, own packs, and the registered projects with their answers.
-// It holds choices only, no file contents, environment values or tokens.
+// It holds choices only, no file contents, environment values or tokens: rule files are listed by path and state.
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { ownPacks, savePack } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
+import { ruleStates } from './rules.mjs';
+import { unfit } from './roots.mjs';
 import { preview } from './runner.mjs';
 import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, readState, tryState } from './steps/project.mjs';
@@ -22,10 +24,10 @@ export function installedPacks(ctx) {
 export function exportProfile(ctx, { agents, packs = [] }) {
   const projects = listProjects(ctx).map(({ path }) => {
     const s = tryState(path);
-    return { path, ...(s ? { answers: Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]])) } : {}) };
+    return { path, ...(s ? { answers: Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]])) } : {}), ...(existsSync(path) ? { rules: ruleStates(ctx, { agents, dir: path }) } : {}) };
   });
   const own = ownPacks(ctx).map(({ id, title, skills }) => ({ id, title, skills }));
-  return `${JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: PROFILE_SCHEMA, appVersion, global: { agents, packs }, packs: own, projects }, null, 2)}\n`;
+  return `${JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: PROFILE_SCHEMA, appVersion, global: { agents, packs, rules: ruleStates(ctx, { agents }) }, packs: own, projects }, null, 2)}\n`;
 }
 
 export function readProfile(text) {
@@ -46,6 +48,8 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
   const projects = [], missing = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }
+    // A folder that cannot be a project (a drive root, the home folder) is not given a plan, whatever the file says.
+    if (unfit(ctx, x.path)) continue;
     const pctx = projectCtx(ctx, x.path);
     const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined } }).changes);
     projects.push({ path: x.path, ctx: pctx, changes });
@@ -56,6 +60,9 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
 // Own packs and the project registry; the plans apply through the step engine like any other run.
 export function importChoices(ctx, p) {
   const packs = (p.packs ?? []).map((x) => savePack(ctx, x).id);
-  const projects = (p.projects ?? []).filter((x) => existsSync(x.path)).map((x) => addProject(ctx, x.path, { worktree: true }));
-  return { packs, projects };
+  const projects = [], refused = [];
+  for (const x of (p.projects ?? []).filter((y) => existsSync(y.path))) {
+    try { projects.push(addProject(ctx, x.path, { worktree: true })); } catch (e) { refused.push(e.message); }
+  }
+  return { packs, projects, refused };
 }

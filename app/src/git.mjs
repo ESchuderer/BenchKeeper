@@ -6,11 +6,21 @@ import { join } from 'node:path';
 // Variables that point git at another repository (set when the app runs from a hook or `git rebase --exec`) never reach it:
 // -C names the repository. index: the caller sets GIT_INDEX_FILE itself.
 const REPO_VARS = /^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|NAMESPACE|PREFIX)$/;
-export const repoEnv = (env = process.env, index = false) => Object.fromEntries(Object.entries(env).filter(([k]) => (index && k === 'GIT_INDEX_FILE') || !REPO_VARS.test(k)));
-const git = (ctx, dir, args, { index, ...extra } = {}) => ctx.run(['git', '-C', dir, ...args], { ...extra, env: repoEnv(extra.env, index) });
+// The -c settings of an outer git command (GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT with its KEY and VALUE pairs) also go when
+// a repository variable was set: the app then runs from a hook of that command, and its settings are not this app's to inherit.
+// Container setups that export the pairs themselves keep them.
+const CONFIG_VARS = /^GIT_CONFIG_(PARAMETERS|COUNT|KEY_\d+|VALUE_\d+)$/;
+export const repoEnv = (env = process.env, index = false) => {
+  const fromHook = Object.keys(env).some((k) => REPO_VARS.test(k) && !(index && k === 'GIT_INDEX_FILE'));
+  return Object.fromEntries(Object.entries(env).filter(([k]) => ((index && k === 'GIT_INDEX_FILE') || !REPO_VARS.test(k)) && !(fromHook && CONFIG_VARS.test(k))));
+};
+// core.fsmonitor is a command the repository's own config names, and status and add would run it: off for every call.
+// Filter drivers run for paths whose attributes name them, as in the user's own git; that stays (git-lfs needs it).
+const git = (ctx, dir, args, { index, ...extra } = {}) => ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env: repoEnv(extra.env, index) });
 
-// A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax.
-export const safeBranch = (n) => (/^[\w.][\w.\/-]*$/.test(n ?? '') && !n.includes('..') ? n : null);
+// A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax, and a valid git ref
+// (non-ASCII letters, @ and + inside the name are allowed; a leading + is a force refspec, @{ and a bare @ are reflog syntax).
+export const safeBranch = (n) => (/^[\p{L}\p{N}_.][\p{L}\p{N}_.\/@+-]*$/u.test(n ?? '') && !/\.\.|@\{|\/\/|\/\.|\.lock(\/|$)|[./]$/.test(n) && n !== '@' ? n : null);
 
 export const isRepo = (ctx, dir) => git(ctx, dir, ['rev-parse', '--is-inside-work-tree']).stdout.trim() === 'true';
 

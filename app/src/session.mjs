@@ -1,13 +1,25 @@
 // Records what an interactive agent session changes in a project: a snapshot before and after, the changed files,
 // the exit code and the agent's transcript. Undo restores the files from the snapshot before (runner.undo).
-import { readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { openSync, readSync, closeSync, readdirSync, statSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 import { changedFiles, isRepo, repoRoot, snapshot } from './git.mjs';
 import { SCHEMA, runId } from './ledger.mjs';
 import { redactArgv } from './redact.mjs';
 
-// The newest agent transcript written since the session started.
-export function transcript(home, dir, since) {
+// The working folder a Codex rollout starts in (the session_meta line): rollouts of every project share one folder.
+function codexCwd(file) {
+  let fd;
+  try {
+    fd = openSync(file, 'r');
+    const buf = Buffer.alloc(65536);
+    const first = buf.toString('utf8', 0, readSync(fd, buf, 0, buf.length, 0)).split('\n')[0];
+    return JSON.parse(first)?.payload?.cwd ?? null;
+  } catch { return null; } finally { if (fd !== undefined) closeSync(fd); }
+}
+
+// The newest transcript of the recorded agent (claude or codex, by the command's name) written since the session started
+// in dir; null for any other agent.
+export function transcript(home, dir, since, agent) {
   const claude = join(home, '.claude/projects', dir.replace(/[^a-zA-Z0-9]/g, '-'));
   const found = [];
   const scan = (d, depth) => {
@@ -19,8 +31,8 @@ export function transcript(home, dir, since) {
       else if (e.name.endsWith('.jsonl')) { try { const t = statSync(p).mtimeMs; if (t >= since) found.push([t, p]); } catch { /* a dangling link */ } }
     }
   };
-  scan(claude, 0);
-  scan(join(home, '.codex/sessions'), 3);
+  if (agent === 'claude') scan(claude, 0);
+  else if (agent === 'codex') { scan(join(home, '.codex/sessions'), 3); found.splice(0, found.length, ...found.filter(([, p]) => codexCwd(p) != null && resolve(codexCwd(p)) === resolve(dir))); }
   return found.sort((a, b) => b[0] - a[0])[0]?.[1] ?? null;
 }
 
@@ -36,7 +48,7 @@ export function recordSession(ctx, dir, argv) {
   const after = snapshot(ctx, root);
   const run = {
     schema: SCHEMA, id: runId(), time: new Date(start).toISOString(), appVersion: ctx.appVersion, kind: 'session', scope: root,
-    entries: [{ id: 'session', step: 'session', title: `agent session: ${shown.join(' ')}`, kind: 'session', argv: shown, cwd: root, started: dir, exit: r.code, before, after, files: changedFiles(ctx, root, before, after), transcript: transcript(ctx.home, dir, start - 1000), status: 'done' }],
+    entries: [{ id: 'session', step: 'session', title: `agent session: ${shown.join(' ')}`, kind: 'session', argv: shown, cwd: root, started: dir, exit: r.code, before, after, files: changedFiles(ctx, root, before, after), transcript: transcript(ctx.home, dir, start - 1000, basename(argv[0]).replace(/\.(exe|cmd)$/i, '')), status: 'done' }],
   };
   run.status = 'done';
   ctx.ledger.save(run);

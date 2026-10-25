@@ -14,17 +14,17 @@ import { doctor } from './doctor.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
-import { writeAtomic } from './fsx.mjs';
+import { listFiles, writeAtomic } from './fsx.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { exportPack, importPack, libraryWith, removePack, savePack } from './packs.mjs';
-import { addProject, canon, listProjects, packsInUse, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
+import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
+import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, removeProject, scan, status, unshare, updateAll } from './projects.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
 import { LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
-import { projectCtx, projectPlan } from './steps/project.mjs';
+import { projectCtx, projectPlan, scopeCtx } from './steps/project.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -78,10 +78,11 @@ Usage: benchkeeper <command> [options]
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
-  update-all [--yes] [--no-push] [--baseline auto|oss|private-advisory]
+  update-all [--yes] [--no-push] [--dry-run] [--max N] [--baseline auto|oss|private-advisory]
                                     per project: local setup (the default) applied in the checkout; shared setup
                                     (project apply --share) on branch chore/agent-setup-<version> in a worktree,
                                     one commit, push and pull request when origin is on GitHub;
+                                    --dry-run stops after the plan; pushes go to at most 25 repositories per run (--max N);
                                     --baseline also reports each project's GitHub settings drift, changing none
   board [--no-open]                 sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
@@ -95,7 +96,7 @@ const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
-  'no-push': { type: 'boolean' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
+  'no-push': { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
@@ -118,7 +119,13 @@ function asker(input, out) {
 }
 
 async function choose(plan, o, ask, out) {
-  if (o.yes || o.all) return plan.filter((c) => !c.error && (o.all || c.selected)).map((c) => c.id);
+  if (o.yes) return plan.filter((c) => !c.error && (o.all || c.selected)).map((c) => c.id);
+  // --all alone is not a go-ahead: removals are on the list, so the question names them first.
+  if (o.all) {
+    const all = plan.filter((c) => !c.error), removals = all.filter((c) => c.destructive);
+    removals.forEach((c) => show(c, out));
+    return (await ask(`Apply ${all.length} changes${removals.length ? `, ${removals.length} of them removals (listed above)` : ''}?`)) ? all.map((c) => c.id) : [];
+  }
   const select = [], units = new Map();
   for (const c of plan) {
     show(c, out);
@@ -211,7 +218,10 @@ async function command(argv, { out, ask, ctx }) {
     else if (arg === 'import') out.write(`imported ${importPack(ctx, readFileSync(positionals[2], 'utf8'), o.id).id}\n`);
     else if (arg === 'remove') { removePack(ctx, positionals[2]); out.write(`removed ${positionals[2]}\n`); }
     else if (arg && arg !== 'list') { out.write(`unknown packs command ${arg}\n`); return 2; }
-    else for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
+    else {
+      for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
+      for (const x of invalidPacks(ctx)) out.write(`${x.file.padEnd(16)} invalid: ${x.reason} (benchkeeper packs remove ${x.file})\n`);
+    }
     return 0;
   }
   if (cmd === 'projects') {
@@ -236,6 +246,8 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'update-all') {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
+    const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
+    if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
     const projects = listProjects(ctx).map((p) => status(ctx, p.path));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
     for (const p of projects) {
@@ -254,10 +266,12 @@ async function command(argv, { out, ask, ctx }) {
     // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
     const ready = projects.filter((p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
+    if (o['dry-run']) { out.write(`dry run: ${ready.length} projects would be updated, nothing changed\n`); return 0; }
     const shared = ready.filter((p) => p.share).length;
     const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
-    const results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'] });
+    let results;
+    try { results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'], max }); } catch (e) { out.write(`${e.message}\n`); return 1; }
     for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
@@ -290,6 +304,7 @@ async function command(argv, { out, ask, ctx }) {
     // Own packs first: the project plans can name them.
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
+    for (const r of done.refused) out.write(`refused: ${r}\n`);
     const plan = importPlan(ctx, p);
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     let code = 0;
@@ -348,9 +363,17 @@ async function command(argv, { out, ask, ctx }) {
   }
   if (cmd === 'undo' || cmd === 'restore') {
     if (!arg) { out.write(`${cmd} needs a name, see benchkeeper history\n`); return 2; }
-    const scope = cmd === 'undo' ? ctx.ledger.get(arg).scope : 'global';
-    const uctx = scope === 'global' ? ctx : projectCtx(ctx, scope);
-    return report(cmd === 'undo' ? undo(arg, uctx, { step: o.step }) : restoreLegacy(arg, ctx), out);
+    if (cmd === 'restore') {
+      // Files written into the home folder from a backup: listed, and asked once unless --yes.
+      if (!legacyBackups(ctx).includes(arg)) { out.write(`no setup.sh backup ${arg}, see benchkeeper history\n`); return 1; }
+      const files = listFiles(join(ctx.ledger.backups, arg));
+      files.forEach((f) => out.write(`restore ${f}\n`));
+      if (!o.yes && !(await ask(`Restore ${files.length} files into ${ctx.home}?`))) return 1;
+      return report(restoreLegacy(arg, ctx), out);
+    }
+    let uctx;
+    try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    return report(undo(arg, uctx, { step: o.step }), out);
   }
   out.write(`unknown command ${cmd}\n\n${HELP}\n`);
   return 2;

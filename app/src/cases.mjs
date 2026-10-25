@@ -56,6 +56,8 @@ export function addCase(ctx, { target, expected, should = true, project, transcr
   if (!expected) throw new Error('expected: the behavior that should or should not happen');
   const text = query ?? (transcript && firstPrompt(transcript)) ?? description;
   if (!text) throw new Error('a query, a transcript with a user prompt, or a description is needed');
+  // The query is the agent's last argument: one that starts with - would be read as an option.
+  if (/^\s*-/.test(text)) throw new Error('the query starts with a dash: an agent CLI would read it as an option; reword it');
   // A prompt copied from a transcript may hold a pasted token.
   const q = mask(text, { keys: false });
   const c = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, time: new Date().toISOString(), query: q, should, expected,

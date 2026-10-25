@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
+import { integrity } from './integrity.mjs';
 import { levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
@@ -95,7 +96,7 @@ export function projectChecks(ctx, dir) {
 export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
   // Below full, the global plan is the plugin alone: rules, settings and host tools are not expected.
   const level = levelFor(ctx, agents, dir);
-  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env })];
+  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...integrity(ctx).map((i) => issue('warning', 'ledger', i.message, i.fix))];
   if (level === 'full') {
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
     const skillsCli = newest(ctx, 'skills', now);

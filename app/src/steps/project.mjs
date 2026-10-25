@@ -10,6 +10,7 @@ import { exists, listFiles, readText } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
+import { unfit } from '../roots.mjs';
 import { PLUGINS, SKILLS_SPEC, pin } from './global.mjs';
 
 export const STATE = '.benchkeeper/state.json';
@@ -134,8 +135,19 @@ export const tracksState = (ctx, dir) => git(ctx, dir, ['ls-files', '--', STATE]
 // A project run writes inside the project, plus the git exclude list, which a linked worktree or a project in a
 // subfolder keeps outside it. Never into the project's own .git (hooks, config): a committed link must not aim a write there.
 export function projectCtx(ctx, dir) {
+  // Not for a folder that would make the whole home a write root (a ledger file or a typed path may name one).
+  const why = unfit(ctx, dir);
+  if (why) throw new Error(`${resolve(dir)} is ${why}: a project is its own folder`);
   const exclude = excludeFile(ctx, dir);
   return { ...ctx, roots: [resolve(dir), ...(exclude ? [exclude] : [])], deny: [resolve(dir, '.git')] };
+}
+
+// The context to undo a run of this scope: global, or a folder that could be a project (a ledger file names the scope, and
+// a changed one must not widen the write roots).
+export function scopeCtx(ctx, scope) {
+  if (scope === 'global') return ctx;
+  if (typeof scope !== 'string' || !exists(scope)) throw new Error(`the scope of this run is not a folder here: ${scope}`);
+  return projectCtx(ctx, scope);
 }
 
 // The exclude file of the repository dir is in, shared by all its worktrees; null outside a git repository.
@@ -195,7 +207,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (setBlock(localClaude, 'project', null).replace(/^@AGENTS\.md\n*/, '').trim()) add('local-claude', `remove the BenchKeeper block from ${LOCAL_CLAUDE} (${gone('claude')})`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '') });
     else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block; ${gone('claude')})`, { kind: 'remove', path: at(LOCAL_CLAUDE), selected: true });
   }
-  if ((a.share || !a.agents.includes('codex')) && exists(at(OVERRIDE)) && overrideOurs(readText(at(OVERRIDE)))) add('local-codex', `remove ${OVERRIDE} (BenchKeeper's; ${gone('codex')})`, { kind: 'remove', path: at(OVERRIDE), selected: true });
+  if ((a.share || !a.agents.includes('codex')) && exists(at(OVERRIDE)) && overrideOurs(readText(at(OVERRIDE)))) {
+    // Preselected only when the file is AGENTS.md plus BenchKeeper's block, as the setup wrote it: text added by hand is offered, not preselected.
+    const asWritten = setBlock(readText(at(OVERRIDE)), 'project', null).trim() === (readText(at('AGENTS.md')) ?? '').trim();
+    add('local-codex', `remove ${OVERRIDE} (${asWritten ? "BenchKeeper's" : 'BenchKeeper block plus text of your own'}; ${gone('codex')})`, { kind: 'remove', path: at(OVERRIDE), selected: asWritten });
+  }
   if (a.agents.includes('gemini')) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]) });

@@ -6,6 +6,7 @@ import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { ownPacks, savePack } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
+import { unfit } from './roots.mjs';
 import { preview } from './runner.mjs';
 import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, readState, tryState } from './steps/project.mjs';
@@ -46,6 +47,8 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
   const projects = [], missing = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }
+    // A folder that cannot be a project (a drive root, the home folder) is not given a plan, whatever the file says.
+    if (unfit(ctx, x.path)) continue;
     const pctx = projectCtx(ctx, x.path);
     const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined } }).changes);
     projects.push({ path: x.path, ctx: pctx, changes });
@@ -56,6 +59,9 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
 // Own packs and the project registry; the plans apply through the step engine like any other run.
 export function importChoices(ctx, p) {
   const packs = (p.packs ?? []).map((x) => savePack(ctx, x).id);
-  const projects = (p.projects ?? []).filter((x) => existsSync(x.path)).map((x) => addProject(ctx, x.path));
-  return { packs, projects };
+  const projects = [], refused = [];
+  for (const x of (p.projects ?? []).filter((y) => existsSync(y.path))) {
+    try { projects.push(addProject(ctx, x.path)); } catch (e) { refused.push(e.message); }
+  }
+  return { packs, projects, refused };
 }

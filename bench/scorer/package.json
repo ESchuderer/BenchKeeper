@@ -9,7 +9,7 @@
     "c8": "12.0.0",
     "jscpd": "5.4.1",
     "lighthouse": "13.5.0",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "yaml": "2.9.1"
   },
   "devDependencies": {

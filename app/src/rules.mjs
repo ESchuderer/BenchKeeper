@@ -35,9 +35,14 @@ const sizeOf = (text) => Buffer.byteLength(text);
 
 // A claudeMdExcludes pattern as a regular expression: ** crosses folders, * and ? stay inside one, [..] and {a,b} as usual.
 // shortcut: no extglobs and no ! negation; a pattern that is not valid matches nothing, upgrade when one is in use.
+const charClass = (t) => {
+  const negated = /^\[[!^]/.test(t);
+  return `[${negated ? '^' : ''}${t.slice(negated ? 2 : 1, -1).replaceAll('\\', '\\\\')}]`;
+};
 export function globRegex(glob) {
   let depth = 0;
-  const body = glob.replace(/\*\*\/|\*\*|[*?{},.+^$()|\\]/g, (t) => {
+  const body = glob.replace(/\[[!^]?[^\]]+\]|\*\*\/|\*\*|[*?{},.+^$()|\\]/g, (t) => {
+    if (t.length > 1 && t[0] === '[') return charClass(t);
     if (t === '**/') return '(?:.*/)?';
     if (t === '**') return '.*';
     if (t === '*') return '[^/]*';
@@ -115,7 +120,8 @@ function switchOf(id, row, dir) {
 
 // Global Codex files in the app's disabled folder, for the original paths that are gone.
 function parkedRows(ctx, id, dir) {
-  if (id !== 'codex') return [];
+  // Global files only: a project's plan cannot write below the home folder.
+  if (id !== 'codex' || dir) return [];
   return ['AGENTS.override.md', 'AGENTS.md'].map((n) => join(ctx.home, '.codex', n)).filter((p) => !exists(p) && exists(parkedPath(ctx, p)))
     .map((path) => {
       const text = readText(parkedPath(ctx, path)) ?? '';
@@ -135,8 +141,9 @@ function skillRows(ctx, id, dir) {
   for (const [scope, skills] of groups) merged.set(scope, [...(merged.get(scope) ?? []), ...skills]);
   return [...merged].map(([scope, skills]) => {
     // shortcut: a description on one line; a folded block (description: >) counts its first line only.
-    const bytes = skills.filter((s) => s.text != null && !/^disable-model-invocation:\s*true/m.test(frontMatter(s.text))).reduce((n, s) => n + sizeOf(s.name) + sizeOf(skillDescription(s.text).text), 0);
-    return { kind: 'skills', label: `Skill descriptions, ${scope} (${skills.length})`, bytes, tokens: tokensOf(bytes) };
+    const offered = skills.filter((s) => s.text != null && !/^disable-model-invocation:\s*true/m.test(frontMatter(s.text)));
+    const bytes = offered.reduce((n, s) => n + sizeOf(s.name) + sizeOf(skillDescription(s.text).text), 0);
+    return { kind: 'skills', label: `Skill descriptions, ${scope} (${offered.length})`, bytes, tokens: tokensOf(bytes) };
   }).filter((r) => r.bytes);
 }
 
@@ -176,7 +183,7 @@ function budgetOf(ctx, id, rows, dir) {
   const notes = [];
   const files = items.filter((i) => i.kind !== 'skills' && i.kind !== 'memory').reduce((n, i) => n + i.bytes, 0);
   const lost = id === 'codex' && files > CODEX_BYTES ? files - CODEX_BYTES : 0;
-  if (lost) notes.push(`Codex stops adding files at ${CODEX_BYTES / 1024} KiB (project_doc_max_bytes): about ${tokensOf(lost)} tokens at the end do not load`);
+  if (lost) notes.push(`Codex stops adding files at ${CODEX_BYTES / 1024} KiB (project_doc_max_bytes): about ${tokensOf(lost)} tokens beyond that may not load`);
   const total = items.reduce((n, i) => n + i.tokens, 0) - tokensOf(lost);
   const largest = items.reduce((m, i) => (!m || i.tokens > m.tokens ? i : m), null);
   const byKind = {};
@@ -184,7 +191,7 @@ function budgetOf(ctx, id, rows, dir) {
   return { items, total, byKind, largest: largest && { label: largest.label, tokens: largest.tokens }, threshold: BUDGET_TOKENS, over: total > BUDGET_TOKENS, onDemand: rows.filter((r) => r.load === 'path-scoped').reduce((n, r) => n + r.tokens, 0), notes };
 }
 
-function agentView(ctx, id, dir, written, excludes) {
+function agentView(ctx, id, dir, written, excludes, budget = true) {
   const found = candidates(ctx, id, dir).map((c) => ({ c, text: readText(c.path) ?? '' }));
   const empty = new Set(found.filter((f) => !f.text.trim()).map((f) => f.c.path));
   const rows = found.map(({ c, text }, i) => {
@@ -194,20 +201,22 @@ function agentView(ctx, id, dir, written, excludes) {
     return { ...row, switch: switchOf(id, row, dir) };
   });
   rows.push(...parkedRows(ctx, id, dir));
-  return { id, name: agent(id).name, rows, budget: budgetOf(ctx, id, rows, dir) };
+  return { id, name: agent(id).name, rows, ...(budget ? { budget: budgetOf(ctx, id, rows, dir) } : {}) };
 }
 
-// agents: ids of RULE_AGENTS; dir: a project folder, without it the global files.
-export function rulesView(ctx, { agents = RULE_AGENTS, dir } = {}) {
+// agents: ids of RULE_AGENTS; dir: a project folder, without it the global files; budget false: the rows only.
+// shortcut: only the project folder's own files, not the CLAUDE.md files of folders above it that Claude Code also loads;
+// add them when a registered project sits inside another one.
+export function rulesView(ctx, { agents = RULE_AGENTS, dir, budget = true } = {}) {
   const written = writtenPaths(ctx);
   const excludes = excludesOf(ctx, dir);
-  return { dir: dir ?? null, agents: agents.filter((a) => RULE_AGENTS.includes(a)).map((id) => agentView(ctx, id, dir, written, excludes)) };
+  return { dir: dir ?? null, agents: agents.filter((a) => RULE_AGENTS.includes(a)).map((id) => agentView(ctx, id, dir, written, excludes, budget)) };
 }
 
 // The row of file in an agent's view; without an agent, the first agent that lists it. Throws for any other path.
 function find(ctx, { agent: id, file, dir }) {
   const path = resolve(String(file ?? ''));
-  for (const a of rulesView(ctx, { agents: id ? [id] : RULE_AGENTS, dir }).agents) {
+  for (const a of rulesView(ctx, { agents: id ? [id] : RULE_AGENTS, dir, budget: false }).agents) {
     const row = a.rows.find((r) => r.path === path);
     if (row) return row;
   }
@@ -243,7 +252,7 @@ export function ruleChanges(ctx, { agent: id, file, dir, on }) {
   const [from, to] = on ? [parked, row.path] : [row.path, parked];
   if (!allowed(to, ctx)) throw new Error(`${to} is outside ${ctx.roots.join(', ')}: this run may not write there`);
   const unit = `rule:${row.path}`;
-  const step = `${SWITCH}:${id}`;
+  const step = `${SWITCH}:${row.agent}`;
   return [
     { id: `${step}:copy`, step, title: `${title(row, on, dir)}: copy to ${on ? row.shown : 'the disabled folder'}`, kind: 'write', path: to, from, unit },
     { id: `${step}:remove`, step, title: `${title(row, on, dir)}: remove ${on ? 'the disabled copy' : row.shown} (copied)`, kind: 'remove', path: from, selected: true, unit },
@@ -252,13 +261,13 @@ export function ruleChanges(ctx, { agent: id, file, dir, on }) {
 
 // Paths and states of the rule files, for the profile: no text, no sizes.
 export function ruleStates(ctx, { agents, dir }) {
-  return rulesView(ctx, { agents, dir }).agents.flatMap((a) => a.rows.filter((r) => !dir || r.scope !== 'global' || r.load === 'off').map((r) => ({ agent: a.id, scope: r.scope, path: r.shown, owner: r.owner, state: r.load })));
+  return rulesView(ctx, { agents, dir, budget: false }).agents.flatMap((a) => a.rows.filter((r) => !dir || r.scope !== 'global' || r.load === 'off').map((r) => ({ agent: a.id, scope: r.scope, path: r.shown, owner: r.owner, state: r.load })));
 }
 
 // Doctor: a Codex override in the home folder is read instead of the AGENTS.md that holds BenchKeeper's rules. Any other
 // rule file of the user is information in the Rules view, not a finding.
 export function rulesChecks(ctx, agents) {
   if (!agents?.includes('codex')) return [];
-  return agentView(ctx, 'codex', undefined, writtenPaths(ctx), []).rows.filter((r) => r.load === 'shadowed' && r.owner === 'BenchKeeper')
+  return agentView(ctx, 'codex', undefined, writtenPaths(ctx), [], false).rows.filter((r) => r.load === 'shadowed' && r.owner === 'BenchKeeper')
     .map((r) => ({ level: 'warning', check: 'rules', message: `${r.shown} is not read: ${r.by} replaces it, so BenchKeeper's Codex rules do not load`, fix: 'move your notes into the AGENTS.md beside the override, outside the BenchKeeper block, or turn the override off in the Rules view (benchkeeper rules disable)' }));
 }

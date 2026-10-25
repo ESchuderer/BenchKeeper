@@ -127,6 +127,7 @@ test('globs: ** crosses folders, * stays inside one, braces and classes work', (
   assert.ok(!globRegex('/work/*.md').test('/work/x/a.md'));
   assert.ok(globRegex('/work/{a,b}.md').test('/work/b.md'));
   assert.ok(globRegex('/work/[ab].md').test('/work/a.md'));
+  assert.ok(globRegex('/work/[!x].md').test('/work/a.md') && !globRegex('/work/[^x].md').test('/work/x.md'), 'a negated class');
   assert.ok(!globRegex('/work/a.md').test('/work/axmd'));
   assert.ok(!globRegex('/work/[').test('/work/['), 'an invalid pattern matches nothing');
 });
@@ -136,12 +137,14 @@ test('a global Codex file moves to the app folder and back, byte for byte, as tw
   const override = join(ctx.home, '.codex/AGENTS.override.md');
   write(override, `notes\n${SECRET}\n`);
   const before = hashPath(override);
-  const off = decide(ctx, { agent: 'codex', file: override, on: false });
+  const off = decide(ctx, { file: override, on: false });
   assert.equal(off.status, 'done');
   assert.ok(!existsSync(override));
   const parked = row(ctx, 'codex', override);
   assert.deepEqual([parked.load, parked.exists, parked.shown.endsWith('AGENTS.override.md')], ['off', false, true]);
   assert.equal(hashPath(join(ctx.config, 'disabled-rules/.codex/AGENTS.override.md')), before);
+  assert.ok(!view(ctx, 'codex', project()).rows.some((r) => r.path === override), 'a project view cannot write below the home folder: no parked row there');
+  assert.ok(off.entries.every((e) => e.step === 'rule-switch:codex'), 'the step names the agent the row found');
   const on = decide(ctx, { agent: 'codex', file: override, on: true });
   assert.equal(on.status, 'done');
   assert.equal(hashPath(override), before);

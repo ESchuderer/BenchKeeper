@@ -85,7 +85,7 @@ export function pluginSkills(ctx, dir) {
       if (!resolve(root).startsWith(at('.claude/plugins') + sep) || !exists(root)) continue;
       for (const name of readdirSync(root)) {
         const file = join(root, name, 'SKILL.md'), text = readText(file);
-        if (text != null) out.push({ name, scope: `plugin ${id.split('@')[0]}`, file, text });
+        if (text != null) out.push({ name, scope: `plugin ${id.split('@')[0]}`, file, text, own: p.scope !== 'user' });
       }
     }
   }
@@ -93,8 +93,8 @@ export function pluginSkills(ctx, dir) {
 }
 
 // Pairs of skills of different scopes whose descriptions overlap, once each, with the file and line of both.
-// skills: { name, scope, file, text }; focus: only pairs that involve this scope (a project's own pairs are left to
-// the project check).
+// skills: { name, scope, file, text, own? }; focus: only pairs that involve an own skill, one of the project or of a
+// plugin installed for it (a project's pairs among themselves are left to the project check).
 export function skillOverlap(ctx, dir, skills, focus) {
   const place = (s) => `${s.name} (${s.scope}, ${display(ctx, dir, s.file)}:${s.d.line})`;
   const list = skills.filter((s, i) => skills.findIndex((x) => x.scope === s.scope && x.name === s.name) === i).map((s) => ({ ...s, d: skillDescription(s.text) }));
@@ -102,7 +102,7 @@ export function skillOverlap(ctx, dir, skills, focus) {
   for (let i = 0; i < list.length; i++) {
     for (let j = i + 1; j < list.length; j++) {
       const [a, b] = [list[i], list[j]];
-      if (a.scope === b.scope || a.name === b.name || (focus && a.scope !== focus && b.scope !== focus) || !overlap(a.d.text, b.d.text)) continue;
+      if (a.scope === b.scope || a.name === b.name || (focus && !a.own && !b.own) || !overlap(a.d.text, b.d.text)) continue;
       out.push(issue('warning', 'skills', `${place(a)} and ${place(b)} have overlapping descriptions`, 'narrow one description so an agent can tell them apart, or turn one skill off', { file: display(ctx, dir, a.file), line: a.d.line }));
     }
   }

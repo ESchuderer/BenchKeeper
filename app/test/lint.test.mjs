@@ -126,3 +126,14 @@ test('a project with only skills or settings is checked, and its project-scoped 
   assert.equal(found.length, 1);
   assert.match(found[0].message, /browser-tests \(project, .*and playwright \(plugin p, /);
 });
+
+test('a plugin installed for the project is compared with the global skills', () => {
+  const { ctx, home, dir } = machine();
+  const plugin = join(home, '.claude/plugins/cache/m/p/1.0.0');
+  skill(join(plugin, 'skills'), 'playwright', 'Playwright browser tests');
+  skill(join(home, '.claude/skills'), 'browsers', 'Playwright browser tests runner');
+  put(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'p@m': [{ scope: 'local', projectPath: dir, installPath: plugin }] } }));
+  put(join(dir, '.claude/settings.local.json'), JSON.stringify({ enabledPlugins: { 'p@m': true } }));
+  assert.equal(only(doctor(ctx, { agents: [], dir, env: {} }), 'skills').length, 1);
+  assert.equal(only(doctor(ctx, { agents: [], env: {} }), 'skills').length, 0, 'the global check does not see it');
+});

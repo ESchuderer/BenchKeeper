@@ -31,7 +31,8 @@ export function listProjects(ctx) {
 export function registryProblem(ctx) {
   const text = readText(file(ctx));
   if (text == null) return exists(file(ctx)) ? 'the registered projects file cannot be read' : null;
-  try { return Array.isArray(JSON.parse(text).projects) ? null : 'the registered projects file has no projects list'; } catch (e) { return `the registered projects file is not valid JSON (${e.message.split('\n')[0]})`; }
+  // A parser's message can quote the file, so none is passed on.
+  try { return Array.isArray(JSON.parse(text).projects) ? null : 'the registered projects file has no projects list'; } catch { return 'the registered projects file is not valid JSON'; }
 }
 // Packs the registered projects use; null when none has a state file, so nothing counts as unused.
 export function packsInUse(ctx) {

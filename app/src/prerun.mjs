@@ -30,8 +30,8 @@ function weigh(p, budget) {
 }
 
 // The user's npm settings without credentials: registry, proxy and certificates stay, tokens and passwords do not.
-// A line with a credential, a credential helper or a user:password in a URL is left out.
-const safeNpmrc = (text) => (text ?? '').split('\n').filter((l) => !/_auth|_password|_token|username|helper|:\/\/[^@/\s]*@/i.test(l)).join('\n');
+// A line with a credential, a client key, a credential helper or user info in a URL is left out.
+const safeNpmrc = (text) => (text ?? '').split('\n').filter((l) => !/_auth|_password|_token|username|helper|:\/\/[^@/\s]*@|(^|[\s/:])(key|keyfile)\s*=/i.test(l)).join('\n');
 
 // A relative path that stays below its base, by name: a link in it is copied as what it points to.
 const below = (r) => r && r !== '..' && !r.startsWith(`..${sep}`) && !isAbsolute(r);

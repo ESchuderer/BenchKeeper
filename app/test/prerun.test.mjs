@@ -78,7 +78,7 @@ test('prerun: a skills CLI command writes only in its scratch folder; the plan g
 test('prerun: no credentials reach the command, the home is the context home, and a link loop is refused unrun', async (t) => {
   const real = mkdtempSync(join(tmpdir(), 'bk-prerun-cred-'));
   const home = join(real, 'home'), dir = join(real, 'proj');
-  put(join(home, '.npmrc'), '//registry.example/:_authToken=sekret\nregistry=https://mirror.example/\n_auth=abc\n');
+  put(join(home, '.npmrc'), '//registry.example/:_authToken=sekret\nregistry=https://mirror.example/\n_auth=abc\nkey=/k.pem\n//registry.example/:keyfile=/k2.pem\n');
   mkdirSync(dir, { recursive: true });
   const saved = { ...process.env };
   t.after(() => { process.env = saved; });

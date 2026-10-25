@@ -216,7 +216,7 @@ test('ECC is a pack of single skills at its commit: no plugin, no hooks, nothing
   assert.deepEqual(p.answers.packs, ['ecc']);
   assert.deepEqual(p.answers.frameworks, []);
   const installs = p.changes.filter((c) => c.kind === 'command');
-  assert.deepEqual(installs.map((c) => c.argv[c.argv.indexOf('-s') + 1]).sort(), ['architecture-decision-records', 'error-handling', 'tdd-workflow', 'verification-loop']);
+  assert.deepEqual(installs.map((c) => c.argv[c.argv.indexOf('-s') + 1]).sort(), ['architecture-decision-records', 'error-handling', 'verification-loop']);
   assert.ok(installs.every((c) => c.cwd === r.dir && c.argv[4].includes('/affaan-m/ECC/tree/c05b2d6614f62f6db0047669aa4eefb223d478f9')));
   assert.ok(!p.changes.some((c) => /plugin/.test(c.argv?.join(' ') ?? '')));
 });

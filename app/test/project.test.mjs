@@ -196,10 +196,9 @@ test('a second plan reads the answers from the state file', () => {
   assert.equal(readState(r.dir).tier, '');
 });
 
-test('Codex-only skills need Codex; packs with plugins install them and list their prompts', () => {
+test('packs with plugins install them and list their prompts', () => {
   const r = repo();
-  const p = plan(r, { agents: ['claude'], skills: ['docx'], packs: ['matt-pocock'] });
-  assert.ok(!p.changes.some((c) => c.title.includes('docx')));
+  const p = plan(r, { agents: ['claude'], packs: ['matt-pocock'] });
   assert.ok(p.changes.some((c) => c.argv?.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official'));
   assert.ok(p.prompts.some((x) => x.prompt === '/mattpocock-skills:setup-matt-pocock-skills'));
   const installed = plan(r, { agents: ['claude'], packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] });

@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.10 (2026-10-25)
+
+- Library: seven skills that fail the quality bar are removed from `library.json` and their packs: `docx`, `pdf`, `pptx`, `xlsx` (a license that forbids copies and distribution), `scientific-critical-thinking`, `fp-check` and `tdd-workflow` (they need files outside their folder). The `ecc` pack has three skills, the `security` pack three, the `science` pack four. Each is in `evaluations/skill-libraries/library-exclusions.md` with its reason.
+- Plugin `version` 6.10.0.
+- Upgrade: `npx benchkeeper@6.10.0 apply`.
+
 ## setup-v6.9 (2026-10-25)
 
 - New skill `orchestrating-projects`, started by the user: a coordinator that runs one worker per project on labeled issues, projects in parallel, verifies each outcome, merges and closes only inside the repository's written policy (`docs/agents/orchestration.json`, read from the default branch; without it nothing merges, closes or deletes), then cleans up and starts the next issue. Workers decide the safest reversible option and write it in the pull request, report blocked and end, and never bypass a repository hook. A worker state of `ready` does not show a blocked worker: the coordinator also checks for no commit, PR or message for a set time. Worktree removal and branch deletion are separate steps. A spec template, a policy example and one reference file for Orca's commands are in the skill folder. Evaluation scenario and checks: `evaluations/practices/orchestrating-projects.md` (scenario not run yet).

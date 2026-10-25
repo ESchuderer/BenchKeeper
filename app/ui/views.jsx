@@ -8,6 +8,7 @@ import { DoctorTable, FixEverythingButton, UpdateResults } from './fix.jsx';
 import { updateProjects } from './update.js';
 import { OneRunButtons } from './onerun.jsx';
 import { ProjectSetup } from './setup.jsx';
+import { SessionsHistory } from './sessionscache.jsx';
 import { AddNotices, BulkBar, EditProject, MissingBadge, ProjectFilters, Relocate, RemoveFromList, RemoveSetup, SelectCheckbox, label, plural, visibleProjects } from './projects.jsx';
 import { Dot, Loading, MOD, Note, RANK, STATE_COLOR, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
 
@@ -726,6 +727,7 @@ export function Settings({ overview, refresh, keys }) {
         </Table>
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
+      <SessionsHistory />
       <Section title="Files">
         <List spacing={4} size="sm">
           <List.Item><Code>~/.config/benchkeeper/ledger/</Code>: one JSON file per run</List.Item>
@@ -733,6 +735,7 @@ export function Settings({ overview, refresh, keys }) {
           <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>
           <List.Item><Code>~/.config/benchkeeper/packs/</Code>: own packs</List.Item>
           <List.Item><Code>~/.config/benchkeeper/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
+          <List.Item><Code>.cache/benchkeeper/sessions.json</Code> in your home folder: session summaries for the Sessions board</List.Item>
         </List>
         <Text size="sm"><Code>BENCHKEEPER_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>
       </Section>
@@ -777,7 +780,7 @@ export function Sessions() {
   return (
     <Stack gap="lg">
       <Group justify="space-between" align="flex-start">
-        <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. Nothing leaves this machine except the pull request lookups through gh.</Text>
+        <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. History older than the agent's cleanup period comes from the app's cache of summaries (never the messages) and starts when the app first scanned; Settings has its retention and Clear. Nothing leaves this machine except the pull request lookups through gh.</Text>
         <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
       </Group>
       {error && <Note color="red">{error}</Note>}

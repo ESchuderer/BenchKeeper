@@ -124,11 +124,34 @@ const files = (dir, pick, depth) => {
 // Sets keep their order as lists in the cache.
 const plain = (d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v instanceof Set ? [...v] : v]));
 
-// Every transcript, parsed once per size and mtime (cache: ~/.cache/benchkeeper/sessions.json).
+// The cache file: parsed summaries by transcript path, and the retention (days; null keeps them for good). A summary
+// outlives its transcript, which the agent deletes after its cleanup period. Message text is never in it.
+const cachePath = (ctx) => join(cacheDir(ctx), 'sessions.json');
+const readCache = (ctx) => {
+  const old = parse(readText(cachePath(ctx)) ?? '{}');
+  return { files: old?.schema === SCHEMA && old.files && typeof old.files === 'object' ? old.files : {}, keepDays: Number.isInteger(old?.keepDays) && old.keepDays > 0 ? old.keepDays : null };
+};
+const writeCache = (ctx, files, keepDays) => {
+  // Titles and paths of the user's sessions: this user only.
+  writeAtomic(cachePath(ctx), JSON.stringify({ schema: SCHEMA, keepDays, files }), 0o600);
+};
+export const sessionCache = (ctx) => { const { files, keepDays } = readCache(ctx); return { keepDays, sessions: Object.values(files).filter((x) => x.kind !== 'sub' && !x.d?.parent).length }; };
+// days: a whole number of at least 1, or null to keep summaries for good. Applies at once and on every scan.
+export function keepSessionsFor(ctx, days) {
+  if (days !== null && !(Number.isInteger(days) && days >= 1)) throw new Error('days must be a whole number of at least 1, or none');
+  writeCache(ctx, expire(readCache(ctx).files, days), days);
+}
+// The summaries go, and so does the history of transcripts the agent has deleted; the next scan rebuilds the rest.
+export const clearSessionCache = (ctx) => writeCache(ctx, {}, readCache(ctx).keepDays);
+const expire = (files, keepDays, now = Date.now()) => {
+  const horizon = keepDays ? new Date(now - keepDays * 864e5).toISOString() : '';
+  return Object.fromEntries(Object.entries(files).filter(([, x]) => (x.d?.end ?? x.d?.start ?? '') >= horizon));
+};
+
+// Every transcript, parsed once per size and mtime (cache: sessions.json in the benchkeeper cache folder). The summary of a
+// transcript that is gone stays, until the retention drops it.
 async function parsed(ctx, onFile) {
-  const cacheFile = join(cacheDir(ctx), 'sessions.json');
-  const old = parse(readText(cacheFile) ?? '{}');
-  const cache = old?.schema === SCHEMA ? old.files : {};
+  const { files: cache } = readCache(ctx);
   const next = {};
   const claude = join(ctx.home, '.claude/projects'), codex = join(ctx.home, '.codex/sessions');
   const list = [
@@ -144,9 +167,11 @@ async function parsed(ctx, onFile) {
     // A file removed or unreadable since the walk is left out; the others still count and are cached.
     try { next[file] = { key, kind, d: plain(kind === 'codex' ? await codexFile(file) : await claudeFile(file)) }; } catch { /* skipped */ }
   }
-  // Titles and paths of the user's sessions: this user only.
-  writeAtomic(cacheFile, JSON.stringify({ schema: SCHEMA, files: next }), 0o600);
-  return next;
+  // The retention is read again here: a change made during the scan stays.
+  const { keepDays } = readCache(ctx);
+  const kept = expire(Object.fromEntries(Object.entries(cache).filter(([f]) => !(f in next))), keepDays);
+  writeCache(ctx, { ...kept, ...next }, keepDays);
+  return { ...kept, ...next };
 }
 
 // Labels of the installed skills (null when the transcript lists none): the plugins BenchKeeper sets up and the library packs whose skills are all there.

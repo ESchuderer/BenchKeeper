@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
-import { prStates, scanSessions } from '../src/sessions.mjs';
+import { boardHtml } from '../src/board.mjs';
+import { clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache } from '../src/sessions.mjs';
 import { TITLE, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
@@ -94,4 +95,47 @@ test('PR states: merged is kept, open is asked again after 6 hours, closed after
   answer = { state: 'MERGED' };
   assert.deepEqual(await prStates(ctx, [b], t0 + 1e9 + 700e3 + 23 * 3600e3), { [b]: 'closed' });
   assert.deepEqual(await prStates(ctx, [b], t0 + 1e9 + 700e3 + 25 * 3600e3), { [b]: 'merged' });
+});
+
+const cacheFile = (home) => join(home, '.cache/benchkeeper/sessions.json');
+const removeS1 = (home) => { rmSync(join(home, '.claude/projects/-work-shop/s1.jsonl')); rmSync(join(home, '.claude/projects/-work-shop/s1'), { recursive: true }); };
+
+test('a transcript the agent deleted between two scans: its row, the board and the totals stay unchanged', async () => {
+  const { home, ctx } = fixture();
+  const before = await scanSessions(ctx);
+  removeS1(home);
+  const after = await scanSessions(ctx);
+  assert.deepEqual(after, before);
+  // Its subagent's skill stays on the row, the charts and totals are drawn from the same rows.
+  assert.ok(after.find((r) => r.id === 's1').skills.includes('diagnosing-bugs'));
+  assert.equal(boardHtml(after, '2026-10-25T00:00:00.000Z', []), boardHtml(before, '2026-10-25T00:00:00.000Z', []));
+  assert.equal(sessionCache(ctx).sessions, 3);
+});
+
+test('the cache file holds no message text and is readable by this user only', async () => {
+  const { home, ctx } = fixture();
+  await scanSessions(ctx);
+  const text = readFileSync(cacheFile(home), 'utf8');
+  for (const said of ['fix the cart total', 'it touches checkout too', 'Reading the code', 'Next the test', 'typo in the README', 'Looking at it', 'not ok 1', '3 passed']) assert.ok(!text.includes(said), said);
+  if (process.platform !== 'win32') assert.equal(statSync(cacheFile(home)).mode & 0o777, 0o600);
+});
+
+test('retention drops the summaries of deleted transcripts after the days; Clear empties the cache and keeps the setting', async () => {
+  const { home, ctx } = fixture();
+  assert.deepEqual(sessionCache(ctx), { keepDays: null, sessions: 0 });
+  await scanSessions(ctx);
+  removeS1(home);
+  keepSessionsFor(ctx, 3650);
+  assert.ok(byId(await scanSessions(ctx)).s1);
+  // The fixture sessions are older than a day: the deleted one goes, the ones still on disk stay.
+  keepSessionsFor(ctx, 1);
+  assert.deepEqual(Object.keys(byId(await scanSessions(ctx))).sort(), ['c1', 's2']);
+  assert.deepEqual(sessionCache(ctx), { keepDays: 1, sessions: 2 });
+  keepSessionsFor(ctx, null);
+  assert.equal(sessionCache(ctx).keepDays, null);
+  for (const bad of [0, -1, 1.5, '7', NaN]) assert.throws(() => keepSessionsFor(ctx, bad), /whole number/);
+  keepSessionsFor(ctx, 9);
+  clearSessionCache(ctx);
+  assert.deepEqual(sessionCache(ctx), { keepDays: 9, sessions: 0 });
+  assert.equal(Object.keys(byId(await scanSessions(ctx))).length, 2);
 });

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
 import { CSP as BOARD_CSP } from '../src/board.mjs';
+import { writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
@@ -86,6 +87,21 @@ test('a session scan is reused for a minute: the board renders from it and is sa
   if (process.platform !== 'win32') assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.deepEqual(routes['POST /api/sessions-scan']({}), { fresh: true });
   assert.ok(routes['POST /api/sessions-scan']({ force: true }).job);
+});
+
+test('the sessions cache: retention and Clear through the API drop the reused scan; both refused during a scan', async () => {
+  const { ctx, routes } = fixture();
+  writeSessions(ctx.home);
+  await finished(routes, routes['POST /api/sessions-scan']({}).job);
+  assert.equal(routes['GET /api/sessions-cache']().sessions, 3);
+  assert.deepEqual(routes['POST /api/sessions-cache']({ keepDays: 30 }), { keepDays: 30, sessions: 3 });
+  // The reused scan went with it: the next one reads again.
+  const again = routes['POST /api/sessions-scan']({});
+  assert.ok(again.job);
+  assert.throws(() => routes['POST /api/sessions-cache']({ clear: true }), /scan is running/);
+  await finished(routes, again.job);
+  assert.throws(() => routes['POST /api/sessions-cache']({ keepDays: 0 }), /whole number/);
+  assert.throws(() => routes['POST /api/sessions-cache']({}), /clear: true or keepDays/);
 });
 
 test('rejected: other Host, foreign or null Origin, cross-site fetches', async () => {

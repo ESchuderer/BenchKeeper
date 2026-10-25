@@ -26,7 +26,7 @@ import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll } from './projects.mjs';
 import { applyAsync, itemState, preview, runCommand, undo } from './runner.mjs';
-import { scanSessions } from './sessions.mjs';
+import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
@@ -384,6 +384,17 @@ export function api(ctx) {
         keepScan(ctx, rows);
         job.results = { sessions: rows.length };
       }, { kind: 'scan', title: 'sessions', readOnly: true });
+    },
+    // The sessions cache keeps a summary after the agent deletes its transcript: how long, and a way to clear it. Refused
+    // during a scan, which would write the old cache back.
+    'GET /api/sessions-cache': () => sessionCache(ctx),
+    'POST /api/sessions-cache': (b) => {
+      if ([...jobs.values()].some((j) => j.kind === 'scan' && !j.done)) throw Object.assign(new Error('a scan is running: wait for it to finish'), { status: 409 });
+      if (b.clear === true) clearSessionCache(ctx);
+      else if ('keepDays' in b) input(() => keepSessionsFor(ctx, b.keepDays));
+      else throw bad('send clear: true or keepDays');
+      scans.delete(ctx);
+      return sessionCache(ctx);
     },
     'POST /api/update-all': (b) => {
       idle();

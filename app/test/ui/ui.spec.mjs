@@ -762,7 +762,9 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'Fix everything' }).click();
     const fix = page.getByRole('dialog', { name: 'Fix everything' });
     await expect(fix.getByRole('checkbox', { name: /^global skill find-skills/ })).toBeChecked();
-    // The global skill install was rehearsed in a scratch folder: its file shows as a diff before anything runs.
+    // The skill install is rehearsed in a scratch folder only after a click: its file then shows as a diff before anything runs.
+    await expect(fix.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toHaveCount(0);
+    await fix.getByRole('button', { name: /^Preview the files/ }).click();
     await expect(fix.getByRole('group', { name: /^Diff of .*\.claude\/skills\/find-skills\/SKILL\.md$/ })).toBeVisible();
     await noAxe(page);
     await fix.getByRole('button', { name: 'Next' }).click();

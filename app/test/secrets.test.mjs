@@ -183,6 +183,18 @@ test('eval outputs and results are private, also in folders an earlier version m
   assert.equal(mode(join(evals, 'results.jsonl')), 0o600);
 });
 
+test('an eval session starts with the agent login variables only, not the user tokens', async (t) => {
+  const saved = { ...process.env };
+  t.after(() => { process.env = saved; });
+  Object.assign(process.env, { GH_TOKEN: 'ghp_x', NPM_TOKEN: 'npm_x', SSH_AUTH_SOCK: '/s', ANTHROPIC_API_KEY: 'k' });
+  const envs = [];
+  const ctx = context({ home: tmp(), run: (argv, o) => { if (argv[0] === 'git') return runCommand(argv, o); envs.push(o?.env); return { code: 0, stdout: '{"type":"system"}\n', stderr: '' }; } });
+  await runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]);
+  const env = envs.find((e) => e);
+  assert.equal(env.ANTHROPIC_API_KEY, 'k');
+  for (const name of ['GH_TOKEN', 'NPM_TOKEN', 'SSH_AUTH_SOCK']) assert.ok(!(name in env), name);
+});
+
 test('mask stays linear on a long dotted token and leaves ordinary words alone', () => {
   const long = `${'a.'.repeat(20000)}x`;
   const t = Date.now();

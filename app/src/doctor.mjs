@@ -70,7 +70,7 @@ export function skillFiles(dir) {
     .flatMap((f) => { const text = readText(f.file); return text == null ? [] : [{ ...f, text }]; });
 }
 
-export function projectChecks(ctx, dir) {
+export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
   const heading = agentsMd?.match(SUMMARY)?.[0];
@@ -88,7 +88,7 @@ export function projectChecks(ctx, dir) {
   if (state && state.share !== true && tracksState(ctx, dir)) out.push(issue('warning', 'project', 'the setup is local, but the repository still has it committed', 'benchkeeper projects unshare: a pull request removes the committed copies'));
   if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper update-all, or benchkeeper project apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
-  out.push(...settingsChecks(ctx, { dir }), ...allowChecks(ctx, { dir }), ...instructionChecks(ctx, { dir }));
+  out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
   const scoped = (scope, own, list) => list.map((f) => ({ ...f, scope, own }));
   out.push(...skillOverlap(ctx, dir, [...scoped('project', true, skillFiles(dir)), ...scoped('global', false, skillFiles(ctx.home)), ...pluginSkills(ctx, dir)], true));
@@ -106,7 +106,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
     const skillsCli = newest(ctx, 'skills', now);
     if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));
   }
-  if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents', '.github/skills', '.gemini'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir));
+  if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents', '.github/skills', '.gemini'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir, agents));
   if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));
   return out;
 }

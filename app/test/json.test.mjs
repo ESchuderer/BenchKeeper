@@ -84,6 +84,8 @@ test('--json: a clean doctor exits 0; usage failures exit 2 with an error docume
   assert.equal(registry.code, 2);
   assert.equal(registry.doc.command, 'projects list');
   assert.match(registry.doc.error, /registered projects file is not valid JSON/);
+  put(join(home, '.config/benchkeeper/projects.json'), 'null');
+  assert.match((await run(ctx, ['projects', 'list', '--json'])).doc.error, /has no projects list/);
   assert.match(bad.doc.error, /nope/);
   for (const [args, message] of [[['plan', '--agents', 'claude', '--level', 'nope'], /--level must be one of/], [['doctor', '--baseline', 'x'], /--baseline must be/], [['plan'], /no agent found/], [['project', 'apply'], /--json works with project plan/], [['apply'], /--json works with/], [['packs', 'save'], /--json works with/]]) {
     const r = await run(ctx, [...args, '--json']);

@@ -137,3 +137,10 @@ test('a plugin installed for the project is compared with the global skills', ()
   assert.equal(only(doctor(ctx, { agents: [], dir, env: {} }), 'skills').length, 1);
   assert.equal(only(doctor(ctx, { agents: [], env: {} }), 'skills').length, 0, 'the global check does not see it');
 });
+
+test('the agent filter reaches the project checks', () => {
+  const { ctx, dir } = machine();
+  put(join(dir, '.codex/rules/default.rules'), 'prefix_rule(pattern = ["bash"])\n');
+  assert.equal(only(doctor(ctx, { agents: ['codex'], dir, env: {} }), 'allow-rules').length, 1);
+  assert.equal(only(doctor(ctx, { agents: ['claude'], dir, env: {} }), 'allow-rules').length, 0);
+});

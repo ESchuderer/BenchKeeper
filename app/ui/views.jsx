@@ -559,7 +559,8 @@ export function Projects({ params, overview, refresh }) {
   const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
   const prs = prsOf(confirmPrs ?? []);
   const rows = visibleProjects(all, { ...view, version });
-  const chosen = all.filter((p) => selected.includes(p.path));
+  // Bulk actions act on the rows shown: a search or filter never leaves hidden projects selected.
+  const chosen = rows.filter((p) => selected.includes(p.path));
   const setUp = (list) => list.filter((p) => !p.missing && p.setupVersion).map((p) => p.path);
   const closeDialog = (removed) => { setDialog(null); if (removed) setSelected((s) => s.filter((x) => !dialog.paths.includes(x))); if (removed && dialog.paths.includes(open)) go('projects'); reload(); };
   const withOpen = (kind) => () => setDialog({ kind, paths: [open] });

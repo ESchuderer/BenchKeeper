@@ -80,7 +80,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
   const manual = (doctor.data ?? []).filter((i) => !fixAction(i)), covered = (doctor.data?.length ?? 0) - manual.length;
   const list = (projects.data ?? []).filter(offered);
   const open = list.filter((p) => !blocked(p)).map((p) => p.path);
-  const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error).length;
+  const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error && !p.missing).length;
   const nothing = !select?.length && !picked.length;
   return (
     <Stack gap="md">

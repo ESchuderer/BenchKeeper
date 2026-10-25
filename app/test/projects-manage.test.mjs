@@ -8,7 +8,7 @@ import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { hashPath, listFiles } from '../src/fsx.mjs';
-import { addProject, checkAdd, listProjects, relocateProject, removeProject, removeSetup, renameProject, setupRemoval, status } from '../src/projects.mjs';
+import { addProject, checkAdd, listProjects, relocateProject, removeProject, removeSetup, renameProject, setupRemoval, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectCtx, projectPlan } from '../src/steps/project.mjs';
@@ -63,7 +63,10 @@ test('adding: the same repository as a registered project (another worktree) is 
   addProject(ctx, join(a.dir, 'sub'));
   addProject(ctx, wt, { worktree: true });
   assert.equal(listProjects(ctx).length, 3);
-  assert.equal(checkAdd(ctx, a.dir).same, true);
+  // A registered folder is no duplicate of itself, whatever other worktrees are registered.
+  assert.deepEqual([checkAdd(ctx, a.dir).same, checkAdd(ctx, a.dir).worktree], [true, null]);
+  assert.equal(addProject(ctx, a.dir), a.dir);
+  assert.equal(listProjects(ctx).length, 3);
   assert.throws(() => checkAdd(ctx, join(a.dir, 'missing')), /does not exist/);
   assert.throws(() => checkAdd(ctx, join(a.dir, 'f')), /is not a folder/);
 });
@@ -171,6 +174,7 @@ test('Remove BenchKeeper setup, local: exactly the recorded files go, nothing el
 test('Remove BenchKeeper setup keeps a hand-written CLAUDE.local.md and AGENTS.override.md', () => {
   const h = home();
   const p = localProject(h, { sandbox: false });
+  addProject(p.ctx, p.dir);
   writeFileSync(join(p.dir, 'CLAUDE.local.md'), `my note\n\n${readFileSync(join(p.dir, 'CLAUDE.local.md'), 'utf8')}`);
   const plan = setupRemoval(p.ctx, p.dir);
   assert.ok(plan.changes.some((c) => c.step === 'local-claude' && c.kind === 'write'));
@@ -178,7 +182,42 @@ test('Remove BenchKeeper setup keeps a hand-written CLAUDE.local.md and AGENTS.o
   assert.equal(readFileSync(join(p.dir, 'CLAUDE.local.md'), 'utf8').trim().startsWith('my note'), true);
   assert.doesNotMatch(readFileSync(join(p.dir, 'CLAUDE.local.md'), 'utf8'), /benchkeeper:project/);
   // A project without any setup has nothing to remove.
-  assert.equal(removeSetup(p.ctx, repo().dir).reason, 'no BenchKeeper setup to remove');
+  const empty = repo().dir;
+  assert.match(removeSetup(p.ctx, empty).reason, /not a registered project/);
+  addProject(p.ctx, empty);
+  assert.equal(removeSetup(p.ctx, empty).reason, 'no BenchKeeper setup to remove');
+});
+
+test('Remove BenchKeeper setup leaves skills git tracks, and the exclude block another registered worktree uses', () => {
+  const h = home();
+  const p = localProject(h, { sandbox: false });
+  addProject(p.ctx, p.dir);
+  // The team committed this skill itself: it is in the lockfile and tracked, so it is theirs.
+  mkdirSync(join(p.dir, '.claude/skills/team'), { recursive: true });
+  writeFileSync(join(p.dir, '.claude/skills/team/SKILL.md'), '---\nname: team\n---\n');
+  writeFileSync(join(p.dir, 'skills-lock.json'), JSON.stringify({ skills: { team: {} } }));
+  p.git('add', '-f', '.claude/skills/team', 'skills-lock.json');
+  p.git('commit', '-qm', 'team skill');
+  const steps = setupRemoval(p.ctx, p.dir).changes.map((c) => c.step);
+  assert.ok(!steps.includes('skill:team') && !steps.includes('lock'));
+  assert.ok(steps.includes('exclude'));
+  // Another registered folder of the repository keeps the shared exclude block.
+  const wt = join(mkdtempSync(join(TMP, 'bk-wt-')), 'wt');
+  p.git('worktree', 'add', '-q', wt);
+  addProject(p.ctx, wt, { worktree: true });
+  assert.ok(!setupRemoval(p.ctx, p.dir).changes.some((c) => c.step === 'exclude'));
+  assert.equal(removeSetup(p.ctx, p.dir).status, 'removed');
+  assert.ok(existsSync(join(p.dir, '.claude/skills/team/SKILL.md')) && existsSync(join(p.dir, 'skills-lock.json')));
+  assert.match(readFileSync(join(p.dir, '.git/info/exclude'), 'utf8'), /benchkeeper:local/);
+});
+
+test('Update all stops at a project whose folder is gone', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = repo();
+  addProject(ctx, p.dir);
+  renameSync(p.dir, `${p.dir}-gone`);
+  assert.match(updateAll(ctx, { paths: [p.dir], push: false })[0].reason, /folder not found/);
 });
 
 test('Remove BenchKeeper setup, shared: a pull request branch without the committed setup; the checkout stays', () => {

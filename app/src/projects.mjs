@@ -61,10 +61,11 @@ export function checkAdd(ctx, path) {
   const p = canon(path);
   if (!existsSync(p)) throw new Error(`${p} does not exist`);
   if (!statSync(p).isDirectory()) throw new Error(`${p} is not a folder`);
-  const list = listProjects(ctx).filter((x) => x.path !== p);
+  const all = listProjects(ctx), same = all.some((x) => x.path === p);
+  const list = all.filter((x) => x.path !== p);
   const key = repoKey(ctx, p);
-  return { path: p, same: listProjects(ctx).some((x) => x.path === p),
-    worktree: (key && list.find((x) => repoKey(ctx, x.path) === key)?.path) || null,
+  return { path: p, same,
+    worktree: (!same && key && list.find((x) => repoKey(ctx, x.path) === key)?.path) || null,
     inside: list.find((x) => p.startsWith(x.path + sep))?.path ?? null };
 }
 // worktree: add a folder that is another worktree of a registered project's repository as a project of its own.
@@ -114,7 +115,7 @@ export function relocateProject(ctx, path, to) {
   const release = ctx.ledger.lock();
   try {
     ctx.ledger.relocate(entry.path, dest);
-    save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? { ...x, path: dest } : x)));
+    try { save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? { ...x, path: dest } : x))); } catch (e) { ctx.ledger.relocate(dest, entry.path); throw e; }
   } finally { release(); }
   return dest;
 }
@@ -249,6 +250,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
   return paths.map((path) => {
     const result = { path };
     try {
+      if (!isDir(path)) throw new Error('folder not found: relocate the project or remove it from the list');
       const local = readState(path), repo = isRepo(ctx, path);
       // The setup that counts says whether it is shared: the checkout's, the one kept from a removal pull request, or
       // origin's.
@@ -306,10 +308,16 @@ export function unshare(ctx, path, { push = true } = {}) {
 // local one git still tracks), the committed copies as a pull request. The state file kept in the registry counts as a
 // setup too.
 export function setupRemoval(ctx, path) {
+  registeredEntry(ctx, path);
   const state = tryState(path);
-  const shared = state?.share === true || (isRepo(ctx, path) && tracksState(ctx, path));
-  const changes = preview(shared ? committedSetup(path) : localSetup(ctx, path));
-  return { shared, changes, kept: !!kept(ctx, path) };
+  const shared = state?.share === true;
+  // A local setup git still tracks leaves with a pull request too, next to the local files git ignores.
+  const pr = shared || (isRepo(ctx, path) && tracksState(ctx, path));
+  const key = repoKey(ctx, path);
+  const keepExclude = !!key && listProjects(ctx).some((x) => x.path !== canon(path) && repoKey(ctx, x.path) === key);
+  const local = shared ? [] : preview(localSetup(ctx, path, { keepExclude }));
+  const committed = pr ? preview(committedSetup(path)) : [];
+  return { shared: pr, local, pr: committed, changes: [...local, ...committed], kept: !!kept(ctx, path) };
 }
 const REMOVAL_BRANCH = 'chore/remove-agent-setup';
 // Takes the BenchKeeper setup out of a project and leaves it registered, as "not set up". A local setup is one run in the
@@ -318,8 +326,13 @@ const REMOVAL_BRANCH = 'chore/remove-agent-setup';
 export function removeSetup(ctx, path, { push = true } = {}) {
   const result = { path };
   try {
-    const { shared, changes, kept: keptState } = setupRemoval(ctx, path);
+    const { shared, local, changes, kept: keptState } = setupRemoval(ctx, path);
     if (!changes.length && !keptState) throw new Error('no BenchKeeper setup to remove');
+    if (local.length) {
+      const run = apply(local, projectCtx(ctx, path), { scope: path, note: { removeSetup: path } });
+      result.run = run.id;
+      if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
+    }
     if (shared) {
       viaPullRequest(ctx, path, result, {
         branch: REMOVAL_BRANCH, push,
@@ -327,15 +340,9 @@ export function removeSetup(ctx, path, { push = true } = {}) {
         title: 'chore: remove the BenchKeeper agent setup',
         body: 'Removes the BenchKeeper setup of this repository: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.',
       });
-      return result;
-    }
-    if (changes.length) {
-      const run = apply(changes, projectCtx(ctx, path), { scope: path, note: { removeSetup: path } });
-      result.run = run.id;
-      if (run.status !== 'done') throw new Error(run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; '));
-    }
+    } else result.status = 'removed';
+    // The answers kept for a later local setup would bring the setup back with the next Update all.
     if (keptState) keepState(ctx, path, null);
-    result.status = 'removed';
   } catch (e) {
     result.status = 'stopped';
     result.reason = e.message;

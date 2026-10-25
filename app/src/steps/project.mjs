@@ -40,13 +40,13 @@ const lockedSkills = (dir) => Object.keys(tryJson(readText(join(dir, LOCK)))?.sk
 
 // The skills BenchKeeper or the skills CLI installed (recorded in the state file or locked), the lockfile and the state
 // folder, as removals: what both kinds of setup leave in a project.
-function installedFiles(dir, state, add) {
+function installedFiles(dir, state, add, skip = () => false) {
   const names = [...new Set([...(state?.skills ?? []).map((s) => s.name), ...lockedSkills(dir)])].filter((n) => SKILL_NAME.test(n ?? ''));
   for (const { dir: d } of skillDirs(['claude', 'codex', 'gemini', 'copilot'], 'project', dir)) {
-    for (const n of names) if (exists(join(d, n))) add(`skill:${n}`, `remove ${relative(dir, join(d, n))}`, { kind: 'remove', path: join(d, n) });
+    for (const n of names) if (exists(join(d, n)) && !skip(join(d, n))) add(`skill:${n}`, `remove ${relative(dir, join(d, n))}`, { kind: 'remove', path: join(d, n) });
   }
-  if (exists(join(dir, LOCK))) add('lock', `remove ${LOCK}`, { kind: 'remove', path: join(dir, LOCK) });
-  if (exists(join(dir, '.benchkeeper'))) add('state', 'remove .benchkeeper/', { kind: 'remove', path: join(dir, '.benchkeeper') });
+  if (exists(join(dir, LOCK)) && !skip(join(dir, LOCK))) add('lock', `remove ${LOCK}`, { kind: 'remove', path: join(dir, LOCK) });
+  if (exists(join(dir, '.benchkeeper')) && !skip(join(dir, '.benchkeeper'))) add('state', 'remove .benchkeeper/', { kind: 'remove', path: join(dir, '.benchkeeper') });
 }
 
 // The committed setup of a repository (dir: a checkout of it), as changes that take it out: the BenchKeeper block in
@@ -75,8 +75,10 @@ export function committedSetup(dir) {
 // A local setup as changes that take it out, for "Remove BenchKeeper setup": the BenchKeeper block in CLAUDE.local.md
 // (the file when nothing else is in it), AGENTS.override.md when it is BenchKeeper's, the sandbox keys in
 // .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, and the
-// installed files. Everything else of the project stays, its own AGENTS.md text, docs/agents/ and .devcontainer/ included.
-export function localSetup(ctx, dir) {
+// installed files, except what git tracks (the project's own commits). Everything else of the project stays, its own
+// AGENTS.md text, docs/agents/ and .devcontainer/ included. keepExclude: another registered folder of the repository
+// shares the exclude list, so its block stays for it.
+export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   const at = (p) => join(dir, p);
   const state = tryState(dir);
   const changes = [];
@@ -99,8 +101,8 @@ export function localSetup(ctx, dir) {
     const v = g.key.reduce((o, k) => o?.[k], tryJson(readText(at(g.path))));
     if (JSON.stringify(v) === JSON.stringify(g.value)) add('gemini-context', 'Gemini CLI no longer reads AGENTS.md', { kind: 'write', path: at(g.path), edit: (t) => mergeJson(t, [{ path: g.key, remove: true }, { path: g.key.slice(0, -1), prune: true }]) });
   }
-  installedFiles(dir, state, add);
-  const exclude = excludeFile(ctx, dir);
+  installedFiles(dir, state, add, (p) => git(ctx, dir, ['ls-files', '--', p]).stdout.trim() !== '');
+  const exclude = keepExclude ? null : excludeFile(ctx, dir);
   const id = `local:/${git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim()}`;
   if (exclude && getBlock(readText(exclude), id, '#') != null) add('exclude', 'git ignores the local setup no longer (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t) => setBlock(t, id, null, '#') });
   return changes;

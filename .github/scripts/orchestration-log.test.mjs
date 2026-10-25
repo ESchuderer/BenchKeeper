@@ -41,6 +41,10 @@ test('a flag inside a commit message or another git command is no bypass', () =>
   for (const text of ['git commit -m "fix: handle -n flag"', 'git commit -m x && git push -n', 'git commit -S -m x'])
     assert.equal(check([{ project: 'a', actor: 'worker', kind: 'command', text }]).noBypass, true, text);
 });
+test('a quoted flag is still a flag', () => {
+  for (const text of ['git push "--no-verify"', "git commit '-n' -m x", 'git commit -m "x" "--no-verify"'])
+    assert.equal(check([{ project: 'a', actor: 'worker', kind: 'command', text }]).noBypass, false, text);
+});
 test('parse names the line of an unknown kind', () => assert.throws(() => parse('{"kind":"start"}\n{"kind":"strat"}'), /line 2/));
 test('the CLI exits 1 on a failing log and 0 on a passing one', () => {
   const dir = mkdtempSync(join(tmpdir(), 'orch-'));

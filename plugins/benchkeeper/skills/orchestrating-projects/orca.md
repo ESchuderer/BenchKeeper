@@ -6,10 +6,10 @@ Orca is the runner this skill drives. `ORCA` stands for the executable the sessi
 
 ```text
 ORCA orchestration run-create --objective "issue work: <project names>" --json
-ORCA orchestration worker-start --spec "<filled spec-template.md>" --worktree new-top-level --repo path:<project path> --base-branch <default branch> --name <number>-<slug> --agent <claude|codex> --json
+ORCA orchestration worker-start --spec "$(cat <filled spec file>)" --worktree new-top-level --repo path:<project path> --base-branch <default branch> --name <number>-<slug> --agent <claude|codex> --json
 ```
 
-One `worker-start` per project in the wave. Keep the returned dispatch id per worker with its project, issue and branch name (the spec's `<type>/<number>-<slug>`); every later command takes the dispatch id. `worker-show` gives the worktree path. A non-zero exit means no worker; read `failedStage` and `residualResources` before trying again.
+One `worker-start` per project in the wave. Write the filled spec to a file and pass it through the quoted expansion above, so issue text is never read by the shell. Keep the returned dispatch id per worker with its project, issue and branch name (the spec's `<type>/<number>-<slug>`); every later command takes the dispatch id. `worker-show` gives the worktree path. A non-zero exit means no worker; read `failedStage` and `residualResources` before trying again.
 
 ## Worker reports
 
@@ -50,7 +50,7 @@ ORCA orchestration worker-release --dispatch <dispatch id> --json
 ORCA worktree rm --worktree path:<worktree path> --json
 ```
 
-Release only a settled worker, so stop an idle worker that sent no report before releasing it. `worker-read` still returns a released worker's output. `ORCA worktree rm` also tries to delete the checked-out local branch (Orca keeps it when it predates the worktree or its changes are not provably merged). Run it only after a merged PR with `deleteMergedBranch` true. In every other case (blocked, no merge allowed, `deleteMergedBranch` false) remove the worktree with `git -C <project path> worktree remove <worktree path>`, which leaves the branch; whether Orca's worktree list then drops the entry is unverified. Delete a merged branch's remote ref separately, when `deleteMergedBranch` allows it:
+Release only a settled worker, so stop an idle worker that sent no report before releasing it. `worker-read` still returns a released worker's output. `ORCA worktree rm` also tries to delete the checked-out local branch (Orca keeps it when it predates the worktree or its changes are not provably merged). Run it only after a merged PR with `deleteMergedBranch` true. Never remove a blocked worker's worktree. In the other cases (no merge allowed, `deleteMergedBranch` false) remove the worktree with `git -C <project path> worktree remove <worktree path>`, which leaves the branch; whether Orca's worktree list then drops the entry is unverified. Delete a merged branch's remote ref separately, when `deleteMergedBranch` allows it:
 
 ```text
 gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>
@@ -58,4 +58,4 @@ gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>
 
 ## Host limit
 
-`worker-list` without `--run` (the limit is machine-wide, other runs count) rows whose terminal state is active count against `hostWorkerLimit`. Count before every `worker-start`.
+The limit is machine-wide, and `worker-list` covers one run (the bound one unless `--run` is given). Count the rows whose terminal state is active in every run that `ORCA orchestration run-list` shows, before every `worker-start`.

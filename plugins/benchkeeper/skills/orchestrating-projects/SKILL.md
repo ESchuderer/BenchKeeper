@@ -29,7 +29,7 @@ Settings, rulesets, secrets and other people's repositories are the owner's. A p
 
 ## Loop
 
-1. **Pick**: per project, the oldest open issue with `startLabel` that has no open PR, no active worker and no entry in this run's blocked list. One issue per project and wave.
+1. **Pick**: per project, the oldest open issue with `startLabel` that has no open PR and no worker or outcome yet in this run. An issue starts once per run (a failed one retries once, below), so a verified no-change issue that stays open without `closeIssue` is not picked again. One issue per project and wave.
 2. **Spec**: copy [spec-template.md](spec-template.md) and fill its fields. Build every spec from the template; a spec copied or edited from the previous one carries that issue's details into the next.
 3. **Start** one worker per project, up to `workersPerProject` and `hostWorkerLimit`. Projects run in parallel; a project with no free slot waits.
 4. **Watch** until every worker has settled. Each wake-up checks three things: worker reports, worker state, and merged PRs (a PR merged by the owner or a bot settles that issue's work even when its worker never reported). A worker whose state reports alive or idle may be waiting at a prompt, so state alone proves nothing: apply the stall check. Wake at least every `stallMinutes` / 2.
@@ -40,7 +40,7 @@ Settings, rulesets, secrets and other people's repositories are the owner's. A p
 
 - **Done with a PR**: read the PR, the worker's "not checked" list and the issue's acceptance criteria. Verify the diff against them and that every check in `merge.requiredChecks` is green with no unresolved review thread. Merge only when `merge.allowed`; otherwise leave the PR ready and name it in the report. After the merge, close the issue when `closeIssue`. Then clean up.
 - **Done, no change needed**: verify the claim yourself on the base branch (read the code, run the check the issue names). Comment the evidence on the issue and close it when `closeIssue`. Then clean up.
-- **Blocked**: the worker commented on the issue and reported blocked (a refused hook, a missing credential, a check it cannot fix). Confirm the comment exists, put the issue on this run's blocked list, release the worker, start the next issue of that project. Keep that worktree and branch: they may hold the only copy of the work.
+- **Blocked**: the worker commented on the issue and reported blocked (a refused hook, a missing credential, a check it cannot fix). Confirm the comment exists, release the worker, start the next issue of that project. Keep that worktree and branch, and list the issue in the report: they may hold the only copy of the work.
 - **Failed**: read the worker's output. Retry once with a fresh worker and a spec from the template. A second failure is blocked.
 - **Stalled**: no commit, PR or message for `stallMinutes`. Read the worker's last output. Only proof that the session ended without a report (its final turn is over and nothing was sent) makes it blocked, after stopping it. A worker still producing output keeps waiting.
 

@@ -8,10 +8,10 @@ import { fileURLToPath } from 'node:url';
 const SKIPS = /--no-verify|core\.hooksPath|\.git\/hooks|HUSKY=0|LEFTHOOK=0|\bSKIP=/;
 const WRITERS = new Set(['rm', 'mv', 'cp', 'sed', 'tee', 'chmod', 'truncate', 'ln']);
 
-// A quoted string (a commit message) is not a flag; each command of a chain is read on its own.
+// Only a commit message (-m, -F, --message) is masked: any other quoted argument is still an argument. Each command of a chain is read on its own.
 export function bypasses(text) {
-  return text.replace(/"[^"]*"|'[^']*'/g, '""').split(/&&|;|\|/).some((part) => {
-    const t = part.trim().split(/\s+/);
+  return text.replace(/(-m|-F|--message)([ =])("[^"]*"|'[^']*')/g, '$1$2""').split(/&&|;|\|/).some((part) => {
+    const t = part.trim().split(/\s+/).map((a) => a.replace(/^["']|["']$/g, ''));
     const commit = t.indexOf('commit');
     return SKIPS.test(part)
       || (t[commit - 1] === 'git' && t.slice(commit + 1).some((a) => /^-[a-z]*n[a-z]*$/.test(a)))

@@ -1,8 +1,10 @@
 // Setup problems with a fix each; changes nothing. Values of environment variables are never read into the report.
 import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
+import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
 import { levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
@@ -58,8 +60,7 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
   return found.filter((f, i) => found.findIndex((g) => g.check === f.check && g.message === f.message) === i);
 }
 
-const frontMatter = (text) => text?.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
-const description = (text) => frontMatter(text).match(/^description:\s*"?(.*?)"?\s*$/m)?.[1] ?? '';
+const description = (text) => skillDescription(text).text;
 
 // The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
 // Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
@@ -69,7 +70,7 @@ export function skillFiles(dir) {
     .flatMap((f) => { const text = readText(f.file); return text == null ? [] : [{ ...f, text }]; });
 }
 
-export function projectChecks(ctx, dir) {
+export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
   const heading = agentsMd?.match(SUMMARY)?.[0];
@@ -87,7 +88,10 @@ export function projectChecks(ctx, dir) {
   if (state && state.share !== true && tracksState(ctx, dir)) out.push(issue('warning', 'project', 'the setup is local, but the repository still has it committed', 'benchkeeper projects unshare: a pull request removes the committed copies'));
   if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper update-all, or benchkeeper project apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
-  out.push(...settingsChecks(ctx, { dir }));
+  out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
+  // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
+  const scoped = (scope, own, list) => list.map((f) => ({ ...f, scope, own }));
+  out.push(...skillOverlap(ctx, dir, [...scoped('project', true, skillFiles(dir)), ...scoped('global', false, skillFiles(ctx.home)), ...pluginSkills(ctx, dir)], true));
   return out;
 }
 
@@ -95,13 +99,14 @@ export function projectChecks(ctx, dir) {
 export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, now, baseline } = {}) {
   // Below full, the global plan is the plugin alone: rules, settings and host tools are not expected.
   const level = levelFor(ctx, agents, dir);
-  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env })];
+  const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx)];
+  out.push(...skillOverlap(ctx, undefined, [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)]));
   if (level === 'full') {
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
     const skillsCli = newest(ctx, 'skills', now);
     if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));
   }
-  if (dir && (tryState(dir) || exists(join(dir, '.benchkeeper')) || exists(join(dir, 'AGENTS.md')))) out.push(...projectChecks(ctx, dir));
+  if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents', '.github/skills', '.gemini'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir, agents));
   if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));
   return out;
 }

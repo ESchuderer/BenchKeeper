@@ -24,6 +24,8 @@ import '@mantine/core/styles/VisuallyHidden.css';
 import '@fontsource-variable/inter';
 import '../styles/global.css';
 import Page from '../components/Page';
+import PreviewBanner from '../components/PreviewBanner.astro';
+import { preview } from '../lib/preview';
 import facts from '../data/facts.json';
 
 import { execSync } from 'node:child_process';
@@ -45,6 +47,7 @@ try {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title}</title>
   <meta name="description" content={description}>
+  {preview && <meta name="robots" content="noindex">}
   <link rel="canonical" href={pageUrl}>
   <meta property="og:type" content="website">
   <meta property="og:title" content={title}>
@@ -66,6 +69,7 @@ try {
   </script>
 </head>
 <body>
+  <PreviewBanner />
   <Page base={base} updated={updated} commit={commit} />
   <script is:inline>
     (function () {

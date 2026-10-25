@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { BASE } from './base';
 
 test('one summary per run: winners and top 10 by the run score, link to the run page, report link, API cost per arm', async ({ page }) => {
   await page.goto('./bench/');
@@ -10,7 +11,7 @@ test('one summary per run: winners and top 10 by the run score, link to the run 
   const ratings = await table.locator('tbody tr td:nth-child(4)').allInnerTexts();
   expect(ratings.map(Number)).toEqual([...ratings.map(Number)].sort((a, b) => b - a));
   await expect(run.getByRole('link', { name: '2026-10-15-winery-react.md' })).toHaveAttribute('href', /\/blob\/main\/bench\/results\/2026-10-15-winery-react\.md$/);
-  await expect(run.getByRole('link', { name: 'All arms and reviews' })).toHaveAttribute('href', '/BenchKeeper/bench/2026-10-15-winery-react-sonnet/');
+  await expect(run.getByRole('link', { name: 'All arms and reviews' })).toHaveAttribute('href', `${BASE}bench/2026-10-15-winery-react-sonnet/`);
   const brownfield = page.locator('section', { has: page.getByRole('heading', { level: 2, name: 'openballistics, Sonnet 5.5' }) });
   await expect(brownfield.getByRole('region', { name: /top 10/ }).locator('tbody tr')).toHaveCount(8);
   await expect(page.getByRole('link', { name: 'Skill authoring check' })).toBeVisible();
@@ -40,7 +41,7 @@ test('the winery run page ranks runtimes apart', async ({ page }) => {
 
 test('the main page links to the benchmark summary', async ({ page }) => {
   await page.goto('./');
-  await page.locator('a[href="/BenchKeeper/bench/"]').first().click();
+  await page.locator(`a[href="${BASE}bench/"]`).first().click();
   await expect(page.getByRole('heading', { level: 1, name: 'Benchmarks' })).toBeVisible();
 });
 
@@ -65,7 +66,7 @@ test('the benchmark pages use the main site header, its section links lead back 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('./bench/2026-10-17-openballistics-sonnet/');
   const nav = page.getByRole('banner').getByRole('navigation', { name: 'Sections' });
-  await expect(nav.getByRole('link', { name: 'Workflow' })).toHaveAttribute('href', '/BenchKeeper/#sdlc');
+  await expect(nav.getByRole('link', { name: 'Workflow' })).toHaveAttribute('href', `${BASE}#sdlc`);
   await expect(page.getByRole('banner').getByRole('link', { name: 'Benchmark', exact: true })).toBeVisible();
 });
 

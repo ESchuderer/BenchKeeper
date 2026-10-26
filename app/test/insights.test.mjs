@@ -24,6 +24,7 @@ test('unused skills: reported from the sample threshold, with the descriptions c
   assert.equal(f.severity, 'info');
   assert.match(f.message, /2 installed skills were not used in any of the last 20 sessions.*about 42 tokens/);
   assert.deepEqual(r.samples, { sessions: 20, minSamples: 20 });
+  assert.match(insights({ sessions: sessions(MIN_SAMPLES), skills: [skill('one')] }).findings[0].message, /^1 installed skill was not used/);
 });
 
 test('unused skills: nothing below the threshold, for another agent or when every skill was used', () => {
@@ -124,6 +125,6 @@ test('collectInsights: 20 sessions in the window report the installed skill none
   const r = await collectInsights(ctx, { agents: ['claude'], now: Date.parse('2026-10-26T00:00:00Z') });
   const f = r.findings.find((x) => x.id === 'unused-skills');
   assert.equal(r.samples.sessions, 22);
-  assert.deepEqual(f.evidence.skills, [{ name: 'old-skill', scope: 'global', tokens: 100 }]);
+  assert.deepEqual(f.evidence.skills, [{ name: 'old-skill', scope: 'global', tokens: 108 }]);
   assert.ok(!JSON.stringify(r).includes(SECRET));
 });

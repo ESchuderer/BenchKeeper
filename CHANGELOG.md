@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.12 (2026-10-26)
+
+- App, supply chain findings of the security review (#198): every `npm` and `npx` command the app runs (host tool, skills CLI, global and per project) now carries `npm_config_before` set to 7 days ago, so the dependencies of the pinned skills CLI and of the host tool resolve at releases at least 7 days old too, and the signature check, the preview and the run resolve the same tree. The two global skill sources moved back from commits that were 6 days and 1 day old to the newest commits that are 7 days old (`vercel-labs/skills` `13e4063`, `stablyai/orca` `5df4fef`), so the installed skill text is a week older than before. `PIN_DATES` records when each third-party pin was published and a test fails for a pin younger than 7 days or changed without its date. The other findings of #198 were already fixed on `develop` (#235, #239, #240) or are decided in `docs/security.md`.
+- Plugin `version` 6.12.0.
+- Upgrade: `npx benchkeeper@6.12.0 apply`.
+
 ## setup-v6.11 (2026-10-26)
 
 - App, remaining low-severity findings of the security review (#206): `benchkeeper test` reports a `skills-lock.json` that is not a lock file (not JSON, not an object, `skills` not an object) as a problem line instead of throwing; copies to a path that does not exist yet (backups, undo restores) are written beside it and renamed in, so a failed copy leaves no half-written file or folder; the Catalog lists pack files that are not packs with their reason and removes them (as `packs list` and `packs remove` already did).

@@ -13,7 +13,7 @@ import { keyed, mask, redactArgv } from '../src/redact.mjs';
 import { runEval } from '../src/eval.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
-import { SKILL_SOURCES, globalPlan } from '../src/steps/global.mjs';
+import { MATT_POCOCK_COMMIT, PIN_DATES, PONYTAIL_COMMIT, SKILLS_CLI, SKILL_SOURCES, globalPlan } from '../src/steps/global.mjs';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'bk-secrets-'));
 const mode = (p) => statSync(p).mode & 0o777;
@@ -64,6 +64,25 @@ test('cooled: published for 7 days, still installable, a plain release, a string
   assert.deepEqual(cooled(time, [], now), []);
   assert.deepEqual(cooled([time], ['1.0.0'], now), []);
   assert.deepEqual(cooled(null, undefined, now), []);
+});
+
+test('every third-party pin has its publish date recorded, and none is younger than 7 days', () => {
+  const pins = [`skills@${SKILLS_CLI}`, ...Object.values(SKILL_SOURCES).map((u) => u.split('/tree/')[1]), PONYTAIL_COMMIT, MATT_POCOCK_COMMIT];
+  assert.deepEqual(Object.keys(PIN_DATES).sort(), pins.sort(), 'a pin changed without its date');
+  for (const [pin, date] of Object.entries(PIN_DATES)) assert.ok(Date.parse(date) < Date.now() - 7 * 864e5, `${pin} was published ${date}`);
+});
+
+test('the host tool and the skills CLI resolve their dependencies at releases at least 7 days old, the check and the install alike', () => {
+  const seen = [];
+  const ctx = context({ home: tmp(), run: (argv, o) => { seen.push({ argv, env: o?.env }); return { code: argv[0] === 'orca' || argv[0] === 'npm' || argv[0] === 'npx' || argv[1]?.endsWith('verify.mjs') ? 0 : 127, stdout: '', stderr: '' }; } });
+  const tools = globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' }).filter((c) => c.step.startsWith('tools:'));
+  assert.equal(tools.length, 4);
+  for (const c of tools) assert.ok(Math.abs(Date.parse(c.env?.npm_config_before) - (Date.now() - 7 * 864e5)) < 60e3, `${c.step}: ${c.env?.npm_config_before}`);
+  assert.equal(apply(tools, ctx, { select: tools.map((c) => c.id) }).status, 'done');
+  for (const verify of seen.filter((x) => x.argv[1]?.endsWith('verify.mjs'))) {
+    const install = seen.find((x) => x.argv[0] === (verify.argv[2].startsWith('skills') ? 'npx' : 'npm'));
+    assert.equal(verify.env.npm_config_before, install.env.npm_config_before, verify.argv[2]);
+  }
 });
 
 test('global skills come from a commit, run without lifecycle scripts, and undo restores them', () => {

@@ -93,6 +93,24 @@ try {
             function () { done('Copy failed. Select the command instead.'); });
         });
       });
+      // Quick start tabs (WAI-ARIA tabs pattern): without this script both panels stay visible.
+      var qs = document.querySelector('.qs'), tabs = [].slice.call(qs.querySelectorAll('[role="tab"]')), panels = [].slice.call(qs.querySelectorAll('.qs-panel'));
+      function pick(i, focus) {
+        tabs.forEach(function (t, j) { t.setAttribute('aria-selected', j === i); t.tabIndex = j === i ? 0 : -1; panels[j].hidden = j !== i; });
+        if (focus) tabs[i].focus();
+      }
+      qs.classList.add('qs-js');
+      qs.querySelector('[role="tablist"]').hidden = false;
+      panels.forEach(function (p, i) { p.setAttribute('role', 'tabpanel'); p.setAttribute('aria-labelledby', 'qs-tab-' + i); });
+      tabs.forEach(function (t, i) {
+        t.addEventListener('click', function () { pick(i); });
+        t.addEventListener('keydown', function (e) {
+          var n = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+          if (n === undefined) return;
+          e.preventDefault(); pick((n + tabs.length) % tabs.length, true);
+        });
+      });
+      pick(0);
       // SDLC loop: tooltip follows the cursor on hover devices; a tap or click on a step jumps to its description.
       var wrap = document.querySelector('.ring-wrap'), tip = wrap.querySelector('.ring-tip');
       function place(x, y) {

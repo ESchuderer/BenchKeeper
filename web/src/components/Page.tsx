@@ -67,16 +67,26 @@ function StepList({ from, className }: { from: number; className?: string }) {
   );
 }
 
-const quickstart: [string, string, string][] = [
-  ['Review the plan', 'npx benchkeeper@6.11.0 plan', 'Each change for the agents on your PATH: file changes as a diff, commands as their command line. Writes nothing.'],
-  ['Apply', 'npx benchkeeper@6.11.0 apply', 'Asks per change: rules, the plugins (BenchKeeper, Ponytail; Matt Pocock\'s skills with --pack matt-pocock), Claude Code settings. Removals of other global rules, skills, plugins, MCP servers and hooks are off unless chosen. Every run is recorded for undo.'],
-  ['Or in the browser', 'npx benchkeeper@6.11.0', 'The Dashboard shows the doctor findings. Fix everything walks through the global plan, the projects you pick and the steps left by hand. Skill installs run first in a scratch folder, so the plan lists the files they would write.'],
-  ['Restart the agents', '', 'New sessions load the global rules and the plugin skills.'],
-  ['Project setup, in each repository root', 'npx benchkeeper@6.11.0 project apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. project plan shows the changes first.'],
-  ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.11.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
-  ['Update later', 'npx benchkeeper@6.11.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.11.0 update-all, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
-  ['Track sessions', 'npx benchkeeper@6.11.0 board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
+const repoSteps: [string, string, string][] = [
+  ['Project setup, in each repository root', 'npx benchkeeper@6.12.0 project apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. project plan shows the changes first.'],
+  ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.12.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
+  ['Update later', 'npx benchkeeper@6.12.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.12.0 update-all, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
+  ['Track sessions', 'npx benchkeeper@6.12.0 board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
 ];
+
+function CmdRow({ cmd, note }: { cmd: string; note: ReactNode }) {
+  return (
+    <Stack gap={6}>
+      <Group gap={6} wrap="nowrap">
+        <Code block className="cmd">{cmd}</Code>
+        <ActionIcon variant="default" size={36} data-copy={cmd} aria-label={`Copy command: ${cmd}`}>
+          <IconCopy size={16} className="i-copy" /><IconCheck size={16} className="i-done" />
+        </ActionIcon>
+      </Group>
+      <Text size="sm" c="dimmed">{note}</Text>
+    </Stack>
+  );
+}
 
 const reasons: [string, string][] = [
   ['Quality', 'in BenchKeeper\'s mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock\'s skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3).'],
@@ -153,7 +163,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               The smallest complete change: reuse before new code, no unrequested options, a test for new logic, <Code>shortcut:</Code> comments for known limits.
             </Part>
             <Part icon={<IconRoute size={20} />} title="The app and the setup skills" href={`${REPO}/tree/main/app`} scope="On request">
-              <Code>npx benchkeeper@6.11.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates every project, and the Sessions board tracks tier, cost and outcome per session. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass, <Code>/benchkeeper:orchestrating-projects</Code> coordinates workers on labeled issues across projects.
+              <Code>npx benchkeeper@6.12.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates every project, and the Sessions board tracks tier, cost and outcome per session. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass, <Code>/benchkeeper:orchestrating-projects</Code> coordinates workers on labeled issues across projects.
             </Part>
             <Part icon={<IconContainer size={20} />} title="Devcontainer and Playwright" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="Per repository">
               Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the <Anchor href={`${REPO}/blob/main/plugins/benchkeeper/library/README.md`}>BenchKeeper library</Anchor>, stack skills from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
@@ -185,26 +195,42 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="start" title="Quick start" intro={<>Needs Claude Code or Codex (Gemini CLI and GitHub Copilot CLI also work, untested), Git, Node.js 22, and Docker or Podman for the dev container (<Anchor href={`${REPO}#prerequisites`}>full list</Anchor>). The app installs the Dev Containers CLI. Each setup step shows its plan before it changes anything. <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
+        <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Anchor href={`${REPO}#prerequisites`}>Full list of tools.</Anchor> {facts.quickstart.choose} <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
           <Stack gap="lg" maw={760}>
-            {quickstart.map(([title, cmd, note], k) => (
+            <div className="qs">
+              <div role="tablist" aria-label="Install path" className="qs-tabs" hidden>
+                {facts.quickstart.paths.map((p, i) => (
+                  <button key={p.name} type="button" role="tab" id={`qs-tab-${i}`} aria-controls={`qs-panel-${i}`} aria-selected={i === 0} tabIndex={i === 0 ? 0 : -1}>{p.name}</button>
+                ))}
+              </div>
+              {facts.quickstart.paths.map((p, i) => (
+                <div key={p.name} id={`qs-panel-${i}`} className="qs-panel">
+                  <Title order={3} fz="lg" mb="sm" className="qs-h">{p.name}</Title>
+                  <Stack gap="md">
+                    {p.steps.map((st) => <CmdRow key={st.command} cmd={st.command} note={md(st.text)} />)}
+                  </Stack>
+                </div>
+              ))}
+            </div>
+            <Text size="sm">{facts.quickstart.next} {md(facts.quickstart.changes)}</Text>
+            <Group gap="md">
+              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : `${REPO}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
+            </Group>
+            <VisuallyHidden aria-live="polite" data-copy-status></VisuallyHidden>
+          </Stack>
+        </Section>
+
+        <Section id="repos" title="Each repository, updates and sessions">
+          <Stack gap="lg" maw={760}>
+            {repoSteps.map(([title, cmd, note], k) => (
               <Group key={title} gap="md" wrap="nowrap" align="flex-start">
                 <ThemeIcon variant="light" radius="xl" size={30}><Text size="sm" fw={700}>{k + 1}</Text></ThemeIcon>
                 <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
                   <Text fw={700}>{title}</Text>
-                  {cmd && (
-                    <Group gap={6} wrap="nowrap">
-                      <Code block className="cmd">{cmd}</Code>
-                      <ActionIcon variant="default" size={36} data-copy={cmd} aria-label={`Copy command: ${cmd}`}>
-                        <IconCopy size={16} className="i-copy" /><IconCheck size={16} className="i-done" />
-                      </ActionIcon>
-                    </Group>
-                  )}
-                  <Text size="sm" c="dimmed">{note}</Text>
+                  <CmdRow cmd={cmd} note={note} />
                 </Stack>
               </Group>
             ))}
-            <VisuallyHidden aria-live="polite" data-copy-status></VisuallyHidden>
           </Stack>
         </Section>
 

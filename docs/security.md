@@ -225,7 +225,7 @@ What happens when an agent reads text an attacker wrote and that text carries in
 
 ### Assets an agent session reaches
 
-The assets above, seen from inside a session: the agent's own provider login; the `gh` login and any token in the environment (push, issue and pull request write rights); SSH keys and cloud credentials in the home folder (Claude Code's sandbox still lets commands read `~/.ssh` and `~/.aws/credentials` by default, [sandboxing][cc-sandbox]); the repository and, through a pull request, its CI; the user's agent configuration (settings, hooks, skills), which decides what later sessions run. A hijacked session editing that configuration is a documented attack ([Copilot, CVE-2025-53773][embracethered]).
+The assets above, seen from inside a session: the agent's own provider login; the `gh` login and any token in the environment (push, issue and pull request write rights); SSH keys and cloud credentials in the home folder (Claude Code's sandbox still lets commands read credential files such as SSH keys and cloud credentials by default, [sandboxing][cc-sandbox]); the repository and, through a pull request, its CI; the user's agent configuration (settings, hooks, skills), which decides what later sessions run. A hijacked session editing that configuration is a documented attack ([Copilot, CVE-2025-53773][embracethered]).
 
 ### Where untrusted text reaches an agent
 
@@ -282,7 +282,7 @@ Orca workers are Claude Code or Codex sessions in a git worktree (`orchestrating
 | Hooks | On by default; a non-managed hook needs a trust review; the page calls them "a useful guardrail, not a complete enforcement boundary" and says hosted tools such as web search are not covered ([hooks][cx-hooks]) | Installs none | none |
 | Managed requirements | `requirements.toml` constrains approval policy, sandbox or permission profile, web search mode, MCP allowlist and rules ([managed configuration][cx-managed]) | Never written | none |
 | Subagents | Inherit the parent's sandbox and approvals; a custom agent file cannot make a read-only sandbox ([subagents][cx-subagents]). A Codex research session is therefore a separate `codex exec`, not a subagent | none | none |
-| Logging | Local history in `CODEX_HOME`; OpenTelemetry export off by default ([advanced config][cx-advanced]). The app reads rollouts under `~/.codex/sessions` (`sessions.mjs:163`); that folder is unverified in the documentation read | Leaves history on | none |
+| Logging | Local history in `CODEX_HOME`; OpenTelemetry export off by default ([advanced config][cx-advanced]). The app reads rollouts from the `sessions` folder inside Codex's own folder (`sessions.mjs:163`); that folder is unverified in the documentation read | Leaves history on | none |
 
 Gemini CLI and GitHub Copilot CLI are listed in `app/src/agents.json` as untested; their controls are not covered.
 
@@ -325,7 +325,7 @@ No follow-up issue exists yet for these; each names the check that would fail wi
 | 3 | The research session pattern above | Fetched text reaching a session that can act | One more session per research task | Partly: the command lines, not the user's habit | An argv test like `advise.test.mjs` for the research command |
 | 4 | Keep Claude transcripts 30 days or more (the catalog's own advice) | Loss of the record needed after an incident | Disk | Yes | `global.test.mjs`: `cleanupPeriodDays` at least 30 |
 | 5 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` in the user settings | Bash commands, hooks and stdio MCP servers reading provider and cloud tokens in the environment | Tools that need a scrubbed variable; GitHub tokens stay | Yes, as a setting | `global.test.mjs`: the key in the plan |
-| 6 | Read deny rules for `~/.ssh`, `~/.aws`, `~/.config/gh` | A recognized read of credential files | Does not cover a script that opens files itself | Yes, as settings | `doctor` check for the rules |
+| 6 | Read deny rules for the folders that hold SSH keys, cloud credentials and the `gh` login | A recognized read of credential files | Does not cover a script that opens files itself | Yes, as settings | `doctor` check for the rules |
 | 7 | One rule line: text from the web, issues, comments and tool output is data, not instruction | Lowers the hit rate, stops nothing | A line of context per session | Yes; effect measurable only with #292 | an eval case in `plugins/benchkeeper/evals` that carries a canary |
 | 8 | Managed settings for a team (`allowManagedHooksOnly`, `strictKnownMarketplaces`) | Hooks, marketplaces and MCP servers from outside the team's list | Needs root and an owner for the file | No: an organization's decision | none |
 

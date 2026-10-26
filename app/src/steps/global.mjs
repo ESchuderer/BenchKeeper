@@ -23,8 +23,17 @@ export const SKILLS_VERIFY = verifyArgv(`skills@${SKILLS_CLI}`);
 // The global skills' repositories at a commit (bumped by hand with SKILLS_CLI): the skills CLI reads a tree URL with a
 // commit as a pin, so a push to the default branch changes nothing here and the preview shows what the run installs.
 export const SKILL_SOURCES = {
-  'vercel-labs/skills': 'https://github.com/vercel-labs/skills/tree/a80e4c9d12d607631249d4d7d059f835d4b2f13a',
-  'https://github.com/stablyai/orca': 'https://github.com/stablyai/orca/tree/9c5d789a42701188f25f101ef5dc7dd3015a2112',
+  'vercel-labs/skills': 'https://github.com/vercel-labs/skills/tree/13e4063a1cf913f5606d57d42ab83a86f5001e04',
+  'https://github.com/stablyai/orca': 'https://github.com/stablyai/orca/tree/5df4fef9177fda93446fa35e38ab7b44fedb3e16',
+};
+// When each pin was published (npm `time` for the CLI, the committer date for a commit), written by hand when the pin is
+// bumped: a pin under 7 days old fails the test, as the host tools are held back that long.
+export const PIN_DATES = {
+  [`skills@${SKILLS_CLI}`]: '2026-10-09T16:49:31Z',
+  '13e4063a1cf913f5606d57d42ab83a86f5001e04': '2026-10-09T17:54:46Z',
+  '5df4fef9177fda93446fa35e38ab7b44fedb3e16': '2026-10-19T00:29:54Z',
+  '16352ac229eb08a9598dcae48fe9f2b342567d86': '2026-10-16T23:04:13Z',
+  '24fe0ef7737efae15c87225755e9f6f5965e4888': '2026-10-04T12:48:05Z',
 };
 export const PONYTAIL_REF = 'v5.3.2';
 export const MATT_POCOCK_REF = 'v1.3.1';

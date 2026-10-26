@@ -28,6 +28,7 @@ import { detectLevel } from './level.mjs';
 import { PLUGINS, LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
+import { clearKnowledge, entryLine, readKnowledge } from './knowledge.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -123,9 +124,13 @@ Usage: benchkeeper <command> [options]
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
   record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
+  maintain knowledge show [dir]     what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
+                                    ignored by git): entries per file; a file that does not parse is listed as ignored
+  maintain knowledge clear [dir] [--yes]
+                                    removes that folder after a question and nothing else of the project
 
 --json (doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list,
-        settings list and get, frameworks list, board, profile export)
+        settings list and get, frameworks list, board, profile export, maintain knowledge show)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
 
@@ -207,8 +212,8 @@ export async function main(argv, { out = process.stdout, err = process.stderr, i
     // With --json a failure is a document too: an unknown option, an unreadable file.
     if (!argv.includes('--json')) throw e;
     err.write(`${redact(e.message)}\n`);
-    const [cmd = 'ui', arg] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
-    out.write(jsonDoc(commandName(cmd, arg), { error: redact(e.message) }));
+    const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    out.write(jsonDoc(commandName(cmd, arg, sub), { error: redact(e.message) }));
     return 2;
   } finally { ask.close(); }
 }
@@ -412,6 +417,7 @@ async function command(argv, { out, err, ask, ctx }) {
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'maintain') return maintainCommand({ o, positionals, out, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
@@ -545,11 +551,11 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg) => (['project', 'projects', 'packs', 'skills', 'rules', 'settings', 'frameworks', 'profile'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'maintain' ? ['maintain', arg, sub].filter(Boolean).join(' ') : ['project', 'projects', 'packs', 'skills', 'rules', 'settings', 'frameworks', 'profile'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
-  const name = commandName(cmd, arg);
+  const name = commandName(cmd, arg, positionals[2]);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
   const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
   // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
@@ -630,13 +636,19 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const sessions = (await scanSessions(ctx)).map(({ title, ...s }) => s);
     return emit({ sessions });
   }
+  if (cmd === 'maintain') {
+    if (arg !== 'knowledge' || positionals[2] !== 'show') return fail('maintain --json works with knowledge show');
+    const extra = surplus(4); if (extra !== undefined) return extra;
+    const dir = resolve(positionals[3] ?? '.');
+    return emit({ dir, ...readKnowledge(dir) });
+  }
   if (cmd === 'profile' && arg === 'export') {
     if (positionals[2]) return fail('profile export --json prints the document: redirect stdout and take `.profile` before profile import');
     const broken = registryFail();
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, settings list and get, frameworks list, board and profile export');
+  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, settings list and get, frameworks list, board, profile export and maintain knowledge show');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
@@ -693,6 +705,25 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const sctx = layer === 'user' ? ctx : projectCtx(ctx, dir);
   return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
+}
+
+// maintain knowledge show|clear: the knowledge base of the maintaining-repos skill, per project folder.
+async function maintainCommand({ o, positionals, out, ask }) {
+  const [, topic, sub, where] = positionals;
+  if (topic !== 'knowledge' || !['show', 'clear'].includes(sub)) { out.write('maintain needs knowledge show or knowledge clear\n'); return 2; }
+  const dir = resolve(where ?? '.');
+  const { path, files, ignored } = readKnowledge(dir);
+  if (!files.length && !ignored.length) { out.write(`no knowledge stored for ${dir}\n`); return 0; }
+  if (sub === 'show') {
+    for (const f of files) out.write(`${f.name}  ${f.entries.length} entries\n${f.entries.map((e) => `  ${entryLine(e)}\n`).join('')}`);
+    for (const i of ignored) out.write(`ignored ${i.name}: ${i.reason}\n`);
+    return 0;
+  }
+  const n = files.reduce((sum, f) => sum + f.entries.length, 0);
+  if (!o.yes && !(await ask(`Remove ${path} (${n} entries in ${files.length} files${ignored.length ? `, ${ignored.length} ignored` : ''})?`))) return 1;
+  clearKnowledge(dir);
+  out.write(`removed ${path}\n`);
+  return 0;
 }
 
 // rules list|disable|enable: the Rules view on the command line, through the same plan, diff and undo.

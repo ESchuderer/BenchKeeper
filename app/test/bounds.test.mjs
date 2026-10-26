@@ -17,7 +17,7 @@ import { removePack } from '../src/packs.mjs';
 import { transcript } from '../src/session.mjs';
 import { scanSessions } from '../src/sessions.mjs';
 import { copy, hashPath, hashText } from '../src/fsx.mjs';
-import { clean, repoEnv, safeBranch, snapshot } from '../src/git.mjs';
+import { clean, git as runGit, repoEnv, safeBranch, snapshot } from '../src/git.mjs';
 import { importChoices, importPlan, readProfile } from '../src/profile.mjs';
 import { MAX_PROJECTS, addProject, scan, updateAll } from '../src/projects.mjs';
 import { api } from '../src/server.mjs';
@@ -85,6 +85,62 @@ test('a repository that names a core.fsmonitor command does not run it for statu
   assert.equal(clean(c, dir), true);
   assert.match(snapshot(c, dir), /^[0-9a-f]{40,64}$/);
   assert.equal(readFileSync(mark, 'utf8'), '');
+});
+
+// A filter driver of the repository's own config runs a shell command for every path whose attributes name it.
+function driverRepo(name, via = 'local') {
+  const dir = repo();
+  const mark = join(home(), 'ran');
+  const script = join(home(), 'filter.sh');
+  writeFileSync(script, `#!/bin/sh\necho "$1" >> '${mark}'\ncat\n`, { mode: 0o755 });
+  writeFileSync(join(dir, '.gitattributes'), `* filter=${name}\n`);
+  writeFileSync(join(dir, 'f.txt'), 'x\n');
+  const target = via === 'include' ? join(home(), 'inc.cfg') : null;
+  if (target) { git(dir, 'config', 'include.path', target); writeFileSync(target, ''); }
+  const set = (k, v) => (target ? git(dir, 'config', '-f', target, `filter.${name}.${k}`, v) : git(dir, 'config', `filter.${name}.${k}`, v));
+  for (const k of ['clean', 'smudge']) set(k, `${script} ${k}`);
+  set('required', 'true');
+  return { dir, mark };
+}
+
+test('a repository filter driver does not run for status, snapshots and worktree add, also under an odd name or through an include', () => {
+  const c = context({ home: home(), run: runCommand });
+  for (const [name, via] of [['evil', 'local'], ['a=b', 'local'], ['evil', 'include']]) {
+    const { dir, mark } = driverRepo(name, via);
+    git(dir, 'add', '-A');
+    assert.equal(existsSync(mark), true, `the driver runs under plain git: ${name} ${via}`);
+    git(dir, 'reset', '-q');
+    rmSync(mark, { force: true });
+    assert.equal(clean(c, dir), false, name);
+    assert.match(snapshot(c, dir), /^[0-9a-f]{40,64}$/);
+    assert.equal(existsSync(mark), false, `${name} ${via}: no driver ran for status and the snapshot`);
+    assert.equal(runGit(c, dir, ['add', '-A']).code, 0, name);
+    assert.equal(runGit(c, dir, ['commit', '-qm', 'files']).code, 0, name);
+    assert.equal(existsSync(mark), false, `${name} ${via}: no driver ran for add and commit`);
+    const tree = join(home(), 'wt');
+    assert.equal(runGit(c, dir, ['worktree', 'add', '-q', tree, 'HEAD']).code, 0, name);
+    assert.equal(existsSync(mark), false, `${name} ${via}: no driver ran for worktree add`);
+  }
+});
+
+test('the git-lfs driver commands still run, any other command named git-lfs does not', () => {
+  const bin = home(), mark = join(home(), 'ran');
+  writeFileSync(join(bin, 'git-lfs'), `#!/bin/sh\necho "$@" >> '${mark}'\ncat\n`, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  try {
+    const c = context({ home: home(), run: runCommand });
+    const dir = repo();
+    writeFileSync(join(dir, '.gitattributes'), '* filter=lfs\n');
+    writeFileSync(join(dir, 'f.txt'), 'x\n');
+    git(dir, 'config', 'filter.lfs.clean', 'git-lfs clean -- %f');
+    snapshot(c, dir);
+    assert.match(readFileSync(mark, 'utf8'), /^clean -- /);
+    rmSync(mark);
+    git(dir, 'config', 'filter.lfs.clean', 'git-lfs clean -- %f; echo more');
+    snapshot(c, dir);
+    assert.equal(existsSync(mark), false);
+  } finally { process.env.PATH = path; }
 });
 
 test('the root of a drive, the home folder, its parents and the config folder are no project', () => {

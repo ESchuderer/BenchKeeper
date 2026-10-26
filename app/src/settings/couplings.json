@@ -51,7 +51,7 @@
       "source": "https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes", "quote": "Set to `1` to strip credentials from the environments of the subprocesses Claude Code starts" },
     { "id": "read-deny-credentials", "agent": "claude", "level": "warning", "doctor": true, "needsAll": true, "keys": ["permissions.deny"],
       "when": { "op": "credentialReadsOpen" },
-      "message": "No Read deny rule covers every one of ~/.ssh, ~/.aws and ~/.config/gh, so Claude's file tools can read those credential files.", "fix": "add Read(~/.ssh/**), Read(~/.aws/**) and Read(~/.config/gh/**) to permissions.deny in the user settings; a script that opens the files itself is still not covered",
+      "message": "No Read deny rule covers every one of the .ssh, .aws and .config/gh folders, so Claude's file tools can read those credential files.", "fix": "add Read(//**/.ssh/**), Read(//**/.aws/**) and Read(//**/.config/gh/**) to permissions.deny in the user settings; a script that opens the files itself is still not covered",
       "source": "https://code.claude.com/docs/en/permissions#read-and-edit", "quote": ["add a `Read` deny rule for its path", "They don't apply to a command that reads files without naming them"] },
     { "id": "switch-zero-is-set", "agent": "claude", "level": "warning", "doctor": true, "forEach": "zeroIsSet",
       "when": { "key": "{key}", "falsy": true },

@@ -201,12 +201,13 @@ test('Doctor: the other pairs, no-op keys, retention, switches that are not bool
 test('Doctor: the environment scrub and the credential Read deny rules', () => {
   const ctx = machine();
   const found = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && CONTROLS.test(i.message)); };
-  const deny = ['Read(~/.ssh/**)', 'Read(//home/me/.aws/**)', 'Read(~/.config/gh/**)'];
+  const home = '~';
+  const deny = [`Read(${home}/.ssh/**)`, 'Read(//srv/app/.aws/**)', 'Read(//**/.config/gh/**)'];
   const both = found({}), scrub = both.find((i) => /SUBPROCESS_ENV_SCRUB/.test(i.message)), reads = both.find((i) => /credential files/.test(i.message));
   assert.equal(both.length, 2);
   assert.match(scrub.message, /SUBPROCESS_ENV_SCRUB is off/);
   assert.match(scrub.fix, /user settings.*code\.claude\.com\/docs\/en\/env-vars#/);
-  assert.match(reads.fix, /Read\(~\/\.ssh\/\*\*\).*code\.claude\.com\/docs\/en\/permissions#read-and-edit/);
+  assert.match(reads.fix, /Read\(\/\/\*\*\/\.ssh\/\*\*\).*code\.claude\.com\/docs\/en\/permissions#read-and-edit/);
   assert.equal(scrub.level, 'warning');
   assert.deepEqual(found({ env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' }, permissions: { deny } }), []);
   assert.equal(found({ permissions: { deny } }).length, 1, 'only the scrub is off');

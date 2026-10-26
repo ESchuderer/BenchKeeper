@@ -225,7 +225,7 @@ function holds(c, state, agentId) {
     return a != null && m != null && a < m;
   }
   if (c.op === 'credentialReadsOpen') {
-    // A deny in any layer wins. shortcut: the rule's text is matched, not its glob, and only a rule anchored at ~/ or // counts (./ is the project).
+    // A deny in any layer wins. shortcut: the rule's text is matched, not its glob, and only a rule anchored at the home folder or the root counts (a ./ rule is the project's).
     const reads = lookup(state, agentId, 'permissions.deny').flat().filter((r) => typeof r === 'string').map((r) => r.match(/^Read\(((?:~|\/)\/[^)]*)\)$/)?.[1]).filter(Boolean);
     return COUPLINGS.credentialDirs.some((d) => !reads.some((r) => r.includes(d)));
   }

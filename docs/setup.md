@@ -86,7 +86,7 @@ Several logins per agent, for example work and personal, each in a folder of its
 - `run`, `accounts status` and `doctor` check the sign-in first and name the command that fixes a login that is gone, and a kept token in its 11th month. Switching accounts is your choice at a launch, never inside a session, and nothing rotates accounts when a limit is reached. Usage and limit notices are not part of this.
 - `run` gives the agent the app's filtered environment (no `GH_TOKEN`, API keys or other credentials of your shell) plus the account's one folder variable.
 
-Every command and its output keys: [App reference](../app/README.md#commands).
+The Accounts view of the app does the same: add an account as a plan, check it, and sign in with the steps shown (private window, a field for the code, check). The token is set in a terminal only. Every command and its output keys: [App reference](../app/README.md#commands).
 
 ## Frameworks
 

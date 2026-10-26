@@ -10,6 +10,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { accountDoc, accountStatus, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, removeChange, store, useChange } from './accounts.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { agent, detect } from './agents.mjs';
@@ -265,11 +266,11 @@ export function api(ctx) {
       return { cancelled: true };
     },
     // Running jobs, so a reloaded page finds them again; a plan starts its rehearsal itself.
-    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && !['prerun', 'scan'].includes(j.kind)).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
+    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && !['prerun', 'scan', 'login'].includes(j.kind)).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
-      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null,
+      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null, login: job.login ?? null,
       sections: job.sections?.map((x) => ({ ...x, run: x.run && { ...x.run, entries: [...x.run.entries] } })) ?? null };
     },
     // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.
@@ -546,6 +547,63 @@ export function api(ctx) {
       const rctx = dir ? projectCtx(ctx, dir) : ctx;
       const changes = preview(input(() => ruleChanges(ctx, { agent: b.agent, file: b.file, dir, on: b.on })));
       return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
+    },
+    // Accounts: the registry as `accounts list` shows it, the status of one account (reads only), plans for add, use and
+    // remove (applied through /api/apply, undone in History), and the guided sign-in as a job that polls like an apply.
+    // The page never sees a credential: the registry holds none, a pasted code goes to the agent and into no record.
+    'GET /api/accounts': () => {
+      const problem = accountsProblem(ctx);
+      if (problem) throw Object.assign(new Error(problem), { status: 409 });
+      return { accounts: listAccounts(ctx).map(accountDoc), store: store(ctx).name, login: [...jobs.values()].find((j) => j.kind === 'login' && !j.done)?.id ?? null };
+    },
+    'GET /api/accounts-status': (q) => {
+      const a = input(() => findAccount(ctx, q.get('name') ?? ''));
+      const dir = q.get('project') ? resolve(q.get('project')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      return accountStatus(ctx, a, { dir });
+    },
+    'POST /api/accounts-plan': (b) => {
+      const text = (v) => (typeof v === 'string' && v ? v : undefined);
+      const change = input(() => {
+        if (b.op === 'add') return addChange(ctx, newAccount(ctx, { name: text(b.name), agent: text(b.agent), container: b.container === true, label: text(b.label), dir: text(b.dir), mount: text(b.mount) }));
+        const a = findAccount(ctx, String(b.name ?? ''));
+        if (b.op === 'use') return useChange(ctx, a.name);
+        if (b.op !== 'remove') throw new Error('op must be add, use or remove');
+        // A stored token is deleted by the command, which the page does not offer.
+        if (a.token) throw new Error(`account ${a.name} keeps a token: remove it in a terminal with benchkeeper accounts remove ${a.name}, which also deletes the token`);
+        return removeChange(ctx, a.name);
+      });
+      const changes = preview([change]);
+      return { planId: keep(changes, ctx, 'global'), changes: serialize(changes, ctx) };
+    },
+    // The user asked for this sign-in with the button: it opens the sign-in link in a private browser window, or shows it.
+    'POST /api/accounts-login': (b) => {
+      idle();
+      const a = input(() => findAccount(ctx, String(b.name ?? '')));
+      const dir = b.project ? resolve(String(b.project)) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      if (a.mode === 'container' && !dir) throw bad('a container account signs in inside the dev container of a project: choose the project');
+      const email = typeof b.email === 'string' && b.email ? b.email : undefined;
+      return start(1, async (job) => {
+        const state = job.login = { step: 'start', url: null, browser: null, awaitingCode: false, lines: [], loggedIn: null };
+        const io = {
+          say: (line) => { state.lines.push(line); state.lines.splice(0, state.lines.length - 200); },
+          step: (name, info) => { state.step = name; if (info?.url) Object.assign(state, { url: info.url, browser: info.browser ?? null }); if (name === 'done') state.loggedIn = info?.loggedIn ?? null; },
+          // What the user pastes goes to the agent; it is not kept in the lines or anywhere else.
+          code: () => new Promise((ok) => {
+            state.awaitingCode = true;
+            job.sendCode = (c) => { state.awaitingCode = false; ok(c); };
+            job.ctl.signal.addEventListener('abort', () => ok(null), { once: true });
+          }),
+        };
+        try { await login(ctx, a, { io, dir: dir ?? process.cwd(), email, signal: job.ctl.signal }); } finally { state.awaitingCode = false; }
+      }, { kind: 'login', title: `sign in ${a.name}` });
+    },
+    'POST /api/accounts-code': (b) => {
+      const job = jobs.get(b.job ?? '');
+      if (!job?.login?.awaitingCode || !job.sendCode) throw bad('no sign-in waits for a code');
+      job.sendCode(String(b.code ?? '').slice(0, 4096));
+      return { sent: true };
     },
     'GET /api/inventory': inventoryNow,
     // The Dashboard: installed, health, coverage and catalog by pack, from one read of the inventory and the projects.

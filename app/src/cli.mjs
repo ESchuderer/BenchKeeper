@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { AGENTS, accountStatus, accountsProblem, addChange, commit, findAccount, listAccounts, login, newAccount, pickAccount, removeChange, runAs, store, tokenChange, useChange } from './accounts.mjs';
+import { AGENTS, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, listAccounts, login, newAccount, pickAccount, removeChange, runAs, store, tokenChange, useChange } from './accounts.mjs';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
@@ -799,8 +799,6 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
 
 // ---- accounts: the registry, the guided sign-in and the launcher (accounts.mjs)
 
-// The registry holds no credential: every field is safe to print.
-const accountDoc = (a) => ({ name: a.name, agent: a.agent, mode: a.mode, label: a.label ?? null, default: !!a.default, ...(a.mode === 'host' ? { dir: a.dir } : { volume: a.volume, mount: a.mount }), token: { kept: !!a.token, created: a.token?.created ?? null } });
 const accountLine = (a) => `${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${(a.mode === 'host' ? 'host' : 'container').padEnd(9)} ${(a.default ? 'default' : '').padEnd(8)} ${a.mode === 'host' ? a.dir : `volume ${a.volume} at ${a.mount}`}${a.label ? `  ${mask(a.label)}` : ''}${a.token ? `  token kept since ${a.token.created.slice(0, 10)}` : ''}`;
 
 // The steps of a sign-in as the terminal shows them; the agent's own lines come through say.

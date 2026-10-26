@@ -109,6 +109,9 @@ export const tokenChange = (ctx, name, created) => registryChange(`${created ? '
   return list.map((x) => (x.name === name ? { ...x, token: created ? { created } : null } : x));
 });
 
+// The registry entry as a page or a --json document shows it: no credential is in it.
+export const accountDoc = (a) => ({ name: a.name, agent: a.agent, mode: a.mode, label: a.label ?? null, default: !!a.default, ...(a.mode === 'host' ? { dir: a.dir } : { volume: a.volume, mount: a.mount }), token: { kept: !!a.token, created: a.token?.created ?? null } });
+
 export const store = (ctx) => ctx.credentials ?? credentialStore(ctx.run, { env: where(ctx) });
 
 // ---- environment and launch
@@ -158,11 +161,13 @@ export function accountStatus(ctx, a, { dir, now = Date.now(), token } = {}) {
   const out = { name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, findings: [] };
   const age = a.token?.created ? Math.floor((now - Date.parse(a.token.created)) / DAY) : null;
   const relogin = `benchkeeper accounts login ${a.name}`;
-  let r;
-  if (a.mode === 'host') r = ctx.run(statusCmd(a.agent), { env: accountEnv(ctx, a, { token }), timeout: 30e3 });
-  else if (dir && hasDevcontainer(dir) && engineOf(ctx)) // The token stays out of this command line: the folder's own sign-in is what is checked.
-  r = ctx.run(execArgv(engineOf(ctx), dir, a, statusCmd(a.agent)), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 });
-  if (!r) out.findings.push(finding('info', a.name, 'not checked: a container account is checked in a project with a running dev container', `benchkeeper accounts status ${a.name} --project <dir>`));
+  let r, gone = false;
+  // A folder that is not there yet is not signed in; the agent would create it with the default mode.
+  if (a.mode === 'host') { if (exists(a.dir)) r = ctx.run(statusCmd(a.agent), { env: accountEnv(ctx, a, { token }), timeout: 30e3 }); else gone = true; }
+  // The token stays out of the container command line: the volume's own sign-in is what is checked.
+  else if (dir && hasDevcontainer(dir) && engineOf(ctx)) r = ctx.run(execArgv(engineOf(ctx), dir, a, statusCmd(a.agent)), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 });
+  if (gone) { out.loggedIn = false; out.findings.push(finding('warning', a.name, 'not signed in (its folder does not exist yet)', relogin)); }
+  else if (!r) out.findings.push(finding('info', a.name, 'not checked: a container account is checked in a project with a running dev container', `benchkeeper accounts status ${a.name} --project <dir>`));
   else if (r.code === 127) out.findings.push(finding('warning', a.name, `${a.agent} is not installed`, `install ${a.agent === 'claude' ? 'Claude Code' : 'Codex'}`));
   else {
     // Claude Code prints JSON (exit 1 when not logged in); Codex prints a line and uses the exit code.
@@ -204,6 +209,8 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
   // A failed check that is only "could not read" does not stop a launch; a login that is gone does.
   if (s.loggedIn === false && !useToken) throw new Error(`account ${a.name} is not signed in, or the login expired: benchkeeper accounts login ${a.name}`);
   for (const f of s.findings.filter((x) => x.level !== 'info')) say(`${f.level}: ${f.message} (${f.fix})`);
+  // The folder is for this user alone, also when the agent creates its first files there.
+  if (a.mode === 'host') mkdirSync(a.dir, { recursive: true, mode: 0o700 });
   const r = a.mode === 'host'
     ? ctx.run(args, { cwd: dir, env: accountEnv(ctx, a, { token }), stdio: 'inherit' })
     : ctx.run(execArgv(engineOf(ctx), dir, a, args, { token }), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' });
@@ -218,9 +225,9 @@ const EMAIL = /^[^\s@-][^\s@]{0,200}@[^\s@]{1,200}$/;
 const DONE = Symbol('done');
 
 // io: { say(line), step(name, info), code() -> Promise<string|null> } (code: what the user pastes from the browser, null at the end of input).
-// opts: { token, email, noBrowser, dir, open (url -> browser name or null) }. Returns { stored } (a token went to the credential store).
+// opts: { token, email, noBrowser, dir, open (url -> browser name or null), signal (stops the agent) }. Returns { stored } (a token went to the credential store).
 // Steps: start, url (info.url, info.browser), code (Claude Code only: a code may be pasted), verify, done.
-export async function login(ctx, a, { io, token = false, email, noBrowser = false, dir = process.cwd(), open = ctx.openPrivate ?? openPrivate } = {}) {
+export async function login(ctx, a, { io, token = false, email, noBrowser = false, dir = process.cwd(), open = ctx.openPrivate ?? openPrivate, signal } = {}) {
   if (email !== undefined && !EMAIL.test(email)) throw new Error('--email needs an address');
   if (token && a.agent === 'codex') return loginCodexToken(ctx, a, { io, dir });
   const claude = a.agent === 'claude';
@@ -264,7 +271,7 @@ export async function login(ctx, a, { io, token = false, email, noBrowser = fals
     buffer = lines.pop();
     lines.forEach(handle);
   };
-  const exit = runCommandAsync(argv, { env, cwd: a.mode === 'container' ? dir : undefined, timeout: 10 * 60e3, onOutput, onStart: (stdin) => { child = stdin; } });
+  const exit = runCommandAsync(argv, { env, cwd: a.mode === 'container' ? dir : undefined, timeout: 10 * 60e3, signal, onOutput, onStart: (stdin) => { child = stdin; } });
   // Claude Code asks for a pasted code when the browser cannot reach its localhost callback: lines go to its input until it ends.
   const finished = exit.then(() => DONE);
   const pump = async () => {

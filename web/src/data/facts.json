@@ -85,7 +85,7 @@
     {
       "name": "Node.js and npm",
       "url": "https://nodejs.org/en/download",
-      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `.local` in your home folder"
+      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `$HOME/.local`"
     },
     {
       "name": "Docker Engine",

@@ -1,6 +1,8 @@
 # Stack
 
-The components BenchKeeper sets up, where each file lives and why these were chosen. Install and update steps: [setup guide](setup.md). Paths that start with a dot folder, such as `.claude/rules/00-global.md`, are inside your home folder.
+BenchKeeper ships as a plugin for Claude Code and Codex ([plugins/benchkeeper](../plugins/benchkeeper)), plus the [app](../app) for what a plugin cannot carry: project setup, the global rules and settings, history and undo.
+
+The components BenchKeeper sets up, where each file lives and why these were chosen. Install and update steps: [setup guide](setup.md).
 
 ## Components
 
@@ -27,8 +29,8 @@ Another Ponytail level for the current session: `/ponytail lite` or `/ponytail u
 
 | Path | What | Linked as |
 |---|---|---|
-| [.claude-plugin/marketplace.json](../.claude-plugin/marketplace.json) | the marketplace, read by Claude Code and Codex | `.claude/plugins/`, `.codex/plugins/` |
-| [plugins/benchkeeper/rules/global.md](../plugins/benchkeeper/rules/global.md) | global rules | written by the app to `.claude/rules/00-global.md`, and as a block into the Codex, Gemini CLI and Copilot instruction files |
+| [.claude-plugin/marketplace.json](../.claude-plugin/marketplace.json) | the marketplace, read by Claude Code and Codex | `$HOME/.claude/plugins/`, `$HOME/.codex/plugins/` |
+| [plugins/benchkeeper/rules/global.md](../plugins/benchkeeper/rules/global.md) | global rules | written by the app to `$HOME/.claude/rules/00-global.md`, and as a block into the Codex, Gemini CLI and Copilot instruction files |
 | [plugins/benchkeeper/rules/project.md](../plugins/benchkeeper/rules/project.md) | repository rules (standard level and up) | part of the project block the app writes (`CLAUDE.local.md`, `AGENTS.override.md`, or `AGENTS.md` with `--share`) |
 | [app](../app) | the installer: global setup, project setup, history and undo, CLI and browser UI ([README](../app/README.md)) | `npx benchkeeper@6.17.0` |
 | [plugins/benchkeeper/skills/setting-up-projects](../plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, library and stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, other configuration to remove | plugin skill `benchkeeper:setting-up-projects` |

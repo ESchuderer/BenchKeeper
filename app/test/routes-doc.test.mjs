@@ -14,7 +14,10 @@ const routes = [
 ];
 const section = read('../README.md').split(/^### Routes and commands$/m)[1]?.split(/^#{1,3} /m)[0] ?? '';
 const rows = [...section.matchAll(/^\| `((?:GET|POST) [^`]+)` \| ([^|]+) \|/gm)].map((m) => ({ route: m[1], cell: m[2].trim() }));
-const commands = new Set([...HELP.matchAll(/^ {2}([a-z][a-z-]*)/gm)].map((m) => m[1]));
+// Help text per command word: its own lines and the indented ones below, so a subcommand or flag is looked up in its command's block.
+const blocks = new Map();
+for (const [, word, rest] of HELP.matchAll(/^ {2}([a-z][a-z-]*)(.*(?:\n {3,}.*)*)/gm)) blocks.set(word, `${blocks.get(word) ?? ''}${rest}\n`);
+const known = (c) => { const [word, ...rest] = c.split(' '); return blocks.has(word) && rest.every((t) => new RegExp(`(?<![\\w-])${t}(?![\\w-])`).test(blocks.get(word))); };
 
 test('the route table lists exactly the routes of server.mjs', () => {
   assert.ok(routes.length > 40, `found ${routes.length} routes: the pattern no longer matches server.mjs`);
@@ -29,6 +32,6 @@ test('each row names commands of the CLI or one reason', () => {
     const items = [...cell.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
     assert.ok(items.length && cell.replaceAll(/`[^`]+`|, /g, '') === '', `${route}: the cell is a list of code spans`);
     if (REASONS.includes(items[0])) assert.equal(items.length, 1, `${route}: one reason, nothing else`);
-    else for (const c of items) assert.ok(commands.has(c.split(' ')[0]), `${route}: "${c}" is not a command in help`);
+    else for (const c of items) assert.ok(known(c), `${route}: "${c}" is not a command in help`);
   }
 });

@@ -225,8 +225,8 @@ function holds(c, state, agentId) {
     return a != null && m != null && a < m;
   }
   if (c.op === 'credentialReadsOpen') {
-    // A deny in any layer wins. shortcut: the rule's text is matched, not its glob, and only a rule anchored at the home folder or the root counts (a ./ rule is the project's).
-    const reads = lookup(state, agentId, 'permissions.deny').flat().filter((r) => typeof r === 'string').map((r) => r.match(/^Read\(((?:~|\/)\/[^)]*)\)$/)?.[1]).filter(Boolean);
+    // A deny in any layer wins. shortcut: the rule's text is matched, not its glob. Anchors that reach a home folder: the home anchor, //**/ and an absolute path below a Linux, macOS or root home folder (the user is not compared). A ./ rule is the project's, any other absolute path is another folder.
+    const reads = lookup(state, agentId, 'permissions.deny').flat().filter((r) => typeof r === 'string').map((r) => r.match(/^Read\(((?:~\/|\/\/\*\*\/|\/\/(?:home|Users)\/[^/)]+\/|\/\/root\/)[^)]*)\)$/)?.[1]).filter(Boolean);
     // The folder as a whole path segment, bare or followed by /* or /**: a rule for one file in it or for .ssh-backup does not count.
     return COUPLINGS.credentialDirs.some((d) => !reads.some((r) => new RegExp(`${d.replaceAll('.', '\\.')}(/\\*{1,2})?$`).test(r)));
   }
@@ -235,7 +235,8 @@ function holds(c, state, agentId) {
     return top !== undefined && Object.values(saved ?? {}).some((m) => m?.effortLevel !== undefined && m.effortLevel !== top);
   }
   if (c.keyPrefix) return state.layers.filter((l) => !c.layer || c.layer.includes(l.layer)).some((l) => Object.keys(dig(l.data, pathOf(c.keyPrefix.replace(/\.[^.]*$/, ''))) ?? {}).some((k) => `env.${k}`.startsWith(c.keyPrefix)));
-  const values = lookup(state, agentId, c.key, c.layer);
+  // effective: only the value Claude Code uses, the highest layer, else the process environment (a settings env value overrides the shell's).
+  const values = c.effective ? lookup(state, agentId, c.key, c.layer).slice(0, 1) : lookup(state, agentId, c.key, c.layer);
   const isZero = SWITCHES(agentId).find((s) => `${s.key}` === c.key)?.zeroIsSet;
   return values.some((v) => {
     if (c.set) return true;

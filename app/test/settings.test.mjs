@@ -202,7 +202,7 @@ test('Doctor: the environment scrub and the credential Read deny rules', () => {
   const ctx = machine();
   const found = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && CONTROLS.test(i.message)); };
   const home = '~';
-  const deny = [`Read(${home}/.ssh/**)`, 'Read(//srv/app/.aws/**)', 'Read(//**/.config/gh/**)'];
+  const deny = [`Read(${home}/.ssh/**)`, `Read(//Users/x/.aws/**)`, 'Read(//**/.config/gh/**)'];
   const both = found({}), scrub = both.find((i) => /SUBPROCESS_ENV_SCRUB/.test(i.message)), reads = both.find((i) => /credential files/.test(i.message));
   assert.equal(both.length, 2);
   assert.match(scrub.message, /SUBPROCESS_ENV_SCRUB is off/);
@@ -213,11 +213,13 @@ test('Doctor: the environment scrub and the credential Read deny rules', () => {
   assert.equal(found({ permissions: { deny } }).length, 1, 'only the scrub is off');
   assert.equal(found({ env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '0' }, permissions: { deny } }).length, 1, '0 is off');
   assert.deepEqual(found({ permissions: { deny } }, { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' }), [], 'the process environment counts');
+  assert.equal(found({ env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '0' }, permissions: { deny } }, { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' }).length, 1, 'a settings 0 overrides the process 1');
   const on = { env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' } };
   assert.equal(found({ ...on, permissions: { deny: deny.slice(0, 2) } }).length, 1, 'a missing folder is flagged');
   assert.equal(found({ ...on, permissions: { deny: ['Read(./.ssh/**)', 'Read(./.aws/**)', 'Read(./.config/gh/**)'] } }).length, 1, 'project-relative rules do not count');
   assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/.ssh-backup/**)`, `Read(${home}/.aws/credentials)`, 'Read(//**/.config/gh/hosts.yml)'] } }).length, 1, 'another folder or one file in it is not the folder');
   assert.deepEqual(found({ ...on, permissions: { deny: [`Read(${home}/.ssh)`, `Read(${home}/.aws/*)`, 'Read(//**/.config/gh/**)'] } }), [], 'the folder bare or with /* or /**');
+  assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/.ssh/**)`, 'Read(//srv/app/.aws/**)', 'Read(//**/.config/gh/**)'] } }).length, 1, 'an absolute path elsewhere is another folder');
   assert.equal(found({ ...on, permissions: { allow: deny } }).length, 1, 'allow rules are not deny rules');
   assert.equal(found({ ...on, permissions: { deny: deny.map((r) => r.replace('Read', 'Edit')) } }).length, 1, 'Edit rules do not stop reads');
   // A file that cannot be read may hold both: no guess.

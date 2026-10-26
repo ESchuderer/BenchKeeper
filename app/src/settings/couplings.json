@@ -1,5 +1,5 @@
 {
-  "about": "Cross-key rules the schemas do not encode. when: all, any, not or a test of one key (set, eq, in, lt, on = a switch counts as set, falsy = value 0, false or empty); layer limits where the key is looked up. needsAll: the rule looks for a missing setting, so it is skipped while a settings file cannot be read. A rule without when is a static note on its keys. Each rule cites a source url and a verbatim quote that test/settings.test.mjs finds in the pinned copy of that page (test/fixtures/settings-docs.json).",
+  "about": "Cross-key rules the schemas do not encode. when: all, any, not or a test of one key (set, eq, in, lt, on = a switch counts as set, effective = only the highest layer's value counts, falsy = value 0, false or empty); layer limits where the key is looked up. needsAll: the rule looks for a missing setting, so it is skipped while a settings file cannot be read. A rule without when is a static note on its keys. Each rule cites a source url and a verbatim quote that test/settings.test.mjs finds in the pinned copy of that page (test/fixtures/settings-docs.json).",
   "credentialDirs": ["/.ssh", "/.aws", "/.config/gh"],
   "advisorRanks": ["haiku-4-5", "sonnet-4-6", "opus-4-6", "sonnet-5|haiku-5-5", "opus-4-7|opus-4-8", "sonnet-5-5", "opus-5|opus-5-5", "fable-5", "fable-5-1"],
   "advisorRanksSource": "https://code.claude.com/docs/en/advisor",
@@ -46,7 +46,7 @@
       "message": "Transcripts older than this many days are deleted without a message; the Sessions board reads them, so a value below 30 shortens its history.", "fix": "raise cleanupPeriodDays to 30 or more, or keep it on purpose",
       "source": "https://code.claude.com/docs/en/settings-reference#cleanupperioddays", "quote": "The sweep deletes transcripts without showing a message" },
     { "id": "env-scrub-off", "agent": "claude", "level": "warning", "doctor": true, "needsAll": true, "keys": ["env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"],
-      "when": { "not": { "key": "env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "on": true } },
+      "when": { "not": { "key": "env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "on": true, "effective": true } },
       "message": "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off: Bash commands, hooks and stdio MCP servers inherit the whole environment, provider and cloud tokens included.", "fix": "set env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB to 1 in the user settings, unless a subprocess needs a variable it removes",
       "source": "https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes", "quote": "Set to `1` to strip credentials from the environments of the subprocesses Claude Code starts" },
     { "id": "read-deny-credentials", "agent": "claude", "level": "warning", "doctor": true, "needsAll": true, "keys": ["permissions.deny"],

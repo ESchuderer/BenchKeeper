@@ -20,11 +20,8 @@ const postBuild = {
   },
 };
 
-// PUBLIC_PREVIEW=1 builds the develop preview, which Pages serves under /develop/ next to the released site (pages.yml).
-const preview = process.env.PUBLIC_PREVIEW === '1';
-
 export default defineConfig({
   site: 'https://eschuderer.github.io',
-  base: preview ? '/BenchKeeper/develop' : '/BenchKeeper',
+  base: '/BenchKeeper',
   integrations: [react(), postBuild],
 });

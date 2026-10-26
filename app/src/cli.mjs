@@ -112,8 +112,9 @@ Usage: benchkeeper <command> [options]
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
-  update-all [--yes] [--no-push] [--dry-run] [--max N] [--baseline auto|oss|private-advisory]
-                                    per project: local setup (the default) applied in the checkout; shared setup
+  update-all [dir..] [--yes] [--no-push] [--dry-run] [--max N] [--baseline auto|oss|private-advisory]
+                                    dir..: only these registered projects (default: all); per project: local setup (the
+                                    default) applied in the checkout; shared setup
                                     (project apply --share) on branch chore/agent-setup-<version> in a worktree,
                                     one commit, push and pull request when origin is on GitHub;
                                     --dry-run stops after the plan; pushes go to at most 25 repositories per run (--max N);
@@ -327,7 +328,10 @@ async function command(argv, { out, err, ask, ctx }) {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
     const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
     if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
-    const projects = listProjects(ctx).map((p) => status(ctx, p.path));
+    const asked = positionals.slice(1).map(canon), registered = listProjects(ctx);
+    const unknown = positionals.slice(1).filter((_, i) => !registered.some((p) => p.path === asked[i]));
+    if (unknown.length) { out.write(`${unknown.join(', ')}: not a registered project (benchkeeper projects add <dir>)\n`); return 2; }
+    const projects = registered.filter((p) => !asked.length || asked.includes(p.path)).map((p) => status(ctx, p.path));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
     for (const p of projects) {
       const commits = p.share || p.committed;

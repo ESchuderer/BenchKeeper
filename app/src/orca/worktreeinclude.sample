@@ -1,0 +1,10 @@
+# Sample .worktreeinclude for the repository root. BenchKeeper does not add it.
+# One literal path per line, relative to the repository root; no wildcards, no negations.
+# Orca copies the entries from the primary checkout into each new worktree, only when they exist and Git ignores them
+# (a local setup lists them in .git/info/exclude).
+CLAUDE.local.md
+AGENTS.override.md
+.benchkeeper/state.json
+skills-lock.json
+.claude/skills
+.agents/skills

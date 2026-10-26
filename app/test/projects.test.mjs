@@ -261,6 +261,30 @@ test('update-all shows the plan, asks once, and --yes --no-push commits without 
   assert.match(text, new RegExp(`committed +${p.dir}`));
 });
 
+test('update-all with directories updates only those, honours --dry-run and --baseline, refuses an unregistered one', async () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const a = project(h), b = project(h), other = project(h);
+  let text = '';
+  const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
+  const exec = (args) => main(args, { out, ctx, input: Readable.from(['']) });
+  assert.equal(await exec(['projects', 'add', a.dir, b.dir]), 0);
+  text = '';
+  assert.equal(await exec(['update-all', '--dry-run', a.dir]), 0);
+  assert.match(text, new RegExp(`${a.dir}  setup`));
+  assert.doesNotMatch(text, new RegExp(b.dir));
+  assert.match(text, /dry run: 1 projects would be updated, nothing changed/);
+  text = '';
+  assert.equal(await exec(['update-all', other.dir]), 2);
+  assert.equal(text, `${other.dir}: not a registered project (benchkeeper projects add <dir>)\n`);
+  text = '';
+  assert.equal(await exec(['update-all', '--yes', '--no-push', a.dir]), 0);
+  assert.match(text, new RegExp(`committed +${a.dir}`));
+  assert.doesNotMatch(text, new RegExp(b.dir));
+  assert.equal(a.git('branch', '--list', 'chore/*').trim() !== '', true);
+  assert.equal(b.git('branch', '--list', 'chore/*').trim(), '');
+});
+
 test('status counts the skills each chosen agent reads in the project; turned-off ones and folders without SKILL.md not', () => {
   const dir = mkdtempSync(join(TMP, 'bk-skills-'));
   for (const d of ['.claude/skills/a', '.agents/skills/a', '.agents/skills/b', '.benchkeeper/disabled/c']) {

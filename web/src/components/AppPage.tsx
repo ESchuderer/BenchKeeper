@@ -39,10 +39,10 @@ export const VIEWS: { id: string; title: string; shot: string; alt: string; text
   },
   {
     id: 'sessions', title: 'Sessions board', shot: 'sessions',
-    alt: 'The Sessions view with the board in a frame: filters for project, agent, tier, setup and period, tiles for sessions, agent time, cost and tokens, and a chart of cost per day by setup.',
+    alt: 'The Sessions view with the board in a frame: filters for project, agent, tier, pattern, setup and period, tiles for sessions, agent time, cost and tokens, and a chart of cost per day by setup.',
     text: [
-      'The board reads the Claude Code and Codex transcripts on the machine: per session the tier, the setup installed at the time, skills used, last test run, cost, time and pull request state.',
-      'Filters narrow it by project, agent, tier, setup and period. Each chart has its table beside it.',
+      'The board reads the Claude Code and Codex transcripts on the machine: per session the tier, the pattern (single, loop, group or Orca worker), the setup installed at the time, skills used, last test run, cost, time and pull request state.',
+      'Filters narrow it by project, agent, tier, pattern, setup and period. Each chart has its table beside it.',
     ],
   },
   {
@@ -70,7 +70,7 @@ export default function AppPage({ base, shots }: { base: string; shots: Record<s
         <Stack gap="xs" maw={720}>
           <Title order={1} fz={{ base: 34, md: 44 }}>The app</Title>
           <Text size="lg">
-            <code>npx benchkeeper@6.15.0</code> opens the app in your browser: set up the machine and each repository, see what drifted, undo a run.
+            <code>npx benchkeeper@6.17.0</code> opens the app in your browser: set up the machine and each repository, see what drifted, undo a run.
             The same steps run on the command line, see the CLI tab of the <Anchor href={`${base}/#start`}>quick start</Anchor>.
           </Text>
           <Text c="dimmed">All screenshots show example data: a demo home folder with the projects shop and blog. They come from no real machine.</Text>

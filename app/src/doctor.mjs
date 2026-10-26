@@ -82,7 +82,7 @@ export function projectChecks(ctx, dir, agents) {
   for (const { name, file, text } of skillFiles(dir)) {
     skills.set(name, description(text));
     for (const [, target] of text.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)/g)) {
-      if (!exists(resolve(dirname(file), decodeURI(target)))) out.push(issue('error', 'skills', `${file.slice(dir.length + 1)} links ${target}, which does not exist`, 'restore the file or fix the link'));
+      if (!exists(resolve(dirname(file), decodeURI(target)))) out.push(issue('error', 'skills', `skill ${name} in ${dir}: ${file.slice(dir.length + 1)} links ${target}, which does not exist`, 'restore the file or fix the link'));
     }
   }
   for (const w of warnings([...skills.keys()], { skills: [...skills].map(([name, pickWhen]) => ({ name, pickWhen })) })) out.push(issue('warning', 'skills', w, 'turn skills off with benchkeeper project apply --disable <skill>'));

@@ -68,6 +68,7 @@ export const marketRef = (p, a, appVersion) => (a === 'codex' ? pin(p, appVersio
 const sameCommit = (a, b) => a.length >= 7 && b.length >= 7 && (a.startsWith(b) || b.startsWith(a));
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
+const ORCA_FILES = ['worker-spec.md', 'orca.yaml.sample', 'worktreeinclude.sample'];
 export const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
@@ -335,8 +336,11 @@ export function globalPlan(env) {
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
   });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
-  const wanted = [['vercel-labs/skills', 'find-skills'], ...(ctx.run(['orca', '--version']).code === 0 ? [['https://github.com/stablyai/orca', 'orca-cli'], ['https://github.com/stablyai/orca', 'orchestration']] : [])];
+  const orca = ctx.run(['orca', '--version']).code === 0;
+  const wanted = [['vercel-labs/skills', 'find-skills'], ...(orca ? [['https://github.com/stablyai/orca', 'orca-cli'], ['https://github.com/stablyai/orca', 'orchestration']] : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(repo, name, f); }
+  // Offered when Orca is installed: the worker spec and the per-worktree setup samples, in the app's config folder, never in a project.
+  for (const f of orca ? ORCA_FILES : []) add('orca:templates', `Orca worker spec and setup samples (optional): ${f}`, { kind: 'write', path: join(ctx.config, 'orca', f), after: readFileSync(new URL(`../orca/${f}`, import.meta.url), 'utf8') }, { selected: false, optional: true });
   return changes;
 }
 

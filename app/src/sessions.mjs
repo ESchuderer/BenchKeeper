@@ -15,6 +15,13 @@ const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
 const TEST = /(?:^|[\s;&|('"])(npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
 // The folder that holds SKILL.md, also nested (skills/engineering/tdd/SKILL.md).
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
+// Orca's text at the start of a dispatched worker's first prompt (observed in transcripts, not documented: a changed wording
+// reads as no worker), and the line the Orca worker-spec template carries: its value joins a coordinator's workers.
+const ORCA_PREAMBLE = /^You are working inside Orca, a multi-agent IDE\./m;
+const ORCA_RUN = /^Orca run: ([\w.-]{1,64})[ \t]*$/m;
+const LOOP_COMMANDS = ['goal', 'loop'];
+// Part of every file's cache key: a change to what a transcript summary holds reads the transcripts again, and the summary of one the agent has deleted stays as it was.
+const PARSE = 2;
 const PR = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
 const bare = (name) => name.split(':').pop();
 
@@ -29,7 +36,7 @@ const tiers = (data, text) => { for (const m of text.matchAll(TIER)) data.tiers.
 
 // One Claude Code transcript (or a subagent's, of which only the skills count).
 async function claudeFile(file) {
-  const d = { tiers: [], skills: new Set(), usage: {}, prs: new Set(), turns: 0, tests: null, models: new Set() };
+  const d = { tiers: [], skills: new Set(), usage: {}, prs: new Set(), turns: 0, tests: null, models: new Set(), loop: false, orca: false, run: null };
   const pending = new Map();
   await lines(file, (line) => {
     const ts = line.match(/"timestamp":"([^"]+)"/)?.[1];
@@ -53,14 +60,19 @@ async function claudeFile(file) {
       if (typeof e.attributionSkill === 'string') d.skills.add(e.attributionSkill);
       for (const c of Array.isArray(m.content) ? m.content : []) {
         if (c.type === 'text') tiers(d, c.text ?? '');
-        else if (c.type === 'tool_use' && c.name === 'Skill' && typeof c.input?.skill === 'string') d.skills.add(c.input.skill);
+        else if (c.type === 'tool_use' && c.name === 'Skill' && typeof c.input?.skill === 'string') { d.skills.add(c.input.skill); if (LOOP_COMMANDS.includes(bare(c.input.skill))) d.loop = true; }
+        else if (c.type === 'tool_use' && c.name === 'ScheduleWakeup') d.loop = true;
         else if (c.type === 'tool_use' && c.name === 'Bash' && TEST.test(c.input?.command ?? '')) pending.set(c.id, true);
       }
     } else if (e.type === 'user') {
       const content = e.message?.content;
       // A typed prompt, or the approved plan that starts a session after plan mode.
-      if ((e.origin?.kind === 'human' && !e.isMeta) || e.planContent) d.turns++;
-      for (const t of texts(content)) for (const m of t.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) d.skills.add(m[1]);
+      if ((e.origin?.kind === 'human' && !e.isMeta) || e.planContent) {
+        // Only the first typed prompt: a later one, or tool output, can quote the text.
+        if (!d.turns) for (const t of texts(content)) { d.run ??= t.match(ORCA_RUN)?.[1] ?? null; d.orca ||= !!d.run || ORCA_PREAMBLE.test(t); }
+        d.turns++;
+      }
+      for (const t of texts(content)) for (const m of t.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) { d.skills.add(m[1]); if (LOOP_COMMANDS.includes(bare(m[1]))) d.loop = true; }
       // The last test run decides: an error with an exit code failed, a result without error passed.
       for (const c of Array.isArray(content) ? content : []) {
         if (c.type !== 'tool_result' || !pending.has(c.tool_use_id)) continue;
@@ -77,7 +89,8 @@ async function claudeFile(file) {
 // One Codex rollout. Compacted lines repeat earlier history and are skipped.
 // shortcut: skills used and tests come from CommandExecution items, which older rollouts lack; read exec inputs if those matter.
 async function codexFile(file) {
-  const d = { tiers: [], skills: new Set(), prs: new Set(), turns: 0, tests: null, models: new Set(), busy: 0, tokens: 0 };
+  // shortcut: no loop or Orca worker detection: the rollout signature of /goal and of a dispatched prompt is not documented; read user messages if that is verified.
+  const d = { tiers: [], skills: new Set(), prs: new Set(), turns: 0, tests: null, models: new Set(), busy: 0, tokens: 0, loop: false, orca: false, run: null };
   await lines(file, (line) => {
     const ts = line.match(/"timestamp":"([^"]+)"/)?.[1];
     if (ts) { d.start ??= ts; d.end = ts; }
@@ -169,7 +182,7 @@ async function parsed(ctx, onFile) {
     onFile?.({ done: n, total: list.length });
     let st;
     try { st = statSync(file); } catch { continue; }
-    const key = `${st.size}:${st.mtimeMs}`;
+    const key = `${st.size}:${st.mtimeMs}:${PARSE}`;
     if (cache[file]?.key === key) { next[file] = cache[file]; continue; }
     // A file removed or unreadable since the walk is left out; the others still count and are cached.
     try { next[file] = { key, kind, d: plain(kind === 'codex' ? await codexFile(file) : await claudeFile(file)) }; } catch { /* skipped */ }
@@ -196,6 +209,11 @@ const tierOf = (list) => {
   const rank = (t) => TIERS.indexOf(t);
   return { first, last, changeType, movedUp: rank(first) >= 0 && list.some(([t]) => rank(t) > rank(first)) };
 };
+
+// How the session was run. One value when several apply: an Orca worker, else a loop (/goal, /loop or a scheduled wakeup), else
+// a group (at least one subagent; the count is in `subagents`), else single. null for a summary cached before this was read
+// and whose transcript the agent has since deleted: shown as not recorded, never as single.
+const patternOf = (d, subagents) => (d.orca === undefined ? null : d.orca ? 'Orca worker' : d.loop ? 'loop' : subagents ? 'group' : 'single');
 
 // Pull request states from gh: merged kept for good, open asked again after 6 hours (like newest() in
 // steps/global.mjs) and closed after a day (it can be reopened), a failed lookup (no gh, no login, offline) after 10 minutes. Not a GitHub pull request URL:
@@ -231,10 +249,11 @@ export async function scanSessions(ctx, { since, onFile } = {}) {
   const all = await parsed(ctx, onFile);
   const entries = Object.entries(all);
   // Claude subagents add their skills to the session they belong to (<session>/subagents/agent-*.jsonl).
-  const subSkills = new Map();
+  const subSkills = new Map(), subCount = new Map();
   for (const [file, { kind, d }] of entries) if (kind === 'sub') {
     const parent = file.replace(/[\\/]subagents[\\/][^\\/]+$/, '.jsonl');
     subSkills.set(parent, [...(subSkills.get(parent) ?? []), ...d.skills]);
+    subCount.set(parent, (subCount.get(parent) ?? 0) + 1);
   }
   const codex = new Map(entries.filter(([, x]) => x.kind === 'codex').map(([, x]) => [x.d.id, x.d]));
   const rootOf = (c) => { let x = c; for (let n = 0; x.parent && codex.has(x.parent) && n < 50; n++) x = codex.get(x.parent); return x.id; };
@@ -242,15 +261,17 @@ export async function scanSessions(ctx, { since, onFile } = {}) {
   const rows = [];
   for (const [file, { kind, d }] of entries) {
     if (kind === 'sub' || !d.start || (since && d.start < since)) continue;
-    let skills = d.skills, tokens, models = d.models;
+    let skills = d.skills, tokens, models = d.models, subagents;
     if (kind === 'codex') {
       // A Codex subagent rollout, at any depth, adds its tokens and skills to its root session's row.
       if (d.parent && codex.has(d.parent)) continue;
       const children = [...codex.values()].filter((c) => c !== d && rootOf(c) === d.id);
       tokens = d.tokens + children.reduce((n, c) => n + c.tokens, 0);
       skills = [...skills, ...children.flatMap((c) => c.skills)];
+      subagents = children.length;
     } else {
       skills = [...skills, ...(subSkills.get(file) ?? [])];
+      subagents = subCount.get(file) ?? 0;
       const usage = d.cost && Object.values(d.cost.models);
       tokens = usage?.length ? usage.reduce((n, u) => n + (u.inputTokens ?? 0) + (u.outputTokens ?? 0) + (u.cacheReadInputTokens ?? 0) + (u.cacheCreationInputTokens ?? 0), 0) : (typeof d.usage === 'number' ? d.usage : Object.values(d.usage).reduce((n, x) => n + x, 0));
       if (usage?.length) models = Object.keys(d.cost.models);
@@ -260,6 +281,7 @@ export async function scanSessions(ctx, { since, onFile } = {}) {
       agentVersion: d.agentVersion ?? null, title: d.title ?? null, start: d.start, end: d.end, turns: d.turns, models,
       costUSD: d.cost?.usd ?? null, busyMs: kind === 'codex' ? d.busy : d.cost?.busy ?? null, tokens,
       tier: tierOf(d.tiers), skills: [...new Set(skills.map(bare))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), tests: d.tests, setup: d.installed ? setupLabels(d.installed) : null,
+      pattern: patternOf(d, subagents), subagents, run: d.run ?? null,
       setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs,
     });
   }

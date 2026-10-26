@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
 import { clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache } from '../src/sessions.mjs';
-import { TITLE, writeSessions } from './fixtures/sessions.mjs';
+import { TITLE, writePatternSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
   const home = mkdtempSync(join(tmpdir(), 'bk-sessions-'));
@@ -52,6 +52,42 @@ test('Codex sessions: tokens and skills of subagent rollouts go to the parent; c
   );
   assert.deepEqual(c1.tier, { first: 'quick', last: 'quick', changeType: null, movedUp: false });
   assert.deepEqual(c1.skills, ['diagnosing-bugs', 'grilling', 'tdd']);
+});
+
+test('pattern: single, loop, group and Orca worker; one value when several apply, the subagent count and the run id stay', async () => {
+  const { home, ctx } = fixture();
+  writePatternSessions(home);
+  const rows = byId(await scanSessions(ctx));
+  const got = (id) => [rows[id].pattern, rows[id].subagents, rows[id].run];
+  assert.deepEqual(got('s1'), ['group', 1, null], 'a Claude subagent file makes a group');
+  assert.deepEqual(got('s2'), ['single', 0, null]);
+  assert.deepEqual(got('c1'), ['group', 2, null], 'Codex subagent rollouts at any depth');
+  assert.deepEqual(got('p1'), ['loop', 0, null], 'a scheduled wakeup');
+  assert.deepEqual(got('p2'), ['loop', 0, null], '/goal');
+  assert.deepEqual(got('p6'), ['loop', 2, null], 'a loop with subagents is a loop');
+  assert.deepEqual(got('p3'), ['Orca worker', 0, 'r-1.a'], 'a worker that loops is a worker; the run line names the run');
+  assert.deepEqual(got('p4'), ['Orca worker', 0, null], 'the dispatch text alone');
+  assert.deepEqual(got('p5'), ['single', 0, null], 'quoted text, in a later prompt or a tool result, marks no worker');
+  assert.ok(rows.p2.skills.includes('goal'));
+});
+
+test('pattern: a cached summary from before it was read is parsed again; one whose transcript is gone stays and reads not recorded', async () => {
+  const { home, ctx } = fixture();
+  writePatternSessions(home);
+  await scanSessions(ctx);
+  const cache = join(home, '.cache/benchkeeper/sessions.json');
+  const saved = JSON.parse(readFileSync(cache, 'utf8'));
+  const old = (x) => { const { loop, orca, run, ...d } = x.d; return { ...x, key: x.key.replace(/:\d+$/, ''), d }; };
+  const file = join(home, '.claude/projects/-work-app/p1.jsonl');
+  saved.files[file] = old(saved.files[file]);
+  const gone = join(home, '.claude/projects/-work-app/gone.jsonl');
+  saved.files[gone] = old(saved.files[file]);
+  writeFileSync(cache, JSON.stringify(saved));
+  const rows = byId(await scanSessions(ctx));
+  assert.equal(rows.p1.pattern, 'loop');
+  assert.equal(rows.gone.pattern, null);
+  assert.equal(rows.gone.subagents, 0);
+  assert.match(boardHtml(Object.values(rows)), /not recorded/);
 });
 
 test('an unchanged file comes from the cache; a changed one is read again; since leaves out older sessions', async () => {

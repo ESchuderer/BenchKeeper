@@ -5,6 +5,7 @@
 // (pins behind the newest release, the doctor's outdated items and the project skills behind the library).
 // insights() is pure: the state in, the findings out. collectInsights() reads the state from the machine.
 import { createHash } from 'node:crypto';
+import { join, sep } from 'node:path';
 import { doctor, skillFiles } from './doctor.mjs';
 import { frontMatter, pluginSkills } from './instructions.mjs';
 import { listProjects } from './projects.mjs';
@@ -14,12 +15,12 @@ import { projectSkills } from './skills.mjs';
 export const MIN_SAMPLES = 20;
 const WINDOW_DAYS = 90;
 const SEVERITY = ['error', 'warning', 'info'];
-const hash = (...parts) => createHash('sha1').update(parts.join('\0')).digest('hex').slice(0, 8);
+const hash = (...parts) => createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 8);
 // A doctor finding that says a pin or a version is behind belongs to freshness, not to hygiene.
 const isFreshness = (f) => f.check === 'pins' || f.tag === 'outdated';
 const KEYS = ['check', 'message', 'dir', 'file', 'line', 'scope', 'rule', 'repos'];
 // A skill's front matter (name and description, also a block scalar) is what every turn carries; about 4 characters a token.
-const tokensOf = (text) => Math.ceil(frontMatter(text).length / 4);
+const tokensOf = (text) => Math.ceil(frontMatter(text.replaceAll('\r\n', '\n')).length / 4);
 const evidenceOf = (f) => Object.fromEntries(KEYS.filter((k) => f[k] !== undefined).map((k) => [k, f[k]]));
 
 // state: { sessions: rows of scanSessions, skills: [{ name, scope, tokens }] installed, doctorFindings, skillPins:
@@ -64,7 +65,9 @@ export function insights({ sessions = [], skills = [], doctorFindings = [], skil
 // plugins), the doctor (dir adds a project's checks) and the skills of the registered projects.
 export async function collectInsights(ctx, { agents, dir, days = WINDOW_DAYS, now = Date.now() } = {}) {
   const sessions = await scanSessions(ctx, { since: new Date(now - days * 864e5).toISOString() });
-  const installed = [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)];
+  // Claude Code reads ~/.claude/skills only; the other agents' folders are not its skills.
+  const claudeDir = join(ctx.home, '.claude/skills');
+  const installed = [...skillFiles(ctx.home).filter((f) => f.file.startsWith(`${claudeDir}${sep}`)).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)];
   const skills = installed.filter((s, i) => installed.findIndex((x) => x.name === s.name && x.scope === s.scope) === i)
     .map((s) => ({ name: s.name, scope: s.scope, tokens: tokensOf(s.text) }));
   const skillPins = listProjects(ctx).flatMap((p) => (projectSkills(ctx, p.path)?.skills ?? []).filter((s) => s.state === 'outdated').map((s) => ({ project: p.path, name: s.name, pinned: s.pinned, newest: s.newest })));

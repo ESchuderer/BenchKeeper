@@ -122,9 +122,14 @@ test('collectInsights: 20 sessions in the window report the installed skill none
     const t = i < 20 ? `2026-10-${String(1 + i).padStart(2, '0')}T10:00:00.000Z` : '2026-05-01T10:00:00.000Z';
     writeFileSync(join(dir, `p${i}.jsonl`), `${line(t, { type: 'user', origin: { kind: 'human' }, message: { role: 'user', content: 'hi' } })}\n${line(t, { type: 'assistant', message: { id: `m${i}`, content: [{ type: 'tool_use', id: 'k', name: 'Skill', input: { skill: 'tdd' } }] } })}\n`);
   }
+  // A CRLF skill still costs tokens; another agent's skill folder is not Claude Code's.
+  mkdirSync(join(home, '.claude/skills/crlf'), { recursive: true });
+  writeFileSync(join(home, '.claude/skills/crlf/SKILL.md'), '---\r\nname: crlf\r\ndescription: abcd\r\n---\r\nbody\r\n');
+  mkdirSync(join(home, '.gemini/skills/gem'), { recursive: true });
+  writeFileSync(join(home, '.gemini/skills/gem/SKILL.md'), '---\nname: gem\ndescription: abcd\n---\n');
   const r = await collectInsights(ctx, { agents: ['claude'], now: Date.parse('2026-10-26T00:00:00Z') });
   const f = r.findings.find((x) => x.id === 'unused-skills');
   assert.equal(r.samples.sessions, 22);
-  assert.deepEqual(f.evidence.skills, [{ name: 'old-skill', scope: 'global', tokens: 108 }]);
+  assert.deepEqual(f.evidence.skills, [{ name: 'crlf', scope: 'global', tokens: 7 }, { name: 'old-skill', scope: 'global', tokens: 108 }]);
   assert.ok(!JSON.stringify(r).includes(SECRET));
 });

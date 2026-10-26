@@ -8,7 +8,7 @@ Nothing advertised: the pass is BenchKeeper's own (issue [#274](https://github.c
 
 ## Measured
 
-Project: BenchKeeper `app/` at `develop` d836cc5 (62 modules, 6,116 lines in `src/`, 384 tests, suite 6.9 s), in the dev container, tools in a scratch prefix, newest release at least 7 days old on 2026-10-26. One run per tool, so the times are single measurements, not a spread.
+Project: BenchKeeper `app/` at commit d836cc5 (62 modules, 6,116 lines in `src/`, 384 tests, suite 6.9 s), in the dev container, tools in a scratch prefix, newest release at least 7 days old on 2026-10-26. One run per tool, so the times are single measurements, not a spread.
 
 | Tool | Version, license | Run | Findings | After reading |
 |---|---|---|---|---|

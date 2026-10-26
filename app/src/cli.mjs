@@ -79,7 +79,7 @@ Usage: benchkeeper <command> [options]
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
                     [--framework f|none] [--agent-file path]
-                    [--disable s] [--enable s] [--share|--local] [--caller promote|lint-js|lint-python|sonar]
+                    [--disable s] [--enable s] [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup; answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);

@@ -9,9 +9,9 @@ import { git } from './git.mjs';
 
 export const BASELINE_REPO = 'ESchuderer/repo-baseline';
 // The repo-baseline commit the bundled copy in ./baseline/ and the caller files come from (scripts/baseline-sync.mjs).
-export const REF = '9fa20b5c33cc72f777a717fb9418c57211ace0b0';
+export const REF = '83cc82ccd57649c8791d644ed6ffc03b26bcaf31';
 export const PROFILES = ['oss', 'private-advisory'];
-export const CALLERS = ['promote', 'lint-js', 'lint-python', 'sonar'];
+export const CALLERS = ['lint-js', 'lint-python', 'sonar'];
 const REF_OK = /^[\w][\w./-]*$/;
 const GH_ENV = { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' };
 
@@ -137,16 +137,7 @@ export function compare(profile, live) {
         for (const [k, v] of Object.entries(w.parameters)) if (!same(v, params[k])) out.push(`ruleset ${want.name} ${k} is ${show(params[k])}, the profile wants ${show(v)}`);
       }
     }
-    const rc = profile.requiredChecks;
-    const by = (name) => { const w = profile.rulesets.find((x) => x.name === name); return w && findRuleset(rulesets, w); };
-    const dev = by('develop'), main = by('main');
-    for (const rs of [dev, main].filter(Boolean)) if (!contexts(rs).length) out.push(`ruleset ${rs.name} requires no status checks`);
-    if (rc?.mainSubsetOfDevelop && dev && main) {
-      const extra = contexts(main).filter((c) => !contexts(dev).includes(c));
-      if (extra.length) out.push(`ruleset main requires checks that develop does not require (${extra.join(', ')}): they may not have run on the promotion pull request`);
-    }
-    const pullOnly = contexts(main).filter((c) => rc?.notRequiredOnMain?.includes(c));
-    if (pullOnly.length) out.push(`ruleset main requires ${pullOnly.join(', ')}, which runs on pull requests only and never reports on the promotion pull request`);
+    for (const want of profile.rulesets) { const rs = findRuleset(rulesets, want); if (rs && !contexts(rs).length) out.push(`ruleset ${rs.name} requires no status checks`); }
   }
   return out;
 }

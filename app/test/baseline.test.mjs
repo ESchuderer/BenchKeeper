@@ -13,7 +13,7 @@ import { projectPlan } from '../src/steps/project.mjs';
 
 const profile = (name) => JSON.parse(readFileSync(new URL(`../src/baseline/profiles/${name}.json`, import.meta.url), 'utf8'));
 const OSS = profile('oss');
-const withChecks = (rs, checks) => structuredClone({ ...rs, id: rs.name === 'develop' ? 1 : 2, source_type: 'Repository', rules: [...rs.rules, { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: false, required_status_checks: checks.map((context) => ({ context })) } }] });
+const withChecks = (rs, checks) => structuredClone({ ...rs, id: 1, source_type: 'Repository', rules: [...rs.rules, { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: false, required_status_checks: checks.map((context) => ({ context })) } }] });
 
 // What gh answers for a repository that matches the oss profile; tests change a copy.
 const compliant = () => ({
@@ -23,8 +23,11 @@ const compliant = () => ({
   selected: structuredClone(OSS.selected),
   workflow: { ...OSS.workflow },
   pvr: true, alerts: true, fixes: true, code: 'configured', scanning: true, pushProtection: true,
-  rulesets: [withChecks(OSS.rulesets[0], ['build', 'dependency-review']), withChecks(OSS.rulesets[1], ['build'])],
+  rulesets: [withChecks(OSS.rulesets[0], ['build', 'dependency-review'])],
 });
+// No bundled profile lists a caller now: a test that needs one serves the profile with sonar's caller and its allowlist pattern.
+const SONAR = `${BASELINE_REPO}/.github/workflows/sonar.yml`;
+const withSonar = (db) => { db.callers = ['sonar']; db.selected.patterns_allowed = [`${SONAR}@*`]; return db; };
 
 // A gh that answers GET requests from db, records every call, and serves repo-baseline's profile files.
 function stub(db) {
@@ -41,7 +44,12 @@ function stub(db) {
     const target = argv.find((a) => a.startsWith('repos/'));
     if (db.deny?.some((d) => target.includes(d))) return bad(403, 'Resource not accessible by personal access token');
     if (target.startsWith(`repos/${BASELINE_REPO}/contents/`) && db.baselineInvalid) return { code: 0, stdout: '{"schemaVersion":2}', stderr: '' };
-    if (target.startsWith(`repos/${BASELINE_REPO}/contents/`)) return db.baselineDown ? bad(404, 'Not Found') : { code: 0, stdout: readFileSync(new URL(`../src/baseline/${target.match(/contents\/([^?]+)/)[1]}`, import.meta.url), 'utf8'), stderr: '' };
+    if (target.startsWith(`repos/${BASELINE_REPO}/contents/`) && db.baselineDown) return bad(404, 'Not Found');
+    if (target.startsWith(`repos/${BASELINE_REPO}/contents/`)) {
+      const served = JSON.parse(readFileSync(new URL(`../src/baseline/${target.match(/contents\/([^?]+)/)[1]}`, import.meta.url), 'utf8'));
+      if (db.callers) Object.assign(served, { callers: db.callers, selected: { ...served.selected, patterns_allowed: [`${SONAR}@*`] } });
+      return { code: 0, stdout: JSON.stringify(served), stderr: '' };
+    }
     const path = target.replace(/^repos\/[^/]+\/[^/]+/, '');
     if (path === '') return ok({ private: db.private, ...db.repo, security_and_analysis: db.noSecurityBlock ? undefined : { secret_scanning: { status: db.scanning ? 'enabled' : 'disabled' }, secret_scanning_push_protection: { status: db.pushProtection ? 'enabled' : 'disabled' } } });
     if (path === '/actions/permissions') return ok(db.actions);
@@ -61,14 +69,14 @@ function stub(db) {
   return { run, calls };
 }
 
-// A checkout whose origin is on GitHub, with the promote caller (pinned) and Dependabot.
-function checkout({ promote = `${BASELINE_REPO}/.github/workflows/promote.yml@${'a'.repeat(40)}`, dependabot = true, remote = 'https://github.com/o/r.git' } = {}) {
+// A checkout whose origin is on GitHub, with Dependabot and, when sonar is a ref, the sonar caller.
+function checkout({ sonar = null, dependabot = true, remote = 'https://github.com/o/r.git' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'bk-base-'));
   const git = (...a) => runCommand(['git', '-C', dir, ...a]);
   git('init', '-q');
   if (remote) git('remote', 'add', 'origin', remote);
   mkdirSync(join(dir, '.github/workflows'), { recursive: true });
-  if (promote) writeFileSync(join(dir, '.github/workflows/promote.yml'), `jobs:\n  promote:\n    uses: ${promote}\n`);
+  if (sonar) writeFileSync(join(dir, '.github/workflows/sonar.yml'), `jobs:\n  sonar:\n    uses: ${SONAR}@${sonar}\n`);
   if (dependabot) writeFileSync(join(dir, '.github/dependabot.yml'), 'version: 2\n');
   return dir;
 }
@@ -89,24 +97,23 @@ test('drift is reported per setting: merge methods, token, allowlist, security, 
   const db = compliant();
   db.repo.allow_rebase_merge = true;
   db.workflow.default_workflow_permissions = 'write';
+  withSonar(db);
   db.selected.patterns_allowed = [];
   db.pvr = false;
   db.code = 'not-configured';
-  db.rulesets = [withChecks({ ...OSS.rulesets[0], enforcement: 'disabled' }, ['build']), withChecks(OSS.rulesets[1], ['build', 'dependency-review', 'only-main'])];
+  db.rulesets = [withChecks({ ...OSS.rulesets[0], enforcement: 'disabled' }, ['build'])];
   db.rulesets[0].rules.find((r) => r.type === 'pull_request').parameters.allowed_merge_methods = ['merge', 'squash'];
   const { ctx } = machine(db);
-  const found = messages(baselineIssues(ctx, checkout({ promote: null, dependabot: false }), { profile: 'oss' }));
+  const found = messages(baselineIssues(ctx, checkout({ dependabot: false }), { profile: 'oss' }));
   assert.deepEqual(found, [
     'repository allow_rebase_merge is true, the profile wants false',
     'workflow token default_workflow_permissions is write, the profile wants read',
     'security private_vulnerability_reporting is false, the profile wants true',
     'security code_scanning_default_setup is not-configured, the profile wants configured',
-    `Actions allowlist lacks ${OSS.selected.patterns_allowed[0]}`,
-    'ruleset develop enforcement is disabled, the profile wants active',
-    'ruleset develop allowed_merge_methods is ["merge","squash"], the profile wants ["squash"]',
-    'ruleset main requires checks that develop does not require (dependency-review, only-main): they may not have run on the promotion pull request',
-    'ruleset main requires dependency-review, which runs on pull requests only and never reports on the promotion pull request',
-    'caller workflow promote is missing',
+    `Actions allowlist lacks ${SONAR}@*`,
+    'ruleset main enforcement is disabled, the profile wants active',
+    'ruleset main allowed_merge_methods is ["merge","squash"], the profile wants ["squash"]',
+    'caller workflow sonar is missing',
     '.github/dependabot.yml is missing',
   ]);
   assert.ok(baselineIssues(ctx, checkout(), { profile: 'oss' }).every((i) => i.level !== 'error'));
@@ -114,40 +121,38 @@ test('drift is reported per setting: merge methods, token, allowlist, security, 
 
 test('a ruleset set by hand under another name counts when it targets the same branches', () => {
   const db = compliant();
-  db.rulesets[1].name = 'default branch';
+  db.rulesets[0].name = 'default branch';
   const { ctx } = machine(db);
   assert.deepEqual(baselineIssues(ctx, checkout(), { profile: 'oss' }).map((i) => i.level), ['info']);
-  db.rulesets[1].conditions.ref_name.include = ['refs/heads/release'];
+  db.rulesets[0].conditions.ref_name.include = ['refs/heads/release'];
   assert.deepEqual(messages(baselineIssues(ctx, checkout(), { profile: 'oss' })), ['ruleset main is missing']);
 });
 
-test('control characters from a workflow file or a check name never reach the report', () => {
+test('control characters from a workflow file never reach the report', () => {
   const db = compliant();
-  db.rulesets[1] = withChecks(OSS.rulesets[1], ['build', 'x\u001b]0;pwned\u0007']);
-  const { ctx } = machine(db);
-  const dir = checkout({ promote: `${BASELINE_REPO}/.github/workflows/promote.yml@v1\u001b[2J` });
+  const { ctx } = machine(withSonar(db));
+  const dir = checkout({ sonar: 'v1\u001b[2J' });
   const text = baselineIssues(ctx, dir, { profile: 'oss' }).map((i) => i.message).join('\n');
   assert.match(text, /not pinned to a commit \(v1\?\[2J\)/);
-  assert.match(text, /x\?\]0;pwned\?/);
   assert.ok(!/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/.test(text));
 });
 
 test('a part that cannot be read is named and never reads as a match; a lost ruleset detail is not a missing ruleset', () => {
   const db = compliant();
-  db.deny = ['/actions/permissions/workflow', '/rulesets/2'];
+  db.deny = ['/actions/permissions/workflow', '/rulesets/1'];
   const { ctx } = machine(db);
   const found = messages(baselineIssues(ctx, checkout(), { profile: 'oss' }));
-  assert.deepEqual(found, ['workflow not readable (HTTP 403), left out', 'ruleset 2 not readable (HTTP 403), left out']);
+  assert.deepEqual(found, ['workflow not readable (HTTP 403), left out', 'ruleset 1 not readable (HTTP 403), left out']);
   assert.ok(!found.some((m) => /missing|matches/.test(m)));
   assert.ok(baselineIssues(ctx, checkout(), { profile: 'oss' }).every((i) => !i.tag), 'enforcing profile: no advisory tag');
 });
 
 test('a comment is not a caller and a quoted pin is one; the origin must be github.com itself', () => {
-  const { ctx } = machine(compliant());
-  const dir = checkout({ promote: null });
-  writeFileSync(join(dir, '.github/workflows/promote.yml'), `# uses: ${BASELINE_REPO}/.github/workflows/promote.yml@${'a'.repeat(40)}\n`);
-  assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), ['caller workflow promote is missing']);
-  writeFileSync(join(dir, '.github/workflows/promote.yml'), `jobs:\n  p:\n    uses: "${BASELINE_REPO}/.github/workflows/promote.yml@${'a'.repeat(40)}"\n`);
+  const { ctx } = machine(withSonar(compliant()));
+  const dir = checkout();
+  writeFileSync(join(dir, '.github/workflows/sonar.yml'), `# uses: ${SONAR}@${'a'.repeat(40)}\n`);
+  assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), ['caller workflow sonar is missing']);
+  writeFileSync(join(dir, '.github/workflows/sonar.yml'), `jobs:\n  p:\n    uses: "${SONAR}@${'a'.repeat(40)}"\n`);
   assert.deepEqual(baselineIssues(ctx, dir, { profile: 'oss' }).map((i) => i.level), ['info']);
   for (const url of ['https://evilgithub.com/o/r', 'https://github.com/o/..', 'https://github.com/../r']) assert.equal(githubSlug(ctx, checkout({ remote: url })), null, url);
   assert.equal(githubSlug(ctx, checkout({ remote: 'ssh://git@github.com/o/r.git' })), 'o/r');
@@ -166,19 +171,18 @@ test('a lint or sonar caller in use needs its allowlist pattern; admin-only scan
 });
 
 test('every use of a caller must be pinned, not just one', () => {
-  const { ctx } = machine(compliant());
-  const dir = checkout({ promote: null });
-  const pinned = `${BASELINE_REPO}/.github/workflows/promote.yml@${'a'.repeat(40)}`;
-  writeFileSync(join(dir, '.github/workflows/promote.yml'), `jobs:\n  a:\n    uses: ${pinned}\n  b:\n    uses: ${BASELINE_REPO}/.github/workflows/promote.yml@main\n`);
-  assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), ['caller workflow promote is not pinned to a commit (main)']);
+  const { ctx } = machine(withSonar(compliant()));
+  const dir = checkout();
+  writeFileSync(join(dir, '.github/workflows/sonar.yml'), `jobs:\n  a:\n    uses: ${SONAR}@${'a'.repeat(40)}\n  b:\n    uses: ${SONAR}@main\n`);
+  assert.deepEqual(messages(baselineIssues(ctx, dir, { profile: 'oss' })), ['caller workflow sonar is not pinned to a commit (main)']);
 });
 
 test('rulesets without checks and a caller that is not pinned to a commit are reported', () => {
   const db = compliant();
   db.rulesets = OSS.rulesets.map((r, i) => structuredClone({ ...r, id: i + 1, source_type: 'Repository' }));
-  const { ctx } = machine(db);
-  const found = messages(baselineIssues(ctx, checkout({ promote: `${BASELINE_REPO}/.github/workflows/promote.yml@v0.1.0` }), { profile: 'oss' }));
-  assert.deepEqual(found, ['ruleset develop requires no status checks', 'ruleset main requires no status checks', 'caller workflow promote is not pinned to a commit (v0.1.0)']);
+  const { ctx } = machine(withSonar(db));
+  const found = messages(baselineIssues(ctx, checkout({ sonar: 'v0.1.0' }), { profile: 'oss' }));
+  assert.deepEqual(found, ['ruleset main requires no status checks', 'caller workflow sonar is not pinned to a commit (v0.1.0)']);
 });
 
 test('without gh, a login or the network the check says so, and nothing throws', () => {
@@ -221,50 +225,50 @@ test('a private repository gets the advisory profile: findings tagged advisory, 
 });
 
 test('doctor adds the baseline findings only when asked, and exit stays 0 for warnings', async () => {
-  const dir = checkout({ promote: null });
-  const { ctx } = machine(compliant());
+  const dir = checkout();
+  const { ctx } = machine(withSonar(compliant()));
   assert.ok(!doctor(ctx, { agents: [], dir, env: {}, devcontainerCli: '1.0.0' }).some((i) => i.check === 'baseline'));
-  assert.ok(doctor(ctx, { agents: [], dir, env: {}, devcontainerCli: '1.0.0', baseline: { profile: 'oss' } }).some((i) => /caller workflow promote is missing/.test(i.message)));
+  assert.ok(doctor(ctx, { agents: [], dir, env: {}, devcontainerCli: '1.0.0', baseline: { profile: 'oss' } }).some((i) => /caller workflow sonar is missing/.test(i.message)));
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
   await main(['doctor', dir, '--agents', 'claude', '--baseline', 'oss'], { out, ctx });
-  assert.match(text, /warning\s+baseline\s+o\/r: caller workflow promote is missing\n\s+fix: benchkeeper project apply --caller promote/);
+  assert.match(text, /warning\s+baseline\s+o\/r: caller workflow sonar is missing\n\s+fix: benchkeeper project apply --caller sonar/);
   assert.equal(await main(['doctor', dir, '--baseline', 'nope'], { out, ctx }), 2);
 });
 
 test('update-all --baseline reports each project and changes no setting and no file', async () => {
-  const dir = checkout({ promote: null });
-  const { ctx, calls } = machine(compliant());
+  const dir = checkout();
+  const { ctx, calls } = machine(withSonar(compliant()));
   addProject(ctx, dir);
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
   await main(['update-all', '--baseline', 'auto'], { out, ctx, input: undefined });
-  assert.match(text, /GitHub settings against profile auto \(report only\)\n\s+warning\s+o\/r: caller workflow promote is missing/);
+  assert.match(text, /GitHub settings against profile auto \(report only\)\n\s+warning\s+o\/r: caller workflow sonar is missing/);
   for (const argv of calls) assert.ok(!argv.some((a) => WRITE.test(a)));
-  assert.equal(runCommand(['git', '-C', dir, 'status', '--porcelain']).stdout.includes('promote'), false);
+  assert.equal(runCommand(['git', '-C', dir, 'status', '--porcelain']).stdout.includes('sonar'), false);
 });
 
 test('project setup writes a repo-baseline caller only when asked; an own file is offered, not preselected', () => {
-  const dir = checkout({ promote: null, dependabot: false });
+  const dir = checkout({ dependabot: false });
   const { ctx } = machine(compliant());
   const answers = { agents: ['claude'], env: 'container' };
   const none = preview(projectPlan({ ctx, dir, answers }).changes);
   assert.ok(!none.some((c) => c.step.startsWith('caller:')));
-  const [c] = preview(projectPlan({ ctx, dir, answers: { ...answers, callers: ['promote'] } }).changes).filter((x) => x.step === 'caller:promote');
+  const [c] = preview(projectPlan({ ctx, dir, answers: { ...answers, callers: ['sonar'] } }).changes).filter((x) => x.step === 'caller:sonar');
   assert.equal(c.selected, true);
-  assert.equal(c.path, join(dir, '.github/workflows/promote.yml'));
-  assert.match(c.after, new RegExp(`uses: ${BASELINE_REPO}/\\.github/workflows/promote\\.yml@${REF}\\n$`));
+  assert.equal(c.path, join(dir, '.github/workflows/sonar.yml'));
+  assert.match(c.after, new RegExp(`uses: ${BASELINE_REPO}/\\.github/workflows/sonar\\.yml@${REF}\\n`));
   assert.ok(!c.after.includes('{{ref}}'));
-  writeFileSync(join(dir, '.github/workflows/promote.yml'), 'name: mine\n');
-  const [own] = preview(projectPlan({ ctx, dir, answers: { ...answers, callers: ['promote'] } }).changes).filter((x) => x.step === 'caller:promote');
+  writeFileSync(join(dir, '.github/workflows/sonar.yml'), 'name: mine\n');
+  const [own] = preview(projectPlan({ ctx, dir, answers: { ...answers, callers: ['sonar'] } }).changes).filter((x) => x.step === 'caller:sonar');
   assert.equal(own.selected, false);
   assert.match(own.title, /replaces your own file/);
-  writeFileSync(join(dir, '.github/workflows/promote.yml'), callerFile('promote').text);
-  assert.ok(!preview(projectPlan({ ctx, dir, answers: { ...answers, callers: ['promote'] } }).changes).some((x) => x.step === 'caller:promote'));
+  writeFileSync(join(dir, '.github/workflows/sonar.yml'), callerFile('sonar').text);
+  assert.ok(!preview(projectPlan({ ctx, dir, answers: { ...answers, callers: ['sonar'] } }).changes).some((x) => x.step === 'caller:sonar'));
   assert.throws(() => projectPlan({ ctx, dir, answers: { ...answers, callers: ['evil'] } }), /caller must be one of/);
 });
 
-test('the bundled copy: pinned commit, valid profiles, every caller pinned and a workflow of its own', () => {
+test('the bundled copy: pinned commit, valid profiles, a reusable caller pinned and a workflow of its own', () => {
   assert.match(REF, /^[0-9a-f]{40}$/);
   assert.notEqual(REF, '0'.repeat(40));
   for (const name of PROFILES) assert.equal(profile(name).name, name);
@@ -272,7 +276,9 @@ test('the bundled copy: pinned commit, valid profiles, every caller pinned and a
   for (const m of CALLERS) {
     const f = callerFile(m);
     assert.equal(f.path, `.github/workflows/${m}.yml`);
-    assert.match(f.text, new RegExp(`uses: ${BASELINE_REPO}/\\.github/workflows/${m}\\.yml@[0-9a-f]{40}\\n`));
+    // lint-js and lint-python are standalone workflows now; sonar is the one reusable workflow.
+    assert.equal(f.text.includes(`${BASELINE_REPO}/.github/workflows/`), m === 'sonar');
+    if (m === 'sonar') assert.match(f.text, new RegExp(`uses: ${BASELINE_REPO}/\\.github/workflows/${m}\\.yml@[0-9a-f]{40}\\n`));
   }
   assert.throws(() => callerFile('../x'), /unknown caller/);
 });

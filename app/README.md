@@ -72,7 +72,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 
 ## Machine-readable output
 
-`doctor`, `test`, `plan`, `project plan`, `history`, `projects list` and `packs list` take `--json`: one JSON document on stdout, logs and error messages on stderr. Every document has `schemaVersion` (1) and `command`; a failure has `error` instead of the other keys. Values of environment variables and file contents never appear: a change lists its title and path, not its diff.
+`doctor`, `test`, `plan`, `project plan`, `history`, `projects list`, `projects scan`, `packs list`, `skills list`, `rules list`, `settings list`, `settings get`, `frameworks list`, `board` and `profile export` take `--json`: one JSON document on stdout, logs and error messages on stderr. Every document is an envelope: `schemaVersion` (1), `command` and the keys below, no prose; a failure has `error` instead of the other keys. Values of environment variables and file contents never appear: a change lists its title and path, not its diff, a settings document lists the names of an `env` block without values, and a file that does not parse is reported as such without the parser message. `skills` and `frameworks` also work without the word `list`; any other command or subcommand (`skills update`, `settings set`, `profile import`) is refused with exit 2.
 
 | Command | Keys |
 |---|---|
@@ -82,12 +82,20 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `history` | `runs` (`id`, `kind`, `status`, `scope`, `time`, `changes`, and when they apply `of`, `evalCase`, `target`), `backups` |
 | `projects list` | `projects` (`path`, `added`) |
 | `packs list` | `packs` (`id`, `own`, `skills`, `plugins`) |
+| `projects scan` | `root`, `found` (`path`, `registered`) |
+| `skills list` | `dir`, `hasSetup` (false: no state file, the lists are empty), `skills` (`name`, `source`, `own`, `state`, `pinned`, `newest`, `packs`, `single`), `untracked` (`name`, `folders`, `library`), `globalUntracked` (`name`, `folders`) |
+| `rules list` | `dir`, `agents` (`id`, `name`, `rows`: `scope`, `owner`, `path`, `shown`, `bytes`, `lines`, `tokens`, `load`, `by`, `switch`, as the Rules view; `budget`: `total`, `largest`, `over`, `threshold`, `notes`). Sizes and states, never the text of a file |
+| `settings list` | `agent`, `name`, `layers` (`layer`, `path`, `exists`, `readOnly`, `error`), `settings` (`key`, `value`, `layer`, `file`, `sets`, `changed`, `notes`, and the key's definition), `bundles`, `notes`; Codex also `trust`; with `--advanced` also `advanced`, `outside` and, for Claude Code, `env` (`name`, `layer`, `secret`, `editable`). Values of names that look like secrets are masked as `(set)` |
+| `settings get <key>` | `agent`, `setting` (one entry of `settings` or `advanced`) |
+| `frameworks list` | `frameworks` (`id`, `title`, `role`, `license`, `pin`, `verdict`, `hooks`, `gives`, `limits`, `evaluation`, `kind`, `pack`, `agents`, `files`) |
+| `board` | `sessions` (`agent`, `id`, `project`, `branch`, `agentVersion`, `start`, `end`, `turns`, `models`, `costUSD`, `busyMs`, `tokens`, `tier`, `skills`, `tests`, `setup`, `pattern`, `subagents`, `run`, `setupVersion`, `prs`), newest first. Reads the transcripts like the text command but writes no `board.html` and opens no browser; the session title is left out |
+| `profile export` | `profile` (the profile file: `kind`, `schemaVersion`, `appVersion`, `global`, `packs`, `projects`); the document is the envelope, so `profile import` reads only its `profile` value (extract it from the redirected stdout); a file argument is refused |
 
 | Exit code | Meaning |
 |---|---|
 | 0 | clean: no finding of level error (warnings and info do not count) |
-| 1 | a finding of level error (`doctor`), a failed check (`test`), a change that cannot be made (`plan`, `project plan`) |
-| 2 | usage or read failure: an unknown option or command, a bad value, an unreadable file (also the registered projects file, for `doctor`, `plan` and `projects list`), `--json` on another command, and with `--json` an uncaught error |
+| 1 | a finding of level error (`doctor`), a failed check (`test`), a change that cannot be made (`plan`, `project plan`); the list commands have no findings and exit 0 |
+| 2 | usage or read failure: an unknown option or command, a bad value, an unreadable file (also the registered projects file, for `doctor`, `plan`, `projects list`, `projects scan` and `profile export`), `--json` on another command, and with `--json` an uncaught error |
 
 ## Web UI
 

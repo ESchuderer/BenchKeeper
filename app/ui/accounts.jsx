@@ -6,6 +6,22 @@ import { CancelJob, Cli, Plan, Section, useJob } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const AGENT = { claude: 'Claude Code', codex: 'Codex' };
+const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
+const DOT = { ok: 'teal', warn: 'yellow', low: 'red', unknown: 'gray' };
+const minimum = (l) => WINDOWS.map(([k, label]) => `${label} ${l.minimum[k]}%`).join(', ');
+// What is left per rate limit window, from the usage a Claude Code account's status line keeps; unknown says why.
+function Usage({ usage, name }) {
+  if (!usage) return null;
+  if (!usage.tracked) return <Text size="sm">Usage is not tracked: <Code>benchkeeper accounts track {name}</Code></Text>;
+  return (
+    <Stack gap={2} aria-label={`Usage of ${name}`}>
+      {WINDOWS.map(([k, label]) => {
+        const w = usage[k];
+        return <Text size="sm" key={k}><Dot color={DOT[w.state]} /> {label}: {w.state === 'unknown' ? `unknown (${w.reason})` : `${w.remaining}% left, resets ${w.resetsAt.slice(0, 16).replace('T', ' ')} UTC`}</Text>;
+      })}
+    </Stack>
+  );
+}
 const where = (a) => (a.mode === 'host' ? <Code style={{ overflowWrap: 'anywhere' }}>{a.dir}</Code> : <Text size="sm">Dev container volume <Code>{a.volume}</Code> at <Code>{a.mount}</Code></Text>);
 
 // The sign-in as steps: the account, the private window (or the link to open in one), a code when the browser shows one,
@@ -135,7 +151,7 @@ export function Accounts({ overview, refresh }) {
                           const c = checks[a.name];
                           return (
                             <Table.Tr key={a.name}>
-                              <Table.Td><Stack gap={2}><Text fw={600}>{a.name}</Text>{a.label && <Text size="sm">{a.label}</Text>}{a.default && <Badge variant="default" miw="max-content">default for {AGENT[a.agent]}</Badge>}{a.token.kept && <Badge variant="default" miw="max-content">token kept since {a.token.created.slice(0, 10)}</Badge>}</Stack></Table.Td>
+                              <Table.Td><Stack gap={2}><Text fw={600}>{a.name}</Text>{a.label && <Text size="sm">{a.label}</Text>}{a.default && <Badge variant="default" miw="max-content">default for {AGENT[a.agent]}</Badge>}{a.pool && <Badge variant="default" miw="max-content">pool {a.pool}</Badge>}{a.token.kept && <Badge variant="default" miw="max-content">token kept since {a.token.created.slice(0, 10)}</Badge>}</Stack></Table.Td>
                               <Table.Td>{AGENT[a.agent]}</Table.Td>
                               <Table.Td>{where(a)}</Table.Td>
                               <Table.Td miw={220}>
@@ -143,6 +159,7 @@ export function Accounts({ overview, refresh }) {
                                 {c?.result && (
                                   <Stack gap={2}>
                                     <Badge variant="default" miw="max-content" leftSection={<Dot color={c.result.loggedIn ? 'teal' : c.result.loggedIn === false ? 'red' : 'gray'} />}>{c.result.loggedIn === null ? 'not checked' : c.result.loggedIn ? `signed in${c.result.method ? ` (${c.result.method})` : ''}` : 'not signed in'}</Badge>
+                                    <Usage usage={c.result.usage} name={a.name} />
                                     {c.result.findings.map((f) => <Text size="sm" key={f.message}>{f.message}. Fix: <Code>{f.fix}</Code></Text>)}
                                   </Stack>
                                 )}
@@ -176,13 +193,18 @@ export function Accounts({ overview, refresh }) {
               </Section>
             )}
             <Section title="Add account"><AddForm onPlan={setPending} /></Section>
+            <Section title="Usage limits">
+              <Text size="sm">Below the minimum headroom of a window (100 minus the used percentage), <Code>benchkeeper run</Code> warns and asks before it starts; a notice shows before that. Defaults: minimum {minimum({ minimum: data.settings.minimum })}, notice below {WINDOWS.map(([k, label]) => `${label} ${data.settings.warn[k]}%`).join(', ')}. Usage is read from the Claude Code status line of an account after <Code>benchkeeper accounts track</Code>; Codex has no documented source.</Text>
+              <Text size="sm">Auto-pick is {data.settings.autoPick ? 'on' : 'off'}{data.settings.autoPick ? `; with no pool member above its minimum a launch ${data.settings.whenNone === 'wait' ? 'waits for the earliest reset' : 'stops'}` : ''}. When it is on, a new launch under the default account starts under another account of the same pool that has headroom, never inside a running session. The provider's consumer terms prohibit bypassing its protective measures and do not say whether switching accounts at a limit is one: the setting is yours to carry. Pool members must all be accounts of one person.</Text>
+              {data.accounts.length > 0 && <Text size="sm">{data.accounts.map((a) => `${a.name}: ${minimum(a.limits)}`).join('; ')}</Text>}
+            </Section>
             <Section title="Token for unattended containers">
               <Text size="sm">A one-year token for Claude Code (<Code>claude setup-token</Code>, subscription, model requests only) is kept in the OS credential store ({data.store === 'none' ? 'none is available on this system, so the command refuses' : data.store}), never in a file, the list, History or a log. It is set in a terminal, and it reaches one launch only with <Code>--token</Code>.</Text>
             </Section>
           </Stack>
         )}
       </Loading>
-      <Cli>{'benchkeeper accounts list\nbenchkeeper accounts add [name] --agent claude|codex [--container --mount <path>]\nbenchkeeper accounts use|remove <name>\nbenchkeeper accounts status [name] [--project <dir>]\nbenchkeeper accounts login <name> [--token] [--project <dir>]\nbenchkeeper run --account <name> -- claude|codex'}</Cli>
+      <Cli>{'benchkeeper accounts list\nbenchkeeper accounts add [name] --agent claude|codex [--container --mount <path>]\nbenchkeeper accounts use|remove <name>\nbenchkeeper accounts status [name] [--project <dir>]\nbenchkeeper accounts track <name> [--off]\nbenchkeeper accounts limits [name] [--five-hour N] [--seven-day N] [--pool name] [--auto-pick on|off]\nbenchkeeper accounts login <name> [--token] [--project <dir>]\nbenchkeeper run --account <name> -- claude|codex'}</Cli>
     </Stack>
   );
 }

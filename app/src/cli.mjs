@@ -1,11 +1,12 @@
 // Command line: every UI action is also a command here.
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { AGENTS, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, listAccounts, login, newAccount, pickAccount, removeChange, runAs, store, tokenChange, useChange } from './accounts.mjs';
+import { AGENTS, NeedsConfirm, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, limitsChange, listAccounts, login, newAccount, pickAccount, registrySettings, removeChange, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer } from './accounts.mjs';
+import { WINDOWS, limitsFor, settingsOf } from './usage.mjs';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
@@ -136,15 +137,29 @@ Usage: benchkeeper <command> [options]
                                     (the folder and its sign-in stay)
   accounts status [name] [--project dir]
                                     signed in or not (claude auth status, codex login status; a container account in the
-                                    --project dir's running dev container) and the age of a kept token
+                                    --project dir's running dev container), the age of a kept token and, for Claude Code,
+                                    the usage left in the 5-hour and 7-day window with a notice before a limit
+  accounts track <name> [--off] [--project dir] [--yes]
+                                    Claude Code: installs (--off: removes) a status line script and a StopFailure hook in the
+                                    account's folder; they keep the rate limit windows and failed turns for status, doctor and
+                                    run. A plan with a diff and undo; a dev container account is written through devcontainer exec
+  accounts limits [name] [--five-hour N] [--seven-day N] [--warn-five-hour N] [--warn-seven-day N]
+                  [--pool name|none] [--auto-pick on|off] [--when-none stop|wait] [--continue-below on|off] [--reset]
+                                    the minimum headroom (percent, defaults 8 and 3) below which run asks first, and the notice
+                                    level before it (default twice the minimum); with a name, that account's own values and
+                                    --pool (accounts of one person that auto-pick may choose among). Without a name:
+                                    the defaults, --auto-pick (off by default: a new run under the default account starts under
+                                    a pool member with headroom; the provider's terms on rotating accounts are unclear, so you
+                                    carry that call), --when-none (no member has headroom: stop, or wait for the earliest
+                                    reset) and --continue-below (run starts below the minimum without asking). No flag shows them
   accounts login <name> [--token] [--email address] [--no-browser] [--project dir]
                                     guided sign-in: opens the sign-in link in a private browser window (Firefox, Chrome,
                                     Chromium, Edge), else prints it with the code; paste the code the browser shows if it
                                     asks. --token: Claude Code setup-token kept in the OS credential store; Codex: the
                                     access token piped on stdin goes to codex login --with-access-token
-  run [--account name] [--project dir] [--token] -- claude|codex [args]
+  run [--account name] [--project dir] [--token] [--yes] -- claude|codex [args]
                                     runs the agent as an account (default: the agent's default account) after a sign-in
-                                    check; environment: the filtered one plus the account's folder variable (--token: the
+                                    check and, below the minimum headroom, a question (--yes answers it); environment: the filtered one plus the account's folder variable (--token: the
                                     kept token, Claude Code only). Dev container accounts run through devcontainer exec
   maintain knowledge show [dir]     what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
                                     ignored by git): entries per file; a file that does not parse is listed as ignored
@@ -169,6 +184,7 @@ const OPTIONS = {
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
   json: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
+  'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   account: { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
@@ -448,7 +464,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'maintain') return maintainCommand({ o, positionals, out, ask });
   if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
-  if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx });
+  if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
@@ -679,7 +695,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (problem) return fail(problem);
     const all = listAccounts(ctx), picked = positionals[2] ? all.filter((a) => a.name === positionals[2]) : all;
     if (positionals[2] && !picked.length) return fail(`no account ${positionals[2]}`);
-    if (arg !== 'status') return emit({ accounts: picked.map(accountDoc) });
+    if (arg !== 'status') return emit({ accounts: picked.map((a) => accountDoc(a, registrySettings(ctx))), settings: { ...settingsOf(registrySettings(ctx)), warn: limitsFor(registrySettings(ctx)).warn } });
     const accounts = picked.map((a) => accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined }));
     return emit({ accounts }, accounts.some((a) => a.findings.some((f) => f.level === 'error')) ? 1 : 0);
   }
@@ -799,7 +815,7 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
 
 // ---- accounts: the registry, the guided sign-in and the launcher (accounts.mjs)
 
-const accountLine = (a) => `${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${(a.mode === 'host' ? 'host' : 'container').padEnd(9)} ${(a.default ? 'default' : '').padEnd(8)} ${a.mode === 'host' ? a.dir : `volume ${a.volume} at ${a.mount}`}${a.label ? `  ${mask(a.label)}` : ''}${a.token ? `  token kept since ${a.token.created.slice(0, 10)}` : ''}`;
+const accountLine = (a) => `${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${(a.mode === 'host' ? 'host' : 'container').padEnd(9)} ${(a.default ? 'default' : '').padEnd(8)} ${a.mode === 'host' ? a.dir : `volume ${a.volume} at ${a.mount}`}${a.label ? `  ${mask(a.label)}` : ''}${a.pool ? `  pool ${a.pool}` : ''}${a.token ? `  token kept since ${a.token.created.slice(0, 10)}` : ''}`;
 
 // The steps of a sign-in as the terminal shows them; the agent's own lines come through say.
 function terminalIo({ out, ask, secret }) {
@@ -832,9 +848,52 @@ async function signIn(ctx, a, { o, out, ask }) {
   return 0;
 }
 
+// The usage of an account as `accounts status` shows it: what is left per window, or why that is not known.
+function usageText(u, name) {
+  if (!u.tracked) return `  usage    not tracked: benchkeeper accounts track ${name}`;
+  const age = u.ageSeconds < 90 ? `${u.ageSeconds} seconds` : u.ageSeconds < 5400 ? `${Math.round(u.ageSeconds / 60)} minutes` : `${Math.round(u.ageSeconds / 3600)} hours`;
+  return `  usage    ${WINDOWS.map(([k, label]) => `${label} ${u[k].state === 'unknown' ? `unknown (${u[k].reason})` : `${u[k].remaining}% left, resets ${u[k].resetsAt.slice(0, 16).replace('T', ' ')} UTC`}`).join('; ')}; read ${age} ago`;
+}
+
+const percent = (v, flag) => {
+  const n = Number(v);
+  if (v === '' || !Number.isFinite(n) || n < 0 || n > 100) throw new Error(`${flag} is a percentage from 0 to 100`);
+  return n;
+};
+const onOff = (v, flag) => {
+  if (v !== 'on' && v !== 'off') throw new Error(`${flag} is on or off`);
+  return v === 'on';
+};
+// The flags of `accounts limits` as the change takes them; names the flags that only work with or without an account name.
+function limitFlags(o, name) {
+  const minimum = {}, warn = {}, out = { minimum, warn };
+  if (o['five-hour'] !== undefined) minimum.fiveHour = percent(o['five-hour'], '--five-hour');
+  if (o['seven-day'] !== undefined) minimum.sevenDay = percent(o['seven-day'], '--seven-day');
+  if (o['warn-five-hour'] !== undefined) warn.fiveHour = percent(o['warn-five-hour'], '--warn-five-hour');
+  if (o['warn-seven-day'] !== undefined) warn.sevenDay = percent(o['warn-seven-day'], '--warn-seven-day');
+  if (o.pool !== undefined) out.pool = o.pool === 'none' ? null : o.pool;
+  if (o['auto-pick'] !== undefined) out.autoPick = onOff(o['auto-pick'], '--auto-pick');
+  if (o['continue-below'] !== undefined) out.continueBelow = onOff(o['continue-below'], '--continue-below');
+  if (o['when-none'] !== undefined) {
+    if (!['stop', 'wait'].includes(o['when-none'])) throw new Error('--when-none is stop or wait');
+    out.whenNone = o['when-none'];
+  }
+  if (name && ['autoPick', 'continueBelow', 'whenNone'].some((k) => out[k] !== undefined)) throw new Error('--auto-pick, --when-none and --continue-below are settings for all accounts: leave out the account name');
+  if (!name && (out.pool !== undefined || o.reset)) throw new Error('--pool and --reset belong to one account: give its name');
+  out.reset = !!o.reset;
+  return out;
+}
+const limitsShown = (ctx) => {
+  const settings = registrySettings(ctx), all = settingsOf(settings), l = limitsFor(settings);
+  const text = (x) => WINDOWS.map(([k, label]) => `${label} ${x.minimum[k]}% (notice below ${x.warn[k]}%)`).join(', ');
+  return [`defaults: minimum headroom ${text(l)}`,
+    `auto-pick ${all.autoPick ? 'on' : 'off'}; when no pool member has headroom: ${all.whenNone}; below the minimum run ${all.continueBelow ? 'starts anyway' : 'asks'}`,
+    ...listAccounts(ctx).filter((a) => a.limits || a.pool).map((a) => `${a.name}: ${a.limits ? `minimum headroom ${text(limitsFor(settings, a))}` : 'defaults'}${a.pool ? `; pool ${a.pool}` : ''}`)];
+};
+
 async function accountsCommand(ctx, { o, positionals, out, ask }) {
   const [, sub = 'list', name] = positionals;
-  const subs = ['list', 'add', 'use', 'remove', 'status', 'login'];
+  const subs = ['list', 'add', 'use', 'remove', 'status', 'login', 'track', 'limits'];
   if (!subs.includes(sub)) { out.write(`accounts needs ${subs.join(', ')}\n`); return 2; }
   if (positionals.length > 3) { out.write(`unexpected argument ${positionals[3]}\n`); return 2; }
   const problem = accountsProblem(ctx);
@@ -853,6 +912,7 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
       for (const a of list) {
         const s = accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined });
         out.write(`${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${s.loggedIn === null ? 'not checked' : s.loggedIn ? `signed in${s.method ? ` (${s.method})` : ''}` : 'not signed in'}${s.tokenAgeDays !== undefined ? `  token ${s.tokenAgeDays} days old` : ''}\n`);
+        if (s.usage) out.write(`${usageText(s.usage, a.name)}\n`);
         for (const f of s.findings) { out.write(`  ${f.level.padEnd(8)} ${f.message}\n           fix: ${f.fix}\n`); if (f.level === 'error') code = 1; }
       }
       return code;
@@ -861,8 +921,17 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
       if (!need()) return 2;
       return await signIn(ctx, findAccount(ctx, name), { o, out, ask });
     }
+    if (sub === 'track') {
+      if (!need()) return 2;
+      return await trackAccount(ctx, findAccount(ctx, name), { o, out, ask });
+    }
     let change, entry, gone;
-    if (sub === 'add') {
+    if (sub === 'limits') {
+      const flags = limitFlags(o, name), given = Object.values({ ...flags.minimum, ...flags.warn }).length || ['pool', 'autoPick', 'whenNone', 'continueBelow'].some((k) => flags[k] !== undefined) || flags.reset;
+      if (name) findAccount(ctx, name);
+      if (!given) { limitsShown(ctx).forEach((l) => out.write(`${l}\n`)); return 0; }
+      change = name ? limitsChange(ctx, name, flags) : settingsChange(ctx, flags);
+    } else if (sub === 'add') {
       // What is missing is asked, as the Accounts page does step by step; with --yes it is a usage error.
       const asked = !name || !o.agent;
       const pick = async (value, question) => value ?? (o.yes ? undefined : ((await ask.line(question)) ?? '').trim() || undefined);
@@ -898,13 +967,48 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
   }
 }
 
-async function runAccountCommand({ o, positionals, out, ctx }) {
+// Installs or removes the usage script, the status line and the hook of an account (Claude Code).
+async function trackAccount(ctx, a, { o, out, ask }) {
+  const remove = !!o.off;
+  const done = () => out.write(remove ? 'removed; the readings already kept stay in the folder\n' : 'tracking starts with the next Claude Code session of this account; usage shows after its first response. A status line in a project\'s settings takes precedence over this one, and then no reading is kept\n');
+  if (a.mode === 'host') {
+    const plan = preview(trackChanges(a, { remove }));
+    if (!plan.length) { out.write('nothing to change\n'); return 0; }
+    const select = await choose(plan, o, ask, out);
+    if (!select.length) { if (o.yes || o.all) plan.forEach((c) => show(c, out)); return 1; }
+    // The folder may lie outside the home folder: it is the one extra root of this change, and it is for this user alone.
+    if (!remove) mkdirSync(a.dir, { recursive: true, mode: 0o700 });
+    const code = report(apply(plan, { ...ctx, roots: [...ctx.roots, a.dir] }, { scope: 'global', select }), out);
+    if (!code) done();
+    return code;
+  }
+  const dir = resolve(o.project ?? '.');
+  const t = trackContainer(ctx, a, dir, { remove });
+  if (!t.files.length) { out.write('nothing to change\n'); return 0; }
+  for (const f of t.files) out.write(`${f.diff}\n`);
+  if (!o.yes && !(await ask(`Write ${t.files.length === 1 ? 'this file' : 'these files'} in the volume of ${a.name}? (no undo run: accounts track ${a.name} --off reverses it)`))) return 1;
+  writeContainer(ctx, a, dir, t);
+  done();
+  return 0;
+}
+
+async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   const args = positionals.slice(1);
   if (!AGENTS.includes(args[0])) { out.write(`run needs the agent after --: ${AGENTS.join(' or ')}\n`); return 2; }
   try {
     const problem = accountsProblem(ctx);
     if (problem) { out.write(`${problem}\n`); return 2; }
-    return runAs(ctx, pickAccount(ctx, { name: o.account, agent: args[0] }), args, { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`) });
+    const a = pickAccount(ctx, { name: o.account, agent: args[0] });
+    // An account named with --account is never replaced by auto-pick.
+    const opts = { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account };
+    try { return runAs(ctx, a, args, { ...opts, confirmed: !!o.yes }); } catch (e) {
+      if (!(e instanceof NeedsConfirm)) throw e;
+      out.write(`${e.message}\n`);
+      if (!(await ask('Start anyway?'))) { out.write('not started\n'); return 1; }
+      // The agent reads the terminal next: this reader must not keep it.
+      ask.close();
+      return runAs(ctx, a, args, { ...opts, confirmed: true });
+    }
   } catch (e) {
     out.write(`${e.message}\n`);
     return 1;

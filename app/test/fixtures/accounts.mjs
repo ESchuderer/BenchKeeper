@@ -53,6 +53,12 @@ if (me === 'claude' && args[0] === 'auth' && args[1] === 'status') {
   while (args[i] && args[i].startsWith('--')) i += 2;
   const rest = args.slice(i);
   if (rest[0] === 'grep') process.exit(mode('mounted') === 'no' ? 1 : 0);
+  // The volume is a folder of the machine: cat, rm, mkdir and tee act on it, so the tests read what a container holds.
+  const vol = (p) => path.join(bin, 'vol', p);
+  if (rest[0] === 'cat') { try { process.stdout.write(fs.readFileSync(vol(rest[1]))); process.exit(0); } catch { process.exit(1); } }
+  if (rest[0] === 'rm') { fs.rmSync(vol(rest[2]), { force: true }); process.exit(0); }
+  if (rest[0] === 'mkdir') { fs.mkdirSync(vol(rest[2]), { recursive: true }); process.exit(0); }
+  if (rest[0] === 'tee') { let d = ''; process.stdin.on('data', (c) => { d += c; }).on('end', () => { fs.writeFileSync(vol(rest[1]), d); process.exit(0); }); return; }
   if (rest[0] === 'claude' && rest[1] === 'auth' && rest[2] === 'status') {
     const ok = mode('container-login') === 'yes';
     console.log(JSON.stringify({ loggedIn: ok, authMethod: ok ? 'claude.ai' : 'none' }));

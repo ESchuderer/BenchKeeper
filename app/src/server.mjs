@@ -10,7 +10,8 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, removeChange, store, useChange } from './accounts.mjs';
+import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, useChange } from './accounts.mjs';
+import { limitsFor, settingsOf } from './usage.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { agent, detect } from './agents.mjs';
@@ -554,7 +555,8 @@ export function api(ctx) {
     'GET /api/accounts': () => {
       const problem = accountsProblem(ctx);
       if (problem) throw Object.assign(new Error(problem), { status: 409 });
-      return { accounts: listAccounts(ctx).map(accountDoc), store: store(ctx).name, login: [...jobs.values()].find((j) => j.kind === 'login' && !j.done)?.id ?? null };
+      const settings = registrySettings(ctx);
+      return { accounts: listAccounts(ctx).map((a) => accountDoc(a, settings)), settings: { ...settingsOf(settings), warn: limitsFor(settings).warn }, store: store(ctx).name, login: [...jobs.values()].find((j) => j.kind === 'login' && !j.done)?.id ?? null };
     },
     'GET /api/accounts-status': async (q) => {
       const a = input(() => findAccount(ctx, q.get('name') ?? ''));

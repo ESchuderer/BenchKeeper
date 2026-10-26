@@ -140,3 +140,20 @@ test('a container account signs in inside the dev container of a registered proj
   assert.equal(done.login.loggedIn, true);
   assert.ok(m.calls().some((x) => x.me === 'devcontainer' && x.args[0] === 'up'));
 });
+
+test('the page data carries the thresholds and the settings; status carries the usage the status line kept', skip, async () => {
+  const m = machine({ flow: 'callback' });
+  const routes = api(m.ctx);
+  await applyPlan(routes, { op: 'add', name: 'work', agent: 'claude' });
+  const list = await routes['GET /api/accounts']();
+  assert.deepEqual(list.accounts[0].limits, { minimum: { fiveHour: 8, sevenDay: 3 }, warn: { fiveHour: 16, sevenDay: 6 } });
+  assert.deepEqual([list.settings.autoPick, list.settings.whenNone, list.settings.continueBelow], [false, 'stop', false]);
+  assert.equal((await routes['GET /api/accounts-status'](q({ name: 'work' }))).usage.tracked, false);
+  const dir = listAccounts(m.ctx)[0].dir;
+  mkdirSync(join(dir, 'benchkeeper'), { recursive: true });
+  const now = Date.now();
+  writeFileSync(join(dir, 'benchkeeper', 'usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 96, resetsAt: Math.floor(now / 1000) + 3600 } }));
+  const s = await routes['GET /api/accounts-status'](q({ name: 'work' }));
+  assert.deepEqual([s.usage.fiveHour.state, s.usage.fiveHour.remaining, s.usage.sevenDay.state], ['low', 4, 'unknown']);
+  assert.ok(s.findings.some((f) => /5-hour window has 4% left/.test(f.message)));
+});

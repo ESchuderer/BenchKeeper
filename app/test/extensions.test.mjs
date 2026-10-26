@@ -14,6 +14,7 @@ import { context } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 
 const TMP = realpathSync(tmpdir());
+const at = (rel) => join('~', rel);
 const DUMMY = ['DUMMY_ENV_SECRET', 'DUMMY_HEADER_SECRET', 'DUMMY_ARG_SECRET', 'DUMMY_URL_PW', 'DUMMY_QUERY_SECRET', 'DUMMY_HOOK_SECRET', 'DUMMY_HOOK_PW', 'DUMMY_TOML_ENV', 'DUMMY_TOML_HEADER'];
 const run = () => ({ code: 0, stdout: '1.0.0', stderr: '' });
 const write = (path, text) => { mkdirSync(join(path, '..'), { recursive: true }); writeFileSync(path, typeof text === 'string' ? text : JSON.stringify(text)); };
@@ -42,12 +43,12 @@ const find = (view, id, kind, name) => view.agents.find((a) => a.id === id).rows
 test('Claude Code: servers, hooks, subagents, commands and styles with owner and the runs-code mark', () => {
   const view = extensionsView(fixture());
   const files = find(view, 'claude', 'mcp', 'files');
-  assert.deepEqual([files.scope, files.owner, files.transport, files.runsCode, files.state, files.removal, files.shown], ['user', 'yours', 'stdio', true, 'on', true, '~/.claude.json']);
+  assert.deepEqual([files.scope, files.owner, files.transport, files.runsCode, files.state, files.removal, files.shown], ['user', 'yours', 'stdio', true, 'on', true, at('.claude.json')]);
   assert.equal(files.detail, 'npx -y files-server --api-key ***');
   const docs = find(view, 'claude', 'mcp', 'docs');
   assert.deepEqual([docs.transport, docs.runsCode, docs.detail], ['http', false, 'https://mcp.example.com/mcp']);
   const bash = find(view, 'claude', 'hook', 'PreToolUse');
-  assert.deepEqual([bash.matcher, bash.runsCode, bash.owner, bash.removal, bash.shown], ['Bash', true, 'yours', true, '~/.claude/settings.json']);
+  assert.deepEqual([bash.matcher, bash.runsCode, bash.owner, bash.removal, bash.shown], ['Bash', true, 'yours', true, at('.claude/settings.json')]);
   assert.equal(bash.detail, 'TOKEN=*** ./check.sh --password ***');
   const stop = find(view, 'claude', 'hook', 'Stop');
   assert.deepEqual([stop.transport, stop.runsCode, stop.detail], ['http', false, 'POST https://hooks.example.com/stop']);
@@ -65,7 +66,7 @@ test('Codex: servers, hooks and subagents from config.toml and the agents folder
   assert.deepEqual([remote.transport, remote.runsCode, remote.state], ['http', false, 'off']);
   const hook = find(view, 'codex', 'hook', 'PreToolUse');
   assert.deepEqual([hook.runsCode, hook.detail], [true, './audit.sh --token ***']);
-  assert.equal(find(view, 'codex', 'subagent', 'reviewer').shown, '~/.codex/agents/reviewer.toml');
+  assert.equal(find(view, 'codex', 'subagent', 'reviewer').shown, at('.codex/agents/reviewer.toml'));
   noSecrets(view, 'the view');
 });
 
@@ -97,7 +98,7 @@ test('a file that does not parse is named without its text', () => {
   write(join(ctx.home, '.claude.json'), '{"mcpServers": DUMMY_ENV_SECRET');
   write(join(ctx.home, '.codex/hooks.json'), 'DUMMY_HEADER_SECRET');
   const view = extensionsView(ctx);
-  assert.deepEqual(view.agents.map((a) => a.problems.map((p) => p.shown)), [['~/.claude.json'], ['~/.codex/hooks.json']]);
+  assert.deepEqual(view.agents.map((a) => a.problems.map((p) => p.shown)), [[at('.claude.json')], [at('.codex/hooks.json')]]);
   noSecrets(view, 'the view');
 });
 

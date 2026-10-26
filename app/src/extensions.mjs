@@ -103,7 +103,7 @@ function agentRows(ctx, id, dir, written, problems) {
     return rows;
   }
 
-  // Claude Code: user and local servers live in ~/.claude.json, project servers in .mcp.json, plugin ones in the plugin.
+  // Claude Code: user and local servers live in the .claude.json file of the home folder, project servers in .mcp.json, plugin ones in the plugin.
   const userFile = join(ctx.home, '.claude.json');
   const text = readText(userFile);
   const user = text == null ? {} : parseJson(text);

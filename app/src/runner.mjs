@@ -40,7 +40,8 @@ export function context({ home, config = `${home}/.config/benchkeeper`, roots = 
 }
 
 // runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last keep
-// characters. A command still running after timeout ms, or when signal aborts, gets SIGTERM, grace ms later SIGKILL, and fails.
+// characters. onStart(stdin) gives the command a pipe as its input (a sign-in that asks for a pasted code). A command
+// still running after timeout ms, or when signal aborts, gets SIGTERM, grace ms later SIGKILL, and fails.
 // Agents start helpers that outlive their parent, so each command runs in a process group of its own and a stop reaches
 // the whole group. Groups still running when the app ends are killed: Ctrl+C no longer reaches them through the terminal.
 const groups = new Set();
@@ -60,13 +61,15 @@ const watchExit = () => {
   for (const [sig, n] of [['SIGINT', 2], ['SIGTERM', 15], ['SIGHUP', 1]]) process.once(sig, () => process.exit(128 + n));
 };
 
-export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout = 15 * 60e3, keep = 65536, grace = 10e3, signal } = {}) {
+export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, onStart, timeout = 15 * 60e3, keep = 65536, grace = 10e3, signal } = {}) {
   return new Promise((resolve) => {
     let stdout = '', stderr = '', timedOut = false, settled = false, cancelled = false;
     const done = (r) => { if (!settled) { settled = true; groups.delete(p); clearTimeout(term); clearTimeout(kill); signal?.removeEventListener('abort', stop); resolve(r); } };
     const tail = (t) => t.slice(-keep);
-    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'], detached: ownGroup });
+    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: [onStart ? 'pipe' : 'ignore', 'pipe', 'pipe'], detached: ownGroup });
     if (p.pid) { groups.add(p); watchExit(); }
+    // A command that ends first closes the pipe: a late write must not throw.
+    if (onStart) { p.stdin.on('error', () => {}); onStart(p.stdin); }
     const stopped = () => (cancelled ? { code: 130, stdout, stderr: `${stderr}\ncancelled` } : { code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes` });
     let kill;
     const stop = () => {

@@ -55,6 +55,7 @@ Fix everything shows each file change as a diff and each command as its command 
 
 - [Project site](https://eschuderer.github.io/BenchKeeper/): the workflow, the install levels and the app
 - [Setup guide](docs/setup.md): prerequisites, levels, what a full `apply` writes, per-repository setup, updates, undo
+- [Accounts](docs/setup.md#accounts): several Claude Code and Codex logins, signed in through private browser windows, on the host and in dev containers
 - [Stack](docs/stack.md): components, repository map, how the stack was chosen, optional tools
 - [App reference](app/README.md): every command and the web UI
 - [Benchmarks](https://eschuderer.github.io/BenchKeeper/bench/): score and time per setup on one shared brownfield task

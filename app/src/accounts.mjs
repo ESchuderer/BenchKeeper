@@ -26,7 +26,8 @@ const DAY = 864e5;
 
 const tail = (r, secret) => hide((r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' '), secret) || `exit ${r.code}`;
 // Text from a child that is shown or kept: control characters out, token shapes and the known token masked.
-const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
+const ESC = String.fromCharCode(27), BEL = String.fromCharCode(7);
+const ANSI = new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]|${ESC}\\][^${BEL}]*${BEL}`, 'g');
 const clean = (t) => String(t).replace(ANSI, '').replace(/[^\P{Cc}\t\n]/gu, '');
 // shortcut: a token of an unknown shape that sits in a run shorter than 32 characters is not recognised; a longer run is hidden.
 export const hide = (text, secret) => mask(clean(text), { keys: true }).replace(/[A-Za-z0-9_-]{32,}/g, '***').split(secret || '\0').join('***');
@@ -121,7 +122,8 @@ export const store = (ctx) => ctx.credentials ?? credentialStore(ctx.run, { env:
 // that names the account's folder. An inherited folder variable is dropped first, and so is any credential name (childEnv).
 // token (Claude Code, host, explicit launch only) adds the token variable in its place.
 export function accountEnv(ctx, a, { token } = {}) {
-  const env = Object.fromEntries(Object.entries(where(ctx)).filter(([k]) => !Object.values(VAR).includes(k.toUpperCase())));
+  // With a token, no inherited ANTHROPIC_ variable (an endpoint, a proxy key) comes along, even when BENCHKEEPER_PASS_ENV names it.
+  const env = Object.fromEntries(Object.entries(where(ctx)).filter(([k]) => !Object.values(VAR).includes(k.toUpperCase()) && !(token && k.toUpperCase().startsWith('ANTHROPIC_'))));
   return childEnv({ ...(a.mode === 'host' ? { [VAR[a.agent]]: a.dir } : {}), ...(token && a.mode === 'host' ? { [TOKEN_VAR]: token } : {}) }, env);
 }
 
@@ -236,6 +238,8 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
 
 // ---- guided sign-in
 
+// Without the punctuation of a sentence at its end.
+const trimEnd = (u) => { let n = u?.length ?? 0; while (n > 0 && '.,;)'.includes(u[n - 1])) n--; return u?.slice(0, n); };
 const URL_RE = /https:\/\/[^\s"'<>]+/;
 const TOKEN_RE = /sk-ant-[A-Za-z0-9_-]{20,}/;
 const EMAIL = /^[^\s@-][^\s@]{0,200}@[^\s@]{1,200}$/;
@@ -269,7 +273,7 @@ export async function login(ctx, a, { io, token = false, email, noBrowser = fals
     if (!text.trim()) return;
     const found = token ? text.match(TOKEN_RE) : null;
     if (found) { secret ??= found[0]; io.say('(a token was received and is not shown)'); return; }
-    const link = !url && text.match(URL_RE)?.[0]?.replace(/[.,;)]+$/, '');
+    const link = !url && trimEnd(text.match(URL_RE)?.[0]);
     if (link) {
       url = link;
       io.say(text);

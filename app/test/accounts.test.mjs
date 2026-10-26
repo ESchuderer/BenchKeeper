@@ -445,6 +445,10 @@ test('accountEnv: an inherited folder variable of either agent is replaced, neve
   assert.equal(host.CLAUDE_CONFIG_DIR, undefined);
   assert.equal(host.OPENAI_API_KEY, undefined);
   assert.equal(accountEnv(ctx, { agent: 'claude', mode: 'host', dir: '/acct' }, { token: 'tok-dummy' }).CLAUDE_CODE_OAUTH_TOKEN, 'tok-dummy');
+  // The launch that carries a token takes no endpoint from the shell, also when BENCHKEEPER_PASS_ENV names it.
+  const routed = { env: { PATH: '/bin', ANTHROPIC_BASE_URL: 'https://example.invalid', BENCHKEEPER_PASS_ENV: 'ANTHROPIC_BASE_URL' } };
+  assert.equal(accountEnv(routed, { agent: 'claude', mode: 'host', dir: '/acct' }, { token: 'tok-dummy' }).ANTHROPIC_BASE_URL, undefined);
+  assert.equal(accountEnv(routed, { agent: 'claude', mode: 'host', dir: '/acct' }).ANTHROPIC_BASE_URL, 'https://example.invalid');
   // In a container the account variable is a --remote-env of the command, not part of the host environment.
   const box = accountEnv(ctx, { agent: 'claude', mode: 'container' }, { token: 'tok-dummy' });
   assert.equal(box.CLAUDE_CONFIG_DIR, undefined);

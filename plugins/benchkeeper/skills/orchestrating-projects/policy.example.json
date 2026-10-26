@@ -1,5 +1,6 @@
 {
   "startLabel": "agent-ready",
+  "trustedAuthors": ["example-review-bot[bot]"],
   "workersPerProject": 1,
   "hostWorkerLimit": 3,
   "stallMinutes": 20,

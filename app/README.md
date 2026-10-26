@@ -10,7 +10,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](../docs/set
 ### App
 
 ```sh
-npx benchkeeper@6.18.0
+npx benchkeeper@6.19.0
 ```
 
 Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
@@ -18,18 +18,18 @@ Opens the browser on the Dashboard with the doctor findings. Select Fix everythi
 ### CLI
 
 ```sh
-npx benchkeeper@6.18.0 plan
+npx benchkeeper@6.19.0 plan
 ```
 
 Lists each change and writes nothing.
 
 ```sh
-npx benchkeeper@6.18.0 apply
+npx benchkeeper@6.19.0 apply
 ```
 
 Asks per change. `--yes` applies the default selection without questions.
 
-After either path, restart the agents. `npx benchkeeper@6.18.0 history` lists what changed, `npx benchkeeper@6.18.0 undo <run>` reverses a run.
+After either path, restart the agents. `npx benchkeeper@6.19.0 history` lists what changed, `npx benchkeeper@6.19.0 undo <run>` reverses a run.
 
 [Lite level, the plugin alone](../docs/setup.md#levels). [Full setup description](../docs/setup.md#setup-details).
 <!-- /generated:quickstart -->
@@ -38,8 +38,8 @@ After either path, restart the agents. `npx benchkeeper@6.18.0 history` lists wh
 
 Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
 
-- From npm: `npx benchkeeper@6.18.0 <command>`. Until the first npm release, run it from a clone.
-- From a clone: `git clone --depth 1 --branch setup-v6.18 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
+- From npm: `npx benchkeeper@6.19.0 <command>`. Until the first npm release, run it from a clone.
+- From a clone: `git clone --depth 1 --branch setup-v6.19 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
 Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML). The web UI (React, Mantine) is built into `dist/` and ships in the package.
 
@@ -66,13 +66,14 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `settings list [--agent claude\|codex] [--advanced] [--project dir]`, `settings get <key>`, `settings set <key> <value>\|--unset\|--bundle <id> [--layer user\|project\|local]` | the agents' own settings (Claude Code `settings.json`, Codex `config.toml`): the app's list per agent with default, value and the file it comes from, notes on keys that cancel each other, and with `--advanced` every key of the pinned schemas and the settings reference plus keys the app does not know (shown and kept). A change is a plan with a diff and an undo like any other; the value is checked first (strict JSON for Claude Code, a line edit that keeps comments and key order for Codex), managed settings are never written, an environment switch is set (value `set`) or removed, never `0` or `false`, and values of names that look like secrets are never printed. `projects.<path>` with `--unset --agent codex` removes a trust entry |
 | `rules list [--agent claude\|codex] [--project dir]`, `rules disable\|enable <file> [--agent a] [--project dir]` | the instruction files Claude Code and Codex load, with owner (`BenchKeeper`, `project`, `yours`), size, load state and the context budget. `disable` leaves a file out without deleting it: for Claude Code through `claudeMdExcludes` in the user settings (with `--project`: in that project's `.claude/settings.local.json`, so one project only); for a global Codex file by moving it into `<config>/disabled-rules/`, which `enable` reverses byte for byte. Both are runs, undo restores them |
 | `profile export [file]`, `profile import <file>` | agents, packs, own packs and registered projects with their answers as one file (no file contents, environment values or tokens); import registers the projects found at the same paths and asks per change |
+| `maintain knowledge show [dir] [--json]`, `maintain knowledge clear [dir] [--yes]` | the knowledge base the `maintaining-repos` skill keeps per project in `.benchkeeper/knowledge/` (git ignores it; one JSON file per kind: verdicts, test audit results, architecture map, tool results, open questions). `show` prints the entries of each file; a file that does not parse, is a link or is over 1 MiB is listed as ignored, and a linked `.benchkeeper` is not followed. `clear` asks, then removes that folder (also an empty one) and nothing else (`state.json` and the rest of `.benchkeeper/` stay); the base is rebuildable, so there is no undo. `dir` defaults to the current folder |
 | `case add --target skill:<name>\|rule:<name> --expected <text> [--should-not]` | records an agent miss as an eval case; the prompt comes from `--run <session run>`, `--transcript`, `--query` or `--description` |
 | `test [dir]` | deterministic checks, no agent session: files match the ledger, expected plugins or skill copies, nothing unexpected installed, project community skills at the library pins. Exit 1 on a failure |
 | `eval [--agents a,b] [--model m] [--target t] [--all]` | trigger cases (`plugins/benchkeeper/evals/` and your own) as real agent sessions in scratch repositories; miss and false-trigger rates per skill, agent, agent version and model. Uses your subscription, asks first, refuses when `CI` is set; runs only targets whose skill or cases changed unless `--all` |
 
 ## Machine-readable output
 
-`doctor`, `test`, `plan`, `project plan`, `history`, `projects list`, `projects scan`, `packs list`, `skills list`, `rules list`, `settings list`, `settings get`, `frameworks list`, `board` and `profile export` take `--json`: one JSON document on stdout, logs and error messages on stderr. Every document is an envelope: `schemaVersion` (1), `command` and the keys below, no prose; a failure has `error` instead of the other keys. Values of environment variables and file contents never appear: a change lists its title and path, not its diff, a settings document lists the names of an `env` block without values, and a file that does not parse is reported as such without the parser message. `skills` and `frameworks` also work without the word `list`; any other command or subcommand (`skills update`, `settings set`, `profile import`) is refused with exit 2.
+`doctor`, `test`, `plan`, `project plan`, `history`, `projects list`, `projects scan`, `packs list`, `skills list`, `rules list`, `settings list`, `settings get`, `frameworks list`, `board`, `profile export` and `maintain knowledge show` take `--json`: one JSON document on stdout, logs and error messages on stderr. Every document is an envelope: `schemaVersion` (1), `command` and the keys below, no prose; a failure has `error` instead of the other keys. Values of environment variables and file contents never appear (`maintain knowledge show` prints the entries the maintenance skill stored, with token shapes masked, and no file contents): a change lists its title and path, not its diff, a settings document lists the names of an `env` block without values, and a file that does not parse is reported as such without the parser message. `skills` and `frameworks` also work without the word `list`; any other command or subcommand (`skills update`, `settings set`, `profile import`) is refused with exit 2.
 
 | Command | Keys |
 |---|---|
@@ -90,6 +91,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `frameworks list` | `frameworks` (`id`, `title`, `role`, `license`, `pin`, `verdict`, `hooks`, `gives`, `limits`, `evaluation`, `kind`, `pack`, `agents`, `files`) |
 | `board` | `sessions` (`agent`, `id`, `project`, `branch`, `agentVersion`, `start`, `end`, `turns`, `models`, `costUSD`, `busyMs`, `tokens`, `tier`, `skills`, `tests`, `setup`, `pattern`, `subagents`, `run`, `setupVersion`, `prs`), newest first. Reads the transcripts like the text command but writes no `board.html` and opens no browser; the session title is left out |
 | `profile export` | `profile` (the profile file: `kind`, `schemaVersion`, `appVersion`, `global`, `packs`, `projects`); the document is the envelope, so `profile import` reads only its `profile` value (extract it from the redirected stdout); a file argument is refused |
+| `maintain knowledge show` | `dir`, `path`, `present` (the folder exists), `files` (`name`, `entries`: the stored objects, token shapes in text masked), `ignored` (`name`, `reason`) |
 
 | Exit code | Meaning |
 |---|---|

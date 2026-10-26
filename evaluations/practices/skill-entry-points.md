@@ -20,7 +20,7 @@ What each agent's documentation says about who invokes a skill and about skill-t
 Sources, all read on 2026-10-26:
 
 - Claude Code: [skills](https://code.claude.com/docs/en/skills) ("Claude can't invoke the skill on its own" for `disable-model-invocation: true`; `user-invocable: false` "hides it from the `/` menu"; the troubleshooting section on cut-short descriptions), [tools reference](https://code.claude.com/docs/en/tools-reference) (skills "run through the existing `Skill` tool", permission rule `Skill(name)`).
-- Codex: [skills](https://developers.openai.com/codex/skills), which redirects to `learn.chatgpt.com/docs/build-skills` ("`$` to mention a skill", "Codex won't implicitly invoke the skill based on user prompt; explicit `$skill` invocation still works").
+- Codex: [skills](https://developers.openai.com/codex/skills), which redirects to `learn.chatgpt.com/docs/build-skills` ("`$` to mention a skill"; with `allow_implicit_invocation: false`, "Codex won't implicitly invoke the skill based on user prompt; explicit `$skill` invocation still works", and the default is `true`).
 - Gemini CLI: [skills](https://geminicli.com/docs/cli/skills/).
 - Copilot CLI: [add skills](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills) ("include the skill name in your prompt, preceded by a forward slash"). The frontmatter fields `disable-model-invocation` and `user-invocable` are not mentioned on that page or on [about agent skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills).
 
@@ -40,6 +40,10 @@ The pattern from the issue, read in the public repository `mattpocock/skills` at
 ## User reports
 
 - [anthropics/claude-code#82237](https://github.com/anthropics/claude-code/issues/82237) (closed): in Claude Code's coordinator mode, skills with `disable-model-invocation: true` are missing from the listing and `/name` answers "not installed". Reported by users of the public repository above; the mechanism is not confirmed by an official page, so treat it as unverified. It matters for user-only skills that a coordinator session must start.
+
+## Benchmark
+
+Not measured. No BenchKeeper run, arm or trigger eval covers wrapper skills; no wrapper was built.
 
 ## Skill authoring check
 

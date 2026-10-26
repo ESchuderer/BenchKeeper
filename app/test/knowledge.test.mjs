@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -133,6 +133,20 @@ test('a linked .benchkeeper is not read and not removed', async () => {
   assert.equal(await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']), 1);
   assert.match(f.text(), /is a link: nothing removed/);
   assert.ok(existsSync(join(outside, 'knowledge/verdicts.json')));
+});
+
+test('an unreadable knowledge folder is a read failure, not an absent one', async (t) => {
+  const f = fixture();
+  chmodSync(join(f.dir, '.benchkeeper/knowledge'), 0o000);
+  t.after(() => chmodSync(join(f.dir, '.benchkeeper/knowledge'), 0o700));
+  if (process.getuid?.() === 0 || process.platform === 'win32') return t.skip('permissions are not enforced here');
+  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir]), 2);
+  assert.match(f.text(), /cannot read .*knowledge: EACCES/);
+  const g = fixture();
+  chmodSync(join(g.dir, '.benchkeeper/knowledge'), 0o000);
+  t.after(() => chmodSync(join(g.dir, '.benchkeeper/knowledge'), 0o700));
+  assert.equal(await g.exec(['maintain', 'knowledge', 'show', g.dir, '--json']), 2);
+  assert.match(g.json().error, /EACCES/);
 });
 
 test('token-shaped keys are masked too', async () => {

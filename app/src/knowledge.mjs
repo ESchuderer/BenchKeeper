@@ -23,7 +23,11 @@ export function readKnowledge(dir) {
   try {
     if (!lstatSync(path).isDirectory()) return { path, present: false, files, ignored: [{ name: '.', reason: 'not a folder' }] };
     names = readdirSync(path, { withFileTypes: true });
-  } catch { return { path, present: false, files, ignored }; }
+  } catch (e) {
+    // Absent is a result; an unreadable folder is a failure the command reports.
+    if (['ENOENT', 'ENOTDIR'].includes(e.code)) return { path, present: false, files, ignored };
+    throw e;
+  }
   for (const f of names.sort((a, b) => a.name.localeCompare(b.name))) {
     const shown = f.name.replace(/\p{Cc}/gu, ' '), bad = (reason) => ignored.push({ name: shown, reason });
     if (!f.isFile() || !f.name.endsWith('.json')) { bad('not a JSON file'); continue; }

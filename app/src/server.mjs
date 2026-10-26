@@ -538,8 +538,7 @@ export function api(ctx) {
     'GET /api/extensions': (q) => {
       const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
       if (dir && !registered(dir)) throw bad('register the project first');
-      const agents = installed().filter((a) => RULE_AGENTS.includes(a));
-      return extensionsView(ctx, { agents: agents.length ? agents : RULE_AGENTS, dir });
+      return extensionsView(ctx, { agents: RULE_AGENTS, dir });
     },
     // The text of one listed file: any other path is refused. For the page on this machine only.
     'GET /api/rule-text': (q) => {

@@ -39,8 +39,8 @@ function hookRows(data, base) {
   const out = [];
   for (const [event, groups] of Object.entries(obj(data?.hooks))) {
     for (const g of Array.isArray(groups) ? groups : []) {
-      for (const h of Array.isArray(obj(g).hooks) ? g.hooks : []) {
-        const type = obj(h).type ?? 'command';
+      for (const h of (Array.isArray(obj(g).hooks) ? g.hooks : []).filter((x) => x && typeof x === 'object')) {
+        const type = h.type ?? 'command';
         const detail = type === 'command' ? clip(mask(String(h.command ?? '')).trim()) : type === 'http' ? `POST ${safeUrl(h.url)}` : `${type} hook`;
         out.push({ ...base, kind: 'hook', name: event, matcher: typeof g.matcher === 'string' ? g.matcher : null, transport: type, detail, runsCode: type === 'command',
           orca: type === 'command' && /ORCA_/.test(String(h.command ?? '')) });
@@ -157,7 +157,9 @@ export function extensionsView(ctx, { agents = EXTENSION_AGENTS, dir } = {}) {
   };
 }
 
+// Control characters of a repository's own text (an escape sequence in a hook command or a name) must not reach a terminal.
+const plain = (s) => String(s).replace(/[\u0000-\u001f\u007f-\u009f]/g, '?');
 // The terminal listing of a view, one block per agent.
 export function extensionLines(view) {
-  return view.agents.flatMap((a) => [a.name, ...a.rows.map((r) => `  ${r.kind.padEnd(8)} ${r.scope.padEnd(8)} ${r.owner.padEnd(12)} ${(r.runsCode ? 'runs code' : '').padEnd(9)} ${r.name}${r.matcher ? ` [${r.matcher}]` : ''}${r.detail ? `  ${r.detail}` : ''}${r.state && r.state !== 'on' ? `  (${r.state})` : ''}  ${r.shown}`), ...a.problems.map((p) => `  note: ${p.shown} ${p.message}`)]);
+  return view.agents.flatMap((a) => [a.name, ...a.rows.map((r) => `  ${r.kind.padEnd(8)} ${r.scope.padEnd(8)} ${r.owner.padEnd(12)} ${(r.runsCode ? 'runs code' : '').padEnd(9)} ${r.name}${r.matcher ? ` [${r.matcher}]` : ''}${r.detail ? `  ${r.detail}` : ''}${r.state && r.state !== 'on' ? `  (${r.state})` : ''}  ${r.shown}`), ...a.problems.map((p) => `  note: ${p.shown} ${p.message}`)]).map(plain);
 }

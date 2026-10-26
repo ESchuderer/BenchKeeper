@@ -144,3 +144,19 @@ test('the global view ignores the project of the process folder', () => {
   write(join(ctx.home, '.claude.json'), { ...claude, projects: { [realpathSync(process.cwd())]: { disabledMcpServers: ['files'] } } });
   assert.equal(find(extensionsView(ctx), 'claude', 'mcp', 'files').state, 'on');
 });
+
+test('a hook entry that is not an object is skipped, and control characters stay out of the terminal listing', async () => {
+  const ctx = fixture();
+  write(join(ctx.home, '.claude/settings.json'), { hooks: { Stop: [{ hooks: [null, 7, { type: 'command', command: 'echo \u001b]0;x\u0007 done' }] }] } });
+  const view = extensionsView(ctx, { agents: ['claude'] });
+  assert.deepEqual(view.agents[0].rows.filter((r) => r.kind === 'hook').map((r) => r.name), ['Stop']);
+  const o = output();
+  assert.equal(await main(['extensions', 'list', '--agent', 'claude'], { out: o.stream, err: o.stream, ctx }), 0);
+  assert.ok(!/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/.test(o.text));
+  assert.match(o.text, /echo \?\]0;x\? done/);
+});
+
+test('the route lists both agents without asking which are installed', () => {
+  const ctx = fixture();
+  assert.deepEqual(api(ctx)['GET /api/extensions'](new URLSearchParams()).agents.map((a) => a.id), ['claude', 'codex']);
+});

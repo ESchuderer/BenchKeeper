@@ -1,10 +1,9 @@
 name: Links
 
-# `lychee` is the required check, a gate over the link check. The promotion pull request (develop into main)
-# skips everything, as the push to develop already ran it.
+# `lychee` is the required check, a gate over the link check.
 on:
   push:
-    branches: [develop]
+    branches: [main]
   pull_request:
   schedule:
     - cron: "0 6 * * 1"
@@ -18,8 +17,6 @@ concurrency:
 
 jobs:
   link-check:
-    # Skips only the promotion pull request (this repository's develop into main), whose jobs the push to develop already ran; a fork branch named develop is not skipped.
-    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -44,7 +41,7 @@ jobs:
 
   # Required check.
   lychee:
-    if: ${{ always() && !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: always()
     needs: [link-check]
     runs-on: ubuntu-latest
     timeout-minutes: 5

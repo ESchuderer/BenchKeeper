@@ -2,23 +2,20 @@ name: Pages
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions: {}
 
-# Pushes and manual runs share one group and queue (one running, the newest pending): bundle reads both branch tips and deploy publishes them, so one run at a time keeps an older snapshot from replacing a newer one.
+# Pushes and manual runs share one group and queue (one running, the newest pending): one run at a time keeps an older snapshot from replacing a newer one.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.ref) || 'pages-deploy' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # The site build reads the recorded trial files (bench/results/*/round-*) at build time.
-  # The promotion pull request (develop into main) skips it: the push to develop already built the same commit.
   build:
-    # Skips only the promotion pull request (this repository's develop into main), whose jobs the push to develop already ran; a fork branch named develop is not skipped.
-    if: ${{ !(github.event_name == 'pull_request' && github.head_ref == 'develop' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -57,10 +54,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Pages is one deployment per repository: main at the root, develop under /develop/ (a preview, built with PUBLIC_PREVIEW=1).
-  # A failing develop build or check drops the preview with a warning; a failing main build fails the job and the previous deployment stays.
+  # Pushes to main build the site again and upload it for the deploy; a failing build or check job keeps the previous deployment.
   bundle:
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -71,61 +67,22 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
-          path: main
-          persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: develop
-          path: develop
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.3
           cache: npm
-          cache-dependency-path: |
-            main/web/package-lock.json
-            develop/web/package-lock.json
-      - name: Build the released site (main)
-        working-directory: main/web
+          cache-dependency-path: web/package-lock.json
+      - name: Build the site
+        working-directory: web
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           npm ci --ignore-scripts
           npm run build
-      - name: Build and test the preview (develop)
-        id: preview
-        continue-on-error: true
-        working-directory: develop/web
-        env:
-          PUBLIC_PREVIEW: 1
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          npm ci --ignore-scripts
-          npm run build
-          node_modules/.bin/playwright install --with-deps chromium
-          npm test
-          # Pages serves the preview under /BenchKeeper/develop/; a root dir with that path lets lychee resolve internal links offline.
-          mkdir -p "$RUNNER_TEMP/site/BenchKeeper"
-          ln -s "$PWD/dist" "$RUNNER_TEMP/site/BenchKeeper/develop"
-      - if: steps.preview.outcome == 'success'
-        id: preview-lychee
-        continue-on-error: true
-        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
-        with:
-          args: --offline --no-progress --root-dir ${{ runner.temp }}/site 'develop/web/dist/**/*.html'
-      - name: Warn when the preview is left out
-        if: steps.preview.outcome == 'failure' || steps.preview-lychee.outcome == 'failure'
-        run: echo "::warning title=Pages preview::The develop preview failed its build, tests or link check and is left out. The released site deploys without it."
-      - name: Assemble the site
-        env:
-          PREVIEW_OK: ${{ steps.preview-lychee.outcome == 'success' }}
-        run: |
-          mv main/web/dist site
-          if [ "$PREVIEW_OK" = true ]; then mv develop/web/dist site/develop; fi
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: site
+          path: web/dist
 
   deploy:
     needs: bundle

@@ -7,7 +7,6 @@ import {
   IconListCheck, IconRoute, IconSchool,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
-import { preview } from '../lib/preview';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
 import SiteHeader from './SiteHeader';
@@ -22,8 +21,7 @@ const theme = createTheme({
 });
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
-// The develop preview links to the branch that already holds the guide.
-const SETUP = `${REPO}/blob/${preview ? 'develop' : 'main'}/docs/setup.md`;
+const SETUP = `${REPO}/blob/main/docs/setup.md`;
 // Backticks in facts.json become inline code, the same text the README renders.
 const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
 
@@ -192,7 +190,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             {facts.frameworks.items.map((f) => (
               <Paper key={f.name} withBorder p="lg" radius="lg">
                 <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
-                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/develop/${f.evaluation}`}>Evaluation</Anchor></Text>
+                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/main/${f.evaluation}`}>Evaluation</Anchor></Text>
               </Paper>
             ))}
           </SimpleGrid>

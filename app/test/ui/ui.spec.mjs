@@ -1111,7 +1111,7 @@ test.describe('views', () => {
     await expect(server).toContainText('yours');
     await expect(server).toContainText('runs code');
     await expect(server).toContainText('npx -y files-server');
-    await expect(server.getByRole('link', { name: 'Review removal in Doctor' })).toBeVisible();
+    await expect(server.getByRole('link', { name: 'Doctor offers removal (full level)' })).toBeVisible();
     await expect(table.getByRole('row', { name: /Subagent/ })).toContainText('reviewer');
     await expect(table.getByRole('row', { name: /Subagent/ })).not.toContainText('runs code');
     await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);

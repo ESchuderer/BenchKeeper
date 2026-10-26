@@ -2,7 +2,7 @@
 // mark; no environment value, header or token ever appears, in the view, the route or the command line.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -10,12 +10,13 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { extensionsView } from '../src/extensions.mjs';
 import { addProject } from '../src/projects.mjs';
-import { context } from '../src/runner.mjs';
+import { apply, context, preview } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
+import { globalPlan } from '../src/steps/global.mjs';
 
 const TMP = realpathSync(tmpdir());
 const at = (rel) => join('~', rel);
-const DUMMY = ['DUMMY_ENV_SECRET', 'DUMMY_HEADER_SECRET', 'DUMMY_ARG_SECRET', 'DUMMY_URL_PW', 'DUMMY_QUERY_SECRET', 'DUMMY_HOOK_SECRET', 'DUMMY_HOOK_PW', 'DUMMY_TOML_ENV', 'DUMMY_TOML_HEADER'];
+const DUMMY = ['DUMMY_ENV_SECRET', 'DUMMY_HEADER_SECRET', 'DUMMY_ARG_SECRET', 'DUMMY_URL_PW', 'DUMMY_QUERY_SECRET', 'DUMMY_HOOK_SECRET', 'DUMMY_HOOK_PW', 'DUMMY_TOML_ENV', 'DUMMY_TOML_HEADER', 'DUMMY_PATH_SECRET'];
 const run = () => ({ code: 0, stdout: '1.0.0', stderr: '' });
 const write = (path, text) => { mkdirSync(join(path, '..'), { recursive: true }); writeFileSync(path, typeof text === 'string' ? text : JSON.stringify(text)); };
 const output = () => { let text = ''; return { stream: new Writable({ write(c, _e, cb) { text += c; cb(); } }), get text() { return text; } }; };
@@ -27,10 +28,10 @@ function fixture() {
   const h = ctx.home;
   write(join(h, '.claude.json'), { mcpServers: {
     files: { command: 'npx', args: ['-y', 'files-server', '--api-key', 'DUMMY_ARG_SECRET'], env: { TOKEN: 'DUMMY_ENV_SECRET' } },
-    docs: { type: 'http', url: 'https://user:DUMMY_URL_PW@mcp.example.com/mcp?token=DUMMY_QUERY_SECRET', headers: { Authorization: 'Bearer DUMMY_HEADER_SECRET' } },
+    docs: { type: 'http', url: 'https://user:DUMMY_URL_PW@mcp.example.com/mcp/DUMMY_PATH_SECRET?token=DUMMY_QUERY_SECRET', headers: { Authorization: 'Bearer DUMMY_HEADER_SECRET' } },
   } });
   write(join(h, '.claude/settings.json'), { hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'TOKEN=DUMMY_HOOK_SECRET ./check.sh --password DUMMY_HOOK_PW' }] }],
-    Stop: [{ hooks: [{ type: 'http', url: 'https://hooks.example.com/stop?key=DUMMY_QUERY_SECRET', headers: { Authorization: 'Bearer DUMMY_HEADER_SECRET' } }] }] } });
+    Stop: [{ hooks: [{ type: 'http', url: 'https://hooks.example.com/stop/DUMMY_PATH_SECRET?key=DUMMY_QUERY_SECRET', headers: { Authorization: 'Bearer DUMMY_HEADER_SECRET' } }] }] } });
   write(join(h, '.claude/agents/reviewer.md'), '---\nname: reviewer\ndescription: "Reviews diffs"\n---\n\nRead the diff.\n');
   write(join(h, '.claude/commands/ship.md'), '---\ndescription: Ship it\n---\n\nStatus: !`git status`\n');
   write(join(h, '.claude/output-styles/terse.md'), '---\nname: terse\ndescription: Short answers\n---\n\nBe short.\n');
@@ -46,12 +47,12 @@ test('Claude Code: servers, hooks, subagents, commands and styles with owner and
   assert.deepEqual([files.scope, files.owner, files.transport, files.runsCode, files.state, files.removal, files.shown], ['user', 'yours', 'stdio', true, 'on', true, at('.claude.json')]);
   assert.equal(files.detail, 'npx -y files-server --api-key ***');
   const docs = find(view, 'claude', 'mcp', 'docs');
-  assert.deepEqual([docs.transport, docs.runsCode, docs.detail], ['http', false, 'https://mcp.example.com/mcp']);
+  assert.deepEqual([docs.transport, docs.runsCode, docs.detail], ['http', false, 'https://mcp.example.com']);
   const bash = find(view, 'claude', 'hook', 'PreToolUse');
   assert.deepEqual([bash.matcher, bash.runsCode, bash.owner, bash.removal, bash.shown], ['Bash', true, 'yours', true, at('.claude/settings.json')]);
   assert.equal(bash.detail, 'TOKEN=*** ./check.sh --password ***');
   const stop = find(view, 'claude', 'hook', 'Stop');
-  assert.deepEqual([stop.transport, stop.runsCode, stop.detail], ['http', false, 'POST https://hooks.example.com/stop']);
+  assert.deepEqual([stop.transport, stop.runsCode, stop.detail], ['http', false, 'POST https://hooks.example.com']);
   assert.deepEqual([find(view, 'claude', 'subagent', 'reviewer').owner, find(view, 'claude', 'subagent', 'reviewer').runsCode], ['yours', false]);
   assert.equal(find(view, 'claude', 'command', 'ship').runsCode, true);
   assert.equal(find(view, 'claude', 'style', 'terse').runsCode, false);
@@ -124,4 +125,22 @@ test('the route and the command line list the same rows and show no secret', asy
   noSecrets(json.text, 'the JSON');
   assert.equal((await cli('extensions', 'frob')).code, 2);
   assert.equal((await cli('extensions', 'list', '--agent', 'gemini')).code, 2);
+});
+
+test('after BenchKeeper wrote settings and config, the entries of the user in them stay yours and removable', () => {
+  const ctx = fixture();
+  apply(preview(globalPlan({ ctx, agents: ['claude', 'codex'], devcontainerCli: '1.0.0' })), ctx);
+  const view = extensionsView(ctx);
+  const hook = find(view, 'claude', 'hook', 'PreToolUse');
+  assert.deepEqual([hook.owner, hook.removal], ['yours', true]);
+  const search = find(view, 'codex', 'mcp', 'search');
+  assert.deepEqual([search.owner, search.removal], ['yours', true]);
+  assert.deepEqual([find(view, 'codex', 'hook', 'PreToolUse').owner, find(view, 'codex', 'hook', 'PreToolUse').removal], ['yours', false], 'Doctor removes Codex hooks of hooks.json only');
+});
+
+test('the global view ignores the project of the process folder', () => {
+  const ctx = fixture();
+  const claude = JSON.parse(readFileSync(join(ctx.home, '.claude.json'), 'utf8'));
+  write(join(ctx.home, '.claude.json'), { ...claude, projects: { [realpathSync(process.cwd())]: { disabledMcpServers: ['files'] } } });
+  assert.equal(find(extensionsView(ctx), 'claude', 'mcp', 'files').state, 'on');
 });

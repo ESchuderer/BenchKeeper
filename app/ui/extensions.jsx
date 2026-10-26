@@ -27,7 +27,7 @@ function Rows({ agent }) {
                   {r.detail && <Code style={{ overflowWrap: 'anywhere' }}>{r.detail}</Code>}
                 </Stack>
               </Table.Td>
-              <Table.Td><Stack gap={2}><Code style={{ overflowWrap: 'anywhere' }}>{r.shown}</Code>{r.removal && <Anchor size="sm" href={href('agents', { plan: '1' })}>Review removal in Doctor</Anchor>}</Stack></Table.Td>
+              <Table.Td><Stack gap={2}><Code style={{ overflowWrap: 'anywhere' }}>{r.shown}</Code>{r.removal && <Anchor size="sm" href={href('agents', { plan: '1' })}>Doctor offers removal (full level)</Anchor>}</Stack></Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>

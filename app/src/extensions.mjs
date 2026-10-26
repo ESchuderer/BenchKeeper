@@ -1,6 +1,6 @@
 // What an agent loads or runs besides rules and skills: MCP servers, hooks, subagents, commands and output styles, read from
 // the files only (no agent is started). Per row: owner, the file it comes from, and whether it can run code. Nothing here
-// writes. Never in a row: environment values, headers, tokens. A URL shows scheme, host and path (no user info, no query);
+// writes. Never in a row: environment values, headers, tokens. A URL shows scheme and host only (a path or query can hold a key);
 // a command line is masked like the other reports (redact.mjs), best-effort: a secret in a shape it does not know stays.
 import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -21,9 +21,9 @@ const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const parseJson = (text) => { try { return obj(JSON.parse(text)); } catch { return null; } };
 const parseToml0 = (text) => { try { return parseToml(text); } catch { return null; } };
 
-// A URL as scheme, host and path only: user info, query and fragment can carry a secret.
+// A URL as scheme and host: user info, path, query and fragment can carry a secret.
 function safeUrl(u) {
-  try { const x = new URL(String(u)); return `${x.origin}${x.pathname === '/' ? '' : x.pathname}`; } catch { return '(not a URL)'; }
+  try { return new URL(String(u)).origin; } catch { return '(not a URL)'; }
 }
 
 // Claude Code: a server with a command is stdio unless it says otherwise (https://code.claude.com/docs/en/mcp#transport-types-type-field).
@@ -73,16 +73,17 @@ function tomlAgentRows(folder) {
   });
 }
 
-const ownerOf = (scope, path, written, id) => (id?.startsWith('benchkeeper@') || written.has(real(path)) ? 'BenchKeeper' : scope === 'managed' ? 'managed' : scope === 'plugin' ? 'plugin' : scope === 'project' ? 'project' : 'yours');
+// The ledger names files BenchKeeper wrote; a settings or config file holds the user's entries beside its own, so only a file that is one item counts.
+const ownerOf = (scope, path, written, id, kind) => (id?.startsWith('benchkeeper@') || (kind !== 'mcp' && kind !== 'hook' && written.has(real(path))) ? 'BenchKeeper' : scope === 'managed' ? 'managed' : scope === 'plugin' ? 'plugin' : scope === 'project' ? 'project' : 'yours');
 
 // Rows for one agent: { agent, kind, name, scope, owner, file (shown), path, runsCode, detail, transport?, matcher?, state?, removal }.
-// removal: Doctor offers to remove it (global MCP server or hook of the user's, at the full level).
+// removal: Doctor offers to remove it at the full level: the user's global MCP servers, hooks of Claude Code's settings.json and of Codex's hooks.json.
 function agentRows(ctx, id, dir, written, problems) {
   const rows = [];
   const add = (scope, path, list, pluginId) => {
     for (const { file = path, orca, ...r } of list) {
-      const owner = ownerOf(scope, file, written, pluginId);
-      rows.push({ agent: id, scope, owner, path: file, shown: display(ctx, dir, file), removal: scope === 'user' && !pluginId && owner === 'yours' && !orca && (r.kind === 'mcp' || r.kind === 'hook'), ...r, ...(pluginId ? { plugin: pluginId } : {}) });
+      const owner = ownerOf(scope, file, written, pluginId, r.kind);
+      rows.push({ agent: id, scope, owner, path: file, shown: display(ctx, dir, file), removal: scope === 'user' && !pluginId && owner === 'yours' && !orca && (r.kind === 'mcp' || (r.kind === 'hook' && (id === 'claude' || file.endsWith('hooks.json')))), ...r, ...(pluginId ? { plugin: pluginId } : {}) });
     }
   };
   const bad = (path) => problems.push({ path, shown: display(ctx, dir, path), message: 'cannot be read or parsed: its entries are missing here' });
@@ -108,12 +109,13 @@ function agentRows(ctx, id, dir, written, problems) {
   const text = readText(userFile);
   const user = text == null ? {} : parseJson(text);
   if (user === null) bad(userFile);
-  const here = obj(obj(user?.projects)[dir] ?? obj(user?.projects)[real(dir ?? '')]);
+  const here = dir ? obj(obj(user?.projects)[dir] ?? obj(user?.projects)[real(dir)]) : {};
   const off = new Set([...(here.disabledMcpServers ?? [])]);
   const approvals = settings.filter((l) => !l.error).map((l) => l.data);
   const approved = (n) => approvals.some((d) => d.enableAllProjectMcpServers === true || [d.enabledMcpjsonServers].flat().includes(n));
   const rejected = (n) => approvals.some((d) => [d.disabledMcpjsonServers].flat().includes(n));
   const withState = (r, state) => ({ ...r, state });
+  // shortcut: the answer given in the approval prompt is stored where the documentation does not say, so a server approved only there shows "asks first".
   add('user', userFile, Object.entries(obj(user?.mcpServers)).map(([n, d]) => serverRow(n, d, {})).map((r) => withState(r, off.has(r.name) ? 'off' : r.state)));
   if (dir) {
     add('local', userFile, Object.entries(obj(here.mcpServers)).map(([n, d]) => serverRow(n, d, {})).map((r) => withState(r, off.has(r.name) ? 'off' : r.state)));
@@ -134,7 +136,7 @@ function agentRows(ctx, id, dir, written, problems) {
     const servers = [[join(p.root, '.mcp.json'), (d) => d.mcpServers ?? d], [join(p.root, '.claude-plugin/plugin.json'), (d) => d.mcpServers]];
     for (const [file, pick] of servers) {
       const d = exists(file) ? parseJson(readText(file)) : {};
-      add('plugin', file, Object.entries(obj(pick(obj(d)))).map(([n, def]) => serverRow(n, def, {})), p.id);
+      add('plugin', file, Object.entries(obj(pick(obj(d)))).map(([n, def]) => serverRow(n, def, {})).map((r) => withState(r, off.has(r.name) ? 'off' : r.state)), p.id);
     }
     for (const [kind, folder] of [['subagent', 'agents'], ['command', 'commands'], ['style', 'output-styles']]) add('plugin', join(p.root, folder), fileRows(kind, join(p.root, folder), {}), p.id);
   }

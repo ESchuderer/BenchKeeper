@@ -124,44 +124,40 @@ test('a repository filter driver does not run for status, snapshots and worktree
   }
 });
 
-test('the git-lfs driver commands still run, any other command named git-lfs does not', () => {
+// A git-lfs first on PATH that records its arguments, and a repository whose attributes pick the driver lfsfake (a name apart from
+// a machine's own lfs config); f(c, dir, mark) runs with both.
+function withFakeLfs(f) {
   const bin = home(), mark = join(home(), 'ran');
   writeFileSync(join(bin, 'git-lfs'), `#!/bin/sh\necho "$@" >> '${mark}'\ncat\n`, { mode: 0o755 });
   const path = process.env.PATH;
   process.env.PATH = `${bin}:${path}`;
   try {
-    const c = context({ home: home(), run: runCommand });
     const dir = repo();
     writeFileSync(join(dir, '.gitattributes'), '* filter=lfsfake\n');
-    writeFileSync(join(dir, 'f.txt'), 'x\n');
-    git(dir, 'config', 'filter.lfsfake.clean', 'git-lfs clean -- %f');
-    snapshot(c, dir);
-    assert.match(readFileSync(mark, 'utf8'), /^clean -- /);
-    rmSync(mark);
-    git(dir, 'config', 'filter.lfsfake.clean', 'git-lfs clean -- %f; echo more');
-    snapshot(c, dir);
-    assert.equal(existsSync(mark), false);
+    f(context({ home: home(), run: runCommand }), dir, mark);
   } finally { process.env.PATH = path; }
-});
+}
+const driver = (dir, key, value) => git(dir, 'config', `filter.lfsfake.${key}`, value);
 
-test('a driver with one git-lfs command and one other command is switched off whole, and an unreadable config runs no git command', () => {
-  const bin = home(), mark = join(home(), 'ran');
-  writeFileSync(join(bin, 'git-lfs'), `#!/bin/sh\necho "$@" >> '${mark}'\ncat\n`, { mode: 0o755 });
-  const path = process.env.PATH;
-  process.env.PATH = `${bin}:${path}`;
-  try {
-    const c = context({ home: home(), run: runCommand });
-    const dir = repo();
-    writeFileSync(join(dir, '.gitattributes'), '* filter=lfsfake\n');
-    git(dir, 'config', 'filter.lfsfake.clean', 'git-lfs clean -- %f');
-    git(dir, 'config', 'filter.lfsfake.smudge', 'git-lfs smudge -- %f; echo more');
-    snapshot(c, dir);
-    assert.equal(existsSync(mark), false);
-    writeFileSync(join(dir, '.git', 'config'), '[core\n');
-    assert.equal(runGit(c, dir, ['status', '--porcelain']).code, 128);
-    assert.equal(clean(c, dir), false);
-  } finally { process.env.PATH = path; }
-});
+test('the git-lfs driver commands still run, any other command named git-lfs does not', () => withFakeLfs((c, dir, mark) => {
+  driver(dir, 'clean', 'git-lfs clean -- %f');
+  snapshot(c, dir);
+  assert.match(readFileSync(mark, 'utf8'), /^clean -- /);
+  rmSync(mark);
+  driver(dir, 'clean', 'git-lfs clean -- %f; echo more');
+  snapshot(c, dir);
+  assert.equal(existsSync(mark), false);
+}));
+
+test('a driver with one git-lfs command and one other command is switched off whole, and an unreadable config runs no git command', () => withFakeLfs((c, dir, mark) => {
+  driver(dir, 'clean', 'git-lfs clean -- %f');
+  driver(dir, 'smudge', 'git-lfs smudge -- %f; echo more');
+  snapshot(c, dir);
+  assert.equal(existsSync(mark), false);
+  writeFileSync(join(dir, '.git', 'config'), '[core\n');
+  assert.equal(runGit(c, dir, ['status', '--porcelain']).code, 128);
+  assert.equal(clean(c, dir), false);
+}));
 
 test('the root of a drive, the home folder, its parents and the config folder are no project', () => {
   const h = home();

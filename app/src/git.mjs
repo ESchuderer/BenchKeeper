@@ -45,11 +45,13 @@ const withPairs = (env, pairs) => {
 };
 // core.fsmonitor is a command the repository's own config names, and status and add would run it: off for every call.
 const git = (ctx, dir, args, { index, ...extra } = {}) => {
-  const env = repoEnv(extra.env, index);
-  if (NO_FILTER.has(subcommand(args))) return ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env });
-  const off = driverOverrides(ctx, dir, env);
-  if (!off) return { code: 128, stdout: '', stderr: 'the repository config cannot be read, so its filter drivers are unknown' };
-  return ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env: withPairs(env, off) });
+  let env = repoEnv(extra.env, index);
+  if (!NO_FILTER.has(subcommand(args))) {
+    const off = driverOverrides(ctx, dir, env);
+    if (!off) return { code: 128, stdout: '', stderr: 'the repository config cannot be read, so its filter drivers are unknown' };
+    env = withPairs(env, off);
+  }
+  return ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env });
 };
 
 // A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax, and a valid git ref

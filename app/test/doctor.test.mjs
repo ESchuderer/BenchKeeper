@@ -79,12 +79,12 @@ test('project: summary sections, overlapping descriptions, broken links; exit 1 
   const found = doctor(ctx, { agents: [], dir, env: {} });
   assert.deepEqual(found.filter((i) => ['agents-md', 'skills'].includes(i.check)).map((i) => `${i.level} ${i.message}`), [
     'warning AGENTS.md has a summary or layout section (## Project structure)',
-    'error .claude/skills/a/SKILL.md links reference.md, which does not exist',
+    `error skill a in ${dir}: .claude/skills/a/SKILL.md links reference.md, which does not exist`,
     'warning a and b have overlapping descriptions',
   ]);
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
   assert.equal(await main(['doctor', dir, '--agents', 'claude'], { out, ctx }), 1);
-  assert.match(text, /^error +skills +\.claude\/skills\/a\/SKILL\.md links reference\.md/m);
+  assert.match(text, /^error +skills +skill a in .*: \.claude\/skills\/a\/SKILL\.md links reference\.md/m);
   assert.match(text, /\d+ errors, \d+ warnings\n$/);
 });

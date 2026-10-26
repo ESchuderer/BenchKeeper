@@ -75,6 +75,19 @@ Where the agent runs (`--env`):
 
 Setup scopes container mounts to the project: no host home, engine socket, privileged mode or credential forwarding beyond the sign-in variable. VS Code can forward Git credentials and SSH agents automatically ([credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)). MCP, browser and language-server connections need container launchers; a host plugin or binary alone does not run in the container.
 
+## Accounts
+
+Several logins per agent, for example work and personal, each in a folder of its own. Register one with `npx benchkeeper@6.19.0 accounts add` (asks for the name and the agent; `--container --mount <path>` for a named volume in the project's dev container, mounted at that folder of the container: one its user can write, below its home folder), sign in with `accounts login <name>`, start the agent with `run --account <name> -- claude` (`codex` the same), and see the state with `accounts status`.
+
+- The sign-in opens in a private browser window (Firefox, Chrome, Chromium or Edge), where no session of another account exists, so the sign-in page asks which account to use. Without such a browser, on a machine without a display or with `--no-browser`, the link is printed (Codex: with its one-time code). When the browser shows a code, paste it at the prompt.
+- On the host an account is the folder `CLAUDE_CONFIG_DIR` (Claude Code) or `CODEX_HOME` (Codex) with its own login, settings and history. In a dev container it is a named volume mounted as that folder, so the sign-in survives a rebuild; the sign-in runs inside the container. A mount applies when the container is created: `accounts login` starts the container with the volumes of all container accounts and prints the command that recreates an existing one that lacks them.
+- A hijacked session in a container can read the credentials in the volume or the variable ([warning](https://code.claude.com/docs/en/devcontainer)). Keep the egress firewall of that page in mind; BenchKeeper never sets `--dangerously-skip-permissions`.
+- Optional token for unattended containers: `accounts login <name> --token` (Claude Code `setup-token`, a subscription is needed, requests to the model only) is kept in the OS credential store, never in a file, the registry, the ledger or `devcontainer.json`, and reaches one launch through `run --token`. Where no credential store works the command refuses. Codex: pipe the access token (`printenv NAME | benchkeeper accounts login <name> --token`) and it goes to `codex login --with-access-token` in the account's folder.
+- `run`, `accounts status` and `doctor` check the sign-in first and name the command that fixes a login that is gone, and a kept token in its 11th month. Switching accounts is your choice at a launch, never inside a session, and nothing rotates accounts when a limit is reached. Usage and limit notices are not part of this.
+- `run` gives the agent the app's filtered environment (no `GH_TOKEN`, API keys or other credentials of your shell) plus the account's one folder variable.
+
+The Accounts view of the app does the same: add an account as a plan, check it, and sign in with the steps shown (private window, a field for the code, check). The token is set in a terminal only. Every command and its output keys: [App reference](../app/README.md#commands).
+
 ## Frameworks
 
 Optional, per project: `npx benchkeeper@6.19.0 project apply --framework <id>` (`npx benchkeeper@6.19.0 frameworks` lists them with their evidence; the setup form in the browser shows the same). The doctor reports a second workflow owner, and a framework installed outside the project that the setup did not record.

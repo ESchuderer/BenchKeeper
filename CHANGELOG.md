@@ -2,6 +2,13 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.18 (2026-10-26)
+
+- `orchestrating-projects` author filter for worker text (#311, rank 1 of the control candidates in `docs/security.md`): the worker spec template has a `Trusted authors:` line. A worker follows issue, pull request, review and comment text only from the policy's `trustedAuthors`, the repository owner and users with write access (`authorAssociation` OWNER, MEMBER or COLLABORATOR), and reads any other text, bots included, as data, never instructions. The coordinator picks only issues written by a trusted author. Breaking, before 7.0 (no compatibility path): a review bot's comments are no longer followed unless its login is in `trustedAuthors` of `docs/agents/orchestration.json` (new optional policy field, example in `policy.example.json`).
+- Skill lint: `.github/scripts/skill-lint.mjs` fails a skill whose files mention a worker and hand it issue or pull request text without the `Trusted authors:` line and the words "data, never instructions" (a failing and a passing fixture in `skill-lint.test.mjs`). The filter is wording in the worker session, so it lowers the hit rate and is no boundary.
+- Plugin `version` 6.18.0.
+- Upgrade: `npx benchkeeper@6.18.0 apply`.
+
 ## setup-v6.17 (2026-10-26)
 
 - App, `update-all` for chosen projects (#280): `benchkeeper update-all [dir..]` takes registered project folders and updates only those, with `--dry-run`, `--baseline`, `--max` and the cap on pushed repositories counting only the list. Without folders it behaves as before. A folder that is not a registered project stops the command before anything is listed or changed, with exit 2 and the message `<dir>: not a registered project`. The browser's Update all already took a project list.

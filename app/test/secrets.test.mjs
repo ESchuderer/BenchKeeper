@@ -47,7 +47,7 @@ test('a diff of a settings file masks a token in its context lines', () => {
 
 test('childEnv: tools keep their way to the network and their folders, credentials stay', () => {
   const env = { PATH: '/bin', HOME: '/h', LC_ALL: 'C', HTTPS_PROXY: 'http://p:1', NODE_EXTRA_CA_CERTS: '/ca', npm_config_registry: 'https://r/', 'npm_config_//r/:_authToken': 'x', CLAUDE_CONFIG_DIR: '/c', CLAUDE_CODE_OAUTH_TOKEN: 't',
-    GH_TOKEN: 'g', GITHUB_TOKEN: 'g', NPM_TOKEN: 'n', ANTHROPIC_API_KEY: 'a', SSH_AUTH_SOCK: '/s', GIT_ASKPASS: '/ask', GIT_SSH_COMMAND: 'ssh -i /k', GIT_SSH: '/ssh', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraheader', GIT_CONFIG_VALUE_0: 'Authorization: Basic x', GIT_CONFIG_PARAMETERS: "'http.extraheader=x'", GIT_TERMINAL_PROMPT: '0', GIT_DIR: '/other/.git', AWS_SECRET_ACCESS_KEY: 's', DBUS_SESSION_BUS_ADDRESS: 'unix:x' };
+    GH_TOKEN: 'g', GITHUB_TOKEN: 'g', NPM_TOKEN: 'n', ANTHROPIC_API_KEY: 'a', SSH_AUTH_SOCK: '/s', GIT_ASKPASS: '/ask', GIT_SSH_COMMAND: 'ssh -i /k', GIT_SSH: '/ssh', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraheader', GIT_CONFIG_VALUE_0: 'Authorization: Basic x', GIT_CONFIG_PARAMETERS: "'http.extraheader=x'", GIT_TERMINAL_PROMPT: '0', GIT_PROXY_COMMAND: '/p', GIT_EXTERNAL_DIFF: '/d', GIT_EXEC_PATH: '/x', GIT_PAGER: '/pg', GIT_EDITOR: '/e', GIT_SEQUENCE_EDITOR: '/se', GIT_TEMPLATE_DIR: '/t', GIT_TRACE_CURL: '1', GIT_CURL_VERBOSE: '1', GIT_DIR: '/other/.git', AWS_SECRET_ACCESS_KEY: 's', DBUS_SESSION_BUS_ADDRESS: 'unix:x' };
   assert.deepEqual(Object.keys(childEnv({ DO_NOT_TRACK: '1' }, env)).sort(), ['CLAUDE_CONFIG_DIR', 'DO_NOT_TRACK', 'GIT_TERMINAL_PROMPT', 'HOME', 'HTTPS_PROXY', 'LC_ALL', 'NODE_EXTRA_CA_CERTS', 'PATH', 'npm_config_registry']);
   // The owner names what a tool may still see; the change's own env always passes.
   const { GIT_DIR, ...inRepo } = env;
@@ -228,8 +228,10 @@ test('an eval session leaves no transcript, loads no MCP server, and its probes 
     const session = calls.find((c) => c.argv[0] === agent && c.argv.includes('q')).argv;
     assert.ok(session.includes(agent === 'claude' ? '--no-session-persistence' : '--ephemeral'), agent);
     assert.equal(session.includes('--strict-mcp-config'), agent === 'claude');
-    assert.equal(session.at(-1) === 'q' || session[session.indexOf('-p') + 1] === 'q', true);
+    // The query is an argument value, never an option: after -p for Claude, last for Codex.
+    assert.equal(agent === 'claude' ? session[1] === '-p' && session[2] === 'q' : session.at(-1) === 'q', true, agent);
     for (const c of calls.filter((x) => x.env)) for (const name of ['GH_TOKEN', 'NPM_TOKEN']) assert.ok(!(name in c.env), `${agent} ${c.argv.slice(0, 2).join(' ')} ${name}`);
+    assert.ok(calls.find((c) => c.argv[0] === 'git').argv.includes('--template='), 'the scratch repository takes no git template');
     assert.ok(calls.filter((c) => c.argv[0] === 'git' || c.argv.includes('--version')).every((c) => c.env), 'git init and the version probe pass an environment');
   }
 });

@@ -29,7 +29,8 @@ export function lastResults(ctx) {
 
 // Agent command per case; tool output is read for the skill's SKILL.md or a Skill tool call.
 // No session is saved (the transcript would land in the user's own history and on the sessions board; the stream is read from stdout)
-// and Claude loads no MCP server (a skill's trigger rate does not depend on one, and it would run as the user).
+// and Claude loads no MCP server, for rule cases too (a skill's trigger rate does not depend on one, and it would run as the user).
+// The scratch repository takes no template from the user's git config (a template can bring hooks).
 const AGENTS = {
   claude: { argv: (ctx, q, model) => ['claude', '-p', q, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan', '--strict-mcp-config', ...noTrace(ctx, 'claude'), ...(model ? ['--model', model] : [])], skills: '.claude/skills' },
   // shortcut: Codex trigger detection reads SKILL.md paths in the JSON events (unverified), check it on the first owner run.
@@ -77,7 +78,7 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
       if (signal?.aborted) throw new Error('cancelled');
       const dir = mkdtempSync(join(tmpdir(), 'bk-eval-'));
       try {
-        ctx.run(['git', 'init', '-q', dir], { env: childEnv({}) });
+        ctx.run(['git', 'init', '-q', '--template=', dir], { env: childEnv({}) });
         writeFileSync(join(dir, 'README.md'), '# Scratch project\n');
         const lib = join(contentDir, 'library', name);
         if (kind === 'skill' && exists(lib)) cpSync(lib, join(dir, a.skills, name), { recursive: true });

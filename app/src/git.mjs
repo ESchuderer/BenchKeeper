@@ -8,7 +8,7 @@ import { join } from 'node:path';
 const REPO_VARS = /^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|NAMESPACE|PREFIX)$/;
 // The -c settings of an outer git command (GIT_CONFIG_PARAMETERS, GIT_CONFIG_COUNT with its KEY and VALUE pairs) also go when
 // a repository variable was set: the app then runs from a hook of that command, and its settings are not this app's to inherit.
-// Container setups that export the pairs themselves keep them.
+// Container setups that export the pairs themselves keep them for the git calls of this module; `childEnv` (third-party code) drops them unless BENCHKEEPER_PASS_ENV names each one.
 const CONFIG_VARS = /^GIT_CONFIG_(PARAMETERS|COUNT|KEY_\d+|VALUE_\d+)$/;
 export const repoEnv = (env = process.env, index = false) => {
   const fromHook = Object.keys(env).some((k) => REPO_VARS.test(k) && !(index && k === 'GIT_INDEX_FILE'));

@@ -19,6 +19,7 @@ function draw() {
     return n;
   };
   const $ = (id) => document.getElementById(id);
+  const patternKey = (r) => r.pattern ?? 'not recorded';
   const setupKey = (r) => (!r.setup ? 'not recorded' : r.setup.length ? r.setup.join(' + ') : 'none');
   const day = (iso) => iso.slice(0, 10);
   const median = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
@@ -53,6 +54,7 @@ function draw() {
     ['project', 'Project', (r) => r.project ?? 'unknown'],
     ['agent', 'Agent', (r) => r.agent],
     ['tier', 'Tier', (r) => r.tier?.last ?? 'none'],
+    ['pattern', 'Pattern', patternKey],
     ['setup', 'Setup', setupKey],
   ];
   // Projects registered in the app and their worktrees; a leading space keeps the option apart from any path.
@@ -232,15 +234,16 @@ function draw() {
   });
   function renderTable(list) {
     const q = state.q;
-    const shown = list.filter((r) => !q || [r.title, r.project, r.branch, setupKey(r), r.tier?.last, r.tier?.changeType, ...r.skills].some((x) => x && x.toLowerCase().includes(q))).slice(0, 300);
+    const shown = list.filter((r) => !q || [r.title, r.project, r.branch, setupKey(r), patternKey(r), r.run, r.tier?.last, r.tier?.changeType, ...r.skills].some((x) => x && x.toLowerCase().includes(q))).slice(0, 300);
     const text = `${shown.length} of ${list.length} sessions${shown.length === 300 ? ' (first 300)' : ''}`;
     $('count').textContent = text;
     // Read out when typing settles, not on every key.
     clearTimeout(announced);
     announced = setTimeout(() => { $('count-live').textContent = text; }, 500);
-    $('sessions').replaceChildren(!shown.length ? el('p', { class: 'muted' }, 'No sessions match.') : table('Sessions, newest first', ['Started', 'Project', 'Title', 'Agent', 'Tier', 'Setup', 'Cost', 'Time', 'Tests', 'Pull requests'], shown.map((r) => [
+    $('sessions').replaceChildren(!shown.length ? el('p', { class: 'muted' }, 'No sessions match.') : table('Sessions, newest first', ['Started', 'Project', 'Title', 'Agent', 'Tier', 'Pattern', 'Setup', 'Cost', 'Time', 'Tests', 'Pull requests'], shown.map((r) => [
       r.start.slice(0, 16).replace('T', ' '), (r.project ?? '').split('/').slice(-2).join('/'), r.title ?? '-', r.agent,
       r.tier ? `${r.tier.first}${r.tier.movedUp || r.tier.last !== r.tier.first ? ` to ${r.tier.last}` : ''}${r.tier.changeType ? ` (${r.tier.changeType})` : ''}` : '-',
+      `${patternKey(r)}${r.subagents ? `, ${r.subagents} subagent${r.subagents > 1 ? 's' : ''}` : ''}${r.run ? `, run ${r.run}` : ''}`,
       `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, money(r.costUSD), dur(r.busyMs), r.tests ?? '-',
       r.prs.length ? r.prs.map((p) => `#${p.url.split('/').pop()} ${p.state}`).join(', ') : '-',
     ])));
@@ -258,7 +261,7 @@ function draw() {
       // One sentence per section instead of header-only tables and an empty axis.
       drawn = null;
       for (const a of ['tabindex', 'role', 'aria-label']) $('chart').removeAttribute(a);
-      for (const id of ['chart', 'by-tier', 'by-setup', 'by-change', 'skills']) $(id).replaceChildren(el('p', { class: 'muted' }, 'No sessions match these filters.'));
+      for (const id of ['chart', 'by-tier', 'by-pattern', 'by-setup', 'by-change', 'skills']) $(id).replaceChildren(el('p', { class: 'muted' }, 'No sessions match these filters.'));
       for (const id of ['legend', 'chart-table', 'tip', 'tip-live']) $(id).replaceChildren();
       $('chart-table').parentElement.hidden = true;
       renderTable(list);
@@ -266,6 +269,7 @@ function draw() {
     }
     chart(list, span);
     $('by-tier').replaceChildren(groups(list, (r) => r.tier?.last ?? null, 'Sessions by tier (the last tier line)', 'Tier'));
+    $('by-pattern').replaceChildren(groups(list, patternKey, 'Sessions by pattern', 'Pattern'));
     $('by-setup').replaceChildren(groups(list, setupKey, 'Sessions by setup', 'Setup'));
     $('by-change').replaceChildren(groups(list, (r) => (r.tier ? `${r.tier.first}: ${r.tier.changeType ?? 'no change type'}` : null), 'Moved up per first tier and change type (report only)', 'Tier and change type'));
     skills(list);
@@ -342,6 +346,7 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 <section aria-labelledby="h-chart"><div class="row"><h2 id="h-chart">Per day by setup</h2><label>Show <select id="metric"><option value="cost">Cost</option><option value="time">Agent time</option></select></label></div>
 <div id="legend"></div><div id="chart" tabindex="0" role="group" aria-label="Per day by setup. The left and right arrow keys read each day, Escape closes the reading."></div><div id="tip"></div><span id="tip-live" class="sr" role="status"></span><details><summary>Table of values</summary><div id="chart-table"></div></details></section>
 <section aria-labelledby="h-tier"><h2 id="h-tier">By tier</h2><div id="by-tier"></div></section>
+<section aria-labelledby="h-pattern"><h2 id="h-pattern">By pattern</h2><div id="by-pattern"></div></section>
 <section aria-labelledby="h-setup"><h2 id="h-setup">By setup</h2><div id="by-setup"></div></section>
 <section aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
 <section aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>

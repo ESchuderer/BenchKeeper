@@ -3,7 +3,7 @@
 # BenchKeeper
 
 <!-- generated:description -->
-BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.15.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.
+BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.16.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.
 <!-- /generated:description -->
 
 <!-- generated:core -->
@@ -20,7 +20,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](#prerequisi
 ### App
 
 ```sh
-npx benchkeeper@6.15.0
+npx benchkeeper@6.16.0
 ```
 
 Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
@@ -28,18 +28,18 @@ Opens the browser on the Dashboard with the doctor findings. Select Fix everythi
 ### CLI
 
 ```sh
-npx benchkeeper@6.15.0 plan
+npx benchkeeper@6.16.0 plan
 ```
 
 Lists each change and writes nothing.
 
 ```sh
-npx benchkeeper@6.15.0 apply
+npx benchkeeper@6.16.0 apply
 ```
 
 Asks per change. `--yes` applies the default selection without questions.
 
-After either path, restart the agents. `npx benchkeeper@6.15.0 history` lists what changed, `npx benchkeeper@6.15.0 undo <run>` reverses a run.
+After either path, restart the agents. `npx benchkeeper@6.16.0 history` lists what changed, `npx benchkeeper@6.16.0 undo <run>` reverses a run.
 
 [Lite level, the plugin alone](#levels). [Full setup description](#setup-details).
 <!-- /generated:quickstart -->
@@ -51,9 +51,9 @@ Three levels, from the smallest: a plugin cannot ship always-on instructions, so
 <!-- generated:levels -->
 | Level | Contains | Writes | Command |
 |---|---|---|---|
-| Lite | the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos` and `orchestrating-projects` skills | nothing outside the plugin install, besides the app's run record for undo | `npx benchkeeper@6.15.0 apply --level lite` |
-| Standard | lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list | local files in each project you run `project apply` in | `npx benchkeeper@6.15.0 apply --level standard && npx benchkeeper@6.15.0 project apply` |
-| Full | standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.15.0 apply --level full` |
+| Lite | the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos` and `orchestrating-projects` skills | nothing outside the plugin install, besides the app's run record for undo | `npx benchkeeper@6.16.0 apply --level lite` |
+| Standard | lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list | local files in each project you run `project apply` in | `npx benchkeeper@6.16.0 apply --level standard && npx benchkeeper@6.16.0 project apply` |
+| Full | standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.16.0 apply --level full` |
 <!-- /generated:levels -->
 
 Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional (Gemini CLI and Copilot untested). The app configures the agents it finds on `PATH`. It does not install agent CLIs. Linux and macOS are tested; Windows runs only a CI smoke test.
@@ -76,7 +76,7 @@ Not installed by BenchKeeper.
 
 ## Setup details
 
-The examples write `benchkeeper` for `npx benchkeeper@6.15.0`. Until the first npm release, run the app from a clone: `git clone --depth 1 --branch setup-v6.15 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The browser UI from a clone needs a build first ([app/README.md](app/README.md#setup)).
+The examples write `benchkeeper` for `npx benchkeeper@6.16.0`. Until the first npm release, run the app from a clone: `git clone --depth 1 --branch setup-v6.16 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The browser UI from a clone needs a build first ([app/README.md](app/README.md#setup)).
 
 `plan` lists each change, file changes with their diff and commands as the command line. `apply` asks per change: `--yes` applies the default selection without questions, `--all` applies every change including the removals, `--pack matt-pocock` adds Matt Pocock's skills. In the browser, the Dashboard shows the doctor findings, and Fix everything walks through the global plan, the projects you pick and the steps left by hand. Each skills CLI install in a plan runs first in a scratch folder, so the plan lists the files it would write.
 
@@ -88,6 +88,7 @@ What a full `apply` writes (`--level lite` or `--level standard` plans the Bench
 - the default model `opusplan` in Claude Code (Opus in plan mode, Sonnet otherwise), as its own change since it replaces the model you set. Orca starts `claude` without `--model`, so it applies there too. Not benchmarked.
 - default effort `high` in Claude Code (also saved for Opus 5.5 and Sonnet 5.5, which ignore the global key) and in Codex, and the Claude Code auto-compact window at 400000 tokens (defaults per model: [docs](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds)). Neither is benchmarked.
 - optional, off unless chosen: the BenchKeeper tier band in Claude Code (`pluginConfigs` in `~/.claude/settings.json`), a row above the prompt with the tier of the last answer, buttons that set the tier for the session, and a board button that opens the sessions board
+- optional, off unless chosen, only with Orca installed: a worker-spec template for Orca orchestration and samples of `orca.yaml` and `.worktreeinclude` for new worktrees, written to the `orca` folder of the app config folder (never into a project)
 - everything else installed globally, as removals that are off unless chosen: other rules files (`~/.claude/CLAUDE.md`, other files in `~/.claude/rules/`, `~/.codex/AGENTS.override.md`), skills, plugins, marketplaces, MCP servers and hooks (Orca's own entries stay)
 - the Dev Containers CLI at the newest release that is at least 7 days old (`npm i -g`, into your npm prefix), and the `find-skills` skill (with Orca: `orca-cli` and `orchestration`)
 
@@ -97,12 +98,12 @@ Undo: each run is recorded in `~/.config/benchkeeper/ledger/`, and replaced and 
 
 The app writes its setup files below your home directory and in the projects you choose, plus scratch folders in the system temp folder and the Dev Containers CLI in your npm prefix. It needs no root, sends no telemetry and never runs on its own. In a terminal it makes one request to the npm registry for a newer version and shows it (off with `BENCHKEEPER_NO_UPDATE_CHECK=1`, and when `CI` is set).
 
-Lite level, plugin only: `npx benchkeeper@6.15.0 apply --level lite`, or by hand `claude plugin marketplace add ESchuderer/BenchKeeper#stable --sparse .claude-plugin plugins && claude plugin install benchkeeper@benchkeeper` (Codex: `codex plugin marketplace add ESchuderer/BenchKeeper@stable --sparse .claude-plugin --sparse plugins && codex plugin add benchkeeper@benchkeeper`).
+Lite level, plugin only: `npx benchkeeper@6.16.0 apply --level lite`, or by hand `claude plugin marketplace add ESchuderer/BenchKeeper#stable --sparse .claude-plugin plugins && claude plugin install benchkeeper@benchkeeper` (Codex: `codex plugin marketplace add ESchuderer/BenchKeeper@stable --sparse .claude-plugin --sparse plugins && codex plugin add benchkeeper@benchkeeper`).
 
 ## Per repo
 
-1. Project setup, in the repository root: `npx benchkeeper@6.15.0 project apply --agents claude,codex` (the agents the repository uses), plus `--pack <id>` for the [library packs](plugins/benchkeeper/library/README.md#packs), `--tier` for the default tier, `--env` for where the agent runs. It writes a block (the repository rules: load the workflow skill, ask open questions in one message, fix the cause of a failed check; where commands run, default tier, skill pointers), the packs' skills at pinned commits, and `.benchkeeper/state.json`, whose answers later runs reuse. By default the setup stays on this machine: the block goes into `CLAUDE.local.md` (which imports `AGENTS.md`) and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`, so the app rebuilds it from `AGENTS.md` on each apply), and every file the app writes is listed in `.git/info/exclude`, so nothing lands in the repository. `--share` commits it instead: the block in `AGENTS.md` and `CLAUDE.md` with `@AGENTS.md`. Your own `AGENTS.md` text, `docs/agents/` and `.devcontainer/` stay committed either way. `project plan` shows the same changes without writing. It lists the skills a pack choice adds and removes, and warns when two skills' descriptions overlap. `--disable <skill>` moves a skill to `.benchkeeper/disabled/` and `--enable` moves it back. Own packs: `benchkeeper packs save <id> --skill <name>...`, shared as one file with `packs export <id>` and `packs import <file>`; a pack file names library skills only.
-2. The steps that need an agent, as a recorded session: `npx benchkeeper@6.15.0 record -- claude '/benchkeeper:setting-up-projects'` (Codex: `npx benchkeeper@6.15.0 record -- codex '$benchkeeper:setting-up-projects'`) for stack skills, the commands in `AGENTS.md` and the dev container. The repository must be a Git repository: the app snapshots it before and after, records the changed files (tracked and untracked, not ignored ones) and the Claude Code or Codex transcript when it finds one, and `benchkeeper undo <run>` restores those files. With the `matt-pocock` pack, also `/mattpocock-skills:setup-matt-pocock-skills` (issue tracker, triage labels, domain docs in `docs/agents/`).
+1. Project setup, in the repository root: `npx benchkeeper@6.16.0 project apply --agents claude,codex` (the agents the repository uses), plus `--pack <id>` for the [library packs](plugins/benchkeeper/library/README.md#packs), `--tier` for the default tier, `--env` for where the agent runs. It writes a block (the repository rules: load the workflow skill, ask open questions in one message, fix the cause of a failed check; where commands run, default tier, skill pointers), the packs' skills at pinned commits, and `.benchkeeper/state.json`, whose answers later runs reuse. By default the setup stays on this machine: the block goes into `CLAUDE.local.md` (which imports `AGENTS.md`) and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`, so the app rebuilds it from `AGENTS.md` on each apply), and every file the app writes is listed in `.git/info/exclude`, so nothing lands in the repository. `--share` commits it instead: the block in `AGENTS.md` and `CLAUDE.md` with `@AGENTS.md`. Your own `AGENTS.md` text, `docs/agents/` and `.devcontainer/` stay committed either way. `project plan` shows the same changes without writing. It lists the skills a pack choice adds and removes, and warns when two skills' descriptions overlap. `--disable <skill>` moves a skill to `.benchkeeper/disabled/` and `--enable` moves it back. Own packs: `benchkeeper packs save <id> --skill <name>...`, shared as one file with `packs export <id>` and `packs import <file>`; a pack file names library skills only.
+2. The steps that need an agent, as a recorded session: `npx benchkeeper@6.16.0 record -- claude '/benchkeeper:setting-up-projects'` (Codex: `npx benchkeeper@6.16.0 record -- codex '$benchkeeper:setting-up-projects'`) for stack skills, the commands in `AGENTS.md` and the dev container. The repository must be a Git repository: the app snapshots it before and after, records the changed files (tracked and untracked, not ignored ones) and the Claude Code or Codex transcript when it finds one, and `benchkeeper undo <run>` restores those files. With the `matt-pocock` pack, also `/mattpocock-skills:setup-matt-pocock-skills` (issue tracker, triage labels, domain docs in `docs/agents/`).
 3. Commit the result.
 
 Where the agent runs (`--env`):
@@ -118,7 +119,7 @@ Setup scopes container mounts to the project: no host home, engine socket, privi
 
 ## Frameworks
 
-Optional, per project: `npx benchkeeper@6.15.0 project apply --framework <id>` (`npx benchkeeper@6.15.0 frameworks` lists them with their evidence; the setup form in the browser shows the same). The doctor reports a second workflow owner, and a framework installed outside the project that the setup did not record.
+Optional, per project: `npx benchkeeper@6.16.0 project apply --framework <id>` (`npx benchkeeper@6.16.0 frameworks` lists them with their evidence; the setup form in the browser shows the same). The doctor reports a second workflow owner, and a framework installed outside the project that the setup did not record.
 
 <!-- generated:frameworks -->
 Project setup asks first: it shows the list and installs nothing you did not choose. A framework that owns the workflow is a singleton: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Parts sit beside it. Everything installs inside the project; what cannot is labelled.
@@ -140,7 +141,7 @@ Project setup asks first: it shows the list and installs nothing you did not cho
 
 ## Sessions board
 
-`benchkeeper board` writes `~/.config/benchkeeper/board.html` and opens it; the browser UI shows the same page under Sessions and rewrites the file on each scan, and the tier band's board button opens it. Per Claude Code and Codex session on this machine: project, tier and change type (first and last tier line), the setup installed at the time (BenchKeeper version, Matt Pocock's skills, Ponytail, packs), the skills used, the last test run, pull request state, time, tokens and, for Claude Code, the API-equivalent cost its transcript records. Filters by project (preset to the projects registered in the app and their Git worktrees when they have sessions, All shows every session), agent, tier, setup and period; the charts have tables beside them. It reads the transcripts in `~/.claude/projects/` and `~/.codex/sessions/`, the app's run ledger and `gh pr view`, caches in `~/.cache/benchkeeper/`; only the `gh` requests leave the machine.
+`benchkeeper board` writes `~/.config/benchkeeper/board.html` and opens it; the browser UI shows the same page under Sessions and rewrites the file on each scan, and the tier band's board button opens it. Per Claude Code and Codex session on this machine: project, tier and change type (first and last tier line), the pattern (loop: `/goal`, `/loop` or a scheduled wakeup ran; group: subagents ran, their count is shown; Orca worker: a dispatched Orca worker, with the run id from the `Orca run:` line of the worker-spec template; single: none of these; when several apply, the first of Orca worker, loop, group wins), the setup installed at the time (BenchKeeper version, Matt Pocock's skills, Ponytail, packs), the skills used, the last test run, pull request state, time, tokens and, for Claude Code, the API-equivalent cost its transcript records. Pattern is detected for Claude Code sessions; for Codex only the group (subagent rollouts) is. A summary cached before the pattern was read, whose transcript is gone, shows `not recorded`. Filters by project (preset to the projects registered in the app and their Git worktrees when they have sessions, All shows every session), agent, tier, pattern, setup and period; the charts have tables beside them. It reads the transcripts in `~/.claude/projects/` and `~/.codex/sessions/`, the app's run ledger and `gh pr view`, caches in `~/.cache/benchkeeper/`; only the `gh` requests leave the machine.
 
 ## What the app writes and what it never does
 
@@ -161,7 +162,7 @@ Each setup runs as its own arm on the same brownfield brief. Scores, time per ta
 | [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) | the marketplace, read by Claude Code and Codex | `~/.claude/plugins/`, `~/.codex/plugins/` |
 | [plugins/benchkeeper/rules/global.md](plugins/benchkeeper/rules/global.md) | global rules | written by the app to `~/.claude/rules/00-global.md`, and as a block into the Codex, Gemini CLI and Copilot instruction files |
 | [plugins/benchkeeper/rules/project.md](plugins/benchkeeper/rules/project.md) | repository rules (standard level and up) | part of the project block the app writes (`CLAUDE.local.md`, `AGENTS.override.md`, or `AGENTS.md` with `--share`) |
-| [app](app) | the installer: global setup, project setup, history and undo, CLI and browser UI ([README](app/README.md)) | `npx benchkeeper@6.15.0` |
+| [app](app) | the installer: global setup, project setup, history and undo, CLI and browser UI ([README](app/README.md)) | `npx benchkeeper@6.16.0` |
 | [plugins/benchkeeper/skills/setting-up-projects](plugins/benchkeeper/skills/setting-up-projects/SKILL.md) | set up or update one repo: devcontainer, AGENTS.md, library and stack skills, Matt Pocock's repository setup (`docs/agents/`), default tier, other configuration to remove | plugin skill `benchkeeper:setting-up-projects` |
 | [plugins/benchkeeper/skills/workflow](plugins/benchkeeper/skills/workflow/SKILL.md) | task kind and tier, then the playbook for software changes, docs passes or research, batch mode, long checks at the end | plugin skill `benchkeeper:workflow` |
 | [plugins/benchkeeper/skills/tier](plugins/benchkeeper/skills/tier/SKILL.md) | sets the tier for the rest of the session (`quick`, `standard`, `full`, `research`, or `auto` to let the workflow pick) | plugin skill `/benchkeeper:tier`, user-invoked |

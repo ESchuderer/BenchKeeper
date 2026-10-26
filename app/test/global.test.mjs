@@ -322,6 +322,24 @@ test('pins: an installed Claude Code plugin at the pin version from another comm
   assert.equal(apply([flag], ctx, { select: [flag.id] }).entries.length, 0);
 });
 
+test('Orca worker spec and setup samples: offered only with Orca installed, off by default, written to the config folder, undone', () => {
+  const m = machine();
+  const offered = () => m.plan().filter((c) => c.step === 'orca:templates');
+  assert.deepEqual(offered().map((c) => [c.optional, c.selected]), Array(3).fill([true, false]));
+  const run = apply(offered(), m.ctx, { select: all(offered()) });
+  assert.equal(run.status, 'done');
+  const dir = join(m.ctx.config, 'orca');
+  assert.match(readFileSync(join(dir, 'worker-spec.md'), 'utf8'), /Orca run: <id.*\nTarget: .*\nChange: .*\nConstraints: .*\nOwnership: .*\nObservable acceptance: /s);
+  assert.match(readFileSync(join(dir, 'orca.yaml.sample'), 'utf8'), /^setupAgentStartupPolicy: wait-for-setup$/m);
+  assert.doesNotMatch(readFileSync(join(dir, 'worktreeinclude.sample'), 'utf8'), /^[^#\n]*[*?!]/m, 'literal paths only');
+  assert.deepEqual(offered(), [], 'written once, a second plan is empty');
+  undo(run.id, m.ctx);
+  assert.equal(existsSync(join(dir, 'worker-spec.md')), false);
+  assert.equal(offered().length, 3);
+  const bare = context({ home: mkdtempSync(join(tmpdir(), 'bk-noorca-')), run: (argv) => ({ code: argv[0] === 'orca' ? 127 : 0, stdout: '', stderr: '' }) });
+  assert.deepEqual(globalPlan({ ctx: bare, agents: ['claude'] }).filter((c) => c.step === 'orca:templates'), []);
+});
+
 test('names from agent files that start with a dash or hold a path are skipped', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-names-'));
   const ctx = context({ home, run: (argv) => ({ code: argv[0] === 'npm' || argv[0] === 'orca' ? 1 : 0, stdout: '', stderr: '' }) });

@@ -247,6 +247,11 @@ test.describe('views', () => {
     await expect(board.locator('#tip')).not.toContainText(new Date().toISOString().slice(0, 10));
     await page.keyboard.press('Escape');
     await expect(board.locator('#tip')).toBeEmpty();
+    // The fixture's sessions with subagents are groups; the others are single.
+    await expect(board.getByRole('table', { name: /^Sessions by pattern/ })).toContainText('group');
+    await board.getByLabel('Pattern', { exact: true }).selectOption('single');
+    await expect(board.locator('#count')).toContainText(/^1 of 1 sessions/);
+    await board.getByLabel('Pattern', { exact: true }).selectOption('');
     // A filter that drops series does not repaint the others.
     await board.getByLabel('Agent', { exact: true }).selectOption('claude');
     const some = await colors();
@@ -254,7 +259,7 @@ test.describe('views', () => {
     // Nothing selected: one sentence per section, no empty axis.
     await board.getByLabel('Agent', { exact: true }).selectOption('codex');
     await board.getByLabel('Tier', { exact: true }).selectOption('full');
-    await expect(board.getByText('No sessions match these filters.')).toHaveCount(5);
+    await expect(board.getByText('No sessions match these filters.')).toHaveCount(6);
     await expect(board.locator('#chart svg')).toHaveCount(0);
     await noAxe(page);
   });

@@ -236,6 +236,13 @@ test('an eval session leaves no transcript, loads no MCP server, and its probes 
   }
 });
 
+test('an eval session that exits non-zero is no missed trigger and stores no result', async () => {
+  const home = tmp();
+  const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: '', stderr: `error: unknown option, ${TOKEN}` } : { code: 0, stdout: '', stderr: '' }) });
+  await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => /claude exited with 1 on case a of skill:x: error: unknown option, \*\*\*$/.test(e.message));
+  assert.equal(existsSync(join(home, '.config/benchkeeper/evals/results.jsonl')), false);
+});
+
 test('mask stays linear on a long dotted token and leaves ordinary words alone', () => {
   const long = `${'a.'.repeat(20000)}x`;
   const t = Date.now();

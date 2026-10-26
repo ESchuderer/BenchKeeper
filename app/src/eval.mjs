@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { noTrace } from './advise.mjs';
 import { agentEnv, childEnv } from './childenv.mjs';
 import { contentDir } from './content.mjs';
+import { mask } from './redact.mjs';
 import { exists, hashPath, hashText, readText } from './fsx.mjs';
 import { loadCases, userEvals } from './cases.mjs';
 
@@ -86,6 +87,8 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
         // The whole stream: the skill call comes early in a long session.
         const r = await session(a.argv(ctx, c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
         if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
+        // A session that failed to start (a CLI that rejects a flag, a managed MCP setup) is no miss: nothing of this target is stored.
+        if (r.code !== 0) throw new Error(`${p.agent} exited with ${r.code} on case ${c.id} of ${p.target}: ${mask((r.stderr || r.stdout || '').trim().slice(-200))}`);
         if (kind === 'skill') details.push({ id: c.id, should: c.should, triggered: triggered(r.stdout, name), exit: r.code });
         else {
           // Session output can quote files and tokens the agent read: for this user alone, also in folders made before.

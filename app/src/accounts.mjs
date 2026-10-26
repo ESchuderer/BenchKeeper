@@ -27,7 +27,7 @@ const DAY = 864e5;
 const tail = (r, secret) => hide((r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' '), secret) || `exit ${r.code}`;
 // Text from a child that is shown or kept: control characters out, token shapes and the known token masked.
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
-const clean = (t) => String(t).replace(ANSI, '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '');
+const clean = (t) => String(t).replace(ANSI, '').replace(/[^\P{Cc}\t\n]/gu, '');
 // shortcut: a token of an unknown shape that sits in a run shorter than 32 characters is not recognised; a longer run is hidden.
 export const hide = (text, secret) => mask(clean(text), { keys: true }).replace(/[A-Za-z0-9_-]{32,}/g, '***').split(secret || '\0').join('***');
 
@@ -169,7 +169,7 @@ const finding = (level, name, message, fix) => ({ level, check: 'accounts', mess
 // Whether the account is signed in, how old its token is, and what to run when it is not. Reads only. loggedIn null: not checked.
 // dir: the project whose dev container a container account is checked in.
 function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
-  const out = { name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, findings: [] };
+  const out = /** @type {{ name: string, agent: string, mode: string, loggedIn: boolean | null, method: string | null, tokenAgeDays?: number, findings: object[] }} */ ({ name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, findings: [] });
   const age = a.token?.created ? Math.floor((now - Date.parse(a.token.created)) / DAY) : null;
   const relogin = `benchkeeper accounts login ${a.name}`;
   let r, gone = false;

@@ -12,6 +12,8 @@ export const BASELINE_REPO = 'ESchuderer/repo-baseline';
 export const REF = '83cc82ccd57649c8791d644ed6ffc03b26bcaf31';
 export const PROFILES = ['oss', 'private-advisory'];
 export const CALLERS = ['lint-js', 'lint-python', 'sonar'];
+// The copy-in files of repo-baseline (templates/), kept next to the profiles and callers; nothing here reads them.
+export const TEMPLATES = ['ci/ci.yml', 'ci/dependabot.yml', 'ci/pr-title.yml', 'ci/scorecard.yml', 'lint-js/.jscpd.json', 'lint-js/biome-quality.jsonc', 'lint-js/knip.json', 'lint-js/tsc-baseline.sh', 'lint-js/tsconfig.strict.json', 'lint-python/pyproject-quality.toml', 'sonar/sonar-project.properties'];
 const REF_OK = /^[\w][\w./-]*$/;
 const GH_ENV = { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' };
 

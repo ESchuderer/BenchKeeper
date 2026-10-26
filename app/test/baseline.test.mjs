@@ -128,12 +128,14 @@ test('a ruleset set by hand under another name counts when it targets the same b
   assert.deepEqual(messages(baselineIssues(ctx, checkout(), { profile: 'oss' })), ['ruleset main is missing']);
 });
 
-test('control characters from a workflow file never reach the report', () => {
+test('control characters from a workflow file or a ruleset name never reach the report', () => {
   const db = compliant();
+  db.rulesets[0] = structuredClone({ ...OSS.rulesets[0], id: 1, name: 'x\u001b]0;pwned\u0007', source_type: 'Repository' });
   const { ctx } = machine(withSonar(db));
   const dir = checkout({ sonar: 'v1\u001b[2J' });
   const text = baselineIssues(ctx, dir, { profile: 'oss' }).map((i) => i.message).join('\n');
   assert.match(text, /not pinned to a commit \(v1\?\[2J\)/);
+  assert.match(text, /ruleset x\?\]0;pwned\? requires no status checks/);
   assert.ok(!/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/.test(text));
 });
 

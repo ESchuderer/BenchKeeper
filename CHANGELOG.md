@@ -2,6 +2,13 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.17 (2026-10-26)
+
+- App, `update-all` for chosen projects (#280): `benchkeeper update-all [dir..]` takes registered project folders and updates only those, with `--dry-run`, `--baseline`, `--max` and the cap on pushed repositories counting only the list. Without folders it behaves as before. A folder that is not a registered project stops the command before anything is listed or changed, with exit 2 and the message `<dir>: not a registered project`. The browser's Update all already took a project list.
+- Breaking, before 7.0 (no compatibility path): the `doctor` message for a skill file that links a missing target now starts with the skill and the project (`skill <name> in <project dir>: <file> links <target>, which does not exist`); a script that matches the old text `<file> links ...` at the start of the message must match the new one. The link in the `accessibility` library skill to its sibling `web-quality-audit` is still reported: #276 did not remove that skill, and the dead link is in the upstream text.
+- Plugin `version` 6.17.0.
+- Upgrade: `npx benchkeeper@6.17.0 apply`.
+
 ## setup-v6.16 (2026-10-26)
 
 - App, loops and groups per tier (#176): the sessions board has a `pattern` per session (single, loop, group, Orca worker) with a By pattern table (median cost and time, tests passed, pull requests merged), a Pattern filter and column, the subagent count and, for an Orca worker, its run id. Loop: `/goal`, `/loop` or a scheduled wakeup in a Claude Code transcript. Group: Claude Code subagent transcripts or Codex subagent rollouts. Orca worker: the two-line Orca dispatch text in the first typed prompt, or the `Orca run: <id>` line of the new worker-spec template; Codex rollouts are not checked for loops or workers. When several apply the first of Orca worker, loop, group wins. A session summary cached before this change, whose transcript the agent has deleted, shows `not recorded`. No rule or skill changes: the tier-to-pattern mapping stays in the playbooks.

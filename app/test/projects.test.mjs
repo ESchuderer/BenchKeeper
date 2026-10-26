@@ -43,7 +43,7 @@ test('registry: add, list, remove; scan finds folders with an agent setup', () =
   const root = mkdtempSync(join(TMP, 'bk-scan-'));
   for (const d of ['a', 'b/c', 'node_modules/x']) { mkdirSync(join(root, d), { recursive: true }); writeFileSync(join(root, d, 'AGENTS.md'), '#\n'); }
   mkdirSync(join(root, 'e'));
-  assert.deepEqual(scan(root).map((d) => d.slice(canon(root).length + 1)).sort(), ['a', 'b/c']);
+  assert.deepEqual(scan(ctx, root).map((d) => d.slice(canon(root).length + 1)).sort(), ['a', 'b/c']);
   addProject(ctx, join(root, 'a'));
   addProject(ctx, join(root, 'a'));
   assert.deepEqual(listProjects(ctx).map((p) => p.path), [canon(join(root, 'a'))]);
@@ -72,7 +72,7 @@ test('registry: one folder is one project, also through a symlink, in the regist
   assert.equal(merged[0].added, '2026-01-01T00:00:00.000Z');
   assert.equal(merged[0].state.setupVersion, '6.0.0');
   // The scan below the symlink does not offer the registered folder, and removal through either path removes it.
-  const found = scan(link).filter((d) => !listProjects(ctx).some((p) => p.path === canon(d)));
+  const found = scan(ctx, link).filter((d) => !listProjects(ctx).some((p) => p.path === canon(d)));
   assert.deepEqual(found, []);
   removeProject(ctx, join(link, 'app'));
   assert.deepEqual(listProjects(ctx), []);

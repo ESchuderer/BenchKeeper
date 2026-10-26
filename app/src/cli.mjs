@@ -124,7 +124,8 @@ Usage: benchkeeper <command> [options]
   record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
 
---json (doctor, test, plan, project plan, history, projects list, packs list)
+--json (doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list,
+        settings list and get, frameworks list, board, profile export)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
 
@@ -544,7 +545,7 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg) => (['project', 'projects', 'packs'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg) => (['project', 'projects', 'packs', 'skills', 'rules', 'settings', 'frameworks', 'profile'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
@@ -585,7 +586,50 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   }
   if (cmd === 'projects' && (!arg || arg === 'list')) return registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
   if (cmd === 'packs' && (!arg || arg === 'list')) return emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
-  return fail('--json works with doctor, test, plan, project plan, history, projects list and packs list');
+  if (cmd === 'skills' && (!arg || arg === 'list')) {
+    const dir = resolve(o.project ?? '.'), rows = projectSkills(ctx, dir);
+    return emit({ dir, hasSetup: !!rows, skills: rows?.skills ?? [], untracked: rows?.untracked ?? [], globalUntracked: globalUntracked(ctx, selectedAgents(ctx, o.agents)) });
+  }
+  if (cmd === 'rules' && arg === 'list') {
+    if (o.agent && !RULE_AGENTS.includes(o.agent)) return fail(`agent must be one of ${RULE_AGENTS.join(', ')}`);
+    const found = selectedAgents(ctx, o.agents).filter((a) => RULE_AGENTS.includes(a));
+    return emit(rulesView(ctx, { agents: o.agent ? [o.agent] : found.length ? found : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined }));
+  }
+  if (cmd === 'settings' && (arg === 'list' || arg === 'get')) {
+    const agent = o.agent ?? 'claude', key = positionals[2];
+    if (!settingsAgents.includes(agent)) return fail(`agent must be one of ${settingsAgents.join(', ')}`);
+    if (arg === 'get' && !key) return fail('settings get needs a key');
+    const l = listSettings(ctx, agent, { dir: o.project ? resolve(o.project) : undefined, advanced: arg === 'get' || !!o.advanced, env: process.env });
+    // Values of environment variables never appear: the env block and the env.* keys carry names only.
+    const bare = (x) => (x.key === 'env' || String(x.key).startsWith('env.') ? { ...x, value: undefined, appValue: undefined, ...(x.sets ? { sets: x.sets.map(({ value, ...set }) => set) } : {}) } : x);
+    const doc = { ...l, settings: l.settings.map(bare), ...(l.advanced ? { advanced: l.advanced.map(bare), outside: l.outside.map(bare) } : {}), ...(l.env ? { env: l.env.map(({ value, ...e }) => e) } : {}),
+      // A parse error can quote the file: the document says only that the file failed.
+      layers: l.layers.map((f) => (f.error ? { ...f, error: 'the file does not parse' } : f)) };
+    // An env object at any depth (the env block, an MCP server's env) is reduced to its names.
+    const scrub = (v) => JSON.parse(JSON.stringify(v, (k, x) => (k === 'env' && x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x) : x)));
+    if (arg === 'list') return emit(scrub(doc));
+    const setting = [...doc.settings, ...(doc.advanced ?? [])].find((x) => x.key === key);
+    return setting ? emit({ agent, setting: scrub(setting) }) : fail(`${key} is not a key of ${l.name}'s reference or schema`);
+  }
+  if (cmd === 'frameworks' && (!arg || arg === 'list')) return emit({ frameworks: frameworkRows() });
+  if (cmd === 'projects' && arg === 'scan') {
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
+    const registered = listProjects(ctx).map((p) => p.path);
+    return emit({ root: canon(positionals[2] ?? '.'), found: scan(ctx, positionals[2] ?? '.').map((path) => ({ path, registered: registered.includes(canon(path)) })) });
+  }
+  if (cmd === 'board') {
+    // Nothing is written or opened; the title is left out because it quotes the first message of a session.
+    const sessions = (await scanSessions(ctx)).map(({ title, ...s }) => s);
+    return emit({ sessions });
+  }
+  if (cmd === 'profile' && arg === 'export') {
+    if (positionals[2]) return fail('profile export --json prints the document: redirect stdout instead of naming a file');
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
+    return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
+  }
+  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, settings list and get, frameworks list, board and profile export');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

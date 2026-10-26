@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
+import { writeSessions } from './fixtures/sessions.mjs';
 
 const SECRET = 'value-that-must-not-leak-9c2e';
 const TMP = realpathSync(tmpdir());
@@ -100,4 +101,92 @@ test('--json: a clean doctor exits 0; usage failures exit 2 with an error docume
     assert.match(r.doc.error, message);
     assert.match(r.err, message);
   }
+});
+
+test('--json: the read-only list commands print their documented keys and no value of the files they read', async () => {
+  const { ctx, dir, home } = setup();
+  writeSessions(home);
+  put(join(dir, '.claude/settings.json'), `{ "model": "${SECRET}", oops`);
+  // An env object nested in another setting (an MCP server) is a value of the environment too.
+  put(join(home, '.claude/settings.json'), JSON.stringify({ env: { DISABLE_TELEMETRY: SECRET }, mcpServers: { s: { command: 'x', env: { PLAIN: SECRET } } } }));
+  const before = process.env.DO_NOT_TRACK;
+  process.env.DO_NOT_TRACK = SECRET;
+  try {
+    const shape = async (args, command, keys) => {
+      const r = await run(ctx, [...args, '--json']);
+      assert.equal(r.code, 0, args.join(' '));
+      assert.equal(r.doc.schemaVersion, 1);
+      assert.equal(r.doc.command, command);
+      assert.deepEqual(Object.keys(r.doc).slice(2), keys, args.join(' '));
+      assert.ok(!r.text.includes(SECRET) && !r.err.includes(SECRET), `${args.join(' ')} leaks a secret`);
+      return r.doc;
+    };
+    // Nothing is written by a list command, so no run enters the ledger.
+    const none = await shape(['skills', 'list', '--project', dir, '--agents', 'claude'], 'skills list', ['dir', 'hasSetup', 'skills', 'untracked', 'globalUntracked']);
+    assert.deepEqual([none.dir, none.hasSetup, none.skills], [dir, false, []]);
+    assert.equal(await main(['project', 'apply', dir, '--agents', 'claude', '--skill', 'frontend-design', '--yes'], { out: new Writable({ write(_c, _e, d) { d(); } }), err: new Writable({ write(_c, _e, d) { d(); } }), ctx }), 0);
+    const skills = await shape(['skills', '--project', dir, '--agents', 'claude'], 'skills list', ['dir', 'hasSetup', 'skills', 'untracked', 'globalUntracked']);
+    assert.ok(skills.hasSetup && skills.skills.some((s) => s.name === 'frontend-design' && s.state && s.single));
+
+    const rules = await shape(['rules', 'list', '--project', dir], 'rules list', ['dir', 'agents']);
+    assert.deepEqual(rules.agents.map((a) => a.id), ['claude', 'codex']);
+    assert.ok(rules.agents[0].rows.some((r) => r.path === join(dir, 'CLAUDE.md') && r.tokens > 0 && !('text' in r)));
+    assert.deepEqual((await shape(['rules', 'list', '--agent', 'codex'], 'rules list', ['dir', 'agents'])).agents.map((a) => a.id), ['codex']);
+
+    const list = await shape(['settings', 'list', '--project', dir], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes']);
+    assert.equal(list.agent, 'claude');
+    assert.ok(list.settings.length > 0 && list.layers.some((l) => l.error === 'the file does not parse'));
+    const advanced = await shape(['settings', 'list', '--advanced'], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes', 'advanced', 'outside', 'env']);
+    assert.deepEqual(advanced.env.map((e) => [e.name, e.layer, 'value' in e]), [['DISABLE_TELEMETRY', 'user', false]]);
+    const switchKey = await shape(['settings', 'get', 'env.DISABLE_TELEMETRY'], 'settings get', ['agent', 'setting']);
+    assert.ok(switchKey.setting.sets.length === 1 && !('value' in switchKey.setting.sets[0]));
+    await shape(['settings', 'list', '--agent', 'codex'], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes', 'trust']);
+    const get = await shape(['settings', 'get', list.settings[0].key], 'settings get', ['agent', 'setting']);
+    assert.equal(get.setting.key, list.settings[0].key);
+
+    const frameworks = await shape(['frameworks'], 'frameworks list', ['frameworks']);
+    assert.ok(frameworks.frameworks.length > 0 && frameworks.frameworks.every((f) => f.id && f.title && Array.isArray(f.files)));
+    assert.deepEqual((await shape(['frameworks', 'list'], 'frameworks list', ['frameworks'])).frameworks, frameworks.frameworks);
+
+    const scan = await shape(['projects', 'scan', dir], 'projects scan', ['root', 'found']);
+    assert.deepEqual([scan.root, scan.found], [dir, [{ path: dir, registered: true }]]);
+
+    const board = await shape(['board'], 'board', ['sessions']);
+    assert.ok(board.sessions.length > 0 && board.sessions.every((s) => s.agent && s.start && !('title' in s)));
+    assert.ok(!JSON.stringify(board).includes('onerror'));
+
+    const profile = await shape(['profile', 'export', '--agents', 'claude'], 'profile export', ['profile']);
+    assert.deepEqual([profile.profile.kind, profile.profile.schemaVersion, profile.profile.projects.map((p) => p.path)], ['benchkeeper-profile', 1, [dir]]);
+  } finally {
+    if (before === undefined) delete process.env.DO_NOT_TRACK; else process.env.DO_NOT_TRACK = before;
+  }
+});
+
+test('--json: an invalid argument to a list command exits 2 with an error document, and the text output stays as it was', async () => {
+  const { ctx, dir } = setup();
+  for (const [args, command, message] of [
+    [['rules', 'list', '--agent', 'nope'], 'rules list', /agent must be one of claude, codex/],
+    [['settings', 'list', '--agent', 'nope'], 'settings list', /agent must be one of/],
+    [['settings', 'get'], 'settings get', /needs a key/],
+    [['settings', 'get', 'no.such.key'], 'settings get', /is not a key of/],
+    [['projects', 'scan', ctx.config], 'projects scan', /scan the folder your projects are in/],
+    [['profile', 'export', join(dir, 'p.json')], 'profile export', /redirect stdout/],
+    [['frameworks', 'nope'], 'frameworks nope', /--json works with/],
+    [['skills', 'update'], 'skills update', /--json works with/],
+    [['settings', 'set', 'model', 'x'], 'settings set', /--json works with/],
+  ]) {
+    const r = await run(ctx, [...args, '--json']);
+    assert.equal(r.code, 2, args.join(' '));
+    assert.equal(r.doc.command, command);
+    assert.deepEqual(Object.keys(r.doc).slice(2), ['error']);
+    assert.match(r.doc.error, message);
+    assert.match(r.err, message);
+  }
+  // A broken registry is a read failure for the commands that read it.
+  put(join(ctx.home, '.config/benchkeeper/projects.json'), '{ not json');
+  for (const args of [['projects', 'scan', dir], ['profile', 'export']]) assert.equal((await run(ctx, [...args, '--json'])).code, 2, args.join(' '));
+  // Without --json the commands print what they printed.
+  const text = async (args) => { let t = ''; await main(args, { out: new Writable({ write(c, _, d) { t += c; d(); } }), err: new Writable({ write(_c, _e, d) { d(); } }), ctx }); return t; };
+  assert.match(await text(['frameworks']), /^\S+\s+\w+\s+\w+\s+/);
+  assert.match(await text(['rules', 'list', '--agent', 'codex']), /^Codex/);
 });

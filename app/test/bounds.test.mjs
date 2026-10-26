@@ -97,19 +97,20 @@ function driverRepo(name, via = 'local') {
   writeFileSync(join(dir, 'f.txt'), 'x\n');
   const target = via === 'include' ? join(home(), 'inc.cfg') : null;
   if (target) { git(dir, 'config', 'include.path', target); writeFileSync(target, ''); }
-  const set = (k, v) => (target ? git(dir, 'config', '-f', target, `filter.${name}.${k}`, v) : git(dir, 'config', `filter.${name}.${k}`, v));
-  for (const k of ['clean', 'smudge']) set(k, `${script} ${k}`);
+  if (via === 'worktree') { git(dir, 'config', 'extensions.worktreeConfig', 'true'); }
+  const set = (k, v) => (target ? git(dir, 'config', '-f', target, `filter.${name}.${k}`, v) : git(dir, 'config', ...(via === 'worktree' ? ['--worktree'] : []), `filter.${name}.${k}`, v));
+  for (const k of ['clean', 'smudge', 'process']) set(k, `${script} ${k}`);
   set('required', 'true');
   return { dir, mark };
 }
 
 test('a repository filter driver does not run for status, snapshots and worktree add, also under an odd name or through an include', () => {
   const c = context({ home: home(), run: runCommand });
-  for (const [name, via] of [['evil', 'local'], ['a=b', 'local'], ['evil', 'include']]) {
+  for (const [name, via] of [['evil', 'local'], ['a=b', 'local'], ['evil', 'include'], ['evil', 'worktree']]) {
     const { dir, mark } = driverRepo(name, via);
-    git(dir, 'add', '-A');
+    try { git(dir, 'add', '-A'); } catch { /* the process driver is no server and a required driver fails: plain git ran it all the same */ }
     assert.equal(existsSync(mark), true, `the driver runs under plain git: ${name} ${via}`);
-    git(dir, 'reset', '-q');
+    rmSync(join(dir, '.git', 'index'), { force: true });
     rmSync(mark, { force: true });
     assert.equal(clean(c, dir), false, name);
     assert.match(snapshot(c, dir), /^[0-9a-f]{40,64}$/);
@@ -143,6 +144,25 @@ test('the git-lfs driver commands still run, any other command named git-lfs doe
   } finally { process.env.PATH = path; }
 });
 
+test('a driver with one git-lfs command and one other command is switched off whole, and an unreadable config runs no git command', () => {
+  const bin = home(), mark = join(home(), 'ran');
+  writeFileSync(join(bin, 'git-lfs'), `#!/bin/sh\necho "$@" >> '${mark}'\ncat\n`, { mode: 0o755 });
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  try {
+    const c = context({ home: home(), run: runCommand });
+    const dir = repo();
+    writeFileSync(join(dir, '.gitattributes'), '* filter=lfs\n');
+    git(dir, 'config', 'filter.lfs.clean', 'git-lfs clean -- %f');
+    git(dir, 'config', 'filter.lfs.smudge', 'git-lfs smudge -- %f; echo more');
+    snapshot(c, dir);
+    assert.equal(existsSync(mark), false);
+    writeFileSync(join(dir, '.git', 'config'), '[core\n');
+    assert.equal(runGit(c, dir, ['status', '--porcelain']).code, 128);
+    assert.equal(clean(c, dir), false);
+  } finally { process.env.PATH = path; }
+});
+
 test('the root of a drive, the home folder, its parents and the config folder are no project', () => {
   const h = home();
   const c = context({ home: h });
@@ -163,6 +183,11 @@ test('a scan walks no drive root and no config folder, and still scans the home 
   for (const p of ['/', c.config]) assert.throws(() => scan(c, p), /root of a drive|config folder/, p);
   assert.deepEqual(scan(c, h), [join(h, 'work', 'app')]);
   assert.deepEqual(scan(c, join(h, 'work')), [join(h, 'work', 'app')]);
+  // A config folder whose path has no dot segment (macOS, Windows) is not walked when a folder around it is scanned.
+  const plain = context({ home: h, config: join(h, 'work', 'bk-config') });
+  mkdirSync(join(plain.config, 'backup'), { recursive: true });
+  writeFileSync(join(plain.config, 'backup', 'AGENTS.md'), '#\n');
+  assert.deepEqual(scan(plain, h), [join(h, 'work', 'app')]);
 });
 
 test('a profile import registers no home folder and gives it no plan', () => {

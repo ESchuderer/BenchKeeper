@@ -165,7 +165,7 @@ export function scan(ctx, root, depth = 3) {
     if (n === 0) return;
     let entries = [];
     try { entries = readdirSync(d, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) if (e.isDirectory() && !SKIP.has(e.name) && !e.name.startsWith('.')) walk(join(d, e.name), n - 1);
+    for (const e of entries) if (e.isDirectory() && !SKIP.has(e.name) && !e.name.startsWith('.') && !unscannable(ctx, join(d, e.name))) walk(join(d, e.name), n - 1);
   };
   walk(canon(root), depth);
   return found;

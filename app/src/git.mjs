@@ -19,10 +19,14 @@ export const repoEnv = (env = process.env, index = false) => {
 // .git runs code that way. They are switched off for those commands, except the exact commands git-lfs installs. Set through
 // GIT_CONFIG_* pairs: a -c option splits at the first = and cannot name a driver that has one.
 const LFS_DRIVER = /^(?:git-lfs (?:clean|smudge)(?: --skip)? -- %f|git-lfs filter-process(?: --skip)?)$/;
-// The commands the app runs that read or write work tree files (write-tree and commit re-check index entries that look racy).
-const FILTERING = new Set(['add', 'status', 'worktree', 'write-tree', 'commit']);
-function driverOverrides(ctx, dir) {
-  const r = ctx.run(['git', '-C', dir, 'config', '--show-scope', '-z', '--get-regexp', '^filter\\..*\\.(clean|smudge|process)$'], { env: repoEnv() });
+// Commands that only read refs, objects and config never run a filter; every other command (add, status, commit, write-tree
+// re-checking racy index entries, a checkout, a diff) may, so a command the app starts using later is covered by default.
+const NO_FILTER = new Set(['config', 'rev-parse', 'symbolic-ref', 'remote', 'cat-file', 'ls-tree', 'ls-remote', 'fetch', 'push', 'merge-base', 'log', 'branch', 'diff-tree']);
+const subcommand = (args) => args.find((a, i) => !a.startsWith('-') && args[i - 1] !== '-c');
+function driverOverrides(ctx, dir, env) {
+  const r = ctx.run(['git', '-C', dir, 'config', '--show-scope', '-z', '--get-regexp', '^filter\\..*\\.(clean|smudge|process)$'], { env });
+  // 1 is no match; any other failure (a config git cannot read) leaves the drivers unknown: the command is not run.
+  if (r.code !== 0 && r.code !== 1) return null;
   // With -z and --show-scope each entry is the scope, a NUL, then key, a line break, value and a NUL.
   const parts = r.stdout.split('\0'), own = [];
   for (let i = 0; i + 1 < parts.length; i += 2) {
@@ -42,7 +46,10 @@ const withPairs = (env, pairs) => {
 // core.fsmonitor is a command the repository's own config names, and status and add would run it: off for every call.
 const git = (ctx, dir, args, { index, ...extra } = {}) => {
   const env = repoEnv(extra.env, index);
-  return ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env: args.some((a) => FILTERING.has(a)) ? withPairs(env, driverOverrides(ctx, dir)) : env });
+  if (NO_FILTER.has(subcommand(args))) return ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env });
+  const off = driverOverrides(ctx, dir, env);
+  if (!off) return { code: 128, stdout: '', stderr: 'the repository config cannot be read, so its filter drivers are unknown' };
+  return ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env: withPairs(env, off) });
 };
 
 // A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax, and a valid git ref

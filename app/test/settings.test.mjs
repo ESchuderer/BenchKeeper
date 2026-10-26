@@ -22,6 +22,8 @@ function machine() {
   return Object.assign(context({ home, run }), { managedRoot: managed });
 }
 const write = (path, text) => { mkdirSync(join(path, '..'), { recursive: true }); writeFileSync(path, text); };
+// The two security controls of #313 fire on a home that sets neither; tests of other rules leave them out.
+const CONTROLS = /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off|credential files/;
 const claudeUser = (ctx) => join(ctx.home, '.claude/settings.json');
 const codexUser = (ctx) => join(ctx.home, '.codex/config.toml');
 // Plan, apply and return the run.
@@ -176,7 +178,7 @@ test('the advisor with a flag-fetching switch: a note on both keys and a Doctor 
 
 test('Doctor: the other pairs, no-op keys, retention, switches that are not booleans', () => {
   const ctx = machine();
-  const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings').map((i) => i.message); };
+  const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)).map((i) => i.message); };
   assert.match(messages({ remoteControlAtStartup: true, env: { DISABLE_GROWTHBOOK: '1' } })[0], /Remote Control is unavailable/);
   assert.deepEqual(messages({ remoteControlAtStartup: true, env: { DISABLE_TELEMETRY: '1' } }), [], 'Remote Control stays available with only DISABLE_TELEMETRY');
   assert.match(messages({ autoUpdatesChannel: 'stable', env: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } })[0], /stops auto-updates/);
@@ -196,13 +198,44 @@ test('Doctor: the other pairs, no-op keys, retention, switches that are not bool
   assert.ok(!JSON.stringify(messages({ env: { MY_TOKEN: SECRET, DISABLE_TELEMETRY: '0' } })).includes(SECRET));
 });
 
+test('Doctor: the environment scrub and the credential Read deny rules', () => {
+  const ctx = machine();
+  const found = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && CONTROLS.test(i.message)); };
+  const home = '~';
+  const deny = [`Read(${home}/.ssh/**)`, `Read(//Users/x/.aws/**)`, 'Read(//**/.config/gh/**)'];
+  const both = found({}), scrub = both.find((i) => /SUBPROCESS_ENV_SCRUB/.test(i.message)), reads = both.find((i) => /credential files/.test(i.message));
+  assert.equal(both.length, 2);
+  assert.match(scrub.message, /SUBPROCESS_ENV_SCRUB is off/);
+  assert.match(scrub.fix, /user settings.*code\.claude\.com\/docs\/en\/env-vars#/);
+  assert.match(reads.fix, /Read\(\/\/\*\*\/\.ssh\/\*\*\).*code\.claude\.com\/docs\/en\/permissions#read-and-edit/);
+  assert.equal(scrub.level, 'warning');
+  assert.deepEqual(found({ env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' }, permissions: { deny } }), []);
+  assert.equal(found({ permissions: { deny } }).length, 1, 'only the scrub is off');
+  assert.equal(found({ env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '0' }, permissions: { deny } }).length, 1, '0 is off');
+  assert.deepEqual(found({ permissions: { deny } }, { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' }), [], 'the process environment counts');
+  assert.equal(found({ env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '0' }, permissions: { deny } }, { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' }).length, 1, 'a settings 0 overrides the process 1');
+  const on = { env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' } };
+  assert.equal(found({ ...on, permissions: { deny: deny.slice(0, 2) } }).length, 1, 'a missing folder is flagged');
+  assert.equal(found({ ...on, permissions: { deny: ['Read(./.ssh/**)', 'Read(./.aws/**)', 'Read(./.config/gh/**)'] } }).length, 1, 'project-relative rules do not count');
+  assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/.ssh-backup/**)`, `Read(${home}/.aws/credentials)`, 'Read(//**/.config/gh/hosts.yml)'] } }).length, 1, 'another folder or one file in it is not the folder');
+  assert.deepEqual(found({ ...on, permissions: { deny: [`Read(${home}/.ssh)`, `Read(${home}/.aws/*)`, 'Read(//**/.config/gh/**)'] } }), [], 'the folder bare or with /* or /**');
+  assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/.ssh/**)`, 'Read(//srv/app/.aws/**)', 'Read(//**/.config/gh/**)'] } }).length, 1, 'an absolute path elsewhere is another folder');
+  assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/work/.ssh/**)`, `Read(${home}/.aws/**)`, 'Read(//**/.config/gh/**)'] } }).length, 1, 'a folder of the same name deeper down is not the credential folder');
+  assert.equal(found({ ...on, permissions: { allow: deny } }).length, 1, 'allow rules are not deny rules');
+  assert.equal(found({ ...on, permissions: { deny: deny.map((r) => r.replace('Read', 'Edit')) } }).length, 1, 'Edit rules do not stop reads');
+  // A file that cannot be read may hold both: no guess.
+  write(claudeUser(ctx), '{\n  // mine\n}\n');
+  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => CONTROLS.test(i.message)), []);
+  assert.deepEqual(listSettings(ctx, 'claude', { env: {} }).notes.filter((n) => CONTROLS.test(n.message)), [], 'the settings list skips them too');
+});
+
 test('Doctor reads the project and local layers for project checks only', () => {
   const ctx = machine();
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
   write(join(dir, '.claude/settings.local.json'), JSON.stringify({ permissions: { defaultMode: 'auto' }, env: { OTEL_METRICS_EXPORTER: 'otlp' } }));
   write(join(dir, 'AGENTS.md'), 'x\n');
-  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings'), []);
-  const found = doctor(ctx, { agents: ['claude'], env: {}, dir }).filter((i) => i.check === 'agent-settings').map((i) => i.message);
+  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)), []);
+  const found = doctor(ctx, { agents: ['claude'], env: {}, dir }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)).map((i) => i.message);
   assert.equal(found.length, 2);
   assert.ok(found.some((m) => /silently ignored/.test(m)) && found.some((m) => /OpenTelemetry export variables/.test(m)));
 });

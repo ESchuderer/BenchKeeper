@@ -220,6 +220,7 @@ test('Doctor: the environment scrub and the credential Read deny rules', () => {
   assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/.ssh-backup/**)`, `Read(${home}/.aws/credentials)`, 'Read(//**/.config/gh/hosts.yml)'] } }).length, 1, 'another folder or one file in it is not the folder');
   assert.deepEqual(found({ ...on, permissions: { deny: [`Read(${home}/.ssh)`, `Read(${home}/.aws/*)`, 'Read(//**/.config/gh/**)'] } }), [], 'the folder bare or with /* or /**');
   assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/.ssh/**)`, 'Read(//srv/app/.aws/**)', 'Read(//**/.config/gh/**)'] } }).length, 1, 'an absolute path elsewhere is another folder');
+  assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/work/.ssh/**)`, `Read(${home}/.aws/**)`, 'Read(//**/.config/gh/**)'] } }).length, 1, 'a folder of the same name deeper down is not the credential folder');
   assert.equal(found({ ...on, permissions: { allow: deny } }).length, 1, 'allow rules are not deny rules');
   assert.equal(found({ ...on, permissions: { deny: deny.map((r) => r.replace('Read', 'Edit')) } }).length, 1, 'Edit rules do not stop reads');
   // A file that cannot be read may hold both: no guess.

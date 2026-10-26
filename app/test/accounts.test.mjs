@@ -108,8 +108,8 @@ test('list and status --json: the documented keys, an error document for a broke
   assert.equal(doc.schemaVersion, 1);
   assert.equal(doc.command, 'accounts list');
   assert.deepEqual(doc.accounts.map((a) => Object.keys(a).sort()), [
-    ['agent', 'default', 'dir', 'label', 'mode', 'name', 'token'],
-    ['agent', 'default', 'label', 'mode', 'mount', 'name', 'token', 'volume']]);
+    ['agent', 'default', 'dir', 'label', 'limits', 'mode', 'name', 'pool', 'token'],
+    ['agent', 'default', 'label', 'limits', 'mode', 'mount', 'name', 'pool', 'token', 'volume']]);
   assert.deepEqual(doc.accounts[0].token, { kept: false, created: null });
   const s = cli(m);
   assert.equal(await s.exec(['accounts', 'status', 'work', '--json']), 0);

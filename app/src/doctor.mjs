@@ -1,6 +1,7 @@
 // Setup problems with a fix each; changes nothing. Values of environment variables are never read into the report.
 import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { accountChecks } from './accounts.mjs';
 import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
@@ -107,6 +108,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   const level = levelFor(ctx, agents, dir);
   const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx), ...integrity(ctx).map((i) => issue('warning', 'ledger', i.message, i.fix))];
   out.push(...skillOverlap(ctx, undefined, [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)]));
+  out.push(...accountChecks(ctx, { dir, now }));
   if (level === 'full') {
     out.push(...rulesChecks(ctx, agents));
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));

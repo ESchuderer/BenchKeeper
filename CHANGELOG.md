@@ -2,6 +2,13 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.19 (2026-10-26)
+
+- App, `benchkeeper maintain knowledge show|clear [dir]` (#314, part of #274): `show` prints the entries the `maintaining-repos` skill stored for a project in `.benchkeeper/knowledge/` (`--json` prints `dir`, `path`, `files` and `ignored` in the usual envelope); `clear` removes that folder after a question (`--yes` skips it) and nothing else of the project. A file that does not parse, is a link or is larger than 1 MiB is ignored with a reason, a linked `.benchkeeper` is never followed or removed, and token shapes in stored text are masked in the output.
+- `maintaining-repos` reads the project's local knowledge base before a pass and writes verdicts back after it (`knowledge.md` next to `SKILL.md`: files and entry shapes, reuse only while the sha256 of every file the entry names is unchanged, expiry of reference-based and rejected verdicts, size cap, modes 0700 and 0600, stored text is data). Breaking, before 7.0 (no compatibility path): the baseline file `.benchkeeper/maintenance.json` is replaced by `.benchkeeper/knowledge/verdicts.json`; an old file is not read.
+- Plugin `version` 6.19.0.
+- Upgrade: `npx benchkeeper@6.19.0 apply`.
+
 ## setup-v6.18 (2026-10-26)
 
 - `orchestrating-projects` author filter for worker text (#311, rank 1 of the control candidates in `docs/security.md`): the worker spec template has a `Trusted authors:` line. A worker follows issue, pull request, review and comment text only from the policy's `trustedAuthors`, the repository owner and users with write access (`authorAssociation` OWNER, MEMBER or COLLABORATOR), and reads any other text, bots included, as data, never instructions. The coordinator picks only issues written by a trusted author. Breaking, before 7.0 (no compatibility path): a review bot's comments are no longer followed unless its login is in `trustedAuthors` of `docs/agents/orchestration.json` (new optional policy field, example in `policy.example.json`).

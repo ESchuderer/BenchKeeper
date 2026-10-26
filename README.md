@@ -16,7 +16,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](docs/setup.
 ### App
 
 ```sh
-npx benchkeeper@6.18.0
+npx benchkeeper@6.19.0
 ```
 
 Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
@@ -24,18 +24,18 @@ Opens the browser on the Dashboard with the doctor findings. Select Fix everythi
 ### CLI
 
 ```sh
-npx benchkeeper@6.18.0 plan
+npx benchkeeper@6.19.0 plan
 ```
 
 Lists each change and writes nothing.
 
 ```sh
-npx benchkeeper@6.18.0 apply
+npx benchkeeper@6.19.0 apply
 ```
 
 Asks per change. `--yes` applies the default selection without questions.
 
-After either path, restart the agents. `npx benchkeeper@6.18.0 history` lists what changed, `npx benchkeeper@6.18.0 undo <run>` reverses a run.
+After either path, restart the agents. `npx benchkeeper@6.19.0 history` lists what changed, `npx benchkeeper@6.19.0 undo <run>` reverses a run.
 
 [Lite level, the plugin alone](docs/setup.md#levels). [Full setup description](docs/setup.md#setup-details).
 <!-- /generated:quickstart -->
@@ -55,6 +55,7 @@ Fix everything shows each file change as a diff and each command as its command 
 
 - [Project site](https://eschuderer.github.io/BenchKeeper/): the workflow, the install levels and the app
 - [Setup guide](docs/setup.md): prerequisites, levels, what a full `apply` writes, per-repository setup, updates, undo
+- [Accounts](docs/setup.md#accounts): several Claude Code and Codex logins, signed in through private browser windows, on the host and in dev containers
 - [Stack](docs/stack.md): components, repository map, how the stack was chosen, optional tools
 - [App reference](app/README.md): every command and the web UI
 - [Benchmarks](https://eschuderer.github.io/BenchKeeper/bench/): score and time per setup on one shared brownfield task

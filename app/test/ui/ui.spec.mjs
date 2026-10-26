@@ -12,7 +12,7 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Rules', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Rules', 'Accounts', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -1101,6 +1101,31 @@ test.describe('views', () => {
     await page.getByRole('option').nth(1).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Claude Code files for this project' })).toBeVisible();
     await noAxe(page);
+  });
+
+  test('Accounts: an account is added as a plan and undone; the container risk and the token note are stated; no axe violations', async ({ page }) => {
+    await nav(page, 'Accounts').click();
+    await expect(page.getByText('No account yet.')).toBeVisible();
+    await expect(page.getByText('A hijacked session in a container can read the credentials in its volume.')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Token for unattended containers' })).toContainText('never in a file');
+    await page.getByLabel('Name', { exact: true }).fill('work');
+    await page.getByRole('button', { name: 'Plan the new account' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('add claude account work');
+    await noAxe(page);
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    const row = page.getByRole('table', { name: 'Accounts' }).getByRole('row', { name: /work/ });
+    await expect(row).toContainText('default for Claude Code');
+    await expect(row.getByRole('button', { name: 'Sign in work' })).toBeVisible();
+    // The container form asks for the mount path.
+    await page.getByRole('radio', { name: 'In a dev container' }).check({ force: true });
+    await expect(page.getByRole('button', { name: 'Plan the new account' })).toBeDisabled();
+    await noAxe(page);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    await page.reload();
+    await expect(page.getByText('No account yet.')).toBeVisible();
   });
 
   // The one-run setup, last: it applies project setups and registers four more projects.

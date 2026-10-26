@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { AGENTS, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, listAccounts, login, newAccount, pickAccount, removeChange, runAs, store, tokenChange, useChange } from './accounts.mjs';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
@@ -15,6 +16,7 @@ import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
 import { listFiles, writeAtomic } from './fsx.mjs';
+import { mask } from './redact.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { frameworkRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
@@ -28,6 +30,7 @@ import { detectLevel } from './level.mjs';
 import { PLUGINS, LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
+import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -123,9 +126,33 @@ Usage: benchkeeper <command> [options]
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
   record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
+  accounts [list]                   the accounts per agent (Claude Code, Codex): name, agent, host or dev container, default
+  accounts add [name] [--agent claude|codex] [--container --mount path] [--label text] [--dir path] [--yes]
+                                    registers an account: its own folder (CLAUDE_CONFIG_DIR, CODEX_HOME) on the host, or a
+                                    named volume mounted in the dev container; a plan with a diff and undo, no credential
+                                    in it. Asks for what is missing, then offers the sign-in
+  accounts use|remove <name> [--yes]
+                                    use: the default account of its agent. remove: the registry entry and the stored token
+                                    (the folder and its sign-in stay)
+  accounts status [name] [--project dir]
+                                    signed in or not (claude auth status, codex login status; a container account in the
+                                    --project dir's running dev container) and the age of a kept token
+  accounts login <name> [--token] [--email address] [--no-browser] [--project dir]
+                                    guided sign-in: opens the sign-in link in a private browser window (Firefox, Chrome,
+                                    Chromium, Edge), else prints it with the code; paste the code the browser shows if it
+                                    asks. --token: Claude Code setup-token kept in the OS credential store; Codex: the
+                                    access token piped on stdin goes to codex login --with-access-token
+  run [--account name] [--project dir] [--token] -- claude|codex [args]
+                                    runs the agent as an account (default: the agent's default account) after a sign-in
+                                    check; environment: the filtered one plus the account's folder variable (--token: the
+                                    kept token, Claude Code only). Dev container accounts run through devcontainer exec
+  maintain knowledge show [dir]     what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
+                                    ignored by git): entries per file; a file that does not parse is listed as ignored
+  maintain knowledge clear [dir] [--yes]
+                                    removes that folder after a question and nothing else of the project
 
 --json (doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list,
-        settings list and get, frameworks list, board, profile export)
+        settings list and get, frameworks list, board, profile export, maintain knowledge show, accounts list and status)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
 
@@ -142,19 +169,26 @@ const OPTIONS = {
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
   json: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
+  account: { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
-// end early count as no.
+// end early count as no. A read still open when its reader gave up (a sign-in that ended first) is the next line's.
 function asker(input, out) {
-  let rl, lines;
-  const ask = async (question) => {
-    out.write(`${question} [y/N] `);
+  let rl, lines, pending;
+  const next = () => {
     rl ??= createInterface({ input, terminal: false });
     lines ??= rl[Symbol.asyncIterator]();
-    const { value = '' } = await lines.next();
-    return /^y$/i.test(value.trim());
+    pending ??= lines.next().then(({ value }) => { pending = null; return value ?? null; });
+    return pending;
   };
+  const ask = async (question) => {
+    out.write(`${question} [y/N] `);
+    return /^y$/i.test(((await next()) ?? '').trim());
+  };
+  // The next line as typed (null at the end of the input), after the question when there is one.
+  ask.line = (question) => { if (question) out.write(question); return next(); };
+  ask.tty = !!input.isTTY;
   ask.close = () => rl?.close();
   return ask;
 }
@@ -207,8 +241,8 @@ export async function main(argv, { out = process.stdout, err = process.stderr, i
     // With --json a failure is a document too: an unknown option, an unreadable file.
     if (!argv.includes('--json')) throw e;
     err.write(`${redact(e.message)}\n`);
-    const [cmd = 'ui', arg] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
-    out.write(jsonDoc(commandName(cmd, arg), { error: redact(e.message) }));
+    const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    out.write(jsonDoc(commandName(cmd, arg, sub), { error: redact(e.message) }));
     return 2;
   } finally { ask.close(); }
 }
@@ -412,6 +446,9 @@ async function command(argv, { out, err, ask, ctx }) {
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'maintain') return maintainCommand({ o, positionals, out, ask });
+  if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
@@ -545,11 +582,11 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg) => (['project', 'projects', 'packs', 'skills', 'rules', 'settings', 'frameworks', 'profile'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'maintain' ? ['maintain', arg, sub].filter(Boolean).join(' ') : ['project', 'projects', 'packs', 'skills', 'rules', 'settings', 'frameworks', 'profile', 'accounts'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
-  const name = commandName(cmd, arg);
+  const name = commandName(cmd, arg, positionals[2]);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
   const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
   // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
@@ -630,13 +667,29 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const sessions = (await scanSessions(ctx)).map(({ title, ...s }) => s);
     return emit({ sessions });
   }
+  if (cmd === 'maintain') {
+    if (arg !== 'knowledge' || positionals[2] !== 'show') return fail('maintain --json works with knowledge show');
+    const extra = surplus(4); if (extra !== undefined) return extra;
+    const dir = resolve(positionals[3] ?? '.');
+    return emit({ dir, ...readKnowledge(dir) });
+  }
+  if (cmd === 'accounts' && (!arg || ['list', 'status'].includes(arg))) {
+    const extra = surplus(arg ? 3 : 2); if (extra !== undefined) return extra;
+    const problem = accountsProblem(ctx);
+    if (problem) return fail(problem);
+    const all = listAccounts(ctx), picked = positionals[2] ? all.filter((a) => a.name === positionals[2]) : all;
+    if (positionals[2] && !picked.length) return fail(`no account ${positionals[2]}`);
+    if (arg !== 'status') return emit({ accounts: picked.map(accountDoc) });
+    const accounts = picked.map((a) => accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined }));
+    return emit({ accounts }, accounts.some((a) => a.findings.some((f) => f.level === 'error')) ? 1 : 0);
+  }
   if (cmd === 'profile' && arg === 'export') {
     if (positionals[2]) return fail('profile export --json prints the document: redirect stdout and take `.profile` before profile import');
     const broken = registryFail();
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, settings list and get, frameworks list, board and profile export');
+  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, settings list and get, frameworks list, board, profile export, maintain knowledge show and accounts list and status');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
@@ -695,6 +748,30 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
   return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
 }
 
+// maintain knowledge show|clear: the knowledge base of the maintaining-repos skill, per project folder.
+async function maintainCommand({ o, positionals, out, ask }) {
+  const [, topic, sub, where] = positionals;
+  if (topic !== 'knowledge' || !['show', 'clear'].includes(sub)) { out.write('maintain needs knowledge show or knowledge clear\n'); return 2; }
+  if (positionals.length > 4) { out.write(`unexpected argument ${positionals[4]}\n`); return 2; }
+  const dir = resolve(where ?? '.');
+  if (sub === 'clear' && linkedParent(dir)) { out.write(`${join(dir, '.benchkeeper')} is a link: nothing removed\n`); return 1; }
+  let found;
+  try { found = readKnowledge(dir); } catch (e) { out.write(`cannot read ${knowledgeDir(dir)}: ${e.code ?? e.message}\n`); return 2; }
+  const { path, present, files, ignored } = found;
+  if (!present && !ignored.length) { out.write(`no knowledge stored for ${dir}\n`); return 0; }
+  if (sub === 'show') {
+    if (!files.length && !ignored.length) out.write('the knowledge folder is empty\n');
+    for (const f of files) out.write(`${f.name}  ${f.entries.length} entries\n${f.entries.map((e) => `  ${entryLine(e)}\n`).join('')}`);
+    for (const i of ignored) out.write(`ignored ${i.name}: ${i.reason}\n`);
+    return 0;
+  }
+  const n = files.reduce((sum, f) => sum + f.entries.length, 0);
+  if (!o.yes && !(await ask(`Remove ${path} (${n} entries in ${files.length} files${ignored.length ? `, ${ignored.length} ignored` : ''})?`))) return 1;
+  clearKnowledge(dir);
+  out.write(`removed ${path}\n`);
+  return 0;
+}
+
 // rules list|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
 async function rulesCommand({ o, positionals, out, ask, ctx }) {
   const [, sub, file] = positionals;
@@ -718,4 +795,118 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const rctx = dir ? projectCtx(ctx, dir) : ctx;
   return report(apply(plan, rctx, { scope: dir ?? 'global', select: await choose(plan, o, ask, out) }), out);
+}
+
+// ---- accounts: the registry, the guided sign-in and the launcher (accounts.mjs)
+
+const accountLine = (a) => `${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${(a.mode === 'host' ? 'host' : 'container').padEnd(9)} ${(a.default ? 'default' : '').padEnd(8)} ${a.mode === 'host' ? a.dir : `volume ${a.volume} at ${a.mount}`}${a.label ? `  ${mask(a.label)}` : ''}${a.token ? `  token kept since ${a.token.created.slice(0, 10)}` : ''}`;
+
+// The steps of a sign-in as the terminal shows them; the agent's own lines come through say.
+function terminalIo({ out, ask, secret }) {
+  return {
+    say: (line) => out.write(`  ${line}\n`),
+    step: (name) => { if (name === 'code') out.write('  If the browser shows a code, paste it here and press Enter; otherwise wait.\n'); if (name === 'verify') out.write('  Checking the sign-in.\n'); },
+    code: () => ask.line(''),
+    secret: () => secret,
+  };
+}
+
+async function signIn(ctx, a, { o, out, ask }) {
+  const dir = resolve(o.project ?? '.');
+  let secret;
+  if (o.token && a.agent === 'codex') {
+    // Never an argument and never typed with an echo: the token comes from a pipe.
+    if (ask.tty) { out.write('pipe the access token on stdin: printenv NAME | benchkeeper accounts login <name> --token\n'); return 2; }
+    secret = ((await ask.line('')) ?? '').trim();
+  }
+  if (o.token && a.agent === 'claude') { try { store(ctx).has(a.name); } catch (e) { out.write(`${e.message}\n`); return 1; } }
+  out.write(`Signing in ${a.name} (${a.agent}${a.mode === 'host' ? `, folder ${a.dir}` : `, dev container volume ${a.volume}`})${o.token ? ', token' : ''}.\n`);
+  try {
+    const r = await login(ctx, a, { io: terminalIo({ out, ask, secret }), token: !!o.token, email: o.email, noBrowser: !!o['no-browser'], dir });
+    if (r.stored) {
+      const run = commit(ctx, tokenChange(ctx, a.name, new Date().toISOString()));
+      out.write(`token kept in the OS credential store (${store(ctx).name}), recorded in accounts.json without its value (run ${run.id})\n`);
+    }
+  } catch (e) { out.write(`${e.message}\n`); return 1; }
+  out.write(`${a.name}: signed in\n`);
+  return 0;
+}
+
+async function accountsCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub = 'list', name] = positionals;
+  const subs = ['list', 'add', 'use', 'remove', 'status', 'login'];
+  if (!subs.includes(sub)) { out.write(`accounts needs ${subs.join(', ')}\n`); return 2; }
+  if (positionals.length > 3) { out.write(`unexpected argument ${positionals[3]}\n`); return 2; }
+  const problem = accountsProblem(ctx);
+  if (problem) { out.write(`${problem}\n`); return 2; }
+  const need = () => { if (!name) { out.write(`accounts ${sub} needs an account name, see benchkeeper accounts list\n`); return false; } return true; };
+  try {
+    if (sub === 'list') {
+      const list = listAccounts(ctx);
+      for (const a of list) out.write(`${accountLine(a)}\n`);
+      if (!list.length) out.write('no accounts: benchkeeper accounts add\n');
+      return 0;
+    }
+    if (sub === 'status') {
+      const list = name ? [findAccount(ctx, name)] : listAccounts(ctx);
+      let code = 0;
+      for (const a of list) {
+        const s = accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined });
+        out.write(`${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${s.loggedIn === null ? 'not checked' : s.loggedIn ? `signed in${s.method ? ` (${s.method})` : ''}` : 'not signed in'}${s.tokenAgeDays !== undefined ? `  token ${s.tokenAgeDays} days old` : ''}\n`);
+        for (const f of s.findings) { out.write(`  ${f.level.padEnd(8)} ${f.message}\n           fix: ${f.fix}\n`); if (f.level === 'error') code = 1; }
+      }
+      return code;
+    }
+    if (sub === 'login') {
+      if (!need()) return 2;
+      return await signIn(ctx, findAccount(ctx, name), { o, out, ask });
+    }
+    let change, entry, gone;
+    if (sub === 'add') {
+      // What is missing is asked, as the Accounts page does step by step; with --yes it is a usage error.
+      const asked = !name || !o.agent;
+      const pick = async (value, question) => value ?? (o.yes ? undefined : ((await ask.line(question)) ?? '').trim() || undefined);
+      const n = await pick(name, 'Account name: '), agent = await pick(o.agent, `Agent (${AGENTS.join(' or ')}): `);
+      const container = o.container ?? (asked && !o.yes ? await ask('Run it in a dev container (a named volume)?') : false);
+      const mount = container ? await pick(o.mount, 'Mount path in the container (a folder its user can write, below its home folder): ') : undefined;
+      entry = newAccount(ctx, { name: n, agent, container, label: o.label, dir: o.dir, mount });
+      change = addChange(ctx, entry);
+    } else {
+      if (!need()) return 2;
+      gone = findAccount(ctx, name);
+      change = sub === 'use' ? useChange(ctx, name) : removeChange(ctx, name, !!gone.token);
+    }
+    const plan = preview([change]);
+    if (!plan.length) { out.write('nothing to change\n'); return 0; }
+    const select = await choose(plan, o, ask, out);
+    if (!select.length) { if (o.yes || o.all) plan.forEach((c) => show(c, out)); return 1; }
+    const code = report(apply(plan, ctx, { scope: 'global', select }), out);
+    if (code) return code;
+    if (sub === 'remove') {
+      if (gone.token) { store(ctx).delete(gone.name); out.write('deleted the stored token\n'); }
+      out.write(gone.mode === 'host' ? `the sign-in in ${gone.dir} is left: delete that folder to remove it\n` : `the volume ${gone.volume} is left: podman volume rm ${gone.volume} removes it\n`);
+    }
+    if (sub === 'add') {
+      if (entry.mode === 'container') out.write(`A mount applies when a container is created: start the project's dev container with benchkeeper accounts login ${entry.name} --project <dir>, which mounts every container account's volume (an existing container is recreated by the command it prints).\n`);
+      if (!o.yes && (await ask(`Sign in ${entry.name} now?`))) return signIn(ctx, entry, { o, out, ask });
+      out.write(`Next: benchkeeper accounts login ${entry.name}\n`);
+    }
+    return 0;
+  } catch (e) {
+    out.write(`${e.message}\n`);
+    return 1;
+  }
+}
+
+async function runAccountCommand({ o, positionals, out, ctx }) {
+  const args = positionals.slice(1);
+  if (!AGENTS.includes(args[0])) { out.write(`run needs the agent after --: ${AGENTS.join(' or ')}\n`); return 2; }
+  try {
+    const problem = accountsProblem(ctx);
+    if (problem) { out.write(`${problem}\n`); return 2; }
+    return runAs(ctx, pickAccount(ctx, { name: o.account, agent: args[0] }), args, { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`) });
+  } catch (e) {
+    out.write(`${e.message}\n`);
+    return 1;
+  }
 }

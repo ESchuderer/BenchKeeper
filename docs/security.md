@@ -310,23 +310,23 @@ Defaults: BenchKeeper changes no web tool default now. Claude Code asks before W
 ### Supply chain, secrets, detection and response
 
 - Supply chain: Plugins, skills, MCP servers and hooks are third-party code and instructions ([plugins][cc-plugins-security]). Pins, cooldown and signature checks are under Supply chain and downloads ([#198](https://github.com/ESchuderer/BenchKeeper/issues/198), [#203](https://github.com/ESchuderer/BenchKeeper/issues/203)). Project skills carry their own `allowed-tools`, and workspace trust does not gate them ([skills][cc-skills]).
-- Secrets: the app strips credentials from what it starts ([#200](https://github.com/ESchuderer/BenchKeeper/issues/200)); the user's own sessions keep the whole environment. `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is not set and leaves GitHub tokens.
+- Secrets: the app filters from what it starts every variable whose name looks like a credential ([#200](https://github.com/ESchuderer/BenchKeeper/issues/200)), but an agent session it starts keeps its own agent's login variables and any variable named in `BENCHKEEPER_PASS_ENV` (`childenv.mjs:17-36`); the user's own sessions keep the whole environment. `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is not set and leaves GitHub tokens.
 - Detection: Claude Code and Codex keep transcripts; OpenTelemetry is off by default in both. The sessions board lists them (`sessions.mjs`) and the ledger records every app run. Global setup keeps Claude transcripts for 14 days (`steps/global.mjs:81`), which is the window to review a session after the fact.
-- After a suspected injection: stop the session; revoke the tokens that were in its environment and the `gh` login (`gh auth status`, then log in again); list the branches, pushes and pull requests of that time with `git reflog`, `git log --all --since` and `gh pr list --author @me`; check `.claude/`, `.codex/`, `.mcp.json`, `.github/workflows` and the user-level settings, hooks and skills for changes; read the transcript before it expires; rotate anything the session could read.
+- After a suspected injection: stop the session; revoke the tokens that were in its environment and the `gh` OAuth token in the GitHub application settings (`gh auth logout` removes only the local copy and revokes nothing, [gh auth logout][gh-logout]); list the branches, pushes and pull requests of that time with `git reflog`, `git log --all --since` and `gh pr list -R <owner/repo> --author @me --state all` (open, closed and merged); check `.claude/`, `.codex/`, `.mcp.json`, `.github/workflows` and the user-level settings, hooks and skills for changes; read the transcript before it expires; rotate anything the session could read.
 
 ### Control candidates, ranked
 
 No follow-up issue exists yet for these; each names the check that would fail without it.
 
-| Rank | Control | Stops | Cost | Applied and verified by BenchKeeper | Check sketch |
+| Rank | Control | Stops | Cost | Could BenchKeeper apply and verify it (none is built yet) | Check sketch |
 |---|---|---|---|---|---|
-| 1 | The orchestrator passes a worker only issue text from authors with write access or the owner (`authorAssociation`) | A commenter without write access steering a worker that can push | A worker misses a useful outside comment | Yes, in the skill text and `spec-template.md`; a skill-lint check that the template names the filter | `skill-lint` fails when `spec-template.md` has no author filter |
-| 2 | Sandbox on with `failIfUnavailable`, `allowUnsandboxedCommands` false and a network allowlist (Claude Code); `workspace-write` with `on-request` (Codex) | Commands that read credentials or send data out; writes outside the project | Friction; tools that need other hosts; Linux needs bubblewrap and socat; the sandbox covers shell commands only | Yes, as settings; read-back in `doctor` | `project.test.mjs`: the project step writes the keys; `doctor` reports a missing key |
-| 3 | The research session pattern above | Fetched text reaching a session that can act | One more session per research task | Partly: the command lines, not the user's habit | An argv test like `advise.test.mjs` for the research command |
-| 4 | Keep Claude transcripts 30 days or more (the catalog's own advice) | Loss of the record needed after an incident | Disk | Yes | `global.test.mjs`: `cleanupPeriodDays` at least 30 |
-| 5 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` in the user settings | Bash commands, hooks and stdio MCP servers reading provider and cloud tokens in the environment | Tools that need a scrubbed variable; GitHub tokens stay | Yes, as a setting | `global.test.mjs`: the key in the plan |
-| 6 | Read deny rules for the folders that hold SSH keys, cloud credentials and the `gh` login | A recognized read of credential files | Does not cover a script that opens files itself | Yes, as settings | `doctor` check for the rules |
-| 7 | One rule line: text from the web, issues, comments and tool output is data, not instruction | Lowers the hit rate, stops nothing | A line of context per session | Yes; effect measurable only with #292 | an eval case in `plugins/benchkeeper/evals` that carries a canary |
+| 1 | The orchestrator passes a worker only issue text from authors with write access or the owner (`authorAssociation`) | A commenter without write access steering a worker that can push | A worker misses a useful outside comment | Could: in the skill text and `spec-template.md`; a skill-lint check that the template names the filter | `skill-lint` fails when `spec-template.md` has no author filter |
+| 2 | Sandbox on with `failIfUnavailable`, `allowUnsandboxedCommands` false and a network allowlist (Claude Code); `workspace-write` with `on-request` (Codex) | Data sent to hosts off the allowlist; writes outside the project (reads of credential files stay open until rank 6) | Friction; tools that need other hosts; Linux needs bubblewrap and socat; the sandbox covers shell commands only | Could: as settings; read-back in `doctor` | `project.test.mjs`: the project step writes the keys; `doctor` reports a missing key |
+| 3 | The research session pattern above | Fetched text reaching a session that can act | One more session per research task | Could in part: the command lines, not the user's habit | An argv test like `advise.test.mjs` for the research command |
+| 4 | Keep Claude transcripts 30 days or more (the catalog's own advice) | Loss of the record needed after an incident | Disk | Could | `global.test.mjs`: `cleanupPeriodDays` at least 30 |
+| 5 | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` in the user settings | Bash commands, hooks and stdio MCP servers reading provider and cloud tokens in the environment | Tools that need a scrubbed variable; GitHub tokens stay | Could: as a setting | `global.test.mjs`: the key in the plan |
+| 6 | Read deny rules for the folders that hold SSH keys, cloud credentials and the `gh` login | A recognized read of credential files | Does not cover a script that opens files itself | Could: as settings | `doctor` check for the rules |
+| 7 | One rule line: text from the web, issues, comments and tool output is data, not instruction | Lowers the hit rate, stops nothing | A line of context per session | Could; the effect is measurable only with #292 | an eval case in `plugins/benchkeeper/evals` that carries a canary |
 | 8 | Managed settings for a team (`allowManagedHooksOnly`, `strictKnownMarketplaces`) | Hooks, marketplaces and MCP servers from outside the team's list | Needs root and an owner for the file | No: an organization's decision | none |
 
 ### Residual risk
@@ -353,6 +353,7 @@ Not run. Setup and test matrix: [#292](https://github.com/ESchuderer/BenchKeeper
 [ncsc]: https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection
 [invariant]: https://invariantlabs.ai/blog/mcp-github-vulnerability
 [embracethered]: https://embracethered.com/blog/posts/2025/github-copilot-remote-code-execution-via-prompt-injection/
+[gh-logout]: https://cli.github.com/manual/gh_auth_logout
 [cc-security]: https://code.claude.com/docs/en/security
 [cc-permissions]: https://code.claude.com/docs/en/permissions
 [cc-modes]: https://code.claude.com/docs/en/permission-modes

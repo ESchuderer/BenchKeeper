@@ -195,7 +195,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Anchor href={`${REPO}#prerequisites`}>Full list of tools.</Anchor> {facts.quickstart.choose} <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
+        <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Anchor href={`${REPO}/blob/main/docs/setup.md#prerequisites`}>Full list of tools.</Anchor> {facts.quickstart.choose} <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
           <Stack gap="lg" maw={760}>
             <div className="qs">
               <div role="tablist" aria-label="Install path" className="qs-tabs" hidden>
@@ -214,7 +214,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </div>
             <Text size="sm">{facts.quickstart.next} {md(facts.quickstart.changes)}</Text>
             <Group gap="md">
-              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : `${REPO}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
+              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : `${REPO}/blob/main/docs/setup.md#${l.anchor}`} size="sm">{l.label}</Anchor>)}
             </Group>
             <VisuallyHidden aria-live="polite" data-copy-status></VisuallyHidden>
           </Stack>

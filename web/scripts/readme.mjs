@@ -8,11 +8,11 @@ const facts = JSON.parse(readFileSync(new URL('web/src/data/facts.json', root), 
 const cell = (s) => s.replace(/\|/g, '\\|');
 const link = (name, url) => `[${cell(name)}](${url.replace(/\|/g, '%7C')})`;
 
-// Install paths as headed blocks (GitHub Markdown has no tabs). `readme` is the prefix of links into the root README.
-const quickstart = (readme) => {
+// Install paths as headed blocks (GitHub Markdown has no tabs). `setup` is the link to docs/setup.md from the file that holds the block.
+const quickstart = (setup) => {
   const q = facts.quickstart;
   return [
-    `${q.needs.replace(/\.$/, '')} ([full list](${readme}#prerequisites)). ${q.choose}`,
+    `${q.needs.replace(/\.$/, '')} ([full list](${setup}#prerequisites)). ${q.choose}`,
     '',
     ...q.paths.flatMap((p) => [
       `### ${p.name}`,
@@ -21,12 +21,12 @@ const quickstart = (readme) => {
     ]),
     `${q.next} ${q.changes}`,
     '',
-    q.links.map((l) => `[${l.label}](${readme}#${l.anchor})`).join('. ') + '.',
+    q.links.map((l) => `[${l.label}](${setup}#${l.anchor})`).join('. ') + '.',
   ];
 };
 
 const blocks = {
-  quickstart: quickstart(''),
+  quickstart: quickstart('docs/setup.md'),
   description: [facts.description],
   core: [`**Optional: [${facts.core.name}](${facts.core.url}) by ${facts.core.by}:** ${facts.core.role}.`],
   levels: [
@@ -49,7 +49,7 @@ const blocks = {
     '',
     '| Framework | Role | Installs | Evaluation |',
     '|---|---|---|---|',
-    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} | [${cell(f.evaluation.split('/').pop())}](${f.evaluation}) |`),
+    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} | [${cell(f.evaluation.split('/').pop())}](../${f.evaluation}) |`),
   ],
   openhands: [
     `**Unattended or isolated runs: [${facts.openhands.name}](${facts.openhands.url}).** ${facts.openhands.summary}`,
@@ -58,10 +58,13 @@ const blocks = {
   ],
 };
 
-// The root README holds every block, app/README.md only the quickstart.
+// Each block lives in one file. The README and app/README.md hold the description and quickstart, docs/ the reference blocks (links in them are relative to docs/).
+const pick = (names) => Object.fromEntries(names.map((n) => [n, blocks[n]]));
 const targets = [
-  ['README.md', blocks],
-  ['app/README.md', { quickstart: quickstart('../README.md') }],
+  ['README.md', pick(['description', 'quickstart'])],
+  ['docs/setup.md', pick(['prerequisites', 'levels', 'frameworks'])],
+  ['docs/stack.md', pick(['core', 'tools', 'openhands'])],
+  ['app/README.md', { quickstart: quickstart('../docs/setup.md') }],
 ];
 let stale = false;
 for (const [file, wanted] of targets) {

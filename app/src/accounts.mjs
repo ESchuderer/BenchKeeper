@@ -20,6 +20,8 @@ const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 // A setup-token lasts a year: a warning from the 11th month on, an error once it has run out.
 const WARN_DAYS = 335, EXPIRED_DAYS = 365;
 const MOUNT = /^\/[\w./-]{1,200}$/;
+// A volume name goes into a comma separated --mount value: no comma, no equals sign.
+const VOLUME = /^[\w.-]{1,100}$/;
 const DAY = 864e5;
 
 const tail = (r, secret) => hide((r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' '), secret) || `exit ${r.code}`;
@@ -42,7 +44,7 @@ function parse(text) {
   try { doc = JSON.parse(text); } catch { throw new Error('the accounts file is not valid JSON'); }
   if (!Array.isArray(doc?.accounts)) throw new Error('the accounts file has no accounts list');
   for (const a of doc.accounts) {
-    const ok = a && NAME.test(a.name) && AGENTS.includes(a.agent) && (a.mode === 'host' ? typeof a.dir === 'string' && isAbsolute(a.dir) : a.mode === 'container' && typeof a.volume === 'string' && MOUNT.test(a.mount ?? ''));
+    const ok = a && NAME.test(a.name) && AGENTS.includes(a.agent) && (a.mode === 'host' ? typeof a.dir === 'string' && isAbsolute(a.dir) : a.mode === 'container' && VOLUME.test(a.volume ?? '') && MOUNT.test(a.mount ?? ''));
     if (!ok) throw new Error('the accounts file has an entry that is not an account');
   }
   return doc.accounts;
@@ -158,7 +160,8 @@ export function accountStatus(ctx, a, { dir, now = Date.now(), token } = {}) {
   const relogin = `benchkeeper accounts login ${a.name}`;
   let r;
   if (a.mode === 'host') r = ctx.run(statusCmd(a.agent), { env: accountEnv(ctx, a, { token }), timeout: 30e3 });
-  else if (dir && hasDevcontainer(dir) && engineOf(ctx)) r = ctx.run(execArgv(engineOf(ctx), dir, a, statusCmd(a.agent), { token }), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 });
+  else if (dir && hasDevcontainer(dir) && engineOf(ctx)) // The token stays out of this command line: the folder's own sign-in is what is checked.
+  r = ctx.run(execArgv(engineOf(ctx), dir, a, statusCmd(a.agent)), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 });
   if (!r) out.findings.push(finding('info', a.name, 'not checked: a container account is checked in a project with a running dev container', `benchkeeper accounts status ${a.name} --project <dir>`));
   else if (r.code === 127) out.findings.push(finding('warning', a.name, `${a.agent} is not installed`, `install ${a.agent === 'claude' ? 'Claude Code' : 'Codex'}`));
   else {

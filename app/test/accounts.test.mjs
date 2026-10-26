@@ -170,7 +170,8 @@ test('refusals: bad names and agents, duplicates, a folder inside the config fol
   const dup = cli(m);
   assert.equal(await dup.exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']), 1);
   assert.match(dup.text(), /cannot merge: account work exists/);
-  for (const bad of ['{', '{"accounts":{}}', '{"accounts":[{"name":"../x","agent":"claude","mode":"host","dir":"/x"}]}']) {
+  for (const bad of ['{', '{"accounts":{}}', '{"accounts":[{"name":"../x","agent":"claude","mode":"host","dir":"/x"}]}',
+    '{"accounts":[{"name":"x","agent":"claude","mode":"container","volume":"v,target=/etc","mount":"/m"}]}']) {
     writeFileSync(join(m.ctx.config, 'accounts.json'), bad);
     const b = cli(m);
     assert.equal(await b.exec(['accounts', 'list']), 2, bad);
@@ -504,6 +505,8 @@ test('dev container run: the preflight runs in the container, a kept token is a 
   assert.equal(await cli(m).exec(['run', '--account', 'boxed', '--project', project, '--token', '--', 'claude', '-p', 'x']), 0);
   const withToken = m.calls().filter((x) => x.me === 'devcontainer' && x.args.includes('-p')).at(-1);
   assert.ok(withToken.args.includes(`CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_TOKEN}`));
+  // Only the launch carries it: the preflight command line of that run does not.
+  assert.equal(m.calls().filter((x) => x.me === 'devcontainer' && x.args.join(' ').includes(CLAUDE_TOKEN)).length, 1);
   assert.equal(withToken.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
   assert.deepEqual(grep(m.ctx.config, CLAUDE_TOKEN), []);
   assert.deepEqual(grep(project, CLAUDE_TOKEN), []);

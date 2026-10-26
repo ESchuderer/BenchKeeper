@@ -1,7 +1,8 @@
 name: Links
 
-# `lychee` is the required check, a gate over the link check. The promotion pull request (develop into main)
-# skips everything, as the push to develop already ran it.
+# `lychee` is the required check, a gate over the link check, which covers relative links and anchors offline. The
+# promotion pull request (develop into main) skips both, as the push to develop already ran them. External links run
+# weekly and on demand (`external-links`, `external-site-links`), not on pull requests.
 on:
   push:
     branches: [develop]
@@ -28,17 +29,92 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # github.com pages are rate-limited for runners; those links are checked through the API below. Gists stay with lychee (the Actions token cannot read the gists API).
+      # Pull requests and pushes check relative links and anchors only: a host that is down must not fail an unrelated change.
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
-          args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://github\.com/' './**/*.md'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: --offline --include-fragments --no-progress './**/*.md'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.3
       - run: node --test .github/scripts/github-links.test.mjs
+
+  # External links, weekly and on demand. The Markdown files and the built site are separate jobs, so one failing does not hide the other.
+  external-links:
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The cache holds the answers of links that worked, so a re-run after a failure does not ask every host again. A failure is not cached.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .lycheecache
+          key: lychee-md-${{ github.run_id }}
+          restore-keys: lychee-md-
+      # github.com pages are rate-limited for runners; those links are checked through the API below. Gists stay with lychee (the Actions token cannot read the gists API).
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --no-progress --cache --max-cache-age 1d --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://github\.com/' './**/*.md'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .lycheecache
+          key: lychee-md-${{ github.run_id }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
       - run: git ls-files -z '*.md' | xargs -0 node .github/scripts/github-links.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The site pages are Astro components and data (web/src), not the Markdown files above, so the built HTML is checked here.
+  external-site-links:
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      # Pages serves dist/ under /BenchKeeper/; a root dir with that path lets lychee resolve internal links.
+      - run: mkdir -p "$RUNNER_TEMP/site" && ln -s "$PWD/web/dist" "$RUNNER_TEMP/site/BenchKeeper"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .lycheecache
+          key: lychee-site-${{ github.run_id }}
+          restore-keys: lychee-site-
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --no-progress --cache --max-cache-age 1d --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://github\.com/' --root-dir ${{ runner.temp }}/site 'web/dist/**/*.html'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .lycheecache
+          key: lychee-site-${{ github.run_id }}
+      - run: find web/dist -name '*.html' -print0 | xargs -0 node .github/scripts/github-links.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

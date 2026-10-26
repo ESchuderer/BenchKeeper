@@ -126,6 +126,69 @@ Where the browser handles one of these keys itself, the sidebar, the palette and
 
 The UI is built from dev dependencies (Mantine core, charts and spotlight, Recharts, Tabler icons, the Inter font, React) into `dist/`. The published package has no extra runtime dependencies.
 
+### Routes and commands
+
+Every route of the UI server (`src/server.mjs`) with the command that does the same, or one reason it has none. A test fails when a route is missing here or a row names a route that no longer exists.
+
+| Reason | Meaning |
+|---|---|
+| `UI internal` | only the page needs it (job control, tokens, dialogs, form options, previews); no command planned |
+| `gap #319` | a read command is missing: status, inventory and dashboard, sessions scan and cache, run report, eval results |
+| `gap #320` | a text or advice command is missing: `rules show`, `skills show`, `advise`, pack warnings |
+
+| Route | Command or reason | Note |
+|---|---|---|
+| `GET /` | `ui` | the page |
+| `GET /board` | `board` | |
+| `GET /api/overview` | `gap #319` | agents, level, plugin state and setup version per project; `doctor` prints the level only |
+| `GET /api/global-plan` | `plan` | |
+| `POST /api/apply` | `apply` | |
+| `POST /api/apply-all` | `apply`, `project apply` | the UI runs the global and the project plans as one job, each its own run |
+| `POST /api/prerun` | `UI internal` | rehearses a plan's skills CLI commands in a scratch folder; `plan` prints the command lines |
+| `POST /api/job-cancel` | `UI internal` | |
+| `GET /api/jobs` | `UI internal` | |
+| `GET /api/job` | `UI internal` | |
+| `GET /api/eval-plan` | `eval` | the plan, then the question |
+| `POST /api/eval` | `eval` | |
+| `GET /api/projects` | `gap #319` | setup state per project; `projects list` has path and date, `update-all --dry-run` the pending changes |
+| `GET /api/project-check` | `projects add` | `add` refuses what the check reports |
+| `POST /api/projects` | `projects add`, `projects remove`, `projects rename`, `projects relocate` | |
+| `GET /api/remove-setup-plan` | `projects remove --setup` | the files are listed before the question |
+| `POST /api/remove-setup` | `projects remove --setup` | |
+| `GET /api/project-plan` | `project plan` | |
+| `GET /api/skills` | `skills list` | per project |
+| `GET /api/project-setup` | `UI internal` | fills the setup form; `packs list`, `frameworks list` and `help` show its lists |
+| `GET /api/one-run` | `UI internal` | start state of the one-run dialog |
+| `POST /api/setup-advice` | `gap #320` | `advise` |
+| `POST /api/board-ticket` | `UI internal` | |
+| `POST /api/shutdown` | `UI internal` | |
+| `POST /api/sessions-scan` | `gap #319` | `board` scans and writes the page, the rows are not a command result |
+| `GET /api/sessions-cache` | `gap #319` | |
+| `POST /api/sessions-cache` | `gap #319` | clear, or keep days |
+| `POST /api/update-all` | `update-all` | |
+| `GET /api/history` | `history` | |
+| `GET /api/run` | `gap #319` | one run with the diff of each file; `history` lists runs |
+| `POST /api/undo` | `undo` | |
+| `GET /api/catalog` | `gap #319` | library skills and packs with their users; `packs list` and `skills list` show parts |
+| `GET /api/skill` | `gap #320` | `skills show` |
+| `GET /api/doctor` | `doctor` | |
+| `POST /api/pick-folder` | `UI internal` | |
+| `POST /api/reveal` | `UI internal` | |
+| `GET /api/evals` | `gap #319` | `eval` prints the results of its own run only |
+| `GET /api/pack-warnings` | `gap #320` | overlapping skill descriptions in a pack |
+| `GET /api/pack-export` | `packs export` | |
+| `POST /api/packs` | `packs save`, `packs import`, `packs remove` | |
+| `GET /api/profile-export` | `profile export` | |
+| `POST /api/profile-import` | `profile import` | |
+| `POST /api/scan` | `projects scan` | |
+| `GET /api/settings` | `settings list`, `settings get` | |
+| `POST /api/settings-plan` | `settings set` | |
+| `GET /api/rules` | `rules list` | |
+| `GET /api/rule-text` | `gap #320` | `rules show` |
+| `POST /api/rules-plan` | `rules disable`, `rules enable` | |
+| `GET /api/inventory` | `gap #319` | |
+| `GET /api/dashboard` | `gap #319` | |
+
 ## Configuration
 
 | Name | Default | Effect |

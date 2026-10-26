@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -241,6 +241,21 @@ test('an eval session that exits non-zero is no missed trigger and stores no res
   const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: '', stderr: `error: unknown option, ${TOKEN}` } : { code: 0, stdout: '', stderr: '' }) });
   await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => /claude exited with 1 on case a of skill:x: error: unknown option, \*\*\*$/.test(e.message));
   assert.equal(existsSync(join(home, '.config/benchkeeper/evals/results.jsonl')), false);
+});
+
+test('a rule target whose second case fails keeps no output of its first case', async () => {
+  const home = tmp();
+  let n = 0;
+  const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: n++ ? 1 : 0, stdout: '{"type":"system"}\n', stderr: 'x' } : { code: 0, stdout: '', stderr: '' }) });
+  const cases = ['a', 'b'].map((id) => ({ id, query: 'q', should: true, expected: 'e' }));
+  await assert.rejects(runEval(ctx, [{ target: 'rule:global', agent: 'claude', hash: 'h', cases }]), /exited with 1 on case b/);
+  const outputs = join(home, '.config/benchkeeper/evals/outputs');
+  assert.deepEqual(existsSync(outputs) ? readdirSync(outputs) : [], []);
+});
+
+test('the tail of a failed session is masked before it is cut', async () => {
+  const ctx = context({ home: tmp(), run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: '', stderr: `${TOKEN} ${'x'.repeat(185)}` } : { code: 0, stdout: '', stderr: '' }) });
+  await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => !e.message.includes('cdefghijkl') && e.message.includes('***'));
 });
 
 test('mask stays linear on a long dotted token and leaves ordinary words alone', () => {

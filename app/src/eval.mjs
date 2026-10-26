@@ -75,30 +75,33 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
     const version = ctx.run([p.agent, '--version'], { env: agentEnv(p.agent) }).stdout.trim();
     const details = [];
     const keep = join(userEvals(ctx), 'outputs', `${now().replace(/[:.]/g, '')}-${p.agent}-${p.target.replace(':', '-')}`);
-    for (const c of p.cases) {
-      if (signal?.aborted) throw new Error('cancelled');
-      const dir = mkdtempSync(join(tmpdir(), 'bk-eval-'));
-      try {
-        ctx.run(['git', 'init', '-q', '--template=', dir], { env: childEnv({}) });
-        writeFileSync(join(dir, 'README.md'), '# Scratch project\n');
-        const lib = join(contentDir, 'library', name);
-        if (kind === 'skill' && exists(lib)) cpSync(lib, join(dir, a.skills, name), { recursive: true });
-        onCase({ index: n++, total, target: p.target, agent: p.agent, case: c.id });
-        // The whole stream: the skill call comes early in a long session.
-        const r = await session(a.argv(ctx, c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
-        if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
-        // A session that failed to start (a CLI that rejects a flag, a managed MCP setup) is no miss: nothing of this target is stored.
-        if (r.code !== 0) throw new Error(`${p.agent} exited with ${r.code} on case ${c.id} of ${p.target}: ${mask((r.stderr || r.stdout || '').trim().slice(-200))}`);
-        if (kind === 'skill') details.push({ id: c.id, should: c.should, triggered: triggered(r.stdout, name), exit: r.code });
-        else {
-          // Session output can quote files and tokens the agent read: for this user alone, also in folders made before.
-          mkdirSync(keep, { recursive: true, mode: 0o700 });
-          for (const d of [userEvals(ctx), dirname(keep), keep]) chmodSync(d, 0o700);
-          writeFileSync(join(keep, `${c.id}.jsonl`), r.stdout, { mode: 0o600 });
-          details.push({ id: c.id, should: c.should, expected: c.expected, review: join(keep, `${c.id}.jsonl`), exit: r.code });
-        }
-      } finally { rmSync(dir, { recursive: true, force: true }); }
-    }
+    // A target that stops (a failed session, a cancel) keeps no outputs: its cases are not a result.
+    try {
+      for (const c of p.cases) {
+        if (signal?.aborted) throw new Error('cancelled');
+        const dir = mkdtempSync(join(tmpdir(), 'bk-eval-'));
+        try {
+          ctx.run(['git', 'init', '-q', '--template=', dir], { env: childEnv({}) });
+          writeFileSync(join(dir, 'README.md'), '# Scratch project\n');
+          const lib = join(contentDir, 'library', name);
+          if (kind === 'skill' && exists(lib)) cpSync(lib, join(dir, a.skills, name), { recursive: true });
+          onCase({ index: n++, total, target: p.target, agent: p.agent, case: c.id });
+          // The whole stream: the skill call comes early in a long session.
+          const r = await session(a.argv(ctx, c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
+          if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
+          // A session that failed to start (a CLI that rejects a flag, a managed MCP setup) is no miss: nothing of this target is stored.
+          if (r.code !== 0) throw new Error(`${p.agent} exited with ${r.code} on case ${c.id} of ${p.target}: ${mask((r.stderr || r.stdout || '').trim()).slice(-200)}`);
+          if (kind === 'skill') details.push({ id: c.id, should: c.should, triggered: triggered(r.stdout, name), exit: r.code });
+          else {
+            // Session output can quote files and tokens the agent read: for this user alone, also in folders made before.
+            mkdirSync(keep, { recursive: true, mode: 0o700 });
+            for (const d of [userEvals(ctx), dirname(keep), keep]) chmodSync(d, 0o700);
+            writeFileSync(join(keep, `${c.id}.jsonl`), r.stdout, { mode: 0o600 });
+            details.push({ id: c.id, should: c.should, expected: c.expected, review: join(keep, `${c.id}.jsonl`), exit: r.code });
+          }
+        } finally { rmSync(dir, { recursive: true, force: true }); }
+      }
+    } catch (e) { rmSync(keep, { recursive: true, force: true }); throw e; }
     const pos = details.filter((d) => d.should && 'triggered' in d), neg = details.filter((d) => !d.should && 'triggered' in d);
     const rate = (list, f) => (list.length ? list.filter(f).length / list.length : null);
     const result = { time: now(), target: p.target, agent: p.agent, agentVersion: version, model: p.model ?? null, hash: p.hash, appVersion: ctx.appVersion,

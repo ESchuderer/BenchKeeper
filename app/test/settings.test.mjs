@@ -216,11 +216,14 @@ test('Doctor: the environment scrub and the credential Read deny rules', () => {
   const on = { env: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1' } };
   assert.equal(found({ ...on, permissions: { deny: deny.slice(0, 2) } }).length, 1, 'a missing folder is flagged');
   assert.equal(found({ ...on, permissions: { deny: ['Read(./.ssh/**)', 'Read(./.aws/**)', 'Read(./.config/gh/**)'] } }).length, 1, 'project-relative rules do not count');
+  assert.equal(found({ ...on, permissions: { deny: [`Read(${home}/.ssh-backup/**)`, `Read(${home}/.aws/credentials)`, 'Read(//**/.config/gh/hosts.yml)'] } }).length, 1, 'another folder or one file in it is not the folder');
+  assert.deepEqual(found({ ...on, permissions: { deny: [`Read(${home}/.ssh)`, `Read(${home}/.aws/*)`, 'Read(//**/.config/gh/**)'] } }), [], 'the folder bare or with /* or /**');
   assert.equal(found({ ...on, permissions: { allow: deny } }).length, 1, 'allow rules are not deny rules');
   assert.equal(found({ ...on, permissions: { deny: deny.map((r) => r.replace('Read', 'Edit')) } }).length, 1, 'Edit rules do not stop reads');
   // A file that cannot be read may hold both: no guess.
   write(claudeUser(ctx), '{\n  // mine\n}\n');
   assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => CONTROLS.test(i.message)), []);
+  assert.deepEqual(listSettings(ctx, 'claude', { env: {} }).notes.filter((n) => CONTROLS.test(n.message)), [], 'the settings list skips them too');
 });
 
 test('Doctor reads the project and local layers for project checks only', () => {

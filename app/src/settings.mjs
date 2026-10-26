@@ -227,7 +227,8 @@ function holds(c, state, agentId) {
   if (c.op === 'credentialReadsOpen') {
     // A deny in any layer wins. shortcut: the rule's text is matched, not its glob, and only a rule anchored at the home folder or the root counts (a ./ rule is the project's).
     const reads = lookup(state, agentId, 'permissions.deny').flat().filter((r) => typeof r === 'string').map((r) => r.match(/^Read\(((?:~|\/)\/[^)]*)\)$/)?.[1]).filter(Boolean);
-    return COUPLINGS.credentialDirs.some((d) => !reads.some((r) => r.includes(d)));
+    // The folder as a whole path segment, bare or followed by /* or /**: a rule for one file in it or for .ssh-backup does not count.
+    return COUPLINGS.credentialDirs.some((d) => !reads.some((r) => new RegExp(`${d.replaceAll('.', '\\.')}(/\\*{1,2})?$`).test(r)));
   }
   if (c.op === 'effortDiffers') {
     const top = lookup(state, agentId, 'effortLevel', ['user'])[0], saved = lookup(state, agentId, 'modelSettings', ['user'])[0];
@@ -308,7 +309,7 @@ function unknownKeys(agentId, layers, known) {
 export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) {
   const a = agentSettings(agentId);
   const layers = readSettings(ctx, agentId, { dir });
-  const found = notes(agentId, layers, { env });
+  const found = notes(agentId, layers, { env, partial: layers.some((l) => l.error) });
   const row = (def) => {
     const vals = valuesOf(layers, agentId, def.key);
     const eff = vals[0];

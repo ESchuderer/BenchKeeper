@@ -1,0 +1,43 @@
+{
+  "kind": "benchkeeper-evals",
+  "schemaVersion": 1,
+  "target": "skill:maintaining-repos",
+  "cases": [
+    {
+      "id": "n1",
+      "query": "Find the dead code and duplicated functions in this repository.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n2",
+      "query": "Which tests in this project protect nothing? List them.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n3",
+      "query": "Check whether the module dependencies of src/ contain cycles.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n4",
+      "query": "Run a mutation test on src/parser.js and tell me which mutants survive.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n5",
+      "query": "Do a general cleanup of this codebase and tell me what to improve.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n6",
+      "query": "Update the pinned versions in the README install commands to the newest release.",
+      "should": false,
+      "expected": "the skill does not load"
+    }
+  ]
+}

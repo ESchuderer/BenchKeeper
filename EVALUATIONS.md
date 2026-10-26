@@ -97,6 +97,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 | [Project summary and layout in AGENTS.md](evaluations/practices/agents-md-overviews.md) | Not in | context files raised cost over 20%, no success gain, arXiv 2602.11988 |
 | [Lite install, the workflow skill without a rule line](evaluations/practices/lite-install.md) | Lite level in, trigger rate unverified | 13 eval cases exist for `workflow`; the rate without the always-on line has not been run |
 | [Orchestrating projects, the coordinator skill](evaluations/practices/orchestrating-projects.md) | In, unmeasured | scenario and three checks defined (blocked worker replaced, finished worker cleaned up, no hook bypass); the checks have tests on synthetic logs, the scenario has not run |
+| [Code health pass in maintaining-repos](evaluations/practices/code-health-pass.md) | In, measured on one project | knip, jscpd, dependency-cruiser and StrykerJS run on `app/` (45 knip findings, 1 dead function, 2 real cycles, mutation scores 81.4 % and 66.4 %); Python and Rust tools and the eval set not run |
 
 Not evaluated, offered by the app without evidence gathered: Gemini CLI and GitHub Copilot CLI support (untested), Docker Sandboxes (`--env sandbox`, untested), and the Codex permission profile for setup suggestions (its arguments are tested, its enforcement in a real Codex session is unverified).
 

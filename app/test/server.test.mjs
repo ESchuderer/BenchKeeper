@@ -299,15 +299,15 @@ test('evals: the plan names targets and sessions; the job runs them and stores r
   try {
     const { routes } = fixture();
     const plan = routes['GET /api/eval-plan'](new URLSearchParams('agents=claude&level=full'));
-    assert.deepEqual(plan.targets.map((t) => t.target).sort(), ['skill:designing-technical-uis', 'skill:workflow']);
+    assert.deepEqual(plan.targets.map((t) => t.target).sort(), ['skill:designing-technical-uis', 'skill:maintaining-repos', 'skill:workflow']);
     assert.equal(plan.sessions, plan.targets.reduce((n, t) => n + t.cases, 0));
     const { job, total } = routes['POST /api/eval']({ agents: 'claude' });
     assert.equal(total, plan.sessions);
     const s = await finished(routes, job);
     assert.equal(s.error, null);
-    assert.deepEqual(s.results.map((r) => r.target).sort(), ['skill:designing-technical-uis', 'skill:workflow']);
+    assert.deepEqual(s.results.map((r) => r.target).sort(), ['skill:designing-technical-uis', 'skill:maintaining-repos', 'skill:workflow']);
     assert.ok(s.results.every((r) => !('details' in r)));
-    assert.equal(routes['GET /api/evals']().length, 2);
+    assert.equal(routes['GET /api/evals']().length, 3);
     assert.equal(routes['GET /api/eval-plan'](new URLSearchParams('agents=claude&level=full')).sessions, 0);
     assert.equal(status(() => routes['POST /api/eval']({ agents: 'claude' })), 400);
     process.env.CI = '1';

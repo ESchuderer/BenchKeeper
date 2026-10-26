@@ -132,13 +132,13 @@ test('the git-lfs driver commands still run, any other command named git-lfs doe
   try {
     const c = context({ home: home(), run: runCommand });
     const dir = repo();
-    writeFileSync(join(dir, '.gitattributes'), '* filter=lfs\n');
+    writeFileSync(join(dir, '.gitattributes'), '* filter=lfsfake\n');
     writeFileSync(join(dir, 'f.txt'), 'x\n');
-    git(dir, 'config', 'filter.lfs.clean', 'git-lfs clean -- %f');
+    git(dir, 'config', 'filter.lfsfake.clean', 'git-lfs clean -- %f');
     snapshot(c, dir);
     assert.match(readFileSync(mark, 'utf8'), /^clean -- /);
     rmSync(mark);
-    git(dir, 'config', 'filter.lfs.clean', 'git-lfs clean -- %f; echo more');
+    git(dir, 'config', 'filter.lfsfake.clean', 'git-lfs clean -- %f; echo more');
     snapshot(c, dir);
     assert.equal(existsSync(mark), false);
   } finally { process.env.PATH = path; }
@@ -152,9 +152,9 @@ test('a driver with one git-lfs command and one other command is switched off wh
   try {
     const c = context({ home: home(), run: runCommand });
     const dir = repo();
-    writeFileSync(join(dir, '.gitattributes'), '* filter=lfs\n');
-    git(dir, 'config', 'filter.lfs.clean', 'git-lfs clean -- %f');
-    git(dir, 'config', 'filter.lfs.smudge', 'git-lfs smudge -- %f; echo more');
+    writeFileSync(join(dir, '.gitattributes'), '* filter=lfsfake\n');
+    git(dir, 'config', 'filter.lfsfake.clean', 'git-lfs clean -- %f');
+    git(dir, 'config', 'filter.lfsfake.smudge', 'git-lfs smudge -- %f; echo more');
     snapshot(c, dir);
     assert.equal(existsSync(mark), false);
     writeFileSync(join(dir, '.git', 'config'), '[core\n');

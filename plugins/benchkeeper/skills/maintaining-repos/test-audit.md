@@ -17,10 +17,12 @@ A mutant can loop or allocate without end: one run of a 49-line module was kille
 `node --test` has no Stryker plugin; the command runner runs the chosen test files once per mutant. Config in the scratch folder:
 
 ```json
-{ "testRunner": "command", "commandRunner": { "command": "NODE_OPTIONS=--max-old-space-size=256 node --test <test files that import the module>" },
+{ "testRunner": "command", "commandRunner": { "command": "NODE_OPTIONS=--max-old-space-size=256 node --test <test files that exercise the module>" },
   "mutate": ["<module>"], "coverageAnalysis": "off", "concurrency": 4, "timeoutMS": 6000,
   "reporters": ["json", "clear-text"], "disableTypeChecks": true }
 ```
+
+Choose the test files by behavior: those that import the module and those that reach it through another module or a CLI command (search the importers of the module, then their tests). A missing test shows as a survivor that an existing test catches. Run the chosen command unmutated first; it must pass.
 
 `stryker run <config>` with `@stryker-mutator/core@10.0.0` ([tools.md](tools.md)). Other stacks: their tool from the table, with the same bounds. Record per module: mutants, killed, survived, score, minutes.
 
@@ -37,6 +39,6 @@ A survivor that leaves a check comparing two empty values is a gap in the check 
 
 ## Tests that protect nothing
 
-Candidates: a duplicate of another test, a snapshot of incidental markup, an assertion that copies a constant from the code, a test with no assertion. A test is removed only when the module's mutation result is unchanged without it (remove it in the scratch copy, rerun the module, compare killed counts) and the reason is recorded; or together with the code it covers. A test that kills a mutant no other test kills stays.
+Candidates: a duplicate of another test, a snapshot of incidental markup, an assertion that copies a constant from the code, a test with no assertion. A test is removed only when the mutation result of every audited module it exercises is unchanged without it (remove it in the scratch copy, rerun those modules, compare killed counts; a module not audited keeps the test) and the reason is recorded; or together with the code it covers. A test that kills a mutant no other test kills stays.
 
 Done when every survivor of the chosen modules has a class and every removal candidate has its rerun result.

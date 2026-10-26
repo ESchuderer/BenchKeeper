@@ -47,11 +47,13 @@ test('a diff of a settings file masks a token in its context lines', () => {
 
 test('childEnv: tools keep their way to the network and their folders, credentials stay', () => {
   const env = { PATH: '/bin', HOME: '/h', LC_ALL: 'C', HTTPS_PROXY: 'http://p:1', NODE_EXTRA_CA_CERTS: '/ca', npm_config_registry: 'https://r/', 'npm_config_//r/:_authToken': 'x', CLAUDE_CONFIG_DIR: '/c', CLAUDE_CODE_OAUTH_TOKEN: 't',
-    GH_TOKEN: 'g', GITHUB_TOKEN: 'g', NPM_TOKEN: 'n', ANTHROPIC_API_KEY: 'a', SSH_AUTH_SOCK: '/s', GIT_ASKPASS: '/ask', GIT_DIR: '/other/.git', AWS_SECRET_ACCESS_KEY: 's', DBUS_SESSION_BUS_ADDRESS: 'unix:x' };
-  assert.deepEqual(Object.keys(childEnv({ DO_NOT_TRACK: '1' }, env)).sort(), ['CLAUDE_CONFIG_DIR', 'DO_NOT_TRACK', 'GIT_ASKPASS', 'HOME', 'HTTPS_PROXY', 'LC_ALL', 'NODE_EXTRA_CA_CERTS', 'PATH', 'npm_config_registry']);
+    GH_TOKEN: 'g', GITHUB_TOKEN: 'g', NPM_TOKEN: 'n', ANTHROPIC_API_KEY: 'a', SSH_AUTH_SOCK: '/s', GIT_ASKPASS: '/ask', GIT_SSH_COMMAND: 'ssh -i /k', GIT_SSH: '/ssh', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraheader', GIT_CONFIG_VALUE_0: 'Authorization: Basic x', GIT_CONFIG_PARAMETERS: "'http.extraheader=x'", GIT_TERMINAL_PROMPT: '0', GIT_DIR: '/other/.git', AWS_SECRET_ACCESS_KEY: 's', DBUS_SESSION_BUS_ADDRESS: 'unix:x' };
+  assert.deepEqual(Object.keys(childEnv({ DO_NOT_TRACK: '1' }, env)).sort(), ['CLAUDE_CONFIG_DIR', 'DO_NOT_TRACK', 'GIT_TERMINAL_PROMPT', 'HOME', 'HTTPS_PROXY', 'LC_ALL', 'NODE_EXTRA_CA_CERTS', 'PATH', 'npm_config_registry']);
   // The owner names what a tool may still see; the change's own env always passes.
-  const passed = childEnv({ X: '1' }, { ...env, BENCHKEEPER_PASS_ENV: 'gh_token, ssh_auth_sock' });
+  const { GIT_DIR, ...inRepo } = env;
+  const passed = childEnv({ X: '1' }, { ...inRepo, BENCHKEEPER_PASS_ENV: 'gh_token, ssh_auth_sock, git_askpass, git_config_count, git_config_key_0, git_config_value_0' });
   assert.equal(passed.GH_TOKEN, 'g');
+  assert.deepEqual([passed.GIT_ASKPASS, passed.GIT_CONFIG_COUNT, passed.GIT_CONFIG_KEY_0, passed.GIT_CONFIG_VALUE_0, passed.GIT_SSH_COMMAND], ['/ask', '1', 'http.extraheader', 'Authorization: Basic x', undefined]);
   assert.equal(passed.SSH_AUTH_SOCK, '/s');
   assert.equal(passed.GITHUB_TOKEN, undefined);
   assert.equal(passed.X, '1');

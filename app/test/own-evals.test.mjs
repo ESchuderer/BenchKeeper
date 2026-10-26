@@ -126,7 +126,10 @@ test('case add --scope and eval --target take an own skill on the command line',
   assert.equal(await main(['case', 'add', '--target', 'skill:own-cli', '--project', project, '--scope', 'project', '--expected', 'loads', '--query', 'Go [own-cli]'], { out, ctx }), 0);
   assert.match(text, /^case \S+ for skill:own-cli@project-[0-9a-f]{8} in /);
   text = '';
-  assert.equal(await main(['eval', '--target', 'skill:own-cli', '--yes'], { out, ctx }), 0);
+  // eval refuses under CI, which this test runs in.
+  const ci = process.env.CI;
+  delete process.env.CI;
+  try { assert.equal(await main(['eval', '--target', 'skill:own-cli', '--yes'], { out, ctx }), 0); } finally { if (ci !== undefined) process.env.CI = ci; }
   assert.match(text, new RegExp(`skill:own-cli@project-[0-9a-f]{8}  claude  1 cases  \\(project ${project}\\)\\n`));
   assert.match(text, /miss 0%/);
 });

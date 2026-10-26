@@ -10,7 +10,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](../docs/set
 ### App
 
 ```sh
-npx benchkeeper@6.20.0
+npx benchkeeper@6.21.0
 ```
 
 Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
@@ -18,18 +18,18 @@ Opens the browser on the Dashboard with the doctor findings. Select Fix everythi
 ### CLI
 
 ```sh
-npx benchkeeper@6.20.0 plan
+npx benchkeeper@6.21.0 plan
 ```
 
 Lists each change and writes nothing.
 
 ```sh
-npx benchkeeper@6.20.0 apply
+npx benchkeeper@6.21.0 apply
 ```
 
 Asks per change. `--yes` applies the default selection without questions.
 
-After either path, restart the agents. `npx benchkeeper@6.20.0 history` lists what changed, `npx benchkeeper@6.20.0 undo <run>` reverses a run.
+After either path, restart the agents. `npx benchkeeper@6.21.0 history` lists what changed, `npx benchkeeper@6.21.0 undo <run>` reverses a run.
 
 [Lite level, the plugin alone](../docs/setup.md#levels). [Full setup description](../docs/setup.md#setup-details).
 <!-- /generated:quickstart -->
@@ -38,8 +38,8 @@ After either path, restart the agents. `npx benchkeeper@6.20.0 history` lists wh
 
 Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
 
-- From npm: `npx benchkeeper@6.20.0 <command>`. Until the first npm release, run it from a clone.
-- From a clone: `git clone --depth 1 --branch setup-v6.20 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
+- From npm: `npx benchkeeper@6.21.0 <command>`. Until the first npm release, run it from a clone.
+- From a clone: `git clone --depth 1 --branch setup-v6.21 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
 Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML). The web UI (React, Mantine) is built into `dist/` and ships in the package.
 
@@ -65,6 +65,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `doctor` level line | the install level it finds (lite: the plugin, standard: a project setup too, full: the global rules too) and what the next level adds; below full only the plugin is expected |
 | `settings list [--agent claude\|codex] [--advanced] [--project dir]`, `settings get <key>`, `settings set <key> <value>\|--unset\|--bundle <id> [--layer user\|project\|local]` | the agents' own settings (Claude Code `settings.json`, Codex `config.toml`): the app's list per agent with default, value and the file it comes from, notes on keys that cancel each other, and with `--advanced` every key of the pinned schemas and the settings reference plus keys the app does not know (shown and kept). A change is a plan with a diff and an undo like any other; the value is checked first (strict JSON for Claude Code, a line edit that keeps comments and key order for Codex), managed settings are never written, an environment switch is set (value `set`) or removed, never `0` or `false`, and values of names that look like secrets are never printed. `projects.<path>` with `--unset --agent codex` removes a trust entry |
 | `rules list [--agent claude\|codex] [--project dir]`, `rules disable\|enable <file> [--agent a] [--project dir]` | the instruction files Claude Code and Codex load, with owner (`BenchKeeper`, `project`, `yours`), size, load state and the context budget. `disable` leaves a file out without deleting it: for Claude Code through `claudeMdExcludes` in the user settings (with `--project`: in that project's `.claude/settings.local.json`, so one project only); for a global Codex file by moving it into `<config>/disabled-rules/`, which `enable` reverses byte for byte. Both are runs, undo restores them |
+| `extensions list [--agent claude\|codex] [--project dir]` | the MCP servers, hooks, subagents, commands and output styles Claude Code and Codex load, read from files only (no agent starts): kind, scope, owner (`BenchKeeper`, `plugin`, `project`, `managed`, `yours`), the file, and a runs-code mark for hooks with a command, stdio MCP servers and commands that run a shell line. Environment values and headers never appear, a URL shows host and path only, a command line is masked. Read-only |
 | `profile export [file]`, `profile import <file>` | agents, packs, own packs and registered projects with their answers as one file (no file contents, environment values or tokens); import registers the projects found at the same paths and asks per change |
 | `maintain knowledge show [dir] [--json]`, `maintain knowledge clear [dir] [--yes]` | the knowledge base the `maintaining-repos` skill keeps per project in `.benchkeeper/knowledge/` (git ignores it; one JSON file per kind: verdicts, test audit results, architecture map, tool results, open questions). `show` prints the entries of each file; a file that does not parse, is a link or is over 1 MiB is listed as ignored, and a linked `.benchkeeper` is not followed. `clear` asks, then removes that folder (also an empty one) and nothing else (`state.json` and the rest of `.benchkeeper/` stay); the base is rebuildable, so there is no undo. `dir` defaults to the current folder |
 | `accounts [list]`, `accounts add [name] [--agent claude\|codex] [--container --mount path] [--label text] [--dir path]`, `accounts use\|remove <name>`, `accounts status [name] [--project dir]`, `accounts login <name> [--token] [--email address] [--no-browser] [--project dir]` | several logins per agent, set up through a guided sign-in. An account is a folder of its own on the host (`CLAUDE_CONFIG_DIR` or `CODEX_HOME`, by default `.local/share/benchkeeper/accounts/<name>` below your home folder, mode 0700, never inside the config folder) or a named volume mounted in the project's dev container (`--container --mount <path>`: the folder in the container where the volume is mounted, one its user can write, below its home folder; there is no default because the owner of a new volume depends on the image). The registry, `accounts.json` in the config folder, holds name, agent, folder or volume, label, default and, for a kept token, its creation date: no credential. `add`, `use` and `remove` are plans with a diff, a run in `history` and an undo (`remove` also deletes a stored token, which undo does not restore, and leaves the account's folder and sign-in alone). `login` starts `claude auth login` (`--email` pre-fills the address) or `codex login --device-auth`, takes the sign-in link from its output and opens it in a private window of Firefox (`--private-window`), Chrome or Chromium (`--incognito`) or Edge (`--inprivate`), so the sign-in page asks which account to use; with no such browser, on a machine without a display, for a link of an unknown host or with `--no-browser` it prints the link (Codex also its one-time code) for you to open. When the browser shows a code, paste it at the prompt and it goes to the agent. `--token`: Claude Code `setup-token` (a subscription's one-year token that makes model requests only), kept in the OS credential store (libsecret through `secret-tool`, macOS Keychain through `security`; other systems and a missing service refuse, there is no file fallback), recorded in `accounts.json` as a date, never shown; Codex: the access token piped on stdin goes to `codex login --with-access-token` in the account's folder and is kept nowhere else. A container account runs the sign-in inside the container (`--project`, default the current folder): `devcontainer up` starts it with every container account's volume as a mount, which applies when a container is created (the command that recreates it is printed when the volume is not mounted), and `devcontainer exec --remote-env CLAUDE_CONFIG_DIR=<mount>` runs the agent; the volume survives a rebuild. `status` runs `claude auth status` or `codex login status` with the account's environment (a container account in the `--project` dir's running container) and reports a login that is gone and a kept token older than 11 months (error once a year old) with the command that fixes it; `doctor` reports the same under check `accounts` |
@@ -75,7 +76,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 
 ## Machine-readable output
 
-`doctor`, `test`, `plan`, `project plan`, `history`, `projects list`, `projects scan`, `packs list`, `skills list`, `rules list`, `settings list`, `settings get`, `frameworks list`, `board`, `profile export`, `maintain knowledge show`, `accounts list` and `accounts status` take `--json`: one JSON document on stdout, logs and error messages on stderr. Every document is an envelope: `schemaVersion` (1), `command` and the keys below, no prose; a failure has `error` instead of the other keys. Values of environment variables and file contents never appear (`maintain knowledge show` prints the entries the maintenance skill stored, with token shapes masked, and no file contents): a change lists its title and path, not its diff, a settings document lists the names of an `env` block without values, and a file that does not parse is reported as such without the parser message. `skills` and `frameworks` also work without the word `list`; any other command or subcommand (`skills update`, `settings set`, `profile import`) is refused with exit 2.
+`doctor`, `test`, `plan`, `project plan`, `history`, `projects list`, `projects scan`, `packs list`, `skills list`, `rules list`, `extensions list`, `settings list`, `settings get`, `frameworks list`, `board`, `profile export`, `maintain knowledge show`, `accounts list` and `accounts status` take `--json`: one JSON document on stdout, logs and error messages on stderr. Every document is an envelope: `schemaVersion` (1), `command` and the keys below, no prose; a failure has `error` instead of the other keys. Values of environment variables and file contents never appear (`maintain knowledge show` prints the entries the maintenance skill stored, with token shapes masked, and no file contents): a change lists its title and path, not its diff, a settings document lists the names of an `env` block without values, and a file that does not parse is reported as such without the parser message. `skills` and `frameworks` also work without the word `list`; any other command or subcommand (`skills update`, `settings set`, `profile import`) is refused with exit 2.
 
 | Command | Keys |
 |---|---|
@@ -88,6 +89,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `projects scan` | `root`, `found` (`path`, `registered`) |
 | `skills list` | `dir`, `hasSetup` (false: no state file, the lists are empty), `skills` (`name`, `source`, `own`, `state`, `pinned`, `newest`, `packs`, `single`), `untracked` (`name`, `folders`, `library`), `globalUntracked` (`name`, `folders`) |
 | `rules list` | `dir`, `agents` (`id`, `name`, `rows`: `scope`, `owner`, `path`, `shown`, `bytes`, `lines`, `tokens`, `load`, `by`, `switch`, as the Rules view; `budget`: `total`, `largest`, `over`, `threshold`, `notes`). Sizes and states, never the text of a file |
+| `extensions list` | `dir`, `agents` (`id`, `name`, `rows`: `kind` (`mcp`, `hook`, `subagent`, `command`, `style`), `name`, `scope`, `owner`, `path`, `shown`, `detail`, `runsCode`, and where they apply `transport`, `matcher`, `state`, `plugin`, `removal`; `problems`: files that do not parse). No environment values, headers or file text |
 | `settings list` | `agent`, `name`, `layers` (`layer`, `path`, `exists`, `readOnly`, `error`), `settings` (`key`, `value`, `layer`, `file`, `sets`, `changed`, `notes`, and the key's definition), `bundles`, `notes`; Codex also `trust`; with `--advanced` also `advanced`, `outside` and, for Claude Code, `env` (`name`, `layer`, `secret`, `editable`). Values of names that look like secrets are masked as `(set)` |
 | `settings get <key>` | `agent`, `setting` (one entry of `settings` or `advanced`) |
 | `frameworks list` | `frameworks` (`id`, `title`, `role`, `license`, `pin`, `verdict`, `hooks`, `gives`, `limits`, `evaluation`, `kind`, `pack`, `agents`, `files`) |
@@ -118,6 +120,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | Evals | per agent and model (the newest by default): the latest miss and false-trigger rate of each target, worst first, and each target's rates over time; Run evals plans the targets and the number of agent sessions, then starts them with progress per session; Cancel stops the running session, finished targets keep their results |
 | Agent settings | the agents' own settings files, apart from Settings below (the app's preferences). Per agent (Claude Code, Codex) and layer (user file, project or local file of a registered project): the basic list grouped by topic with key, one sentence, default, the value in the layer and the layer in effect (managed settings shown read-only), suggested values for unset keys with their reason and source, notes where one setting disables another (with the source), the "less noise" switches as one plan; Advanced lists every key of the pinned schemas with search and a "changed from default" filter, the environment entries (names of secrets never with a value) and keys outside the app's list, which edits keep. Review shows the plan with each diff; Apply writes through the same runner, History undoes it |
 | Rules | the instruction files per agent, globally or for a registered project, in load order: scope, owner (a file BenchKeeper did not write is yours: Doctor stays quiet about it, nothing here deletes it), size, whether it loads (on, only for matching files, off, or replaced by a Codex override) and one switch per file as a plan with a diff and undo. A file's text opens in a drawer on this machine only. The context budget adds rule files, `@` imports, skill descriptions and auto memory (first 200 lines or 25 KB of `MEMORY.md`), at four bytes per token, names the largest source and warns above 10,000 tokens (BenchKeeper's own limit); Codex notes its 32 KiB cap. Codex files that ship with a repository, or a global Codex file for one project, have no switch: Codex has no setting for it |
+| Extensions | the MCP servers, hooks, subagents, commands and output styles per agent, globally or for a registered project, read from files only: owner, the file, a "runs code" mark for hooks with a command, stdio servers and commands that run a shell line, and a link to Doctor's removal offer for a global server or hook. No switch: it only shows. Environment values and headers never appear |
 | Accounts | the accounts per agent (Claude Code, Codex) on the host or in a dev container, each with its sign-in state (Check), a default switch, Sign in and Remove; Add account as a plan with a diff and undo. Sign in is the guided flow of `accounts login`: the steps (account, private window, code if the browser shows one, check), the link and the agent's own lines, with a field for the code. The page offers no token: it shows the command. It states the container risk (a hijacked session can read the credentials in the volume) and that nothing switches accounts for you | 
 | Settings | profile export and import, keyboard shortcuts (the `/` key can be switched off), the sessions history (how many days the sessions cache keeps summaries of deleted transcripts, and Clear), config files |
 
@@ -196,6 +199,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `POST /api/accounts-login` | `accounts login` | the job opens the sign-in link in a private browser window or shows it; `--token` is the command only |
 | `POST /api/accounts-code` | `UI internal` | the code the browser shows, handed to the agent and kept nowhere |
 | `GET /api/rules` | `rules list` | |
+| `GET /api/extensions` | `extensions list` | |
 | `GET /api/rule-text` | `gap #320` | `rules show` |
 | `POST /api/rules-plan` | `rules disable`, `rules enable` | |
 | `GET /api/inventory` | `gap #319` | |

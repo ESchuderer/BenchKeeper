@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.21 (2026-10-26)
+
+- App, Extensions view and `benchkeeper extensions list [--agent claude|codex] [--project dir] [--json]` (#217, shares the data model of the Rules view): the MCP servers, hooks, subagents, commands and output styles Claude Code and Codex load, read from files only (no agent starts) and shown per agent, globally or for a registered project. Each row has its scope, owner (`BenchKeeper`, `plugin`, `project`, `managed`, `yours`), the file it comes from and a "runs code" mark for hooks with a command, stdio MCP servers and commands that run a shell line; a global server or hook of yours links to Doctor's removal offer. MCP servers show name, transport and whether they are on, off or wait for approval. Environment values and headers never appear, a URL shows host and path only, a command line is masked, and a file that does not parse is named without its text. Read-only: toggles wait for #184 and #188.
+- Plugin `version` 6.21.0.
+- Upgrade: `npx benchkeeper@6.21.0 apply`.
+
 ## setup-v6.20 (2026-10-26)
 
 - App, two security controls in the Claude Code settings catalog (#313, ranks 5 and 6 of the control candidates in `docs/security.md`, part of #272): `env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` (strips credentials from the environments of Bash commands, hooks and stdio MCP servers; GitHub tokens and proxy settings stay) and `permissions.deny`, each with its documentation link and a one-line reason. `doctor` warns while the scrub is not on (`1`, taking the value of the highest settings layer, else the process environment) and while no `Read` deny rule that reaches a home folder (the home anchor, `//**/` or an absolute home path) covers each of the `.ssh`, `.aws` and `.config/gh` folders; it skips both warnings while a settings file cannot be read. `benchkeeper settings set env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB 1` turns the scrub on. Setup writes neither: a subprocess that needs a removed variable would break, and the deny rules merge into a list the user may already have. A deny rule does not cover a script that opens the files itself. Existing catalog entries are unchanged.

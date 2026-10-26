@@ -66,8 +66,9 @@ test('pattern: single, loop, group and Orca worker; one value when several apply
   assert.deepEqual(got('p2'), ['loop', 0, null], '/goal');
   assert.deepEqual(got('p6'), ['loop', 2, null], 'a loop with subagents is a loop');
   assert.deepEqual(got('p3'), ['Orca worker', 0, 'r-1.a'], 'a worker that loops is a worker; the run line names the run');
-  assert.deepEqual(got('p4'), ['Orca worker', 0, null], 'the dispatch text alone');
+  assert.deepEqual(got('p4'), ['Orca worker', 0, null], 'the dispatch text after the user\'s own words');
   assert.deepEqual(got('p5'), ['single', 0, null], 'quoted text, in a later prompt or a tool result, marks no worker');
+  assert.deepEqual(got('p7'), ['single', 0, null], 'one quoted line of the dispatch text in the first prompt marks no worker');
   assert.ok(rows.p2.skills.includes('goal'));
 });
 

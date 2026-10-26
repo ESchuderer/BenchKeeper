@@ -15,9 +15,10 @@ const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
 const TEST = /(?:^|[\s;&|('"])(npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
 // The folder that holds SKILL.md, also nested (skills/engineering/tdd/SKILL.md).
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
-// Orca's text at the start of a dispatched worker's first prompt (observed in transcripts, not documented: a changed wording
-// reads as no worker), and the line the Orca worker-spec template carries: its value joins a coordinator's workers.
-const ORCA_PREAMBLE = /^You are working inside Orca, a multi-agent IDE\./m;
+// Orca's text in a dispatched worker's first prompt: two lines, both needed, so a prompt that quotes one is no worker. A user's
+// own words can come before it. Observed in transcripts, not documented: a changed wording reads as no worker. And the line the
+// Orca worker-spec template carries: its value joins a coordinator's workers.
+const ORCA_PREAMBLE = [/^You are working inside Orca, a multi-agent IDE\./m, /^Your task ID is: \S+/m];
 const ORCA_RUN = /^Orca run: ([\w.-]{1,64})[ \t]*$/m;
 const LOOP_COMMANDS = ['goal', 'loop'];
 // Part of every file's cache key: a change to what a transcript summary holds reads the transcripts again, and the summary of one the agent has deleted stays as it was.
@@ -69,7 +70,7 @@ async function claudeFile(file) {
       // A typed prompt, or the approved plan that starts a session after plan mode.
       if ((e.origin?.kind === 'human' && !e.isMeta) || e.planContent) {
         // Only the first typed prompt: a later one, or tool output, can quote the text.
-        if (!d.turns) for (const t of texts(content)) { d.run ??= t.match(ORCA_RUN)?.[1] ?? null; d.orca ||= !!d.run || ORCA_PREAMBLE.test(t); }
+        if (!d.turns) for (const t of texts(content)) { d.run ??= t.match(ORCA_RUN)?.[1] ?? null; d.orca ||= !!d.run || ORCA_PREAMBLE.every((r) => r.test(t)); }
         d.turns++;
       }
       for (const t of texts(content)) for (const m of t.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) { d.skills.add(m[1]); if (LOOP_COMMANDS.includes(bare(m[1]))) d.loop = true; }

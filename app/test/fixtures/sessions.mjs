@@ -82,7 +82,8 @@ export function writeSessions(home, { root = '/work', title = TITLE } = {}) {
   ]);
 }
 
-const PREAMBLE = 'You are working inside Orca, a multi-agent IDE. You are a dispatched worker.';
+const LINE = 'You are working inside Orca, a multi-agent IDE. You are a dispatched worker.';
+const PREAMBLE = `${LINE}\nYour coordinator's terminal handle is: term_1\nYour task ID is: task_1`;
 const wakeup = (t, id) => assistant(t, id, [{ type: 'tool_use', id: `w${id}`, name: 'ScheduleWakeup', input: { delaySeconds: 1200, prompt: 'check', reason: 'wait' } }]);
 // Sessions of each pattern in the project `app`, kept apart from writeSessions so the counts of the other tests stay.
 export function writePatternSessions(home, { root = '/work' } = {}) {
@@ -93,8 +94,10 @@ export function writePatternSessions(home, { root = '/work' } = {}) {
   at('p2', [human('2026-10-22T10:00:00.000Z', 'x', { isMeta: true }), human('2026-10-22T10:00:01.000Z', '<command-name>/goal</command-name>', { isMeta: true }), human('2026-10-22T10:00:02.000Z', 'the tests pass')]);
   // A worker that also loops: the worker wins, the run line names the run.
   at('p3', [human('2026-10-22T11:00:00.000Z', `${PREAMBLE}\n\n=== TASK ===\nTarget: x\nOrca run: r-1.a\n`), wakeup('2026-10-22T11:00:01.000Z', 'x3')]);
-  at('p4', [human('2026-10-22T12:00:00.000Z', [{ type: 'text', text: PREAMBLE }])]);
-  // The text quoted later, in a prompt and in a tool result, marks no worker.
+  // The user's own words can come first.
+  at('p4', [human('2026-10-22T12:00:00.000Z', [{ type: 'text', text: `Please carry out this task:\n\n${PREAMBLE}` }])]);
+  // The text quoted later, in a prompt and in a tool result, or one line of it in the first prompt, marks no worker.
+  at('p7', [human('2026-10-22T15:00:00.000Z', `Explain this example:\n${LINE}`)]);
   at('p5', [
     human('2026-10-22T13:00:00.000Z', 'what does a worker prompt look like?'),
     human('2026-10-22T13:00:01.000Z', `${PREAMBLE}\nOrca run: r-2`),

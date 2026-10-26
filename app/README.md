@@ -89,7 +89,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `settings get <key>` | `agent`, `setting` (one entry of `settings` or `advanced`) |
 | `frameworks list` | `frameworks` (`id`, `title`, `role`, `license`, `pin`, `verdict`, `hooks`, `gives`, `limits`, `evaluation`, `kind`, `pack`, `agents`, `files`) |
 | `board` | `sessions` (`agent`, `id`, `project`, `branch`, `agentVersion`, `start`, `end`, `turns`, `models`, `costUSD`, `busyMs`, `tokens`, `tier`, `skills`, `tests`, `setup`, `pattern`, `subagents`, `run`, `setupVersion`, `prs`), newest first. Reads the transcripts like the text command but writes no `board.html` and opens no browser; the session title is left out |
-| `profile export` | `profile` (the profile file: `kind`, `schemaVersion`, `appVersion`, `global`, `packs`, `projects`); a file argument is refused, redirect stdout |
+| `profile export` | `profile` (the profile file: `kind`, `schemaVersion`, `appVersion`, `global`, `packs`, `projects`); the document is the envelope, so `profile import` reads only its `profile` value (extract it from the redirected stdout); a file argument is refused |
 
 | Exit code | Meaning |
 |---|---|

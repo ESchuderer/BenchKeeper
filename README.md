@@ -23,7 +23,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](#prerequisi
 npx benchkeeper@6.11.0
 ```
 
-Opens the browser on the Dashboard with the doctor findings. Fix everything runs the setup in one pass and shows each change before it applies it.
+Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
 
 ### CLI
 

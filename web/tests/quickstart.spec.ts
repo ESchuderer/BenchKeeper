@@ -11,6 +11,7 @@ test('the quick start selects App first and CLI second', async ({ page }) => {
   await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tabpanel', { name: 'App' })).toBeVisible();
   await expect(page.getByRole('tabpanel', { name: 'CLI' })).toBeHidden();
+  await expect(page.getByRole('tabpanel', { name: 'App' })).toContainText(/Fix everything.*Apply/);
 });
 
 test('arrow keys, Home and End move between the tabs', async ({ page }) => {

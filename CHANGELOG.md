@@ -2,6 +2,19 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.11 (2026-10-26)
+
+- App, remaining low-severity findings of the security review (#206): `benchkeeper test` reports a `skills-lock.json` that is not a lock file (not JSON, not an object, `skills` not an object) as a problem line instead of throwing; copies to a path that does not exist yet (backups, undo restores) are written beside it and renamed in, so a failed copy leaves no half-written file or folder; the Catalog lists pack files that are not packs with their reason and removes them (as `packs list` and `packs remove` already did).
+- The other findings of #206 were already fixed on `develop` (#239) or stay open on purpose in `docs/security.md`.
+- Plugin `version` 6.11.0.
+- Upgrade: `npx benchkeeper@6.11.0 apply`.
+
+## setup-v6.10 (2026-10-25)
+
+- Library: seven skills that fail the quality bar are removed from `library.json` and their packs: `docx`, `pdf`, `pptx`, `xlsx` (a license that forbids copies and distribution), `scientific-critical-thinking`, `fp-check` and `tdd-workflow` (they need files outside their folder). The `ecc` pack has three skills, the `security` pack three, the `science` pack four. Each is in `evaluations/skill-libraries/library-exclusions.md` with its reason. A project that installed one gets the removal in its next project plan, offered and not preselected.
+- Plugin `version` 6.10.0.
+- Upgrade: `npx benchkeeper@6.10.0 apply`.
+
 ## setup-v6.9 (2026-10-25)
 
 - New skill `orchestrating-projects`, started by the user: a coordinator that runs one worker per project on labeled issues, projects in parallel, verifies each outcome, merges and closes only inside the repository's written policy (`docs/agents/orchestration.json`, read from the default branch; without it nothing merges, closes or deletes), then cleans up and starts the next issue. Workers decide the safest reversible option and write it in the pull request, report blocked and end, and never bypass a repository hook. A worker state of `ready` does not show a blocked worker: the coordinator also checks for no commit, PR or message for a set time. Worktree removal and branch deletion are separate steps. A spec template, a policy example and one reference file for Orca's commands are in the skill folder. Evaluation scenario and checks: `evaluations/practices/orchestrating-projects.md` (scenario not run yet).
@@ -256,7 +269,7 @@ Skills checked against Anthropic's skill authoring guide (https://platform.claud
 
 Clarifying questions only where they change the result.
 
-- `rules/global.md` Ask, do not assume: questions only for open points that would change the result, batched in one message (`AskUserQuestion`), never about what the code, the docs or a sensible default answer. The restatement is its own bullet. Non-interactive runs continue without waiting for confirmation (Sonnet arm W stopped to wait for confirmation and scored 0 of 6, `bench/results/2026-10-15-winery-react.md:134`).
+- `rules/global.md` Ask, do not assume: questions only for open points that would change the result, batched in one message (`AskUserQuestion`), never about what the code, the docs or a sensible default answer. The restatement is its own bullet. Non-interactive runs continue without waiting for confirmation (Sonnet arm W stopped to wait for confirmation and scored 0 of 6 in the winery-react run, whose report was removed in #266).
 
 ## setup-v2.3 (2026-10-16)
 

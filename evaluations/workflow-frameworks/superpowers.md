@@ -1,6 +1,6 @@
 # Superpowers
 
-[Repository](https://github.com/obra/superpowers), Category: workflow frameworks, Checked 2026-10-16, Decision: Not in yet (arms G, J, M, D in the recorded runs, see Benchmark)
+[Repository](https://github.com/obra/superpowers), Category: workflow frameworks, Checked 2026-10-16, Decision: Not in yet (arm G in the recorded run, see Benchmark)
 
 ## Advertised
 
@@ -34,7 +34,7 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arms: G (Superpowers alone), J (with OpenSpec), M (with the BenchKeeper layer), D (with both). OpenCode arms: R, and S (oso with OpenSpec). Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: G (Superpowers alone). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 89.3 against 87.0 for plain Claude Code (A), inside the spread, at 0.94 times the cost and 0.89 times the time. It called its TDD skill in 8 of 9 steps. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
 
 ## Skill authoring check
 
@@ -42,6 +42,6 @@ Rank 4 of 8, review 3.2, static checks 93% (7.0.0), workflows 5 (highest of the 
 
 ## Decision
 
-Not in yet: one measurement (AgentStackBench, Codex, 500 tasks) and four signals on Claude Code agree in direction: cost higher in every with/without test across agents and versions (Codex with 5.0.5: tokens +40%, Claude Code with v6.4.2: cost 1.33x, systematic-debugging on Opus 4.8: cost +40.5% and +80%), except one blogger's 6-task single run (-9%). Quality gains appear in the TDD cases of one plugin-eval suite and in judge scores. Pass rate on SWE-bench-family tasks is not significantly different (p about 0.235). Its spec, plan and implement loop overlaps agent-skills. Arm D of the recorded runs is BenchKeeper with agent-skills replaced by Superpowers v7.0.0, next to the agent-skills (C) and ECC (E) stacks (see Benchmark). Project setup offers it as a per-project workflow owner (setup-v6.7): a Claude Code plugin enabled for that project only, BenchKeeper's workflow skill giving way there. It is never preselected.
+Not in yet: one measurement (AgentStackBench, Codex, 500 tasks) and four signals on Claude Code agree in direction: cost higher in every with/without test across agents and versions (Codex with 5.0.5: tokens +40%, Claude Code with v6.4.2: cost 1.33x, systematic-debugging on Opus 4.8: cost +40.5% and +80%), except one blogger's 6-task single run (-9%). Quality gains appear in the TDD cases of one plugin-eval suite and in judge scores. Pass rate on SWE-bench-family tasks is not significantly different (p about 0.235). Its spec, plan and implement loop overlaps agent-skills. BenchKeeper's own run: see Benchmark. Project setup offers it as a per-project workflow owner (setup-v6.7): a Claude Code plugin enabled for that project only, BenchKeeper's workflow skill giving way there. It is never preselected.
 
 [All evaluations](../../EVALUATIONS.md)

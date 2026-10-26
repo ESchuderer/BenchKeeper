@@ -106,6 +106,9 @@ A test name refers to the file named in the same row.
 | `-c` settings of an outer git command (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT` with its pairs) are dropped when a repository variable shows the app runs from a hook; a container's own pairs pass | `repoEnv` in `git.mjs` | `bounds.test.mjs` "the -c settings of an outer git command ..." |
 | A branch name that git allows (`@`, `+` inside, non-ASCII) is taken; option and refspec syntax is not | `safeBranch` in `git.mjs` | `bounds.test.mjs` "safeBranch takes the names git allows ..." |
 | Plugin ids, marketplace names and MCP server names read from agent files must match `^[A-Za-z0-9][\w.@:-]*$` before they become an argument or a path; others are skipped | `SAFE_NAME` in `steps/global.mjs` | `global.test.mjs` "names from agent files that start with a dash" |
+| A copy to a path that does not exist yet (backups, undo restores, `from` writes) is written beside it and renamed in, so a failed or interrupted copy leaves no half-written path | `copy` in `fsx.mjs` | `bounds.test.mjs` "a copy that fails midway leaves no half-written path ..." |
+| A `skills-lock.json` that is not a lock file is a problem line of `benchkeeper test`, not an exception | `projectCheck` in `harness.mjs` | `harness.test.mjs` "a skills-lock.json that is not a lock file ..." |
+| Files in the packs folder that are no pack are listed with the reason, in the CLI (`packs list`), `doctor` and the Catalog, and removed by file name | `invalidPacks` in `packs.mjs`, `InvalidPacks` in `ui/views.jsx` | `server.test.mjs` "packs: a file that is no pack ...", `ui.spec.mjs` "Catalog: a pack file that is not a pack ..." |
 
 ### Local server
 
@@ -210,7 +213,7 @@ A test name refers to the file named in the same row.
 
 ## Open
 
-[#206](https://github.com/ESchuderer/BenchKeeper/issues/206) what is left of the low-severity findings: `claude mcp remove` and `codex mcp remove` have no undo (a snapshot of `.claude.json` would copy credentials into the backup), a run killed with SIGKILL leaves its child process groups running while the ledger says `running`, undo copies onto the path instead of a temporary file and a rename, a session undo covers neither commits, branch switches nor ignored files, and session snapshots are unreferenced trees that `git gc` removes after about two weeks (undo then fails loudly).
+[#206](https://github.com/ESchuderer/BenchKeeper/issues/206) what is left of the low-severity findings: `claude mcp remove` and `codex mcp remove` have no undo (a snapshot of `.claude.json` would copy credentials into the backup), a run killed with SIGKILL leaves its child process groups running while the ledger says `running`, a session undo covers neither commits, branch switches nor ignored files, and session snapshots are unreferenced trees that `git gc` removes after about two weeks (undo then fails loudly).
 
 Not changed on purpose: `POST /api/scan` still walks any absolute root (read only, three levels, it lists folders with an agent setup), a repository's filter drivers and its config on push and commit are the user's own git behavior, and the server's Update all has no plan token (the cap, `dryRun` and the UI's own confirmation bound it).
 

@@ -196,10 +196,9 @@ test('a second plan reads the answers from the state file', () => {
   assert.equal(readState(r.dir).tier, '');
 });
 
-test('Codex-only skills need Codex; packs with plugins install them and list their prompts', () => {
+test('packs with plugins install them and list their prompts', () => {
   const r = repo();
-  const p = plan(r, { agents: ['claude'], skills: ['docx'], packs: ['matt-pocock'] });
-  assert.ok(!p.changes.some((c) => c.title.includes('docx')));
+  const p = plan(r, { agents: ['claude'], packs: ['matt-pocock'] });
   assert.ok(p.changes.some((c) => c.argv?.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official'));
   assert.ok(p.prompts.some((x) => x.prompt === '/mattpocock-skills:setup-matt-pocock-skills'));
   const installed = plan(r, { agents: ['claude'], packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] });
@@ -382,6 +381,16 @@ test('skill names from a state file never reach paths outside the project', () =
   // git names the exclude file by its real path (macOS: /private/var for /var).
   assert.ok(changes.every((c) => !c.path || c.path.startsWith(r.dir) || c.path.startsWith(realpathSync(r.dir))), JSON.stringify(changes.map((c) => c.path)));
   assert.throws(() => plan(r, { paths: { accessibility: 'src/**\nname: evil' } }), /one line of globs/);
+});
+
+test('a skill the library no longer lists is offered for removal, not preselected', () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.benchkeeper'));
+  writeFileSync(join(r.dir, STATE), JSON.stringify({ agents: ['claude', 'codex'], env: 'host', skills: [{ name: 'docx' }] }));
+  mkdirSync(join(r.dir, '.agents/skills/docx'), { recursive: true });
+  const gone = plan(r, {}).changes.filter((c) => c.step === 'remove:docx');
+  assert.equal(gone.length, 1);
+  assert.ok(!gone[0].selected && gone[0].kind === 'remove');
 });
 
 test('a session started in a subfolder records and undoes paths from the repository root', () => {

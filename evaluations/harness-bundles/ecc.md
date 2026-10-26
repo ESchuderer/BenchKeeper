@@ -1,6 +1,6 @@
 # ECC (formerly everything-claude-code)
 
-[Repository](https://github.com/affaan-m/ECC), Category: harness bundles, Checked 2026-10-16, Decision: Not in yet (arms H, K, N, E with the minimal profile in the recorded runs, see Benchmark)
+[Repository](https://github.com/affaan-m/ECC), Category: harness bundles, Checked 2026-10-16, Decision: Not in yet (arm H with the minimal profile in the recorded run, see Benchmark)
 
 ## Advertised
 
@@ -29,7 +29,7 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arms: H (ECC `minimal` alone), K (with OpenSpec), N (with the BenchKeeper layer), E (with both). No OpenCode arm. Recorded runs on Haiku 5.5 and Sonnet 5.5, one trial per arm and model, descriptive only: [winery-react](../../bench/results/2026-10-15-winery-react.md), [cartridges](../../bench/results/2026-10-16-cartridges.md). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: H (ECC `minimal` alone). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 90.1 against 87.0 for plain Claude Code (A), ahead in 2 of 3 rounds, at 2.0 times the cost and 1.6 times the time. It is the only arm of the run above the spread of A. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
 
 ## Skill authoring check
 
@@ -37,6 +37,6 @@ Rank 7 of 8, review 2.9, static checks 98% (2.2.3, minimal profile): broken scri
 
 ## Decision
 
-Not in yet: no outcome measurement in either direction. Measured overhead from hooks and listing size. The full plugin crowds other plugins out of the skill listing. A selective install (`manifests/install-profiles.json`: the `minimal` profile has no hooks, so `strategic-compact` loses its hook) or single skills avoid that. Arm E of the recorded runs is BenchKeeper with agent-skills replaced by the ECC `minimal` profile, next to the agent-skills (C) and Superpowers (D) stacks (see Benchmark).
+Not in yet: no outcome measurement in either direction. Measured overhead from hooks and listing size. The full plugin crowds other plugins out of the skill listing. A selective install (`manifests/install-profiles.json`: the `minimal` profile has no hooks, so `strategic-compact` loses its hook) or single skills avoid that. BenchKeeper's own run: see Benchmark.
 
 [All evaluations](../../EVALUATIONS.md)

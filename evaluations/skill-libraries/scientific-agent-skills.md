@@ -100,7 +100,7 @@ Findings (every fail and borderline with file and line or URL):
   - Other: 399 lines, 83 reference files one level deep; some reference URLs return 403 or 429 to curl (bot blocking, unverified).
 - `markitdown`: borderline.
   - Point 3, borderline: No "use when" clause in the description (`:3`); `:18` "0.1.8, released September 21, 2026".
-  - Point 4, borderline: "Read PDF or Office files" overlaps library `pdf`, `docx`, `pptx`, `xlsx` (Codex only here; Claude Code ships them through `anthropic-skills`). The distinct part is Markdown for LLM input.
+  - Point 4, borderline: "Read PDF or Office files" overlaps `pdf`, `docx`, `pptx`, `xlsx` (removed from the library; Claude Code ships them through `anthropic-skills`). The distinct part is Markdown for LLM input.
   - Other: Installs pinned (`SKILL.md:45, 51, 214`).
 - `scientific-writing`: borderline.
   - Point 3, borderline: Dated text at `:69, 103, 119, 208, 304` ("CONSORT 2025", "ICMJE's January 2026", "COPE ... 21 July 2026").
@@ -135,7 +135,7 @@ Source notes:
 - Open third-party defects after the pin: #260 (dead endpoints, broken install commands and stale compatibility floors across 14 skills), #317, #318, #319, #323, #348 (`citation-management`), #322 (`markitdown`), #325 (`paper-lookup`), #349, #350. Prior fixed defect: #279 (`experimental-design` dropped a treatment arm for fractional allocation ratios), fixed in #280. The repository's security scan report is maintainer evidence.
 - Link check (116 URLs from the 19 `SKILL.md` files): three 404s (`sympy:391`, `uncertainty-and-units:388`, `exploratory-data-analysis:289`, all reference lists); 14 more answered 403, 429 or 405 (bot blocking, unverified).
 
-Removal: none made. The owner decides on the fails and borderline cases in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151).
+Removal: `scientific-critical-thinking` was removed on the owner's decision in [issue 151](https://github.com/ESchuderer/BenchKeeper/issues/151) and is in [library exclusions](library-exclusions.md); the borderline skills stay.
 
 ## Decision
 

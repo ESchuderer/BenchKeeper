@@ -50,6 +50,19 @@ test('benchkeeper test: project community skills are in skills-lock.json at the 
   assert.match(text, /^ok    project skills match the library pins/m);
 });
 
+test('benchkeeper test: a skills-lock.json that is not a lock file is a problem, not a crash', () => {
+  const ctx = machine();
+  const dir = tmp('bk-harn-proj-');
+  const pctx = { ...ctx, roots: [...ctx.roots, dir] };
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host', skills: ['accessibility'] } }).changes), pctx, { scope: dir });
+  for (const text of ['{broken', 'null', '[]', '{"skills":"x"}', '{"skills":null}']) {
+    writeFileSync(join(dir, 'skills-lock.json'), text);
+    const c = harnessTest(ctx, { agents: [], dir }).at(-1);
+    assert.equal(c.ok, false, text);
+    assert.ok(c.problems.includes('skills-lock.json is not a valid lock file'), text);
+  }
+});
+
 // A stub agent: loads the skill for prompts that mention a table or a README.
 function stubAgent(calls) {
   return (argv, o) => {

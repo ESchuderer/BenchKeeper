@@ -148,7 +148,7 @@ Writes: the rules, settings and skill files of the agents you select (below your
 
 The app itself never: runs a command through a shell, writes outside the folders of a run (also through links), force pushes, deletes a remote branch, merges a pull request, runs `git clean` or `git reset` on your checkout, starts a second run while one is active, or adds telemetry. Removals are off until you select them, except removals of files the app identifies as its own by content. What leaves the machine: what `git`, `gh`, the package registries and the agents' own CLIs send (Update all's push and pull request for a GitHub origin; whatever an advice or eval session lets its agent read), and the update notice. The local server listens on 127.0.0.1 only, behind a one-time token, a cookie and a key header, and checks Host and Origin.
 
-Which control enforces each limit, which tests cover it and which limits are still open: [docs/security.md](docs/security.md). Report a vulnerability as described in [SECURITY.md](SECURITY.md).
+Which control enforces each limit, which tests cover it and which limits are still open, and what an agent does with untrusted text (web pages, issue comments, repository files) and which controls limit it: [docs/security.md](docs/security.md). Report a vulnerability as described in [SECURITY.md](SECURITY.md).
 
 ## Benchmarks
 

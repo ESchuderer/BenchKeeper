@@ -1,7 +1,7 @@
 // Eval cases: an observed miss becomes a regression case for a skill or rule. The app's sets ship in
 // <content>/evals/, the user's own go to ~/.config/benchkeeper/evals/; benchkeeper eval reads both.
 import { createHash } from 'node:crypto';
-import { readdirSync } from 'node:fs';
+import { readdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { registry, skillDirs } from './agents.mjs';
 import { contentDir } from './content.mjs';
@@ -21,16 +21,20 @@ export const shippedEvals = join(contentDir, 'evals');
 const projectId = (dir) => createHash('sha256').update(dir).digest('hex').slice(0, 8);
 export const scopeOf = (target) => ({ user: 'user', project: 'project' })[target.split('@')[1]?.split('-')[0]] ?? 'library';
 const libraryDirs = (name) => [join(contentDir, 'skills', name), join(contentDir, 'library', name)];
-export const inLibrary = (name) => libraryDirs(name).some(exists);
-// The first agent folder of the project or the user that holds the skill.
-const ownDir = (ctx, name, scope, project) => skillDirs(registry.map((a) => a.id), scope === 'user' ? 'global' : 'project', scope === 'user' ? ctx.home : project)
-  .map(({ dir }) => join(dir, name)).find((d) => exists(join(d, 'SKILL.md')));
+export const inLibrary = (name) => libraryDirs(name).some((d) => exists(d));
+// The first agent folder of the project or the user that holds the skill. A skill installed by link (the skills CLI) is read where it lives:
+// a hash of the link would not change with the text, and a copy of the link would not resolve in the scratch repository.
+const ownDir = (ctx, name, scope, project) => {
+  const dir = skillDirs(registry.map((a) => a.id), scope === 'user' ? 'global' : 'project', scope === 'user' ? ctx.home : project)
+    .map((x) => join(x.dir, name)).find((d) => exists(join(d, 'SKILL.md')));
+  return dir && realpathSync(dir);
+};
 
 // Where a skill target's text lives. copy: the scratch repository needs it (plugin skills come from the agent's global setup).
 export function skillSource(ctx, target, project) {
   const name = target.slice('skill:'.length).split('@')[0];
   const scope = scopeOf(target);
-  if (scope === 'library') { const dir = libraryDirs(name).find(exists); return dir && { dir, copy: dir === libraryDirs(name)[1] }; }
+  if (scope === 'library') { const dir = libraryDirs(name).find((d) => exists(d)); return dir && { dir, copy: dir === libraryDirs(name)[1] }; }
   const dir = ownDir(ctx, name, scope, project);
   return dir && { dir, copy: true };
 }

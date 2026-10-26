@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -132,4 +132,19 @@ test('case add --scope and eval --target take an own skill on the command line',
   try { assert.equal(await main(['eval', '--target', 'skill:own-cli', '--yes'], { out, ctx }), 0); } finally { if (ci !== undefined) process.env.CI = ci; }
   assert.match(text, new RegExp(`skill:own-cli@project-[0-9a-f]{8}  claude  1 cases  \\(project ${project}\\)\\n`));
   assert.match(text, /miss 0%/);
+});
+
+test('an own skill installed as a link is hashed and copied by its text', { skip: process.platform === 'win32' }, async () => {
+  const ctx = machine();
+  const project = tmp('bk-own-proj-');
+  const store = tmp('bk-own-store-');
+  skill(store, 'own-linked', 'v1\n');
+  mkdirSync(join(project, '.claude/skills'), { recursive: true });
+  symlinkSync(join(store, '.claude/skills/own-linked'), join(project, '.claude/skills/own-linked'), 'dir');
+  const { target } = addCase(ctx, { target: 'skill:own-linked', project, expected: 'loads', query: 'Go [own-linked]' });
+  const [res] = await runEval(ctx, planOf(ctx, [target]));
+  assert.equal(res.missRate, 0);
+  assert.deepEqual(planOf(ctx, [target]), []);
+  skill(store, 'own-linked', 'v2\n');
+  assert.equal(planOf(ctx, [target]).length, 1);
 });

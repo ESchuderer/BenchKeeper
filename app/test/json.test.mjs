@@ -178,6 +178,8 @@ test('--json: an invalid argument to a list command exits 2 with an error docume
     [['rules', 'list', 'extra'], 'rules list', /unexpected argument extra/],
     [['frameworks', 'list', 'extra'], 'frameworks list', /unexpected argument extra/],
     [['board', 'extra'], 'board', /unexpected argument extra/],
+    [['projects', 'list', 'extra'], 'projects list', /unexpected argument extra/],
+    [['packs', 'list', 'extra'], 'packs list', /unexpected argument extra/],
     [['frameworks', 'nope'], 'frameworks nope', /--json works with/],
     [['skills', 'update'], 'skills update', /--json works with/],
     [['settings', 'set', 'model', 'x'], 'settings set', /--json works with/],

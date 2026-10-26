@@ -586,8 +586,8 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const runs = ctx.ledger.list().map((r) => ({ id: r.id, kind: r.kind, status: r.status ?? 'interrupted', scope: r.scope, time: r.time, changes: r.entries.length, ...(r.of ? { of: r.of } : {}), ...(r.note?.case ? { evalCase: r.note.case, target: r.note.target } : {}) }));
     return emit({ runs, backups: legacyBackups(ctx) });
   }
-  if (cmd === 'projects' && (!arg || arg === 'list')) return registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
-  if (cmd === 'packs' && (!arg || arg === 'list')) return emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
+  if (cmd === 'projects' && (!arg || arg === 'list')) return surplus(2) ?? registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
+  if (cmd === 'packs' && (!arg || arg === 'list')) return surplus(2) ?? emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
   if (cmd === 'skills' && (!arg || arg === 'list')) {
     const extra = surplus(2); if (extra !== undefined) return extra;
     const dir = resolve(o.project ?? '.'), rows = projectSkills(ctx, dir);

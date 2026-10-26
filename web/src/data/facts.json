@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper gives Claude Code and Codex the same short rules, a workflow skill that sizes each task, and a per-repository setup (dev container, AGENTS.md, skills at pinned versions). Its app (`npx benchkeeper@6.17.0`) installs and updates that setup on your machine and in your repositories, shows each change before it applies it, and records every run for undo.",
+  "description": "BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills at pinned versions per repository. Its app shows every change before it applies it and records each run so you can undo it.",
   "tagline": "Short rules, a workflow skill and a per-repository setup for Claude Code and Codex, installed by an app that shows each change first and can undo it.",
   "levels": [
     {
@@ -85,7 +85,7 @@
     {
       "name": "Node.js and npm",
       "url": "https://nodejs.org/en/download",
-      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `~/.local`"
+      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `$HOME/.local`"
     },
     {
       "name": "Docker Engine",

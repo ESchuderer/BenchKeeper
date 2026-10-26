@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.20 (2026-10-26)
+
+- App, two security controls in the Claude Code settings catalog (#313, ranks 5 and 6 of the control candidates in `docs/security.md`, part of #272): `env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` (strips credentials from the environments of Bash commands, hooks and stdio MCP servers; GitHub tokens and proxy settings stay) and `permissions.deny`, each with its documentation link and a one-line reason. `doctor` warns while the scrub is not on (`1` or `true` in a settings file or the process environment) and while no `Read` deny rule anchored at `~/` or `//` covers each of `~/.ssh`, `~/.aws` and `~/.config/gh`; it skips both warnings while a settings file cannot be read. `benchkeeper settings set env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB 1` turns the scrub on. Setup writes neither: a subprocess that needs a removed variable would break, and the deny rules merge into a list the user may already have. A deny rule does not cover a script that opens the files itself. Existing catalog entries are unchanged.
+- Plugin `version` 6.20.0.
+- Upgrade: `npx benchkeeper@6.20.0 apply`.
+
 ## setup-v6.19 (2026-10-26)
 
 - App, `benchkeeper maintain knowledge show|clear [dir]` (#314, part of #274): `show` prints the entries the `maintaining-repos` skill stored for a project in `.benchkeeper/knowledge/` (`--json` prints `dir`, `path`, `files` and `ignored` in the usual envelope); `clear` removes that folder after a question (`--yes` skips it) and nothing else of the project. A file that does not parse, is a link or is larger than 1 MiB is ignored with a reason, a linked `.benchkeeper` is never followed or removed, and token shapes in stored text are masked in the output.

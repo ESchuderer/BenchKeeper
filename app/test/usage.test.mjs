@@ -1,0 +1,480 @@
+import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Readable, Writable } from 'node:stream';
+import { test } from 'node:test';
+import { CLAUDE_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
+import { NeedsConfirm, accountChecks, accountStatus, findAccount, listAccounts, runAs } from '../src/accounts.mjs';
+import { main } from '../src/cli.mjs';
+import { runCommand } from '../src/runner.mjs';
+import { HOOK_SOURCE, assess, limitsFor, parseState, trackedSettings } from '../src/usage.mjs';
+import { failureLine, run as hook, usageRecord } from '../src/usage-hook.mjs';
+
+function cli(m, answers = []) {
+  let text = '';
+  const sink = new Writable({ write(c, _, done) { text += String(c); done(); } });
+  const input = Readable.from(answers);
+  input.isTTY = false;
+  const exec = (args) => main(args, { out: sink, err: sink, ctx: m.ctx, input });
+  return { exec, text: () => text, json: () => JSON.parse(text) };
+}
+const skip = win ? { skip: 'the fake agents are shell scripts' } : {};
+const T0 = Date.parse('2026-10-26T12:00:00Z');
+const epoch = (ms) => Math.floor(ms / 1000);
+const HOUR = 36e5;
+
+// The status line input of Claude Code, with fields the hook must not keep.
+const input = (five, seven, extra = {}) => ({ session_id: 's1', cwd: '/work', model: { id: 'x' }, token: CLAUDE_TOKEN, rate_limits: { five_hour: five, seven_day: seven }, ...extra });
+const windows = (used5, used7, now = T0) => input({ used_percentage: used5, resets_at: epoch(now + 3 * HOUR) }, { used_percentage: used7, resets_at: epoch(now + 48 * HOUR) });
+
+async function add(m, name, agent = 'claude', ...more) {
+  assert.equal(await cli(m).exec(['accounts', 'add', name, '--agent', agent, '--yes', ...more]), 0);
+  const a = findAccount(m.ctx, name);
+  // A signed-in account: the fake agent looks for the login file.
+  if (a.mode === 'host') { mkdirSync(a.dir, { recursive: true }); writeFileSync(join(a.dir, agent === 'claude' ? '.credentials.json' : 'auth.json'), '{}'); }
+  return a;
+}
+// What the status line script of the account would have written, for a given clock.
+const reading = (a, five, seven, now = Date.now()) => {
+  mkdirSync(join(a.dir, 'benchkeeper'), { recursive: true });
+  writeFileSync(join(a.dir, 'benchkeeper', 'usage.json'), JSON.stringify({ schemaVersion: 1, checkedAt: new Date(now).toISOString(), fiveHour: { used: five, resetsAt: epoch(now + 3 * HOUR) }, sevenDay: { used: seven, resetsAt: epoch(now + 48 * HOUR) } }));
+};
+
+test('the hook keeps only the two windows and the error type: no token, path, message or session id reaches a file', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-usage-'));
+  const text = JSON.stringify(windows(41.5, 7));
+  assert.equal(hook('statusline', text, dir, T0), '5h 59% left  7d 93% left');
+  const kept = readFileSync(join(dir, 'usage.json'), 'utf8');
+  assert.deepEqual(JSON.parse(kept), { schemaVersion: 1, checkedAt: '2026-10-26T12:00:00.000Z', fiveHour: { used: 41.5, resetsAt: epoch(T0 + 3 * HOUR) }, sevenDay: { used: 7, resetsAt: epoch(T0 + 48 * HOUR) } });
+  assert.equal(statSync(join(dir, 'usage.json')).mode & 0o777, 0o600);
+  hook('failure', JSON.stringify({ hook_event_name: 'StopFailure', error: 'authentication_failed', error_details: `Bearer ${CLAUDE_TOKEN}`, last_assistant_message: `API Error ${CLAUDE_TOKEN}`, cwd: '/work', session_id: 's1' }), dir, T0);
+  hook('failure', JSON.stringify({ error: 'overloaded' }), dir, T0);
+  hook('failure', 'not json', dir, T0);
+  assert.equal(readFileSync(join(dir, 'failures.jsonl'), 'utf8'), '{"at":"2026-10-26T12:00:00.000Z","error":"authentication_failed"}\n');
+  assert.deepEqual(grep(dir, CLAUDE_TOKEN), []);
+  assert.equal(statSync(join(dir, 'failures.jsonl')).mode & 0o777, 0o600);
+  // Out of range or missing numbers drop the window; an input without any window keeps the last reading.
+  assert.equal(usageRecord(input({ used_percentage: 120, resets_at: epoch(T0) }, { used_percentage: '5', resets_at: 1 }), T0), null);
+  assert.equal(usageRecord({}, T0), null);
+  assert.equal(hook('statusline', '{}', dir, T0), '');
+  assert.equal(JSON.parse(readFileSync(join(dir, 'usage.json'), 'utf8')).fiveHour.used, 41.5);
+  assert.equal(failureLine({ error: 'rate_limit' }, T0).includes('rate_limit'), true);
+});
+
+test('the failure file keeps its last 20 lines', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-usage-'));
+  for (let i = 0; i < 25; i++) hook('failure', JSON.stringify({ error: 'rate_limit' }), dir, T0 + i * 1000);
+  const lines = readFileSync(join(dir, 'failures.jsonl'), 'utf8').trim().split('\n');
+  assert.equal(lines.length, 20);
+  assert.match(lines[0], /12:00:05/);
+});
+
+test('assess with a fake clock: below the minimum is low, at it is fine, a reset window is unknown, never full', () => {
+  const limits = limitsFor(undefined);
+  assert.deepEqual(limits, { minimum: { fiveHour: 8, sevenDay: 3 }, warn: { fiveHour: 16, sevenDay: 6 } });
+  const state = (five, seven) => parseState(JSON.stringify({ checkedAt: new Date(T0).toISOString(), fiveHour: { used: five, resetsAt: epoch(T0 + HOUR) }, sevenDay: { used: seven, resetsAt: epoch(T0 + 10 * HOUR) } }), '');
+  const states = (u) => [u.fiveHour.state, u.sevenDay.state];
+  assert.deepEqual(states(assess(state(50, 50), limits, T0)), ['ok', 'ok']);
+  assert.deepEqual(states(assess(state(92, 97), limits, T0)), ['warn', 'warn'], 'exactly the minimum is not low');
+  assert.deepEqual(states(assess(state(84, 94), limits, T0)), ['ok', 'ok'], 'exactly the notice level is fine');
+  assert.deepEqual(states(assess(state(92.5, 97.5), limits, T0)), ['low', 'low']);
+  assert.deepEqual(states(assess(state(85, 95), limits, T0)), ['warn', 'warn']);
+  assert.equal(assess(state(95, 50), limits, T0).fiveHour.remaining, 5);
+  assert.equal(assess(state(50, 50), limits, T0 + 5 * 60e3).ageSeconds, 300);
+  // The 5-hour window reset one hour on: its reading is unknown, the weekly one still holds.
+  const later = assess(state(99, 99), limits, T0 + 2 * HOUR);
+  assert.deepEqual(states(later), ['unknown', 'low']);
+  assert.equal(later.fiveHour.reason, 'the window has reset since the last reading');
+  assert.equal(later.fiveHour.remaining, null);
+  // No file, a file that is not one, values out of range: not tracked or unknown.
+  assert.equal(assess(parseState(null, null), limits, T0).tracked, false);
+  assert.equal(assess(parseState('[1]', ''), limits, T0).tracked, false);
+  const hostile = parseState(JSON.stringify({ checkedAt: new Date(T0).toISOString(), fiveHour: { used: 'a', resetsAt: 5 }, sevenDay: { used: -3, resetsAt: epoch(T0 + HOUR) } }), 'x\n{"error":"rate_limit","at":"nope"}\n{"error":"other","at":"2026-10-26T11:00:00Z"}');
+  assert.deepEqual(states(assess(hostile, limits, T0)), ['unknown', 'unknown']);
+  assert.deepEqual(hostile.failures, []);
+  // Failures older than a day are not shown.
+  const f = parseState(null, `{"error":"rate_limit","at":"${new Date(T0 - 25 * HOUR).toISOString()}"}\n{"error":"billing_error","at":"${new Date(T0 - HOUR).toISOString()}"}\n`);
+  assert.deepEqual(assess(f, limits, T0).failures.map((x) => x.error), ['billing_error']);
+  // Thresholds: an account's own value wins over the settings, which win over the defaults; the notice is never below the minimum.
+  const settings = { minimum: { fiveHour: 20 }, warn: { sevenDay: 1 } };
+  assert.deepEqual(limitsFor(settings, { limits: { minimum: { sevenDay: 10 } } }), { minimum: { fiveHour: 20, sevenDay: 10 }, warn: { fiveHour: 40, sevenDay: 10 } });
+});
+
+test('settings.json: the status line and the hook are added next to the user\'s own and taken out again', () => {
+  const script = '/home/u/acct/benchkeeper/usage.mjs';
+  const own = '{\n  "model": "x",\n  "hooks": { "StopFailure": [{ "matcher": "overloaded", "hooks": [{ "type": "command", "command": "echo hi" }] }] }\n}\n';
+  const on = trackedSettings(own, script);
+  const doc = JSON.parse(on);
+  assert.equal(doc.model, 'x');
+  assert.equal(doc.statusLine.command, `node "${script}" statusline`);
+  assert.equal(doc.hooks.StopFailure.length, 2);
+  assert.equal(doc.hooks.StopFailure[0].hooks[0].command, 'echo hi');
+  assert.equal(doc.hooks.StopFailure[1].matcher, 'rate_limit|authentication_failed|billing_error');
+  assert.equal(trackedSettings(on, script), on, 'twice changes nothing');
+  assert.deepEqual(JSON.parse(trackedSettings(on, script, { remove: true })), JSON.parse(own));
+  assert.equal(trackedSettings(null, script, { remove: true }), null);
+  assert.deepEqual(JSON.parse(trackedSettings(trackedSettings(null, script), script, { remove: true })), {});
+  // A status line of another kind is not replaced; a path with shell characters is refused.
+  assert.throws(() => trackedSettings('{"statusLine":{"type":"command","command":"my-line"}}', script), /already has a status line of its own/);
+  assert.throws(() => trackedSettings(null, '/x/$(id)/usage.mjs'), /do not go into a hook command/);
+  assert.match(HOOK_SOURCE, /^\/\/ Runs inside one account's folder/);
+});
+
+test('track: a plan with a diff and an undo; the installed script writes what status reads; no token reaches the folder', skip, async () => {
+  const m = machine({ flow: 'callback' });
+  const a = await add(m, 'work');
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'work', '--yes']), 0, c.text());
+  assert.match(c.text(), /tracking starts with the next Claude Code session/);
+  const script = join(a.dir, 'benchkeeper', 'usage.mjs');
+  assert.equal(readFileSync(script, 'utf8'), HOOK_SOURCE);
+  const settings = JSON.parse(readFileSync(join(a.dir, 'settings.json'), 'utf8'));
+  assert.equal(settings.statusLine.command, `node "${script}" statusline`);
+  // Nothing is read yet.
+  const s0 = cli(m);
+  assert.equal(await s0.exec(['accounts', 'status', 'work']), 0);
+  assert.match(s0.text(), /signed in/);
+  // Run the installed script the way Claude Code does: the input on stdin, the readings land in the folder.
+  const now = Date.now();
+  const r = runCommand([process.execPath, script, 'statusline'], { input: JSON.stringify(windows(30, 96, now)) });
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(runCommand([process.execPath, script, 'failure'], { input: JSON.stringify({ error: 'authentication_failed', last_assistant_message: CLAUDE_TOKEN }) }).code, 0);
+  const s = cli(m);
+  assert.equal(await s.exec(['accounts', 'status', 'work']), 0);
+  assert.match(s.text(), /usage {4}5-hour 70% left, resets .*; 7-day 4% left, resets .*; read \d+ seconds ago/);
+  assert.match(s.text(), /warning {2}account work: the last session ended with an authentication failure at .*\n {11}fix: benchkeeper accounts login work/);
+  const j = cli(m);
+  await j.exec(['accounts', 'status', 'work', '--json']);
+  const u = j.json().accounts[0].usage;
+  assert.deepEqual(Object.keys(u), ['tracked', 'checkedAt', 'ageSeconds', 'minimum', 'warn', 'fiveHour', 'sevenDay', 'failures']);
+  assert.deepEqual([u.tracked, u.fiveHour.state, u.fiveHour.remaining, u.sevenDay.state, u.sevenDay.remaining, u.failures.map((f) => f.error)], [true, 'ok', 70, 'warn', 4, ['authentication_failed']]);
+  assert.deepEqual(grep(a.dir, CLAUDE_TOKEN), []);
+  // doctor reports the failure under the same check; a login that failed is a warning, not an error.
+  const checks = accountChecks(m.ctx, {});
+  assert.ok(checks.some((f) => f.level === 'warning' && /authentication failure/.test(f.message)));
+  assert.ok(checks.every((f) => f.level !== 'error'));
+  // Undo restores the folder as it was: no script, no settings.json.
+  const run = m.ctx.ledger.list().find((x) => x.entries.some((e) => /usage script/.test(e.title)));
+  const u1 = cli(m);
+  assert.equal(await u1.exec(['undo', run.id]), 0, u1.text());
+  assert.equal(existsSync(script), false);
+  assert.equal(existsSync(join(a.dir, 'settings.json')), false);
+  // --off on a tracked account removes both again (the plan is the same kind).
+  await cli(m).exec(['accounts', 'track', 'work', '--yes']);
+  const off = cli(m);
+  assert.equal(await off.exec(['accounts', 'track', 'work', '--off', '--yes']), 0, off.text());
+  assert.match(off.text(), /removed/);
+  assert.equal(existsSync(script), false);
+  assert.deepEqual(JSON.parse(readFileSync(join(a.dir, 'settings.json'), 'utf8')), {});
+  const again = cli(m);
+  assert.equal(await again.exec(['accounts', 'track', 'work', '--off', '--yes']), 0);
+  assert.match(again.text(), /nothing to change/);
+});
+
+test('track: a status line of the user\'s own is an error in the plan and nothing is written; Codex has no usage source', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work');
+  writeFileSync(join(a.dir, 'settings.json'), '{"statusLine":{"type":"command","command":"my-line"}}\n');
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'work', '--yes']), 1);
+  assert.match(c.text(), /already has a status line of its own/);
+  assert.equal(existsSync(join(a.dir, 'benchkeeper', 'usage.mjs')), false);
+  const x = await add(m, 'dev', 'codex');
+  const t = cli(m);
+  assert.equal(await t.exec(['accounts', 'track', 'dev', '--yes']), 1);
+  assert.match(t.text(), /Codex has no documented source/);
+  const st = cli(m);
+  assert.equal(await st.exec(['accounts', 'status', 'dev', '--json']), 0);
+  assert.equal(st.json().accounts[0].usage, null);
+  assert.equal(accountStatus(m.ctx, x).usage, null);
+});
+
+test('limits: defaults, per-account values, the pool, and the refusals', skip, async () => {
+  const m = machine();
+  await add(m, 'work');
+  await add(m, 'home');
+  const show = cli(m);
+  assert.equal(await show.exec(['accounts', 'limits']), 0);
+  assert.match(show.text(), /defaults: minimum headroom 5-hour 8% \(notice below 16%\), 7-day 3% \(notice below 6%\)\nauto-pick off; when no pool member has headroom: stop; below the minimum run asks\n$/);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--five-hour', '10', '--warn-seven-day', '9', '--auto-pick', 'on', '--when-none', 'wait', '--yes']), 0);
+  assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--seven-day', '5', '--pool', 'me', '--yes']), 0);
+  assert.equal(await cli(m).exec(['accounts', 'limits', 'home', '--pool', 'me', '--yes']), 0);
+  const doc = JSON.parse(readFileSync(join(m.ctx.config, 'accounts.json'), 'utf8'));
+  assert.deepEqual(doc.settings, { minimum: { fiveHour: 10 }, warn: { sevenDay: 9 }, autoPick: true, whenNone: 'wait' });
+  assert.deepEqual([doc.accounts[0].limits, doc.accounts[0].pool, doc.accounts[1].pool], [{ minimum: { sevenDay: 5 } }, 'me', 'me']);
+  const l = cli(m);
+  assert.equal(await l.exec(['accounts', 'list', '--json']), 0);
+  assert.deepEqual(l.json().accounts[0].limits, { minimum: { fiveHour: 10, sevenDay: 5 }, warn: { fiveHour: 20, sevenDay: 9 } });
+  assert.equal(l.json().accounts[0].pool, 'me');
+  assert.deepEqual(l.json().settings.minimum, { fiveHour: 10, sevenDay: 3 });
+  assert.equal(l.json().settings.autoPick, true);
+  const text = cli(m);
+  await text.exec(['accounts', 'limits']);
+  assert.match(text.text(), /auto-pick on; when no pool member has headroom: wait/);
+  assert.match(text.text(), /work: minimum headroom 5-hour 10% .*7-day 5%.*; pool me\nhome: defaults; pool me/);
+  // --reset drops an account's values, --pool none its pool, and the undo of a change restores the file.
+  assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--reset', '--pool', 'none', '--yes']), 0);
+  assert.equal(listAccounts(m.ctx)[0].limits, undefined);
+  assert.equal(listAccounts(m.ctx)[0].pool, undefined);
+  const run = m.ctx.ledger.list().find((r) => r.entries[0].title.startsWith('reset the usage thresholds'));
+  assert.equal(await cli(m).exec(['undo', run.id]), 0);
+  assert.equal(listAccounts(m.ctx)[0].pool, 'me');
+  // Refusals leave the file alone.
+  const before = readFileSync(join(m.ctx.config, 'accounts.json'), 'utf8');
+  for (const [args, message] of [
+    [['--five-hour', '150'], /--five-hour is a percentage/], [['--seven-day', ''], /--seven-day is a percentage/], [['--auto-pick', 'maybe'], /--auto-pick is on or off/],
+    [['--when-none', 'sleep'], /--when-none is stop or wait/], [['work', '--auto-pick', 'on'], /settings for all accounts/], [['--pool', 'me'], /belong to one account/],
+    [['work', '--pool', 'Not A Name'], /a pool name is 1 to 32/], [['ghost', '--five-hour', '5'], /no account ghost/]]) {
+    const r = cli(m);
+    assert.equal(await r.exec(['accounts', 'limits', ...args, '--yes']), 1, `${args.join(' ')}: ${r.text()}`);
+    assert.match(r.text(), message);
+  }
+  assert.equal(readFileSync(join(m.ctx.config, 'accounts.json'), 'utf8'), before);
+});
+
+// run: the launch preflight
+
+const launches = (m) => m.calls().filter((x) => x.me === 'claude' && x.args[0] === '--go');
+const go = (m, c, ...flags) => c.exec(['run', ...flags, '--', 'claude', '--go']);
+
+test('run below the minimum asks first; yes, --yes or the setting starts anyway; above the minimum it just starts', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work');
+  reading(a, 50, 50);
+  const ok = cli(m);
+  assert.equal(await go(m, ok), 0);
+  assert.equal(launches(m).length, 1);
+  assert.doesNotMatch(ok.text(), /minimum/);
+  // A notice level is not a stop.
+  reading(a, 88, 50);
+  const warn = cli(m);
+  assert.equal(await go(m, warn), 0);
+  assert.equal(launches(m).length, 2);
+  // Below the minimum: the account, the window, what is left and the reset are shown, then the question. No answer is no.
+  reading(a, 95, 50);
+  const no = cli(m);
+  assert.equal(await go(m, no), 1);
+  assert.match(no.text(), /warning: account work: 5-hour window has 5% left, below the minimum of 8% \(resets \d{4}-\d\d-\d\d \d\d:\d\d UTC\)/);
+  assert.match(no.text(), /Start anyway\? \[y\/N\] not started/);
+  assert.equal(launches(m).length, 2);
+  const yes = cli(m, ['y\n']);
+  assert.equal(await go(m, yes), 0);
+  assert.equal(launches(m).length, 3);
+  assert.equal(await go(m, cli(m), '--yes'), 0);
+  assert.equal(launches(m).length, 4);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--continue-below', 'on', '--yes']), 0);
+  assert.equal(await go(m, cli(m)), 0);
+  assert.equal(launches(m).length, 5);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--continue-below', 'off', '--yes']), 0);
+  // The weekly window counts too, and a per-account minimum moves the line.
+  reading(a, 50, 98);
+  assert.equal(await go(m, cli(m)), 1);
+  assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--seven-day', '1', '--yes']), 0);
+  assert.equal(await go(m, cli(m)), 0);
+});
+
+test('run: stale or missing readings are unknown, not full and not low', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work');
+  assert.equal(await go(m, cli(m)), 0, 'not tracked');
+  reading(a, 99, 10, Date.now() - 5 * 36e5);
+  assert.equal(await go(m, cli(m)), 0, 'both windows reset since the reading');
+  const s = cli(m);
+  await s.exec(['accounts', 'status', 'work']);
+  assert.match(s.text(), /5-hour unknown \(the window has reset since the last reading\)/);
+});
+
+test('auto-pick is off by default: below the minimum the chosen account stays chosen, and asks', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work'), b = await add(m, 'home');
+  assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--pool', 'me', '--yes']), 0);
+  assert.equal(await cli(m).exec(['accounts', 'limits', 'home', '--pool', 'me', '--yes']), 0);
+  reading(a, 97, 10);
+  reading(b, 10, 10);
+  const c = cli(m);
+  assert.equal(await go(m, c), 1);
+  assert.match(c.text(), /Start anyway\?/);
+  assert.equal(launches(m).length, 0);
+  assert.equal(await go(m, cli(m), '--yes'), 0);
+  assert.equal(launches(m)[0].env.CLAUDE_CONFIG_DIR, a.dir);
+});
+
+test('auto-pick on: a new launch under the default account starts under the pool member with the most headroom, and says so', skip, async () => {
+  const m = machine();
+  const work = await add(m, 'work'), home = await add(m, 'home'), spare = await add(m, 'spare'), other = await add(m, 'other');
+  for (const n of ['work', 'home', 'spare']) assert.equal(await cli(m).exec(['accounts', 'limits', n, '--pool', 'me', '--yes']), 0);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--yes']), 0);
+  reading(work, 97, 10);
+  reading(home, 60, 10);
+  reading(spare, 30, 10);
+  reading(other, 0, 0);
+  const c = cli(m);
+  assert.equal(await go(m, c), 0, c.text());
+  assert.match(c.text(), /auto-pick: starting under account spare of pool me \(70% left\) instead of work/);
+  assert.equal(launches(m).length, 1);
+  assert.equal(launches(m)[0].env.CLAUDE_CONFIG_DIR, spare.dir, 'one launch, under the pick; the account outside the pool is never one');
+  // An account named with --account is never replaced.
+  const named = cli(m);
+  assert.equal(await go(m, named, '--account', 'work'), 1);
+  assert.match(named.text(), /Start anyway\?/);
+  assert.equal(launches(m).length, 1);
+  // A member that is below its minimum, unknown, or not tracked is no candidate.
+  reading(spare, 99, 10);
+  reading(home, 60, 10, Date.now() - 5 * 36e5);
+  const none = cli(m);
+  assert.equal(await go(m, none), 1);
+  assert.match(none.text(), /no account of pool me is at or above its minimum; the earliest reset is \d{4}-\d\d-\d\dT.* \(account (work|spare)\)/);
+  assert.equal(launches(m).length, 1);
+  // An account that is not in a pool has no candidates: the usual question.
+  assert.equal(await cli(m).exec(['accounts', 'limits', 'work', '--pool', 'none', '--yes']), 0);
+  const solo = cli(m);
+  assert.equal(await go(m, solo), 1);
+  assert.match(solo.text(), /Start anyway\?/);
+});
+
+test('auto-pick with when-none wait: sleeps until the earliest reset, then starts under that account', skip, async () => {
+  const m = machine();
+  const work = await add(m, 'work'), home = await add(m, 'home');
+  for (const n of ['work', 'home']) assert.equal(await cli(m).exec(['accounts', 'limits', n, '--pool', 'me', '--yes']), 0);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--when-none', 'wait', '--yes']), 0);
+  const now = Date.now();
+  mkdirSync(join(work.dir, 'benchkeeper'), { recursive: true });
+  mkdirSync(join(home.dir, 'benchkeeper'), { recursive: true });
+  const put = (a, resetsIn) => writeFileSync(join(a.dir, 'benchkeeper', 'usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 99, resetsAt: epoch(now + resetsIn) }, sevenDay: { used: 10, resetsAt: epoch(now + 48 * HOUR) } }));
+  put(work, 3 * HOUR);
+  put(home, 2 * HOUR);
+  const slept = [];
+  const ctx = { ...m.ctx, sleep: (ms) => slept.push(ms) };
+  const lines = [];
+  const code = runAs(ctx, findAccount(ctx, 'work'), ['claude', '--go'], { dir: m.root, pick: true, now, say: (l) => lines.push(l) });
+  assert.equal(code, 0);
+  assert.deepEqual(slept, [2 * HOUR - (now % 1000)]);
+  assert.match(lines.join('\n'), /waiting until .* for account home/);
+  assert.equal(launches(m)[0].env.CLAUDE_CONFIG_DIR, home.dir);
+});
+
+test('a launch checks usage once and never touches a session that runs: status and limits do not start or stop an agent', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work');
+  reading(a, 50, 50);
+  assert.equal(await go(m, cli(m)), 0);
+  const before = m.calls().length;
+  await cli(m).exec(['accounts', 'status']);
+  await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--yes']);
+  assert.deepEqual(m.calls().slice(before).filter((x) => x.me === 'claude' && x.args[0] !== 'auth'), []);
+  assert.throws(() => runAs(m.ctx, a, ['codex'], { dir: m.root }), /is a claude account/);
+  assert.ok(new NeedsConfirm().message.includes('--yes'));
+});
+
+test('a dev container account: usage and failures are read through devcontainer exec, track writes the volume and --off removes', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  m.mode('container-login', 'yes');
+  const vol = (p) => join(m.bin, 'vol', p);
+  // Not checked without a project: no usage either.
+  const s0 = cli(m);
+  await s0.exec(['accounts', 'status', 'boxed', '--json']);
+  assert.equal(s0.json().accounts[0].usage, null);
+  const t = cli(m);
+  assert.equal(await t.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0, t.text());
+  assert.match(t.text(), /statusLine/);
+  const settings = JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8'));
+  assert.equal(settings.statusLine.command, 'node "/data/boxed/benchkeeper/usage.mjs" statusline');
+  assert.equal(readFileSync(vol('/data/boxed/benchkeeper/usage.mjs'), 'utf8'), HOOK_SOURCE);
+  const now = Date.now();
+  mkdirSync(vol('/data/boxed/benchkeeper'), { recursive: true });
+  writeFileSync(vol('/data/boxed/benchkeeper/usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 96, resetsAt: epoch(now + HOUR) }, sevenDay: { used: 5, resetsAt: epoch(now + 48 * HOUR) } }));
+  writeFileSync(vol('/data/boxed/benchkeeper/failures.jsonl'), `{"at":"${new Date(now).toISOString()}","error":"rate_limit"}\n`);
+  const s = cli(m);
+  assert.equal(await s.exec(['accounts', 'status', 'boxed', '--project', project, '--json']), 0);
+  const u = s.json().accounts[0].usage;
+  assert.deepEqual([u.fiveHour.state, u.fiveHour.remaining, u.failures.length], ['low', 4, 1]);
+  assert.ok(s.json().accounts[0].findings.some((f) => /5-hour window has 4% left/.test(f.message)));
+  const off = cli(m);
+  assert.equal(await off.exec(['accounts', 'track', 'boxed', '--off', '--project', project, '--yes']), 0, off.text());
+  assert.equal(existsSync(vol('/data/boxed/benchkeeper/usage.mjs')), false);
+  assert.deepEqual(JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8')), {});
+  // Asked without --yes: no answer is no and nothing is written.
+  const no = cli(m);
+  assert.equal(await no.exec(['accounts', 'track', 'boxed', '--project', project]), 1);
+  assert.equal(existsSync(vol('/data/boxed/benchkeeper/usage.mjs')), false);
+});
+
+test('the script runs from a folder reached through a link; a huge or non-regular state file is read as missing', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work');
+  assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--yes']), 0);
+  const link = join(m.root, 'link');
+  symlinkSync(a.dir, link);
+  const r = runCommand([process.execPath, join(link, 'benchkeeper', 'usage.mjs'), 'statusline'], { input: JSON.stringify(windows(30, 50, Date.now())) });
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /5h 70% left/);
+  assert.equal(JSON.parse(readFileSync(join(a.dir, 'benchkeeper', 'usage.json'), 'utf8')).fiveHour.used, 30);
+  writeFileSync(join(a.dir, 'benchkeeper', 'usage.json'), ' '.repeat(70000));
+  assert.equal(accountStatus(m.ctx, a).usage.tracked, false);
+  writeFileSync(join(a.dir, 'benchkeeper', 'usage.json'), '{}');
+  assert.equal(accountStatus(m.ctx, a).usage.tracked, false);
+  mkdirSync(join(a.dir, 'benchkeeper', 'failures.jsonl'));
+  assert.deepEqual(accountStatus(m.ctx, a).usage.failures, []);
+});
+
+test('auto-pick on with no member above its minimum: --yes goes on under the chosen account, the setting stop refuses without it', skip, async () => {
+  const m = machine();
+  const work = await add(m, 'work'), home = await add(m, 'home');
+  for (const n of ['work', 'home']) assert.equal(await cli(m).exec(['accounts', 'limits', n, '--pool', 'me', '--yes']), 0);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--yes']), 0);
+  reading(work, 99, 10);
+  reading(home, 99, 10);
+  assert.equal(await go(m, cli(m)), 1);
+  assert.equal(launches(m).length, 0);
+  assert.equal(await go(m, cli(m), '--yes'), 0);
+  assert.equal(launches(m)[0].env.CLAUDE_CONFIG_DIR, work.dir);
+});
+
+test('a dev container track twice or --off twice has nothing to change; the script is written before the settings that name it', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  const off0 = cli(m);
+  assert.equal(await off0.exec(['accounts', 'track', 'boxed', '--off', '--project', project, '--yes']), 0);
+  assert.match(off0.text(), /nothing to change/);
+  assert.equal(await cli(m).exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0);
+  const writes = m.calls().filter((x) => x.me === 'devcontainer' && x.args.includes('tee')).map((x) => x.args.at(-1));
+  assert.deepEqual(writes, ['/data/boxed/benchkeeper/usage.mjs', '/data/boxed/settings.json']);
+  const again = cli(m);
+  assert.equal(await again.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0);
+  assert.match(again.text(), /nothing to change/);
+});
+
+test('a dev container whose settings.json cannot be read is not an empty one: nothing is written', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  m.mode('cat', 'fail');
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 1);
+  assert.match(c.text(), /could not read \/data\/boxed\/settings.json in the container: devcontainer exec failed/);
+  assert.deepEqual(m.calls().filter((x) => x.args.includes('tee')), []);
+});
+
+test('a container settings.json diff is masked like a host one before it is shown', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  mkdirSync(join(m.bin, 'vol/data/boxed'), { recursive: true });
+  writeFileSync(join(m.bin, 'vol/data/boxed/settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'dummy-key-value-0123456789', GH_TOKEN: 'dummy-gh-value' }, model: 'x' }, null, 2));
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0, c.text());
+  assert.doesNotMatch(c.text(), /dummy-key-value|dummy-gh-value/);
+  assert.match(readFileSync(join(m.bin, 'vol/data/boxed/settings.json'), 'utf8'), /dummy-key-value-0123456789/, 'the file keeps what it had');
+});

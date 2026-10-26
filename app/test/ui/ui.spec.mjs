@@ -1134,6 +1134,8 @@ test.describe('views', () => {
     await expect(page.getByText('No account yet.')).toBeVisible();
     await expect(page.getByText('A hijacked session in a container can read the credentials in its volume.')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Token for unattended containers' })).toContainText('never in a file');
+    await expect(page.getByRole('region', { name: 'Usage limits' })).toContainText('Auto-pick is off');
+    await expect(page.getByRole('region', { name: 'Usage limits' })).toContainText('minimum 5-hour 8%, 7-day 3%');
     await page.getByLabel('Name', { exact: true }).fill('work');
     await page.getByRole('button', { name: 'Plan the new account' }).click();
     const changes = page.getByRole('region', { name: 'Changes' });

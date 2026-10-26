@@ -7,6 +7,7 @@ import {
   IconListCheck, IconRoute, IconSchool,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
+import { preview } from '../lib/preview';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
 import SiteHeader from './SiteHeader';
@@ -21,6 +22,8 @@ const theme = createTheme({
 });
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
+// The develop preview links to the branch that already holds the guide.
+const SETUP = `${REPO}/blob/${preview ? 'develop' : 'main'}/docs/setup.md`;
 // Backticks in facts.json become inline code, the same text the README renders.
 const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
 
@@ -195,7 +198,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
-        <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Anchor href={`${REPO}#prerequisites`}>Full list of tools.</Anchor> {facts.quickstart.choose} <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
+        <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Anchor href={`${SETUP}#prerequisites`}>Full list of tools.</Anchor> {facts.quickstart.choose} <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
           <Stack gap="lg" maw={760}>
             <div className="qs">
               <div role="tablist" aria-label="Install path" className="qs-tabs" hidden>
@@ -214,7 +217,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </div>
             <Text size="sm">{facts.quickstart.next} {md(facts.quickstart.changes)}</Text>
             <Group gap="md">
-              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : `${REPO}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
+              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : `${SETUP}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
             </Group>
             <VisuallyHidden aria-live="polite" data-copy-status></VisuallyHidden>
           </Stack>

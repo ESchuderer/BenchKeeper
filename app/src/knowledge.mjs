@@ -2,23 +2,28 @@
 // Derived from the repository and rebuildable, so nothing here is undoable; the folder is the only thing clear removes.
 import { lstatSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { isLink } from './fsx.mjs';
 import { mask } from './redact.mjs';
 
 const MAX_BYTES = 1024 * 1024;
 export const knowledgeDir = (dir) => join(dir, '.benchkeeper', 'knowledge');
+// A linked .benchkeeper would send reads and the removal outside the project.
+export const linkedParent = (dir) => isLink(join(dir, '.benchkeeper'));
 
 // Token shapes are masked in every string value, as everywhere the app shows stored text.
-const clean = (v) => (typeof v === 'string' ? mask(v, { keys: false }) : Array.isArray(v) ? v.map(clean) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x)])) : v);
+const clean = (v) => (typeof v === 'string' ? mask(v, { keys: false }) : Array.isArray(v) ? v.map(clean) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [mask(k, { keys: false }), clean(x)])) : v);
 
+// present: the knowledge folder exists, empty or not.
 // Each file is { "entries": [ { "id": ..., ... } ] }. One that does not parse, is not a plain file or is too large
 // is ignored with a reason; the stored text is data and is never followed.
 export function readKnowledge(dir) {
   const path = knowledgeDir(dir), files = [], ignored = [];
+  if (linkedParent(dir)) return { path, present: false, files, ignored: [{ name: '.benchkeeper', reason: 'a link, not followed' }] };
   let names;
   try {
-    if (!lstatSync(path).isDirectory()) return { path, files, ignored: [{ name: '.', reason: 'not a folder' }] };
+    if (!lstatSync(path).isDirectory()) return { path, present: false, files, ignored: [{ name: '.', reason: 'not a folder' }] };
     names = readdirSync(path, { withFileTypes: true });
-  } catch { return { path, files, ignored }; }
+  } catch { return { path, present: false, files, ignored }; }
   for (const f of names.sort((a, b) => a.name.localeCompare(b.name))) {
     const shown = f.name.replace(/\p{Cc}/gu, ' '), bad = (reason) => ignored.push({ name: shown, reason });
     if (!f.isFile() || !f.name.endsWith('.json')) { bad('not a JSON file'); continue; }
@@ -29,7 +34,7 @@ export function readKnowledge(dir) {
       files.push({ name: shown, entries: clean(entries) });
     } catch { bad('does not parse'); }
   }
-  return { path, files, ignored };
+  return { path, present: true, files, ignored };
 }
 
 // One line per entry: the id, then the other fields; control characters cannot reach the terminal.

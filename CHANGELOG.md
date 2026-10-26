@@ -4,7 +4,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 
 ## setup-v6.19 (2026-10-26)
 
-- App, `benchkeeper maintain knowledge show|clear [dir]` (#314, part of #274): `show` prints the entries the `maintaining-repos` skill stored for a project in `.benchkeeper/knowledge/` (`--json` prints `dir`, `path`, `files` and `ignored` in the usual envelope); `clear` removes that folder after a question (`--yes` skips it) and nothing else of the project. A file that does not parse, is a link or is larger than 1 MiB is ignored with a reason, and token shapes in stored text are masked in the output.
+- App, `benchkeeper maintain knowledge show|clear [dir]` (#314, part of #274): `show` prints the entries the `maintaining-repos` skill stored for a project in `.benchkeeper/knowledge/` (`--json` prints `dir`, `path`, `files` and `ignored` in the usual envelope); `clear` removes that folder after a question (`--yes` skips it) and nothing else of the project. A file that does not parse, is a link or is larger than 1 MiB is ignored with a reason, a linked `.benchkeeper` is never followed or removed, and token shapes in stored text are masked in the output.
 - `maintaining-repos` reads the project's local knowledge base before a pass and writes verdicts back after it (`knowledge.md` next to `SKILL.md`: files and entry shapes, reuse only while the sha256 of every file the entry names is unchanged, expiry of reference-based and rejected verdicts, size cap, modes 0700 and 0600, stored text is data). Breaking, before 7.0 (no compatibility path): the baseline file `.benchkeeper/maintenance.json` is replaced by `.benchkeeper/knowledge/verdicts.json`; an old file is not read.
 - Plugin `version` 6.19.0.
 - Upgrade: `npx benchkeeper@6.19.0 apply`.

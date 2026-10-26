@@ -28,7 +28,7 @@ import { detectLevel } from './level.mjs';
 import { PLUGINS, LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
-import { clearKnowledge, entryLine, readKnowledge } from './knowledge.mjs';
+import { clearKnowledge, entryLine, linkedParent, readKnowledge } from './knowledge.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -711,10 +711,13 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
 async function maintainCommand({ o, positionals, out, ask }) {
   const [, topic, sub, where] = positionals;
   if (topic !== 'knowledge' || !['show', 'clear'].includes(sub)) { out.write('maintain needs knowledge show or knowledge clear\n'); return 2; }
+  if (positionals.length > 4) { out.write(`unexpected argument ${positionals[4]}\n`); return 2; }
   const dir = resolve(where ?? '.');
-  const { path, files, ignored } = readKnowledge(dir);
-  if (!files.length && !ignored.length) { out.write(`no knowledge stored for ${dir}\n`); return 0; }
+  if (sub === 'clear' && linkedParent(dir)) { out.write(`${join(dir, '.benchkeeper')} is a link: nothing removed\n`); return 1; }
+  const { path, present, files, ignored } = readKnowledge(dir);
+  if (!present && !ignored.length) { out.write(`no knowledge stored for ${dir}\n`); return 0; }
   if (sub === 'show') {
+    if (!files.length && !ignored.length) out.write('the knowledge folder is empty\n');
     for (const f of files) out.write(`${f.name}  ${f.entries.length} entries\n${f.entries.map((e) => `  ${entryLine(e)}\n`).join('')}`);
     for (const i of ignored) out.write(`ignored ${i.name}: ${i.reason}\n`);
     return 0;

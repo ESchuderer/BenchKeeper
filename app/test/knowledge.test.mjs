@@ -110,6 +110,38 @@ test('a linked knowledge folder is shown as ignored and clear removes the link, 
   assert.ok(existsSync(join(target, 'verdicts.json')));
 });
 
+test('clear removes an empty knowledge folder; show says it is empty', async () => {
+  const f = fixture();
+  await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']);
+  mkdirSync(join(f.dir, '.benchkeeper/knowledge'));
+  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir]), 0);
+  assert.match(f.text(), /the knowledge folder is empty/);
+  assert.equal(await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']), 0);
+  assert.equal(existsSync(join(f.dir, '.benchkeeper/knowledge')), false);
+});
+
+test('a linked .benchkeeper is not read and not removed', async () => {
+  const f = fixture();
+  const outside = mkdtempSync(join(tmpdir(), 'bk-know-outside-'));
+  mkdirSync(join(outside, 'knowledge'));
+  writeFileSync(join(outside, 'knowledge/verdicts.json'), '{"entries":[{"id":"elsewhere"}]}');
+  rmSync(join(f.dir, '.benchkeeper'), { recursive: true });
+  symlinkSync(outside, join(f.dir, '.benchkeeper'));
+  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir]), 0);
+  assert.match(f.text(), /ignored \.benchkeeper: a link, not followed/);
+  assert.doesNotMatch(f.text(), /elsewhere/);
+  assert.equal(await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']), 1);
+  assert.match(f.text(), /is a link: nothing removed/);
+  assert.ok(existsSync(join(outside, 'knowledge/verdicts.json')));
+});
+
+test('token-shaped keys are masked too', async () => {
+  const f = fixture();
+  writeFileSync(join(f.dir, '.benchkeeper/knowledge/open.json'), JSON.stringify({ entries: [{ id: 'q1', ghp_abcdefghijklmnop: 'x' }] }));
+  await f.exec(['maintain', 'knowledge', 'show', f.dir, '--json']);
+  assert.doesNotMatch(f.text(), /ghp_abcdefghijklmnop/);
+});
+
 test('usage errors: unknown subcommand, a surplus argument with --json', async () => {
   const f = fixture();
   assert.equal(await f.exec(['maintain', 'knowledge', 'list']), 2);
@@ -121,4 +153,8 @@ test('usage errors: unknown subcommand, a surplus argument with --json', async (
   const h = fixture();
   assert.equal(await h.exec(['maintain', 'knowledge', 'show', h.dir, 'extra', '--json']), 2);
   assert.match(h.json().error, /unexpected argument extra/);
+  // Text mode too: a surplus argument never reaches the removal.
+  const i = fixture();
+  assert.equal(await i.exec(['maintain', 'knowledge', 'clear', i.dir, 'extra', '--yes']), 2);
+  assert.ok(existsSync(join(i.dir, '.benchkeeper/knowledge/verdicts.json')));
 });

@@ -93,7 +93,7 @@ test('drift is reported per setting: merge methods, token, allowlist, security, 
   db.pvr = false;
   db.code = 'not-configured';
   db.rulesets = [withChecks({ ...OSS.rulesets[0], enforcement: 'disabled' }, ['build']), withChecks(OSS.rulesets[1], ['build', 'dependency-review', 'only-main'])];
-  db.rulesets[0].rules.find((r) => r.type === 'pull_request').parameters.allowed_merge_methods = ['merge', 'squash'];
+  db.rulesets[0].rules.find((r) => r.type === 'pull_request').parameters.allowed_merge_methods = ['squash'];
   const { ctx } = machine(db);
   const found = messages(baselineIssues(ctx, checkout({ promote: null, dependabot: false }), { profile: 'oss' }));
   assert.deepEqual(found, [
@@ -103,7 +103,7 @@ test('drift is reported per setting: merge methods, token, allowlist, security, 
     'security code_scanning_default_setup is not-configured, the profile wants configured',
     `Actions allowlist lacks ${OSS.selected.patterns_allowed[0]}`,
     'ruleset develop enforcement is disabled, the profile wants active',
-    'ruleset develop allowed_merge_methods is ["merge","squash"], the profile wants ["squash"]',
+    'ruleset develop allowed_merge_methods is ["squash"], the profile wants ["merge","squash"]',
     'ruleset main requires checks that develop does not require (dependency-review, only-main): they may not have run on the promotion pull request',
     'ruleset main requires dependency-review, which runs on pull requests only and never reports on the promotion pull request',
     'caller workflow promote is missing',

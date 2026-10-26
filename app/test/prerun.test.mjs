@@ -79,19 +79,23 @@ test('prerun: no credentials reach the command, the home is the context home, an
   const real = mkdtempSync(join(tmpdir(), 'bk-prerun-cred-'));
   const home = join(real, 'home'), dir = join(real, 'proj');
   put(join(home, '.npmrc'), '//registry.example/:_authToken=sekret\nregistry=https://mirror.example/\n_auth=abc\nkey=/k.pem\n//registry.example/:keyfile=/k2.pem\n');
+  put(join(home, '.gitconfig'), '[credential]\n\thelper = store\n[http]\n\textraheader = Authorization: Basic abc\n[core]\n\tsshCommand = ssh -i /k\n');
   mkdirSync(dir, { recursive: true });
   const saved = { ...process.env };
   t.after(() => { process.env = saved; });
   for (const k of ['npm_config_userconfig', 'npm_config_cache', 'GIT_CONFIG_GLOBAL']) delete process.env[k];
   Object.assign(process.env, { GH_TOKEN: 'ghp_leak', NPM_TOKEN: 'leak', SSH_AUTH_SOCK: '/s' });
   let seen;
-  const ctx = { home, run: (argv, o) => { seen = { env: o.env, rc: readFileSync(o.env.npm_config_userconfig, 'utf8') }; return { code: 0, stdout: '', stderr: '' }; } };
+  const ctx = { home, run: (argv, o) => { seen = { env: o.env, rc: readFileSync(o.env.npm_config_userconfig, 'utf8'), git: readFileSync(o.env.GIT_CONFIG_GLOBAL, 'utf8') }; return { code: 0, stdout: '', stderr: '' }; } };
   const global = { kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', 'o/r', '-s', 'x', '-g', '--copy', '-y'], env: { DO_NOT_TRACK: '1' } };
   assert.equal((await rehearse(ctx, global)).error, null);
   for (const k of ['GH_TOKEN', 'NPM_TOKEN', 'SSH_AUTH_SOCK']) assert.equal(seen.env[k], undefined, k);
   assert.equal(seen.env.DO_NOT_TRACK, '1');
   assert.equal(seen.rc, 'registry=https://mirror.example/\n', 'registry settings stay, tokens go');
   assert.equal(seen.env.npm_config_cache, join(home, '.npm'));
+  // git reads an empty scratch config, not the user's (credential helper, extra headers, ssh command) and no system one.
+  assert.equal(seen.git, '');
+  assert.equal(seen.env.GIT_CONFIG_NOSYSTEM, '1');
 
   // A seeded folder that links back to itself is not copied: the preview fails before the command starts.
   mkdirSync(join(dir, '.claude'));

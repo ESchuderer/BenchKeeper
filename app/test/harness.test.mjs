@@ -68,6 +68,7 @@ function stubAgent(calls) {
   return (argv, o) => {
     if (argv[0] === 'git') return runCommand(argv, o);
     if (argv[1] === '--version') return { code: 0, stdout: '9.9.9 (Claude Code)\n', stderr: '' };
+    if (argv.includes('--help')) return { code: 0, stdout: '', stderr: '' };
     if (argv[0] !== 'claude') return null;
     const q = argv[2];
     calls.push({ q, lib: existsSync(join(o.cwd, '.claude/skills/designing-technical-uis/SKILL.md')) });

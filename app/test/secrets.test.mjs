@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -47,11 +47,13 @@ test('a diff of a settings file masks a token in its context lines', () => {
 
 test('childEnv: tools keep their way to the network and their folders, credentials stay', () => {
   const env = { PATH: '/bin', HOME: '/h', LC_ALL: 'C', HTTPS_PROXY: 'http://p:1', NODE_EXTRA_CA_CERTS: '/ca', npm_config_registry: 'https://r/', 'npm_config_//r/:_authToken': 'x', CLAUDE_CONFIG_DIR: '/c', CLAUDE_CODE_OAUTH_TOKEN: 't',
-    GH_TOKEN: 'g', GITHUB_TOKEN: 'g', NPM_TOKEN: 'n', ANTHROPIC_API_KEY: 'a', SSH_AUTH_SOCK: '/s', GIT_ASKPASS: '/ask', GIT_DIR: '/other/.git', AWS_SECRET_ACCESS_KEY: 's', DBUS_SESSION_BUS_ADDRESS: 'unix:x' };
-  assert.deepEqual(Object.keys(childEnv({ DO_NOT_TRACK: '1' }, env)).sort(), ['CLAUDE_CONFIG_DIR', 'DO_NOT_TRACK', 'GIT_ASKPASS', 'HOME', 'HTTPS_PROXY', 'LC_ALL', 'NODE_EXTRA_CA_CERTS', 'PATH', 'npm_config_registry']);
+    GH_TOKEN: 'g', GITHUB_TOKEN: 'g', NPM_TOKEN: 'n', ANTHROPIC_API_KEY: 'a', SSH_AUTH_SOCK: '/s', GIT_ASKPASS: '/ask', GIT_SSH_COMMAND: 'ssh -i /k', GIT_SSH: '/ssh', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraheader', GIT_CONFIG_VALUE_0: 'Authorization: Basic x', GIT_CONFIG_PARAMETERS: "'http.extraheader=x'", GIT_TERMINAL_PROMPT: '0', GIT_PROXY_COMMAND: '/p', GIT_EXTERNAL_DIFF: '/d', GIT_EXEC_PATH: '/x', GIT_PAGER: '/pg', GIT_EDITOR: '/e', GIT_SEQUENCE_EDITOR: '/se', GIT_TEMPLATE_DIR: '/t', GIT_TRACE_CURL: '1', GIT_CURL_VERBOSE: '1', GIT_DIR: '/other/.git', AWS_SECRET_ACCESS_KEY: 's', DBUS_SESSION_BUS_ADDRESS: 'unix:x' };
+  assert.deepEqual(Object.keys(childEnv({ DO_NOT_TRACK: '1' }, env)).sort(), ['CLAUDE_CONFIG_DIR', 'DO_NOT_TRACK', 'GIT_TERMINAL_PROMPT', 'HOME', 'HTTPS_PROXY', 'LC_ALL', 'NODE_EXTRA_CA_CERTS', 'PATH', 'npm_config_registry']);
   // The owner names what a tool may still see; the change's own env always passes.
-  const passed = childEnv({ X: '1' }, { ...env, BENCHKEEPER_PASS_ENV: 'gh_token, ssh_auth_sock' });
+  const { GIT_DIR, ...inRepo } = env;
+  const passed = childEnv({ X: '1' }, { ...inRepo, BENCHKEEPER_PASS_ENV: 'gh_token, ssh_auth_sock, git_askpass, git_config_count, git_config_key_0, git_config_value_0' });
   assert.equal(passed.GH_TOKEN, 'g');
+  assert.deepEqual([passed.GIT_ASKPASS, passed.GIT_CONFIG_COUNT, passed.GIT_CONFIG_KEY_0, passed.GIT_CONFIG_VALUE_0, passed.GIT_SSH_COMMAND], ['/ask', '1', 'http.extraheader', 'Authorization: Basic x', undefined]);
   assert.equal(passed.SSH_AUTH_SOCK, '/s');
   assert.equal(passed.GITHUB_TOKEN, undefined);
   assert.equal(passed.X, '1');
@@ -212,6 +214,48 @@ test('an eval session starts with the agent login variables only, not the user t
   const env = envs.find((e) => e);
   assert.equal(env.ANTHROPIC_API_KEY, 'k');
   for (const name of ['GH_TOKEN', 'NPM_TOKEN', 'SSH_AUTH_SOCK']) assert.ok(!(name in env), name);
+});
+
+test('an eval session leaves no transcript, loads no MCP server, and its probes get the filtered environment', async (t) => {
+  const saved = { ...process.env };
+  t.after(() => { process.env = saved; });
+  Object.assign(process.env, { GH_TOKEN: 'ghp_x', NPM_TOKEN: 'npm_x' });
+  const help = { claude: '  --no-session-persistence  Disable session persistence\n', codex: '      --ephemeral\n          Run without persisting session files\n' };
+  for (const agent of ['claude', 'codex']) {
+    const calls = [];
+    const ctx = context({ home: tmp(), run: (argv, o) => { calls.push({ argv, env: o?.env }); return argv[0] === 'git' ? runCommand(argv, o) : { code: 0, stdout: argv.includes('--help') ? help[agent] : '{"type":"system"}\n', stderr: '' }; } });
+    await runEval(ctx, [{ target: 'skill:x', agent, hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]);
+    const session = calls.find((c) => c.argv[0] === agent && c.argv.includes('q')).argv;
+    assert.ok(session.includes(agent === 'claude' ? '--no-session-persistence' : '--ephemeral'), agent);
+    assert.equal(session.includes('--strict-mcp-config'), agent === 'claude');
+    // The query is an argument value, never an option: after -p for Claude, last for Codex.
+    assert.equal(agent === 'claude' ? session[1] === '-p' && session[2] === 'q' : session.at(-1) === 'q', true, agent);
+    for (const c of calls.filter((x) => x.env)) for (const name of ['GH_TOKEN', 'NPM_TOKEN']) assert.ok(!(name in c.env), `${agent} ${c.argv.slice(0, 2).join(' ')} ${name}`);
+    assert.ok(calls.find((c) => c.argv[0] === 'git').argv.includes('--template='), 'the scratch repository takes no git template');
+    assert.ok(calls.filter((c) => c.argv[0] === 'git' || c.argv.includes('--version')).every((c) => c.env), 'git init and the version probe pass an environment');
+  }
+});
+
+test('an eval session that exits non-zero is no missed trigger and stores no result', async () => {
+  const home = tmp();
+  const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: '', stderr: `error: unknown option, ${TOKEN}` } : { code: 0, stdout: '', stderr: '' }) });
+  await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => /claude exited with 1 on case a of skill:x: error: unknown option, \*\*\*$/.test(e.message));
+  assert.equal(existsSync(join(home, '.config/benchkeeper/evals/results.jsonl')), false);
+});
+
+test('a rule target whose second case fails keeps no output of its first case', async () => {
+  const home = tmp();
+  let n = 0;
+  const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: n++ ? 1 : 0, stdout: '{"type":"system"}\n', stderr: 'x' } : { code: 0, stdout: '', stderr: '' }) });
+  const cases = ['a', 'b'].map((id) => ({ id, query: 'q', should: true, expected: 'e' }));
+  await assert.rejects(runEval(ctx, [{ target: 'rule:global', agent: 'claude', hash: 'h', cases }]), /exited with 1 on case b/);
+  const outputs = join(home, '.config/benchkeeper/evals/outputs');
+  assert.deepEqual(existsSync(outputs) ? readdirSync(outputs) : [], []);
+});
+
+test('the tail of a failed session is masked before it is cut', async () => {
+  const ctx = context({ home: tmp(), run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: '', stderr: `${TOKEN} ${'x'.repeat(185)}` } : { code: 0, stdout: '', stderr: '' }) });
+  await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => !e.message.includes('cdefghijkl') && e.message.includes('***'));
 });
 
 test('mask stays linear on a long dotted token and leaves ordinary words alone', () => {

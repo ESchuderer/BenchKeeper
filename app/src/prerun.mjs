@@ -67,17 +67,19 @@ export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3 } = {}) {
     const budget = { files: SEED_FILES, bytes: SEED_BYTES };
     try { for (const s of seeds) if (exists(realOf(s))) weigh(realOf(s), budget); } catch (e) { return { files: [], error: `a folder the command reads is too large to rehearse (over ${SEED_FILES} files or ${SEED_BYTES / 2 ** 20} MB, links followed): ${e.message === 'too large' ? 'run it without a preview' : e.message}` }; }
     for (const s of seeds) if (exists(realOf(s))) { mkdirSync(dirname(join(root, s)), { recursive: true }); cpSync(realOf(s), join(root, s), { recursive: true, dereference: true }); }
-    const gitconfig = process.env.GIT_CONFIG_GLOBAL ?? join(ctx.home, '.gitconfig');
+    // git gets an empty config: the user's holds credential helpers, extra headers and ssh commands, and the rehearsed code is not theirs to read.
+    const gitconfig = join(t, 'gitconfig');
+    writeFileSync(gitconfig, '', { mode: 0o600 });
     const npmrc = join(t, 'npmrc');
     writeFileSync(npmrc, safeNpmrc(readText(process.env.npm_config_userconfig ?? process.env.NPM_CONFIG_USERCONFIG ?? join(ctx.home, '.npmrc'))), { mode: 0o600 });
     // Unset, the folder variables fall back to folders below the scratch HOME (spawn leaves out undefined values).
     const env = {
       ...childEnv(c.env), HOME: h, USERPROFILE: h, ...Object.fromEntries(MOVED.map((k) => [k, undefined])),
-      // npm keeps the user's cache and, without credentials, its settings; git its global settings (registry, proxy, url rewrites).
+      // npm keeps the user's cache and, without credentials, its settings.
       // The home is the machine's context home, so BENCHKEEPER_HOME isolates the rehearsal too.
       npm_config_cache: process.env.npm_config_cache ?? (process.platform === 'win32' ? join(process.env.LOCALAPPDATA ?? join(ctx.home, 'AppData/Local'), 'npm-cache') : join(ctx.home, '.npm')),
       npm_config_userconfig: npmrc,
-      ...(exists(gitconfig) ? { GIT_CONFIG_GLOBAL: gitconfig } : {}),
+      GIT_CONFIG_GLOBAL: gitconfig, GIT_CONFIG_NOSYSTEM: '1',
     };
     // npm reads these names in either case: the user's own upper-case ones must not win over the scratch ones.
     for (const k of Object.keys(env)) if (/^npm_config_(userconfig|cache)$/i.test(k) && k !== k.toLowerCase()) delete env[k];

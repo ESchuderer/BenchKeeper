@@ -16,7 +16,7 @@ What the official documentation says about the two packaging surfaces BenchKeepe
 | Claude Code marketplace sources | Relative path, `github`, `url`, `git-subdir`, `npm` (`package`, `version`, `registry`), `archive`, `command`. `ref` is a branch or tag, `sha` a full commit ([marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference.md)). BenchKeeper's marketplace uses the relative path `./plugins/benchkeeper` in this repository (`.claude-plugin/marketplace.json`) and the app adds it at the branch `stable` (`app/src/steps/global.mjs:50`). |
 | Claude Code plugin dependencies | A plugin that ships a `package.json` and a lockfile gets its dependencies installed into the cache, but "a plugin with a git, GitHub, folder, workspace, or linked dependency gets no install" ([loading reference](https://code.claude.com/docs/en/plugins/loading.md)). `plugins/benchkeeper/` has no `package.json`, so a content package inside it would have to avoid workspace links. |
 | Codex plugin | Marketplace entries: `local`, `url`, `git-subdir`, `npm`, with `ref` or `sha` on git sources. `.codex-plugin/plugin.json` is called a compatibility fallback next to a portable root `plugin.json`, and `.claude-plugin/marketplace.json` a legacy-compatible marketplace location; how versions are compared for an update is not stated ([Codex plugins](https://developers.openai.com/codex/plugins/build)). Both manifests of this repository carry the same version, checked at `.github/scripts/release.sh:16`. |
-| npm workspaces | Declared with the `workspaces` property of `package.json`; a workspace used as a dependency is symlinked and takes "a standard version range"; the page does not mention a `workspace:` protocol or say whether the lockfile is shared ([npm workspaces](https://docs.npmjs.com/cli/v11/using-npm/workspaces)). `npm publish --workspace=<name>` and `--workspaces` exist ([npm publish](https://docs.npmjs.com/cli/v11/commands/npm-publish)). |
+| npm workspaces | Declared with the `workspaces` property of `package.json`; a workspace used as a dependency is symlinked and takes a standard version range; the page does not mention a `workspace:` protocol or say whether the lockfile is shared ([npm workspaces](https://docs.npmjs.com/cli/v11/using-npm/workspaces)). `npm publish --workspace=<name>` and `--workspaces` exist ([npm publish](https://docs.npmjs.com/cli/v11/commands/npm-publish)). |
 | npm trusted publishing | Configured per package on npmjs.com, up to 10 publishers per package, a workflow file in `.github/workflows/`, npm CLI 11.5.1 or later, Node 22.14.0 or later, GitHub-hosted runners ([trusted publishers](https://docs.npmjs.com/trusted-publishers)). Today one package (`benchkeeper`) has one binding, in `npm.yml`; each additional published package would need its own. Whether the first publish of a new package can use the token-less path is unverified. |
 
 ## Independent evidence
@@ -50,12 +50,66 @@ Layers as the imports show them (a module imports only from layers above it in t
 | Features | `rules`, `settings`, `skills`, `projects`, `doctor`, `level`, `allow`, `instructions`, `integrity`, `inventory`, `profile`, `knowledge`, `dashboard`, `eval`, `cases`, `advise`, `prerun`, `accounts`, `credstore`, `sessions`, `session`, `board`, and the module behind `benchkeeper test` | Each answers a CLI command and usually a UI route. |
 | Entries | `cli` (913 lines, 26 direct imports, nothing imports it), `server` (744 lines, 26 direct imports, imported only by `cli`) | `cli` reaches 45 of the 46 modules, `server` 41. |
 
+<details>
+<summary>Adjacency list: each module and the local modules it imports (46 lines)</summary>
+
+```text
+accounts.mjs -> browser.mjs childenv.mjs credstore.mjs fsx.mjs redact.mjs runner.mjs
+advise.mjs -> childenv.mjs steps/project.mjs
+agents.mjs -> merge.mjs
+allow.mjs -> fsx.mjs projects.mjs settings.mjs
+baseline.mjs -> fsx.mjs git.mjs
+board.mjs -> fsx.mjs projects.mjs
+browser.mjs ->
+cases.mjs -> content.mjs fsx.mjs redact.mjs runner.mjs
+childenv.mjs -> git.mjs
+cli.mjs -> accounts.mjs agents.mjs baseline.mjs board.mjs cases.mjs content.mjs doctor.mjs eval.mjs frameworks.mjs fsx.mjs <self-test>.mjs knowledge.mjs level.mjs packs.mjs profile.mjs projects.mjs redact.mjs rules.mjs runner.mjs server.mjs session.mjs sessions.mjs settings.mjs skills.mjs steps/global.mjs steps/project.mjs
+content.mjs ->
+cooldown.mjs ->
+credstore.mjs -> childenv.mjs
+dashboard.mjs -> agents.mjs fsx.mjs inventory.mjs packs.mjs projects.mjs states.mjs steps/global.mjs steps/project.mjs
+diff.mjs -> redact.mjs
+doctor.mjs -> accounts.mjs allow.mjs baseline.mjs content.mjs frameworks.mjs fsx.mjs instructions.mjs integrity.mjs level.mjs packs.mjs rules.mjs runner.mjs settings.mjs steps/global.mjs steps/project.mjs
+eval.mjs -> advise.mjs cases.mjs childenv.mjs content.mjs fsx.mjs redact.mjs
+frameworks.mjs -> agents.mjs content.mjs fsx.mjs merge.mjs
+fsx.mjs ->
+git.mjs ->
+<self-test>.mjs -> agents.mjs content.mjs doctor.mjs fsx.mjs steps/global.mjs steps/project.mjs
+instructions.mjs -> fsx.mjs packs.mjs
+integrity.mjs -> fsx.mjs packs.mjs
+inventory.mjs -> agents.mjs fsx.mjs runner.mjs states.mjs steps/global.mjs
+knowledge.mjs -> fsx.mjs redact.mjs
+ledger.mjs -> fsx.mjs
+level.mjs -> agents.mjs fsx.mjs projects.mjs steps/global.mjs steps/project.mjs
+merge.mjs ->
+packs.mjs -> content.mjs fsx.mjs
+prerun.mjs -> agents.mjs childenv.mjs diff.mjs fsx.mjs redact.mjs steps/global.mjs
+profile.mjs -> agents.mjs content.mjs packs.mjs projects.mjs roots.mjs rules.mjs runner.mjs steps/global.mjs steps/project.mjs
+projects.mjs -> agents.mjs content.mjs doctor.mjs fsx.mjs git.mjs roots.mjs runner.mjs steps/project.mjs update.mjs
+redact.mjs ->
+roots.mjs -> fsx.mjs
+rules.mjs -> agents.mjs fsx.mjs git.mjs instructions.mjs runner.mjs settings.mjs steps/project.mjs
+runner.mjs -> childenv.mjs diff.mjs fsx.mjs git.mjs ledger.mjs redact.mjs
+server.mjs -> accounts.mjs advise.mjs agents.mjs board.mjs cases.mjs content.mjs dashboard.mjs diff.mjs doctor.mjs eval.mjs frameworks.mjs fsx.mjs git.mjs inventory.mjs level.mjs packs.mjs prerun.mjs profile.mjs projects.mjs rules.mjs runner.mjs sessions.mjs settings.mjs skills.mjs steps/global.mjs steps/project.mjs
+session.mjs -> fsx.mjs git.mjs ledger.mjs redact.mjs
+sessions.mjs -> content.mjs fsx.mjs
+settings.mjs -> fsx.mjs merge.mjs steps/global.mjs
+skills.mjs -> agents.mjs content.mjs fsx.mjs packs.mjs runner.mjs steps/global.mjs steps/project.mjs
+states.mjs ->
+steps/global.mjs -> agents.mjs childenv.mjs content.mjs cooldown.mjs fsx.mjs merge.mjs verify.mjs
+steps/project.mjs -> agents.mjs baseline.mjs content.mjs cooldown.mjs frameworks.mjs fsx.mjs git.mjs merge.mjs packs.mjs roots.mjs runner.mjs steps/global.mjs
+update.mjs -> cooldown.mjs
+verify.mjs -> childenv.mjs runner.mjs
+```
+
+</details>
+
 Findings that differ from the issue text:
 
 - The engine does not import the entries. The CLI and the server share no module with each other beyond the engine (`cli` imports `server` only to start it). The coupling the issue describes is the width of the entries: each reaches about 26 engine modules directly, with no facade between them. That width is why a UI route can exist without a command: nothing forces both to call one function.
 - `app/ui/` reaches `src/` once, `ui/shell.jsx:6` re-exporting `RANK` from the 3-line `states.mjs`; everything else goes through HTTP (`ui/api.js`). The UI is already a separate module with a real interface, the route table. `app/test/routes-doc.test.mjs` already checks that the table in `app/README.md` lists every route of `server.mjs` and that each route names a command or a reason.
-- `web/` imports nothing from `app/` or `plugins/` and has its own `package.json` and lockfile. It reads `web/src/data/facts.json` and the recorded benchmark data; `web/scripts/readme.mjs` writes README blocks from the facts. The site is already decoupled; only the version strings in it follow the app (below).
-- One real cycle: `level` imports `projects`; `projects` imports `doctor` (`projects.mjs:8`); `doctor` imports `allow` and `level` (`doctor.mjs:5,11`); `allow` imports `projects` (`allow.mjs:6`). All four are static top-level imports, so the four modules cannot be extracted separately. The one edge that closes it is `projects.mjs:8` importing `skillFiles`, a reader of skill folders, from `doctor.mjs` (`doctor.mjs:71`); moving that function to `skills.mjs` breaks the cycle.
+- `web/` imports nothing from `app/` or `plugins/` and has its own `package.json` and lockfile. It reads `web/src/data/facts.json` and the recorded benchmark data; `web/scripts/readme.mjs` writes README blocks from the facts. The site is already decoupled by imports; it follows the app through the version strings (below), the screenshots in `web/public/app/` that the app's `npm run screenshots` regenerates (14 files in one release commit), and the README blocks that `web/scripts/readme.mjs` writes into `app/README.md`.
+- One import cycle group with two elementary cycles, `level`, `projects`, `doctor` and `level`, and `allow`, `projects`, `doctor` and `allow`: `level` imports `projects`; `projects` imports `doctor` (`projects.mjs:8`); `doctor` imports `allow` and `level` (`doctor.mjs:5,11`); `allow` imports `projects` (`allow.mjs:6`). All four are static top-level imports, so the four modules cannot be extracted separately. The one edge that closes it is `projects.mjs:8` importing `skillFiles`, a reader of skill folders, from `doctor.mjs` (`doctor.mjs:71`); both cycles run through that edge, so moving the function to `skills.mjs` breaks the group.
 - Sizes in the issue are stale: `cli.mjs` 913 lines (issue: 670), `server.mjs` 744 (685), `projects.mjs` 483 (482).
 
 Per-agent logic. `agents.json` plus `agents.mjs` is data-driven for paths and file formats of all four agents (rules, skills, settings, MCP, subagents). Code branches on the agent id for Claude Code and Codex only; Gemini CLI and Copilot CLI appear only through the registry and the skill copy for agents without plugins (`steps/global.mjs:270`, `agents.mjs:30`). Count of lines that name `'claude'` or `'codex'` per file: `steps/global` 38, `steps/project` 23, `settings` 16, `rules` 13, `accounts` 12, `sessions` 8, `advise` 8, `cli` 6, `server` 4, `frameworks` 3, `eval` 3, `allow` 3. Accounts (`accounts.mjs`, 339 lines) splits into a generic part (registry, default account, credential store, launcher) and per-agent commands for login and status (`claude auth status`, `codex login status`, `accounts.mjs:168,255`), which is adapter code.

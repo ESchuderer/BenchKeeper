@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
+import { cooldownEnv } from '../cooldown.mjs';
 import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
 import { agentFilesOf, frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, ownerOf, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
@@ -31,7 +32,8 @@ export const TIERS = ['quick', 'standard', 'full', 'research'];
 // Own keys only: "constructor" or ["container"] must not pass as an environment.
 export const isEnv = (id) => typeof id === 'string' && Object.hasOwn(ENVS, id);
 // The skills CLI runs in the project: a project .npmrc must not choose where it comes from.
-const NPX_ENV = { DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/', npm_config_ignore_scripts: 'true' };
+// Per call: the cooldown date moves with the clock, and a server runs for days.
+const npxEnv = () => ({ DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/', npm_config_ignore_scripts: 'true', ...cooldownEnv() });
 
 const tryJson = (t) => { try { return t == null ? null : parseJson(t); } catch { return null; } };
 const SANDBOX_OUT = ['devcontainer exec *', 'podman *'];
@@ -426,7 +428,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       // The folder differs from what the install left: its edits are backed up by the snapshot, and kept unless reset.
       const held = !reseat && targets.some(({ dir: d }) => editedHere(d, s.name, installedHashes.get(s.name)));
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
-        kind: 'command', outdated: !!was && was !== s.ref, cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
+        kind: 'command', outdated: !!was && was !== s.ref, cwd: dir, env: npxEnv(), verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
         argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }
@@ -442,7 +444,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: NPX_ENV, verify: SKILLS_VERIFY, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
+      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: npxEnv(), verify: SKILLS_VERIFY, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
         argv: ['npx', '-y', SKILLS_SPEC, 'remove', name, ...flags, '-y'] });
     // A name the library does not know is not one BenchKeeper installed: offered, not preselected.
     } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: !!s });

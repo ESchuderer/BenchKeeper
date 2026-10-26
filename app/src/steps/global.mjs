@@ -6,7 +6,7 @@ import { parse as parseToml } from 'smol-toml';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
 import { contentDir } from '../content.mjs';
-import { cooled } from '../cooldown.mjs';
+import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
 import { verifyArgv } from '../verify.mjs';
@@ -328,10 +328,10 @@ export function globalPlan(env) {
   const want = env.devcontainerCli ?? newest(ctx, '@devcontainers/cli');
   const have = (ctx.run(['devcontainer', '--version']).stdout || '').trim();
   // A newer installed release stays: the cooldown picks what to install, it never downgrades.
-  if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`], verify: verifyArgv(`@devcontainers/cli@${want}`) });
+  if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`], env: cooldownEnv(), verify: verifyArgv(`@devcontainers/cli@${want}`) });
   // Lifecycle scripts stay off (the skills CLI needs none); the snapshot makes the install undoable: the skill folders and the lock.
   const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, {
-    kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true' }, verify: SKILLS_VERIFY,
+    kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true', ...cooldownEnv() }, verify: SKILLS_VERIFY,
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
   });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();

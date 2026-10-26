@@ -8,16 +8,18 @@ import { agentEnv, childEnv } from './childenv.mjs';
 import { contentDir } from './content.mjs';
 import { mask } from './redact.mjs';
 import { exists, hashPath, hashText, readText } from './fsx.mjs';
-import { loadCases, userEvals } from './cases.mjs';
+import { inLibrary, loadCases, scopeOf, skillSource, userEvals } from './cases.mjs';
 
 const results = (ctx) => join(userEvals(ctx), 'results.jsonl');
 
 // What a target's result depends on: the skill or rules text, and its cases.
-export function targetHash(target, cases) {
-  const [kind, name] = target.split(':');
-  const src = kind === 'rule' ? join(contentDir, 'rules', `${name}.md`) : [join(contentDir, 'skills', name), join(contentDir, 'library', name)].find(exists);
+export function targetHash(ctx, target, cases) {
+  const src = target.startsWith('rule:') ? join(contentDir, 'rules', `${target.slice('rule:'.length)}.md`) : skillSource(ctx, target, cases[0]?.project)?.dir;
   return hashText(`${src ? hashPath(src) : 'missing'}\n${JSON.stringify(cases.map(({ file, ...c }) => c))}`);
 }
+
+// --target takes the id of a target, or skill:<name> for an own skill that no library skill shares.
+const picked = (only, target) => only.some((t) => t === target || (target.startsWith(`${t}@`) && !inLibrary(t.slice('skill:'.length))));
 
 export function lastResults(ctx) {
   const last = new Map();
@@ -52,9 +54,13 @@ export function evalPlan(ctx, { agents = ['claude'], model, all = false, only } 
   const last = lastResults(ctx);
   const plan = [];
   for (const [target, cases] of Object.entries(loadCases(ctx))) {
-    if (only && !only.includes(target)) continue;
-    const hash = targetHash(target, cases);
-    for (const agent of agents) if (all || last.get(`${target}|${agent}|${model ?? ''}`)?.hash !== hash) plan.push({ target, agent, model, hash, cases });
+    if (only && !picked(only, target)) continue;
+    const project = cases[0].project;
+    const source = target.startsWith('skill:') ? skillSource(ctx, target, project) : null;
+    // An own skill that was deleted or moved has nothing to measure: no result, not a run of misses.
+    if (scopeOf(target) !== 'library' && !source) continue;
+    const hash = targetHash(ctx, target, cases);
+    for (const agent of agents) if (all || last.get(`${target}|${agent}|${model ?? ''}`)?.hash !== hash) plan.push({ target, agent, model, hash, cases, project });
   }
   return plan;
 }
@@ -71,7 +77,11 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
   let n = 0;
   for (const p of plan) {
     const a = AGENTS[p.agent];
-    const [kind, name] = p.target.split(':');
+    const [kind, rest] = p.target.split(':');
+    const name = rest.split('@')[0];
+    const scope = scopeOf(p.target);
+    const source = kind === 'skill' ? skillSource(ctx, p.target, p.project) : null;
+    if (scope !== 'library' && !source) throw new Error(`${p.target}: the skill is not in ${scope === 'user' ? 'your skill folders' : p.project} any more`);
     const version = ctx.run([p.agent, '--version'], { env: agentEnv(p.agent) }).stdout.trim();
     const details = [];
     const keep = join(userEvals(ctx), 'outputs', `${now().replace(/[:.]/g, '')}-${p.agent}-${p.target.replace(':', '-')}`);
@@ -83,8 +93,8 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
         try {
           ctx.run(['git', 'init', '-q', '--template=', dir], { env: childEnv({}) });
           writeFileSync(join(dir, 'README.md'), '# Scratch project\n');
-          const lib = join(contentDir, 'library', name);
-          if (kind === 'skill' && exists(lib)) cpSync(lib, join(dir, a.skills, name), { recursive: true });
+          // shortcut: a user skill is also in the real home, so the agent may see two copies; fine while both hold the same text.
+          if (kind === 'skill' && source?.copy) cpSync(source.dir, join(dir, a.skills, name), { recursive: true });
           onCase({ index: n++, total, target: p.target, agent: p.agent, case: c.id });
           // The whole stream: the skill call comes early in a long session.
           const r = await session(a.argv(ctx, c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
@@ -105,7 +115,7 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
     const pos = details.filter((d) => d.should && 'triggered' in d), neg = details.filter((d) => !d.should && 'triggered' in d);
     const rate = (list, f) => (list.length ? list.filter(f).length / list.length : null);
     const result = { time: now(), target: p.target, agent: p.agent, agentVersion: version, model: p.model ?? null, hash: p.hash, appVersion: ctx.appVersion,
-      cases: details.length, missRate: rate(pos, (d) => !d.triggered), falseTriggerRate: rate(neg, (d) => d.triggered), details };
+      cases: details.length, ...(scope !== 'library' && { scope, ...(p.project && { project: p.project }) }), missRate: rate(pos, (d) => !d.triggered), falseTriggerRate: rate(neg, (d) => d.triggered), details };
     mkdirSync(userEvals(ctx), { recursive: true, mode: 0o700 });
     appendFileSync(results(ctx), `${JSON.stringify(result)}\n`, { mode: 0o600 });
     // Files and folders of an earlier version, and the skill-only path that wrote no output, keep their modes otherwise.

@@ -21,8 +21,9 @@ test('libsecret: the token goes to secret-tool on stdin, never on the command li
   assert.deepEqual(Object.keys(calls[0].env).filter((k) => /token|key/i.test(k)), []);
   assert.equal(s.get('work'), TOKEN);
   assert.equal(s.has('work'), true);
-  s.delete('work');
-  assert.deepEqual(calls.at(-1).argv.slice(0, 2), ['secret-tool', 'clear']);
+  const d = recorder();
+  credentialStore(d.run, { platform: 'linux', env: {} }).delete('work');
+  assert.deepEqual(d.calls[0].argv.slice(0, 2), ['secret-tool', 'clear']);
 });
 
 test('libsecret: a missing program or an unlocked-keyring failure refuses with the reason, a missing token is null', () => {
@@ -50,11 +51,21 @@ test('keychain: security reads its commands from stdin, so the token is not in t
   assert.deepEqual(calls[0].argv, ['security', '-i']);
   assert.match(calls[0].input, /^add-generic-password -U -s benchkeeper -a "work" -w "dummy-token/);
   assert.equal(s.get('work'), TOKEN);
-  s.delete('work');
   assert.ok(calls.every((c) => !c.argv.join(' ').includes(TOKEN)));
 });
 
 test('other systems refuse every call and keep no file', () => {
   const s = credentialStore(() => { throw new Error('nothing runs'); }, { platform: 'win32', env: {} });
   for (const f of [() => s.set('work', TOKEN), () => s.get('work'), () => s.has('work'), () => s.delete('work')]) assert.throws(f, /no credential store is supported on win32/);
+});
+
+test('delete: a token that is still stored afterwards is an error, one that is gone is not', () => {
+  for (const platform of ['linux', 'darwin']) {
+    const reads = (argv) => argv[1] === 'lookup' || argv[1] === 'find-generic-password';
+    credentialStore(() => ({ code: 0, stdout: '', stderr: '' }), { platform, env: {} }).delete('work');
+    // A tool that reports "nothing to delete" with a failing exit code is fine as long as the token is gone.
+    credentialStore(() => ({ code: 1, stdout: '', stderr: '' }), { platform, env: {} }).delete('work');
+    const stays = credentialStore((argv) => ({ code: reads(argv) ? 0 : 1, stdout: reads(argv) ? `${TOKEN}\n` : '', stderr: '' }), { platform, env: {} });
+    assert.throws(() => stays.delete('work'), (e) => e instanceof StoreError && !e.message.includes(TOKEN));
+  }
 });

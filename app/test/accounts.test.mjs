@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { CLAUDE_TOKEN, CODEX_TOKEN, URL1, grep, machine, win } from './fixtures/accounts.mjs';
-import { accountChecks, accountEnv, accountStatus, findAccount, listAccounts } from '../src/accounts.mjs';
+import { accountChecks, accountEnv, accountStatus, accountStatusAsync, findAccount, listAccounts } from '../src/accounts.mjs';
 import { main } from '../src/cli.mjs';
 import { doctor } from '../src/doctor.mjs';
 import { runCommand } from '../src/runner.mjs';
@@ -87,7 +87,10 @@ test('refusals: bad names and agents, duplicates, a folder inside the config fol
   assert.equal(await dup.exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']), 1);
   assert.match(dup.text(), /cannot merge: account work exists/);
   for (const bad of ['{', '{"accounts":{}}', '{"accounts":[{"name":"../x","agent":"claude","mode":"host","dir":"/x"}]}',
-    '{"accounts":[{"name":"x","agent":"claude","mode":"container","volume":"v,target=/etc","mount":"/m"}]}']) {
+    '{"accounts":[{"name":"x","agent":"claude","mode":"container","volume":"v,target=/etc","mount":"/m"}]}',
+    '{"accounts":[{"name":"x","agent":"claude","mode":"host","dir":"/x","label":{"a":1}}]}',
+    '{"accounts":[{"name":"x","agent":"claude","mode":"host","dir":"/x","token":{}}]}',
+    '{"accounts":[{"name":"x","agent":"claude","mode":"host","dir":"/x","token":{"created":"not a date"}}]}']) {
     writeFileSync(join(m.ctx.config, 'accounts.json'), bad);
     const b = cli(m);
     assert.equal(await b.exec(['accounts', 'list']), 2, bad);
@@ -150,7 +153,7 @@ test('login: one test per branch of the link (private window, no browser, --no-b
   m.ctx.openPrivate = () => null;
   const a = cli(m);
   assert.equal(await a.exec(['accounts', 'login', 'work']), 0);
-  assert.match(a.text(), new RegExp(`Open this link in a private browser window: ${URL1.replace(/[?]/g, '\\?')}`));
+  assert.match(a.text(), new RegExp(`Open this link in a private browser window: ${URL1.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}`));
   // --no-browser never calls the launcher.
   let called = 0;
   m.ctx.openPrivate = () => { called++; return 'Firefox'; };
@@ -269,7 +272,7 @@ test('run: the agent gets the filtered environment plus the account folder, afte
   assert.equal(launch.env.CODEX_HOME, undefined);
   assert.equal(launch.env.ANTHROPIC_API_KEY, undefined);
   const base = new Set(Object.keys(accountEnv(m.ctx, { agent: 'claude', mode: 'container' })));
-  const extra = Object.keys(launch.env).filter((k) => !base.has(k) && !['PWD', 'SHLVL', '_', 'OLDPWD'].includes(k) && !k.startsWith('NODE_'));
+  const extra = Object.keys(launch.env).filter((k) => !base.has(k) && !['PWD', 'SHLVL', '_', 'OLDPWD', '__CF_USER_TEXT_ENCODING'].includes(k) && !k.startsWith('NODE_'));
   assert.deepEqual(extra, ['CLAUDE_CONFIG_DIR'], JSON.stringify(Object.keys(launch.env)));
   // The default account of the agent when --account is left out; a usage error without the agent.
   const d = cli(m);
@@ -447,4 +450,32 @@ test('accountEnv: an inherited folder variable of either agent is replaced, neve
   assert.equal(box.CLAUDE_CONFIG_DIR, undefined);
   assert.equal(box.CLAUDE_CODE_OAUTH_TOKEN, undefined);
   assert.equal(box.CLAUDE_CODE_USE_BEDROCK, '1');
+});
+
+test('status in a container: a failing devcontainer exec is not read as a login state of the agent', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{}\n');
+  await cli(m).exec(['accounts', 'add', 'cbox', '--agent', 'codex', '--container', '--mount', '/data/accounts/cbox', '--yes']);
+  const a = findAccount(m.ctx, 'cbox');
+  // devcontainer exec fails with its own exit code (1: no container, 127: not found): neither says anything about Codex.
+  for (const code of [1, 127]) {
+    const failing = { ...m.ctx, runAsync: undefined, run: (argv) => (argv[1] === '--version' ? { code: 0, stdout: '', stderr: '' } : { code, stdout: '', stderr: 'no container' }) };
+    for (const s of [accountStatus(failing, a, { dir: project }), await accountStatusAsync(failing, a, { dir: project })]) {
+      assert.equal(s.loggedIn, null, String(code));
+      assert.deepEqual(s.findings.map((f) => f.level), ['info']);
+      assert.match(s.findings[0].message, /login state not read/);
+    }
+  }
+});
+
+test('status with the async runner reads the same state as the blocking one', skip, async () => {
+  const m = machine({ flow: 'callback' });
+  await cli(m).exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']);
+  await cli(m).exec(['accounts', 'login', 'work']);
+  const a = findAccount(m.ctx, 'work');
+  assert.equal(typeof m.ctx.runAsync, 'function');
+  assert.deepEqual(await accountStatusAsync(m.ctx, a), accountStatus(m.ctx, a));
+  assert.equal((await accountStatusAsync(m.ctx, a)).loggedIn, true);
 });

@@ -10,7 +10,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { accountDoc, accountStatus, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, removeChange, store, useChange } from './accounts.mjs';
+import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, removeChange, store, useChange } from './accounts.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { agent, detect } from './agents.mjs';
@@ -556,11 +556,11 @@ export function api(ctx) {
       if (problem) throw Object.assign(new Error(problem), { status: 409 });
       return { accounts: listAccounts(ctx).map(accountDoc), store: store(ctx).name, login: [...jobs.values()].find((j) => j.kind === 'login' && !j.done)?.id ?? null };
     },
-    'GET /api/accounts-status': (q) => {
+    'GET /api/accounts-status': async (q) => {
       const a = input(() => findAccount(ctx, q.get('name') ?? ''));
       const dir = q.get('project') ? resolve(q.get('project')) : undefined;
       if (dir && !registered(dir)) throw bad('register the project first');
-      return accountStatus(ctx, a, { dir });
+      return accountStatusAsync(ctx, a, { dir });
     },
     'POST /api/accounts-plan': (b) => {
       const text = (v) => (typeof v === 'string' && v ? v : undefined);

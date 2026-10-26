@@ -44,7 +44,8 @@ function parse(text) {
   try { doc = JSON.parse(text); } catch { throw new Error('the accounts file is not valid JSON'); }
   if (!Array.isArray(doc?.accounts)) throw new Error('the accounts file has no accounts list');
   for (const a of doc.accounts) {
-    const ok = a && NAME.test(a.name) && AGENTS.includes(a.agent) && (a.mode === 'host' ? typeof a.dir === 'string' && isAbsolute(a.dir) : a.mode === 'container' && VOLUME.test(a.volume ?? '') && MOUNT.test(a.mount ?? ''));
+    const ok = a && NAME.test(a.name) && AGENTS.includes(a.agent) && (a.label == null || typeof a.label === 'string')
+      && (a.token == null || (typeof a.token.created === 'string' && !Number.isNaN(Date.parse(a.token.created)))) && (a.mode === 'host' ? typeof a.dir === 'string' && isAbsolute(a.dir) : a.mode === 'container' && VOLUME.test(a.volume ?? '') && MOUNT.test(a.mount ?? ''));
     if (!ok) throw new Error('the accounts file has an entry that is not an account');
   }
   return doc.accounts;
@@ -126,7 +127,15 @@ export function accountEnv(ctx, a, { token } = {}) {
 
 // The host-side environment of a container command: no account folder variable, no credential.
 const baseEnv = (ctx) => accountEnv(ctx, { mode: 'container' });
-export const engineOf = (ctx) => ['podman', 'docker'].find((e) => ctx.run([e, '--version'], { env: where(ctx) }).code === 0);
+// A command sequence is written once as a generator: each step yields [argv, options] and gets the result back. drive runs it
+// with the blocking runner (the CLI), driveAsync with the async one (the server, which a slow container must not block).
+const drive = (steps, run) => { let s = steps.next(); while (!s.done) s = steps.next(run(...s.value)); return s.value; };
+const driveAsync = async (steps, run) => { let s = steps.next(); while (!s.done) s = steps.next(await run(...s.value)); return s.value; };
+const asyncRun = (ctx) => ctx.runAsync ?? ctx.run;
+function* engineSteps(ctx) {
+  for (const e of ['podman', 'docker']) if ((yield [[e, '--version'], { env: where(ctx) }]).code === 0) return e;
+}
+export const engineOf = (ctx) => drive(engineSteps(ctx), ctx.run);
 const mounts = (ctx) => listAccounts(ctx).filter((a) => a.mode === 'container').flatMap((a) => ['--mount', `type=volume,source=${a.volume},target=${a.mount}`]);
 // devcontainer exec runs cmd in the project's container; the account's folder variable (and the token, on request) are
 // --remote-env values. shortcut: a value on a command line is visible to this user's other processes while it runs.
@@ -136,19 +145,21 @@ const hasDevcontainer = (dir) => exists(join(dir, '.devcontainer')) || exists(jo
 
 // Starts the project's container with every container account's volume (a mount applies when the container is created) and
 // checks that this account's volume is mounted and writable in it. Returns the engine; throws with the command that fixes it.
-export function ensureContainer(ctx, a, dir) {
+function* containerSteps(ctx, a, dir) {
   if (!hasDevcontainer(dir)) throw new Error(`${dir} has no dev container configuration (.devcontainer/)`);
-  const engine = engineOf(ctx);
+  const engine = yield* engineSteps(ctx);
   if (!engine) throw new Error('no container engine (podman or docker)');
   const env = baseEnv(ctx);
   const up = ['devcontainer', 'up', '--docker-path', engine, '--workspace-folder', dir, ...mounts(ctx)];
-  const r = ctx.run(up, { cwd: dir, env, timeout: 10 * 60e3 });
+  const r = yield [up, { cwd: dir, env, timeout: 10 * 60e3 }];
   if (r.code !== 0) throw new Error(`devcontainer up failed: ${tail(r)}`);
   // No shell: the mount point is in /proc/self/mountinfo, and the user can write there.
-  const inContainer = (cmd) => ctx.run(execArgv(engine, dir, a, cmd), { cwd: dir, env, timeout: 60e3 }).code === 0;
-  if (!inContainer(['grep', '-qF', ` ${a.mount} `, '/proc/self/mountinfo']) || !inContainer(['test', '-w', a.mount])) throw new Error(`the volume ${a.volume} is not mounted at ${a.mount} in this container, or not writable for its user. A mount applies when a container is created: recreate it with\n  ${[...up, '--remove-existing-container'].join(' ')}`);
+  const inContainer = (cmd) => [execArgv(engine, dir, a, cmd), { cwd: dir, env, timeout: 60e3 }];
+  if ((yield inContainer(['grep', '-qF', ` ${a.mount} `, '/proc/self/mountinfo'])).code !== 0 || (yield inContainer(['test', '-w', a.mount])).code !== 0) throw new Error(`the volume ${a.volume} is not mounted at ${a.mount} in this container, or not writable for its user. A mount applies when a container is created: recreate it with\n  ${[...up, '--remove-existing-container'].join(' ')}`);
   return engine;
 }
+export const ensureContainer = (ctx, a, dir) => drive(containerSteps(ctx, a, dir), ctx.run);
+export const ensureContainerAsync = (ctx, a, dir) => driveAsync(containerSteps(ctx, a, dir), asyncRun(ctx));
 
 // ---- status and preflight
 
@@ -157,24 +168,28 @@ const finding = (level, name, message, fix) => ({ level, check: 'accounts', mess
 
 // Whether the account is signed in, how old its token is, and what to run when it is not. Reads only. loggedIn null: not checked.
 // dir: the project whose dev container a container account is checked in.
-export function accountStatus(ctx, a, { dir, now = Date.now(), token } = {}) {
+function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
   const out = { name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, findings: [] };
   const age = a.token?.created ? Math.floor((now - Date.parse(a.token.created)) / DAY) : null;
   const relogin = `benchkeeper accounts login ${a.name}`;
   let r, gone = false;
   // A folder that is not there yet is not signed in; the agent would create it with the default mode.
-  if (a.mode === 'host') { if (exists(a.dir)) r = ctx.run(statusCmd(a.agent), { env: accountEnv(ctx, a, { token }), timeout: 30e3 }); else gone = true; }
+  if (a.mode === 'host') { if (exists(a.dir)) r = yield [statusCmd(a.agent), { env: accountEnv(ctx, a, { token }), timeout: 30e3 }]; else gone = true; }
   // The token stays out of the container command line: the volume's own sign-in is what is checked.
-  else if (dir && hasDevcontainer(dir) && engineOf(ctx)) r = ctx.run(execArgv(engineOf(ctx), dir, a, statusCmd(a.agent)), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 });
+  else {
+    const engine = dir && hasDevcontainer(dir) ? yield* engineSteps(ctx) : null;
+    if (engine) r = yield [execArgv(engine, dir, a, statusCmd(a.agent)), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 }];
+  }
   if (gone) { out.loggedIn = false; out.findings.push(finding('warning', a.name, 'not signed in (its folder does not exist yet)', relogin)); }
   else if (!r) out.findings.push(finding('info', a.name, 'not checked: a container account is checked in a project with a running dev container', `benchkeeper accounts status ${a.name} --project <dir>`));
-  else if (r.code === 127) out.findings.push(finding('warning', a.name, `${a.agent} is not installed`, `install ${a.agent === 'claude' ? 'Claude Code' : 'Codex'}`));
+  // In a container the exit code of devcontainer exec may be its own, so only the host can say the agent is missing.
+  else if (r.code === 127 && a.mode === 'host') out.findings.push(finding('warning', a.name, `${a.agent} is not installed`, `install ${a.agent === 'claude' ? 'Claude Code' : 'Codex'}`));
   else {
     // Claude Code prints JSON (exit 1 when not logged in); Codex prints a line and uses the exit code.
     let doc = null;
     try { doc = JSON.parse(r.stdout); } catch { /* not JSON */ }
     if (a.agent === 'claude' && typeof doc?.loggedIn === 'boolean') { out.loggedIn = doc.loggedIn; out.method = typeof doc.authMethod === 'string' ? clean(doc.authMethod).slice(0, 40) : null; }
-    else if (a.agent === 'codex' && [0, 1].includes(r.code)) out.loggedIn = r.code === 0;
+    else if (a.agent === 'codex' && (r.code === 0 || (r.code === 1 && /not logged in/i.test(`${r.stdout}\n${r.stderr}`)))) out.loggedIn = r.code === 0;
     if (out.loggedIn === false) out.findings.push(finding('warning', a.name, 'not signed in, or the login expired', relogin));
     else if (out.loggedIn === null) out.findings.push(finding('info', a.name, `login state not read: ${tail(r)}`, 'run the agent in this account once to see why'));
   }
@@ -185,6 +200,8 @@ export function accountStatus(ctx, a, { dir, now = Date.now(), token } = {}) {
   }
   return out;
 }
+export const accountStatus = (ctx, a, o) => drive(statusSteps(ctx, a, o), ctx.run);
+export const accountStatusAsync = (ctx, a, o) => driveAsync(statusSteps(ctx, a, o), asyncRun(ctx));
 
 // Findings for doctor: one status per registered account; nothing when none is registered or the file cannot be read.
 export function accountChecks(ctx, { dir, now } = {}) {
@@ -242,7 +259,7 @@ export async function login(ctx, a, { io, token = false, email, noBrowser = fals
     // each agent reads BROWSER is unverified; the URL is taken from its output either way.
     env = { ...accountEnv(ctx, a), ...(process.platform === 'win32' ? {} : { BROWSER: 'true' }) };
   } else {
-    argv = execArgv(ensureContainer(ctx, a, dir), dir, a, cmd);
+    argv = execArgv(await ensureContainerAsync(ctx, a, dir), dir, a, cmd);
     env = baseEnv(ctx);
   }
   let secret = null, url = null, buffer = '', child = null, sawUrl;
@@ -294,7 +311,7 @@ export async function login(ctx, a, { io, token = false, email, noBrowser = fals
     return { stored: true };
   }
   io.step('verify', {});
-  const s = accountStatus(ctx, a, { dir });
+  const s = await accountStatusAsync(ctx, a, { dir });
   if (s.loggedIn === false) throw new Error(`the sign-in ended but ${a.name} is still not signed in: ${s.findings[0]?.fix ?? 'try again'}`);
   io.step('done', { loggedIn: s.loggedIn, method: s.method });
   return { stored: false };

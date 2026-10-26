@@ -47,7 +47,11 @@ export function credentialStore(run, { platform = process.platform, env = proces
         return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
       },
       has(name) { return this.get(name) !== null; },
-      delete(name) { check(name); call(['secret-tool', 'clear', ...attrs(name)]); },
+      delete(name) {
+        check(name);
+        call(['secret-tool', 'clear', ...attrs(name)]);
+        if (this.has(name)) throw new StoreError('the secret service did not delete the token: delete it there by hand (it is stored under the service name benchkeeper)');
+      },
     };
   }
   if (platform === 'darwin') {
@@ -66,7 +70,11 @@ export function credentialStore(run, { platform = process.platform, env = proces
         return r.code === 0 && r.stdout.trim() ? r.stdout.trim() : null;
       },
       has(name) { return this.get(name) !== null; },
-      delete(name) { check(name); call(['security', 'delete-generic-password', '-s', SERVICE, '-a', name]); },
+      delete(name) {
+        check(name);
+        call(['security', 'delete-generic-password', '-s', SERVICE, '-a', name]);
+        if (this.has(name)) throw new StoreError('the keychain did not delete the token: delete it in Keychain Access (service benchkeeper)');
+      },
     };
   }
   return refuse(`no credential store is supported on ${platform}: the token is not kept (sign in with accounts login instead)`);

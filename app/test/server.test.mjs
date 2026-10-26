@@ -384,6 +384,7 @@ test('scan needs an absolute root and leaves out registered folders; doctor and 
   const { routes } = fixture();
   assert.equal(status(() => routes['POST /api/scan']({ root: 'code' })), 400);
   assert.equal(status(() => routes['POST /api/scan']({})), 400);
+  assert.equal(status(() => routes['POST /api/scan']({ root: '/' })), 400);
   const root = mkdtempSync(join(TMP, 'bk-scan-'));
   for (const d of ['a', 'b']) { mkdirSync(join(root, d)); writeFileSync(join(root, d, 'AGENTS.md'), '# x\n'); }
   routes['POST /api/projects']({ action: 'add', path: join(root, 'a') });

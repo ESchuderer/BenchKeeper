@@ -500,7 +500,7 @@ export function api(ctx) {
     },
     'POST /api/scan': (b) => {
       if (typeof b.root !== 'string' || !isAbsolute(b.root)) throw bad('root must be an absolute path');
-      return scan(b.root).filter((d) => !registered(d));
+      return input(() => scan(ctx, b.root)).filter((d) => !registered(d));
     },
     // Agent settings of one layer set (user, plus a registered project's project and local files) with their notes. Values
     // of secret-looking names are masked by the module.

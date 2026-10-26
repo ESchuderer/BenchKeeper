@@ -293,7 +293,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'projects') {
     const dirs = positionals.slice(2);
     if (arg === 'add') dirs.forEach((d) => out.write(`added ${addProject(ctx, d, { worktree: o.worktree })}\n`));
-    else if (arg === 'scan') for (const d of scan(dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === canon(d)) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
+    else if (arg === 'scan') for (const d of scan(ctx, dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === canon(d)) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
     else if (arg === 'rename') {
       if (!dirs[0]) { out.write('projects rename needs a directory\n'); return 2; }
       renameProject(ctx, dirs[0], { name: dirs[1] ?? (o.notes === undefined ? '' : undefined), notes: o.notes });

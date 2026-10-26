@@ -14,9 +14,48 @@ export const repoEnv = (env = process.env, index = false) => {
   const fromHook = Object.keys(env).some((k) => REPO_VARS.test(k) && !(index && k === 'GIT_INDEX_FILE'));
   return Object.fromEntries(Object.entries(env).filter(([k]) => ((index && k === 'GIT_INDEX_FILE') || !REPO_VARS.test(k)) && !(fromHook && CONFIG_VARS.test(k))));
 };
+// Filter drivers (filter.<name>.clean, smudge, process) of the repository's own config, also of a file it includes, name shell
+// commands that add, status, commit and a checkout run for every path whose attributes pick the driver: a repository that came with its
+// .git runs code that way. They are switched off for those commands, except the exact commands git-lfs installs. Set through
+// GIT_CONFIG_* pairs: a -c option splits at the first = and cannot name a driver that has one.
+const LFS_DRIVER = /^(?:git-lfs (?:clean|smudge)(?: --skip)? -- %f|git-lfs filter-process(?: --skip)?)$/;
+// Commands that only read refs, objects and config never run a filter; every other command (add, status, commit, write-tree
+// re-checking racy index entries, a checkout, a diff) may, so a command the app starts using later is covered by default.
+const NO_FILTER = new Set(['config', 'rev-parse', 'symbolic-ref', 'remote', 'cat-file', 'ls-tree', 'ls-remote', 'fetch', 'push', 'merge-base', 'log', 'branch', 'diff-tree']);
+const subcommand = (args) => args.find((a, i) => !a.startsWith('-') && args[i - 1] !== '-c');
+// timeout is the later command's: a config that blocks (an include of a FIFO) must not hang the app before that command starts.
+// GIT_CONFIG makes `git config` (only that command) read one file instead of the repository's: it stays out of this call.
+function driverOverrides(ctx, dir, env, timeout) {
+  const { GIT_CONFIG: _, ...bare } = env;
+  const r = ctx.run(['git', '-C', dir, 'config', '--show-scope', '-z', '--get-regexp', '^filter\\..*\\.(clean|smudge|process)$'], { env: bare, timeout });
+  // 1 is no match; any other failure (a config git cannot read) leaves the drivers unknown: the command is not run.
+  if (r.code !== 0 && r.code !== 1) return null;
+  // With -z and --show-scope each entry is the scope, a NUL, then key, a line break, value and a NUL.
+  const parts = r.stdout.split('\0'), own = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const [key, ...value] = parts[i + 1].split('\n');
+    if (parts[i] === 'local' || parts[i] === 'worktree') own.push({ key, value: value.join('\n') });
+  }
+  const off = new Set(own.filter((e) => !LFS_DRIVER.test(e.value)).map((e) => e.key.slice(0, e.key.lastIndexOf('.'))));
+  return [...own.filter((e) => off.has(e.key.slice(0, e.key.lastIndexOf('.')))).map((e) => [e.key, '']), ...[...off].map((d) => [`${d}.required`, 'false'])];
+}
+const withPairs = (env, pairs) => {
+  const out = { ...env };
+  let n = Number.parseInt(env.GIT_CONFIG_COUNT, 10) || 0;
+  for (const [k, v] of pairs) { out[`GIT_CONFIG_KEY_${n}`] = k; out[`GIT_CONFIG_VALUE_${n}`] = v; n++; }
+  out.GIT_CONFIG_COUNT = String(n);
+  return out;
+};
 // core.fsmonitor is a command the repository's own config names, and status and add would run it: off for every call.
-// Filter drivers run for paths whose attributes name them, as in the user's own git; that stays (git-lfs needs it).
-const git = (ctx, dir, args, { index, ...extra } = {}) => ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env: repoEnv(extra.env, index) });
+const git = (ctx, dir, args, { index, ...extra } = {}) => {
+  let env = repoEnv(extra.env, index);
+  if (!NO_FILTER.has(subcommand(args))) {
+    const off = driverOverrides(ctx, dir, env, extra.timeout);
+    if (!off) return { code: 128, stdout: '', stderr: 'the repository config cannot be read, so its filter drivers are unknown' };
+    env = withPairs(env, off);
+  }
+  return ctx.run(['git', '-C', dir, '-c', 'core.fsmonitor=false', ...args], { ...extra, env });
+};
 
 // A branch name safe to pass on as an argument and a fetch refspec: no option, no refspec syntax, and a valid git ref
 // (non-ASCII letters, @ and + inside the name are allowed; a leading + is a force refspec, @{ and a bare @ are reflog syntax).

@@ -216,6 +216,24 @@ test('an eval session starts with the agent login variables only, not the user t
   for (const name of ['GH_TOKEN', 'NPM_TOKEN', 'SSH_AUTH_SOCK']) assert.ok(!(name in env), name);
 });
 
+test('an eval session leaves no transcript, loads no MCP server, and its probes get the filtered environment', async (t) => {
+  const saved = { ...process.env };
+  t.after(() => { process.env = saved; });
+  Object.assign(process.env, { GH_TOKEN: 'ghp_x', NPM_TOKEN: 'npm_x' });
+  const help = { claude: '  --no-session-persistence  Disable session persistence\n', codex: '      --ephemeral\n          Run without persisting session files\n' };
+  for (const agent of ['claude', 'codex']) {
+    const calls = [];
+    const ctx = context({ home: tmp(), run: (argv, o) => { calls.push({ argv, env: o?.env }); return argv[0] === 'git' ? runCommand(argv, o) : { code: 0, stdout: argv.includes('--help') ? help[agent] : '{"type":"system"}\n', stderr: '' }; } });
+    await runEval(ctx, [{ target: 'skill:x', agent, hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]);
+    const session = calls.find((c) => c.argv[0] === agent && c.argv.includes('q')).argv;
+    assert.ok(session.includes(agent === 'claude' ? '--no-session-persistence' : '--ephemeral'), agent);
+    assert.equal(session.includes('--strict-mcp-config'), agent === 'claude');
+    assert.equal(session.at(-1) === 'q' || session[session.indexOf('-p') + 1] === 'q', true);
+    for (const c of calls.filter((x) => x.env)) for (const name of ['GH_TOKEN', 'NPM_TOKEN']) assert.ok(!(name in c.env), `${agent} ${c.argv.slice(0, 2).join(' ')} ${name}`);
+    assert.ok(calls.filter((c) => c.argv[0] === 'git' || c.argv.includes('--version')).every((c) => c.env), 'git init and the version probe pass an environment');
+  }
+});
+
 test('mask stays linear on a long dotted token and leaves ordinary words alone', () => {
   const long = `${'a.'.repeat(20000)}x`;
   const t = Date.now();

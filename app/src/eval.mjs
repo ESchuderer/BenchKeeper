@@ -3,7 +3,8 @@
 import { appendFileSync, chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { agentEnv } from './childenv.mjs';
+import { noTrace } from './advise.mjs';
+import { agentEnv, childEnv } from './childenv.mjs';
 import { contentDir } from './content.mjs';
 import { exists, hashPath, hashText, readText } from './fsx.mjs';
 import { loadCases, userEvals } from './cases.mjs';
@@ -27,10 +28,12 @@ export function lastResults(ctx) {
 }
 
 // Agent command per case; tool output is read for the skill's SKILL.md or a Skill tool call.
+// No session is saved (the transcript would land in the user's own history and on the sessions board; the stream is read from stdout)
+// and Claude loads no MCP server (a skill's trigger rate does not depend on one, and it would run as the user).
 const AGENTS = {
-  claude: { argv: (q, model) => ['claude', '-p', q, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan', ...(model ? ['--model', model] : [])], skills: '.claude/skills' },
+  claude: { argv: (ctx, q, model) => ['claude', '-p', q, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'plan', '--strict-mcp-config', ...noTrace(ctx, 'claude'), ...(model ? ['--model', model] : [])], skills: '.claude/skills' },
   // shortcut: Codex trigger detection reads SKILL.md paths in the JSON events (unverified), check it on the first owner run.
-  codex: { argv: (q, model) => ['codex', 'exec', '--json', '--sandbox', 'read-only', '--skip-git-repo-check', ...(model ? ['-m', model] : []), q], skills: '.agents/skills' },
+  codex: { argv: (ctx, q, model) => ['codex', 'exec', '--json', '--sandbox', 'read-only', '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(model ? ['-m', model] : []), q], skills: '.agents/skills' },
 };
 export function triggered(output, name) {
   for (const line of output.split('\n')) {
@@ -67,20 +70,20 @@ export async function runEval(ctx, plan, { now = () => new Date().toISOString(),
   for (const p of plan) {
     const a = AGENTS[p.agent];
     const [kind, name] = p.target.split(':');
-    const version = ctx.run([p.agent, '--version']).stdout.trim();
+    const version = ctx.run([p.agent, '--version'], { env: agentEnv(p.agent) }).stdout.trim();
     const details = [];
     const keep = join(userEvals(ctx), 'outputs', `${now().replace(/[:.]/g, '')}-${p.agent}-${p.target.replace(':', '-')}`);
     for (const c of p.cases) {
       if (signal?.aborted) throw new Error('cancelled');
       const dir = mkdtempSync(join(tmpdir(), 'bk-eval-'));
       try {
-        ctx.run(['git', 'init', '-q', dir]);
+        ctx.run(['git', 'init', '-q', dir], { env: childEnv({}) });
         writeFileSync(join(dir, 'README.md'), '# Scratch project\n');
         const lib = join(contentDir, 'library', name);
         if (kind === 'skill' && exists(lib)) cpSync(lib, join(dir, a.skills, name), { recursive: true });
         onCase({ index: n++, total, target: p.target, agent: p.agent, case: c.id });
         // The whole stream: the skill call comes early in a long session.
-        const r = await session(a.argv(c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
+        const r = await session(a.argv(ctx, c.query, p.model), { cwd: dir, keep: 64 * 1024 * 1024, signal, env: agentEnv(p.agent) });
         if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
         if (kind === 'skill') details.push({ id: c.id, should: c.should, triggered: triggered(r.stdout, name), exit: r.code });
         else {

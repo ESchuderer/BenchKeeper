@@ -7,7 +7,7 @@ import { appVersion } from './content.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
-import { unfit } from './roots.mjs';
+import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
 import { STATE, committedSetup, localSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
 import { newer } from './update.mjs';
@@ -156,7 +156,9 @@ export function relocateProject(ctx, path, to) {
 const MARKERS = ['AGENTS.md', 'skills-lock.json', STATE];
 const SKIP = new Set(['node_modules', '.git', '.cache', 'dist', 'build', 'vendor']);
 // Folders below root (3 levels) holding an agent setup.
-export function scan(root, depth = 3) {
+export function scan(ctx, root, depth = 3) {
+  const why = unscannable(ctx, root);
+  if (why) throw new Error(`${canon(root)} is ${why}: scan the folder your projects are in`);
   const found = [];
   const walk = (d, n) => {
     if (MARKERS.some((m) => existsSync(join(d, m)))) { found.push(d); return; }

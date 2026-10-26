@@ -19,7 +19,7 @@ import { scanSessions } from '../src/sessions.mjs';
 import { copy, hashPath, hashText } from '../src/fsx.mjs';
 import { clean, repoEnv, safeBranch, snapshot } from '../src/git.mjs';
 import { importChoices, importPlan, readProfile } from '../src/profile.mjs';
-import { MAX_PROJECTS, addProject, updateAll } from '../src/projects.mjs';
+import { MAX_PROJECTS, addProject, scan, updateAll } from '../src/projects.mjs';
 import { api } from '../src/server.mjs';
 import { apply, context, preview, runCommand, undo, undoable } from '../src/runner.mjs';
 import { STATE, projectCtx, projectPlan, scopeCtx } from '../src/steps/project.mjs';
@@ -97,6 +97,16 @@ test('the root of a drive, the home folder, its parents and the config folder ar
   }
   mkdirSync(join(h, 'work'));
   assert.equal(addProject(c, join(h, 'work')), join(h, 'work'));
+});
+
+test('a scan walks no drive root and no config folder, and still scans the home folder and a folder holding it', () => {
+  const h = home();
+  const c = context({ home: h });
+  mkdirSync(join(h, 'work', 'app'), { recursive: true });
+  writeFileSync(join(h, 'work', 'app', 'AGENTS.md'), '#\n');
+  for (const p of ['/', c.config]) assert.throws(() => scan(c, p), /root of a drive|config folder/, p);
+  assert.deepEqual(scan(c, h), [join(h, 'work', 'app')]);
+  assert.deepEqual(scan(c, join(h, 'work')), [join(h, 'work', 'app')]);
 });
 
 test('a profile import registers no home folder and gives it no plan', () => {

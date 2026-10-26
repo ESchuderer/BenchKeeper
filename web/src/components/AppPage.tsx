@@ -70,7 +70,7 @@ export default function AppPage({ base, shots }: { base: string; shots: Record<s
         <Stack gap="xs" maw={720}>
           <Title order={1} fz={{ base: 34, md: 44 }}>The app</Title>
           <Text size="lg">
-            <code>npx benchkeeper@6.14.0</code> opens the app in your browser: set up the machine and each repository, see what drifted, undo a run.
+            <code>npx benchkeeper@6.15.0</code> opens the app in your browser: set up the machine and each repository, see what drifted, undo a run.
             The same steps run on the command line, see the CLI tab of the <Anchor href={`${base}/#start`}>quick start</Anchor>.
           </Text>
           <Text c="dimmed">All screenshots show example data: a demo home folder with the projects shop and blog. They come from no real machine.</Text>

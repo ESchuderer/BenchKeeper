@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
 import { doctor, skillFiles } from './doctor.mjs';
 import { frontMatter, pluginSkills } from './instructions.mjs';
-import { listProjects } from './projects.mjs';
+import { canon, listProjects } from './projects.mjs';
 import { scanSessions } from './sessions.mjs';
 import { projectSkills } from './skills.mjs';
 
@@ -70,6 +70,8 @@ export async function collectInsights(ctx, { agents, dir, days = WINDOW_DAYS, no
   const installed = [...skillFiles(ctx.home).filter((f) => f.file.startsWith(`${claudeDir}${sep}`)).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)];
   const skills = installed.filter((s, i) => installed.findIndex((x) => x.name === s.name && x.scope === s.scope) === i)
     .map((s) => ({ name: s.name, scope: s.scope, tokens: tokensOf(s.text) }));
-  const skillPins = listProjects(ctx).flatMap((p) => (projectSkills(ctx, p.path)?.skills ?? []).filter((s) => s.state === 'outdated').map((s) => ({ project: p.path, name: s.name, pinned: s.pinned, newest: s.newest })));
+  // --project scopes the pins to that project, as it scopes the doctor's checks.
+  const projects = dir ? [{ path: canon(dir) }] : listProjects(ctx);
+  const skillPins = projects.flatMap((p) => (projectSkills(ctx, p.path)?.skills ?? []).filter((s) => s.state === 'outdated').map((s) => ({ project: p.path, name: s.name, pinned: s.pinned, newest: s.newest })));
   return insights({ sessions, skills, doctorFindings: doctor(ctx, { agents, dir, now }), skillPins });
 }

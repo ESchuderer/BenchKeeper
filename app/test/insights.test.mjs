@@ -6,6 +6,7 @@ import { Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { MIN_SAMPLES, collectInsights, insights } from '../src/insights.mjs';
+import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { writeSessions } from './fixtures/sessions.mjs';
 
@@ -132,4 +133,19 @@ test('collectInsights: 20 sessions in the window report the installed skill none
   assert.equal(r.samples.sessions, 22);
   assert.deepEqual(f.evidence.skills, [{ name: 'crlf', scope: 'global', tokens: 7 }, { name: 'old-skill', scope: 'global', tokens: 108 }]);
   assert.ok(!JSON.stringify(r).includes(SECRET));
+});
+
+test('collectInsights: --project reports the skill pins of that project only', async () => {
+  const { home, ctx } = machine();
+  const projects = ['a', 'b'].map((n) => {
+    const dir = join(home, 'work', n);
+    mkdirSync(join(dir, '.claude/skills/frontend-design'), { recursive: true });
+    mkdirSync(join(dir, '.benchkeeper'), { recursive: true });
+    writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ agents: ['claude'], skills: [{ name: 'frontend-design', source: 'community', ref: 'a'.repeat(40) }] }));
+    addProject(ctx, dir);
+    return dir;
+  });
+  const pinned = async (dir) => (await collectInsights(ctx, { agents: ['claude'], dir })).findings.filter((f) => f.id.startsWith('freshness:skill:')).map((f) => f.evidence.project);
+  assert.deepEqual((await pinned()).sort(), projects);
+  assert.deepEqual(await pinned(projects[0]), [projects[0]]);
 });

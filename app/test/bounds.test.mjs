@@ -147,6 +147,10 @@ test('the git-lfs driver commands still run, any other command named git-lfs doe
   driver(dir, 'clean', 'git-lfs clean -- %f; echo more');
   snapshot(c, dir);
   assert.equal(existsSync(mark), false);
+  // GIT_CONFIG in the app's environment points `git config` at another file: the drivers are still found.
+  process.env.GIT_CONFIG = join(home(), 'empty.cfg');
+  try { snapshot(c, dir); } finally { delete process.env.GIT_CONFIG; }
+  assert.equal(existsSync(mark), false);
 }));
 
 test('a driver with one git-lfs command and one other command is switched off whole, and an unreadable config runs no git command', () => withFakeLfs((c, dir, mark) => {

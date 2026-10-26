@@ -23,8 +23,11 @@ const LFS_DRIVER = /^(?:git-lfs (?:clean|smudge)(?: --skip)? -- %f|git-lfs filte
 // re-checking racy index entries, a checkout, a diff) may, so a command the app starts using later is covered by default.
 const NO_FILTER = new Set(['config', 'rev-parse', 'symbolic-ref', 'remote', 'cat-file', 'ls-tree', 'ls-remote', 'fetch', 'push', 'merge-base', 'log', 'branch', 'diff-tree']);
 const subcommand = (args) => args.find((a, i) => !a.startsWith('-') && args[i - 1] !== '-c');
-function driverOverrides(ctx, dir, env) {
-  const r = ctx.run(['git', '-C', dir, 'config', '--show-scope', '-z', '--get-regexp', '^filter\\..*\\.(clean|smudge|process)$'], { env });
+// timeout is the later command's: a config that blocks (an include of a FIFO) must not hang the app before that command starts.
+// GIT_CONFIG makes `git config` (only that command) read one file instead of the repository's: it stays out of this call.
+function driverOverrides(ctx, dir, env, timeout) {
+  const { GIT_CONFIG: _, ...bare } = env;
+  const r = ctx.run(['git', '-C', dir, 'config', '--show-scope', '-z', '--get-regexp', '^filter\\..*\\.(clean|smudge|process)$'], { env: bare, timeout });
   // 1 is no match; any other failure (a config git cannot read) leaves the drivers unknown: the command is not run.
   if (r.code !== 0 && r.code !== 1) return null;
   // With -z and --show-scope each entry is the scope, a NUL, then key, a line break, value and a NUL.
@@ -47,7 +50,7 @@ const withPairs = (env, pairs) => {
 const git = (ctx, dir, args, { index, ...extra } = {}) => {
   let env = repoEnv(extra.env, index);
   if (!NO_FILTER.has(subcommand(args))) {
-    const off = driverOverrides(ctx, dir, env);
+    const off = driverOverrides(ctx, dir, env, extra.timeout);
     if (!off) return { code: 128, stdout: '', stderr: 'the repository config cannot be read, so its filter drivers are unknown' };
     env = withPairs(env, off);
   }

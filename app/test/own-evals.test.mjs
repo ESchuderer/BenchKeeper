@@ -147,4 +147,9 @@ test('an own skill installed as a link is hashed and copied by its text', { skip
   assert.deepEqual(planOf(ctx, [target]), []);
   skill(store, 'own-linked', 'v2\n');
   assert.equal(planOf(ctx, [target]).length, 1);
+  // A SKILL.md that is a dangling link is no skill: it leaves the plan.
+  rmSync(join(store, '.claude/skills/own-linked/SKILL.md'));
+  symlinkSync(join(store, 'gone.md'), join(store, '.claude/skills/own-linked/SKILL.md'));
+  assert.deepEqual(planOf(ctx, [target]), []);
+  assert.throws(() => addCase(ctx, { target: 'skill:own-linked', scope: 'project', project, expected: 'e', query: 'q' }), /no project skill/);
 });

@@ -1,7 +1,7 @@
 // Eval cases: an observed miss becomes a regression case for a skill or rule. The app's sets ship in
 // <content>/evals/, the user's own go to ~/.config/benchkeeper/evals/; benchkeeper eval reads both.
 import { createHash } from 'node:crypto';
-import { readdirSync, realpathSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { registry, skillDirs } from './agents.mjs';
 import { contentDir } from './content.mjs';
@@ -26,7 +26,7 @@ export const inLibrary = (name) => libraryDirs(name).some((d) => exists(d));
 // a hash of the link would not change with the text, and a copy of the link would not resolve in the scratch repository.
 const ownDir = (ctx, name, scope, project) => {
   const dir = skillDirs(registry.map((a) => a.id), scope === 'user' ? 'global' : 'project', scope === 'user' ? ctx.home : project)
-    .map((x) => join(x.dir, name)).find((d) => exists(join(d, 'SKILL.md')));
+    .map((x) => join(x.dir, name)).find((d) => existsSync(join(d, 'SKILL.md'))); // a dangling link is no skill text
   return dir && realpathSync(dir);
 };
 

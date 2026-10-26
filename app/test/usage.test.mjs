@@ -451,3 +451,30 @@ test('a dev container track twice or --off twice has nothing to change; the scri
   assert.equal(await again.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0);
   assert.match(again.text(), /nothing to change/);
 });
+
+test('a dev container whose settings.json cannot be read is not an empty one: nothing is written', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  m.mode('cat', 'fail');
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 1);
+  assert.match(c.text(), /could not read \/data\/boxed\/settings.json in the container: devcontainer exec failed/);
+  assert.deepEqual(m.calls().filter((x) => x.args.includes('tee')), []);
+});
+
+test('a container settings.json diff is masked like a host one before it is shown', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  mkdirSync(join(m.bin, 'vol/data/boxed'), { recursive: true });
+  writeFileSync(join(m.bin, 'vol/data/boxed/settings.json'), JSON.stringify({ env: { ANTHROPIC_API_KEY: 'dummy-key-value-0123456789', GH_TOKEN: 'dummy-gh-value' }, model: 'x' }, null, 2));
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0, c.text());
+  assert.doesNotMatch(c.text(), /dummy-key-value|dummy-gh-value/);
+  assert.match(readFileSync(join(m.bin, 'vol/data/boxed/settings.json'), 'utf8'), /dummy-key-value-0123456789/, 'the file keeps what it had');
+});

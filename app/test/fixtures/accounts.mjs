@@ -55,7 +55,7 @@ if (me === 'claude' && args[0] === 'auth' && args[1] === 'status') {
   if (rest[0] === 'grep') process.exit(mode('mounted') === 'no' ? 1 : 0);
   // The volume is a folder of the machine: cat, rm, mkdir and tee act on it, so the tests read what a container holds.
   const vol = (p) => path.join(bin, 'vol', p);
-  if (rest[0] === 'cat') { try { process.stdout.write(fs.readFileSync(vol(rest[1]))); process.exit(0); } catch { process.exit(1); } }
+  if (rest[0] === 'cat') { if (mode('cat') === 'fail') { console.error('devcontainer exec failed'); process.exit(255); } try { process.stdout.write(fs.readFileSync(vol(rest[1]))); process.exit(0); } catch { console.error('cat: ' + rest[1] + ': No such file or directory'); process.exit(1); } }
   if (rest[0] === 'rm') { fs.rmSync(vol(rest[2]), { force: true }); process.exit(0); }
   if (rest[0] === 'mkdir') { fs.mkdirSync(vol(rest[2]), { recursive: true }); process.exit(0); }
   if (rest[0] === 'tee') { let d = ''; process.stdin.on('data', (c) => { d += c; }).on('end', () => { fs.writeFileSync(vol(rest[1]), d); process.exit(0); }); return; }

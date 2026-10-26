@@ -342,10 +342,16 @@ export const trackChanges = (a, { remove = false } = {}) => {
 // A container account's change: the volume is not a host path, so it is read and written through devcontainer exec.
 function* trackContainerSteps(ctx, a, dir, { remove }) {
   const engine = yield* containerSteps(ctx, a, dir);
-  const r = yield [execArgv(engine, dir, a, ['cat', settingsFile(a)]), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 }];
+  // Missing is what cat says about a missing file: a failed exec or a timeout is not an empty settings.json to overwrite.
+  const read = function* (path) {
+    const r = yield [execArgv(engine, dir, a, ['cat', path]), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 }];
+    if (r.code !== 0 && !/no such file or directory/i.test(r.stderr ?? '')) throw new Error(`could not read ${path} in the container: ${tail(r)}`);
+    return r;
+  };
+  const r = yield* read(settingsFile(a));
   const before = r.code === 0 ? r.stdout : null;
   const after = trackedSettings(before, scriptOf(a), { remove });
-  const had = yield [execArgv(engine, dir, a, ['cat', scriptOf(a)]), { cwd: dir, env: baseEnv(ctx), timeout: 60e3 }];
+  const had = yield* read(scriptOf(a));
   const script = { path: scriptOf(a), after: remove ? null : HOOK_SOURCE, diff: `${remove ? 'remove' : 'write'} ${scriptOf(a)}` };
   const settings = { path: settingsFile(a), after, diff: diffLines(before, after, settingsFile(a)) };
   // The script goes first when it is added (only if it differs) and last when it is removed (only if it is there): the settings never name a script that is missing.

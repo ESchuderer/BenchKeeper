@@ -985,7 +985,7 @@ async function trackAccount(ctx, a, { o, out, ask }) {
   const dir = resolve(o.project ?? '.');
   const t = trackContainer(ctx, a, dir, { remove });
   if (!t.files.length) { out.write('nothing to change\n'); return 0; }
-  for (const f of t.files) out.write(`${f.diff}\n`);
+  for (const f of t.files) out.write(`${(isSettingsFile(f.path) ? redact(f.diff) : f.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
   if (!o.yes && !(await ask(`Write ${t.files.length === 1 ? 'this file' : 'these files'} in the volume of ${a.name}? (no undo run: accounts track ${a.name} --off reverses it)`))) return 1;
   writeContainer(ctx, a, dir, t);
   done();

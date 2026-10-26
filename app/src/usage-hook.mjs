@@ -45,7 +45,12 @@ function main(mode, text, dir, now = Date.now()) {
   appendFileSync(file, line, { mode: 0o600 });
   chmodSync(file, 0o600);
   const lines = readFileSync(file, 'utf8').trim().split('\n');
-  if (lines.length > KEEP) writeFileSync(file, `${lines.slice(-KEEP).join('\n')}\n`, { mode: 0o600 });
+  if (lines.length > KEEP) {
+    // A reader never sees a half written file; a line appended between the read and the rename can be lost.
+    const tmp = join(dir, `failures.jsonl.${process.pid}`);
+    writeFileSync(tmp, `${lines.slice(-KEEP).join('\n')}\n`, { mode: 0o600 });
+    renameSync(tmp, file);
+  }
   return '';
 }
 

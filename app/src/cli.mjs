@@ -74,8 +74,9 @@ Usage: benchkeeper <command> [options]
                                     read from files only (no agent starts), with owner and a runs-code mark; env
                                     values, headers and secrets never appear; nothing is written
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
-           [--project dir] [--transcript file] [--description text] [--query text]
-                                    records an observed miss as an eval case (~/.config/benchkeeper/evals/)
+           [--project dir] [--scope project|user] [--transcript file] [--description text] [--query text]
+                                    records an observed miss as an eval case (~/.config/benchkeeper/evals/); a skill with
+                                    no library counterpart is read from --project's or your skill folders (--scope picks one)
   test [dir] [--agents a,b]         deterministic checks: files match the ledger, expected plugins and skills,
                                     nothing unexpected installed, project skills at the library pins; exit 1 on a failure
   eval [--agents a,b] [--model m] [--target t] [--all] [--yes]
@@ -190,7 +191,7 @@ const OPTIONS = {
   env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, framework: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
-  description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
+  description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
   json: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
@@ -487,9 +488,9 @@ async function command(argv, { out, err, ask, ctx }) {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
     // A session run gives the project and transcript.
     const session = o.run ? ctx.ledger.get(o.run) : null;
-    const r = addCase(ctx, { target: o.target?.[0], expected: o.expected, should: !o['should-not'], run: o.run, query: o.query, description: o.description,
+    const r = addCase(ctx, { target: o.target?.[0], scope: o.scope, expected: o.expected, should: !o['should-not'], run: o.run, query: o.query, description: o.description,
       project: o.project ? resolve(o.project) : session?.scope, transcript: o.transcript ? resolve(o.transcript) : session?.entries[0]?.transcript ?? undefined });
-    out.write(`case ${r.case.id} in ${r.path}\nquery: ${r.case.query.split('\n')[0].slice(0, 120)}\nrun ${r.run}: undo with benchkeeper undo ${r.run}\n`);
+    out.write(`case ${r.case.id} for ${r.target} in ${r.path}\nquery: ${r.case.query.split('\n')[0].slice(0, 120)}\nrun ${r.run}: undo with benchkeeper undo ${r.run}\n`);
     return 0;
   }
   if (cmd === 'test') {
@@ -503,7 +504,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
     const sessions = plan.reduce((n, p) => n + p.cases.length, 0);
     if (!plan.length) { out.write('every target is unchanged since its last result (--all runs them again)\n'); return 0; }
-    for (const p of plan) out.write(`${p.target}  ${p.agent}${p.model ? ` ${p.model}` : ''}  ${p.cases.length} cases\n`);
+    for (const p of plan) out.write(`${p.target}  ${p.agent}${p.model ? ` ${p.model}` : ''}  ${p.cases.length} cases${p.project ? `  (project ${p.project})` : ''}\n`);
     if (!o.yes && !(await ask(`Start ${sessions} agent sessions?`))) return 1;
     for (const r of await runEval(ctx, plan)) {
       const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);

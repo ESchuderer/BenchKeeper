@@ -123,7 +123,9 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'apply', scope, ...(note ? { note } : {}), entries: [] };
   // Changes of one unit (a copy and the removal of its source, a marketplace and its plugin) go together or not at all.
   // A change that cannot be made (c.error) is never applied.
-  const picked = (c) => !c.error && (select ? select.includes(c.id) : (c.selected ?? !c.destructive));
+  // A change that replaces another (c.replaces is its id) wins when both are chosen: the replaced one is not applied.
+  const chosen = (c) => !c.error && (select ? select.includes(c.id) : (c.selected ?? !c.destructive));
+  const picked = (c) => chosen(c) && !changes.some((x) => x.replaces === c.id && chosen(x));
   for (const c of changes) {
     const unit = c.unit && changes.filter((x) => x.unit === c.unit);
     if (unit && unit.some(picked) && !unit.every(picked)) throw new Error(`${unit.map((x) => x.title).join(' and ')} go together: choose all of them or none`);

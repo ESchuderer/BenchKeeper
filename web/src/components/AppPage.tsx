@@ -1,5 +1,5 @@
 import { Anchor, Container, Stack, Text, Title } from '@mantine/core';
-import { BenchShell } from './Bench';
+import { BenchShell } from './BenchShell';
 
 export type Shot = { width: number; height: number };
 

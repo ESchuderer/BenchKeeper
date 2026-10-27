@@ -1,64 +1,107 @@
 name: Release
 
-# The plugin version in plugins/benchkeeper/*/plugin.json is the setup version (CHANGELOG.md).
-# Pull requests: a change under plugins/benchkeeper/ raises it and adds its CHANGELOG entry.
-# main: the first push with a new version tags setup-v<major>.<minor>, moves the branch stable (the ref the app adds
-# BenchKeeper's marketplace at) to that commit, and publishes a GitHub Release (titled benchkeeper <major>.<minor>) with that entry.
-# Then, if npm does not have app/package.json's version yet, it starts npm.yml, which publishes it: merge to main is the release.
+# Every merge to main is releasable; merging alone releases nothing. release-please keeps one release pull request
+# open from the Conventional Commits on main (release-please-config.json: version in app/package.json and both
+# plugin.json files, CHANGELOG.md). Release weekly (release-weekly.yml) merges it every Monday; the owner can merge it
+# earlier or run that workflow by hand.
+# Merging it tags setup-v<major>.<minor>.<patch>, creates the GitHub Release, moves the branch stable (the ref the
+# app adds BenchKeeper's marketplace at) to the release commit and, if npm does not have app/package.json's version
+# yet, starts npm.yml, which publishes it.
+#
+# The release pull request opens with the release GitHub App token so that its required checks run without approval
+# (a pull request changed with GITHUB_TOKEN starts no runs until someone approves them). Set the variable
+# RELEASE_APP_CLIENT_ID and the secret RELEASE_APP_PRIVATE_KEY. Without them the job falls back to GITHUB_TOKEN: the
+# owner then approves the runs on the release pull request.
 on:
   push:
     branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
-  check:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: release.sh self-check
-        run: sh .github/scripts/release.test.sh
-      - name: Version and CHANGELOG entry
-        run: sh .github/scripts/release.sh check "origin/$GITHUB_BASE_REF"
-
-  release:
-    if: github.event_name == 'push'
+  release-please:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      sha: ${{ steps.rp.outputs.sha }}
     env:
-      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
     steps:
-      # Full history: the push to stable must find stable's commit here to fast-forward it.
+      - id: app-token
+        if: ${{ vars.RELEASE_APP_CLIENT_ID != '' }}
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+      - id: rp
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+      # release-please bumps the versions in the files it knows; the install commands in the docs name the app version
+      # (version-pins.mjs, checked in checks.yml), so the release pull request gets them in one more commit. The
+      # next release-please run rebuilds the branch, and this step runs again.
+      - id: pr
+        name: Find the release pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+        run: |
+          branch=$(gh pr list --repo "$REPO" --state open --label 'autorelease: pending' --json headRefName --jq '.[0].headRefName // empty')
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      - if: ${{ steps.pr.outputs.branch != '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: # zizmor: ignore[artipacked] the next step pushes to the release branch with these credentials
+          ref: ${{ steps.pr.outputs.branch }}
+          token: ${{ steps.app-token.outputs.token || github.token }}
+          path: release-pr
+      - if: ${{ steps.pr.outputs.branch != '' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
+          package-manager-cache: false
+      - if: ${{ steps.pr.outputs.branch != '' }}
+        name: Pin the install commands to the release version
+        working-directory: release-pr
+        run: |
+          node .github/scripts/version-pins.mjs
+          if git diff --quiet; then echo "Pins are current."; exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -a -m 'chore: pin the install commands to the release version'
+          git push
+
+  # The branch stable only moves forward: main is linear, so this fast-forwards, and a rerun after a failure finds it
+  # in place. Full history: the push must find stable's commit here.
+  stable:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
+    steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: # zizmor: ignore[artipacked] the job pushes stable with these credentials
           fetch-depth: 0
-      - name: Tag and GitHub Release
-        run: |
-          tag=$(sh .github/scripts/release.sh tag)
-          if gh release view "$tag" >/dev/null 2>&1; then echo "$tag already released"; exit 0; fi
-          # Before the release, so a rerun after a failed release still moves it; main is linear, so this fast-forwards.
-          git push origin "$GITHUB_SHA:refs/heads/stable"
-          sh .github/scripts/release.sh notes > "$RUNNER_TEMP/notes.md"
-          # An existing tag (pushed by hand) is kept; otherwise the tag is created on this commit.
-          gh release create "$tag" --target "$GITHUB_SHA" --title "benchkeeper ${tag#setup-v}" --notes-file "$RUNNER_TEMP/notes.md"
+      - name: Move stable to the release commit
+        run: git push origin "$RELEASE_SHA:refs/heads/stable"
 
   npm:
-    needs: release
-    if: github.event_name == 'push'
+    needs: [release-please, stable]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -73,8 +116,8 @@ jobs:
           sparse-checkout: app/package.json
           sparse-checkout-cone-mode: false
       # npm.yml holds the trusted-publisher binding and the OIDC token; this job can only start it. Events made with
-      # GITHUB_TOKEN do not start workflows, except a dispatch. A push to main without a new version, or a rerun after
-      # a published version, finds the version on npm and does nothing; a failed publish is retried by rerunning this job.
+      # GITHUB_TOKEN do not start workflows, except a dispatch. A version that npm already has does nothing; a failed
+      # publish is retried by rerunning this job.
       - name: Start npm publish for a new version
         run: |
           v=$(jq -r .version app/package.json)

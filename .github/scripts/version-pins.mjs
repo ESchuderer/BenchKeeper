@@ -1,5 +1,5 @@
 // Writes the current app version into the install commands of the docs: `npx benchkeeper@<version>` and the clone
-// tag `--branch setup-v<major>.<minor>`. Other version mentions (benchmark arms, history) stay as written.
+// tag `--branch setup-v<version>`. Other version mentions (benchmark arms, history) stay as written.
 // Usage: node .github/scripts/version-pins.mjs [--check]   (--check: exit 1 when a file differs)
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -11,10 +11,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SKIP = /^(bench\/|evaluations\/|EVALUATIONS\.md|CHANGELOG\.md|app\/test\/)|package-lock\.json$/;
 
 export function pins(text, version) {
-  const [major, minor] = version.split('.');
   return text
     .replace(/npx benchkeeper@\d+\.\d+\.\d+/g, `npx benchkeeper@${version}`)
-    .replace(/--branch setup-v\d+\.\d+/g, `--branch setup-v${major}.${minor}`);
+    .replace(/--branch setup-v\d+\.\d+(\.\d+)?/g, `--branch setup-v${version}`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

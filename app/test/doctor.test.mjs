@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -51,8 +51,29 @@ test('global drift: rules changed after apply are an error, unexpected items a w
   appendFileSync(join(ctx.home, '.claude/rules/00-global.md'), 'my own line\n');
   mkdirSync(join(ctx.home, '.claude/skills/stray'), { recursive: true });
   found = doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' });
-  assert.deepEqual(levels(found, 'rules'), ['error']);
+  assert.deepEqual(levels(found, 'rules'), ['warning'], 'edited rules are a warning');
   assert.ok(found.some((i) => i.check === 'unexpected' && /\.claude\/skills\/stray/.test(i.message)));
+  rmSync(join(ctx.home, '.claude/rules/00-global.md'));
+  assert.deepEqual(levels(doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }), 'rules'), ['error'], 'a missing rules file is an error');
+});
+
+test('keep your edits: an optional change that silences the rules warning until the file or the setup version changes', () => {
+  const ctx = { ...machine({ engine: false }), appVersion: '6.0.0' };
+  apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
+  const plan = () => globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' });
+  const rules = () => levels(doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }), 'rules');
+  assert.deepEqual(plan().filter((c) => c.step === 'rulesKeep:claude'), [], 'nothing to keep while the file matches');
+  const file = join(ctx.home, '.claude/rules/00-global.md');
+  appendFileSync(file, 'my own line\n');
+  const [keep] = plan().filter((c) => c.step === 'rulesKeep:claude');
+  assert.ok(keep.optional && preview([keep])[0].selected === false);
+  assert.equal(apply(preview([keep]), ctx, { select: [keep.id] }).status, 'done');
+  assert.deepEqual(rules(), []);
+  assert.deepEqual(plan().filter((c) => c.step.startsWith('rules')), [], 'neither the rules write nor the keep offer is planned');
+  appendFileSync(file, 'one more\n');
+  assert.deepEqual(rules(), ['warning'], 'a new edit is reported again');
+  ctx.appVersion = '6.1.0';
+  assert.equal(plan().filter((c) => c.step === 'rulesKeep:claude').length, 1);
 });
 
 test('an older plugin is outdated, a warning, once per agent', () => {

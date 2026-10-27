@@ -7,7 +7,7 @@ import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
 import { contentDir } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
-import { exists, listFiles, readText } from '../fsx.mjs';
+import { exists, hashText, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
 import { verifyArgv } from '../verify.mjs';
 
@@ -189,9 +189,18 @@ export function globalPlan(env) {
   // Rules: lite and standard have none (the block shadows agents)
   {
   const agents = full ? env.agents : [];
+  const keptFile = join(ctx.config, 'kept-rules.json');
+  const kept = parseJson(readText(keptFile) ?? '{}');
   for (const id of agents) {
     const r = agent(id).global.rules;
-    add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: at(r.path), edit: (cur) => renderRules(r.format, cur, forAgent(rules, id)) });
+    const file = at(r.path);
+    const cur = readText(file);
+    const edited = cur != null && cur !== renderRules(r.format, cur, forAgent(rules, id));
+    // A kept edit holds for this file content and this setup version: a new version offers its rules again.
+    const keeps = edited && kept[file]?.hash === hashText(cur) && kept[file]?.version === ctx.appVersion;
+    if (!keeps) add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: file, edit: (c) => renderRules(r.format, c, forAgent(rules, id)) });
+    // Offered, not preselected: the edits are the user's, this only stops the finding.
+    if (edited && !keeps) add(`rulesKeep:${id}`, `keep your edits to ${r.path}: no warning until the file or BenchKeeper's rules change`, { kind: 'write', path: keptFile, edit: (t) => mergeJson(t, [{ path: [file], value: { hash: hashText(cur), version: ctx.appVersion } }]) }, { selected: false, optional: true });
   }
   // Rule files that are not BenchKeeper's are the user's: the Rules view lists them and switches them, this plan leaves them be.
 

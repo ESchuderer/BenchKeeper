@@ -57,6 +57,8 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
     // An older version is drift, not a missing part.
     // A warning shown as outdated: the version change says the rest.
     if (c.outdated) return { ...issue('warning', c.step.split(':')[0], c.title, apply), tag: 'outdated' };
+    // Rules the user edited are a warning, a missing rules file an error.
+    if (/^rules:/.test(c.step) && exists(c.path)) return issue('warning', 'rules', `${c.title} differs from setup ${appVersion}`, `benchkeeper apply restores them; the optional "keep your edits" change of benchkeeper plan stops this warning`);
     const error = /^rules:/.test(c.step) || /^plugin:\w+:benchkeeper@/.test(c.step);
     return issue(error ? 'error' : 'warning', c.step.split(':')[0], c.kind === 'command' ? `not installed: ${c.title}` : `${c.title} differs from setup ${appVersion}`, apply);
   });

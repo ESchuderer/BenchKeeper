@@ -74,8 +74,8 @@ Usage: benchkeeper <command> [options]
                                     values, headers and secrets never appear; nothing is written
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--scope project|user] [--transcript file] [--description text] [--query text]
-                                    records an observed miss as an eval case (~/.config/benchkeeper/evals/); a skill
-                                    no library skill has is read from --project's or your skill folders (--scope picks one)
+                                    records an observed miss as an eval case (~/.config/benchkeeper/evals/); a skill with
+                                    no library counterpart is read from --project's or your skill folders (--scope picks one)
   test [dir] [--agents a,b]         deterministic checks: files match the ledger, expected plugins and skills,
                                     nothing unexpected installed, project skills at the library pins; exit 1 on a failure
   eval [--agents a,b] [--model m] [--target t] [--all] [--yes]

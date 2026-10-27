@@ -13,7 +13,7 @@ import { keyed, mask, redactArgv } from '../src/redact.mjs';
 import { runEval } from '../src/eval.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
-import { PIN_DATES, SKILLS_CLI, SKILL_SOURCES, globalPlan } from '../src/steps/global.mjs';
+import { PIN_DATES, SKILLS_CLI, SKILL_SOURCES, globalPlan, skillsCli, skillsSpec } from '../src/steps/global.mjs';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'bk-secrets-'));
 const mode = (p) => statSync(p).mode & 0o777;
@@ -73,6 +73,21 @@ test('the skills CLI pin has its publish date recorded, and is not younger than 
   for (const [pin, date] of Object.entries(PIN_DATES)) assert.ok(Date.parse(date) < Date.now() - 7 * 864e5, `${pin} was published ${date}`);
 });
 
+test('the skills CLI is the newest release at least 7 days old, never below the minimum, and an exact override wins', () => {
+  const old = new Date(Date.now() - 30 * 864e5).toISOString(), fresh = new Date(Date.now() - 864e5).toISOString();
+  const registry = (time) => context({ home: tmp(), run: () => ({ code: 0, stdout: JSON.stringify({ time, versions: Object.keys(time) }), stderr: '' }) });
+  const forced = process.env.BENCHKEEPER_SKILLS_CLI;
+  delete process.env.BENCHKEEPER_SKILLS_CLI;
+  try {
+    assert.equal(skillsCli(registry({ '1.7.2': old, '1.8.0': old, '1.9.0': fresh })), '1.8.0', 'a release under 7 days old is held back');
+    assert.equal(skillsSpec(registry({ '1.8.0': old })), 'skills@npm:skills@1.8.0');
+    assert.equal(skillsCli(registry({ '1.6.0': old })), SKILLS_CLI, 'an older answer never undercuts the minimum');
+    assert.equal(skillsCli(context({ home: tmp(), run: () => ({ code: 1, stdout: '', stderr: 'offline' }) })), SKILLS_CLI, 'no registry: the minimum');
+    process.env.BENCHKEEPER_SKILLS_CLI = '1.7.9';
+    assert.equal(skillsCli(registry({ '1.8.0': old })), '1.7.9');
+  } finally { process.env.BENCHKEEPER_SKILLS_CLI = forced; }
+});
+
 test('the host tool and the skills CLI resolve their dependencies at releases at least 7 days old, the check and the install alike', () => {
   const seen = [];
   const ctx = context({ home: tmp(), run: (argv, o) => { seen.push({ argv, env: o?.env }); return { code: argv[0] === 'orca' || argv[0] === 'npm' || argv[0] === 'npx' || argv[1]?.endsWith('verify.mjs') ? 0 : 127, stdout: '', stderr: '' }; } });
@@ -81,7 +96,7 @@ test('the host tool and the skills CLI resolve their dependencies at releases at
   for (const c of tools) assert.ok(Math.abs(Date.parse(c.env?.npm_config_before) - (Date.now() - 7 * 864e5)) < 60e3, `${c.step}: ${c.env?.npm_config_before}`);
   assert.equal(apply(tools, ctx, { select: tools.map((c) => c.id) }).status, 'done');
   for (const verify of seen.filter((x) => x.argv[1]?.endsWith('verify.mjs'))) {
-    const install = seen.find((x) => x.argv[0] === (verify.argv[2].startsWith('skills') ? 'npx' : 'npm'));
+    const install = seen.find((x) => (verify.argv[2].startsWith('skills') ? x.argv[0] === 'npx' : x.argv[0] === 'npm' && x.argv[1] === 'i'));
     assert.equal(verify.env.npm_config_before, install.env.npm_config_before, verify.argv[2]);
   }
 });

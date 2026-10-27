@@ -14,7 +14,7 @@ import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
-import { PLUGINS, SKILLS_SPEC, SKILLS_VERIFY, marketSource } from './global.mjs';
+import { PLUGINS, marketSource, skillsSpec, skillsVerify } from './global.mjs';
 import { headCommit } from '../remote.mjs';
 
 export const STATE = '.benchkeeper/state.json';
@@ -432,8 +432,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       // The folder differs from what the install left: its edits are backed up by the snapshot, and kept unless reset.
       const held = !reseat && targets.some(({ dir: d }) => editedHere(d, s.name, installedHashes.get(s.name)));
       add(`skill:${s.name}`, `skill ${s.name} from ${s.source}${refresh && was ? ` (installed ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
-        kind: 'command', outdated: refresh && !!was, cwd: dir, env: npxEnv(), verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
-        argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}`, '-s', s.name, ...flags, '--copy', '-y'],
+        kind: 'command', outdated: refresh && !!was, cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
+        argv: ['npx', '-y', skillsSpec(ctx), 'add', `https://github.com/${s.source}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }
   }
@@ -448,8 +448,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: npxEnv(), verify: SKILLS_VERIFY, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
-        argv: ['npx', '-y', SKILLS_SPEC, 'remove', name, ...flags, '-y'] });
+      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
+        argv: ['npx', '-y', skillsSpec(ctx), 'remove', name, ...flags, '-y'] });
     // A name the library does not know is not one BenchKeeper installed: offered, not preselected.
     } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: !!s });
   };

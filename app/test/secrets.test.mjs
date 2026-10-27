@@ -13,7 +13,7 @@ import { keyed, mask, redactArgv } from '../src/redact.mjs';
 import { runEval } from '../src/eval.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
-import { MATT_POCOCK_COMMIT, PIN_DATES, PONYTAIL_COMMIT, SKILLS_CLI, SKILL_SOURCES, globalPlan } from '../src/steps/global.mjs';
+import { PIN_DATES, SKILLS_CLI, SKILL_SOURCES, globalPlan } from '../src/steps/global.mjs';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'bk-secrets-'));
 const mode = (p) => statSync(p).mode & 0o777;
@@ -69,7 +69,7 @@ test('cooled: published for 7 days, still installable, a plain release, a string
 });
 
 test('every third-party pin has its publish date recorded, and none is younger than 7 days', () => {
-  const pins = [`skills@${SKILLS_CLI}`, ...Object.values(SKILL_SOURCES).map((u) => u.split('/tree/')[1]), PONYTAIL_COMMIT, MATT_POCOCK_COMMIT];
+  const pins = [`skills@${SKILLS_CLI}`, ...Object.values(SKILL_SOURCES).map((u) => u.split('/tree/')[1])];
   assert.deepEqual(Object.keys(PIN_DATES).sort(), pins.sort(), 'a pin changed without its date');
   for (const [pin, date] of Object.entries(PIN_DATES)) assert.ok(Date.parse(date) < Date.now() - 7 * 864e5, `${pin} was published ${date}`);
 });

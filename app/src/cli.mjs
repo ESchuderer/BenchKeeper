@@ -27,6 +27,7 @@ import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
+import { collectInsights } from './insights.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
 import { PLUGINS, LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
@@ -167,13 +168,17 @@ Usage: benchkeeper <command> [options]
                                     runs the agent as an account (default: the agent's default account) after a sign-in
                                     check and, below the minimum headroom, a question (--yes answers it); environment: the filtered one plus the account's folder variable (--token: the
                                     kept token, Claude Code only). Dev container accounts run through devcontainer exec
+  insights --json [--project dir] [--agents a,b]
+                                    findings with id, severity, evidence and a fix: installed skills no session used,
+                                    doctor findings, pins behind the newest release; the session signal needs 20 sessions
+                                    of the last 90 days and reports nothing below that; nothing is written
   maintain knowledge show [dir]     what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
                                     ignored by git): entries per file; a file that does not parse is listed as ignored
   maintain knowledge clear [dir] [--yes]
                                     removes that folder after a question and nothing else of the project
 
 --json (doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list,
-        settings list and get, frameworks list, board, profile export, maintain knowledge show, accounts list and status)
+        settings list and get, frameworks list, board, insights, profile export, maintain knowledge show, accounts list and status)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
 
@@ -417,6 +422,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
+  if (cmd === 'insights') { out.write('insights works with --json\n'); return 2; }
   if (cmd === 'board') {
     out.write('Reading the transcripts; the first run reads all of them, later runs only new or changed ones.\n');
     const rows = await scanSessions(ctx);
@@ -700,6 +706,13 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const sessions = (await scanSessions(ctx)).map(({ title, ...s }) => s);
     return emit({ sessions });
   }
+  if (cmd === 'insights') {
+    const extra = surplus(1); if (extra !== undefined) return extra;
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
+    const found = await collectInsights(ctx, { agents: selectedAgents(ctx, o.agents), dir: o.project && resolve(o.project) });
+    return emit(found, found.summary.error ? 1 : 0);
+  }
   if (cmd === 'maintain') {
     if (arg !== 'knowledge' || positionals[2] !== 'show') return fail('maintain --json works with knowledge show');
     const extra = surplus(4); if (extra !== undefined) return extra;
@@ -722,7 +735,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, board, profile export, maintain knowledge show and accounts list and status');
+  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, board, insights, profile export, maintain knowledge show and accounts list and status');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

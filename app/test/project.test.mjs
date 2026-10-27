@@ -28,7 +28,7 @@ function repo() {
 const read = (p) => readFileSync(p, 'utf8');
 const plan = (r, answers, plugins = { claude: [], codex: [] }) => projectPlan({ ctx: r.ctx, dir: r.dir, answers, plugins });
 
-test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, pinned community skills, state file', () => {
+test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, community skills, state file', () => {
   const r = repo();
   writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nmy notes\n');
   const { changes, prompts } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true });
@@ -42,7 +42,7 @@ test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, pinned commun
   const cmd = changes.find((c) => c.title.startsWith('skill frontend-design'));
   // An alias spec: npx never takes a skills package from the project's node_modules.
   assert.deepEqual(cmd.argv.slice(0, 3), ['npx', '-y', 'skills@npm:skills@1.7.2']);
-  assert.deepEqual(cmd.argv.slice(3, 9), ['add', 'https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44', '-s', 'frontend-design', '-a', 'claude-code']);
+  assert.deepEqual(cmd.argv.slice(3, 9), ['add', 'https://github.com/anthropics/skills', '-s', 'frontend-design', '-a', 'claude-code']);
   assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.env.npm_config_registry === 'https://registry.npmjs.org/' && Math.abs(Date.parse(cmd.env.npm_config_before) - (Date.now() - 7 * 864e5)) < 60e3 && cmd.snapshot.includes(join(r.dir, 'skills-lock.json')));
   const state = readState(r.dir);
   assert.deepEqual([state.setupVersion, state.env, state.tier, state.packs], [appVersion, 'host-agent', 'quick', ['frontend']]);
@@ -128,32 +128,33 @@ test('local in a linked worktree: the exclude list of the main repository, outsi
   assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
 });
 
-test('a community skill the state file records at another commit is added again at the pin', () => {
+test('a community skill is added again from the default branch only when an update asks for it', () => {
   const r = repo();
   const first = plan(r, { agents: ['claude'], packs: ['frontend'] }).changes;
   apply(preview(first), r.ctx, { scope: r.dir, select: first.filter((c) => c.kind !== 'command').map((c) => c.id) });
   for (const n of ['frontend-design', 'accessibility']) mkdirSync(join(r.dir, '.claude/skills', n), { recursive: true });
-  const titles = () => plan(r, {}).changes.filter((c) => c.kind === 'command').map((c) => c.title);
+  const titles = (answers = {}) => plan(r, answers).changes.filter((c) => c.kind === 'command').map((c) => c.title);
   assert.deepEqual(titles(), []);
   const f = join(r.dir, STATE);
   const state = JSON.parse(read(f));
   state.skills.find((s) => s.name === 'frontend-design').ref = 'a'.repeat(40);
   writeFileSync(f, JSON.stringify(state));
-  assert.deepEqual(titles(), ['skill frontend-design from anthropics/skills at dbd4588f9e10 (was aaaaaaaaaaaa)']);
+  assert.deepEqual(titles(), [], 'a recorded commit alone does not trigger an install');
+  assert.deepEqual(titles({ update: ['frontend-design'] }), ['skill frontend-design from anthropics/skills (installed aaaaaaaaaaaa)']);
   // Undo puts back the folder as it was before, local edits included, and the lockfile.
   const skill = join(r.dir, '.claude/skills/frontend-design/SKILL.md');
   writeFileSync(skill, 'old, edited locally\n');
   writeFileSync(join(r.dir, 'skills-lock.json'), '{"old":true}\n');
-  const npx = { ...r.ctx, run: (argv) => { if (argv[0] === 'npx') { writeFileSync(skill, 'new\n'); writeFileSync(join(r.dir, 'skills-lock.json'), '{"new":true}\n'); } return { code: 0, stdout: '', stderr: '' }; } };
-  const repinRun = apply(preview(plan(r, {}).changes.filter((c) => c.kind === 'command')), npx, { scope: r.dir });
+  const npx = { ...r.ctx, run: (argv) => { if (argv[0] === 'npx') { writeFileSync(skill, 'new\n'); writeFileSync(join(r.dir, 'skills-lock.json'), '{"new":true}\n'); } return { code: 0, stdout: `${'b'.repeat(40)}\tHEAD\n`, stderr: '' }; } };
+  const updateRun = apply(preview(plan(r, { update: ['frontend-design'] }).changes.filter((c) => c.kind === 'command' || c.step === 'state')), npx, { scope: r.dir });
   assert.equal(read(skill), 'new\n');
-  assert.equal(undo(repinRun.id, npx).status, 'done');
+  assert.equal(readState(r.dir).skills.find((s) => s.name === 'frontend-design').ref, 'b'.repeat(40), 'the state records the default branch commit');
+  assert.equal(undo(updateRun.id, npx).status, 'done');
   assert.equal(read(skill), 'old, edited locally\n');
   assert.equal(read(join(r.dir, 'skills-lock.json')), '{"old":true}\n');
-  writeFileSync(f, JSON.stringify(state));
   state.skills.find((s) => s.name === 'frontend-design').ref = '../../x';
   writeFileSync(f, JSON.stringify(state));
-  assert.deepEqual(titles(), [], 'a ref that is not a commit id is ignored');
+  assert.deepEqual(titles({ update: ['frontend-design'] }), ['skill frontend-design from anthropics/skills'], 'a ref that is not a commit id is not shown');
 });
 
 test('the state file records a community skill\'s commit only when its install ran', () => {
@@ -165,9 +166,14 @@ test('the state file records a community skill\'s commit only when its install r
   assert.ok(st.skills.filter((s) => s.source !== 'own').every((s) => !s.ref), JSON.stringify(st.skills));
   // Not claimed as installed: the next plan installs them again.
   assert.ok(plan(r, {}).changes.some((c) => c.title.startsWith('skill frontend-design from')));
-  const ok = { ...r.ctx, run: () => ({ code: 0, stdout: '', stderr: '' }) };
+  const ok = { ...r.ctx, run: () => ({ code: 0, stdout: `${'c'.repeat(40)}\tHEAD\n`, stderr: '' }) };
   apply(preview(plan(r, {}).changes), ok, { scope: r.dir });
-  assert.ok(readState(r.dir).skills.find((s) => s.name === 'frontend-design').ref);
+  assert.equal(readState(r.dir).skills.find((s) => s.name === 'frontend-design').ref, 'c'.repeat(40));
+  // The remote cannot be read: the install ran, but no commit is claimed.
+  const r2 = repo();
+  const quiet = { ...r2.ctx, run: () => ({ code: 0, stdout: '', stderr: '' }) };
+  apply(preview(plan(r2, { agents: ['claude'], packs: ['frontend'] }).changes), quiet, { scope: r2.dir });
+  assert.ok(!readState(r2.dir).skills.find((s) => s.name === 'frontend-design').ref);
 });
 
 test('suggestions name the packs the files of a project point to, with the reason', () => {

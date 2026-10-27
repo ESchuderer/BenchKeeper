@@ -63,21 +63,6 @@ test('findings: errors first, then every other finding by id whatever its severi
   assert.deepEqual(r.findings.map((f) => f.message), ['error', 'early info', 'late warning']);
 });
 
-test('freshness: a project skill behind the library is a finding, a current or unpinned one is not', () => {
-  const skillPins = [
-    { project: '/work/shop', name: 'tdd', pinned: 'abc', newest: 'def' },
-    { project: '/work/shop', name: 'ok', pinned: 'abc', newest: 'abc' },
-    { project: '/work/shop', name: 'own', pinned: null, newest: null },
-    { project: "/work/my shop's", name: 'tdd', pinned: 'abc', newest: 'def' },
-  ];
-  const r = insights({ skillPins });
-  assert.equal(r.findings.length, 2);
-  const plain = r.findings.find((f) => f.evidence.project === '/work/shop');
-  assert.deepEqual(plain.evidence, { project: '/work/shop', skill: 'tdd', pinned: 'abc', newest: 'def' });
-  assert.equal(plain.fix, 'benchkeeper skills update tdd --project /work/shop');
-  assert.equal(r.findings.find((f) => f.evidence.project !== '/work/shop').fix, `benchkeeper skills update tdd --project '/work/my shop'\\''s'`);
-});
-
 // A fixture home with one global skill, a skills lock of a registered project and the two Claude Code sessions of the shared fixture.
 function machine() {
   const home = mkdtempSync(join(TMP, 'bk-insights-'));
@@ -151,21 +136,6 @@ test('collectInsights: 20 sessions in the window report the installed skill none
   assert.equal(r.samples.sessions, 22);
   assert.deepEqual(f.evidence.skills, [{ name: 'crlf', scope: 'global', tokens: 7 }, { name: 'old-skill', scope: 'global', tokens: 108 }]);
   assert.ok(!JSON.stringify(r).includes(SECRET));
-});
-
-test('collectInsights: --project reports the skill pins of that project only', async () => {
-  const { home, ctx } = machine();
-  const projects = ['a', 'b'].map((n) => {
-    const dir = join(home, 'work', n);
-    mkdirSync(join(dir, '.claude/skills/frontend-design'), { recursive: true });
-    mkdirSync(join(dir, '.benchkeeper'), { recursive: true });
-    writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ agents: ['claude'], skills: [{ name: 'frontend-design', source: 'community', ref: 'a'.repeat(40) }] }));
-    addProject(ctx, dir);
-    return dir;
-  });
-  const pinned = async (dir) => (await collectInsights(ctx, { agents: ['claude'], dir })).findings.filter((f) => f.id.startsWith('freshness:skill:')).map((f) => f.evidence.project);
-  assert.deepEqual((await pinned()).sort(), projects);
-  assert.deepEqual(await pinned(projects[0]), [projects[0]]);
 });
 
 test('collectInsights: --project adds the skills of a plugin installed for that project', async () => {

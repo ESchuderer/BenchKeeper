@@ -71,7 +71,7 @@ test('the catalog: every framework has an evaluation file, a pack or pinned sour
     }
   }
   // ECC comes as single skills at a commit, not as its plugin.
-  assert.ok(lib.skills.filter((s) => s.source === 'affaan-m/ECC').every((s) => /^[0-9a-f]{40}$/.test(s.ref)));
+  assert.ok(lib.skills.filter((s) => s.source === 'affaan-m/ECC').every((s) => s.ref === undefined));
   assert.equal(frameworkRows().find((f) => f.id === 'agency-agents').files.length, 6);
 });
 
@@ -210,14 +210,14 @@ test('agency-agents: a pick of agent files fetched at the pinned commit, second 
   assert.deepEqual(readState(r.dir).agentFiles, [other]);
 });
 
-test('ECC is a pack of single skills at its commit: no plugin, no hooks, nothing outside the project', () => {
+test('ECC is a pack of single skills from its default branch: no plugin, no hooks, nothing outside the project', () => {
   const r = repo();
   const p = plan(r, { ...base, frameworks: ['ecc'] });
   assert.deepEqual(p.answers.packs, ['ecc']);
   assert.deepEqual(p.answers.frameworks, []);
   const installs = p.changes.filter((c) => c.kind === 'command');
   assert.deepEqual(installs.map((c) => c.argv[c.argv.indexOf('-s') + 1]).sort(), ['architecture-decision-records', 'error-handling', 'verification-loop']);
-  assert.ok(installs.every((c) => c.cwd === r.dir && c.argv[4].includes('/affaan-m/ECC/tree/c05b2d6614f62f6db0047669aa4eefb223d478f9')));
+  assert.ok(installs.every((c) => c.cwd === r.dir && c.argv[4] === 'https://github.com/affaan-m/ECC'));
   assert.ok(!p.changes.some((c) => /plugin/.test(c.argv?.join(' ') ?? '')));
 });
 

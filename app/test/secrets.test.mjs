@@ -68,9 +68,8 @@ test('cooled: published for 7 days, still installable, a plain release, a string
   assert.deepEqual(cooled(null, undefined, now), []);
 });
 
-test('every third-party pin has its publish date recorded, and none is younger than 7 days', () => {
-  const pins = [`skills@${SKILLS_CLI}`, ...Object.values(SKILL_SOURCES).map((u) => u.split('/tree/')[1])];
-  assert.deepEqual(Object.keys(PIN_DATES).sort(), pins.sort(), 'a pin changed without its date');
+test('the skills CLI pin has its publish date recorded, and is not younger than 7 days', () => {
+  assert.deepEqual(Object.keys(PIN_DATES), [`skills@${SKILLS_CLI}`], 'a pin changed without its date');
   for (const [pin, date] of Object.entries(PIN_DATES)) assert.ok(Date.parse(date) < Date.now() - 7 * 864e5, `${pin} was published ${date}`);
 });
 
@@ -87,7 +86,7 @@ test('the host tool and the skills CLI resolve their dependencies at releases at
   }
 });
 
-test('global skills come from a commit, run without lifecycle scripts, and undo restores them', () => {
+test('global skills come from the default branch, run without lifecycle scripts, and undo restores them', () => {
   const home = tmp();
   const seen = [];
   const run = (argv, o) => {
@@ -102,7 +101,7 @@ test('global skills come from a commit, run without lifecycle scripts, and undo 
   const plan = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: null })).filter((c) => c.step.startsWith('tools:skill'));
   assert.equal(plan.length, 1);
   assert.equal(plan[0].argv[4], SKILL_SOURCES['vercel-labs/skills']);
-  assert.match(plan[0].argv[4], /\/tree\/[0-9a-f]{40}$/);
+  assert.ok(!plan[0].argv[4].includes('/tree/'), 'a global skill source follows the default branch');
   const r = apply(plan, ctx, { select: plan.map((c) => c.id) });
   assert.equal(r.status, 'done');
   const npx = seen.find((x) => x.argv[0] === 'npx');

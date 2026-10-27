@@ -32,7 +32,7 @@ test('benchkeeper test: files match the ledger, plugins enabled, nothing unexpec
   assert.match(c['each agent has the expected skills'].problems.join(), /Gemini CLI: skill workflow missing/);
 });
 
-test('benchkeeper test: project community skills are in skills-lock.json at the library pin', async () => {
+test('benchkeeper test: project community skills are in skills-lock.json', async () => {
   const ctx = machine();
   const dir = tmp('bk-harn-proj-');
   const pctx = { ...ctx, roots: [...ctx.roots, dir] };
@@ -40,14 +40,11 @@ test('benchkeeper test: project community skills are in skills-lock.json at the 
   const project = () => harnessTest(ctx, { agents: [], dir }).at(-1);
   assert.deepEqual(project().problems, ['accessibility not in skills-lock.json']);
   writeFileSync(join(dir, 'skills-lock.json'), JSON.stringify({ skills: { accessibility: { source: 'addyosmani/web-quality-skills' } } }));
-  assert.match(project().problems[0], /is not at /);
-  const ref = library().skills.find((s) => s.name === 'accessibility').ref;
-  writeFileSync(join(dir, 'skills-lock.json'), JSON.stringify({ skills: { accessibility: { source: `https://github.com/addyosmani/web-quality-skills/tree/${ref}` } } }));
   assert.equal(project().ok, true);
   let text = '';
   const out = new Writable({ write(c2, _, done) { text += c2; done(); } });
   assert.equal(await main(['test', dir, '--agents', 'claude'], { out, ctx }), 0, text);
-  assert.match(text, /^ok    project skills match the library pins/m);
+  assert.match(text, /^ok    project skills are installed/m);
 });
 
 test('benchkeeper test: a skills-lock.json that is not a lock file is a problem, not a crash', () => {

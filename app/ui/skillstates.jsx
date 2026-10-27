@@ -54,7 +54,9 @@ function ActionPlan({ act, onClose, onDone }) {
 // Every skill of every registered project with its state against the library, the commit installed and the one the
 // library offers, and the folders no setup installed (never touched by an update or an apply).
 export function SkillStates({ refresh }) {
-  const data = useApi('/api/skills');
+  // Whether each skill source is asked for its default branch (the one network call): only on a click.
+  const [checked, setChecked] = useState(false);
+  const data = useApi(checked ? '/api/skills?check=1' : '/api/skills');
   const [act, setAct] = useState(null);
   const [state, setState] = useState(null);
   const start = (dir, title, params) => setAct({ dir, title, params: [...params] });
@@ -66,11 +68,14 @@ export function SkillStates({ refresh }) {
         const untracked = d.projects.flatMap((p) => p.untracked.map((u) => ({ p, u })));
         return (
           <>
-            <Select label="State" placeholder="Any" clearable maw={200} value={state} onChange={setState} data={STATES} />
+            <Group align="flex-end" gap="md">
+              <Select label="State" placeholder="Any" clearable maw={200} value={state} onChange={setState} data={STATES} />
+              <Button variant="default" leftSection={icon(IconRefresh, 14)} loading={checked && data.loading} onClick={() => (checked ? data.reload() : setChecked(true))}>Check for updates</Button>
+            </Group>
             {rows.length ? (
               <Table.ScrollContainer minWidth={820}>
                 <Table aria-label="Skill states">
-                  <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Skill</Table.Th><Table.Th>State</Table.Th><Table.Th>Installed</Table.Th><Table.Th>Library offers</Table.Th><Table.Th>Active</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
+                  <Table.Thead><Table.Tr><Table.Th>Project</Table.Th><Table.Th>Skill</Table.Th><Table.Th>State</Table.Th><Table.Th>Installed</Table.Th><Table.Th>Source now</Table.Th><Table.Th>Active</Table.Th><Table.Th>Actions</Table.Th></Table.Tr></Table.Thead>
                   <Table.Tbody>
                     {rows.map(({ p, s }) => {
                       const where = `${s.name} in ${label(p)}`;
@@ -81,11 +86,11 @@ export function SkillStates({ refresh }) {
                           <Table.Td>{s.name}{!!s.packs.length && <Text size="xs">pack {s.packs.join(', ')}</Text>}</Table.Td>
                           <Table.Td><StateBadge state={s.state} /></Table.Td>
                           <Table.Td>{s.own ? 'BenchKeeper' : short(s.pinned) ?? 'not recorded'}</Table.Td>
-                          <Table.Td>{s.own ? 'BenchKeeper' : short(s.newest) ?? '-'}</Table.Td>
+                          <Table.Td>{s.own ? 'BenchKeeper' : short(s.newest) ?? (checked ? 'not reachable' : 'not checked')}</Table.Td>
                           <Table.Td><Switch label={off ? 'off' : 'on'} aria-label={`Active: ${where}`} checked={!off} onChange={() => start(p.path, `${off ? 'Activate' : 'Deactivate'} ${where}`, [[off ? 'enable' : 'disable', s.name], ['focus', s.name]])} /></Table.Td>
                           <Table.Td>
                             <Group gap="xs" wrap="nowrap">
-                              <Button size="compact-xs" variant="default" leftSection={icon(IconRefresh, 14)} aria-label={`Update ${where}`} disabled={!['outdated', 'removed'].includes(s.state)} onClick={() => start(p.path, `Update ${where}`, [['focus', s.name]])}>Update</Button>
+                              <Button size="compact-xs" variant="default" leftSection={icon(IconRefresh, 14)} aria-label={`Update ${where}`} disabled={!['outdated', 'removed'].includes(s.state)} onClick={() => start(p.path, `Update ${where}`, [['update', s.name], ['focus', s.name]])}>Update</Button>
                               <Button size="compact-xs" variant="default" leftSection={icon(IconRestore, 14)} aria-label={`Reset ${where}`} disabled={s.state !== 'modified'} onClick={() => start(p.path, `Reset ${where}`, [['reset', s.name], ['focus', s.name]])}>Reset</Button>
                               <Button size="compact-xs" variant="subtle" leftSection={icon(IconTrash, 14)} aria-label={`Remove ${where}`} disabled={!s.single} title={s.single ? undefined : `Comes from pack ${s.packs.join(', ') || 'the setup'}: switch the pack off`} onClick={() => start(p.path, `Remove ${where}`, [['drop', s.name], ['focus', s.name]])}>Remove</Button>
                             </Group>

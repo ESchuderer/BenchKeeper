@@ -45,17 +45,17 @@ Another Ponytail level for the current session: `/ponytail lite` or `/ponytail u
 
 ## How this stack was selected
 
-- Quality: in BenchKeeper's mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock's skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3, [report](../bench/results/2026-10-18-mistreevous.md)).
+- Quality: in BenchKeeper's mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock's skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3, [report](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md)).
 - Time: it depends on the version. setup-v4.0 with Matt Pocock's skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9 (same report). setup-v6.0 is not measured yet ([#132](https://github.com/ESchuderer/BenchKeeper/issues/132)).
 - Cost: Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3, same report); external results range from 10% less to 55% more ([evaluation](../evaluations/behavior-modes/ponytail.md)).
 - Skills by level: small composable skills. The full flow runs only for full-tier work, small tiers load targeted skills.
 - Same setup everywhere: one machine install covers every repository. Each repository adds only its tracker, docs and stack.
 
-For details, check the full data: [EVALUATIONS.md](https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md) (Dev Containers and find-skills have no evaluation file), [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/).
+For details, check the full data: [EVALUATIONS.md](https://github.com/ESchuderer/BenchKeeper/blob/main/EVALUATIONS.md) (Dev Containers and find-skills have no evaluation file), [benchmark results](https://github.com/ESchuderer/BenchKeeper-research#recorded-results).
 
 ## Benchmarks
 
-Each setup runs as its own arm on the same brownfield brief. Scores, time per task and app reviews per arm: [benchmark pages](https://eschuderer.github.io/BenchKeeper/bench/). Reports: [bench/results](../bench/results). Method: [bench/PROTOCOL.md](../bench/PROTOCOL.md) (the run machinery and raw run data were removed, [#256](https://github.com/ESchuderer/BenchKeeper/issues/256)).
+Each setup runs as its own arm on the same brownfield brief. Scores, time per task and app reviews per arm are in the reports: [BenchKeeper-research `bench/results`](https://github.com/ESchuderer/BenchKeeper-research/tree/main/bench/results). Method: [bench/PROTOCOL.md](../bench/PROTOCOL.md) (the run machinery and raw run data were removed, [#256](https://github.com/ESchuderer/BenchKeeper/issues/256)).
 
 ## Recommended tools (optional)
 

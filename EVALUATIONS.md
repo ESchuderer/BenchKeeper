@@ -19,7 +19,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 
 | Component | Decision | Summary |
 |---|---|---|
-| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms AL, AN (setup-v4.0 with and without Ponytail) and AM (setup-v5.0), three rounds per arm: [mistreevous](bench/results/2026-10-18-mistreevous.md), AM against plain Claude Code on opusplan: [mistreevous-opusplan](bench/results/2026-10-19-mistreevous-opusplan.md). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
+| [BenchKeeper layer](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/SCENARIOS.md) | the setup itself | arms AL, AN (setup-v4.0 with and without Ponytail) and AM (setup-v5.0), three rounds per arm: [mistreevous](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md), AM against plain Claude Code on opusplan: [mistreevous-opusplan](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-19-mistreevous-opusplan.md). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
 
 ### Behavior modes
 

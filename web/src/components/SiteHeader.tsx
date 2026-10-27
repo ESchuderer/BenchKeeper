@@ -3,6 +3,7 @@ import { IconBrandGithub, IconChartBar, IconGitFork, IconMoon, IconStar, IconSun
 import { SLUG, facts } from '../lib/repo-facts';
 
 const REPO = `https://github.com/${SLUG}`;
+const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research';
 const SECTIONS = [['sdlc', 'Workflow'], ['parts', 'What gets installed'], ['start', 'Quick start'], ['selected', 'Why this stack'], ['where', 'Where things run']];
 
 // The header of every page. On the main page (home) the links stay in the page; elsewhere they lead back to its sections.
@@ -25,8 +26,8 @@ export default function SiteHeader({ base, home = false, size = 'lg' }: { base: 
             <Anchor href={`${base}/app/`} c="dimmed" size="sm" underline="never" style={{ whiteSpace: 'nowrap' }}>The app</Anchor>
           </Group>
           <Group gap="xs" wrap="nowrap" className="header-end">
-            <Button component="a" href={`${base}/bench/`} variant="default" size="xs" leftSection={<IconChartBar size={16} />} visibleFrom="sm">Benchmark</Button>
-            <ActionIcon component="a" href={`${base}/bench/`} variant="default" size={36} aria-label="Benchmark" hiddenFrom="sm"><IconChartBar size={16} /></ActionIcon>
+            <Button component="a" href={`${RESEARCH}#recorded-results`} variant="default" size="xs" leftSection={<IconChartBar size={16} />} visibleFrom="sm">Benchmark</Button>
+            <ActionIcon component="a" href={`${RESEARCH}#recorded-results`} variant="default" size={36} aria-label="Benchmark" hiddenFrom="sm"><IconChartBar size={16} /></ActionIcon>
             <a href={REPO} className="repo">
               <IconBrandGithub size={28} aria-hidden="true" className="repo-icon" />
               <span className="repo-text">

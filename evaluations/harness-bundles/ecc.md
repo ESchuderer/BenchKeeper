@@ -29,7 +29,7 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arm: H (ECC `minimal` alone). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 90.1 against 87.0 for plain Claude Code (A), ahead in 2 of 3 rounds, at 2.0 times the cost and 1.6 times the time. It is the only arm of the run above the spread of A. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: H (ECC `minimal` alone). Brownfield run [mistreevous](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 90.1 against 87.0 for plain Claude Code (A), ahead in 2 of 3 rounds, at 2.0 times the cost and 1.6 times the time. It is the only arm of the run above the spread of A. Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/SCENARIOS.md).
 
 ## Skill authoring check
 

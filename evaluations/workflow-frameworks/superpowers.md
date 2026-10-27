@@ -34,7 +34,7 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arm: G (Superpowers alone). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 89.3 against 87.0 for plain Claude Code (A), inside the spread, at 0.94 times the cost and 0.89 times the time. It called its TDD skill in 8 of 9 steps. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: G (Superpowers alone). Brownfield run [mistreevous](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 89.3 against 87.0 for plain Claude Code (A), inside the spread, at 0.94 times the cost and 0.89 times the time. It called its TDD skill in 8 of 9 steps. Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/SCENARIOS.md).
 
 ## Skill authoring check
 

@@ -20,7 +20,7 @@ Contradictions: JetBrains reports cost -10.3% (SkillsBench, Sonnet 5, rules inje
 
 ## Benchmark
 
-Arms: B (Ponytail alone), AF (with Matt Pocock's skills), and the BenchKeeper arms AL and AM (with Ponytail) and AN (AL without it). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only. Ponytail alone (B) cost 0.58 times plain Claude Code (A, API-equivalent USD) and took 0.59 times the time, at a median score of 87.6 against 87.0. With Matt Pocock's skills (AF): 0.53 times the cost, score 84.6. Without Ponytail the BenchKeeper arm (AN) scored 3.5 higher than with it (AL) at 1.8 times the cost. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arms: B (Ponytail alone), AF (with Matt Pocock's skills), and the BenchKeeper arms AL and AM (with Ponytail) and AN (AL without it). Brownfield run [mistreevous](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only. Ponytail alone (B) cost 0.58 times plain Claude Code (A, API-equivalent USD) and took 0.59 times the time, at a median score of 87.6 against 87.0. With Matt Pocock's skills (AF): 0.53 times the cost, score 84.6. Without Ponytail the BenchKeeper arm (AN) scored 3.5 higher than with it (AL) at 1.8 times the cost. Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/SCENARIOS.md).
 
 ## Skill authoring check
 

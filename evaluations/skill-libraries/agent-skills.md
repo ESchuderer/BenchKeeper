@@ -24,7 +24,7 @@ Thread "Top Agent Skills Repositories" (r/claudeskills, about 2 months old, text
 
 ## Benchmark
 
-Arm: F (agent-skills alone). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 89.7 against 87.0 for plain Claude Code (A), inside the round-to-round spread, at 1.3 times the cost and time. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: F (agent-skills alone). Brownfield run [mistreevous](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 89.7 against 87.0 for plain Claude Code (A), inside the round-to-round spread, at 1.3 times the cost and time. Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/SCENARIOS.md).
 
 ## Skill authoring check
 

@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.23 (2026-10-27)
+
+- App, `benchkeeper insights --json` (#321, part of #273): findings with a stable id, a severity, the evidence and a fix from three signals. Installed Claude Code skills (global folders and enabled plugins) that none of the sessions of the last 90 days used, with the tokens their descriptions cost per turn: it needs 20 sessions in that window and reports nothing below that. The doctor's findings, as hygiene. Pins behind the newest release, as freshness: the doctor's `pins` and outdated items and the skills of registered projects behind the library. `--project dir` adds that project's doctor checks. Insights is a view of its own in the UI, which comes in a later child; the text form of the command does too. The keys are in the table of machine-readable documents in `app/README.md`.
+- Plugin `version` 6.23.0.
+- Upgrade: `npx benchkeeper@6.23.0 apply`.
+
 ## setup-v6.22 (2026-10-27)
 
 - App, Extensions view and `benchkeeper extensions list [--agent claude|codex] [--project dir] [--json]` (#217, shares the data model of the Rules view): the MCP servers, hooks and subagents Claude Code and Codex load, plus the commands and output styles of Claude Code (Codex has none listed), read from files only (no agent starts) and shown per agent, globally or for a registered project. Each row has its scope, owner (`BenchKeeper`, `plugin`, `project`, `managed`, `yours`), the file it comes from and a "runs code" mark for hooks with a command, stdio MCP servers and commands that run a shell line; a global server or hook of yours links to Doctor's removal offer. MCP servers show name, transport and whether they are on, off or wait for approval. Environment values and headers never appear, a URL shows scheme and host only, a command line is masked, and a file that does not parse is named without its text. Read-only: toggles wait for #184 and #188.

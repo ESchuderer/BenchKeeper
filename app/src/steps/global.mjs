@@ -20,18 +20,15 @@ export const SKILLS_CLI = '1.7.2';
 export const SKILLS_SPEC = `skills@npm:skills@${SKILLS_CLI}`;
 // Run before a command that fetches the skills CLI: npm's registry signatures of the CLI and its dependencies.
 export const SKILLS_VERIFY = verifyArgv(`skills@${SKILLS_CLI}`);
-// The global skills' repositories at a commit (bumped by hand with SKILLS_CLI): the skills CLI reads a tree URL with a
-// commit as a pin, so a push to the default branch changes nothing here and the preview shows what the run installs.
+// The global skills' repositories, from their default branch: only the skills CLI is pinned.
 export const SKILL_SOURCES = {
-  'vercel-labs/skills': 'https://github.com/vercel-labs/skills/tree/13e4063a1cf913f5606d57d42ab83a86f5001e04',
-  'https://github.com/stablyai/orca': 'https://github.com/stablyai/orca/tree/5df4fef9177fda93446fa35e38ab7b44fedb3e16',
+  'vercel-labs/skills': 'https://github.com/vercel-labs/skills',
+  'https://github.com/stablyai/orca': 'https://github.com/stablyai/orca',
 };
-// When each pin was published (npm `time` for the CLI, the committer date for a commit), written by hand when the pin is
-// bumped: a pin under 7 days old fails the test, as the host tools are held back that long.
+// When the CLI version was published (npm `time`), written by hand when SKILLS_CLI is bumped: a pin under 7 days old fails
+// the test, as the host tools are held back that long.
 export const PIN_DATES = {
   [`skills@${SKILLS_CLI}`]: '2026-10-09T16:49:31Z',
-  '13e4063a1cf913f5606d57d42ab83a86f5001e04': '2026-10-09T17:54:46Z',
-  '5df4fef9177fda93446fa35e38ab7b44fedb3e16': '2026-10-19T00:29:54Z',
 };
 // ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
 // BenchKeeper's marketplace follows the branch stable, which each release moves, so an update is a marketplace refresh: moving

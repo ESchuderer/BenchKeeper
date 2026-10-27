@@ -130,33 +130,43 @@ test('a copy no run on this machine wrote (a clone, another worktree) counts as 
   assert.deepEqual([change.selected, change.diff.includes('-written elsewhere')], [true, true]);
 });
 
-test('community skills: outdated by commit, modified by the hash recorded at install, removed with the folder', () => {
+test('community skills: outdated by the source\'s commit once checked, modified by the hash recorded at install, removed with the folder', () => {
   const r = repo();
   const folders = ['frontend-design', 'accessibility'].map((n) => join(r.dir, '.claude/skills', n));
   // The skills CLI is stubbed: it writes the folders the install would leave.
-  const npx = { ...r.ctx, run: (argv) => { if (argv[0] === 'npx' && argv.includes('add')) for (const f of folders) { mkdirSync(f, { recursive: true }); writeFileSync(join(f, 'SKILL.md'), `---\nname: x\n---\nupstream\n`); } return { code: 0, stdout: '', stderr: '' }; } };
+  const npx = { ...r.ctx, run: (argv) => { if (argv[0] === 'npx' && argv.includes('add')) for (const f of folders) { mkdirSync(f, { recursive: true }); writeFileSync(join(f, 'SKILL.md'), `---\nname: x\n---\nupstream\n`); } return { code: 0, stdout: argv[0] === 'git' ? `${'e'.repeat(40)}\tHEAD\n` : '', stderr: '' }; } };
   const first = preview(projectPlan({ ctx: r.ctx, dir: r.dir, answers: { agents: ['claude'], env: 'host', packs: ['frontend'] } }).changes);
   apply(first, npx, { scope: r.dir });
   const rec = readState(r.dir).skills.find((s) => s.name === 'frontend-design');
   assert.deepEqual([rec.ref, rec.hash], [rec.ref, hashPath(folders[0])]);
   assert.match(rec.ref, /^[0-9a-f]{40}$/);
-  const row = (n = 'frontend-design') => projectSkills(r.ctx, r.dir).skills.find((s) => s.name === n);
-  assert.deepEqual([row().state, row().pinned === row().newest, row().own], ['current', true, false]);
-  // The library offers another commit: outdated; an edit on top of it is modified and not overwritten by an update.
+  // The source's default branch is asked only on a check (one ls-remote per source); until then nothing is outdated.
+  const asked = [];
+  const remote = (sha) => ({ ...r.ctx, run: (argv) => { asked.push(argv); return { code: 0, stdout: sha ? `${sha}\tHEAD\n` : '', stderr: '' }; } });
+  const row = (n = 'frontend-design', sha = rec.ref) => projectSkills(remote(sha), r.dir, sha === null ? {} : { check: true }).skills.find((s) => s.name === n);
+  asked.length = 0;
+  const checked = row();
+  assert.deepEqual([checked.state, checked.pinned === checked.newest, checked.own], ['current', true, false]);
+  assert.deepEqual(asked.map((a) => a.slice(0, 2).join(' ')), ['git ls-remote', 'git ls-remote'], 'one per source');
+  asked.length = 0;
+  const unchecked = row('frontend-design', null);
+  assert.deepEqual([unchecked.state, unchecked.newest, asked.length], ['current', null, 0]);
+  // The source moved on: outdated; an edit on top of it is modified and not overwritten by an update.
+  assert.equal(row('frontend-design', 'a'.repeat(40)).state, 'outdated');
+  assert.equal(row('frontend-design', '').state, 'current', 'a source that cannot be read leaves the state alone');
   const state = JSON.parse(readFileSync(join(r.dir, STATE), 'utf8'));
-  state.skills.find((s) => s.name === 'frontend-design').ref = 'a'.repeat(40);
   writeFileSync(join(r.dir, STATE), JSON.stringify(state));
-  assert.equal(row().state, 'outdated');
   writeFileSync(join(folders[0], 'SKILL.md'), 'edited here\n');
-  assert.equal(row().state, 'modified');
+  assert.equal(row('frontend-design', 'a'.repeat(40)).state, 'modified');
   const install = (answers) => preview(projectPlan({ ctx: r.ctx, dir: r.dir, answers }).changes).find((c) => c.kind === 'command' && /frontend-design/.test(c.title));
-  assert.deepEqual([install({}).selected, /edited here/.test(install({}).title)], [false, true]);
+  const held = install({ update: ['frontend-design'] });
+  assert.deepEqual([held.selected, /edited here/.test(held.title)], [false, true]);
   // Reset replaces it; the snapshot of the command holds the folder, so the edit is in the backup.
   const reset = install({ reset: ['frontend-design'] });
   assert.equal(reset.selected, true);
   assert.ok(reset.snapshot.includes(folders[0]));
   rmSync(folders[1], { recursive: true });
-  assert.equal(row('accessibility').state, 'removed');
+  assert.equal(row('accessibility', null).state, 'removed');
 });
 
 test('an untracked skill survives project apply, a pack switch and Update all; adopt takes a library skill in', () => {

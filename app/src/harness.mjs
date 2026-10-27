@@ -37,7 +37,7 @@ function pluginCheck(ctx, agents) {
   return check('each agent has the expected skills', problems);
 }
 
-// Library skills of the project: own copies present, community skills in skills-lock.json at the library's pinned ref.
+// Library skills of the project: own copies present, community skills in skills-lock.json.
 function projectCheck(dir) {
   const state = readState(dir);
   if (!state) return [];
@@ -45,17 +45,14 @@ function projectCheck(dir) {
   let file;
   try { file = JSON.parse(readText(join(dir, 'skills-lock.json')) ?? '{}'); } catch { file = null; }
   const lock = plain(file) ? (Object.hasOwn(file, 'skills') ? file.skills : {}) : null;
-  if (!plain(lock)) return [check(`project skills match the library pins (${dir})`, ['skills-lock.json is not a valid lock file'])];
+  if (!plain(lock)) return [check(`project skills are installed (${dir})`, ['skills-lock.json is not a valid lock file'])];
   const problems = [];
-  const lib = library();
   for (const s of state.skills.filter((x) => !(state.disabled ?? []).includes(x.name))) {
-    const pinned = lib.skills.find((x) => x.name === s.name);
     if (s.source === 'own') {
       for (const a of state.agents) if (!exists(join(dir, agent(a).project.skills, s.name, 'SKILL.md'))) problems.push(`${s.name} missing in ${agent(a).project.skills}`);
     } else if (!lock[s.name]) problems.push(`${s.name} not in skills-lock.json`);
-    else if (pinned?.ref && !JSON.stringify(lock[s.name]).includes(pinned.ref)) problems.push(`${s.name} in skills-lock.json is not at ${pinned.ref.slice(0, 12)}`);
   }
-  return [check(`project skills match the library pins (${dir})`, problems)];
+  return [check(`project skills are installed (${dir})`, problems)];
 }
 
 export function harnessTest(ctx, { agents, dir } = {}) {

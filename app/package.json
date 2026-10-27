@@ -1,6 +1,6 @@
 {
   "name": "benchkeeper",
-  "version": "6.23.0",
+  "version": "6.24.0",
   "description": "Installs, updates and undoes the BenchKeeper agent setup, globally and per project, for Claude Code, Codex, Gemini CLI and GitHub Copilot.",
   "license": "MIT",
   "type": "module",

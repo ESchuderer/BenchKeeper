@@ -199,8 +199,9 @@ export function globalPlan(env) {
     // A kept edit holds for this file content and this setup version: a new version offers its rules again.
     const keeps = edited && kept[file]?.hash === hashText(cur) && kept[file]?.version === ctx.appVersion;
     if (!keeps) add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: file, edit: (c) => renderRules(r.format, c, forAgent(rules, id)) });
+    const write = !keeps && changes.at(-1).id;
     // Offered, not preselected: the edits are the user's, this only stops the finding.
-    if (edited && !keeps) add(`rulesKeep:${id}`, `keep your edits to ${r.path}: no warning until the file or BenchKeeper's rules change`, { kind: 'write', path: keptFile, edit: (t) => mergeJson(t, [{ path: [file], value: { hash: hashText(cur), version: ctx.appVersion } }]) }, { selected: false, optional: true });
+    if (edited && !keeps) add(`rulesKeep:${id}`, `keep your edits to ${r.path}: no warning until the file or BenchKeeper's rules change`, { kind: 'write', path: keptFile, replaces: write, edit: (t) => mergeJson(t, [{ path: [file], value: { hash: hashText(cur), version: ctx.appVersion } }]) }, { selected: false, optional: true });
   }
   // Rule files that are not BenchKeeper's are the user's: the Rules view lists them and switches them, this plan leaves them be.
 

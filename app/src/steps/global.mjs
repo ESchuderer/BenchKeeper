@@ -14,6 +14,7 @@ import { verifyArgv } from '../verify.mjs';
 // lite: the BenchKeeper plugin alone (nothing outside the plugin install). standard: the same on the machine, plus the local block
 // that `project apply` writes per project. full: everything below (global rules, settings, other plugins, host tools).
 export const LEVELS = ['lite', 'standard', 'full'];
+// The oldest skills CLI the app runs: used when the registry cannot be asked, and never undercut by a newer answer.
 export const SKILLS_CLI = '1.7.2';
 // As an npm alias: npx runs a package from the project's node_modules when its version satisfies a plain spec, so a
 // cloned repository could ship its own "skills" 1.7.2. An alias range never matches a local package (npm 10 libnpmexec).
@@ -25,7 +26,7 @@ export const SKILL_SOURCES = {
   'vercel-labs/skills': 'https://github.com/vercel-labs/skills',
   'https://github.com/stablyai/orca': 'https://github.com/stablyai/orca',
 };
-// When the CLI version was published (npm `time`), written by hand when SKILLS_CLI is bumped: a pin under 7 days old fails
+// When the CLI minimum was published (npm `time`), written by hand when SKILLS_CLI is raised: a minimum under 7 days old fails
 // the test, as the host tools are held back that long.
 export const PIN_DATES = {
   [`skills@${SKILLS_CLI}`]: '2026-10-09T16:49:31Z',
@@ -159,6 +160,18 @@ export function newest(ctx, pkg, now = Date.now()) {
   const { time, versions } = json(r.stdout, {});
   return cooled(time, versions, now).sort(bySemver).at(-1) ?? null;
 }
+
+// The skills CLI a command runs: the newest release at least 7 days old (as the host tools), the app's minimum when the
+// registry gives none or an older one. The signature check and the run get the same version and the same `before` date.
+// BENCHKEEPER_SKILLS_CLI=x.y.z runs exactly that version.
+export function skillsCli(ctx) {
+  const forced = process.env.BENCHKEEPER_SKILLS_CLI;
+  if (/^\d+\.\d+\.\d+$/.test(forced ?? '')) return forced;
+  const v = newest(ctx, 'skills');
+  return v && bySemver(v, SKILLS_CLI) > 0 ? v : SKILLS_CLI;
+}
+export const skillsSpec = (ctx) => `skills@npm:skills@${skillsCli(ctx)}`;
+export const skillsVerify = (ctx) => verifyArgv(`skills@${skillsCli(ctx)}`);
 
 export function globalPlan(env) {
   const { ctx, options = {} } = env;
@@ -311,7 +324,7 @@ export function globalPlan(env) {
   if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`], env: cooldownEnv(), verify: verifyArgv(`@devcontainers/cli@${want}`) });
   // Lifecycle scripts stay off (the skills CLI needs none); the snapshot makes the install undoable: the skill folders and the lock.
   const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, {
-    kind: 'command', argv: ['npx', '-y', SKILLS_SPEC, 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true', ...cooldownEnv() }, verify: SKILLS_VERIFY,
+    kind: 'command', argv: ['npx', '-y', skillsSpec(ctx), 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true', ...cooldownEnv() }, verify: skillsVerify(ctx),
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
   });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();

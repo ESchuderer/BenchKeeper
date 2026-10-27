@@ -4,7 +4,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 
 ## setup-v6.24 (2026-10-27)
 
-- App, skills: community skills of the library and the global skills install from the default branch of their source instead of a commit. The project's state file records the commit the install got, `benchkeeper skills list --check` (and the Catalog's "Check for updates") asks each source for its default branch and marks moved skills `outdated`, `skills update` re-adds them. Only the skills CLI stays pinned. `library.json` no longer holds a `ref` per community skill. `benchkeeper insights` no longer reports skills behind the library (it needs the network). A repository with many skills counts as moved when any file in it changed.
+- App, skills: community skills of the library and the global skills install from the default branch of their source instead of a commit. The project's state file records the commit the install got, `benchkeeper skills list --check` (and the Catalog's "Check for updates") asks each source for its default branch and marks moved skills `outdated`, `skills update` re-adds them. The skills CLI runs as the newest release at least 7 days old (as the host tools do; the npm signature check, the dependency cooldown and `ignore_scripts` stay), never below the app's minimum `1.7.2`; `BENCHKEEPER_SKILLS_CLI=x.y.z` runs exactly that version. The doctor no longer warns about the CLI pin. `library.json` no longer holds a `ref` per community skill. `benchkeeper insights` no longer reports skills behind the library (it needs the network). A repository with many skills counts as moved when any file in it changed.
 - Plugin `version` 6.24.0.
 - Upgrade: `npx benchkeeper@6.24.0 apply`.
 

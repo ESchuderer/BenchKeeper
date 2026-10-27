@@ -51,6 +51,7 @@ function projectCheck(dir) {
     if (s.source === 'own') {
       for (const a of state.agents) if (!exists(join(dir, agent(a).project.skills, s.name, 'SKILL.md'))) problems.push(`${s.name} missing in ${agent(a).project.skills}`);
     } else if (!lock[s.name]) problems.push(`${s.name} not in skills-lock.json`);
+    else if (!JSON.stringify(lock[s.name]).includes(s.source)) problems.push(`${s.name} in skills-lock.json is not from ${s.source}`);
   }
   return [check(`project skills are installed (${dir})`, problems)];
 }

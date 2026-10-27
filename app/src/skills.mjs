@@ -28,7 +28,8 @@ function communityState(dir, rec, skill, a, latest) {
   const folders = skillDirs(a.agents.filter((x) => skill?.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => x.dir);
   if (!folders.some((d) => exists(join(d, rec.name)))) return 'removed';
   if (folders.some((d) => editedHere(d, rec.name, rec.hash))) return 'modified';
-  return latest[rec.source] && rec.ref && rec.ref !== latest[rec.source] ? 'outdated' : 'current';
+  // A skill with no recorded commit is outdated once the source is known: an update records one.
+  return latest[rec.source] && rec.ref !== latest[rec.source] ? 'outdated' : 'current';
 }
 
 // null: no state file. Skills by the state file, each with where it comes from, its state, the commit installed (pinned)

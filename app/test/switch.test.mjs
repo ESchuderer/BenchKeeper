@@ -151,6 +151,13 @@ test('community skills: outdated by the source\'s commit once checked, modified 
   asked.length = 0;
   const unchecked = row('frontend-design', null);
   assert.deepEqual([unchecked.state, unchecked.newest, asked.length], ['current', null, 0]);
+  // No commit recorded (the remote could not be read at install): unknown, so outdated once the source is known.
+  const recorded = readFileSync(join(r.dir, STATE), 'utf8');
+  const noRef = JSON.parse(recorded);
+  delete noRef.skills.find((s) => s.name === 'frontend-design').ref;
+  writeFileSync(join(r.dir, STATE), JSON.stringify(noRef));
+  assert.deepEqual([row('frontend-design', null).state, row('frontend-design', 'a'.repeat(40)).state], ['current', 'outdated']);
+  writeFileSync(join(r.dir, STATE), recorded);
   // The source moved on: outdated; an edit on top of it is modified and not overwritten by an update.
   assert.equal(row('frontend-design', 'a'.repeat(40)).state, 'outdated');
   assert.equal(row('frontend-design', '').state, 'current', 'a source that cannot be read leaves the state alone');

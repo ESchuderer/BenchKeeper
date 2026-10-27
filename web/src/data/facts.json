@@ -241,7 +241,7 @@
         "name": "ECC",
         "url": "https://github.com/affaan-m/ECC",
         "role": "parts",
-        "installs": "three single skills at a pinned commit, no plugin and no hooks",
+        "installs": "three single skills from the default branch, no plugin and no hooks",
         "evaluation": "EVALUATIONS.md"
       },
       {

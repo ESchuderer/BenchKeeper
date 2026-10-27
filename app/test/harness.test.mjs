@@ -41,6 +41,9 @@ test('benchkeeper test: project community skills are in skills-lock.json', async
   assert.deepEqual(project().problems, ['accessibility not in skills-lock.json']);
   writeFileSync(join(dir, 'skills-lock.json'), JSON.stringify({ skills: { accessibility: { source: 'addyosmani/web-quality-skills' } } }));
   assert.equal(project().ok, true);
+  writeFileSync(join(dir, 'skills-lock.json'), JSON.stringify({ skills: { accessibility: { source: 'someone/else' } } }));
+  assert.deepEqual(project().problems, ['accessibility in skills-lock.json is not from addyosmani/web-quality-skills']);
+  writeFileSync(join(dir, 'skills-lock.json'), JSON.stringify({ skills: { accessibility: { source: 'addyosmani/web-quality-skills' } } }));
   let text = '';
   const out = new Writable({ write(c2, _, done) { text += c2; done(); } });
   assert.equal(await main(['test', dir, '--agents', 'claude'], { out, ctx }), 0, text);

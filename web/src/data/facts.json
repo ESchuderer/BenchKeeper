@@ -6,19 +6,19 @@
       "name": "Lite",
       "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos` and `orchestrating-projects` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
-      "command": "npx benchkeeper@6.21.0 apply --level lite"
+      "command": "npx benchkeeper@6.22.0 apply --level lite"
     },
     {
       "name": "Standard",
       "contains": "lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list",
       "writes": "local files in each project you run `project apply` in",
-      "command": "npx benchkeeper@6.21.0 apply --level standard && npx benchkeeper@6.21.0 project apply"
+      "command": "npx benchkeeper@6.22.0 apply --level standard && npx benchkeeper@6.22.0 project apply"
     },
     {
       "name": "Full",
       "contains": "standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app",
       "writes": "global rule files, settings and packs",
-      "command": "npx benchkeeper@6.21.0 apply --level full"
+      "command": "npx benchkeeper@6.22.0 apply --level full"
     }
   ],
   "core": {
@@ -35,7 +35,7 @@
         "name": "App",
         "steps": [
           {
-            "command": "npx benchkeeper@6.21.0",
+            "command": "npx benchkeeper@6.22.0",
             "text": "Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before."
           }
         ]
@@ -44,18 +44,18 @@
         "name": "CLI",
         "steps": [
           {
-            "command": "npx benchkeeper@6.21.0 plan",
+            "command": "npx benchkeeper@6.22.0 plan",
             "text": "Lists each change and writes nothing."
           },
           {
-            "command": "npx benchkeeper@6.21.0 apply",
+            "command": "npx benchkeeper@6.22.0 apply",
             "text": "Asks per change. `--yes` applies the default selection without questions."
           }
         ]
       }
     ],
     "next": "After either path, restart the agents.",
-    "changes": "`npx benchkeeper@6.21.0 history` lists what changed, `npx benchkeeper@6.21.0 undo <run>` reverses a run.",
+    "changes": "`npx benchkeeper@6.22.0 history` lists what changed, `npx benchkeeper@6.22.0 undo <run>` reverses a run.",
     "links": [
       { "label": "Lite level, the plugin alone", "anchor": "levels" },
       { "label": "Full setup description", "anchor": "setup-details" }

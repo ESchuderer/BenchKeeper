@@ -28,6 +28,7 @@ import { frameworkRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
@@ -532,6 +533,12 @@ export function api(ctx) {
       if (dir && !registered(dir)) throw bad('register the project first');
       const agents = installed().filter((a) => RULE_AGENTS.includes(a));
       return rulesView(ctx, { agents: agents.length ? agents : RULE_AGENTS, dir });
+    },
+    // MCP servers, hooks, subagents, commands and output styles of the global folders or a registered project, read from files.
+    'GET /api/extensions': (q) => {
+      const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      return extensionsView(ctx, { agents: RULE_AGENTS, dir });
     },
     // The text of one listed file: any other path is refused. For the page on this machine only.
     'GET /api/rule-text': (q) => {

@@ -2,6 +2,12 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.22 (2026-10-27)
+
+- App, Extensions view and `benchkeeper extensions list [--agent claude|codex] [--project dir] [--json]` (#217, shares the data model of the Rules view): the MCP servers, hooks and subagents Claude Code and Codex load, plus the commands and output styles of Claude Code (Codex has none listed), read from files only (no agent starts) and shown per agent, globally or for a registered project. Each row has its scope, owner (`BenchKeeper`, `plugin`, `project`, `managed`, `yours`), the file it comes from and a "runs code" mark for hooks with a command, stdio MCP servers and commands that run a shell line; a global server or hook of yours links to Doctor's removal offer. MCP servers show name, transport and whether they are on, off or wait for approval. Environment values and headers never appear, a URL shows scheme and host only, a command line is masked, and a file that does not parse is named without its text. Read-only: toggles wait for #184 and #188.
+- Plugin `version` 6.22.0.
+- Upgrade: `npx benchkeeper@6.22.0 apply`.
+
 ## setup-v6.21 (2026-10-26)
 
 - App, usage per account and limit notices (#338, part of #300): `benchkeeper accounts track <name> [--off]` adds a status line script and a `StopFailure` hook (`rate_limit`, `authentication_failed`, `billing_error`) to a Claude Code account's folder, as a plan with a diff and undo (a dev container account is written through `devcontainer exec`); an existing status line of another kind is refused. The script keeps only the used percentage and reset time of the 5-hour and 7-day window and the type and time of a failed turn, never a credential. `accounts status` (`--json` key `usage`), `doctor` and the Accounts view show what is left per window (100 minus `used_percentage`; a window past its reset time is unknown, not full), a notice below twice the minimum and the latest failure.

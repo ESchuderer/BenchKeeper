@@ -86,12 +86,18 @@ apply(first, ctx);
 appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
 // A rule file of the user's own: the Rules view lists it as yours, Doctor says nothing about it.
 writeFileSync(join(home, '.claude/rules/20-team.md'), '# Team notes\n\nKeep answers short.\n');
+// Extensions: a user MCP server with a dummy secret (the view must not show it) and a subagent; a hook with one in the project below.
+writeFileSync(join(home, '.claude.json'), JSON.stringify({ mcpServers: { files: { command: 'npx', args: ['-y', 'files-server'], env: { API_TOKEN: 'dummy-env-secret' } } } }));
+mkdirSync(join(home, '.claude/agents'), { recursive: true });
+writeFileSync(join(home, '.claude/agents/reviewer.md'), '---\nname: reviewer\ndescription: Reviews diffs\n---\n\nRead the diff.\n');
 const dir = join(parent, DEMO ? 'shop' : 'bk-ui-proj');
 execFileSync(GIT, ['init', '-q', '-b', 'main', dir]);
 writeFileSync(join(dir, 'README.md'), '# Demo\n');
 const pctx = { ...ctx, roots: [dir] };
 apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
 addProject(ctx, dir);
+mkdirSync(join(dir, '.claude'), { recursive: true });
+writeFileSync(join(dir, '.claude/settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'AUDIT_TOKEN=dummy-hook-secret ./audit.sh' }] }] } }));
 {
   const uno = join(ONE, 'uno'), uctx = { ...ctx, roots: [uno] };
   apply(preview(projectPlan({ ctx: uctx, dir: uno, answers: { agents: ['claude'], env: 'host', tier: 'quick' } }).changes).filter((c) => c.kind !== 'command'), uctx, { scope: uno });

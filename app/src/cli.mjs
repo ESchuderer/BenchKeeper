@@ -22,6 +22,7 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { frameworkRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
 import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
+import { extensionLines, extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
@@ -67,6 +68,10 @@ Usage: benchkeeper <command> [options]
                                     one file out (Claude Code: claudeMdExcludes in the user settings, or in the
                                     project's local settings with --project; a global Codex file moves to a folder of
                                     the app's own); nothing is deleted, the plan has a diff and undo restores it
+  extensions list [--agent claude|codex] [--project dir]
+                                    MCP servers, hooks, subagents, commands and output styles each agent loads,
+                                    read from files only (no agent starts), with owner and a runs-code mark; env
+                                    values, headers and secrets never appear; nothing is written
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--scope project|user] [--transcript file] [--description text] [--query text]
                                     records an observed miss as an eval case (~/.config/benchkeeper/evals/); a skill
@@ -167,7 +172,7 @@ Usage: benchkeeper <command> [options]
   maintain knowledge clear [dir] [--yes]
                                     removes that folder after a question and nothing else of the project
 
---json (doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list,
+--json (doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list,
         settings list and get, frameworks list, board, profile export, maintain knowledge show, accounts list and status)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
@@ -467,6 +472,12 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'extensions') {
+    if (arg && arg !== 'list') { out.write('extensions needs list\n'); return 2; }
+    if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
+    out.write(`${extensionLines(extensionsView(ctx, { agents: o.agent ? [o.agent] : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined })).join('\n')}\n`);
+    return 0;
+  }
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
     // A session run gives the project and transcript.
@@ -599,7 +610,7 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg, sub) => (cmd === 'maintain' ? ['maintain', arg, sub].filter(Boolean).join(' ') : ['project', 'projects', 'packs', 'skills', 'rules', 'settings', 'frameworks', 'profile', 'accounts'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'maintain' ? ['maintain', arg, sub].filter(Boolean).join(' ') : ['project', 'projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
@@ -652,6 +663,11 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (o.agent && !RULE_AGENTS.includes(o.agent)) return fail(`agent must be one of ${RULE_AGENTS.join(', ')}`);
     const found = selectedAgents(ctx, o.agents).filter((a) => RULE_AGENTS.includes(a));
     return emit(rulesView(ctx, { agents: o.agent ? [o.agent] : found.length ? found : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined }));
+  }
+  if (cmd === 'extensions' && (!arg || arg === 'list')) {
+    const extra = surplus(2); if (extra !== undefined) return extra;
+    if (o.agent && !RULE_AGENTS.includes(o.agent)) return fail(`agent must be one of ${RULE_AGENTS.join(', ')}`);
+    return emit(extensionsView(ctx, { agents: o.agent ? [o.agent] : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined }));
   }
   if (cmd === 'settings' && (arg === 'list' || arg === 'get')) {
     const agent = o.agent ?? 'claude', key = positionals[2];
@@ -706,7 +722,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, settings list and get, frameworks list, board, profile export, maintain knowledge show and accounts list and status');
+  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, board, profile export, maintain knowledge show and accounts list and status');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

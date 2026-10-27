@@ -82,9 +82,9 @@ export function instructionChecks(ctx, { dir } = {}) {
   return out;
 }
 
-// Skills the enabled Claude Code plugins of the user ship, from the files the CLI keeps.
+// The enabled Claude Code plugins of the user, from the files the CLI keeps: { id, scope, root, own }.
 // With dir, also the plugins installed for that project (scope project or local) and enabled in its settings.
-export function pluginSkills(ctx, dir) {
+export function activePlugins(ctx, dir) {
   const at = (p) => join(ctx.home, p);
   const enabledIn = (file) => { try { return JSON.parse(readText(file) ?? '{}').enabledPlugins ?? {}; } catch { return {}; } };
   const enabled = { user: enabledIn(at('.claude/settings.json')), project: dir ? enabledIn(join(dir, '.claude/settings.json')) : {}, local: dir ? enabledIn(join(dir, '.claude/settings.local.json')) : {} };
@@ -93,12 +93,22 @@ export function pluginSkills(ctx, dir) {
   const out = [];
   for (const [id, list] of Object.entries(installed ?? {})) {
     for (const p of Array.isArray(list) ? list.filter((x) => enabled[x.scope]?.[id] === true && (x.scope === 'user' || (dir && x.projectPath && resolve(x.projectPath) === resolve(dir)))) : []) {
-      const root = join(String(p.installPath), 'skills');
-      if (!resolve(root).startsWith(at('.claude/plugins') + sep) || !exists(root)) continue;
-      for (const name of readdirSync(root)) {
-        const file = join(root, name, 'SKILL.md'), text = readText(file);
-        if (text != null) out.push({ name, scope: `plugin ${id.split('@')[0]}`, file, text, own: p.scope !== 'user' });
-      }
+      const root = resolve(String(p.installPath));
+      if (root.startsWith(at('.claude/plugins') + sep)) out.push({ id, scope: p.scope, root, own: p.scope !== 'user' });
+    }
+  }
+  return out;
+}
+
+// Skills those plugins ship.
+export function pluginSkills(ctx, dir) {
+  const out = [];
+  for (const p of activePlugins(ctx, dir)) {
+    const root = join(p.root, 'skills');
+    if (!exists(root)) continue;
+    for (const name of readdirSync(root)) {
+      const file = join(root, name, 'SKILL.md'), text = readText(file);
+      if (text != null) out.push({ name, scope: `plugin ${p.id.split('@')[0]}`, file, text, own: p.own });
     }
   }
   return out;

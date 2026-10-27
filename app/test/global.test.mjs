@@ -91,7 +91,8 @@ test('a failed install does not stop the other steps', () => {
 
 test('full apply: rules, removals, plugins, settings, tools; a second plan is empty', () => {
   const m = machine();
-  const run = apply(m.plan(), m.ctx, { select: all(m.plan()) });
+  // "Keep your edits" is left out: chosen with the rules write, it wins and the write is not applied.
+  const run = apply(m.plan(), m.ctx, { select: all(m.plan()).filter((id) => !id.startsWith('rulesKeep:')) });
   assert.equal(run.status, 'done', JSON.stringify(run.entries.filter((e) => e.status !== 'done')));
   const rules = readFileSync(join(contentDir, 'rules/global.md'), 'utf8');
   assert.equal(readFileSync(join(m.home, '.claude/rules/00-global.md'), 'utf8'), rules);

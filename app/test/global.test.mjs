@@ -111,7 +111,7 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.equal(st.hooks.PreToolUse.length, 1);
   assert.deepEqual(st.hooks.PostToolUse, []);
   assert.equal(st.model, 'opusplan');
-  assert.equal(st.attribution.sessionUrl, false);
+  assert.deepEqual(st.attribution, { commit: '', pr: '', sessionUrl: false });
   assert.ok(st.cleanupPeriodDays === 14 && st.autoUpdatesChannel === 'stable' && st.env.DISABLE_FEEDBACK_COMMAND === '1' && st.env.CLAUDE_CODE_SUBAGENT_MODEL === 'sonnet');
   assert.equal(st.autoCompactWindow, 400000);
   assert.equal(st.pluginConfigs['benchkeeper@benchkeeper'].options.tierBand, true);

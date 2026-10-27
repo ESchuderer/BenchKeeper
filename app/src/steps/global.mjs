@@ -184,7 +184,9 @@ export function globalPlan(env) {
     const r = agent(id).global.rules;
     const file = at(r.path);
     const cur = readText(file);
-    const edited = cur != null && cur !== renderRules(r.format, cur, forAgent(rules, id));
+    // A file the app cannot merge into (an unmatched marker) is no edit to keep: the rules change reports that error.
+    let edited = false;
+    try { edited = cur != null && cur !== renderRules(r.format, cur, forAgent(rules, id)); } catch { /* shown by the rules change */ }
     // A kept edit holds for this file content and this setup version: a new version offers its rules again.
     const keeps = edited && kept[file]?.hash === hashText(cur) && kept[file]?.version === ctx.appVersion;
     if (!keeps) add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: file, edit: (c) => renderRules(r.format, c, forAgent(rules, id)) });

@@ -81,6 +81,16 @@ test('keep your edits: an optional change that silences the rules warning until 
   assert.equal(plan().filter((c) => c.step === 'rulesKeep:claude').length, 1);
 });
 
+test('a rules file with an unmatched marker is an error of its own change; the rest of the plan stays', () => {
+  const ctx = { ...machine({ engine: false }), appVersion: '6.0.0' };
+  apply(preview(globalPlan({ ctx, agents: ['codex'], devcontainerCli: '1.0.0' })), ctx);
+  const file = join(ctx.home, '.codex/AGENTS.md');
+  writeFileSync(file, '<!-- benchkeeper:rules start -->\nbroken\n');
+  const p = preview(globalPlan({ ctx, agents: ['codex'], devcontainerCli: '1.0.0' }));
+  assert.ok(p.find((c) => c.step === 'rules:codex')?.error, 'the error is on the rules change');
+  assert.equal(p.filter((c) => c.step === 'rulesKeep:codex').length, 0);
+});
+
 test('a rules path that is a dangling link counts as a missing rules file, an error', { skip: process.platform === 'win32' }, () => {
   const ctx = { ...machine({ engine: false }), appVersion: '6.0.0' };
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);

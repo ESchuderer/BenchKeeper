@@ -182,7 +182,7 @@ test('plugin state comes from the agents\' files; the CLI answers only when they
   assert.ok(calls.includes('claude plugin list --json') && calls.includes('codex plugin list --json'));
 });
 
-test('BenchKeeper\'s own plugin older than its pin gets update steps; at or above the pin, and any third-party plugin, is left alone', () => {
+test('BenchKeeper\'s own plugin older than the app gets update steps, at any marketplace ref; at or above it, and any third-party plugin, is left alone', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-pins-'));
   const ctx = context({ home, appVersion: '6.0.0', run: (argv) => ({ code: argv[0] === 'npm' ? 1 : 0, stdout: '', stderr: '' }) });
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
@@ -217,14 +217,11 @@ test('BenchKeeper\'s own plugin older than its pin gets update steps; at or abov
   assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), []);
   assert.equal(inv.find((i) => i.step === 'plugin:codex:benchkeeper@benchkeeper').state, 'current');
   assert.deepEqual(pin(PLUGINS.claude[0], '6.0.0'), { ref: 'stable', version: '6.0.0' });
-  // BenchKeeper's marketplace added at another ref: a manual step with the commands, never applied. Ponytail's at any ref is fine.
+  // A marketplace at another ref is left as it is: the update steps stay, no step is by hand and none is destructive.
   writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.2.0' } }, benchkeeper: { source: { ref: 'v5.2.0' } } }));
-  const [stuck] = steps('plugin:claude:benchkeeper@benchkeeper');
-  assert.equal(steps('plugin:claude:benchkeeper@benchkeeper').length, 1);
+  assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
   assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), []);
-  assert.ok(stuck.title.endsWith(': by hand') && /at v5\.2\.0, not stable.*marketplace remove benchkeeper/.test(stuck.error));
-  assert.equal(preview([stuck])[0].selected, false);
-  assert.equal(apply([stuck], ctx, { select: [stuck.id] }).entries.length, 0);
+  assert.ok(steps('plugin:claude:benchkeeper@benchkeeper').every((c) => !c.error && !c.destructive));
   // Turned off in Claude Code: a settings write turns it on; in Codex a step by hand. Codex files gone: install again.
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': false, 'benchkeeper@benchkeeper': true } }));
   const [on] = steps('plugin:claude:ponytail@ponytail');

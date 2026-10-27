@@ -210,7 +210,7 @@ export function globalPlan(env) {
 
   // Plugins (Claude Code, Codex) or skill copies (agents without plugins).
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {
-    const { listed, markets, refs } = pluginState(ctx, a);
+    const { listed, markets } = pluginState(ctx, a);
     const name = agent(a).name;
     for (const p of PLUGINS[a].filter((x) => full || x.id.startsWith('benchkeeper@'))) {
       const have = listed.find((x) => x.id === p.id && x.enabled);
@@ -223,15 +223,10 @@ export function globalPlan(env) {
         add(step, `remove ${name} plugin ${p.id}: no registered project uses the ${p.pack} pack`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], undoArgv: a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id], destructive: true });
         continue;
       }
-      const { ref, version } = pin(p, ctx.appVersion);
+      const { version } = pin(p, ctx.appVersion);
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
       const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', marketSource(p, a), ...sparse];
       const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
-      // A marketplace added at another ref stays there: moving it means removing it, which deletes the plugin's
-      // options and data in Claude Code. The plan names the commands instead of promising the version.
-      const stuck = ref && refs[p.marketplace] && p.source && refs[p.marketplace] !== ref && markets.includes(p.marketplace);
-      const byHand = `By hand: ${a} plugin marketplace remove ${p.marketplace}, then ${addMarket?.join(' ')}, then ${install.join(' ')}`;
-      const manual = (title, outdated = false) => add(step, `${title}: by hand`, { kind: 'command', argv: addMarket, outdated, error: `the ${p.marketplace} marketplace is at ${refs[p.marketplace]}, not ${ref}; moving it removes the plugin's data. ${byHand}` });
       // Installed but turned off: Claude Code turns it on in settings (undone by the file's backup); Codex by hand.
       if (off) {
         if (a === 'claude') add(step, `${name} plugin ${p.id}: turn on`, { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['enabledPlugins', p.id], value: true }]) });
@@ -241,17 +236,14 @@ export function globalPlan(env) {
       // The entry is there, its files are not: install again.
       if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
       if (have) {
-        if (stuck && semver(have.version) && bySemver(have.version, version) < 0) { manual(`${name} plugin ${p.id} ${have.version} to ${version}`, true); continue; }
-        // Older than the pin: refresh the marketplace and update. Newer stays (Codex installs Ponytail from its main
-        // branch whatever the ref). Removing the marketplace to move its ref would delete the plugin's options and
-        // data in Claude Code, so a marketplace added at an older ref stays there and the plugin stays outdated.
-        if (!ref || !semver(have.version) || bySemver(have.version, version) >= 0) continue;
+        // Older than the app: refresh the marketplace and update. Newer stays. A marketplace at another ref is left as it is
+        // (moving it deletes the plugin's options and data in Claude Code), so there is no by-hand step.
+        if (!version || !semver(have.version) || bySemver(have.version, version) >= 0) continue;
         const title = `${name} plugin ${p.id} ${have.version} to ${version}`;
         add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace], outdated: true, unit: step });
         add(step, title, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install, outdated: true, unit: step });
         continue;
       }
-      if (stuck) { manual(`${name} plugin ${p.id}`); continue; }
       if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step });
       add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step });
     }

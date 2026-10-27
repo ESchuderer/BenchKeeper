@@ -12,7 +12,7 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Rules', 'Accounts', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Rules', 'Extensions', 'Accounts', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -1100,6 +1100,32 @@ test.describe('views', () => {
     await page.getByRole('combobox', { name: 'Show' }).click();
     await page.getByRole('option').nth(1).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Claude Code files for this project' })).toBeVisible();
+    await noAxe(page);
+  });
+
+  test('Extensions: server, hook and subagent with owner and the runs-code mark, a link to the removal offer, no secret value; no axe violations', async ({ page }) => {
+    await nav(page, 'Extensions').click();
+    const table = page.getByRole('table', { name: 'Claude Code extensions' });
+    const server = table.getByRole('row', { name: /MCP server/ });
+    await expect(server).toContainText('files');
+    await expect(server).toContainText('yours');
+    await expect(server).toContainText('runs code');
+    await expect(server).toContainText('npx -y files-server');
+    await expect(server.getByRole('link', { name: 'Doctor offers removal (full level)' })).toBeVisible();
+    await expect(table.getByRole('row', { name: /Subagent/ })).toContainText('reviewer');
+    await expect(table.getByRole('row', { name: /Subagent/ })).not.toContainText('runs code');
+    await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);
+    await noAxe(page);
+    // A project adds its own: a hook whose command carries a secret shows it masked.
+    await page.getByRole('combobox', { name: 'Show' }).click();
+    await page.getByRole('option', { name: /bk-ui-proj/ }).click();
+    await expect(page.getByRole('heading', { level: 3, name: 'Claude Code extensions for this project' })).toBeVisible();
+    const hook = page.getByRole('table', { name: 'Claude Code extensions' }).getByRole('row', { name: /Hook/ });
+    await expect(hook).toContainText('PreToolUse');
+    await expect(hook).toContainText('runs code');
+    await expect(hook).toContainText('AUDIT_TOKEN=***');
+    await expect(hook).toContainText('local');
+    await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);
     await noAxe(page);
   });
 

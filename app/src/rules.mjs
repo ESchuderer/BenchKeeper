@@ -67,7 +67,7 @@ export const parkedPath = (ctx, file) => join(ctx.config, 'disabled-rules', rela
 
 // Paths BenchKeeper wrote and has not undone, from the ledger.
 // The moves of a switch are not BenchKeeper writing the file: the file stays the user's.
-const writtenPaths = (ctx) => new Set(ctx.ledger.list().flatMap((r) => r.entries.filter((e) => e.path && e.status === 'done' && !e.undone && !e.step.startsWith(SWITCH)).map((e) => e.path)));
+export const writtenPaths = (ctx) => new Set(ctx.ledger.list().flatMap((r) => r.entries.filter((e) => e.path && e.status === 'done' && !e.undone && !e.step.startsWith(SWITCH)).map((e) => e.path)));
 
 // The files an agent reads as instructions, in the order it loads them, that exist; dir adds that project's.
 function candidates(ctx, id, dir) {

@@ -21,6 +21,7 @@ const isFreshness = (f) => f.check === 'pins' || f.tag === 'outdated';
 const KEYS = ['check', 'message', 'dir', 'file', 'line', 'scope', 'rule', 'repos'];
 // A skill's front matter (name and description, also a block scalar) is what every turn carries; about 4 characters a token.
 const tokensOf = (text) => Math.ceil(frontMatter(text.replaceAll('\r\n', '\n')).length / 4);
+const shellQuote = (s) => (/^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replaceAll("'", "'\\''")}'`);
 const evidenceOf = (f) => Object.fromEntries(KEYS.filter((k) => f[k] !== undefined).map((k) => [k, f[k]]));
 
 // state: { sessions: rows of scanSessions, skills: [{ name, scope, tokens }] installed, doctorFindings, skillPins:
@@ -52,10 +53,10 @@ export function insights({ sessions = [], skills = [], doctorFindings = [], skil
       id: `freshness:skill:${hash(p.project)}:${p.name}`, signal: 'freshness', severity: 'warning',
       message: `skill ${p.name} in ${p.project} is at ${p.pinned}, the library offers ${p.newest}`,
       evidence: { project: p.project, skill: p.name, pinned: p.pinned, newest: p.newest },
-      fix: `benchkeeper skills update ${p.name} --project ${p.project}`,
+      fix: `benchkeeper skills update ${p.name} --project ${shellQuote(p.project)}`,
     });
   }
-  const rank = (f) => SEVERITY.indexOf(f.severity);
+  const rank = (f) => (f.severity === 'error' ? 0 : 1);
   found.sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const summary = Object.fromEntries(SEVERITY.map((s) => [s, found.filter((f) => f.severity === s).length]));
   return { samples: { sessions: claude.length, minSamples }, findings: found, summary };
@@ -67,7 +68,7 @@ export async function collectInsights(ctx, { agents, dir, days = WINDOW_DAYS, no
   const sessions = await scanSessions(ctx, { since: new Date(now - days * 864e5).toISOString() });
   // Claude Code reads ~/.claude/skills only; the other agents' folders are not its skills.
   const claudeDir = join(ctx.home, '.claude/skills');
-  const installed = [...skillFiles(ctx.home).filter((f) => f.file.startsWith(`${claudeDir}${sep}`)).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)];
+  const installed = [...skillFiles(ctx.home).filter((f) => f.file.startsWith(`${claudeDir}${sep}`)).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx, dir)];
   const skills = installed.filter((s, i) => installed.findIndex((x) => x.name === s.name && x.scope === s.scope) === i)
     .map((s) => ({ name: s.name, scope: s.scope, tokens: tokensOf(s.text) }));
   // --project scopes the pins to that project, as it scopes the doctor's checks.

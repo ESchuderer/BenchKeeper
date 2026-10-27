@@ -53,16 +53,29 @@ test('hygiene and freshness: the doctor findings are split, each fact appears on
   assert.deepEqual(insights({ doctorFindings: [] }).findings, []);
 });
 
+test('findings: errors first, then every other finding by id whatever its severity', () => {
+  const doctorFindings = [
+    { level: 'warning', check: 'z', message: 'late warning', fix: 'f' },
+    { level: 'info', check: 'a', message: 'early info', fix: 'f' },
+    { level: 'error', check: 'm', message: 'error', fix: 'f' },
+  ];
+  const r = insights({ doctorFindings });
+  assert.deepEqual(r.findings.map((f) => f.message), ['error', 'early info', 'late warning']);
+});
+
 test('freshness: a project skill behind the library is a finding, a current or unpinned one is not', () => {
   const skillPins = [
     { project: '/work/shop', name: 'tdd', pinned: 'abc', newest: 'def' },
     { project: '/work/shop', name: 'ok', pinned: 'abc', newest: 'abc' },
     { project: '/work/shop', name: 'own', pinned: null, newest: null },
+    { project: "/work/my shop's", name: 'tdd', pinned: 'abc', newest: 'def' },
   ];
   const r = insights({ skillPins });
-  assert.equal(r.findings.length, 1);
-  assert.deepEqual(r.findings[0].evidence, { project: '/work/shop', skill: 'tdd', pinned: 'abc', newest: 'def' });
-  assert.equal(r.findings[0].fix, 'benchkeeper skills update tdd --project /work/shop');
+  assert.equal(r.findings.length, 2);
+  const plain = r.findings.find((f) => f.evidence.project === '/work/shop');
+  assert.deepEqual(plain.evidence, { project: '/work/shop', skill: 'tdd', pinned: 'abc', newest: 'def' });
+  assert.equal(plain.fix, 'benchkeeper skills update tdd --project /work/shop');
+  assert.equal(r.findings.find((f) => f.evidence.project !== '/work/shop').fix, `benchkeeper skills update tdd --project '/work/my shop'\\''s'`);
 });
 
 // A fixture home with one global skill, a skills lock of a registered project and the two Claude Code sessions of the shared fixture.
@@ -114,15 +127,20 @@ test('insights: an unknown argument exits 2 with an error document, plain insigh
   assert.match(plain.text, /works with --json/);
 });
 
-test('collectInsights: 20 sessions in the window report the installed skill none of them used, older ones do not count', async () => {
-  const { home, ctx } = machine();
+// n Claude Code sessions that used the skill tdd, the first `recent` of them inside the window of the tests.
+function writeClaudeSessions(home, n, recent) {
   const dir = join(home, '.claude/projects/-work-p');
   mkdirSync(dir, { recursive: true });
   const line = (t, extra) => JSON.stringify({ cwd: '/work/p', sessionId: 'x', timestamp: t, ...extra });
-  for (let i = 0; i < 25; i++) {
-    const t = i < 20 ? `2026-10-${String(1 + i).padStart(2, '0')}T10:00:00.000Z` : '2026-05-01T10:00:00.000Z';
+  for (let i = 0; i < n; i++) {
+    const t = i < recent ? `2026-10-${String(1 + i).padStart(2, '0')}T10:00:00.000Z` : '2026-05-01T10:00:00.000Z';
     writeFileSync(join(dir, `p${i}.jsonl`), `${line(t, { type: 'user', origin: { kind: 'human' }, message: { role: 'user', content: 'hi' } })}\n${line(t, { type: 'assistant', message: { id: `m${i}`, content: [{ type: 'tool_use', id: 'k', name: 'Skill', input: { skill: 'tdd' } }] } })}\n`);
   }
+}
+
+test('collectInsights: 20 sessions in the window report the installed skill none of them used, older ones do not count', async () => {
+  const { home, ctx } = machine();
+  writeClaudeSessions(home, 25, 20);
   // A CRLF skill still costs tokens; another agent's skill folder is not Claude Code's.
   mkdirSync(join(home, '.claude/skills/crlf'), { recursive: true });
   writeFileSync(join(home, '.claude/skills/crlf/SKILL.md'), '---\r\nname: crlf\r\ndescription: abcd\r\n---\r\nbody\r\n');
@@ -148,4 +166,19 @@ test('collectInsights: --project reports the skill pins of that project only', a
   const pinned = async (dir) => (await collectInsights(ctx, { agents: ['claude'], dir })).findings.filter((f) => f.id.startsWith('freshness:skill:')).map((f) => f.evidence.project);
   assert.deepEqual((await pinned()).sort(), projects);
   assert.deepEqual(await pinned(projects[0]), [projects[0]]);
+});
+
+test('collectInsights: --project adds the skills of a plugin installed for that project', async () => {
+  const { home, ctx } = machine();
+  writeClaudeSessions(home, 20, 20);
+  const dir = join(home, 'work', 'a');
+  const root = join(home, '.claude/plugins/cache/team/proj/1.0.0');
+  mkdirSync(join(root, 'skills/team-skill'), { recursive: true });
+  writeFileSync(join(root, 'skills/team-skill/SKILL.md'), '---\nname: team-skill\ndescription: abcd\n---\n');
+  mkdirSync(join(dir, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ plugins: { 'proj@team': [{ scope: 'project', projectPath: dir, installPath: root }] } }));
+  writeFileSync(join(dir, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'proj@team': true } }));
+  const names = async (opts) => (await collectInsights(ctx, { agents: ['claude'], now: Date.parse('2026-10-26T00:00:00Z'), ...opts })).findings.find((f) => f.id === 'unused-skills').evidence.skills.map((x) => x.scope);
+  assert.ok((await names({ dir })).includes('plugin proj'));
+  assert.ok(!(await names({})).includes('plugin proj'));
 });

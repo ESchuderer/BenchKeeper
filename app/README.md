@@ -105,7 +105,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 |---|---|
 | 0 | clean: no finding of level error (warnings and info do not count) |
 | 1 | a finding of level error (`doctor`), a failed check (`test`), a change that cannot be made (`plan`, `project plan`); the list commands have no findings and exit 0 |
-| 2 | usage or read failure: an unknown option or command, a bad value, an unreadable file (also the registered projects file, for `doctor`, `plan`, `projects list`, `projects scan` and `profile export`), `--json` on another command, and with `--json` an uncaught error |
+| 2 | usage or read failure: an unknown option or command, a bad value, an unreadable file (also the registered projects file, for `doctor`, `plan`, `projects list`, `projects scan`, `insights` and `profile export`), `--json` on another command, and with `--json` an uncaught error |
 
 ## Web UI
 

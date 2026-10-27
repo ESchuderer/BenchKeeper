@@ -72,4 +72,4 @@ jobs:
         run: |
           test "$(find pkg -type f | wc -l)" = 1
           test -f "pkg/benchkeeper-$WANT.tgz"
-          npm publish "pkg/benchkeeper-$WANT.tgz" --provenance --access public
+          npm publish "./pkg/benchkeeper-$WANT.tgz" --provenance --access public

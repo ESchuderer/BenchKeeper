@@ -16,7 +16,7 @@ test('entries are complete', () => {
     assert.ok(sections.has(s.section), `${s.name}: section ${s.section}`);
     assert.ok(['both', 'codex'].includes(s.agents), `${s.name}: agents`);
     if (s.source === 'own') assert.ok(existsSync(new URL(`${s.name}/SKILL.md`, lib)), `${s.name}: folder`);
-    else assert.match(s.ref, /^[0-9a-f]{40}$/, `${s.name}: ref is a commit`);
+    else assert.equal(s.ref, undefined, `${s.name}: community skills follow the default branch`);
   }
   assert.equal(new Set(manifest.skills.map((s) => s.name)).size, manifest.skills.length, 'skill names unique');
 });

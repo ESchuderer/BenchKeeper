@@ -14,7 +14,7 @@ import { warnings } from './packs.mjs';
 import { rulesChecks } from './rules.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
-import { SKILLS_CLI, globalPlan, newest, pluginState } from './steps/global.mjs';
+import { globalPlan, pluginState } from './steps/global.mjs';
 import { readState, tracksState, tryState } from './steps/project.mjs';
 
 export const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
@@ -114,8 +114,6 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   if (level === 'full') {
     out.push(...rulesChecks(ctx, agents));
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
-    const skillsCli = newest(ctx, 'skills', now);
-    if (skillsCli && skillsCli !== SKILLS_CLI) out.push(issue('warning', 'pins', `skills CLI ${skillsCli} is out for 7 days, the app pins ${SKILLS_CLI}`, 'a newer app release updates the pin'));
   }
   if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents', '.github/skills', '.gemini'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir, agents));
   if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));

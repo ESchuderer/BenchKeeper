@@ -107,7 +107,7 @@ export function preview(changes) {
       let after;
       try { after = c.edit ? c.edit(before) : c.after; } catch (e) { return { ...c, error: e.message, diff: '', noop: false, selected: false }; }
       planned.set(c.path, after);
-      return { ...c, after, diff: diffLines(before, after, c.path), noop: before === after, ...(c.edit ? {} : { planHash: hashPath(real(c.path)) }) };
+      return { ...c, after, diff: diffLines(before, after, c.path), noop: before === after && !c.always, ...(c.edit ? {} : { planHash: hashPath(real(c.path)) }) };
     }
     if (c.kind === 'remove') return { ...c, destructive: true, noop: !exists(c.path) };
     return { ...c, noop: false };
@@ -177,8 +177,8 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
         // A whole-file write is what the preview showed only while the file is as it was then (an earlier change of this run excepted).
         if ('planHash' in c && !run.entries.some((x) => x.path === path && x.status === 'done') && entry.hashBefore !== c.planHash) throw new Error(`${path} changed since the plan: make the plan again`);
         // Edits apply to the file as it is now, so a deselected earlier edit is not carried along.
-        // edit also gets the run so far, so a change can depend on how earlier ones went.
-        const after = c.kind === 'write' && c.edit ? c.edit(readText(path), run) : c.after;
+        // edit also gets the run so far, so a change can depend on how earlier ones went, and the context the run uses.
+        const after = c.kind === 'write' && c.edit ? c.edit(readText(path), run, ctx) : c.after;
         if (entry.existed) entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, path);
         // Journaled before the first change: after a crash undo finds the backup (or refuses a missing one).
         Object.assign(entry, { status: 'running', touched: true });

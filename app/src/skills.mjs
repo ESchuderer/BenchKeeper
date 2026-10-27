@@ -6,6 +6,7 @@ import { skillDirs } from './agents.mjs';
 import { contentDir } from './content.mjs';
 import { exists, isDir } from './fsx.mjs';
 import { libraryWith } from './packs.mjs';
+import { latestCommits } from './remote.mjs';
 import { itemState } from './runner.mjs';
 import { KEEP_SKILLS } from './steps/global.mjs';
 import { editedHere, lockedSkills, ownSkillFiles, tryState } from './steps/project.mjs';
@@ -13,7 +14,7 @@ import { editedHere, lockedSkills, ownSkillFiles, tryState } from './steps/proje
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 const subfolders = (dir) => { try { return readdirSync(dir).filter((n) => NAME.test(n) && isDir(join(dir, n))); } catch { return []; } };
 
-// current, outdated (the library has a newer copy or pin), modified (edited here), removed (the folder is gone), disabled.
+// current, outdated (the library has a newer copy, or the source's default branch has moved on: only known after a check), modified (edited here), removed (the folder is gone), disabled.
 function ownState(ctx, dir, skill, a) {
   const ids = a.agents.filter((x) => skill.agents !== 'codex' || x === 'codex');
   const seen = skillDirs(ids, 'project', dir).flatMap(({ dir: d }) => ownSkillFiles(skill.name, a.paths?.[skill.name]).map(({ file, text }) => itemState(join(d, skill.name, file), text, ctx)));
@@ -23,28 +24,31 @@ function ownState(ctx, dir, skill, a) {
   return seen.some((s) => ['outdated', 'foreign'].includes(s)) ? 'outdated' : 'current';
 }
 
-function communityState(dir, rec, skill, a) {
+function communityState(dir, rec, skill, a, latest) {
   const folders = skillDirs(a.agents.filter((x) => skill?.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => x.dir);
   if (!folders.some((d) => exists(join(d, rec.name)))) return 'removed';
   if (folders.some((d) => editedHere(d, rec.name, rec.hash))) return 'modified';
-  return skill?.ref && rec.ref && rec.ref !== skill.ref ? 'outdated' : 'current';
+  // A skill with no recorded commit is outdated once the source is known: an update records one.
+  return latest[rec.source] && rec.ref !== latest[rec.source] ? 'outdated' : 'current';
 }
 
 // null: no state file. Skills by the state file, each with where it comes from, its state, the commit installed (pinned)
-// and the commit the library offers (newest). untracked: folders no setup of BenchKeeper installed, never touched by an
+// and the commit the source's default branch is at (newest, only with check: one ls-remote per source; a repository with
+// many skills counts as moved when any of them changed). untracked: folders no setup of BenchKeeper installed, never touched by an
 // update; library is true when the name is a library skill (it can be adopted).
-export function projectSkills(ctx, dir) {
+export function projectSkills(ctx, dir, { check = false } = {}) {
   const state = tryState(dir);
   if (!state) return null;
   const lib = libraryWith(ctx);
   const a = { agents: state.agents ?? [], paths: state.paths ?? {} };
   const disabled = state.disabled ?? [];
+  const latest = check ? latestCommits(ctx, (state.skills ?? []).filter((r) => r.source !== 'own').map((r) => r.source)) : {};
   const skills = (state.skills ?? []).filter((r) => NAME.test(r.name ?? '')).map((rec) => {
     const skill = lib.skills.find((x) => x.name === rec.name);
     const own = rec.source === 'own';
     const packs = (state.packs ?? []).filter((p) => lib.packs.find((x) => x.id === p)?.skills?.includes(rec.name));
-    const status = disabled.includes(rec.name) ? 'disabled' : own && skill ? ownState(ctx, dir, skill, a) : communityState(dir, rec, skill, a);
-    return { name: rec.name, source: rec.source, own, state: status, pinned: own ? null : rec.ref ?? null, newest: own ? null : skill?.ref ?? null, packs, single: (state.singles ?? []).includes(rec.name) };
+    const status = disabled.includes(rec.name) ? 'disabled' : own && skill ? ownState(ctx, dir, skill, a) : communityState(dir, rec, skill, a, latest);
+    return { name: rec.name, source: rec.source, own, state: status, pinned: own ? null : rec.ref ?? null, newest: own ? null : latest[rec.source] ?? null, packs, single: (state.singles ?? []).includes(rec.name) };
   });
   const tracked = new Set([...skills.map((s) => s.name), ...lockedSkills(dir), ...disabled]);
   const found = new Map();
@@ -71,8 +75,11 @@ export function skillAction(rows, action, names) {
     if (action !== 'adopt' && !row(n)) throw new Error(`${n} is not a skill of this project`);
     if (action === 'remove' && !row(n).single) throw new Error(`${n} comes from ${row(n).packs.length ? `the pack ${row(n).packs.join(', ')}` : 'the setup'}: switch the pack off (benchkeeper packs disable ${row(n).packs[0] ?? '<pack>'}) or turn the skill off (benchkeeper project apply --disable ${n})`);
   }
-  if (action === 'update' && !names.length) return { names: rows.skills.filter((s) => s.state === 'outdated').map((s) => s.name), answers: {} };
-  return { names, answers: { reset: action === 'reset' ? names : [], drop: action === 'remove' ? names : [], pick: action === 'adopt' ? names : [] } };
+  if (action === 'update' && !names.length) {
+    const outdated = rows.skills.filter((s) => s.state === 'outdated').map((s) => s.name);
+    return { names: outdated, answers: { update: outdated } };
+  }
+  return { names, answers: { update: action === 'update' ? names : [], reset: action === 'reset' ? names : [], drop: action === 'remove' ? names : [], pick: action === 'adopt' ? names : [] } };
 }
 
 // Only the changes of the skills named, with the state file, the git exclude list and the rules block (it points to own skills).

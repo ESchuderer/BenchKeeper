@@ -14,7 +14,8 @@ import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
-import { PLUGINS, SKILLS_SPEC, SKILLS_VERIFY, marketSource } from './global.mjs';
+import { PLUGINS, marketSource, skillsSpec, skillsVerify } from './global.mjs';
+import { headCommit } from '../remote.mjs';
 
 export const STATE = '.benchkeeper/state.json';
 // A local setup's files: Claude Code's personal instructions and settings, and Codex's override of AGENTS.md.
@@ -125,11 +126,12 @@ export function readState(dir) {
 export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
 
 // answers: { agents, env, sandbox, packs, frameworks (ids; one workflow owner at most), agentFiles (picked agent files of a framework), skills (single skills besides the packs'), disable, enable, packOn, packOff (packs
-// switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), partial
+// switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), update (community skills added again from
+// the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
 // paths: { skill: 'glob, glob' }, share, callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
-export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], partial = false, ...answers } = {}) {
+export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
   const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
@@ -137,6 +139,7 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
   a.skills = [...new Set([...a.skills, ...pick])].filter((n) => !drop.includes(n));
   a.reset = reset;
+  a.update = update;
   a.pick = pick;
   a.partial = partial;
   a.share = a.share === true;
@@ -418,18 +421,19 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
         }
       }
     } else {
-      // A skill the state file records at another commit is added again at the library's pin.
+      // A community skill comes from the default branch of its source; an update (asked for) adds it again.
       const was = installedRefs.get(s.name);
-      const targets = rest.filter(({ dir: d }) => (was && was !== s.ref) || reseat || !exists(join(d, s.name)));
+      const refresh = a.update.includes(s.name);
+      const targets = rest.filter(({ dir: d }) => refresh || reseat || !exists(join(d, s.name)));
       const missing = targets.flatMap((x) => x.agents);
       if (!missing.length) continue;
       const flags = [...new Set(missing.map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
       installs.set(s.name, `skill:${s.name}:${changes.length}`);
       // The folder differs from what the install left: its edits are backed up by the snapshot, and kept unless reset.
       const held = !reseat && targets.some(({ dir: d }) => editedHere(d, s.name, installedHashes.get(s.name)));
-      add(`skill:${s.name}`, `skill ${s.name} from ${s.source} at ${s.ref.slice(0, 12)}${was && was !== s.ref ? ` (was ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
-        kind: 'command', outdated: !!was && was !== s.ref, cwd: dir, env: npxEnv(), verify: SKILLS_VERIFY, snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
-        argv: ['npx', '-y', SKILLS_SPEC, 'add', `https://github.com/${s.source}/tree/${s.ref}`, '-s', s.name, ...flags, '--copy', '-y'],
+      add(`skill:${s.name}`, `skill ${s.name} from ${s.source}${refresh && was ? ` (installed ${was.slice(0, 12)})` : ''}${held ? ' (edited here: reset the skill to replace it)' : ''}`, {
+        kind: 'command', outdated: refresh && !!was, cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), snapshot: [...targets.map((x) => join(x.dir, s.name)), at(LOCK)], ...(held ? { selected: false, held: true } : {}),
+        argv: ['npx', '-y', skillsSpec(ctx), 'add', `https://github.com/${s.source}`, '-s', s.name, ...flags, '--copy', '-y'],
       });
     }
   }
@@ -444,8 +448,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const present = dirs.filter(({ dir: d }) => exists(join(d, name)));
     if (s && s.source !== 'own' && present.length) {
       const flags = [...new Set(present.flatMap((x) => x.agents).map((x) => SKILLS_FLAG[x]))].flatMap((f) => ['-a', f]);
-      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: npxEnv(), verify: SKILLS_VERIFY, selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
-        argv: ['npx', '-y', SKILLS_SPEC, 'remove', name, ...flags, '-y'] });
+      add(`remove:${name}`, `remove skill ${name}${why}`, { kind: 'command', cwd: dir, env: npxEnv(), verify: skillsVerify(ctx), selected: true, snapshot: [...present.map((x) => join(x.dir, name)), join(dir, LOCK)],
+        argv: ['npx', '-y', skillsSpec(ctx), 'remove', name, ...flags, '-y'] });
     // A name the library does not know is not one BenchKeeper installed: offered, not preselected.
     } else for (const { dir: d } of present) add(`remove:${name}`, `remove ${rel(join(d, name))}${why}`, { kind: 'remove', path: join(d, name), selected: !!s });
   };
@@ -459,21 +463,22 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // A community skill keeps its earlier commit while it is turned off (the parked copy is that one), and when its
   // install was not chosen or failed in the run that writes this file (apply passes the run to edit).
   // Its hash is the folder as the install left it (a later edit shows as a difference); kept while no install ran.
-  const recorded = (s, run) => {
-    if (s.source === 'own' || !s.ref) return {};
+  const recorded = (s, run, runCtx) => {
+    if (s.source === 'own') return {};
     const id = installs.get(s.name);
     const ran = !id || !run || run.entries.some((e) => e.id === id && e.status === 'done');
     const fresh = id && run && ran && !a.disabled.includes(s.name);
-    // A skill adopted with its folder as it is has no commit to claim: reset takes it to the pin.
+    // A skill adopted with its folder as it is has no commit to claim; an update records the commit of the default branch.
     const adopted = !id && a.pick.includes(s.name) && !installedRefs.has(s.name);
-    const ref = a.disabled.includes(s.name) || !ran || adopted ? installedRefs.get(s.name) : s.ref;
+    const ref = a.disabled.includes(s.name) || !ran || adopted || !fresh ? installedRefs.get(s.name) : headCommit(runCtx, s.source) ?? installedRefs.get(s.name);
     const at1 = fresh && skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map((x) => join(x.dir, s.name)).find(exists);
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, prev, ran: ranFw(run) }),
-    skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
-  add('state', `${STATE}: setup version ${appVersion}`, { kind: 'write', path: at(STATE), edit: (_, run) => `${JSON.stringify(state(run), null, 2)}\n` });
+  const state = (run, runCtx) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, prev, ran: ranFw(run) }),
+    skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
+  // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
+  add('state', `${STATE}: setup version ${appVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
   // Local: everything above goes to the repository's exclude list ($GIT_COMMON_DIR/info/exclude, shared by its
   // worktrees), so git status stays clean. Files git already tracks stay tracked until a pull request removes them

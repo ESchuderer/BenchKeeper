@@ -32,40 +32,29 @@ export const PIN_DATES = {
   [`skills@${SKILLS_CLI}`]: '2026-10-09T16:49:31Z',
   '13e4063a1cf913f5606d57d42ab83a86f5001e04': '2026-10-09T17:54:46Z',
   '5df4fef9177fda93446fa35e38ab7b44fedb3e16': '2026-10-19T00:29:54Z',
-  '16352ac229eb08a9598dcae48fe9f2b342567d86': '2026-10-16T23:04:13Z',
-  '24fe0ef7737efae15c87225755e9f6f5965e4888': '2026-10-04T12:48:05Z',
 };
-export const PONYTAIL_REF = 'v5.3.2';
-export const MATT_POCOCK_REF = 'v1.3.1';
-// The commits the tags point to (git ls-remote <repository> '<tag>^{}'), bumped with the tags. Codex adds a marketplace at
-// a commit. Claude Code only takes a branch or tag there, so the installed commit it records is compared with this one.
-export const PONYTAIL_COMMIT = '16352ac229eb08a9598dcae48fe9f2b342567d86';
-export const MATT_POCOCK_COMMIT = '24fe0ef7737efae15c87225755e9f6f5965e4888';
-// Pinned plugins: ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
+// ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
 // BenchKeeper's marketplace follows the branch stable, which each release moves, so an update is a marketplace refresh: moving
-// a marketplace to another ref removes it and the plugin's data. Matt Pocock's Claude Code plugin comes from the official
-// marketplace, which pins its own commit.
+// a marketplace to another ref removes it and the plugin's data. Third-party plugins (Ponytail, Matt Pocock) have no ref and
+// no version: the marketplace is added as the agent's own add command does, and the agent's normal update keeps it current.
 export const PLUGINS = {
   claude: [
     { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
-    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, commit: PONYTAIL_COMMIT, version: PONYTAIL_REF.slice(1) },
-    { id: 'mattpocock-skills@claude-plugins-official', marketplace: 'claude-plugins-official', version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
+    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail' },
+    { id: 'mattpocock-skills@claude-plugins-official', marketplace: 'claude-plugins-official', pack: 'matt-pocock' },
   ],
   codex: [
     { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
-    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail', ref: PONYTAIL_REF, commit: PONYTAIL_COMMIT, version: PONYTAIL_REF.slice(1) },
-    { id: 'mattpocock-skills@mattpocock', marketplace: 'mattpocock', source: 'mattpocock/skills', ref: MATT_POCOCK_REF, commit: MATT_POCOCK_COMMIT, version: MATT_POCOCK_REF.slice(1), pack: 'matt-pocock' },
+    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail' },
+    { id: 'mattpocock-skills@mattpocock', marketplace: 'mattpocock', source: 'mattpocock/skills', pack: 'matt-pocock' },
   ],
 };
 // The ref and version a plugin is pinned to, for this app version.
 export function pin(p, appVersion) {
-  const app = (x) => (x === 'app' ? appVersion : x);
-  return { ref: p.ref, ...(p.commit ? { commit: p.commit } : {}), version: app(p.version) };
+  return { ref: p.ref, version: p.version === 'app' ? appVersion : p.version };
 }
-// What a marketplace add names for an agent: Codex the pinned commit, Claude Code the tag or branch.
-export const marketRef = (p, a, appVersion) => (a === 'codex' ? pin(p, appVersion).commit ?? p.ref : p.ref);
-// A recorded commit may be abbreviated.
-const sameCommit = (a, b) => a.length >= 7 && b.length >= 7 && (a.startsWith(b) || b.startsWith(a));
+// What a marketplace add names: the source, at the ref when the plugin has one (Claude Code `source#ref`, Codex `source@ref`).
+export const marketSource = (p, a) => `${p.source}${p.ref ? `${a === 'claude' ? '#' : '@'}${p.ref}` : ''}`;
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 const ORCA_FILES = ['worker-spec.md', 'orca.yaml.sample', 'worktreeinclude.sample'];
@@ -234,15 +223,13 @@ export function globalPlan(env) {
       }
       const { ref, version } = pin(p, ctx.appVersion);
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
-      const marketAt = marketRef(p, a, ctx.appVersion);
-      const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', `${p.source}${a === 'claude' ? '#' : '@'}${marketAt}`, ...sparse];
+      const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', marketSource(p, a), ...sparse];
       const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
       // A marketplace added at another ref stays there: moving it means removing it, which deletes the plugin's
       // options and data in Claude Code. The plan names the commands instead of promising the version.
-      // The tag and the commit it points to are the same pin.
-      const stuck = refs[p.marketplace] && p.source && ![ref, p.commit].includes(refs[p.marketplace]) && markets.includes(p.marketplace);
+      const stuck = ref && refs[p.marketplace] && p.source && refs[p.marketplace] !== ref && markets.includes(p.marketplace);
       const byHand = `By hand: ${a} plugin marketplace remove ${p.marketplace}, then ${addMarket?.join(' ')}, then ${install.join(' ')}`;
-      const manual = (title, outdated = false) => add(step, `${title}: by hand`, { kind: 'command', argv: addMarket, outdated, error: `the ${p.marketplace} marketplace is at ${refs[p.marketplace]}, not ${marketAt}; moving it removes the plugin's data. ${byHand}` });
+      const manual = (title, outdated = false) => add(step, `${title}: by hand`, { kind: 'command', argv: addMarket, outdated, error: `the ${p.marketplace} marketplace is at ${refs[p.marketplace]}, not ${ref}; moving it removes the plugin's data. ${byHand}` });
       // Installed but turned off: Claude Code turns it on in settings (undone by the file's backup); Codex by hand.
       if (off) {
         if (a === 'claude') add(step, `${name} plugin ${p.id}: turn on`, { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['enabledPlugins', p.id], value: true }]) });
@@ -252,16 +239,11 @@ export function globalPlan(env) {
       // The entry is there, its files are not: install again.
       if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
       if (have) {
-        // Same version, other commit: the tag moved after the marketplace was added (Claude Code takes no commit, so the commit it recorded is checked).
-        if (p.commit && have.commit && semver(have.version) && bySemver(have.version, version) === 0 && !sameCommit(have.commit, p.commit)) {
-          add(step, `${name} plugin ${p.id} ${have.version}: installed from another commit than the pin: by hand`, { kind: 'command', argv: addMarket, error: `${p.id} was installed from commit ${have.commit.slice(0, 12)}, the pin for ${have.version} is ${p.commit.slice(0, 12)}: the tag moved, or the files changed. Review it, then: ${a} plugin uninstall ${p.id}, ${byHand}` });
-          continue;
-        }
         if (stuck && semver(have.version) && bySemver(have.version, version) < 0) { manual(`${name} plugin ${p.id} ${have.version} to ${version}`, true); continue; }
         // Older than the pin: refresh the marketplace and update. Newer stays (Codex installs Ponytail from its main
         // branch whatever the ref). Removing the marketplace to move its ref would delete the plugin's options and
         // data in Claude Code, so a marketplace added at an older ref stays there and the plugin stays outdated.
-        if (!semver(have.version) || bySemver(have.version, version) >= 0) continue;
+        if (!ref || !semver(have.version) || bySemver(have.version, version) >= 0) continue;
         const title = `${name} plugin ${p.id} ${have.version} to ${version}`;
         add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace], outdated: true, unit: step });
         add(step, title, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install, outdated: true, unit: step });

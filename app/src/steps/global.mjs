@@ -242,9 +242,18 @@ export function globalPlan(env) {
       // The entry is there, its files are not: install again.
       if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
       if (have) {
-        // Same version, other commit: the tag moved after the marketplace was added (Claude Code takes no commit, so the commit it recorded is checked).
+        // Same version, other commit: the tag moved, or the marketplace was added from the branch (Claude Code takes no commit, so the commit it recorded is checked).
+        // Offered, not preselected: the plugin runs a hook, so its code is reviewed first, and removing the marketplace deletes the plugin's options and data.
         if (p.commit && have.commit && semver(have.version) && bySemver(have.version, version) === 0 && !sameCommit(have.commit, p.commit)) {
-          add(step, `${name} plugin ${p.id} ${have.version}: installed from another commit than the pin: by hand`, { kind: 'command', argv: addMarket, error: `${p.id} was installed from commit ${have.commit.slice(0, 12)}, the pin for ${have.version} is ${p.commit.slice(0, 12)}: the tag moved, or the files changed. Review it, then: ${a} plugin uninstall ${p.id}, ${byHand}` });
+          const [pinned, found] = [p.commit, have.commit].map((c) => c.slice(0, 12));
+          const title = `${name} plugin ${p.id} ${have.version}: reinstall at the pin ${pinned}, installed from commit ${found}`;
+          if (!addMarket) { add(step, `${title}: by hand`, { kind: 'command', argv: install, error: `${p.id} was installed from commit ${found}, the pin for ${have.version} is ${pinned}. Review it, then reinstall at the pin.` }); continue; }
+          const review = `review first: https://github.com/${p.source}/compare/${pinned}...${found}`;
+          const uninstall = a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id];
+          add(step, `${title} (${review}): uninstall`, { kind: 'command', argv: uninstall, undoArgv: install, destructive: true, unit: step });
+          add(step, `${title}: remove the ${p.marketplace} marketplace`, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], destructive: true, unit: step });
+          add(step, `${title}: add the ${p.marketplace} marketplace at ${marketAt}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], destructive: true, unit: step });
+          add(step, `${title}: install`, { kind: 'command', argv: install, undoArgv: uninstall, destructive: true, unit: step });
           continue;
         }
         if (stuck && semver(have.version) && bySemver(have.version, version) < 0) { manual(`${name} plugin ${p.id} ${have.version} to ${version}`, true); continue; }

@@ -300,7 +300,7 @@ test('pins: Codex adds a marketplace at the pinned commit, Claude Code at the ta
   assert.match(globalPlan({ ctx, agents: ['codex'] }).find((c) => c.step === 'plugin:codex:ponytail@ponytail').error, new RegExp(`at v5\\.2\\.0, not ${PONYTAIL_COMMIT}`));
 });
 
-test('pins: an installed Claude Code plugin at the pin version from another commit is flagged, never reinstalled', () => {
+test('pins: an installed Claude Code plugin at the pin version from another commit is offered as a reinstall at the pin, never selected', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-sha-'));
   const ctx = context({ home, appVersion: '6.0.0', run: () => ({ code: 1, stdout: '', stderr: '' }) });
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
@@ -315,11 +315,18 @@ test('pins: an installed Claude Code plugin at the pin version from another comm
   installed({ gitCommitSha: PONYTAIL_COMMIT.slice(0, 12) });
   assert.deepEqual(steps(), [], 'an abbreviated commit is the same commit');
   installed({ gitCommitSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' });
-  const [flag] = steps();
-  assert.equal(steps().length, 1);
-  assert.match(flag.error, /installed from commit deadbeefdead, the pin for 5\.3\.2 is 16352ac229eb/);
-  assert.equal(preview([flag])[0].selected, false);
-  assert.equal(apply([flag], ctx, { select: [flag.id] }).entries.length, 0);
+  const found = steps();
+  assert.deepEqual(found.map((c) => c.argv.join(' ')), [
+    'claude plugin uninstall ponytail@ponytail',
+    'claude plugin marketplace remove ponytail',
+    'claude plugin marketplace add DietrichGebert/ponytail#v5.3.2',
+    'claude plugin install ponytail@ponytail',
+  ]);
+  assert.ok(found.every((c) => c.destructive && c.unit === found[0].unit));
+  assert.match(found[0].title, /installed from commit deadbeefdead/);
+  assert.match(found[0].title, /compare\/16352ac229eb\.\.\.deadbeefdead/);
+  assert.deepEqual(preview(found).map((c) => c.selected), [false, false, false, false]);
+  assert.equal(apply(found, ctx, { select: [] }).entries.length, 0);
 });
 
 test('Orca worker spec and setup samples: offered only with Orca installed, off by default, written to the config folder, undone', () => {

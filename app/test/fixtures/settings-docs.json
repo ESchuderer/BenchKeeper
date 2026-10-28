@@ -1,5 +1,5 @@
 {
- "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
+ "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
  "fetched": "2026-10-25",
  "pages": {
   "https://code.claude.com/docs/en/advisor": [
@@ -17,7 +17,8 @@
    "ng the tool by its position](https://code.claude.com/docs/en/errors.md#tool-input-schema-is-invalid) * Have Claude Code [compact a long conversation while your terminal session is idle](https://code.claude.com/docs/en/settings-reference.md#idlecompaction), shortly before a one-hour prompt cache expires #",
    " screen command | | `DISABLE_ERROR_REPORTING` | Set to any non-empty value, such as `1`, to opt out of error reporting. **Setting it to `0` or `false` still opts out**, unlike most on/off variables; unset the variable to turn error reporting back on | | `DISABLE_EXTRA_USAGE_COMMAND` | S",
    "nd-source-re-runs), which are local commands rather than network traffic, because they can trigger dependency installs. **Setting it to `0` or `false` still disables this traffic**, unlike most on/off variables; unset the variable to allow it again. Also disables feature-flag fetching, which makes [",
-   "s and traces go there instead of to the configured exporters. Set it in your shell, user settings, or managed settings. Ignored in [project and local settings](https://code.claude.com/docs/en/settings-reference.md#variables-claude-code-ignores-in-env) | | `CCR_FORCE_BUNDLE` | Se"
+   "s and traces go there instead of to the configured exporters. Set it in your shell, user settings, or managed settings. Ignored in [project and local settings](https://code.claude.com/docs/en/settings-reference.md#variables-claude-code-ignores-in-env) | | `CCR_FORCE_BUNDLE` | Se",
+   "s 1-hour cache writes at a higher rate. Requires Claude Code v2.1.242 or later | | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | Set to `1` to strip credentials from the environments of the subprocesses Claude Code starts, such as Bash commands, hooks, and stdio MCP servers. The scrub recognizes a credential by its variable name or its val"
   ],
   "https://code.claude.com/docs/en/settings-reference": [
    "ore it saved levels per model, and it keeps applying where it applied before, on Opus 5, Fable 5.1, and earlier models. Opus 5.5 and models released after it ignore it and start at their own default until you save a level for them, which `/effort` writes under [`modelSettings`](#modelsettings). In project, local, and managed settings, and with `--s",
@@ -31,6 +32,10 @@
    " :read-only , :workspace , and :danger-full-access ; custom profile names require matching [permissions.<name>] tables. Don't combine with sandbox_mode or [sandbox_workspace_write] . desktop.custom_file_handlers.<id> table User-level only. Defines an additional Open in target for the ChatGPT desktop",
    "n Codex CLI, false also disables custom OTLP metrics exporters. When unset, the client default applies. approval_policy on-request | never | { granular = { sandbox_approval = bool, rules = bool, mcp_elicitations = bool, request_permissions = bool, skill_approv",
    "rkers array<string> List of project root marker filenames; used when searching parent directories for the project root. projects.<path>.trust_level string Mark a project or worktree as trusted or untrusted ( \"trusted\" | \"untrusted\" ). Untrusted projects skip project-"
+  ],
+  "https://code.claude.com/docs/en/permissions": [
+   "or the compound command to be allowed. ### Read and Edit To block Claude's file tools from reading a file or directory, add a `Read` deny rule for its path, such as `Read(./.env)` or `Read(./secrets/**)`; [Exclude sensitive files](https://code.claude.com/docs/en/settings-ref",
+   "ead`, `tail`, `sed`, and `tee`, and to the targets of Bash [redirections](#redirections) such as `> file` and `< file`. They don't apply to a command that reads files without naming them, such as `grep -r pattern .` run from the directory that holds the file, or to arbitrary subprocesses that read or writ"
   ]
  }
 }

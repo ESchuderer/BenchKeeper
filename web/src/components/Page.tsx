@@ -21,6 +21,8 @@ const theme = createTheme({
 });
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
+const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research';
+const SETUP = `${REPO}/blob/main/docs/setup.md`;
 // Backticks in facts.json become inline code, the same text the README renders.
 const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
 
@@ -68,10 +70,10 @@ function StepList({ from, className }: { from: number; className?: string }) {
 }
 
 const repoSteps: [string, string, string][] = [
-  ['Project setup, in each repository root', 'npx benchkeeper@6.17.0 project apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. project plan shows the changes first.'],
-  ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.17.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
-  ['Update later', 'npx benchkeeper@6.17.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.17.0 update-all, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
-  ['Track sessions', 'npx benchkeeper@6.17.0 board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
+  ['Project setup, in each repository root', 'npx benchkeeper@6.24.0 project apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. project plan shows the changes first.'],
+  ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.24.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
+  ['Update later', 'npx benchkeeper@6.24.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.24.0 update-all, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
+  ['Track sessions', 'npx benchkeeper@6.24.0 board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
 ];
 
 function CmdRow({ cmd, note }: { cmd: string; note: ReactNode }) {
@@ -163,7 +165,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
               The smallest complete change: reuse before new code, no unrequested options, a test for new logic, <Code>shortcut:</Code> comments for known limits.
             </Part>
             <Part icon={<IconRoute size={20} />} title="The app and the setup skills" href={`${REPO}/tree/main/app`} scope="On request">
-              <Code>npx benchkeeper@6.17.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates every project, and the Sessions board tracks tier, cost and outcome per session. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass, <Code>/benchkeeper:orchestrating-projects</Code> coordinates workers on labeled issues across projects.
+              <Code>npx benchkeeper@6.24.0</Code> sets up the machine and each repository, shows every change first and records each run for undo. Its Dashboard reports drift, Fix everything applies the global plan and updates every project, and the Sessions board tracks tier, cost and outcome per session. <Code>/benchkeeper:setting-up-projects</Code> adds stack skills and the dev container, <Code>/benchkeeper:maintaining-repos</Code> runs a maintenance pass, <Code>/benchkeeper:orchestrating-projects</Code> coordinates workers on labeled issues across projects.
             </Part>
             <Part icon={<IconContainer size={20} />} title="Devcontainer and Playwright" href="https://code.visualstudio.com/docs/devcontainers/devcontainer-cli" scope="Per repository">
               Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the <Anchor href={`${REPO}/blob/main/plugins/benchkeeper/library/README.md`}>BenchKeeper library</Anchor>, stack skills from <Anchor href="https://github.com/vercel-labs/skills">find-skills</Anchor>, at most two per technology.
@@ -189,13 +191,13 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             {facts.frameworks.items.map((f) => (
               <Paper key={f.name} withBorder p="lg" radius="lg">
                 <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
-                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/develop/${f.evaluation}`}>Evaluation</Anchor></Text>
+                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/main/${f.evaluation}`}>Evaluation</Anchor></Text>
               </Paper>
             ))}
           </SimpleGrid>
         </Section>
 
-        <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Anchor href={`${REPO}#prerequisites`}>Full list of tools.</Anchor> {facts.quickstart.choose} <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
+        <Section id="start" title="Quick start" intro={<>{facts.quickstart.needs} <Anchor href={`${SETUP}#prerequisites`}>Full list of tools.</Anchor> {facts.quickstart.choose} <Anchor href={`${base}/app/`}>The app, view by view, with screenshots.</Anchor></>}>
           <Stack gap="lg" maw={760}>
             <div className="qs">
               <div role="tablist" aria-label="Install path" className="qs-tabs" hidden>
@@ -214,7 +216,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             </div>
             <Text size="sm">{facts.quickstart.next} {md(facts.quickstart.changes)}</Text>
             <Group gap="md">
-              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : `${REPO}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
+              {facts.quickstart.links.map((l) => <Anchor key={l.anchor} href={l.anchor === 'levels' ? `#${l.anchor}` : `${SETUP}#${l.anchor}`} size="sm">{l.label}</Anchor>)}
             </Group>
             <VisuallyHidden aria-live="polite" data-copy-status></VisuallyHidden>
           </Stack>
@@ -238,7 +240,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           <List spacing="sm" maw={760}>
             {reasons.map(([k, v]) => <List.Item key={k}><Text span fw={700}>{k}:</Text> {v}</List.Item>)}
           </List>
-          <Text size="sm" mt="lg">For details, check the full data: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>evaluations</Anchor>, <Anchor href={`${base}/bench/`}>benchmark pages</Anchor>.</Text>
+          <Text size="sm" mt="lg">For details, check the full data: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>evaluations</Anchor>, <Anchor href={`${RESEARCH}#recorded-results`}>benchmark results</Anchor>.</Text>
         </Section>
 
         <Section id="where" title="Where things run" intro="By default the agent runs inside the repository's dev container, together with the project commands. With --env host-agent it stays on the host and sends project commands through devcontainer exec.">

@@ -1,6 +1,6 @@
 {
   "name": "benchkeeper",
-  "version": "6.17.0",
+  "version": "6.24.0",
   "description": "Installs, updates and undoes the BenchKeeper agent setup, globally and per project, for Claude Code, Codex, Gemini CLI and GitHub Copilot.",
   "license": "MIT",
   "type": "module",
@@ -23,8 +23,8 @@
   },
   "scripts": {
     "build": "vite build",
-    "test": "node --test test/*.test.mjs",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=\"src/**\" --test-coverage-include=\"ui/*.js\" --test-coverage-exclude=ui/api.js --test-coverage-lines=97 --test-coverage-branches=89 --test-coverage-functions=94 test/*.test.mjs",
+    "test": "node --import ./test/setup.mjs --test test/*.test.mjs",
+    "test:coverage": "node --import ./test/setup.mjs --test --experimental-test-coverage --test-coverage-include=\"src/**\" --test-coverage-include=\"ui/*.js\" --test-coverage-exclude=ui/api.js --test-coverage-lines=97 --test-coverage-branches=89 --test-coverage-functions=94 test/*.test.mjs",
     "test:ui": "playwright test",
     "prepack": "node scripts/content.mjs && vite build",
     "postpack": "node scripts/content.mjs --clean",

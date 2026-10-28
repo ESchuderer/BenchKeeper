@@ -34,7 +34,8 @@ const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getB
 const VIEWS = [
   // Scrolled to Health: the flow boxes above it are four numbers, the health, coverage and catalog figures are the view.
   ['dashboard', async (page) => { await page.getByRole('region', { name: 'Health' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); }); }],
-  ['doctor', async (page) => { await page.getByRole('region', { name: 'Doctor' }).scrollIntoViewIfNeeded(); }, (page) => page.getByRole('region', { name: 'Doctor' })],
+  // A taller window: the table is longer than 900 pixels and the sticky header would cover its title.
+  ['doctor', async (page) => { await page.setViewportSize({ width: 1600, height: 1400 }); await page.getByRole('region', { name: 'Doctor' }).scrollIntoViewIfNeeded(); }, (page) => page.getByRole('region', { name: 'Doctor' })],
   ['fix', async (page) => {
     await page.getByRole('button', { name: 'Fix everything' }).click();
     await expect(page.getByRole('dialog', { name: 'Fix everything' }).getByRole('checkbox').first()).toBeVisible();
@@ -91,6 +92,7 @@ try {
       await context.addInitScript((k) => localStorage.setItem('benchkeeper-key', k), key);
     }
     for (const [name, steps, cut] of VIEWS) {
+      await page.setViewportSize({ width: 1600, height: 900 });
       await page.goto('/');
       await expect(page.getByRole('heading', { level: 1, name: 'BenchKeeper' })).toBeVisible();
       await steps(page);

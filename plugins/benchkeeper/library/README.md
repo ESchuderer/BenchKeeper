@@ -1,10 +1,10 @@
 # Skill library
 
-Skills that the app (`npx benchkeeper@6.17.0 project apply --pack <id> --skill <name>`) or `setting-up-projects` installs into a project. A pack with a plugin (`matt-pocock`) installs that plugin globally, through the agent's plugin command. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. The source of these tables is `library.json` (`node .github/scripts/library-readme.mjs` writes them, CI checks them). Nothing here duplicates the global setup (Ponytail, the BenchKeeper skills, find-skills, and Matt Pocock's skills when installed) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
+Skills that the app (`npx benchkeeper@6.24.0 project apply --pack <id> --skill <name>`) or `setting-up-projects` installs into a project. A pack with a plugin (`matt-pocock`) installs that plugin globally, through the agent's plugin command. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. The source of these tables is `library.json` (`node .github/scripts/library-readme.mjs` writes them, CI checks them). Nothing here duplicates the global setup (Ponytail, the BenchKeeper skills, find-skills, and Matt Pocock's skills when installed) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
 
 Install, from the project root, for the selected agents only:
 - Own skill (folder next to this file): copy it to `.agents/skills/<name>/` (Codex) and `.claude/skills/<name>/` (Claude Code). Codex ignores the `paths` key.
-- Community skill: `DO_NOT_TRACK=1 npx -y skills@npm:skills@1.7.2 add https://github.com/<source>/tree/<ref> -s <skill> <agent-flags> --copy -y`, with `ref` from `library.json` (the `npm:` alias runs the registry package, never a `skills` in the project's `node_modules`). The project's `skills-lock.json` records the ref and pins the content.
+- Community skill: `DO_NOT_TRACK=1 npx -y skills@npm:skills@1.7.2 add https://github.com/<source> -s <skill> <agent-flags> --copy -y`, from the source's default branch (the `npm: alias runs the registry package, never a `skills` in the project's `node_modules`). The project's state file records the commit the install got, and `skills-lock.json` its content hash.
 
 <!-- generated:catalog -->
 ## Own

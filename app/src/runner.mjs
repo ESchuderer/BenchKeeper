@@ -40,7 +40,8 @@ export function context({ home, config = `${home}/.config/benchkeeper`, roots = 
 }
 
 // runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last keep
-// characters. A command still running after timeout ms, or when signal aborts, gets SIGTERM, grace ms later SIGKILL, and fails.
+// characters. onStart(stdin) gives the command a pipe as its input (a sign-in that asks for a pasted code). A command
+// still running after timeout ms, or when signal aborts, gets SIGTERM, grace ms later SIGKILL, and fails.
 // Agents start helpers that outlive their parent, so each command runs in a process group of its own and a stop reaches
 // the whole group. Groups still running when the app ends are killed: Ctrl+C no longer reaches them through the terminal.
 const groups = new Set();
@@ -60,13 +61,15 @@ const watchExit = () => {
   for (const [sig, n] of [['SIGINT', 2], ['SIGTERM', 15], ['SIGHUP', 1]]) process.once(sig, () => process.exit(128 + n));
 };
 
-export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, timeout = 15 * 60e3, keep = 65536, grace = 10e3, signal } = {}) {
+export function runCommandAsync(argv, { cwd, env, onOutput = () => {}, onStart, timeout = 15 * 60e3, keep = 65536, grace = 10e3, signal } = {}) {
   return new Promise((resolve) => {
     let stdout = '', stderr = '', timedOut = false, settled = false, cancelled = false;
     const done = (r) => { if (!settled) { settled = true; groups.delete(p); clearTimeout(term); clearTimeout(kill); signal?.removeEventListener('abort', stop); resolve(r); } };
     const tail = (t) => t.slice(-keep);
-    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'], detached: ownGroup });
+    const p = spawn(argv[0], argv.slice(1), { cwd, env: env ?? process.env, stdio: [onStart ? 'pipe' : 'ignore', 'pipe', 'pipe'], detached: ownGroup });
     if (p.pid) { groups.add(p); watchExit(); }
+    // A command that ends first closes the pipe: a late write must not throw.
+    if (onStart) { p.stdin.on('error', () => {}); onStart(p.stdin); }
     const stopped = () => (cancelled ? { code: 130, stdout, stderr: `${stderr}\ncancelled` } : { code: 124, stdout, stderr: `${stderr}\nstopped after ${timeout / 60e3} minutes` });
     let kill;
     const stop = () => {
@@ -104,7 +107,7 @@ export function preview(changes) {
       let after;
       try { after = c.edit ? c.edit(before) : c.after; } catch (e) { return { ...c, error: e.message, diff: '', noop: false, selected: false }; }
       planned.set(c.path, after);
-      return { ...c, after, diff: diffLines(before, after, c.path), noop: before === after, ...(c.edit ? {} : { planHash: hashPath(real(c.path)) }) };
+      return { ...c, after, diff: diffLines(before, after, c.path), noop: before === after && !c.always, ...(c.edit ? {} : { planHash: hashPath(real(c.path)) }) };
     }
     if (c.kind === 'remove') return { ...c, destructive: true, noop: !exists(c.path) };
     return { ...c, noop: false };
@@ -120,7 +123,9 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
   const run = { schema: SCHEMA, id: runId(), time: new Date().toISOString(), appVersion: ctx.appVersion, kind: 'apply', scope, ...(note ? { note } : {}), entries: [] };
   // Changes of one unit (a copy and the removal of its source, a marketplace and its plugin) go together or not at all.
   // A change that cannot be made (c.error) is never applied.
-  const picked = (c) => !c.error && (select ? select.includes(c.id) : (c.selected ?? !c.destructive));
+  // A change that replaces another (c.replaces is its id) wins when both are chosen: the replaced one is not applied.
+  const chosen = (c) => !c.error && (select ? select.includes(c.id) : (c.selected ?? !c.destructive));
+  const picked = (c) => chosen(c) && !changes.some((x) => x.replaces === c.id && chosen(x));
   for (const c of changes) {
     const unit = c.unit && changes.filter((x) => x.unit === c.unit);
     if (unit && unit.some(picked) && !unit.every(picked)) throw new Error(`${unit.map((x) => x.title).join(' and ')} go together: choose all of them or none`);
@@ -172,8 +177,8 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
         // A whole-file write is what the preview showed only while the file is as it was then (an earlier change of this run excepted).
         if ('planHash' in c && !run.entries.some((x) => x.path === path && x.status === 'done') && entry.hashBefore !== c.planHash) throw new Error(`${path} changed since the plan: make the plan again`);
         // Edits apply to the file as it is now, so a deselected earlier edit is not carried along.
-        // edit also gets the run so far, so a change can depend on how earlier ones went.
-        const after = c.kind === 'write' && c.edit ? c.edit(readText(path), run) : c.after;
+        // edit also gets the run so far, so a change can depend on how earlier ones went, and the context the run uses.
+        const after = c.kind === 'write' && c.edit ? c.edit(readText(path), run, ctx) : c.after;
         if (entry.existed) entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, path);
         // Journaled before the first change: after a crash undo finds the backup (or refuses a missing one).
         Object.assign(entry, { status: 'running', touched: true });

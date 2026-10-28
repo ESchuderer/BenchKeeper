@@ -218,17 +218,25 @@ function lookup(state, agentId, key, layers) {
 function holds(c, state, agentId) {
   if (c.all) return c.all.every((x) => holds(x, state, agentId));
   if (c.any) return c.any.some((x) => holds(x, state, agentId));
+  if (c.not) return !holds(c.not, state, agentId);
   if (c.op === 'advisorBelowMain') {
     const [advisor] = lookup(state, agentId, 'advisorModel'), [main] = lookup(state, agentId, 'model');
     const a = rankOf(advisor), m = rankOf(main);
     return a != null && m != null && a < m;
+  }
+  if (c.op === 'credentialReadsOpen') {
+    // A deny in any layer wins. shortcut: the rule's text is matched, not its glob. Anchors that reach a home folder: the home anchor, //**/ and an absolute path below a Linux, macOS or root home folder (the user is not compared). A ./ rule is the project's, any other absolute path is another folder.
+    const reads = lookup(state, agentId, 'permissions.deny').flat().filter((r) => typeof r === 'string').map((r) => r.match(/^Read\((?:~\/|\/\/\*\*\/|\/\/(?:home|Users)\/[^/)]+\/|\/\/root\/)([^)]*)\)$/)?.[1]).filter((r) => r !== undefined);
+    // What follows the anchor must be the folder itself, bare or followed by /* or /**: a rule for one file in it, for .ssh-backup or for work/.ssh does not count.
+    return COUPLINGS.credentialDirs.some((d) => !reads.some((r) => new RegExp(`^${d.slice(1).replaceAll('.', '\\.')}(/\\*{1,2})?$`).test(r)));
   }
   if (c.op === 'effortDiffers') {
     const top = lookup(state, agentId, 'effortLevel', ['user'])[0], saved = lookup(state, agentId, 'modelSettings', ['user'])[0];
     return top !== undefined && Object.values(saved ?? {}).some((m) => m?.effortLevel !== undefined && m.effortLevel !== top);
   }
   if (c.keyPrefix) return state.layers.filter((l) => !c.layer || c.layer.includes(l.layer)).some((l) => Object.keys(dig(l.data, pathOf(c.keyPrefix.replace(/\.[^.]*$/, ''))) ?? {}).some((k) => `env.${k}`.startsWith(c.keyPrefix)));
-  const values = lookup(state, agentId, c.key, c.layer);
+  // effective: only the value Claude Code uses, the highest layer, else the process environment (a settings env value overrides the shell's).
+  const values = c.effective ? lookup(state, agentId, c.key, c.layer).slice(0, 1) : lookup(state, agentId, c.key, c.layer);
   const isZero = SWITCHES(agentId).find((s) => `${s.key}` === c.key)?.zeroIsSet;
   return values.some((v) => {
     if (c.set) return true;
@@ -243,10 +251,10 @@ function holds(c, state, agentId) {
 }
 
 // Findings for the rules of one agent over the given layers: [{ id, level, message, fix, source, keys, key? }].
-export function notes(agentId, layers, { env, onlyDoctor = false } = {}) {
+export function notes(agentId, layers, { env, onlyDoctor = false, partial = false } = {}) {
   const state = { layers, env };
   const out = [];
-  for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor))) {
+  for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor) && !(partial && x.needsAll))) {
     const expand = r.forEach === 'zeroIsSet' ? SWITCHES(agentId).filter((s) => s.zeroIsSet).map((s) => s.key) : [null];
     for (const key of expand) {
       const fill = (s) => (key ? s.replaceAll('{key}', key) : s);
@@ -302,7 +310,7 @@ function unknownKeys(agentId, layers, known) {
 export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) {
   const a = agentSettings(agentId);
   const layers = readSettings(ctx, agentId, { dir });
-  const found = notes(agentId, layers, { env });
+  const found = notes(agentId, layers, { env, partial: layers.some((l) => l.error) });
   const row = (def) => {
     const vals = valuesOf(layers, agentId, def.key);
     const eff = vals[0];
@@ -441,8 +449,10 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
       out.push(issue('error', `${name} cannot read ${l.path}: ${l.error}${id === 'claude' ? '; it skips the whole file' : ''}`, 'fix the file by hand, then run benchkeeper doctor again', l.layer === 'user' ? undefined : dir));
     }
     const readable = all.filter((l) => !l.error);
-    const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, onlyDoctor: true }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, onlyDoctor: true }).filter((x) => !before.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
+    // A file that cannot be read may hold what a rule about a missing setting looks for.
+    const partial = readable.length < all.length;
+    const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
+    for (const n of notes(id, readable, { env, onlyDoctor: true, partial }).filter((x) => !before.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
     if (id === 'codex' && !dir) {
       for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }

@@ -3,10 +3,10 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASELINE_REPO, CALLERS, PROFILES, REF } from '../src/baseline.mjs';
+import { BASELINE_REPO, CALLERS, PROFILES, REF, TEMPLATES } from '../src/baseline.mjs';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '../src/baseline');
-const files = [...PROFILES.map((p) => `profiles/${p}.json`), ...CALLERS.map((c) => `callers/${c}.yml`)];
+const files = [...PROFILES.map((p) => `profiles/${p}.json`), ...CALLERS.map((c) => `callers/${c}.yml`), ...TEMPLATES.map((t) => `templates/${t}`)];
 let differ = 0;
 for (const f of files) {
   const r = await fetch(`https://raw.githubusercontent.com/${BASELINE_REPO}/${REF}/${f}`);

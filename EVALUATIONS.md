@@ -1,6 +1,6 @@
 # Evaluations
 
-Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Quality bar check (skill libraries only, [library quality bar](evaluations/skill-libraries/library-quality-bar.md)), Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-25 (each file names its date).
+Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Quality bar check (skill libraries only, [library quality bar](evaluations/skill-libraries/library-quality-bar.md)), Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-26 (each file names its date).
 
 SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#external-benchmark-pilot-slopcodebench-v123) separates natural skill selection from delivery and scoring failures, and pins the current setup as AO. Reference calibration also exposed a missing MIME database in the scorer image, and an `sg` name clash that skipped scb-check's ast-grep rules. No new skill-effectiveness results.
 
@@ -19,7 +19,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 
 | Component | Decision | Summary |
 |---|---|---|
-| [BenchKeeper layer](bench/SCENARIOS.md) | the setup itself | arms AL, AN (setup-v4.0 with and without Ponytail) and AM (setup-v5.0), three rounds per arm: [mistreevous](bench/results/2026-10-18-mistreevous.md), AM against plain Claude Code on opusplan: [mistreevous-opusplan](bench/results/2026-10-19-mistreevous-opusplan.md). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
+| [BenchKeeper layer](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/SCENARIOS.md) | the setup itself | arms AL, AN (setup-v4.0 with and without Ponytail) and AM (setup-v5.0), three rounds per arm: [mistreevous](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md), AM against plain Claude Code on opusplan: [mistreevous-opusplan](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-19-mistreevous-opusplan.md). setup-v6.0 (the app, the workflow skill) not measured yet: [#132](https://github.com/ESchuderer/BenchKeeper/issues/132) |
 
 ### Behavior modes
 
@@ -96,8 +96,10 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 | [Skill authoring guide (Anthropic)](evaluations/practices/skill-authoring.md) | In | 8 benchmarked collections ranked: Ponytail 3.9 first, Spec Kit 2.8 last. Only agent-skills ships evaluations |
 | [Project summary and layout in AGENTS.md](evaluations/practices/agents-md-overviews.md) | Not in | context files raised cost over 20%, no success gain, arXiv 2602.11988 |
 | [Lite install, the workflow skill without a rule line](evaluations/practices/lite-install.md) | Lite level in, trigger rate unverified | 13 eval cases exist for `workflow`; the rate without the always-on line has not been run |
+| [Decoupled modules, split before 7.0](evaluations/practices/decoupled-modules.md) | One repository and package, boundaries by folder, content contract | the engine never imports the CLI or server but both reach about 26 modules; one import cycle; app-only releases rewrite 3 files under `plugins/` (8 of 29 releases since 2026-10-12); nothing run in a session |
 | [Orchestrating projects, the coordinator skill](evaluations/practices/orchestrating-projects.md) | In, unmeasured | scenario and three checks defined (blocked worker replaced, finished worker cleaned up, no hook bypass); the checks have tests on synthetic logs, the scenario has not run |
 | [Code health pass in maintaining-repos](evaluations/practices/code-health-pass.md) | In, measured on one project | knip, jscpd, dependency-cruiser and StrykerJS run on `app/` (45 knip findings, 1 dead function, 2 real cycles, mutation scores 81.4 % and 66.4 %); Python and Rust tools and the eval set not run |
+| [Skill entry points, wrapper skills](evaluations/practices/skill-entry-points.md) | Five skills kept, no wrappers | no two entry points share a body; a wrapper needs a model-invoked block, which puts side-effect skills back in the model's reach. Skill-to-skill calls are documented for none of the four agents; nothing run in a session |
 
 Not evaluated, offered by the app without evidence gathered: Gemini CLI and GitHub Copilot CLI support (untested), Docker Sandboxes (`--env sandbox`, untested), and the Codex permission profile for setup suggestions (its arguments are tested, its enforcement in a real Codex session is unverified).
 

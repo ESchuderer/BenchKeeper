@@ -1,6 +1,6 @@
 import { Anchor, Badge, Checkbox, Group, Paper, Radio, Stack, Text } from '@mantine/core';
 
-const REPO = 'https://github.com/ESchuderer/BenchKeeper/blob/develop/';
+const REPO = 'https://github.com/ESchuderer/BenchKeeper/blob/main/';
 
 // What one framework install writes, as the list and the plan name it.
 const WRITES = { pack: 'single skills in the project (skills CLI, no plugin, no hooks)', plugin: 'a Claude Code plugin enabled for this project only', agents: 'agent files in the project, fetched at a pinned commit' };

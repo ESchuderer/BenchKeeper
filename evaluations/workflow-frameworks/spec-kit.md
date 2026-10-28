@@ -13,7 +13,7 @@
 
 ## Benchmark
 
-Arm: AC (Spec Kit alone). Brownfield run [mistreevous](../../bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 87.9 against 87.0 for plain Claude Code (A), at the same cost and 1.1 times the time. The agent never ran the Spec Kit tools. Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: AC (Spec Kit alone). Brownfield run [mistreevous](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md) on Sonnet 5.5, k = 3, descriptive only: median score 87.9 against 87.0 for plain Claude Code (A), at the same cost and 1.1 times the time. The agent never ran the Spec Kit tools. Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/SCENARIOS.md).
 
 ## Skill authoring check
 

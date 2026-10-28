@@ -9,9 +9,9 @@
 
 ## Benchmark
 
-Arm: AB (OpenSpec alone). Arm definitions: [bench/SCENARIOS.md](../../bench/SCENARIOS.md).
+Arm: AB (OpenSpec alone). Arm definitions: [bench/SCENARIOS.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/SCENARIOS.md).
 
-Brownfield run on Sonnet 5.5, Claude Code, k = 3 ([mistreevous](../../bench/results/2026-10-18-mistreevous.md)): median brownfield score 88.4 against 87.0 for plain Claude Code (A), inside the spread, at 1.1 times the cost and 1.4 times the time. The agent never ran the OpenSpec tools.
+Brownfield run on Sonnet 5.5, Claude Code, k = 3 ([mistreevous](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md)): median brownfield score 88.4 against 87.0 for plain Claude Code (A), inside the spread, at 1.1 times the cost and 1.4 times the time. The agent never ran the OpenSpec tools.
 
 ## Skill authoring check
 

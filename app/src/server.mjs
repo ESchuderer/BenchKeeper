@@ -10,6 +10,8 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, useChange } from './accounts.mjs';
+import { limitsFor, settingsOf } from './usage.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { agent, detect } from './agents.mjs';
@@ -26,6 +28,7 @@ import { frameworkRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
@@ -265,11 +268,11 @@ export function api(ctx) {
       return { cancelled: true };
     },
     // Running jobs, so a reloaded page finds them again; a plan starts its rehearsal itself.
-    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && !['prerun', 'scan'].includes(j.kind)).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
+    'GET /api/jobs': () => [...jobs.values()].filter((j) => !j.done && !['prerun', 'scan', 'login'].includes(j.kind)).map((j) => ({ id: j.id, kind: j.kind, title: j.title, total: j.total })),
     'GET /api/job': (q) => {
       const job = jobs.get(q.get('id') ?? '');
       if (!job) throw Object.assign(new Error('no such job'), { status: 404 });
-      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null,
+      return { total: job.total, done: job.done, cancelled: job.ctl.signal.aborted, error: job.error ?? null, output: job.output, run: job.run && { ...job.run, entries: [...job.run.entries] }, progress: job.progress ?? null, results: job.results ?? null, login: job.login ?? null,
       sections: job.sections?.map((x) => ({ ...x, run: x.run && { ...x.run, entries: [...x.run.entries] } })) ?? null };
     },
     // Trigger evals start real agent sessions on the user's subscription: the plan first, then a job.
@@ -329,7 +332,7 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
       // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
-      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), partial: q.has('focus') };
+      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
       // Skill toggles name skills of this project only.
       const own = input(() => chosenSkills(resolveAnswers(dir, { ...setup, ...switches }), libraryWith(ctx)).map((s) => s.name));
       const disable = q.getAll('disable'), enable = q.getAll('enable');
@@ -348,8 +351,9 @@ export function api(ctx) {
         packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, own: !!x.own, skills: x.skills?.length ?? null, enabled: p.answers.packs.includes(x.id) })) };
     },
     // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
-    'GET /api/skills': () => ({
-      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path)).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path) })).filter((p) => p.skills),
+    // ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.
+    'GET /api/skills': (q = new URLSearchParams()) => ({
+      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path)).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path, { check: q.get('check') === '1' }) })).filter((p) => p.skills),
       global: globalUntracked(ctx, installed()),
     }),
     // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the
@@ -531,6 +535,12 @@ export function api(ctx) {
       const agents = installed().filter((a) => RULE_AGENTS.includes(a));
       return rulesView(ctx, { agents: agents.length ? agents : RULE_AGENTS, dir });
     },
+    // MCP servers, hooks, subagents, commands and output styles of the global folders or a registered project, read from files.
+    'GET /api/extensions': (q) => {
+      const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      return extensionsView(ctx, { agents: RULE_AGENTS, dir });
+    },
     // The text of one listed file: any other path is refused. For the page on this machine only.
     'GET /api/rule-text': (q) => {
       const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
@@ -546,6 +556,64 @@ export function api(ctx) {
       const rctx = dir ? projectCtx(ctx, dir) : ctx;
       const changes = preview(input(() => ruleChanges(ctx, { agent: b.agent, file: b.file, dir, on: b.on })));
       return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
+    },
+    // Accounts: the registry as `accounts list` shows it, the status of one account (reads only), plans for add, use and
+    // remove (applied through /api/apply, undone in History), and the guided sign-in as a job that polls like an apply.
+    // The page never sees a credential: the registry holds none, a pasted code goes to the agent and into no record.
+    'GET /api/accounts': () => {
+      const problem = accountsProblem(ctx);
+      if (problem) throw Object.assign(new Error(problem), { status: 409 });
+      const settings = registrySettings(ctx);
+      return { accounts: listAccounts(ctx).map((a) => accountDoc(a, settings)), settings: { ...settingsOf(settings), warn: limitsFor(settings).warn }, store: store(ctx).name, login: [...jobs.values()].find((j) => j.kind === 'login' && !j.done)?.id ?? null };
+    },
+    'GET /api/accounts-status': async (q) => {
+      const a = input(() => findAccount(ctx, q.get('name') ?? ''));
+      const dir = q.get('project') ? resolve(q.get('project')) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      return accountStatusAsync(ctx, a, { dir });
+    },
+    'POST /api/accounts-plan': (b) => {
+      const text = (v) => (typeof v === 'string' && v ? v : undefined);
+      const change = input(() => {
+        if (b.op === 'add') return addChange(ctx, newAccount(ctx, { name: text(b.name), agent: text(b.agent), container: b.container === true, label: text(b.label), dir: text(b.dir), mount: text(b.mount) }));
+        const a = findAccount(ctx, String(b.name ?? ''));
+        if (b.op === 'use') return useChange(ctx, a.name);
+        if (b.op !== 'remove') throw new Error('op must be add, use or remove');
+        // A stored token is deleted by the command, which the page does not offer.
+        if (a.token) throw new Error(`account ${a.name} keeps a token: remove it in a terminal with benchkeeper accounts remove ${a.name}, which also deletes the token`);
+        return removeChange(ctx, a.name);
+      });
+      const changes = preview([change]);
+      return { planId: keep(changes, ctx, 'global'), changes: serialize(changes, ctx) };
+    },
+    // The user asked for this sign-in with the button: it opens the sign-in link in a private browser window, or shows it.
+    'POST /api/accounts-login': (b) => {
+      idle();
+      const a = input(() => findAccount(ctx, String(b.name ?? '')));
+      const dir = b.project ? resolve(String(b.project)) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      if (a.mode === 'container' && !dir) throw bad('a container account signs in inside the dev container of a project: choose the project');
+      const email = typeof b.email === 'string' && b.email ? b.email : undefined;
+      return start(1, async (job) => {
+        const state = job.login = { step: 'start', url: null, browser: null, awaitingCode: false, lines: [], loggedIn: null };
+        const io = {
+          say: (line) => { state.lines.push(line); state.lines.splice(0, state.lines.length - 200); },
+          step: (name, info) => { state.step = name; if (info?.url) Object.assign(state, { url: info.url, browser: info.browser ?? null }); if (name === 'done') state.loggedIn = info?.loggedIn ?? null; },
+          // What the user pastes goes to the agent; it is not kept in the lines or anywhere else.
+          code: () => new Promise((ok) => {
+            state.awaitingCode = true;
+            job.sendCode = (c) => { state.awaitingCode = false; ok(c); };
+            job.ctl.signal.addEventListener('abort', () => ok(null), { once: true });
+          }),
+        };
+        try { await login(ctx, a, { io, dir: dir ?? process.cwd(), email, signal: job.ctl.signal }); } finally { state.awaitingCode = false; }
+      }, { kind: 'login', title: `sign in ${a.name}` });
+    },
+    'POST /api/accounts-code': (b) => {
+      const job = jobs.get(b.job ?? '');
+      if (!job?.login?.awaitingCode || !job.sendCode) throw bad('no sign-in waits for a code');
+      job.sendCode(String(b.code ?? '').slice(0, 4096));
+      return { sent: true };
     },
     'GET /api/inventory': inventoryNow,
     // The Dashboard: installed, health, coverage and catalog by pack, from one read of the inventory and the projects.

@@ -1,10 +1,12 @@
 // Command line: every UI action is also a command here.
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { AGENTS, NeedsConfirm, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, limitsChange, listAccounts, login, newAccount, pickAccount, registrySettings, removeChange, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer } from './accounts.mjs';
+import { WINDOWS, limitsFor, settingsOf } from './usage.mjs';
 import { detect } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
@@ -15,19 +17,23 @@ import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
 import { listFiles, writeAtomic } from './fsx.mjs';
+import { mask } from './redact.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { frameworkRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
 import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
+import { extensionLines, extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
+import { collectInsights } from './insights.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
 import { PLUGINS, LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
+import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -63,9 +69,14 @@ Usage: benchkeeper <command> [options]
                                     one file out (Claude Code: claudeMdExcludes in the user settings, or in the
                                     project's local settings with --project; a global Codex file moves to a folder of
                                     the app's own); nothing is deleted, the plan has a diff and undo restores it
+  extensions list [--agent claude|codex] [--project dir]
+                                    MCP servers, hooks, subagents, commands and output styles each agent loads,
+                                    read from files only (no agent starts), with owner and a runs-code mark; env
+                                    values, headers and secrets never appear; nothing is written
   case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
-           [--project dir] [--transcript file] [--description text] [--query text]
-                                    records an observed miss as an eval case (~/.config/benchkeeper/evals/)
+           [--project dir] [--scope project|user] [--transcript file] [--description text] [--query text]
+                                    records an observed miss as an eval case (~/.config/benchkeeper/evals/); a skill with
+                                    no library counterpart is read from --project's or your skill folders (--scope picks one)
   test [dir] [--agents a,b]         deterministic checks: files match the ledger, expected plugins and skills,
                                     nothing unexpected installed, project skills at the library pins; exit 1 on a failure
   eval [--agents a,b] [--model m] [--target t] [--all] [--yes]
@@ -76,7 +87,7 @@ Usage: benchkeeper <command> [options]
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
                     [--framework f|none] [--agent-file path]
-                    [--disable s] [--enable s] [--share|--local] [--caller promote|lint-js|lint-python|sonar]
+                    [--disable s] [--enable s] [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup; answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
@@ -123,8 +134,51 @@ Usage: benchkeeper <command> [options]
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
   record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
+  accounts [list]                   the accounts per agent (Claude Code, Codex): name, agent, host or dev container, default
+  accounts add [name] [--agent claude|codex] [--container --mount path] [--label text] [--dir path] [--yes]
+                                    registers an account: its own folder (CLAUDE_CONFIG_DIR, CODEX_HOME) on the host, or a
+                                    named volume mounted in the dev container; a plan with a diff and undo, no credential
+                                    in it. Asks for what is missing, then offers the sign-in
+  accounts use|remove <name> [--yes]
+                                    use: the default account of its agent. remove: the registry entry and the stored token
+                                    (the folder and its sign-in stay)
+  accounts status [name] [--project dir]
+                                    signed in or not (claude auth status, codex login status; a container account in the
+                                    --project dir's running dev container), the age of a kept token and, for Claude Code,
+                                    the usage left in the 5-hour and 7-day window with a notice before a limit
+  accounts track <name> [--off] [--project dir] [--yes]
+                                    Claude Code: installs (--off: removes) a status line script and a StopFailure hook in the
+                                    account's folder; they keep the rate limit windows and failed turns for status, doctor and
+                                    run. A plan with a diff and undo; a dev container account is written through devcontainer exec
+  accounts limits [name] [--five-hour N] [--seven-day N] [--warn-five-hour N] [--warn-seven-day N]
+                  [--pool name|none] [--auto-pick on|off] [--when-none stop|wait] [--continue-below on|off] [--reset]
+                                    the minimum headroom (percent, defaults 8 and 3) below which run asks first, and the notice
+                                    level before it (default twice the minimum); with a name, that account's own values and
+                                    --pool (accounts of one person that auto-pick may choose among). Without a name:
+                                    the defaults, --auto-pick (off by default: a new run under the default account starts under
+                                    a pool member with headroom; the provider's terms on rotating accounts are unclear, so you
+                                    carry that call), --when-none (no member has headroom: stop, or wait for the earliest
+                                    reset) and --continue-below (run starts below the minimum without asking). No flag shows them
+  accounts login <name> [--token] [--email address] [--no-browser] [--project dir]
+                                    guided sign-in: opens the sign-in link in a private browser window (Firefox, Chrome,
+                                    Chromium, Edge), else prints it with the code; paste the code the browser shows if it
+                                    asks. --token: Claude Code setup-token kept in the OS credential store; Codex: the
+                                    access token piped on stdin goes to codex login --with-access-token
+  run [--account name] [--project dir] [--token] [--yes] -- claude|codex [args]
+                                    runs the agent as an account (default: the agent's default account) after a sign-in
+                                    check and, below the minimum headroom, a question (--yes answers it); environment: the filtered one plus the account's folder variable (--token: the
+                                    kept token, Claude Code only). Dev container accounts run through devcontainer exec
+  insights --json [--project dir] [--agents a,b]
+                                    findings with id, severity, evidence and a fix: installed skills no session used,
+                                    doctor findings, pins behind the newest release; the session signal needs 20 sessions
+                                    of the last 90 days and reports nothing below that; nothing is written
+  maintain knowledge show [dir]     what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
+                                    ignored by git): entries per file; a file that does not parse is listed as ignored
+  maintain knowledge clear [dir] [--yes]
+                                    removes that folder after a question and nothing else of the project
 
---json (doctor, test, plan, project plan, history, projects list, packs list)
+--json (doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list,
+        settings list and get, frameworks list, board, insights, profile export, maintain knowledge show, accounts list and status)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
 
@@ -137,23 +191,31 @@ const OPTIONS = {
   env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, framework: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
-  description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' },
+  description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
-  json: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
+  json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
+  'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
+  account: { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
-// end early count as no.
+// end early count as no. A read still open when its reader gave up (a sign-in that ended first) is the next line's.
 function asker(input, out) {
-  let rl, lines;
-  const ask = async (question) => {
-    out.write(`${question} [y/N] `);
+  let rl, lines, pending;
+  const next = () => {
     rl ??= createInterface({ input, terminal: false });
     lines ??= rl[Symbol.asyncIterator]();
-    const { value = '' } = await lines.next();
-    return /^y$/i.test(value.trim());
+    pending ??= lines.next().then(({ value }) => { pending = null; return value ?? null; });
+    return pending;
   };
+  const ask = async (question) => {
+    out.write(`${question} [y/N] `);
+    return /^y$/i.test(((await next()) ?? '').trim());
+  };
+  // The next line as typed (null at the end of the input), after the question when there is one.
+  ask.line = (question) => { if (question) out.write(question); return next(); };
+  ask.tty = !!input.isTTY;
   ask.close = () => rl?.close();
   return ask;
 }
@@ -206,8 +268,8 @@ export async function main(argv, { out = process.stdout, err = process.stderr, i
     // With --json a failure is a document too: an unknown option, an unreadable file.
     if (!argv.includes('--json')) throw e;
     err.write(`${redact(e.message)}\n`);
-    const [cmd = 'ui', arg] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
-    out.write(jsonDoc(commandName(cmd, arg), { error: redact(e.message) }));
+    const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    out.write(jsonDoc(commandName(cmd, arg, sub), { error: redact(e.message) }));
     return 2;
   } finally { ask.close(); }
 }
@@ -360,6 +422,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
+  if (cmd === 'insights') { out.write('insights works with --json\n'); return 2; }
   if (cmd === 'board') {
     out.write('Reading the transcripts; the first run reads all of them, later runs only new or changed ones.\n');
     const rows = await scanSessions(ctx);
@@ -411,14 +474,23 @@ async function command(argv, { out, err, ask, ctx }) {
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'maintain') return maintainCommand({ o, positionals, out, ask });
+  if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'extensions') {
+    if (arg && arg !== 'list') { out.write('extensions needs list\n'); return 2; }
+    if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
+    out.write(`${extensionLines(extensionsView(ctx, { agents: o.agent ? [o.agent] : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined })).join('\n')}\n`);
+    return 0;
+  }
   if (cmd === 'case') {
     if (arg !== 'add') { out.write('case needs add\n'); return 2; }
     // A session run gives the project and transcript.
     const session = o.run ? ctx.ledger.get(o.run) : null;
-    const r = addCase(ctx, { target: o.target?.[0], expected: o.expected, should: !o['should-not'], run: o.run, query: o.query, description: o.description,
+    const r = addCase(ctx, { target: o.target?.[0], scope: o.scope, expected: o.expected, should: !o['should-not'], run: o.run, query: o.query, description: o.description,
       project: o.project ? resolve(o.project) : session?.scope, transcript: o.transcript ? resolve(o.transcript) : session?.entries[0]?.transcript ?? undefined });
-    out.write(`case ${r.case.id} in ${r.path}\nquery: ${r.case.query.split('\n')[0].slice(0, 120)}\nrun ${r.run}: undo with benchkeeper undo ${r.run}\n`);
+    out.write(`case ${r.case.id} for ${r.target} in ${r.path}\nquery: ${r.case.query.split('\n')[0].slice(0, 120)}\nrun ${r.run}: undo with benchkeeper undo ${r.run}\n`);
     return 0;
   }
   if (cmd === 'test') {
@@ -432,7 +504,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
     const sessions = plan.reduce((n, p) => n + p.cases.length, 0);
     if (!plan.length) { out.write('every target is unchanged since its last result (--all runs them again)\n'); return 0; }
-    for (const p of plan) out.write(`${p.target}  ${p.agent}${p.model ? ` ${p.model}` : ''}  ${p.cases.length} cases\n`);
+    for (const p of plan) out.write(`${p.target}  ${p.agent}${p.model ? ` ${p.model}` : ''}  ${p.cases.length} cases${p.project ? `  (project ${p.project})` : ''}\n`);
     if (!o.yes && !(await ask(`Start ${sessions} agent sessions?`))) return 1;
     for (const r of await runEval(ctx, plan)) {
       const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
@@ -515,9 +587,10 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');
   if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { out.write(`skills needs list, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
-  const rows = projectSkills(ctx, dir);
+  // list --check and update without names ask each source's default branch; update with names re-adds those skills.
+  const rows = projectSkills(ctx, dir, { check: o.check || (sub === 'update' && !names.length) });
   if (sub === 'list') {
-    for (const s of rows?.skills ?? []) out.write(`${s.name.padEnd(30)} ${s.state.padEnd(9)} ${s.own ? 'BenchKeeper' : `${s.pinned?.slice(0, 12) ?? 'not installed'} (library ${s.newest?.slice(0, 12) ?? '-'})`}${s.packs.length ? `  pack ${s.packs.join(', ')}` : ''}${s.single ? '  single pick' : ''}\n`);
+    for (const s of rows?.skills ?? []) out.write(`${s.name.padEnd(30)} ${s.state.padEnd(9)} ${s.own ? 'BenchKeeper' : `${s.pinned?.slice(0, 12) ?? 'not installed'} (source ${s.newest?.slice(0, 12) ?? 'not checked'})`}${s.packs.length ? `  pack ${s.packs.join(', ')}` : ''}${s.single ? '  single pick' : ''}\n`);
     for (const u of rows?.untracked ?? []) out.write(`${u.name.padEnd(30)} untracked ${u.folders.join(', ')}${u.library ? `  (benchkeeper skills adopt ${u.name})` : ''}\n`);
     for (const u of globalUntracked(ctx, selectedAgents(ctx, o.agents))) out.write(`${u.name.padEnd(30)} untracked global ${u.folders.join(', ')}\n`);
     if (!rows) out.write(`${dir} has no setup yet\n`);
@@ -544,15 +617,17 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg) => (['project', 'projects', 'packs'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'maintain' ? ['maintain', arg, sub].filter(Boolean).join(' ') : ['project', 'projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
-  const name = commandName(cmd, arg);
+  const name = commandName(cmd, arg, positionals[2]);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
   const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
   // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
   const registryFail = () => { const problem = registryProblem(ctx); return problem ? fail(problem) : undefined; };
+  // The list commands take no more positional arguments than they read.
+  const surplus = (n) => (positionals.length > n ? fail(`unexpected argument ${positionals[n]}`) : undefined);
   if (cmd === 'doctor') {
     if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) return fail(`--baseline must be auto, ${PROFILES.join(' or ')}`);
     const broken = registryFail();
@@ -583,9 +658,85 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const runs = ctx.ledger.list().map((r) => ({ id: r.id, kind: r.kind, status: r.status ?? 'interrupted', scope: r.scope, time: r.time, changes: r.entries.length, ...(r.of ? { of: r.of } : {}), ...(r.note?.case ? { evalCase: r.note.case, target: r.note.target } : {}) }));
     return emit({ runs, backups: legacyBackups(ctx) });
   }
-  if (cmd === 'projects' && (!arg || arg === 'list')) return registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
-  if (cmd === 'packs' && (!arg || arg === 'list')) return emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
-  return fail('--json works with doctor, test, plan, project plan, history, projects list and packs list');
+  if (cmd === 'projects' && (!arg || arg === 'list')) return surplus(2) ?? registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
+  if (cmd === 'packs' && (!arg || arg === 'list')) return surplus(2) ?? emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
+  if (cmd === 'skills' && (!arg || arg === 'list')) {
+    const extra = surplus(2); if (extra !== undefined) return extra;
+    const dir = resolve(o.project ?? '.'), rows = projectSkills(ctx, dir, { check: o.check });
+    return emit({ dir, hasSetup: !!rows, skills: rows?.skills ?? [], untracked: rows?.untracked ?? [], globalUntracked: globalUntracked(ctx, selectedAgents(ctx, o.agents)) });
+  }
+  if (cmd === 'rules' && arg === 'list') {
+    const extra = surplus(2); if (extra !== undefined) return extra;
+    if (o.agent && !RULE_AGENTS.includes(o.agent)) return fail(`agent must be one of ${RULE_AGENTS.join(', ')}`);
+    const found = selectedAgents(ctx, o.agents).filter((a) => RULE_AGENTS.includes(a));
+    return emit(rulesView(ctx, { agents: o.agent ? [o.agent] : found.length ? found : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined }));
+  }
+  if (cmd === 'extensions' && (!arg || arg === 'list')) {
+    const extra = surplus(2); if (extra !== undefined) return extra;
+    if (o.agent && !RULE_AGENTS.includes(o.agent)) return fail(`agent must be one of ${RULE_AGENTS.join(', ')}`);
+    return emit(extensionsView(ctx, { agents: o.agent ? [o.agent] : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined }));
+  }
+  if (cmd === 'settings' && (arg === 'list' || arg === 'get')) {
+    const agent = o.agent ?? 'claude', key = positionals[2];
+    const extra = surplus(arg === 'get' ? 3 : 2); if (extra !== undefined) return extra;
+    if (!settingsAgents.includes(agent)) return fail(`agent must be one of ${settingsAgents.join(', ')}`);
+    if (arg === 'get' && !key) return fail('settings get needs a key');
+    const l = listSettings(ctx, agent, { dir: o.project ? resolve(o.project) : undefined, advanced: arg === 'get' || !!o.advanced, env: process.env });
+    // Values of environment variables never appear: the env block and the env.* keys carry names only.
+    const bare = (x) => (x.key === 'env' || String(x.key).startsWith('env.') ? { ...x, value: undefined, appValue: undefined, ...(x.sets ? { sets: x.sets.map(({ value, ...set }) => set) } : {}) } : x);
+    const doc = { ...l, settings: l.settings.map(bare), ...(l.advanced ? { advanced: l.advanced.map(bare), outside: l.outside.map(bare) } : {}), ...(l.env ? { env: l.env.map(({ value, ...e }) => e) } : {}),
+      // A parse error can quote the file: the document says only that the file failed.
+      layers: l.layers.map((f) => (f.error ? { ...f, error: 'the file does not parse' } : f)) };
+    // An env object at any depth (the env block, an MCP server's env) is reduced to its names.
+    const scrub = (v) => JSON.parse(JSON.stringify(v, (k, x) => (k === 'env' && x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x) : x)));
+    if (arg === 'list') return emit(scrub(doc));
+    const setting = [...doc.settings, ...(doc.advanced ?? [])].find((x) => x.key === key);
+    return setting ? emit({ agent, setting: scrub(setting) }) : fail(`${key} is not a key of ${l.name}'s reference or schema`);
+  }
+  if (cmd === 'frameworks' && (!arg || arg === 'list')) return surplus(2) ?? emit({ frameworks: frameworkRows() });
+  if (cmd === 'projects' && arg === 'scan') {
+    const extra = surplus(3); if (extra !== undefined) return extra;
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
+    const registered = listProjects(ctx).map((p) => p.path);
+    return emit({ root: canon(positionals[2] ?? '.'), found: scan(ctx, positionals[2] ?? '.').map((path) => ({ path, registered: registered.includes(canon(path)) })) });
+  }
+  if (cmd === 'board') {
+    const extra = surplus(1); if (extra !== undefined) return extra;
+    // Nothing is written or opened; the title is left out because it quotes the first message of a session.
+    const sessions = (await scanSessions(ctx)).map(({ title, ...s }) => s);
+    return emit({ sessions });
+  }
+  if (cmd === 'insights') {
+    const extra = surplus(1); if (extra !== undefined) return extra;
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
+    const found = await collectInsights(ctx, { agents: selectedAgents(ctx, o.agents), dir: o.project && resolve(o.project) });
+    return emit(found, found.summary.error ? 1 : 0);
+  }
+  if (cmd === 'maintain') {
+    if (arg !== 'knowledge' || positionals[2] !== 'show') return fail('maintain --json works with knowledge show');
+    const extra = surplus(4); if (extra !== undefined) return extra;
+    const dir = resolve(positionals[3] ?? '.');
+    return emit({ dir, ...readKnowledge(dir) });
+  }
+  if (cmd === 'accounts' && (!arg || ['list', 'status'].includes(arg))) {
+    const extra = surplus(arg ? 3 : 2); if (extra !== undefined) return extra;
+    const problem = accountsProblem(ctx);
+    if (problem) return fail(problem);
+    const all = listAccounts(ctx), picked = positionals[2] ? all.filter((a) => a.name === positionals[2]) : all;
+    if (positionals[2] && !picked.length) return fail(`no account ${positionals[2]}`);
+    if (arg !== 'status') return emit({ accounts: picked.map((a) => accountDoc(a, registrySettings(ctx))), settings: { ...settingsOf(registrySettings(ctx)), warn: limitsFor(registrySettings(ctx)).warn } });
+    const accounts = picked.map((a) => accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined }));
+    return emit({ accounts }, accounts.some((a) => a.findings.some((f) => f.level === 'error')) ? 1 : 0);
+  }
+  if (cmd === 'profile' && arg === 'export') {
+    if (positionals[2]) return fail('profile export --json prints the document: redirect stdout and take `.profile` before profile import');
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
+    return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
+  }
+  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, board, insights, profile export, maintain knowledge show and accounts list and status');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
@@ -644,6 +795,30 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
   return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
 }
 
+// maintain knowledge show|clear: the knowledge base of the maintaining-repos skill, per project folder.
+async function maintainCommand({ o, positionals, out, ask }) {
+  const [, topic, sub, where] = positionals;
+  if (topic !== 'knowledge' || !['show', 'clear'].includes(sub)) { out.write('maintain needs knowledge show or knowledge clear\n'); return 2; }
+  if (positionals.length > 4) { out.write(`unexpected argument ${positionals[4]}\n`); return 2; }
+  const dir = resolve(where ?? '.');
+  if (sub === 'clear' && linkedParent(dir)) { out.write(`${join(dir, '.benchkeeper')} is a link: nothing removed\n`); return 1; }
+  let found;
+  try { found = readKnowledge(dir); } catch (e) { out.write(`cannot read ${knowledgeDir(dir)}: ${e.code ?? e.message}\n`); return 2; }
+  const { path, present, files, ignored } = found;
+  if (!present && !ignored.length) { out.write(`no knowledge stored for ${dir}\n`); return 0; }
+  if (sub === 'show') {
+    if (!files.length && !ignored.length) out.write('the knowledge folder is empty\n');
+    for (const f of files) out.write(`${f.name}  ${f.entries.length} entries\n${f.entries.map((e) => `  ${entryLine(e)}\n`).join('')}`);
+    for (const i of ignored) out.write(`ignored ${i.name}: ${i.reason}\n`);
+    return 0;
+  }
+  const n = files.reduce((sum, f) => sum + f.entries.length, 0);
+  if (!o.yes && !(await ask(`Remove ${path} (${n} entries in ${files.length} files${ignored.length ? `, ${ignored.length} ignored` : ''})?`))) return 1;
+  clearKnowledge(dir);
+  out.write(`removed ${path}\n`);
+  return 0;
+}
+
 // rules list|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
 async function rulesCommand({ o, positionals, out, ask, ctx }) {
   const [, sub, file] = positionals;
@@ -667,4 +842,206 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const rctx = dir ? projectCtx(ctx, dir) : ctx;
   return report(apply(plan, rctx, { scope: dir ?? 'global', select: await choose(plan, o, ask, out) }), out);
+}
+
+// ---- accounts: the registry, the guided sign-in and the launcher (accounts.mjs)
+
+const accountLine = (a) => `${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${(a.mode === 'host' ? 'host' : 'container').padEnd(9)} ${(a.default ? 'default' : '').padEnd(8)} ${a.mode === 'host' ? a.dir : `volume ${a.volume} at ${a.mount}`}${a.label ? `  ${mask(a.label)}` : ''}${a.pool ? `  pool ${a.pool}` : ''}${a.token ? `  token kept since ${a.token.created.slice(0, 10)}` : ''}`;
+
+// The steps of a sign-in as the terminal shows them; the agent's own lines come through say.
+function terminalIo({ out, ask, secret }) {
+  return {
+    say: (line) => out.write(`  ${line}\n`),
+    step: (name) => { if (name === 'code') out.write('  If the browser shows a code, paste it here and press Enter; otherwise wait.\n'); if (name === 'verify') out.write('  Checking the sign-in.\n'); },
+    code: () => ask.line(''),
+    secret: () => secret,
+  };
+}
+
+async function signIn(ctx, a, { o, out, ask }) {
+  const dir = resolve(o.project ?? '.');
+  let secret;
+  if (o.token && a.agent === 'codex') {
+    // Never an argument and never typed with an echo: the token comes from a pipe.
+    if (ask.tty) { out.write('pipe the access token on stdin: printenv NAME | benchkeeper accounts login <name> --token\n'); return 2; }
+    secret = ((await ask.line('')) ?? '').trim();
+  }
+  if (o.token && a.agent === 'claude') { try { store(ctx).has(a.name); } catch (e) { out.write(`${e.message}\n`); return 1; } }
+  out.write(`Signing in ${a.name} (${a.agent}${a.mode === 'host' ? `, folder ${a.dir}` : `, dev container volume ${a.volume}`})${o.token ? ', token' : ''}.\n`);
+  try {
+    const r = await login(ctx, a, { io: terminalIo({ out, ask, secret }), token: !!o.token, email: o.email, noBrowser: !!o['no-browser'], dir });
+    if (r.stored) {
+      const run = commit(ctx, tokenChange(ctx, a.name, new Date().toISOString()));
+      out.write(`token kept in the OS credential store (${store(ctx).name}), recorded in accounts.json without its value (run ${run.id})\n`);
+    }
+  } catch (e) { out.write(`${e.message}\n`); return 1; }
+  out.write(`${a.name}: signed in\n`);
+  return 0;
+}
+
+// The usage of an account as `accounts status` shows it: what is left per window, or why that is not known.
+function usageText(u, name) {
+  if (!u.tracked) return `  usage    not tracked: benchkeeper accounts track ${name}`;
+  const age = u.ageSeconds < 90 ? `${u.ageSeconds} seconds` : u.ageSeconds < 5400 ? `${Math.round(u.ageSeconds / 60)} minutes` : `${Math.round(u.ageSeconds / 3600)} hours`;
+  return `  usage    ${WINDOWS.map(([k, label]) => `${label} ${u[k].state === 'unknown' ? `unknown (${u[k].reason})` : `${u[k].remaining}% left, resets ${u[k].resetsAt.slice(0, 16).replace('T', ' ')} UTC`}`).join('; ')}; read ${age} ago`;
+}
+
+const percent = (v, flag) => {
+  const n = Number(v);
+  if (v === '' || !Number.isFinite(n) || n < 0 || n > 100) throw new Error(`${flag} is a percentage from 0 to 100`);
+  return n;
+};
+const onOff = (v, flag) => {
+  if (v !== 'on' && v !== 'off') throw new Error(`${flag} is on or off`);
+  return v === 'on';
+};
+// The flags of `accounts limits` as the change takes them; names the flags that only work with or without an account name.
+function limitFlags(o, name) {
+  const minimum = {}, warn = {}, out = { minimum, warn };
+  if (o['five-hour'] !== undefined) minimum.fiveHour = percent(o['five-hour'], '--five-hour');
+  if (o['seven-day'] !== undefined) minimum.sevenDay = percent(o['seven-day'], '--seven-day');
+  if (o['warn-five-hour'] !== undefined) warn.fiveHour = percent(o['warn-five-hour'], '--warn-five-hour');
+  if (o['warn-seven-day'] !== undefined) warn.sevenDay = percent(o['warn-seven-day'], '--warn-seven-day');
+  if (o.pool !== undefined) out.pool = o.pool === 'none' ? null : o.pool;
+  if (o['auto-pick'] !== undefined) out.autoPick = onOff(o['auto-pick'], '--auto-pick');
+  if (o['continue-below'] !== undefined) out.continueBelow = onOff(o['continue-below'], '--continue-below');
+  if (o['when-none'] !== undefined) {
+    if (!['stop', 'wait'].includes(o['when-none'])) throw new Error('--when-none is stop or wait');
+    out.whenNone = o['when-none'];
+  }
+  if (name && ['autoPick', 'continueBelow', 'whenNone'].some((k) => out[k] !== undefined)) throw new Error('--auto-pick, --when-none and --continue-below are settings for all accounts: leave out the account name');
+  if (!name && (out.pool !== undefined || o.reset)) throw new Error('--pool and --reset belong to one account: give its name');
+  out.reset = !!o.reset;
+  return out;
+}
+const limitsShown = (ctx) => {
+  const settings = registrySettings(ctx), all = settingsOf(settings), l = limitsFor(settings);
+  const text = (x) => WINDOWS.map(([k, label]) => `${label} ${x.minimum[k]}% (notice below ${x.warn[k]}%)`).join(', ');
+  return [`defaults: minimum headroom ${text(l)}`,
+    `auto-pick ${all.autoPick ? 'on' : 'off'}; when no pool member has headroom: ${all.whenNone}; below the minimum run ${all.continueBelow ? 'starts anyway' : 'asks'}`,
+    ...listAccounts(ctx).filter((a) => a.limits || a.pool).map((a) => `${a.name}: ${a.limits ? `minimum headroom ${text(limitsFor(settings, a))}` : 'defaults'}${a.pool ? `; pool ${a.pool}` : ''}`)];
+};
+
+async function accountsCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub = 'list', name] = positionals;
+  const subs = ['list', 'add', 'use', 'remove', 'status', 'login', 'track', 'limits'];
+  if (!subs.includes(sub)) { out.write(`accounts needs ${subs.join(', ')}\n`); return 2; }
+  if (positionals.length > 3) { out.write(`unexpected argument ${positionals[3]}\n`); return 2; }
+  const problem = accountsProblem(ctx);
+  if (problem) { out.write(`${problem}\n`); return 2; }
+  const need = () => { if (!name) { out.write(`accounts ${sub} needs an account name, see benchkeeper accounts list\n`); return false; } return true; };
+  try {
+    if (sub === 'list') {
+      const list = listAccounts(ctx);
+      for (const a of list) out.write(`${accountLine(a)}\n`);
+      if (!list.length) out.write('no accounts: benchkeeper accounts add\n');
+      return 0;
+    }
+    if (sub === 'status') {
+      const list = name ? [findAccount(ctx, name)] : listAccounts(ctx);
+      let code = 0;
+      for (const a of list) {
+        const s = accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined });
+        out.write(`${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${s.loggedIn === null ? 'not checked' : s.loggedIn ? `signed in${s.method ? ` (${s.method})` : ''}` : 'not signed in'}${s.tokenAgeDays !== undefined ? `  token ${s.tokenAgeDays} days old` : ''}\n`);
+        if (s.usage) out.write(`${usageText(s.usage, a.name)}\n`);
+        for (const f of s.findings) { out.write(`  ${f.level.padEnd(8)} ${f.message}\n           fix: ${f.fix}\n`); if (f.level === 'error') code = 1; }
+      }
+      return code;
+    }
+    if (sub === 'login') {
+      if (!need()) return 2;
+      return await signIn(ctx, findAccount(ctx, name), { o, out, ask });
+    }
+    if (sub === 'track') {
+      if (!need()) return 2;
+      return await trackAccount(ctx, findAccount(ctx, name), { o, out, ask });
+    }
+    let change, entry, gone;
+    if (sub === 'limits') {
+      const flags = limitFlags(o, name), given = Object.values({ ...flags.minimum, ...flags.warn }).length || ['pool', 'autoPick', 'whenNone', 'continueBelow'].some((k) => flags[k] !== undefined) || flags.reset;
+      if (name) findAccount(ctx, name);
+      if (!given) { limitsShown(ctx).forEach((l) => out.write(`${l}\n`)); return 0; }
+      change = name ? limitsChange(ctx, name, flags) : settingsChange(ctx, flags);
+    } else if (sub === 'add') {
+      // What is missing is asked, as the Accounts page does step by step; with --yes it is a usage error.
+      const asked = !name || !o.agent;
+      const pick = async (value, question) => value ?? (o.yes ? undefined : ((await ask.line(question)) ?? '').trim() || undefined);
+      const n = await pick(name, 'Account name: '), agent = await pick(o.agent, `Agent (${AGENTS.join(' or ')}): `);
+      const container = o.container ?? (asked && !o.yes ? await ask('Run it in a dev container (a named volume)?') : false);
+      const mount = container ? await pick(o.mount, 'Mount path in the container (a folder its user can write, below its home folder): ') : undefined;
+      entry = newAccount(ctx, { name: n, agent, container, label: o.label, dir: o.dir, mount });
+      change = addChange(ctx, entry);
+    } else {
+      if (!need()) return 2;
+      gone = findAccount(ctx, name);
+      change = sub === 'use' ? useChange(ctx, name) : removeChange(ctx, name, !!gone.token);
+    }
+    const plan = preview([change]);
+    if (!plan.length) { out.write('nothing to change\n'); return 0; }
+    const select = await choose(plan, o, ask, out);
+    if (!select.length) { if (o.yes || o.all) plan.forEach((c) => show(c, out)); return 1; }
+    const code = report(apply(plan, ctx, { scope: 'global', select }), out);
+    if (code) return code;
+    if (sub === 'remove') {
+      if (gone.token) { store(ctx).delete(gone.name); out.write('deleted the stored token\n'); }
+      out.write(gone.mode === 'host' ? `the sign-in in ${gone.dir} is left: delete that folder to remove it\n` : `the volume ${gone.volume} is left: podman volume rm ${gone.volume} removes it\n`);
+    }
+    if (sub === 'add') {
+      if (entry.mode === 'container') out.write(`A mount applies when a container is created: start the project's dev container with benchkeeper accounts login ${entry.name} --project <dir>, which mounts every container account's volume (an existing container is recreated by the command it prints).\n`);
+      if (!o.yes && (await ask(`Sign in ${entry.name} now?`))) return signIn(ctx, entry, { o, out, ask });
+      out.write(`Next: benchkeeper accounts login ${entry.name}\n`);
+    }
+    return 0;
+  } catch (e) {
+    out.write(`${e.message}\n`);
+    return 1;
+  }
+}
+
+// Installs or removes the usage script, the status line and the hook of an account (Claude Code).
+async function trackAccount(ctx, a, { o, out, ask }) {
+  const remove = !!o.off;
+  const done = () => out.write(remove ? 'removed; the readings already kept stay in the folder\n' : 'tracking starts with the next Claude Code session of this account; usage shows after its first response. A status line in a project\'s settings takes precedence over this one, and then no reading is kept\n');
+  if (a.mode === 'host') {
+    const plan = preview(trackChanges(a, { remove }));
+    if (!plan.length) { out.write('nothing to change\n'); return 0; }
+    const select = await choose(plan, o, ask, out);
+    if (!select.length) { if (o.yes || o.all) plan.forEach((c) => show(c, out)); return 1; }
+    // The folder may lie outside the home folder: it is the one extra root of this change, and it is for this user alone.
+    if (!remove) mkdirSync(a.dir, { recursive: true, mode: 0o700 });
+    const code = report(apply(plan, { ...ctx, roots: [...ctx.roots, a.dir] }, { scope: 'global', select }), out);
+    if (!code) done();
+    return code;
+  }
+  const dir = resolve(o.project ?? '.');
+  const t = trackContainer(ctx, a, dir, { remove });
+  if (!t.files.length) { out.write('nothing to change\n'); return 0; }
+  for (const f of t.files) out.write(`${(isSettingsFile(f.path) ? redact(f.diff) : f.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
+  if (!o.yes && !(await ask(`Write ${t.files.length === 1 ? 'this file' : 'these files'} in the volume of ${a.name}? (no undo run: accounts track ${a.name} --off reverses it)`))) return 1;
+  writeContainer(ctx, a, dir, t);
+  done();
+  return 0;
+}
+
+async function runAccountCommand({ o, positionals, out, ctx, ask }) {
+  const args = positionals.slice(1);
+  if (!AGENTS.includes(args[0])) { out.write(`run needs the agent after --: ${AGENTS.join(' or ')}\n`); return 2; }
+  try {
+    const problem = accountsProblem(ctx);
+    if (problem) { out.write(`${problem}\n`); return 2; }
+    const a = pickAccount(ctx, { name: o.account, agent: args[0] });
+    // An account named with --account is never replaced by auto-pick.
+    const opts = { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account };
+    try { return runAs(ctx, a, args, { ...opts, confirmed: !!o.yes }); } catch (e) {
+      if (!(e instanceof NeedsConfirm)) throw e;
+      out.write(`${e.message}\n`);
+      if (!(await ask('Start anyway?'))) { out.write('not started\n'); return 1; }
+      // The agent reads the terminal next: this reader must not keep it.
+      ask.close();
+      return runAs(ctx, a, args, { ...opts, confirmed: true });
+    }
+  } catch (e) {
+    out.write(`${e.message}\n`);
+    return 1;
+  }
 }

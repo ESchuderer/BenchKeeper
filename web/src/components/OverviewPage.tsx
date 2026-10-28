@@ -31,7 +31,7 @@ export default function OverviewPage({ base }: { base: string }) {
         <Stack gap="xs" maw={720}>
           <Title order={1} fz={{ base: 34, md: 44 }}>{overview.title}</Title>
           <Text size="lg">{md(facts.description)}</Text>
-          <Text>{overview.audience} <Anchor href={`${base}/#start`}>Quick start</Anchor>, <Anchor href={`${base}/app/`}>the app with screenshots</Anchor>.</Text>
+          <Text>{overview.audience} <Anchor href={`${base}/#start`}>Quick start</Anchor>, <Anchor href={`${base}/app/`}>the app with screenshots</Anchor>, <Anchor href={`${REPO}/blob/main/docs/skills.md`}>what each skill does</Anchor>.</Text>
         </Stack>
         <Section id="sdlc" title="The workflow" intro={SDLC_INTRO}>
           <div className="ring-wrap" dangerouslySetInnerHTML={{ __html: sdlcSvg }} />

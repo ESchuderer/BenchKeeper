@@ -136,7 +136,8 @@ export function describeKey(agentId, key) {
   const types = [...c.types];
   const plain = types.length === 1 ? types[0] : null;
   const type = c.values && !types.some((t) => t !== 'string') ? 'enum' : plain === 'boolean' ? 'bool' : plain === 'integer' ? 'int' : plain === 'number' ? 'number' : plain === 'string' ? 'string' : types.length ? 'json' : 'any';
-  return { key, type, values: c.values ?? undefined, types, sentence: row?.description ?? c.description ?? '', scope: row?.scope, group: row?.topic ?? 'Other', advanced: true, schema: !!node };
+  const d = node ? resolve(SCHEMAS[agentId], node)?.default : undefined;
+  return { key, type, values: c.values ?? undefined, types, sentence: row?.description ?? c.description ?? '', default: d === undefined ? null : typeof d === 'string' ? d : JSON.stringify(d), scope: row?.scope, group: row?.topic ?? 'Other', advanced: true, schema: !!node };
 }
 
 // ---- values: parse, validate ----
@@ -338,6 +339,26 @@ function unknownKeys(agentId, layers, known) {
   return out;
 }
 
+const DOCS = { claude: 'https://code.claude.com/docs/en/settings-reference', codex: 'https://learn.chatgpt.com/docs/config-file/config-reference' };
+
+// The facts every view shows for a key: summary, eli5 and impact from the catalog (null outside it: not explained yet), the
+// default, and the value in effect with where it comes from: a layer, the process environment for an env.* key no file sets
+// (a file's env value wins over the shell's), or the default.
+function facts(agentId, def, vals, env) {
+  const name = def.key.startsWith('env.') ? def.key.slice(4) : null;
+  // Only the catalog's switches are read from the environment: a key named in a request never reaches another variable.
+  const fromEnv = !vals.length && def.type === 'switch' && name && env?.[name] !== undefined;
+  const docs = def.source ?? (agentId === 'claude' && referenceRow(def.key) ? `${DOCS.claude}#${def.key.toLowerCase().replaceAll('.', '-')}` : DOCS[agentId]);
+  return { summary: def.summary ?? null, eli5: def.eli5 ?? null, impact: def.impact ?? null, default: def.default ?? null, docs,
+    value: vals.length ? maskSecrets(vals[0].value, def.key) : fromEnv ? maskSecrets(env[name], name) : undefined, from: vals[0]?.layer ?? (fromEnv ? 'environment' : 'default') };
+}
+
+// The facts of the named keys, for the views that name a setting: the doctor, Insights and the plans.
+export function settingFacts(ctx, agentId, keys, { dir, env } = {}) {
+  const layers = readSettings(ctx, agentId, { dir });
+  return keys.map((key) => ({ key, ...facts(agentId, describeKey(agentId, key) ?? { key }, valuesOf(layers, agentId, key), env) }));
+}
+
 export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) {
   const a = agentSettings(agentId);
   const layers = readSettings(ctx, agentId, { dir });
@@ -348,7 +369,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const vals = valuesOf(layers, agentId, def.key);
     const eff = vals[0];
     const dflt = setupValue(def.key);
-    return { ...def, basic: def.basic !== false, values: def.values, value: eff ? maskSecrets(eff.value, def.key) : undefined, layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
+    return { ...def, basic: def.basic !== false, values: def.values, ...facts(agentId, def, vals, env), layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
       changed: vals.length > 0, setByApp: !!def.setup, ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
   };
   const settings = a.settings.filter((s) => advanced || s.basic !== false).map(row);
@@ -365,7 +386,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const sets = vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) }));
     const masked = sets.some((x, i) => !same(x.value, vals[i].value));
     const asTable = def.types?.length > 0 && def.types.every((t) => t === 'object');
-    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), value: sets[0]?.value, layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
+    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
   });
   const known = new Set([...have, ...keys, ...REFERENCE.map((r) => r.key), ...schemaKeys(agentId)]);
   result.outside = unknownKeys(agentId, layers, known);
@@ -451,7 +472,7 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
     }
     const secret = isSecretName(key) || path.some(isSecretName);
     const shown = stored == null ? 'removed' : `= ${secret ? MASK : JSON.stringify(maskSecrets(stored, key))}`;
-    changes.push({ id: `settings:${agentId}:${layer}:${key}`, step: `settings:${agentId}`, title: `${a.name} ${layer} settings: ${key} ${shown}`, kind: 'write', path: target.path, edit: editFor(agentId, key, stored, target.path) });
+    changes.push({ id: `settings:${agentId}:${layer}:${key}`, step: `settings:${agentId}`, title: `${a.name} ${layer} settings: ${key} ${shown}`, kind: 'write', path: target.path, edit: editFor(agentId, key, stored, target.path), settings: { agent: agentId, keys: [key], ...(dir ? { dir } : {}) } });
   }
   const written = Object.keys(edits).filter((k) => edits[k] != null);
   for (const n of notes(agentId, [{ ...target, data: after }]).filter((x) => COUPLINGS.rules.find((r) => r.id === x.rule)?.refuse && x.keys.some((k) => written.includes(k)))) problems.push(n.message);
@@ -486,7 +507,7 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
     const partial = readable.length < all.length;
     const off = dismissedNotes(ctx);
     const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, facts: ctx.sandbox, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !off.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
+    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !off.has(x.id))) out.push({ ...issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir), settings: { agent: id, keys: n.keys, ...(dir ? { dir } : {}) } });
     if (id === 'codex' && !dir) {
       for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }

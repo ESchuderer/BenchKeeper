@@ -1,6 +1,7 @@
 ---
 name: operating-benchkeeper
 description: "How an agent manages its own BenchKeeper setup through the benchkeeper CLI alone, without the web UI: plan, review the diff, apply with --yes, read the JSON, undo a run, run doctor and verify, update one project. Use when asked to install, update, check, change or undo the BenchKeeper setup of this machine or a repository, or to read its state (projects, skills, packs, history, settings, rules) from the command line."
+writes: "What the `benchkeeper` commands you approve write: rules, skills, settings and project setup files, each run recorded for `benchkeeper undo`."
 ---
 
 # Operating BenchKeeper through the CLI
@@ -28,7 +29,7 @@ Never run `apply`, `undo`, `restore` or `projects update` against a home folder 
 | Install level, drift, fixes | `doctor [dir] --json` |
 | Files match the ledger, project skills at their pins | `verify [dir] --json` |
 | Global setup | `plan --json`, then `apply --yes` (`--agents a,b`, `--pack p`, `--level lite\|standard\|full`) |
-| One project's setup | `projects plan [dir] --json`, then `projects apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--framework`) |
+| One project's setup | `projects plan [dir] --json`, then `projects apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--agent-file`) |
 | Answers of a project | `.benchkeeper/state.json`; a changed answer is a new `projects plan` |
 | Registered projects | `projects list --json`, `projects scan <root> --json`, `projects add <dir>` |
 | Update one project | `projects plan [dir]`, then `projects apply [dir] --yes` (the answers default to its state file) |

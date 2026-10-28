@@ -978,20 +978,8 @@ test.describe('views', () => {
     // Community skills need npx, which the fixture lacks: no pack here.
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).not.toBeChecked();
     await noAxe(page);
-    // Frameworks are workflow owners, listed with their evidence and chosen explicitly; none is preselected. Agent files are a pick of their own.
-    const fw = drawer.getByRole('region', { name: 'Frameworks' });
-    // Each one is listed once, as a checkbox; no owner checked keeps BenchKeeper's workflow skill.
-    await expect(fw.getByRole('radio')).toHaveCount(0);
-    await expect(fw.getByRole('checkbox')).toHaveCount(1);
-    await expect(drawer.getByRole('checkbox', { name: /^Superpowers/ })).toHaveCount(1);
-    await expect(fw.getByRole('checkbox', { name: /^Superpowers/ })).not.toBeChecked();
-    await expect(fw).not.toContainText('give way in this project');
-    await fw.getByRole('checkbox', { name: /^Superpowers/ }).check();
-    await expect(fw).toContainText('cost higher in every with/without test but one');
-    await expect(fw).toContainText("BenchKeeper's workflow skill and the issue-tracker specs give way in this project.");
+    // Agent files are a pick of their own; none is preselected.
     await expect(drawer.getByRole('checkbox', { name: 'engineering-frontend-developer' })).not.toBeChecked();
-    await noAxe(page);
-    await fw.getByRole('checkbox', { name: /^Superpowers/ }).uncheck();
     // An agent suggests skills only after the user agrees to its session.
     await drawer.getByRole('button', { name: 'Suggest with an agent' }).click();
     const ask = page.getByRole('dialog', { name: 'Start an agent session?' });
@@ -1042,11 +1030,10 @@ test.describe('views', () => {
   });
 
   test('Projects: Change setup starts from the state file', async ({ page }) => {
-    // A saved owner and a saved pack load checked; a second owner row (not in the library today) is off while the first is checked.
+    // A saved pack loads checked.
     await page.route(/\/api\/project-setup\?/, async (route) => {
       const body = await (await route.fetch()).json();
-      body.state = { ...body.state, frameworks: ['superpowers'], packs: [...body.state.packs, 'matt-pocock'] };
-      body.frameworks = [...body.frameworks, { ...body.frameworks[0], id: 'other-owner', title: 'Other owner' }];
+      body.state = { ...body.state, packs: [...body.state.packs, 'matt-pocock'] };
       await route.fulfill({ json: body });
     });
     await nav(page, 'Projects').click();
@@ -1059,14 +1046,7 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).toBeChecked();
     await expect(drawer.getByRole('checkbox', { name: /^Matt Pocock's skills/ })).toBeChecked();
-    const fw = drawer.getByRole('region', { name: 'Frameworks' });
-    await expect(fw.getByRole('checkbox', { name: /^Superpowers/ })).toBeChecked();
-    await expect(fw.getByRole('checkbox', { name: /^Other owner/ })).toBeDisabled();
-    await expect(fw).toContainText('Off while Superpowers owns the workflow: a project has at most one owner.');
     await noAxe(page);
-    await fw.getByRole('checkbox', { name: /^Superpowers/ }).uncheck();
-    await expect(fw.getByRole('checkbox', { name: /^Other owner/ })).toBeEnabled();
-    await expect(fw).not.toContainText('Off while');
     await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
@@ -1275,6 +1255,57 @@ test.describe('views', () => {
     // Codex: its own file and keys.
     await page.getByText('Codex', { exact: true }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
+  });
+
+  test('Setting facts: Agent settings, the doctor, Insights and the Plan and Apply drawers show summary, plain words, impact, default and the current value with its source; no axe violations', async ({ page }) => {
+    const about = (scope, key) => scope.getByRole('group', { name: `About ${key}` }).first();
+    const facts = async (box) => {
+      for (const t of ['In plain words:', 'Impact:', 'Default:', 'Current:']) await expect(box).toContainText(t);
+      await expect(box.getByRole('link', { name: 'Docs' })).toHaveAttribute('href', /^https:\/\//);
+    };
+    await nav(page, 'Agent settings').click();
+    // The fixture home holds the global setup's settings: the advisor and the retention come from the user file.
+    const advisor = about(page, 'advisorModel');
+    await facts(advisor);
+    await expect(advisor).toContainText('from the user file');
+    await expect(about(page, 'autoMemoryEnabled')).toContainText('Current: the default');
+    // A key outside the catalog: no guessed text, the rest of the facts still there.
+    await page.getByRole('switch', { name: 'Advanced: every key' }).check();
+    await page.getByLabel('Search settings').fill('modelSettings');
+    const outside = about(page.getByRole('table', { name: 'Advanced keys' }), 'modelSettings');
+    await expect(outside).toContainText('Not explained yet.');
+    await expect(outside).toContainText('Default:');
+    await expect(outside).not.toContainText('Impact:');
+    await page.getByRole('switch', { name: 'Advanced: every key' }).uncheck();
+    await page.getByLabel('Search settings').fill('');
+    // The Plan drawer: the planned key with its facts. Applied, it moves the user file off the setup's value.
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await facts(about(changes, 'cleanupPeriodDays'));
+    await noAxe(page);
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    // The doctor and Insights name the keys of a settings finding.
+    await nav(page, 'Dashboard').click();
+    await facts(about(page.getByRole('table', { name: 'Doctor findings' }), 'permissions.deny'));
+    await nav(page, 'Insights').click();
+    await facts(about(page.getByRole('article', { name: /No Read deny rule/ }), 'permissions.deny'));
+    await noAxe(page);
+    // The Apply drawer: the global settings change, planned again, lists the facts of each key it writes.
+    await nav(page, 'Dashboard').click();
+    await page.getByRole('button', { name: 'Fix everything' }).click();
+    const fix = page.getByRole('dialog', { name: 'Fix everything' });
+    await facts(about(fix, 'cleanupPeriodDays'));
+    await noAxe(page);
+    await page.keyboard.press('Escape');
+    await expect(fix).toBeHidden();
+    // Back to the setup's value.
+    await nav(page, 'Agent settings').click();
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('14');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
   });
 
 

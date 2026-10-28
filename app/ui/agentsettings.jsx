@@ -1,8 +1,8 @@
-import { Anchor, Badge, Button, Code, Group, NumberInput, SegmentedControl, Select, Stack, Switch, Table, Text, TextInput } from '@mantine/core';
+import { Anchor, Button, Code, Group, NumberInput, SegmentedControl, Select, Stack, Switch, Table, Text, TextInput } from '@mantine/core';
 import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
 import { useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section } from './parts.jsx';
+import { Cli, Plan, Section, SettingFacts } from './parts.jsx';
 import { Loading, Note, href, icon, useApi } from './shell.jsx';
 
 const LAYERS = { user: 'User file', project: 'Project file', local: 'Local file' };
@@ -64,8 +64,6 @@ function ValueControl({ row, own, edit, setEdit }) {
   }
 }
 
-const layerBadge = (r) => (r.layer ? <Badge variant="default">{r.layer === 'managed' ? 'managed (read-only)' : r.layer}</Badge> : <Text size="sm">default: {r.default ?? 'built-in'}</Text>);
-
 function Row({ row, layer, edits, setEdit }) {
   const own = row.sets?.find((x) => x.layer === layer)?.value;
   const edit = edits[row.key];
@@ -75,7 +73,7 @@ function Row({ row, layer, edits, setEdit }) {
       <Table.Td>
         <Stack gap={2}>
           <Code>{row.key}</Code>
-          <Text size="sm">{row.sentence}</Text>
+          <SettingFacts f={row} />
           {row.setByApp && <Text size="sm">BenchKeeper's setup writes this key too: another value shows as drift in Doctor, and the next apply restores the setup's value.</Text>}
           {suggest && (own === undefined && edit === undefined) && (
             <Group gap="xs">
@@ -92,7 +90,6 @@ function Row({ row, layer, edits, setEdit }) {
         </Stack>
       </Table.Td>
       <Table.Td miw={200}>{row.editable === false ? <Text size="sm">Not edited here: {row.masked ? 'it holds a secret, shown masked: edit the file by hand' : row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text> : <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} />}</Table.Td>
-      <Table.Td>{row.layer ? <Stack gap={2}><Badge variant="default" miw="max-content">{row.layer === 'managed' ? 'managed (read-only)' : `from ${row.layer}`}</Badge><Text size="sm">{text(row.value)}</Text></Stack> : layerBadge(row)}</Table.Td>
     </Table.Tr>
   );
 }
@@ -102,7 +99,7 @@ function Rows({ rows, layer, edits, setEdit, label }) {
   return (
     <Table.ScrollContainer minWidth={720} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
       <Table aria-label={label} verticalSpacing="sm">
-        <Table.Thead><Table.Tr><Table.Th>Setting</Table.Th><Table.Th>{LAYERS[layer]}</Table.Th><Table.Th>In effect</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>Setting</Table.Th><Table.Th>{LAYERS[layer]}</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{rows.map((r) => <Row key={r.key} row={r} layer={layer} edits={edits} setEdit={setEdit} />)}</Table.Tbody>
       </Table>
     </Table.ScrollContainer>
@@ -118,7 +115,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
   const [showDismissed, setShowDismissed] = useState(false);
   const count = Object.keys(edits).length;
   const q = search.trim().toLowerCase();
-  const match = (r) => (!q || `${r.key} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed);
+  const match = (r) => (!q || `${r.key} ${r.summary ?? ''} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed);
   const basic = data.settings.filter(match);
   const groups = [...new Set(basic.map((r) => r.group))];
   const adv = (data.advanced ?? []).filter(match);

@@ -44,11 +44,8 @@ export function render(manifest) {
     if (p.skills) parts.push(code(p.skills));
     if (p.plugins) parts.push(`plugins ${code(Object.values(p.plugins).map((x) => x.id))}`);
     if (p.prompts) parts.push(`then ${p.prompts.map((x) => `\`${x.claude}\`${x.codex ? ` (Codex \`${x.codex}\`)` : ''}`).join(', ')}`);
-    out.push(row([`\`${p.id}\``, parts.join('; '), p.pickWhen]));
+    out.push(row([`\`${p.id}\`${p.role ? ` (${p.role})` : ''}`, parts.join('; '), p.pickWhen]));
   }
-  out.push('', '## Frameworks', '', 'The frameworks project setup offers (`--framework <id>`): workflow systems that own how work is planned and run. At most one per project, and BenchKeeper\'s own workflow skill gives way in it. Evidence per framework: its evaluation file.', '');
-  out.push(row(['Framework', 'Installs', 'Evaluation']), row(['---', '---', '---']));
-  for (const f of manifest.frameworks ?? []) out.push(row([`\`${f.id}\``, `plugin \`${f.install.plugin}\` for the project only${f.limits ? `. ${f.limits}` : ''}`, `[${f.evaluation.split('/').pop()}](${f.evaluation})`]));
   out.push('', '## Sources', '', 'Agent files a project picks one by one (`--agent-file <path>`), fetched at a pinned commit.', '');
   out.push(row(['Source', 'Agent files', 'Evaluation']), row(['---', '---', '---']));
   for (const f of manifest.sources ?? []) {

@@ -1,11 +1,10 @@
 ---
 name: workflow
 description: "Picks the workflow and tier for a task: a software change (quick, standard, full), a docs pass, research, or a batch of tasks on one branch, with the checks and reviews each needs. Use before the first edit in a repository, before issue or pull request work, and before research with two or more items."
+writes: "The tier line `Tier: <tier> (<change type>)` before the first edit; through its playbooks a branch, commits, a GitHub issue after your approval, a draft pull request and a handoff note for work left over."
 ---
 
 # Workflow
-
-A `Workflow owner:` line in the project's instruction files (`AGENTS.md`, `CLAUDE.local.md`, `AGENTS.override.md`) hands the work to that framework: stop here and follow its skills.
 
 1. **Classify.** Kind: software change, docs pass (several documents or product copy checked against the code; a one-file rewrite with no claim about code is a quick software change), research, or a mix (one item per kind). Tier of a software change:
 

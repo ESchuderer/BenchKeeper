@@ -22,7 +22,7 @@ import { mask } from './redact.mjs';
 import { cloneMissing } from './bootstrap.mjs';
 import { projectOrigins } from './origin.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { frameworkRows, sourceRows } from './frameworks.mjs';
+import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
@@ -110,15 +110,13 @@ Usage: benchkeeper <command> [options]
                                     restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   projects plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--pack p] [--skill s] [--tier t] [--yes]
-                    [--framework f|none] [--agent-file path]
+                    [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup; answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
                                     --caller writes that repo-baseline workflow file (never GitHub settings);
-                                    --framework names the workflow owner of this project (at most one; none clears it),
                                     --agent-file picks agent files of a source (skills sources lists them; none clears)
-  frameworks [list]                 the frameworks (workflow owners) a project can add, with the evidence and what the install writes
   packs [list|show <id>|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (own ones in packs/ of the config folder); show: one
                                     pack with the registered projects that use it; remove refuses a pack a registered
@@ -275,7 +273,7 @@ Usage: benchkeeper <command> [options]
 
 --json (doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list,
         show and warnings, skills list, show and sources, rules list and show, extensions list, settings list and get,
-        frameworks list, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status,
+        sessions board, list and cache, insights, profile export, knowledge show, accounts list and status,
         evals plan, run and results, inventory, dashboard; apply, projects apply, add, remove, rename, relocate and
         update, settings set, rules and packs enable|disable, skills update, undo)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
@@ -288,7 +286,7 @@ Env (where the agent runs): container (default; host-agent or host when AGENTS.m
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
-  env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, framework: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
+  env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
@@ -375,7 +373,7 @@ function show(c, out) {
   else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }
 
-// A framework or source as `frameworks` and `skills sources` print it, with the agent files to pick.
+// A source as `skills sources` prints it, with the agent files to pick.
 const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen}\n`).join('')}`;
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
@@ -537,7 +535,6 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'skills' && arg === 'sources' && [undefined, 'list'].includes(positionals[2])) { out.write(sourceRows().map(rowText).join('')); return 0; }
   if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
-  if (cmd === 'frameworks') { out.write(frameworkRows().map(rowText).join('')); return 0; }
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
     else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
@@ -875,7 +872,7 @@ function machineItems(ctx, o, cmd) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, frameworks: o.framework?.filter((f) => f !== 'none'), agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }
@@ -956,7 +953,7 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
@@ -1088,7 +1085,6 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const setting = [...doc.settings, ...(doc.advanced ?? [])].find((x) => x.key === key);
     return setting ? emit({ agent, setting: scrub(setting) }) : fail(`${key} is not a key of ${l.name}'s reference or schema`);
   }
-  if (cmd === 'frameworks' && (!arg || arg === 'list')) return surplus(2) ?? emit({ frameworks: frameworkRows() });
   if (cmd === 'skills' && arg === 'sources') return surplus(positionals[2] === 'list' ? 3 : 2) ?? emit({ sources: sourceRows() });
   if (cmd === 'projects' && arg === 'scan') {
     const extra = surplus(3); if (extra !== undefined) return extra;
@@ -1187,7 +1183,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [] })) });
   }
-  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list and show, extensions list, settings list and get, frameworks list, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
+  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list and show, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

@@ -100,7 +100,7 @@ export function insights({ sessions = [], skills = [], doctorFindings = [], proj
   }
   for (const f of doctorFindings) {
     const signal = isFreshness(f) ? 'freshness' : 'hygiene';
-    found.push({ id: `${signal}:${f.check}:${hash(...KEYS.map((k) => JSON.stringify(f[k] ?? null)))}`, signal, severity: f.level, message: f.message, evidence: evidenceOf(f), fix: f.fix });
+    found.push({ id: `${signal}:${f.check}:${hash(...KEYS.map((k) => JSON.stringify(f[k] ?? null)))}`, signal, severity: f.level, message: f.message, evidence: evidenceOf(f), fix: f.fix, ...(f.settings ? { settings: f.settings } : {}) });
   }
   const rank = (f) => (f.severity === 'error' ? 0 : 1);
   found.sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

@@ -102,9 +102,13 @@ Once, on 2026-10-28, in a container with an empty home (`HOME` and `BENCHKEEPER_
 
 ## What stays
 
-`ui`, `plan`, `apply`, `doctor`, `history`, `undo`, `restore`, `run`, `insights`, `profile`, `settings`, `rules`, `extensions`, `packs`, `frameworks`, `accounts`, `skills` and `projects list|add|scan|remove|rename|relocate|unshare` keep their names and options. The UI routes under `/api/` keep theirs.
+`ui`, `plan`, `apply`, `doctor`, `history`, `undo`, `restore`, `run`, `insights`, `profile`, `settings`, `rules`, `extensions`, `packs`, `accounts`, `skills` and `projects list|add|scan|remove|rename|relocate|unshare` keep their names and options. The UI routes under `/api/` keep theirs.
 
 Scripts and notes that call the old names need the new ones.
+
+## Removed
+
+`frameworks` and `projects apply --framework` are gone: no framework replaces BenchKeeper's workflow skill any more. Matt Pocock's skills (pack `matt-pocock`) run the phases of standard and full work, and agency-agents stays a pick of agent files (`skills sources`, `--agent-file`). The ECC pack and its three skills are gone from the library.
 
 ## Project state
 

@@ -153,7 +153,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/workflow/SKILL.md`} scope="Global, before repository work">
               The task kind and tier, the playbooks for software changes, docs passes and research, the check per change type, batch mode with long checks at the end.
             </Part>
-            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Optional, his plugin, global in both agents">
+            <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Optional, workflow owner, his plugin, global in both agents">
               Grilling, spec and tickets, TDD, bug diagnosis, code review, pull request text. They read the issue tracker and domain docs in <Code>docs/agents/</Code>.
             </Part>
             <Part icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Optional pack, global, level full">
@@ -187,17 +187,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <Text size="sm" mt="xs">{md(l.contains)}</Text>
                 <Text size="sm" c="dimmed" mt="xs">Writes: {md(l.writes)}.</Text>
                 <Code block mt="sm" className="cmd">{l.command}</Code>
-              </Paper>
-            ))}
-          </SimpleGrid>
-        </Section>
-
-        <Section id="frameworks" title="Frameworks you already use" intro={facts.frameworks.rule}>
-          <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            {facts.frameworks.items.map((f) => (
-              <Paper key={f.name} withBorder p="lg" radius="lg">
-                <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
-                <Text size="sm" mt="xs">Installs {md(f.installs)}.</Text>
               </Paper>
             ))}
           </SimpleGrid>

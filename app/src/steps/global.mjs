@@ -372,11 +372,11 @@ export function globalPlan(env) {
   // Settings
   if (agents.includes('claude')) {
     const f = at('.claude/settings.json');
-    add('settings:claude', 'Claude settings: advisor Opus, clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off, subagents on Sonnet', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS) });
-    add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]) });
-    add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]) });
+    add('settings:claude', 'Claude settings: advisor Opus, clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off, subagents on Sonnet', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS), settings: { agent: 'claude', keys: CLAUDE_KEYS.map(([k]) => k.join('.')) } });
+    add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]), settings: { agent: 'claude', keys: ['model'] } });
+    add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]), settings: { agent: 'claude', keys: ['effortLevel', 'modelSettings'] } });
     // Offered, not preselected: Haiku 5.5 came after Opus 5.5 and its level is saved per model the same way (inferred from the docs wording).
-    add('settings:claude:effort-haiku', 'Claude effort high for Haiku 5.5 (optional; its own default is medium)', { kind: 'write', path: f, edit: sets([[['modelSettings', 'claude-haiku-5-5', 'effortLevel'], 'high']]) }, { selected: false, optional: true });
+    add('settings:claude:effort-haiku', 'Claude effort high for Haiku 5.5 (optional; its own default is medium)', { kind: 'write', path: f, edit: sets([[['modelSettings', 'claude-haiku-5-5', 'effortLevel'], 'high']]), settings: { agent: 'claude', keys: ['modelSettings'] } }, { selected: false, optional: true });
     add('settings:claude:compact', 'Claude auto-compact window 400000 tokens, per-model values removed', {
       kind: 'write', path: f, edit: (t) => {
         const ms = parseJson(t ?? '{}').modelSettings ?? {};
@@ -384,13 +384,14 @@ export function globalPlan(env) {
         for (const [m, v] of Object.entries(ms)) if (v && 'autoCompactWindow' in v) edits.push(Object.keys(v).length === 1 ? { path: ['modelSettings', m], remove: true } : { path: ['modelSettings', m, 'autoCompactWindow'], remove: true });
         return mergeJson(t, edits);
       },
+      settings: { agent: 'claude', keys: ['autoCompactWindow', 'modelSettings'] },
     });
     // Offered, not preselected: the band is a choice, and a plugin's options live under its id.
     add('settings:claude:tier-band', 'BenchKeeper status band above the prompt (optional, terminal and desktop app): project, branch, last test run, the tier of the last answer and buttons to set it for the session', { kind: 'write', path: f, edit: sets([[['pluginConfigs', 'benchkeeper@benchkeeper', 'options', 'tierBand'], true]]) }, { selected: false, optional: true });
   }
   if (agents.includes('codex')) {
     const f = at('.codex/config.toml');
-    add('settings:codex', 'Codex effort high, analytics and feedback off', { kind: 'write', path: f, edit: (t) => [['', 'model_reasoning_effort', 'high'], ['analytics', 'enabled', false], ['feedback', 'enabled', false]].reduce((x, [tbl, k, v]) => setToml(x, tbl, k, v), t ?? '') });
+    add('settings:codex', 'Codex effort high, analytics and feedback off', { kind: 'write', path: f, edit: (t) => [['', 'model_reasoning_effort', 'high'], ['analytics', 'enabled', false], ['feedback', 'enabled', false]].reduce((x, [tbl, k, v]) => setToml(x, tbl, k, v), t ?? ''), settings: { agent: 'codex', keys: ['model_reasoning_effort', 'analytics.enabled', 'feedback.enabled'] } });
   }
 
   // Host tools

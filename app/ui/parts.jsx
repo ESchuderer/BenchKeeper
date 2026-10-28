@@ -3,7 +3,7 @@ import { IconCopy, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { DiffView, RunPanel } from './run.jsx';
-import { Dot, Note, STATE_COLOR, StatusBadge, href, icon } from './shell.jsx';
+import { Dot, Loading, Note, STATE_COLOR, StatusBadge, href, icon, useApi } from './shell.jsx';
 
 export const pct = (v) => (v == null ? null : Math.round(v * 100));
 
@@ -87,6 +87,31 @@ function Rehearsal({ c, prerun }) {
   );
 }
 
+const FROM = { user: 'the user file', project: 'the project file', local: 'the local file', managed: 'managed settings', environment: 'the environment' };
+const shownValue = (v) => (v === undefined ? 'unset' : typeof v === 'string' ? v : JSON.stringify(v));
+
+// One agent setting the same way in every view: summary, plain words, impact, default, and the value in effect with where it
+// comes from. A key outside the app's catalog says so instead of guessing.
+export function SettingFacts({ f }) {
+  return (
+    <Stack gap={2} role="group" aria-label={`About ${f.key}`} style={{ overflowWrap: 'anywhere' }}>
+      <Text size="sm">{f.summary ?? 'Not explained yet.'}</Text>
+      {f.eli5 && <Text size="sm">In plain words: {f.eli5}</Text>}
+      {f.impact && <Text size="sm">Impact: {f.impact}</Text>}
+      <Text size="sm">
+        Default: {f.default ?? 'not stated'}. Current: {f.from === 'default' ? 'the default' : `${shownValue(f.value)}, from ${FROM[f.from]}`}.{' '}
+        <Anchor size="sm" underline="always" href={f.docs} target="_blank" rel="noreferrer">Docs</Anchor>
+      </Text>
+    </Stack>
+  );
+}
+
+// The facts of the keys a doctor finding, an Insights finding or a planned change names ({ agent, keys, dir }), read on demand.
+export function SettingFactsOf({ settings: s }) {
+  const state = useApi(`/api/settings?${new URLSearchParams({ agent: s.agent, keys: s.keys.join(','), ...(s.dir ? { dir: s.dir } : {}) })}`);
+  return <Loading state={state} label="setting facts">{(list) => <Stack gap="xs">{list.map((f) => <SettingFacts key={f.key} f={f} />)}</Stack>}</Loading>;
+}
+
 // A change's diff behind a button: a long review page stays short until one is opened.
 function Folded({ title, children }) {
   const [open, setOpen] = useState(false);
@@ -121,6 +146,7 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
         <StateBadge state={c.state} />
       </Group>
       {c.error && <Text size="sm" c="red">{c.kind === 'command' ? 'Not applied' : 'Cannot merge'}: {c.error}</Text>}
+      {c.settings && <SettingFactsOf settings={c.settings} />}
       {c.kind === 'command' && !c.diff && <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code>}
       {(() => {
         const detail = (

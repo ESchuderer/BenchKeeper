@@ -234,17 +234,17 @@ test('doctor adds the baseline findings only when asked, and exit stays 0 for wa
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
   await main(['doctor', dir, '--agents', 'claude', '--baseline', 'oss'], { out, ctx });
-  assert.match(text, /warning\s+baseline\s+o\/r: caller workflow sonar is missing\n\s+fix: benchkeeper project apply --caller sonar/);
+  assert.match(text, /warning\s+baseline\s+o\/r: caller workflow sonar is missing\n\s+fix: benchkeeper projects apply --caller sonar/);
   assert.equal(await main(['doctor', dir, '--baseline', 'nope'], { out, ctx }), 2);
 });
 
-test('update-all --baseline reports each project and changes no setting and no file', async () => {
+test('projects update --baseline reports each project and changes no setting and no file', async () => {
   const dir = checkout();
   const { ctx, calls } = machine(withSonar(compliant()));
   addProject(ctx, dir);
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
-  await main(['update-all', '--baseline', 'auto'], { out, ctx, input: undefined });
+  await main(['projects', 'update', '--baseline', 'auto'], { out, ctx, input: undefined });
   assert.match(text, /GitHub settings against profile auto \(report only\)\n\s+warning\s+o\/r: caller workflow sonar is missing/);
   for (const argv of calls) assert.ok(!argv.some((a) => WRITE.test(a)));
   assert.equal(runCommand(['git', '-C', dir, 'status', '--porcelain']).stdout.includes('sonar'), false);

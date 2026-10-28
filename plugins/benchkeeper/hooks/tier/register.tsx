@@ -34,11 +34,11 @@ async function current($: EngineInterface): Promise<string | null> {
   return typeof stored === 'string' && CHOICES.includes(stored) ? stored : null
 }
 
-// The board the app writes on each scan of its Sessions view, and on benchkeeper board; the band only opens it.
+// The board the app writes on each scan of its Sessions view, and on benchkeeper sessions board; the band only opens it.
 async function openBoard($: EngineInterface) {
   const home = (await $.env.get('BENCHKEEPER_HOME')) ?? (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
   const file = `${home}/.config/benchkeeper/board.html`
-  if (!(await $.fs.exists(file))) return $.ui.toast('No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper board')
+  if (!(await $.fs.exists(file))) return $.ui.toast('No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper sessions board')
   const windows = (await $.env.get('OS')) === 'Windows_NT'
   const mac = !windows && (await $.process.run(['uname'])).stdout.trim() === 'Darwin'
   await $.process.run(windows ? ['cmd', '/c', 'start', '', file.replaceAll('/', '\\')] : [mac ? 'open' : 'xdg-open', file])

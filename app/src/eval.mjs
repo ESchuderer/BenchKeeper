@@ -1,4 +1,4 @@
-// benchkeeper eval: skill trigger rates per skill, agent and model. It starts real agent sessions on the owner's
+// benchkeeper evals: skill trigger rates per skill, agent and model. It starts real agent sessions on the owner's
 // subscription, so it never runs in CI. Rule cases run too, and their output is kept for review, not scored.
 import { appendFileSync, chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

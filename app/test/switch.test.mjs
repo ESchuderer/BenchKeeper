@@ -176,7 +176,7 @@ test('community skills: outdated by the source\'s commit once checked, modified 
   assert.equal(row('accessibility', null).state, 'removed');
 });
 
-test('an untracked skill survives project apply, a pack switch and Update all; adopt takes a library skill in', () => {
+test('an untracked skill survives projects apply, a pack switch and Update all; adopt takes a library skill in', () => {
   const r = repo();
   run(r, { agents: ['claude'], env: 'host', packs: ['ui-a'] });
   for (const n of ['mine', 'mermaid-diagrams']) { mkdirSync(join(r.dir, '.claude/skills', n), { recursive: true }); writeFileSync(join(r.dir, '.claude/skills', n, 'SKILL.md'), `---\nname: ${n}\n---\nmine\n`); }
@@ -233,6 +233,22 @@ test('an own pack a project names cannot be removed; the message names the proje
   assert.throws(() => removePack(r.ctx, 'ui-a', { usedBy: projectsUsing(r.ctx, 'ui-a') }), (e) => e.message.includes(realpathSync(r.dir)) && /switch it off/.test(e.message));
   removePack(r.ctx, 'ui-b', { usedBy: projectsUsing(r.ctx, 'ui-b') });
   assert.ok(!existsSync(join(r.ctx.config, 'packs/ui-b.json')));
+});
+
+test('CLI: skills disable and enable move a skill out of the project and back; both need a known name', async () => {
+  const r = repo();
+  run(r, { agents: ['claude'], env: 'host', packs: ['ui-a'] });
+  assert.ok(existsSync(r.skill));
+  let o = await cli(r, ['skills', 'disable', SKILL, '--project', r.dir, '--yes']);
+  assert.equal(o.code, 0, o.text);
+  assert.equal(existsSync(r.skill), false);
+  assert.deepEqual(readState(r.dir).disabled, [SKILL]);
+  o = await cli(r, ['skills', 'enable', SKILL, '--project', r.dir, '--yes']);
+  assert.equal(o.code, 0, o.text);
+  assert.ok(existsSync(r.skill));
+  assert.deepEqual(readState(r.dir).disabled, []);
+  assert.equal((await cli(r, ['skills', 'disable', '--project', r.dir])).code, 2);
+  assert.equal((await cli(r, ['skills', 'enable', 'nope', '--project', r.dir])).code, 1);
 });
 
 test('CLI: packs enable and disable are a plan with a diff, in the project or for the plugin of a pack', async () => {

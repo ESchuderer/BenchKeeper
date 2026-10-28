@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const out = fileURLToPath(new URL('../content/', import.meta.url));
 const src = fileURLToPath(new URL('../../plugins/benchkeeper/', import.meta.url));
-export const PARTS = ['rules', 'skills', 'library', 'evals'];
+export const PARTS = ['rules', 'skills', 'library', 'evals', 'schemas'];
 
 rmSync(out, { recursive: true, force: true });
 if (!process.argv.includes('--clean')) for (const p of PARTS) cpSync(`${src}${p}`, `${out}${p}`, { recursive: true });

@@ -11,6 +11,7 @@ import { integrity } from './integrity.mjs';
 import { levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
+import { paramChecks } from './params.mjs';
 import { rulesChecks } from './rules.mjs';
 import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
@@ -98,7 +99,7 @@ export function projectChecks(ctx, dir, agents) {
   let userPlugins = [];
   try { userPlugins = !agents || agents.includes('claude') ? pluginState(ctx, 'claude').listed.filter((p) => p.enabled) : []; } catch { /* the global plan reports unreadable plugin files */ }
   out.push(...frameworkChecks({ dir, state, userPlugins }));
-  out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
+  out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }), ...paramChecks(ctx, dir));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
   const scoped = (scope, own, list) => list.map((f) => ({ ...f, scope, own }));
   out.push(...skillOverlap(ctx, dir, [...scoped('project', true, skillFiles(dir)), ...scoped('global', false, skillFiles(ctx.home)), ...pluginSkills(ctx, dir)], true));

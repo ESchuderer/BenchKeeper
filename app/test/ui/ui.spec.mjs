@@ -842,8 +842,10 @@ test.describe('views', () => {
     await addFolder(page, join(ONE, 'uno'));
     await table.getByRole('link', { name: /^bk-ui-proj/ }).click();
     const packs = page.getByRole('region', { name: 'Packs' });
-    const frontend = packs.getByRole('switch', { name: 'Frontend' });
+    // The saved pack leads, the others follow in their own group with what each is for.
+    const frontend = packs.getByRole('group', { name: 'In use or suggested' }).getByRole('switch', { name: 'Frontend' });
     await expect(frontend).toBeChecked();
+    await expect(packs.getByRole('group', { name: 'More packs' })).toContainText('The repository has or adds browser tests');
     await frontend.click();
     await expect(frontend).not.toBeChecked();
     const changes = page.getByRole('region', { name: /^Changes in / });

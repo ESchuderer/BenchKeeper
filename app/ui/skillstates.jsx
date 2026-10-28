@@ -1,4 +1,4 @@
-import { Button, Group, Modal, Select, Stack, Switch, Table, Text, Title } from '@mantine/core';
+import { Badge, Button, Group, Modal, Paper, Select, SimpleGrid, Stack, Switch, Table, Text, Title } from '@mantine/core';
 import { useState } from 'react';
 import { Plan, Section, StateBadge } from './parts.jsx';
 import { Loading, Note, icon, useApi } from './shell.jsx';
@@ -20,13 +20,27 @@ export function PackSwitches({ packs, project, others, toggles, setToggles }) {
     setToggles((t) => ({ ...t, packOn: from ? from.packs.filter((x) => !now.includes(x)) : [], packOff: from ? now.filter((x) => !from.packs.includes(x)) : [] }));
   };
   const sources = others.filter((o) => o.path !== project.path && o.setupVersion && !o.missing);
+  // Grouped by the saved setup and the repository's hints, not by the switch, so a switch never moves on a click.
+  const near = (p) => (project.packs ?? []).includes(p.id) || p.suggested;
+  const groups = [['In use or suggested', packs.filter(near)], ['More packs', packs.filter((p) => !near(p))]].filter(([, list]) => list.length);
   return (
     <Section title="Packs">
-      <Group gap="lg">
-        {packs.map((p) => <Switch key={p.id} label={p.title} description={p.skills == null ? 'a plugin' : `${p.skills} skills${p.own ? ', own' : ''}`} checked={p.enabled} onChange={() => flip(p)} />)}
-      </Group>
+      {groups.map(([group, list], g) => (
+        <div key={group} role="group" aria-labelledby={`packs-${g}`}>
+          <Text id={`packs-${g}`} size="sm" fw={600} mb="xs">{group}</Text>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">
+            {list.map((p) => (
+              <Paper key={p.id} withBorder p="xs">
+                <Switch checked={p.enabled} onChange={() => flip(p)}
+                  label={<Group gap="xs"><Text fw={600} size="sm">{p.title}</Text>{p.suggested && <Badge variant="default" size="sm">suggested: {p.suggested}</Badge>}</Group>}
+                  description={[p.pickWhen, p.skills == null ? 'a plugin' : `${p.skills} skills${p.own ? ', own' : ''}`].filter(Boolean).join('. ')} />
+              </Paper>
+            ))}
+          </SimpleGrid>
+        </div>
+      ))}
       {!!sources.length && <Select label="Copy packs from project" placeholder="Choose a project" clearable maw={360} data={sources.map((o) => ({ value: o.path, label: `${label(o)}: ${o.packs.join(', ') || 'no packs'}` }))} onChange={copyFrom} />}
-      <Text size="sm">Turning a pack off removes the skills no other pack or single pick needs. The changes are listed below before anything is written; undo restores them.</Text>
+      <Text size="sm">Turning a pack off removes the skills no other pack or single skill needs; nothing is written before the plan below is applied.</Text>
     </Section>
   );
 }

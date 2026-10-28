@@ -31,13 +31,13 @@ test('a case from a recorded session links project and run; history shows it; un
   writeFileSync(join(ctx.config, 'ledger', `${session.id}.json`), JSON.stringify(session));
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
-  assert.equal(await main(['case', 'add', '--run', session.id, '--target', 'skill:workflow', '--expected', 'the workflow skill loads before the first edit'], { out, ctx }), 0);
+  assert.equal(await main(['evals', 'cases', 'add', '--run', session.id, '--target', 'skill:workflow', '--expected', 'the workflow skill loads before the first edit'], { out, ctx }), 0);
   const [c] = loadCases(ctx)['skill:workflow'].filter((x) => x.source?.run);
   assert.deepEqual([c.query, c.should, c.source.project, c.source.transcript], ['rename the config flag', true, project, tr]);
   await main(['history'], { out, ctx });
   const run = text.match(/undo with benchkeeper undo (\S+)/)[1];
   assert.match(text, new RegExp(`${run}  apply +done .*eval case ${c.id} for skill:workflow, from ${session.id}`));
-  assert.match(text, /a miss: benchkeeper case add --run 20261022T100000Z-abcd/);
+  assert.match(text, /a miss: benchkeeper evals cases add --run 20261022T100000Z-abcd/);
   undo(run, ctx);
   assert.equal(existsSync(c.file), false);
 });

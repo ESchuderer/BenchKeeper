@@ -119,7 +119,7 @@ test('on: the board button opens the board the app wrote, or says how to get one
   })
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   await ui.press({ key: 'board' })
-  expect(toasts).toEqual(['No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper board'])
+  expect(toasts).toEqual(['No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper sessions board'])
   expect(ran).toEqual([])
   written = true
   await ui.press({ key: 'board' })

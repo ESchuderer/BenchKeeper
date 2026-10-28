@@ -82,11 +82,11 @@ export function projectChecks(ctx, dir, agents) {
       if (!exists(resolve(dirname(file), decodeURI(target)))) out.push(issue('error', 'skills', `skill ${name} in ${dir}: ${file.slice(dir.length + 1)} links ${target}, which does not exist`, 'restore the file or fix the link'));
     }
   }
-  for (const w of warnings([...skills.keys()], { skills: [...skills].map(([name, pickWhen]) => ({ name, pickWhen })) })) out.push(issue('warning', 'skills', w, 'turn skills off with benchkeeper project apply --disable <skill>'));
+  for (const w of warnings([...skills.keys()], { skills: [...skills].map(([name, pickWhen]) => ({ name, pickWhen })) })) out.push(issue('warning', 'skills', w, 'turn skills off with benchkeeper skills disable <name>'));
   let state = null;
-  try { state = readState(dir); } catch (e) { out.push(issue('error', 'project', e.message, 'fix or delete the file, then run benchkeeper project apply')); }
+  try { state = readState(dir); } catch (e) { out.push(issue('error', 'project', e.message, 'fix or delete the file, then run benchkeeper projects apply')); }
   if (state && state.share !== true && tracksState(ctx, dir)) out.push(issue('warning', 'project', 'the setup is local, but the repository still has it committed', 'benchkeeper projects unshare: a pull request removes the committed copies'));
-  if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper update-all, or benchkeeper project apply in the project'));
+  if (state && state.setupVersion !== appVersion) out.push(issue('warning', 'project', `project setup ${state.setupVersion}, app ${appVersion}`, 'benchkeeper projects update, or benchkeeper projects apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   let userPlugins = [];
   try { userPlugins = !agents || agents.includes('claude') ? pluginState(ctx, 'claude').listed.filter((p) => p.enabled) : []; } catch { /* the global plan reports unreadable plugin files */ }

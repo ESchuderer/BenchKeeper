@@ -29,7 +29,7 @@ Skill shape: `disable-model-invocation: true` keeps the description out of conte
 - Python and Rust tools (vulture 2.16, deptry 0.25.1, import-linter 2.15, mutmut 3.8.0, cosmic-ray 8.7.0, cargo-machete 0.9.2, cargo-udeps 0.1.61, cargo-mutants 27.1.0): versions and licenses only, install, run time and false-positive rate unverified.
 - `ponytail:ponytail-audit`, `ponytail:ponytail-debt`, `/doctor prompt-audit`, `/skill-doctor`: not run (interactive sessions on the subscription).
 - Findings kept against rejected across projects, a second project, and agent time and tokens of a whole pass: not run.
-- The new eval set `skill-maintaining-repos` (should-not-load cases only, because the skill never loads by itself): written, not run (`benchkeeper eval` starts headless agent sessions).
+- The new eval set `skill-maintaining-repos` (should-not-load cases only, because the skill never loads by itself): written, not run (`benchkeeper evals run` starts headless agent sessions).
 - The local verdict store of the issue's knowledge-base design: a scratch spike only (44 of 44 findings skipped on an unchanged tree, exactly the 7 findings of a changed file re-checked, a tampered file ignored); not built, and the saving in agent tokens is unmeasured.
 
 ## Decision

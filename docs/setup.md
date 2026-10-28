@@ -30,7 +30,41 @@ Three levels, from the smallest: a plugin cannot ship always-on instructions, so
 | Full | standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.25.0 apply --level full` |
 <!-- /generated:levels -->
 
-Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional (Gemini CLI and Copilot untested). The app configures the agents it finds on `PATH`. It does not install agent CLIs. Linux and macOS are tested; Windows runs only a CI smoke test.
+Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional. The app configures the agents it finds on `PATH`. It does not install agent CLIs.
+
+## Agent and OS support
+
+Claude Code and Codex are supported in full. Gemini CLI and GitHub Copilot CLI are supported to what each documents: rules, skills, the settings catalog, doctor and project setup. A feature an agent has no documented surface for shows "not available for <agent>" in the app (Agents view, Accounts) and in the CLI (`plan`, `apply`, `accounts`), and is never skipped silently. Gemini CLI individual plans stopped on 2026-06-18, so its support holds for the plans that still allow it.
+
+The tables come from `app/src/agents.json`; `node web/scripts/readme.mjs` writes them.
+
+<!-- generated:support -->
+| Agent | Support | Plugin install | Usage feed | Accounts | Tier strip | Note |
+|---|---|---|---|---|---|---|
+| Claude Code | full | yes | yes | yes | yes |  |
+| Codex | full | yes | not available | yes | not available |  |
+| Gemini CLI | what the agent documents | not available | not available | not available | not available | Individual plans stopped on 2026-06-18; the support holds for the plans that still allow it. |
+| GitHub Copilot CLI | what the agent documents | not available | not available | not available | not available | Documents plugins and /usage; BenchKeeper uses neither yet. |
+
+Recorded per agent; the permission default is never written, and versions are observations, not minimums.
+
+| Agent | Wake mode | Trust | Permission default | Model flag | Effort flag | Forbidden headless forms | Observed versions |
+|---|---|---|---|---|---|---|---|
+| Claude Code | background | dialog | `--dangerously-skip-permissions` | `--model` | `--effort` | `--bg with -p` | `2.1.308` |
+| Codex | unsupported | dialog | `--dangerously-bypass-approvals-and-sandbox` | `--model` | none | `--full-auto` | `0.165.0` |
+| Gemini CLI | unsupported | dialog | `--approval-mode=yolo` | `--model` | none | `--yolo`, `--allowed-tools` | none |
+| GitHub Copilot CLI | unsupported | dialog | `--allow-all-tools` | `--model` | `--effort` | `workflow run with -p` | none |
+<!-- /generated:support -->
+
+Operating systems: Linux and macOS are tested. Native Windows is supported for the app and the CLI as documented here: CI runs the Windows smoke job (start, plan, apply with a ledger run). The skill install preview has no sandbox on Windows and is off unless you ask for it without one; use WSL2 for the sandboxed preview ([docs/security.md](security.md)).
+
+Manual Windows checklist, for when a machine is available (nothing below runs in CI):
+
+- `npx benchkeeper@6.25.0 doctor` runs and lists the installed agents.
+- `plan` and `apply` write the rules, skills and settings of an installed agent under the user profile, and `history` undoes the run.
+- `projects plan` and `projects apply` in a repository on an NTFS drive, with Git for Windows.
+- The browser UI starts and "Choose folder" reports that no dialog is available, without an error.
+- A WSL2 distribution runs the same commands with the sandboxed preview on.
 
 ## Setup details
 

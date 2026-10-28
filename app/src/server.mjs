@@ -14,7 +14,7 @@ import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount
 import { limitsFor, settingsOf } from './usage.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
-import { agent, detect } from './agents.mjs';
+import { agent, detect, unavailable } from './agents.mjs';
 import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { contentDir, appVersion } from './content.mjs';
@@ -184,7 +184,7 @@ export function api(ctx) {
   const inventoryNow = () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) }));
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
+    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills, unavailable: unavailable(a.id) })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const level = q.get('level') ?? levelFor(ctx, agents);

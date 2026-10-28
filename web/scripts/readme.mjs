@@ -1,8 +1,10 @@
-// Writes the README blocks generated from src/data/facts.json. `--check` fails when the README is out of date.
+// Writes the README blocks generated from src/data/facts.json and app/src/agents.json. `--check` fails when the README is out of date.
 import { readFileSync, writeFileSync } from 'node:fs';
+import { supportTables } from './support.mjs';
 
 const root = new URL('../../', import.meta.url);
 const facts = JSON.parse(readFileSync(new URL('web/src/data/facts.json', root), 'utf8'));
+const agents = JSON.parse(readFileSync(new URL('app/src/agents.json', root), 'utf8')).agents;
 
 // `|` would end a table cell.
 const cell = (s) => s.replace(/\|/g, '\\|');
@@ -26,6 +28,7 @@ const quickstart = (setup) => {
 };
 
 const blocks = {
+  support: supportTables(agents),
   quickstart: quickstart('docs/setup.md'),
   description: [facts.description],
   core: [`**Optional: [${facts.core.name}](${facts.core.url}) by ${facts.core.by}:** ${facts.core.role}.`],
@@ -62,7 +65,7 @@ const blocks = {
 const pick = (names) => Object.fromEntries(names.map((n) => [n, blocks[n]]));
 const targets = [
   ['README.md', pick(['description', 'quickstart'])],
-  ['docs/setup.md', pick(['prerequisites', 'levels', 'frameworks'])],
+  ['docs/setup.md', pick(['prerequisites', 'levels', 'support', 'frameworks'])],
   ['docs/stack.md', pick(['core', 'tools', 'openhands'])],
   ['app/README.md', { quickstart: quickstart('../docs/setup.md') }],
 ];

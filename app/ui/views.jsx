@@ -221,7 +221,7 @@ export function Agents({ overview, params, refresh }) {
         <Stack gap="lg">
           <Table.ScrollContainer minWidth={640}>
           <Table aria-label="Agents">
-            <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th></Table.Tr></Table.Thead>
+            <Table.Thead><Table.Tr><Table.Th>Agent</Table.Th><Table.Th>Version</Table.Th><Table.Th>Rules</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Tested</Table.Th><Table.Th>Not available</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>
               {o.agents.map((a) => (
                 <Table.Tr key={a.id}>
@@ -230,6 +230,7 @@ export function Agents({ overview, params, refresh }) {
                   <Table.Td><Code>~/{a.rules}</Code></Table.Td>
                   <Table.Td><Code>~/{a.skills}</Code></Table.Td>
                   <Table.Td>{a.tested ? 'tested' : 'untested'}</Table.Td>
+                  <Table.Td>{a.unavailable.length ? <List size="sm" listStyleType="none">{a.unavailable.map((m) => <List.Item key={m}>{m}</List.Item>)}</List> : 'nothing'}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>

@@ -631,8 +631,8 @@ export function api(ctx) {
   // Registry, pack and profile writes wait for a running apply too: they change what a plan reads or an apply writes.
   const guarded = { 'POST /api/projects': () => true, 'POST /api/packs': () => true, 'POST /api/profile-import': (b) => b.register };
   for (const [k, when] of Object.entries(guarded)) { const f = routes[k]; routes[k] = (b) => { if (when(b)) idle(); return f(b); }; }
-  // A change drops the cached machine reads.
-  for (const k of Object.keys(routes)) if (k.startsWith('POST ')) { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
+  // A change drops the cached machine reads; a triage click changes none of them (GET /api/insights reads the triage file each time).
+  for (const k of Object.keys(routes)) if (k.startsWith('POST ') && k !== 'POST /api/insights-triage') { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
   return routes;
 }
 

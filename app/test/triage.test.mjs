@@ -75,15 +75,23 @@ test('a missing, damaged or foreign state file reads as empty; bad input is refu
   assert.throws(() => setTriage(c, 'ok:1@0123abcd', 'delete'), /action must be/);
 });
 
+test('the key of unused skills does not depend on their order', () => {
+  const skill = (scope) => ({ scope, name: 'lint', tokens: 10 });
+  const keyOf = (skills) => findingKey({ id: 'unused-skills', evidence: { skills } });
+  assert.equal(keyOf([skill('user'), skill('project')]), keyOf([skill('project'), skill('user')]));
+});
+
 test('GET /api/insights adds key and triage; POST /api/insights-triage sets it', async () => {
-  const c = ctx(), routes = api(c);
+  let runs = 0;
+  const c = ctx(), routes = api({ ...c, run: (...a) => { runs++; return c.run(...a); } });
   mkdirSync(join(c.home, '.claude'), { recursive: true });
   writeFileSync(join(c.home, '.claude/settings.json'), JSON.stringify({ env: { DO_NOT_TRACK: '1' } }));
   const first = await routes['GET /api/insights']();
   assert.ok(first.findings.length && first.findings.every((f) => /^.+@[0-9a-f]{8}$/.test(f.key) && f.triage === null));
   const { key } = first.findings[0];
   assert.deepEqual(routes['POST /api/insights-triage']({ key, action: 'dismiss' }), { key, triage: { state: 'dismissed' } });
-  const second = await routes['GET /api/insights']();
+  const before = runs, second = await routes['GET /api/insights']();
+  assert.equal(runs, before, 'the triage click kept the cached scan');
   assert.deepEqual(second.findings.find((f) => f.key === key).triage, { state: 'dismissed' });
   assert.throws(() => routes['POST /api/insights-triage']({ key: 'x', action: 'dismiss' }), (e) => e.status === 400);
 });

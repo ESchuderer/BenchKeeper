@@ -91,7 +91,7 @@ function draw() {
   // reg: Registered only, remembered like the theme; it leaves out every session outside a registered project.
   let reg = false;
   try { reg = localStorage.getItem('bk-board-registered') === 'true'; } catch { /* storage blocked */ }
-  const state = { period: '30', q: '', project: '', reg: reg && D.registered.length > 0, hidden: new Set() };
+  const state = { period: '30', q: '', project: '', folder: '', rq: '', open: new Set(), older: false, reg: reg && D.registered.length > 0, hidden: new Set() };
   const pool = () => (state.reg ? rows.filter(listed) : rows);
   const options = (f) => {
     const values = [...new Set(rows.map(f))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -113,7 +113,7 @@ function draw() {
   regBox.addEventListener('change', () => {
     state.reg = regBox.checked;
     try { localStorage.setItem('bk-board-registered', String(state.reg)); } catch { /* storage blocked */ }
-    if (state.reg && state.project && !listed({ repo: state.project })) state.project = '';
+    if (state.reg && state.project && !listed({ repo: state.project })) state.project = state.folder = '';
     render();
   });
   bar.append(el('span', { class: 'f' }, regBox, el('label', { for: 'f-reg' }, 'Registered only'), none ? el('span', { class: 'muted', id: 'f-reg-hint' }, 'No project is registered in the app.') : null));
@@ -193,26 +193,86 @@ function draw() {
       el('div', { class: 'label' }, label), el('div', { class: 'value num' }, value), sparkline(series), old && change(cur[key], old[key], key === 'pass' ? 'pts' : null), note && el('div', { class: 'note' }, note))));
   }
 
-  // The project rail: newest activity first; a click filters everything below, a second click clears it.
+  // The project rail: registered repositories, All, then the other repositories, each newest first. A repository with
+  // sessions in more than one folder expands to them; one without a session in 30 days sits under Show older.
+  // Framed or narrow, the rail is one button with the choice that opens the same list.
+  const narrow = () => getComputedStyle($('rail-toggle')).display !== 'none';
+  const setOpen = (open) => { $('rail').classList.toggle('open', open); $('rail-toggle').setAttribute('aria-expanded', String(open)); };
   function rail(list) {
     const by = group(list, projectKey);
     const span = [...Array(14).keys()].map((i) => iso(now - (13 - i) * DAY));
     const cards = [...by].map(([k, rs]) => ({ k, rs, newest: rs.reduce((a, r) => (r.start > a ? r.start : a), '') })).sort((a, b) => (a.newest < b.newest ? 1 : a.newest > b.newest ? -1 : b.rs.length - a.rs.length));
-    const choose = (v) => { state.project = state.project === v ? '' : v; render(); };
-    $('rail').replaceChildren(
-      el('button', { type: 'button', class: 'card all', 'aria-pressed': String(!state.project) }, state.reg ? 'All registered projects' : 'All projects'),
-      ...cards.map(({ k, rs }) => {
-        const days14 = group(rs, (r) => day(r.start));
-        const tier = rs.find((r) => r.tier)?.tier.last;
-        const b = el('button', { type: 'button', class: 'card', 'aria-pressed': String(state.project === k) },
-          el('span', { class: 'dot', style: `background:${color(k)}` }), el('span', { class: 'pname' }, name(k)),
-          el('span', { class: 'psub num' }, `${counts(k, rs)}${tier ? `, last tier ${tier}` : ''}`),
-          sparkline(span.map((d) => days14.get(d)?.length ?? 0), 80, 22));
-        b.addEventListener('click', () => choose(k));
-        return b;
+    const choose = (k, f = '') => {
+      const same = state.project === k && state.folder === f;
+      state.project = same ? '' : k; state.folder = same ? '' : f;
+      if (f) state.open.add(k);
+      render();
+      if (narrow()) { setOpen(false); $('rail-toggle').focus(); }
+    };
+    const recent = iso(now - 29 * DAY);
+    const entry = ({ k, rs }) => {
+      const days14 = group(rs, (r) => day(r.start));
+      const tier = rs.find((r) => r.tier)?.tier.last;
+      const b = el('button', { type: 'button', class: 'card', title: k, 'aria-pressed': String(state.project === k && !state.folder) },
+        el('span', { class: 'dot', style: `background:${color(k)}` }), el('span', { class: 'pname' }, name(k)),
+        el('span', { class: 'psub num' }, `${counts(k, rs)}${tier ? `, last tier ${tier}` : ''}`),
+        sparkline(span.map((d) => days14.get(d)?.length ?? 0), 80, 22));
+      b.addEventListener('click', () => choose(k));
+      const e = el('div', { class: 'entry', 'data-find': `${name(k)} ${k}`.toLowerCase(), 'data-k': k }, b);
+      const folders = [...group(rs, (r) => r.project)].sort((x, y) => (x[0] < y[0] ? -1 : 1));
+      if (folders.length < 2) return el('div', { class: 'item' }, e);
+      const id = `fl-${gid++}`, open = state.open.has(k);
+      const exp = el('button', { type: 'button', class: 'exp', 'aria-expanded': String(open), 'aria-controls': id, 'aria-label': `Folders of ${name(k)}` }, el('span', { 'aria-hidden': 'true' }, '▸'));
+      const ul = el('ul', { class: 'folders', id, hidden: !open }, folders.map(([p, ps]) => {
+        const f = el('button', { type: 'button', class: 'folder', title: p, 'aria-pressed': String(state.folder === p) }, folder(p), el('span', { class: 'psub num' }, ` ${ps.length}`));
+        f.addEventListener('click', () => choose(k, p));
+        return el('li', { 'data-find': `${folder(p)} ${p}`.toLowerCase() }, f);
       }));
-    $('rail').firstChild.addEventListener('click', () => { state.project = ''; render(); });
+      exp.addEventListener('click', () => expand(e, exp.getAttribute('aria-expanded') !== 'true'));
+      e.append(exp);
+      return el('div', { class: 'item' }, e, ul);
+    };
+    const all = el('button', { type: 'button', class: 'card all', 'aria-pressed': String(!state.project) }, state.reg ? 'All registered projects' : 'All projects');
+    all.addEventListener('click', () => { state.project = state.folder = ''; render(); if (narrow()) { setOpen(false); $('rail-toggle').focus(); } });
+    const old = cards.filter((c) => c.k === 'unknown' || day(c.newest) < recent);
+    const older = el('details', { class: 'older', open: state.older || null }, el('summary', {}, `Show older (${old.length})`), old.map(entry));
+    older.addEventListener('toggle', () => { state.older = older.open; });
+    const fresh = cards.filter((c) => !old.includes(c));
+    $('rail-list').replaceChildren(...fresh.filter((c) => listed({ repo: c.k })).map(entry), all, ...fresh.filter((c) => !listed({ repo: c.k })).map(entry), old.length ? older : null);
+    $('rail-toggle').firstChild.textContent = `${state.project ? `${name(state.project)}${state.folder ? ` / ${folder(state.folder)}` : ''}` : all.textContent}, ${plural(cards.length, 'project')}`;
+    find();
   }
+  const expand = (e, open) => {
+    if (open) state.open.add(e.dataset.k); else state.open.delete(e.dataset.k);
+    find();
+  };
+  // The search hides what does not match; a repository stays when one of its folders matches, and shows those folders.
+  function find() {
+    const q = state.rq;
+    for (const item of $('rail-list').querySelectorAll('.item')) {
+      const [e, ul] = item.children;
+      const own = !q || e.dataset.find.includes(q);
+      let hits = 0;
+      for (const li of ul?.children ?? []) { li.hidden = !!q && !li.dataset.find.includes(q); hits += !li.hidden; }
+      item.hidden = !own && !hits;
+      if (ul) { ul.hidden = !(q && hits && !own) && !state.open.has(e.dataset.k); e.querySelector('.exp').setAttribute('aria-expanded', String(!ul.hidden)); }
+    }
+    const older = $('rail-list').querySelector('.older');
+    if (older) { older.hidden = ![...older.querySelectorAll('.item')].some((x) => !x.hidden); if (q && !older.hidden) older.open = true; }
+  }
+  $('rail-q').addEventListener('input', (e) => { state.rq = e.target.value.toLowerCase(); find(); });
+  $('rail-toggle').addEventListener('click', () => { const open = !$('rail').classList.contains('open'); setOpen(open); if (open) $('rail-q').focus(); });
+  // Up and Down move through the list, Right and Left open and close a repository's folders, Escape clears the search, then closes the list.
+  $('rail').addEventListener('keydown', (ev) => {
+    const items = [...$('rail').querySelectorAll('input, button, summary')].filter((n) => n.getClientRects().length);
+    const i = items.indexOf(document.activeElement), e = ev.target.closest?.('.entry');
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') items[i + (ev.key === 'ArrowDown' ? 1 : -1)]?.focus();
+    else if ((ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') && e?.querySelector('.exp')) expand(e, ev.key === 'ArrowRight');
+    else if (ev.key === 'Escape' && state.rq) { $('rail-q').value = state.rq = ''; find(); }
+    else if (ev.key === 'Escape' && narrow() && $('rail').classList.contains('open')) { setOpen(false); $('rail-toggle').focus(); }
+    else return;
+    ev.preventDefault();
+  });
 
   // The drawn chart, for the keyboard and the readout.
   let drawn = null;
@@ -466,7 +526,7 @@ function draw() {
     const since = len ? iso(now - (len - 1) * DAY) : '';
     const before = len ? iso(now - (2 * len - 1) * DAY) : '';
     const all = pool();
-    const others = (r) => FILTERS.every(([key, , f]) => !state[key] || f(r) === state[key]);
+    const others = (r) => FILTERS.every(([key, , f]) => !state[key] || f(r) === state[key]) && (!state.folder || r.project === state.folder);
     const base = all.filter(others);
     const list = base.filter((r) => r.start >= since);
     const prev = len ? base.filter((r) => day(r.start) >= before && day(r.start) < since) : null;
@@ -519,7 +579,7 @@ const STYLE = `
 :root { color-scheme: light; ${cssVars('light')} }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) { color-scheme: dark; ${cssVars('dark')} } }
 :root[data-theme="dark"] { color-scheme: dark; ${cssVars('dark')} }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; } [hidden] { display: none !important; }
 body { margin: 0; padding: 16px; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 h1 { font-size: 22px; letter-spacing: -0.01em; margin: 0; } h2 { font-size: 16px; margin: 0 0 10px; } h3 { font-size: 13px; margin: 0 0 8px; color: var(--ink-2); font-weight: 600; }
@@ -533,11 +593,18 @@ button:hover { border-color: var(--accent); }
 #filters label { color: var(--ink-2); } .f { display: inline-flex; gap: 6px; align-items: center; max-width: 100%; }
 #filters select { max-width: min(240px, 100%); }
 .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
-#rail { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 4px; margin: -4px; }
-/* Framed in the app, whose navbar already stands on the left, the rail is a scrolling chip row at every width. */
+#rail { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 4px; margin: -4px; }
+#rail-list, .older { display: flex; flex-direction: column; gap: 8px; } #rail-q { width: 100%; margin-bottom: 8px; }
+#rail-toggle { display: none; width: 100%; text-align: left; font-weight: 600; }
+.entry { display: flex; gap: 4px; } .entry .card { flex: 1; min-width: 0; } .exp { padding: 0 8px; } .exp[aria-expanded="true"] span { display: inline-block; transform: rotate(90deg); }
+.folders { list-style: none; margin: 4px 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.folder { width: 100%; text-align: left; border-color: transparent; padding: 2px 8px; overflow-wrap: anywhere; } .folder[aria-pressed="true"] { border-color: var(--accent); }
+.older summary { margin: 0; }
+/* Framed in the app, whose navbar already stands on the left, the rail is one button that opens the list. */
 .framed .layout { grid-template-columns: minmax(0, 1fr); }
-.framed #rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; position: static; max-height: none; padding-bottom: 8px; }
-.framed .card { width: auto; min-width: 150px; max-width: 230px; flex: none; }
+.framed #rail { position: static; max-height: none; overflow: visible; margin: 0 0 12px; padding: 0; }
+.framed #rail-toggle { display: block; } .framed #rail:not(.open) #rail-panel { display: none; }
+.framed #rail-panel { margin-top: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
 .card { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 100%; padding: 10px 12px; border-radius: var(--radius); box-shadow: var(--shadow); }
 .card.all { display: block; font-weight: 600; } .card:hover { transform: translateY(-1px); }
 .card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
@@ -578,8 +645,9 @@ details summary { cursor: pointer; color: var(--ink-2); margin-top: 8px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 760px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
-  #rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; position: static; max-height: none; padding-bottom: 8px; }
-  .card { width: auto; min-width: 150px; max-width: 230px; flex: none; } .card .spark { display: none; }
+  #rail { position: static; max-height: none; overflow: visible; margin: 0 0 12px; padding: 0; }
+  #rail-toggle { display: block; } #rail:not(.open) #rail-panel { display: none; }
+  #rail-panel { margin-top: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; } .card .spark { display: none; }
   .bars { grid-template-columns: minmax(0, 1fr); } .bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 10px; align-items: center; } .bar-track { grid-column: 1 / -1; order: 3; }
 }
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; } }
@@ -604,7 +672,7 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 <div class="head"><h1>Sessions board</h1><span class="muted"><span class="lead">Claude Code and Codex sessions on this machine, read </span><span class="framed-only">Read </span>${now.slice(0, 16).replace('T', ' ')} UTC</span><button id="theme" type="button">Light or dark</button></div>
 <div id="filters" role="group" aria-label="Filters"></div>
 <div class="layout">
-<nav id="rail" aria-label="Projects"></nav>
+<nav id="rail" aria-label="Projects"><button id="rail-toggle" type="button" aria-expanded="false" aria-controls="rail-panel"><span></span><span aria-hidden="true"> \u25be</span></button><div id="rail-panel"><input id="rail-q" type="search" aria-label="Find a project" placeholder="Find a project"><div id="rail-list"></div></div></nav>
 <div class="content">
 <div id="tiles"></div>
 <section aria-labelledby="h-chart"><div class="row"><h2 id="h-chart">Per day by project</h2><label>Show <select id="metric"><option value="cost">Cost</option><option value="time">Agent time</option><option value="tokens">Tokens</option><option value="sessions">Sessions</option></select></label></div>

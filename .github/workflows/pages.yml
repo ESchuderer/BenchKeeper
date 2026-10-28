@@ -38,7 +38,19 @@ jobs:
       - run: npm run build
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - run: node_modules/.bin/playwright install --with-deps chromium
+      # Time-boxed and retried once because the install stalls now and then; no browser cache here, this workflow publishes the site (cache poisoning).
+      - name: Install the browser
+        id: browser
+        continue-on-error: true
+        timeout-minutes: 4
+        run: node_modules/.bin/playwright install --with-deps chromium
+      - name: Install the browser (retry)
+        if: steps.browser.outcome != 'success'
+        timeout-minutes: 4
+        # The runner cannot signal a root-owned apt-get that outlives the timed-out step, and it holds the apt lock.
+        run: |
+          sudo pkill -x apt-get || true
+          node_modules/.bin/playwright install --with-deps chromium
       - run: npm test
       # Pages serves dist/ under /BenchKeeper/; a root dir with that path lets lychee resolve internal links.
       # Relative links only (anchors are not checked: lychee does not find the bench arm ids in the built HTML); external links of the site run weekly in links.yml.

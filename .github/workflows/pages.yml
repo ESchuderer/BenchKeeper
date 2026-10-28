@@ -41,16 +41,11 @@ jobs:
       - run: node_modules/.bin/playwright install --with-deps chromium
       - run: npm test
       # Pages serves dist/ under /BenchKeeper/; a root dir with that path lets lychee resolve internal links.
+      # Relative links only (anchors are not checked: lychee does not find the bench arm ids in the built HTML); external links of the site run weekly in links.yml.
       - run: mkdir -p "$RUNNER_TEMP/site" && ln -s "$PWD/dist" "$RUNNER_TEMP/site/BenchKeeper"
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
-          args: --no-progress --host-concurrency 2 --host-request-interval 1s --max-retries 5 --retry-wait-time 5 --exclude '^https://github\.com/' --root-dir ${{ runner.temp }}/site 'web/dist/**/*.html'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: find web/dist -name '*.html' -print0 | xargs -0 node .github/scripts/github-links.mjs
-        working-directory: .
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: --offline --no-progress --root-dir ${{ runner.temp }}/site 'web/dist/**/*.html'
 
   # Pushes to main build the site again and upload it for the deploy; a failing build or check job keeps the previous deployment.
   bundle:

@@ -248,13 +248,13 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('Sessions board: one entry per repository with its worktree sessions folded in; Registered only keeps the registered project and is remembered', async ({ page }) => {
+  test('Sessions board: one entry per repository with its worktree sessions folded in, a folder of no repository under Other; Registered only keeps the registered project and is remembered', async ({ page }) => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');
     const cards = board.locator('#rail button.card:not(.all)');
     await board.getByLabel('Period').selectOption('all');
     await expect(cards.filter({ hasText: /^bk-ui-proj/ })).toContainText('2 sessions, 2 worktrees');
-    await expect(cards.filter({ hasText: /^blog/ })).toContainText('1 session');
+    await expect(cards.filter({ hasText: /^Other/ })).toContainText('3 sessions, 2 folders');
     await board.getByLabel('Registered only').check();
     await expect(cards).toHaveText([/^bk-ui-proj2 sessions, 2 worktrees/]);
     await expect(board.locator('#count')).toHaveText('2 of 2 sessions');

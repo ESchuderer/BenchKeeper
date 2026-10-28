@@ -88,7 +88,7 @@ export function Surfaces() {
     <Section title="Views and their cost">
       <List spacing={4} size="sm" maw={720}>
         <List.Item>Terminal tier strip: off by default. While on, a Claude Code hook runs each time the prompt is drawn; nothing else runs.</List.Item>
-        <List.Item>Sessions board: written only when you open Sessions or run <Code>benchkeeper sessions board</Code>; no server, nothing runs between.</List.Item>
+        <List.Item>Sessions board: written by each sessions scan (opening Sessions or Runs) and by <Code>benchkeeper sessions board</Code>; no server, nothing runs between.</List.Item>
         <List.Item>Sessions view: reads the sessions cache and only the transcripts changed since the last scan.</List.Item>
         <List.Item>Runs view: read when you open it or press Refresh, no timer. It reuses the last sessions scan or scans like Sessions; with the multi-agent IDE installed, it asks for its run list and the tasks of each run (at most 21 calls).</List.Item>
       </List>

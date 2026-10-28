@@ -215,7 +215,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `BENCHKEEPER_NO_UPDATE_CHECK=1` | unset | no registry request for a newer version (it runs only in a terminal, not when `CI` is set, and never installs) |
 | `BENCHKEEPER_SKILLS_CLI=x.y.z` | unset | runs exactly that skills CLI version, which must be at least 7 days old (the install keeps the 7-day cutoff, so a newer one fails instead of running); unset, the newest release at least 7 days old, never below the app's minimum |
 
-Files below `~/.config/benchkeeper/`: `ledger/` (one JSON file per run), `backup/<run>/` (replaced and removed files), `projects.json`, `accounts.json`, `packs/`, `evals/` (own cases, `results.jsonl`, outputs of rule cases), `board.html`, `orca/` (the optional Orca worker spec and `orca.yaml` and `.worktreeinclude` samples, written when chosen and Orca is installed). Caches below `~/.cache/benchkeeper/`: `worktrees/`, `sessions.json`, `prs.json`.
+Files below `~/.config/benchkeeper/`: `ledger/` (one JSON file per run), `backup/<run>/` (replaced and removed files), `projects.json`, `accounts.json`, `packs/`, `evals/` (own cases, `results.jsonl`, outputs of rule cases), `automations/` (own [automation templates](../docs/automations.md)), `board.html`, `orca/` (the optional Orca worker spec and `orca.yaml` and `.worktreeinclude` samples, written when chosen and Orca is installed). Caches below `~/.cache/benchkeeper/`: `worktrees/`, `sessions.json`, `prs.json`.
 
 ## Test
 

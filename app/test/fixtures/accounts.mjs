@@ -45,6 +45,19 @@ if (me === 'claude' && args[0] === 'auth' && args[1] === 'status') {
   setTimeout(() => { write(home, 'auth.json', { tokens: { access: 'dummy-codex-access' } }); process.exit(0); }, 100);
 } else if (me === 'codex' && args[0] === 'login' && args[1] === '--with-access-token') {
   line((tok) => { fs.writeFileSync(path.join(bin, 'stdin-token'), tok); write(home, 'auth.json', { tokens: { access: 'from-stdin' } }); console.log('Logged in with ' + tok); process.exit(0); });
+} else if (me === 'codex' && args[0] === 'app-server') {
+  // Answers each request while its input is open, as the real server does; the rate limits come from the file limits.
+  const fake = mode('limits');
+  let buf = '';
+  process.stdin.on('data', (c) => {
+    const lines = (buf + c).split('\n');
+    buf = lines.pop();
+    for (const l of lines) {
+      const d = JSON.parse(l);
+      if (d.id === 1) console.log(JSON.stringify({ id: 1, result: { userAgent: 'fake', codexHome: home } }));
+      if (d.id === 2) console.log(fake ? JSON.stringify({ id: 2, result: { accountId: 'acct-secret-id', rateLimits: JSON.parse(fake) } }) : JSON.stringify({ id: 2, error: { code: -32600, message: 'codex account authentication required to read rate limits' } }));
+    }
+  });
 } else if (me === 'podman' || me === 'docker') {
   process.exit(mode('engine') === 'none' ? 127 : 0);
 } else if (me === 'devcontainer') {

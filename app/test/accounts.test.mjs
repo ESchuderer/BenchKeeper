@@ -109,8 +109,9 @@ test('list and status --json: the documented keys, an error document for a broke
   assert.equal(doc.schemaVersion, 1);
   assert.equal(doc.command, 'accounts list');
   assert.deepEqual(doc.accounts.map((a) => Object.keys(a).sort()), [
-    ['agent', 'default', 'dir', 'label', 'limits', 'mode', 'name', 'pool', 'token'],
-    ['agent', 'default', 'label', 'limits', 'mode', 'mount', 'name', 'pool', 'token', 'volume']]);
+    ['agent', 'default', 'dir', 'label', 'limits', 'loggedIn', 'mode', 'name', 'pool', 'token'],
+    ['agent', 'default', 'label', 'limits', 'loggedIn', 'mode', 'mount', 'name', 'pool', 'token', 'volume']]);
+  assert.deepEqual(doc.accounts.map((a) => a.loggedIn), [false, null]);
   assert.deepEqual(doc.accounts[0].token, { kept: false, created: null });
   const s = cli(m);
   assert.equal(await s.exec(['accounts', 'status', 'work', '--json']), 0);
@@ -314,13 +315,13 @@ test('run --token: the stored token is the one extra variable, for Claude Code o
   assert.equal(await cli(m).exec(['run', '--account', 'dev', '--token', '--', 'codex']), 1);
 });
 
-test('the usage feed of a Codex account is reported as not available, in the CLI and in the status document', skip, async () => {
+test('the usage of a Codex account that is not signed in is reported as not read, in the CLI and in the status document', skip, async () => {
   const m = machine();
   await cli(m).exec(['accounts', 'add', 'dev', '--agent', 'codex', '--yes']);
   const s = cli(m);
   assert.equal(await s.exec(['accounts', 'status', 'dev']), 0);
-  assert.match(s.text(), /usage +the usage feed is not available for Codex/);
-  assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'dev')).notAvailable, 'the usage feed is not available for Codex');
+  assert.match(s.text(), /usage +not read: not signed in/);
+  assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'dev')).notAvailable, 'not read: not signed in');
   await cli(m).exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']);
   assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'work')).notAvailable, undefined);
 });

@@ -16,7 +16,7 @@ import { diffLines } from './diff.mjs';
 import { exists, inside, readText } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { apply, preview, runCommandAsync } from './runner.mjs';
-import { HOOK_SOURCE, STATE_DIR, assess, headroom, lowWindows, limitsFor, parseState, qualifies, readyAt, settingsOf, trackedSettings, usageFindings, validLimits, validSettings } from './usage.mjs';
+import { CODEX_READER, HOOK_SOURCE, STATE_DIR, assess, codexReading, headroom, lowWindows, limitsFor, nearNotices, parseState, qualifies, readyAt, settingsOf, trackedSettings, usageFindings, validLimits, validSettings } from './usage.mjs';
 
 export const AGENTS = registry.filter((a) => a.features.accounts).map((a) => a.id);
 const VAR = { claude: 'CLAUDE_CONFIG_DIR', codex: 'CODEX_HOME' };
@@ -228,8 +228,8 @@ function* usageNowSteps(ctx, a, { dir, now }) {
 }
 
 // Whether the account is signed in, how old its token is, and what to run when it is not. Reads only. loggedIn null: not checked.
-// dir: the project whose dev container a container account is checked in.
-function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
+// dir: the project whose dev container a container account is checked in. usage false: the sign-in only (accounts list).
+function* statusSteps(ctx, a, { dir, now = Date.now(), token, usage = true } = {}) {
   const out = /** @type {{ name: string, agent: string, mode: string, loggedIn: boolean | null, method: string | null, tokenAgeDays?: number, usage: object | null, notAvailable?: string, findings: object[] }} */ ({ name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, usage: null, findings: [] });
   const age = a.token?.created ? Math.floor((now - Date.parse(a.token.created)) / DAY) : null;
   const relogin = `benchkeeper accounts login ${a.name}`;
@@ -259,9 +259,16 @@ function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
     if (age >= EXPIRED_DAYS) out.findings.push(finding('error', a.name, `the stored token is ${age} days old and has run out`, `${relogin} --token`));
     else if (age >= WARN_DAYS) out.findings.push(finding('warning', a.name, `the stored token is ${age} days old (a token lasts a year)`, `${relogin} --token`));
   }
-  // Usage: Claude Code only (no documented source for Codex), and a container account only where its container was reached.
-  out.usage = supports(a.agent, 'usage') && (a.mode === 'host' || engine) ? yield* usageSteps(ctx, a, { dir, now, engine }) : null;
-  if (!supports(a.agent, 'usage')) out.notAvailable = notAvailable('usage', a.agent);
+  if (!usage) return out;
+  // Usage: the status line files of a Claude Code account, where its container was reached. Codex has no feed: its app-server
+  // is asked once, for a signed-in host account.
+  if (supports(a.agent, 'usage')) out.usage = a.mode === 'host' || engine ? yield* usageSteps(ctx, a, { dir, now, engine }) : null;
+  else if (a.agent === 'codex' && !(a.mode === 'host' && out.loggedIn)) out.notAvailable = a.mode === 'host' ? 'not read: not signed in' : 'not read: Codex usage is read for host accounts only';
+  else if (a.agent === 'codex') {
+    const c = codexReading((yield [[process.execPath, '-e', CODEX_READER], { env: accountEnv(ctx, a), timeout: 30e3 }]).stdout, now);
+    if (c.usage) out.usage = assess({ usage: c.usage, failures: [] }, limitsFor(registrySettings(ctx), a), now);
+    else out.notAvailable = `not read: ${hide(c.reason)}`;
+  } else out.notAvailable = notAvailable('usage', a.agent);
   if (out.usage) out.findings.push(...usageFindings(a.name, out.usage, relogin));
   return out;
 }
@@ -287,11 +294,12 @@ export const accountUsage = (ctx, a, o) => drive(usageNowSteps(ctx, a, o), ctx.r
 // The usage check of a launch, for an account with a window below its minimum. Returns null (go on: confirmed, or the settings
 // say go on; the findings printed before show the windows), { account, confirmed? } (start under that account instead; confirmed after a wait), or throws NeedsConfirm or a stop.
 // Auto-pick (settings, off by default) acts here and nowhere else: only for a new launch under the default account, only among
-// the accounts of the chosen one's pool (accounts of one person), only to an account known to be at or above its minimum.
+// the accounts of the chosen one's pool (accounts of one person), only to an account known to be at or above its minimum,
+// and only for an agent with a usage feed (Claude Code): a Codex account is never switched for the user.
 function launchGate(ctx, a, u, { dir, now, pick, confirmed, say }) {
   if (!lowWindows(u).length) return null;
   const settings = settingsOf(registrySettings(ctx));
-  if (!(settings.autoPick && pick && a.pool)) {
+  if (!(settings.autoPick && pick && a.pool && supports(a.agent, 'usage'))) {
     if (!confirmed && !settings.continueBelow) throw new NeedsConfirm();
     return null;
   }
@@ -325,6 +333,7 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
   // A failed check that is only "could not read" does not stop a launch; a login that is gone does.
   if (s.loggedIn === false && !useToken) throw new Error(`account ${a.name} is not signed in, or the login expired: benchkeeper accounts login ${a.name}`);
   for (const f of s.findings.filter((x) => x.level !== 'info')) say(`${f.level}: ${f.message} (${f.fix})`);
+  for (const f of s.usage ? nearNotices(a.name, s.usage) : []) say(`notice: ${f.message} (${f.fix})`);
   const gate = s.usage ? launchGate(ctx, a, s.usage, { dir, now, pick, confirmed, say }) : null;
   if (gate) return runAs(ctx, gate.account, args, { dir, useToken, say, now, pick: false, confirmed: !!gate.confirmed });
   // The folder is for this user alone, also when the agent creates its first files there.

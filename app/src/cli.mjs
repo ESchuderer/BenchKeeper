@@ -844,7 +844,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (problem) return fail(problem);
     const all = listAccounts(ctx), picked = positionals[2] ? all.filter((a) => a.name === positionals[2]) : all;
     if (positionals[2] && !picked.length) return fail(`no account ${positionals[2]}`);
-    if (arg !== 'status') return emit({ accounts: picked.map((a) => accountDoc(a, registrySettings(ctx))), settings: { ...settingsOf(registrySettings(ctx)), warn: limitsFor(registrySettings(ctx)).warn } });
+    if (arg !== 'status') return emit({ accounts: picked.map((a) => ({ ...accountDoc(a, registrySettings(ctx)), loggedIn: accountStatus(ctx, a, { usage: false }).loggedIn })), settings: { ...settingsOf(registrySettings(ctx)), warn: limitsFor(registrySettings(ctx)).warn } });
     const accounts = picked.map((a) => accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined }));
     return emit({ accounts }, accounts.some((a) => a.findings.some((f) => f.level === 'error')) ? 1 : 0);
   }
@@ -966,6 +966,8 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
 
 const accountLine = (a) => `${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${(a.mode === 'host' ? 'host' : 'container').padEnd(9)} ${(a.default ? 'default' : '').padEnd(8)} ${a.mode === 'host' ? a.dir : `volume ${a.volume} at ${a.mount}`}${a.label ? `  ${mask(a.label)}` : ''}${a.pool ? `  pool ${a.pool}` : ''}${a.token ? `  token kept since ${a.token.created.slice(0, 10)}` : ''}`;
 
+const loginText = (s) => (s.loggedIn === null ? 'not checked' : s.loggedIn ? `signed in${s.method ? ` (${s.method})` : ''}` : 'not signed in');
+
 // The steps of a sign-in as the terminal shows them; the agent's own lines come through say.
 function terminalIo({ out, ask, secret }) {
   return {
@@ -1051,7 +1053,7 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
   try {
     if (sub === 'list') {
       const list = listAccounts(ctx);
-      for (const a of list) out.write(`${accountLine(a)}\n`);
+      for (const a of list) out.write(`${accountLine(a)}  ${loginText(accountStatus(ctx, a, { usage: false }))}\n`);
       if (!list.length) out.write('no accounts: benchkeeper accounts add\n');
       return 0;
     }
@@ -1060,7 +1062,7 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
       let code = 0;
       for (const a of list) {
         const s = accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined });
-        out.write(`${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${s.loggedIn === null ? 'not checked' : s.loggedIn ? `signed in${s.method ? ` (${s.method})` : ''}` : 'not signed in'}${s.tokenAgeDays !== undefined ? `  token ${s.tokenAgeDays} days old` : ''}\n`);
+        out.write(`${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${loginText(s)}${s.tokenAgeDays !== undefined ? `  token ${s.tokenAgeDays} days old` : ''}\n`);
         if (s.usage) out.write(`${usageText(s.usage, a.name)}\n`);
         else if (s.notAvailable) out.write(`  usage    ${s.notAvailable}\n`);
         for (const f of s.findings) { out.write(`  ${f.level.padEnd(8)} ${f.message}\n           fix: ${f.fix}\n`); if (f.level === 'error') code = 1; }

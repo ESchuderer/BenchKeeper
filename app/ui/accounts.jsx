@@ -9,7 +9,7 @@ const AGENT = { claude: 'Claude Code', codex: 'Codex' };
 const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
 const DOT = { ok: 'teal', warn: 'yellow', low: 'red', unknown: 'gray' };
 const minimum = (l) => WINDOWS.map(([k, label]) => `${label} ${l.minimum[k]}%`).join(', ');
-// What is left per rate limit window, from the usage a Claude Code account's status line keeps; unknown says why.
+// What is left per rate limit window, from a Claude Code account's status line or a Codex app-server read; unknown says why.
 function Usage({ usage, name, notAvailable }) {
   if (!usage) return notAvailable ? <Text size="sm">Usage: {notAvailable}</Text> : null;
   if (!usage.tracked) return <Text size="sm">Usage is not tracked: <Code>benchkeeper accounts track {name}</Code></Text>;

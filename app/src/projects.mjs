@@ -4,11 +4,13 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentVersion } from './content.mjs';
+import { PACK_SCOPES, libraryWith, packScope, packScopes, scopeText, scopeWrite } from './packs.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
 import { skillFiles } from './skills.mjs';
+import { globalPlan, localPlugins, pluginState } from './steps/global.mjs';
 import { STATE, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
@@ -49,6 +51,49 @@ export function usersByPack(ctx) {
   const users = new Map();
   for (const p of listProjects(ctx)) for (const id of projectState(ctx, p.path)?.packs ?? []) users.set(id, [...(users.get(id) ?? []), p.path]);
   return users;
+}
+// A pack moved to the other scope (PACK_SCOPES) as one plan: its installs come out of one place and go into the other, and the
+// scope file records the choice; undo takes all of it back. Agents that offer one scope only keep their install (fixed).
+// The projects' state files are left for their next projects apply, which records the skill list.
+export function scopePlan(ctx, id, scope, agents) {
+  const pack = libraryWith(ctx).packs.find((p) => p.id === id);
+  if (!pack) throw new Error(`unknown pack ${id}`);
+  if (!PACK_SCOPES.includes(scope)) throw new Error(`scope must be one of ${PACK_SCOPES.join(', ')}`);
+  const was = packScope(ctx, pack);
+  if (was === scope) return [];
+  const next = { ...ctx, packScopes: { ...ctx.packScopes, [id]: scope } };
+  const users = projectsUsing(ctx, id).filter((p) => isDir(p));
+  const changes = [];
+  // The other part's steps for this pack, with ids and units per project so two projects do not share one.
+  const take = (list, keep, where = '', extra = {}) => changes.push(...list.filter(keep).map((c) => ({ ...c, id: `${where}${c.id}`, ...(c.unit ? { unit: `${where}${c.unit}` } : {}), ...extra })));
+  const projectSide = (keep) => { for (const path of users) take(projectItemPlan(next, path) ?? [], keep, `${path}:`, { selected: true }); };
+  // The global plan without a registry lookup for the host tools, whose steps are left out anyway.
+  const global = (packs = []) => globalPlan({ ctx: next, agents, devcontainerCli: '0.0.0', options: { packs, level: 'full' } });
+  if (pack.plugins) {
+    for (const a of agents.filter((x) => pack.plugins[x] && !packScopes(pack, x).fixed)) {
+      const pid = pack.plugins[a].id, flags = (s) => ['--scope', s];
+      if (scope === 'projects') {
+        if (pluginState(ctx, a).listed.some((x) => x.id === pid)) changes.push({ id: `scope:${id}:${a}:user`, step: `scope:${id}`, title: `uninstall ${pid} for the user (now ${scopeText(scope)})`, kind: 'command', argv: [a, 'plugin', 'uninstall', ...flags('user'), pid], undoArgv: [a, 'plugin', 'install', ...flags('user'), pid], selected: true });
+        // A marketplace the agent knows stays: undoing its add would remove it.
+        const known = pluginState(ctx, a).markets;
+        projectSide((c) => c.step === `pack:${id}:${a}` && !(c.argv[3] === 'add' && known.includes(pack.plugins[a].id.split('@')[1])));
+      } else {
+        for (const path of users.filter((x) => localPlugins(ctx, x).includes(pid))) changes.push({ id: `scope:${id}:${a}:${path}`, step: `scope:${id}`, title: `uninstall ${pid} in ${path} (local scope; now ${scopeText(scope)})`, kind: 'command', argv: [a, 'plugin', 'uninstall', ...flags('local'), pid], undoArgv: [a, 'plugin', 'install', ...flags('local'), pid], cwd: path, selected: true });
+        take(global([id]), (c) => c.step === `plugin:${a}:${pid}`);
+      }
+    }
+  } else {
+    const named = (c, prefix) => pack.skills.some((n) => c.step === `${prefix}:${n}`);
+    if (scope === 'global') {
+      take(global(), (c) => c.step === `pack:${id}`);
+      projectSide((c) => named(c, 'remove'));
+    } else {
+      take(global(), (c) => /^other:\w+:skill$/.test(c.step) && pack.skills.includes(basename(c.path)), '', { selected: true });
+      projectSide((c) => named(c, 'skill'));
+    }
+  }
+  changes.push({ id: `scope:${id}`, step: `scope:${id}`, title: `pack ${id}: ${scopeText(scope)} (was ${scopeText(was)})`, ...scopeWrite(ctx, id, scope) });
+  return changes;
 }
 function save(ctx, projects) {
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);
@@ -178,8 +223,9 @@ export function scan(ctx, root, depth = 3) {
   return found;
 }
 
-// The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them.
-const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers }).changes).filter((c) => c.kind !== 'command' || c.cwd);
+// The project's own changes from its state file. Plugin installs change the machine, not the project: global apply does them, and
+// projects apply in the checkout the ones at local scope (a run in a worktree would record them for the worktree's folder).
+const projectChanges = (ctx, dir, answers = {}) => preview(projectPlan({ ctx: projectCtx(ctx, dir), dir, answers }).changes).filter((c) => c.kind !== 'command' || (c.cwd && !c.machine));
 
 // Commands run synchronously, so each has a time limit: a push that waits for a passphrase or a commit that waits for a
 // signing prompt would freeze a server for good (Stop cannot reach it). Local steps and network steps get their own limit.

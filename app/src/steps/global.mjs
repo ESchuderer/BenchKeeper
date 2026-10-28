@@ -10,6 +10,7 @@ import { contentDir, contentRefusal, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
+import { libraryWith, packScope, packScopes, scopeText } from '../packs.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
 import * as orca from '../orca/index.mjs';
 import { SRT_VERSION } from '../sandbox.mjs';
@@ -62,11 +63,26 @@ export function pin(p, appVersion) {
 // What a marketplace add names: the source, at the ref when the plugin has one (Claude Code `source#ref`, Codex `source@ref`).
 export const marketSource = (p, a) => `${p.source}${p.ref ? `${a === 'claude' ? '#' : '@'}${p.ref}` : ''}`;
 // The unit of a plugin of PLUGINS: a pack's plugin is the pack's (its settings files go with it), any other plugin its own.
-export const pluginUnit = (p) => unit({
-  id: p.pack ? `pack:${p.pack}` : `plugin:${p.id}`, kind: p.pack ? 'pack' : 'plugin', removal: 'plugin', scope: 'global',
+// scope: the pack's scope, projects for a plugin installed per project.
+export const pluginUnit = (p, scope = 'global') => unit({
+  id: p.pack ? `pack:${p.pack}` : `plugin:${p.id}`, kind: p.pack ? 'pack' : 'plugin', removal: 'plugin', scope: scope === 'projects' ? 'project' : 'global',
   source: { type: 'marketplace', id: p.id, ...(p.source ? { marketplace: p.source } : {}), ...(p.ref ? { ref: p.ref } : {}) },
   agents: Object.keys(PLUGINS).filter((a) => PLUGINS[a].some((x) => x.id === p.id)),
 });
+// The scope a pack's plugin has for an agent: the pack's, unless the agent offers only one.
+export function pluginScope(ctx, p, a) {
+  const pack = library().packs.find((x) => x.id === p.pack), o = packScopes(pack, a);
+  return o.fixed ? o.scopes[0] : packScope(ctx, pack);
+}
+// Claude Code plugins installed at local scope for one project folder. Unverified field names (scope, projectPath): a missing one
+// reads as not installed there.
+export function localPlugins(ctx, dir) {
+  try {
+    const installed = JSON.parse(readText(join(ctx.home, '.claude/plugins/installed_plugins.json')));
+    if (installed?.plugins) return Object.entries(installed.plugins).filter(([, l]) => l.some((p) => p.scope === 'local' && p.projectPath === dir)).map(([id]) => id);
+  } catch { /* the CLI below */ }
+  return json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'local' && p.projectPath === dir).map((p) => p.id);
+}
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 export const KEEP_SKILLS = ['find-skills', ...orca.SKILLS, 'synced'];
@@ -282,7 +298,8 @@ export function globalPlan(env) {
       // An installed pack plugin is kept current without its pack being chosen again.
       if (p.pack && !options.packs?.includes(p.pack) && !have) continue;
       const step = `plugin:${a}:${p.id}`;
-      const installUnit = pluginUnit(p);
+      const scope = p.pack ? pluginScope(ctx, p, a) : 'global';
+      const installUnit = pluginUnit(p, scope);
       // A chosen pack's settings files (library.json, packs[].settings), once for all agents, under its plugin step.
       if (p.pack && options.packs?.includes(p.pack)) {
         for (const x of library().packs.find((y) => y.id === p.pack)?.settings ?? []) {
@@ -290,8 +307,10 @@ export function globalPlan(env) {
           packSettings.add(x.path);
         }
       }
-      // Offered, not preselected: uninstalling deletes the plugin's data, and unregistered projects may still use it.
-      if (have && p.pack && !options.packs?.includes(p.pack) && options.packsInUse && !options.packsInUse.includes(p.pack)) {
+      // Offered, not preselected: uninstalling deletes the plugin's data, and unregistered projects may still use it. A pack for all
+      // projects is not tied to a project selecting it: only switching it off (options.drop) removes it.
+      const unused = scope === 'projects' && options.packsInUse && !options.packsInUse.includes(p.pack);
+      if (have && p.pack && !options.packs?.includes(p.pack) && (unused || options.drop?.includes(p.pack))) {
         const argv = a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], undoArgv = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
         if (installedByApp(ctx, argv)) add(step, `remove ${name} plugin ${p.id}: no registered project uses the ${p.pack} pack`, { kind: 'command', argv, undoArgv, destructive: true, installUnit });
         // The user's own plugin: kept unless removed on its own (never by --yes or --all); its pack stays choosable, so adding it to a project comes first.
@@ -299,6 +318,8 @@ export function globalPlan(env) {
           impact: `removing runs ${argv.join(' ')}, which deletes the plugin and its data from ${name}; ${undoArgv.join(' ')} brings it back`, installUnit });
         continue;
       }
+      // A pack for selected projects is installed by each project's plan, at local scope.
+      if (scope === 'projects') continue;
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
       const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', marketSource(p, a), ...sparse];
       const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
@@ -313,7 +334,7 @@ export function globalPlan(env) {
       // Installed: the agent's own update keeps it current (BenchKeeper's marketplace follows the branch stable).
       if (have) continue;
       if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step, installUnit });
-      add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step, installUnit });
+      add(step, `${name} plugin ${p.id}${p.pack ? ` (optional pack, ${scopeText(scope)})` : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step, installUnit });
     }
     // An account folder with the plugin behind the app: the marketplace refresh and the update run with that folder only. The
     // default folder gets none (the agent's own update keeps it current); a plugin an account lacks is not installed there.
@@ -359,9 +380,12 @@ export function globalPlan(env) {
 
   // Global skills and MCP servers not part of the setup.
   const skillDirs = { claude: '.claude/skills', codex: '.agents/skills' };
+  const lib = libraryWith(ctx);
+  const globalPacks = lib.packs.filter((p) => !p.plugins && p.skills?.length && packScope(ctx, p) === 'global');
+  const packSkills = globalPacks.flatMap((p) => p.skills);
   for (const [a, d] of Object.entries(skillDirs)) {
     if (!agents.includes(a) || !exists(at(d))) continue;
-    for (const s of readdirSync(at(d))) if (!KEEP_SKILLS.includes(s)) add(`other:${a}:skill`, `move the global skill ~/${d}/${s} to the backup`, { kind: 'remove', path: at(join(d, s)) });
+    for (const s of readdirSync(at(d))) if (!KEEP_SKILLS.includes(s) && !packSkills.includes(s)) add(`other:${a}:skill`, `move the global skill ~/${d}/${s} to the backup`, { kind: 'remove', path: at(join(d, s)) });
   }
   if (agents.includes('claude')) {
     const servers = Object.keys(parseJsonSafe(readText(at('.claude.json'))).mcpServers ?? {}).filter((n) => SAFE_NAME.test(n));
@@ -413,15 +437,25 @@ export function globalPlan(env) {
   // A newer installed release stays: the cooldown picks what to install, it never downgrades.
   if (want && (!semver(have) || bySemver(have, want) < 0)) add('tools:devcontainer', `Dev Containers CLI ${want} (installed: ${have || 'none'})`, { kind: 'command', argv: ['npm', 'i', '-g', '--ignore-scripts', `@devcontainers/cli@${want}`], env: cooldownEnv(), verify: verifyArgv(`@devcontainers/cli@${want}`) });
   // Lifecycle scripts stay off (the skills CLI needs none); the snapshot makes the install undoable: the skill folders and the lock.
-  const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, {
-    kind: 'command', argv: ['npx', '-y', skillsSpec(ctx), 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true', ...cooldownEnv() }, verify: skillsVerify(ctx),
+  const skill = (source, name, flags, step = `tools:skill:${name}`, title = `global skill ${name} from ${source}`) => add(step, title, {
+    kind: 'command', argv: ['npx', '-y', skillsSpec(ctx), 'add', source, '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true', ...cooldownEnv() }, verify: skillsVerify(ctx),
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
-    installUnit: unit({ id: `skill:${name}`, kind: 'skill', source: { type: 'git', repo: SKILL_SOURCES[repo] }, agents: ['claude', 'codex'], scope: 'global', files: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`)], removal: 'skills-cli' }),
+    installUnit: unit({ id: `skill:${name}`, kind: 'skill', source: { type: 'git', repo: source }, agents: ['claude', 'codex'], scope: 'global', files: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`)], removal: 'skills-cli' }),
   });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
   const hasIde = orca.installed(ctx);
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(hasIde ? orca.SKILLS.map((n) => [orca.SKILL_SOURCE, n]) : [])];
-  for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(repo, name, f); }
+  for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(SKILL_SOURCES[repo], name, f); }
+  // Skill packs for all projects: their skills in the global skill folders of Claude Code and Codex, an own skill copied from the library.
+  for (const p of globalPacks) {
+    for (const s of lib.skills.filter((x) => p.skills.includes(x.name))) {
+      const title = `global skill ${s.name} (pack ${p.id}, ${scopeText('global')})`;
+      if (s.source !== 'own') { const f = flagsFor(s.name); if (f.length) skill(`https://github.com/${s.source}`, s.name, f, `pack:${p.id}`, title); continue; }
+      const dirs = Object.keys(skillDirs).filter((a) => agents.includes(a)).map((a) => join(at(skillDirs[a]), s.name));
+      const installUnit = unit({ id: `skill:${s.name}`, kind: 'skill', source: { type: 'library' }, agents: agents.filter((a) => skillDirs[a]), scope: 'global', files: dirs, removal: 'files' });
+      for (const d of dirs) for (const f of listFiles(join(contentDir, 'library', s.name))) add(`pack:${p.id}`, title, { kind: 'write', path: join(d, f), after: readFileSync(join(contentDir, 'library', s.name, f), 'utf8'), installUnit });
+    }
+  }
   if (hasIde) for (const t of orca.templates(ctx)) add(t.step, t.title, t.change, { selected: false, optional: true });
   return checkPlan(changes);
 }

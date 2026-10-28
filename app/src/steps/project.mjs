@@ -12,10 +12,10 @@ import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, 
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
-import { libraryWith, warnings } from '../packs.mjs';
+import { libraryWith, packScope, scopeText, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
-import { PLUGINS, marketSource, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
+import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
 import { headCommit } from '../remote.mjs';
 import { checkPlan, unit } from '../units.mjs';
 import { workerRepos } from '../sessions.mjs';
@@ -316,7 +316,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const at = (p) => join(dir, p);
   const changes = [];
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, ...c });
-  const skills = chosenSkills(a, lib);
+  // A skill pack for all projects is in the global skill folders: the project keeps it selected without copies.
+  const skills = chosenSkills({ ...a, packs: a.packs.filter((id) => packScope(ctx, lib.packs.find((x) => x.id === id)) !== 'global') }, lib);
   const rel = (p) => relative(dir, p);
 
   // Files offered beside the setup. One is named in the block and the exclude list only once it is written: in this run, or as
@@ -403,14 +404,17 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (JSON.stringify(v) === JSON.stringify(g.value)) add('drop:gemini', 'Gemini CLI no longer reads AGENTS.md (not chosen)', { kind: 'write', path: at(g.path), edit: (t) => mergeJson(t, [{ path: g.key, remove: true }, { path: g.key.slice(0, -1), prune: true }]) });
   }
 
-  // Packs with a plugin: installed globally when missing; their prompts are listed for the user.
+  // Packs with a plugin: installed when missing, for the user (all projects) or, for selected projects, at Claude Code's local
+  // scope in this folder (a machine change: Update all leaves it out); their prompts are listed for the user.
   for (const id of a.packs) {
     const pack = lib.packs.find((x) => x.id === id);
     for (const ag of Object.keys(pack.plugins ?? {}).filter((x) => a.agents.includes(x))) {
       const p = PLUGINS[ag].find((x) => x.pack === id);
-      if (p && !(plugins[ag] ?? []).includes(p.id)) {
-        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', marketSource(p, ag)], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace], unit: `pack:${id}:${ag}`, installUnit: pluginUnit(p) });
-        add(`pack:${id}:${ag}`, `${agent(ag).name} plugin ${p.id}`, { unit: `pack:${id}:${ag}`, installUnit: pluginUnit(p), ...(ag === 'claude' ? { kind: 'command', argv: ['claude', 'plugin', 'install', p.id], undoArgv: ['claude', 'plugin', 'uninstall', p.id] } : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] }) });
+      const scope = p && pluginScope(ctx, p, ag), local = scope === 'projects';
+      if (p && !(local ? localPlugins(ctx, dir) : plugins[ag] ?? []).includes(p.id)) {
+        const installUnit = pluginUnit(p, scope), where = local ? { cwd: dir, machine: true } : {};
+        if (p.source) add(`pack:${id}:${ag}`, `${agent(ag).name} marketplace ${p.marketplace}`, { kind: 'command', argv: [ag, 'plugin', 'marketplace', 'add', marketSource(p, ag)], undoArgv: [ag, 'plugin', 'marketplace', 'remove', p.marketplace], unit: `pack:${id}:${ag}`, installUnit, ...where });
+        add(`pack:${id}:${ag}`, `${agent(ag).name} plugin ${p.id} (${scopeText(scope)})`, { unit: `pack:${id}:${ag}`, installUnit, ...where, ...(ag === 'claude' ? { kind: 'command', argv: ['claude', 'plugin', 'install', ...(local ? ['--scope', 'local'] : []), p.id], undoArgv: ['claude', 'plugin', 'uninstall', ...(local ? ['--scope', 'local'] : []), p.id] } : { kind: 'command', argv: ['codex', 'plugin', 'add', p.id], undoArgv: ['codex', 'plugin', 'remove', p.id] }) });
       }
     }
   }

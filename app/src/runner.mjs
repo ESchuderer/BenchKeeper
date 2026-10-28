@@ -29,7 +29,9 @@ const failure = (r, lines = 3) => mask((r.stderr || jsonError(r.stdout) || r.std
 // The undo commands plans produce: the plugin and marketplace commands of the two agents, with a plain name. A ledger file
 // that names anything else is not run (the ledger is a file the user's other processes can write).
 const NAME = /^[A-Za-z0-9][\w.@:-]*$/;
-const UNDO_FORMS = [['claude', 'plugin', 'uninstall'], ['claude', 'plugin', 'install'], ['claude', 'plugin', 'marketplace', 'remove'], ['codex', 'plugin', 'remove'], ['codex', 'plugin', 'add'], ['codex', 'plugin', 'marketplace', 'remove']];
+// Claude Code's plugin commands also at the user and local scope a pack's scope moves between.
+const UNDO_FORMS = [['claude', 'plugin', 'uninstall'], ['claude', 'plugin', 'install'], ['claude', 'plugin', 'marketplace', 'remove'], ['codex', 'plugin', 'remove'], ['codex', 'plugin', 'add'], ['codex', 'plugin', 'marketplace', 'remove'],
+  ...['install', 'uninstall'].flatMap((v) => ['user', 'local'].map((s) => ['claude', 'plugin', v, '--scope', s]))];
 const named = (argv, f) => f.every((x, i) => argv[i] === x) && NAME.test(argv[f.length]);
 export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => argv.length === f.length + 1 && named(argv, f));
 

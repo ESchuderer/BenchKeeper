@@ -151,8 +151,8 @@ test('Ponytail pack is optional: off, no install and no level write; on, both un
   assert.ok(!m.plan([]).some((c) => /ponytail/i.test(`${c.title} ${c.path ?? ''}`)));
   const on = m.plan(['ponytail']);
   assert.deepEqual(on.filter((c) => /ponytail/i.test(`${c.title} ${c.path ?? ''}`)).map((c) => [c.step, c.title]), [
-    ['plugin:claude:ponytail@ponytail', 'Ponytail level full'], ['plugin:claude:ponytail@ponytail', 'Claude Code plugin ponytail@ponytail (optional pack)'],
-    ['plugin:codex:ponytail@ponytail', 'Codex plugin ponytail@ponytail (optional pack)'],
+    ['plugin:claude:ponytail@ponytail', 'Ponytail level full'], ['plugin:claude:ponytail@ponytail', 'Claude Code plugin ponytail@ponytail (optional pack, all projects)'],
+    ['plugin:codex:ponytail@ponytail', 'Codex plugin ponytail@ponytail (optional pack, all projects)'],
   ]);
 });
 
@@ -222,8 +222,12 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
   // An installed pack plugin is left to the agent's own update, with or without its pack chosen.
   assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), []);
-  // No registered project uses its pack any more: removal offered, not preselected; a project that uses it keeps it.
+  // A pack for all projects (the default of a plugin pack) is not tied to a project selecting it: no removal offered.
   const mp = (packsInUse, packs) => globalPlan({ ctx, agents: ['claude'], options: { packs, packsInUse } }).filter((c) => c.step === 'plugin:claude:mattpocock-skills@claude-plugins-official');
+  assert.deepEqual(mp([]), []);
+  // For selected projects, and no registered project uses its pack any more: removal offered, not preselected; a project that uses it keeps it.
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'pack-scopes.json'), JSON.stringify({ scopes: { 'matt-pocock': 'projects', ponytail: 'projects' } }));
   const [rm] = mp(['frontend']);
   assert.ok(rm.destructive && rm.argv.join(' ') === 'claude plugin uninstall mattpocock-skills@claude-plugins-official' && rm.undoArgv.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official');
   assert.equal(preview([rm])[0].selected, false);
@@ -232,9 +236,8 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   assert.ok(rm.foreign && rm.pack === 'matt-pocock');
   assert.equal(rm.title, 'matt-pocock (Claude Code plugin mattpocock-skills@claude-plugins-official) is installed on this machine, but BenchKeeper did not set it up and no project in your list selects it. Keep it (default) or remove it.');
   assert.equal(rm.impact, 'removing runs claude plugin uninstall mattpocock-skills@claude-plugins-official, which deletes the plugin and its data from Claude Code; claude plugin install mattpocock-skills@claude-plugins-official brings it back');
-  const [cx] = globalPlan({ ctx, agents: ['codex'], options: { packsInUse: [] } }).filter((c) => c.step === 'plugin:codex:ponytail@ponytail');
-  assert.ok(cx.foreign && cx.title.startsWith('ponytail (Codex plugin ponytail@ponytail) is installed on this machine'));
-  assert.equal(cx.impact, 'removing runs codex plugin remove ponytail@ponytail, which deletes the plugin and its data from Codex; codex plugin add ponytail@ponytail brings it back');
+  // Codex installs plugins for the user only: its plugin keeps the global scope, so no removal.
+  assert.deepEqual(globalPlan({ ctx, agents: ['codex'], options: { packsInUse: [] } }).filter((c) => c.step === 'plugin:codex:ponytail@ponytail'), []);
   // BenchKeeper installed it: the plain removal, outside that group; a later removal by BenchKeeper makes a reinstall the user's again.
   const entry = (verb, n) => ({ id: `e${n}`, step: 'plugin:claude:mattpocock-skills@claude-plugins-official', kind: 'command', status: 'done', argv: ['claude', 'plugin', verb, 'mattpocock-skills@claude-plugins-official'] });
   ctx.ledger.save({ schema: 1, id: '20260101T000000Z-aaaaaa', entries: [entry('install', 1)] });
@@ -243,6 +246,7 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   ctx.ledger.save({ schema: 1, id: '20260102T000000Z-aaaaaa', entries: [entry('uninstall', 2)] });
   assert.ok(mp([])[0].foreign);
   rmSync(join(ctx.config, 'ledger'), { recursive: true });
+  rmSync(join(ctx.config, 'pack-scopes.json'));
   // The doctor plans without the projects' packs: no finding for the user's own pack plugin.
   assert.ok(!globalDrift(ctx, ['claude', 'codex']).some((i) => /mattpocock-skills|ponytail@ponytail/.test(i.message)));
   const inv = inventory(ctx, ['claude', 'codex']);

@@ -53,6 +53,8 @@ test('a pack plugin BenchKeeper did not install: shown with its impact, never re
   mkdirSync(join(dir, '.benchkeeper'), { recursive: true });
   writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ packs: [] }));
   addProject(ctx, dir);
+  // Installed for selected projects; at the default scope (all projects) no removal is offered.
+  writeFileSync(join(ctx.config, 'pack-scopes.json'), JSON.stringify({ scopes: { ponytail: 'projects' } }));
   let text = '';
   const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
   const exec = (args, answers = '') => main(args, { out, ctx, input: Readable.from([answers]) });

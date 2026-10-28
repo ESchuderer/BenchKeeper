@@ -710,8 +710,8 @@ async function changeJson(argv, { cmd, arg, out, err, ctx }) {
   let code, error;
   try { code = await command(argv.filter((a) => a !== '--json'), { out: log, err, ask: refuse, ctx }); } catch (e) { code = 2; error = e.message; err.write(`${redact(e.message)}\n`); }
   const made = log.runs.length || log.projects?.length;
-  // A command that stops before a change prints why as its last line.
-  if (code && !made) error ??= lines.at(-1)?.trim();
+  // A command that stops before a change prints why as its last line; with nothing made that is a usage or read failure.
+  if (code && !made) { error ??= lines.at(-1)?.trim(); code = 2; }
   const doc = { runs: log.runs.map(runDoc), ...(log.projects ? { projects: log.projects.map(projectDoc) } : {}) };
   out.write(jsonDoc(name, error && !made ? { error: redact(error) } : { ...doc, ...(error ? { error: redact(error) } : {}) }));
   return code;

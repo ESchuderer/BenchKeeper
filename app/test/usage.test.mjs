@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { CLAUDE_TOKEN, CODEX_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
-import { NeedsConfirm, accountChecks, accountStatus, findAccount, listAccounts, runAs } from '../src/accounts.mjs';
+import { NeedsConfirm, accountChecks, accountStatus, findAccount, handover, listAccounts, runAs } from '../src/accounts.mjs';
 import { main } from '../src/cli.mjs';
 import { runCommand } from '../src/runner.mjs';
 import { HOOK_SOURCE, assess, codexReading, limitsFor, parseState, rotation, trackedSettings, usageFindings } from '../src/usage.mjs';
@@ -695,6 +695,10 @@ test('handover (Claude Code): shows both accounts and the text, declining starts
   assert.match(text, /## Next step\n\nwrite the second part/);
   assert.doesNotMatch(text, /TRANSCRIPT-LINE|sk-ant-/);
   assert.deepEqual(grep(dir, CLAUDE_TOKEN), [join(dir, '.benchkeeper', 'handoff.md')], 'only the file the worker wrote');
+  // In a worktree that does not ignore .benchkeeper/, an earlier handover is not listed as work.
+  rmSync(join(dir, '.gitignore'));
+  const again = handover(m.ctx, dir, { from: work, to: most }).text;
+  assert.match(again, /## Uncommitted changes\n\n- \.gitignore\n- a\.txt\n- \.benchkeeper\/handoff\.md\n- new\.txt\n\n/);
 });
 
 test('run: after the session the handover is offered in a terminal only, for the account that ran', skip, async () => {

@@ -63,6 +63,17 @@ test('the input is an allowlist of finding fields: a planted marker, a full path
   assert.deepEqual(input.samples, found.samples);
 });
 
+test('a path with one separator is cut to its last segment, and the prompt carries at most 25 findings with the rest counted', () => {
+  const finding = (i, message) => ({ id: `f${i}`, signal: 'doctor', severity: 'low', message, evidence: {}, fix: 'edit ~/.bashrc' });
+  const input = narrativeInput({ samples: 0 }, [finding(0, 'DO_NOT_TRACK is set in ~/.bashrc: and in C:\\Users\\me\\x.ini')]);
+  assert.equal(input.findings[0].message, 'DO_NOT_TRACK is set in .bashrc: and in x.ini');
+  assert.equal(input.findings[0].proposal, 'edit .bashrc');
+  const many = narrativeInput({ samples: 0 }, Array.from({ length: 100 }, (_, i) => finding(i, 'm')));
+  assert.equal(many.findings.length, 25);
+  assert.equal(many.omitted, 75);
+  assert.equal(narrativeInput({ samples: 0 }, [finding(0, 'm')]).omitted, 0);
+});
+
 test('the key follows the findings set: running counts keep it, a changed evidence set changes it', () => {
   const project = (n, failed) => Array.from({ length: n }, (_, i) => ({ id: `s${i}`, agent: 'claude', skills: [], project: '/work/shop', tests: i < failed ? 'fail' : 'pass', prs: [] }));
   const key = (sessions) => narrativeKey(insights({ sessions }).findings);
@@ -82,7 +93,7 @@ test('consent comes first; the preview equals the input the fake model command r
     assert.equal(await status(() => routes['POST /api/insights-narrative']({ agent: 'claude', id: first.id })), 400, 'no consent, no session');
     assert.equal(sessions.length, 0);
     assert.deepEqual(routes['POST /api/insights-narrative-consent'](), { consented: true });
-    assert.equal(statSync(join(ctx.config, 'insights-narrative.json')).mode & 0o077, 0);
+    if (process.platform !== 'win32') assert.equal(statSync(join(ctx.config, 'insights-narrative.json')).mode & 0o077, 0);
     assert.equal(await status(() => routes['POST /api/insights-narrative']({ agent: 'claude', id: 'stale' })), 409, 'an input that was not the one shown');
     assert.equal(await status(() => routes['POST /api/insights-narrative']({ agent: 'codex', id: first.id })), 400);
     assert.equal(sessions.length, 0);
@@ -151,4 +162,25 @@ test('a Codex session records its tokens from the events; Claude Code its USD', 
   assert.deepEqual(await agentAnswer(ctx, { dir: '/p', agent: 'codex', prompt: 'q', usage: true }), { text: 'ordered', cost: { tokens: 126 } });
   assert.ok(argv.includes('--json'));
   assert.deepEqual(await agentAnswer({ run: () => ({ code: 0, stdout: JSON.stringify({ result: 'x' }), stderr: '' }) }, { dir: '/p', agent: 'claude', prompt: 'q' }), { text: 'x', cost: null });
+});
+
+test('insights --narrative shares the cached text with the view, also when a finding is dismissed', async () => {
+  const ci = process.env.CI;
+  delete process.env.CI;
+  try {
+    const { ctx, sessions, routes } = machine();
+    const { findings } = await routes['GET /api/insights']();
+    assert.ok(findings.length > 1, 'one finding stays after a dismissal');
+    routes['POST /api/insights-triage']({ key: findings[0].key, action: 'dismiss' });
+    routes['POST /api/insights-narrative-consent']();
+    const view = await routes['GET /api/insights-narrative']();
+    const { job } = await routes['POST /api/insights-narrative']({ agent: 'claude', id: view.id });
+    await until(() => routes['GET /api/job'](new URLSearchParams({ id: job })).done);
+    let text = '';
+    const out = new Writable({ write(c, _, done) { text += c; done(); } }), err = new Writable({ write(_c, _, done) { done(); } });
+    await main(['insights', '--agents', 'claude', '--json', '--narrative', '--agent', 'claude'], { out, err, ctx });
+    assert.equal(JSON.parse(text).narrative.cached, true);
+    assert.equal(sessions.length, 1);
+    assert.equal((await routes['GET /api/insights-narrative']()).narrative.text, 'First: fix the env switch.', 'the view keeps its text');
+  } finally { if (ci !== undefined) process.env.CI = ci; }
 });

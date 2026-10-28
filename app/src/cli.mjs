@@ -30,6 +30,7 @@ import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, red
 import { scanSessions } from './sessions.mjs';
 import { ADVISERS } from './advise.mjs';
 import { collectInsights } from './insights.mjs';
+import { shownFindings } from './triage.mjs';
 import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
@@ -182,7 +183,8 @@ Usage: benchkeeper <command> [options]
   insights --json [--project dir] [--agents a,b] [--narrative --agent claude|codex [--yes]]
                                     findings with id, severity, evidence and a fix: installed skills no session used,
                                     doctor findings, pins behind the newest release; the session signal needs 20 sessions
-                                    of the last 90 days and reports nothing below that; nothing is written
+                                    of the last 90 days and reports nothing below that; nothing is written, except with --narrative --yes: the
+                                    findings go to the agent in one session and its answer is cached on this machine
   knowledge show [dir]              what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
                                     ignored by git): entries per file; a file that does not parse is listed as ignored
   knowledge clear [dir] [--yes]
@@ -754,10 +756,12 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (!o.narrative) return emit(found, found.summary.error ? 1 : 0);
     // The narrative starts an agent session on your login: the flag, an agent and, for a new run, --yes. The input goes to stderr first.
     if (!ADVISERS.includes(o.agent)) return fail(`--narrative needs --agent ${ADVISERS.join(' or ')}`);
-    if (!found.findings.length) return fail('no findings to summarize');
-    const key = narrativeKey(found.findings), cached = readNarrative(ctx, key);
+    // The findings the Insights view shows, so the view and the command share one cached narrative.
+    const shown = shownFindings(ctx, found.findings);
+    if (!shown.length) return fail('no findings to summarize');
+    const key = narrativeKey(shown), cached = readNarrative(ctx, key);
     if (cached && !o.yes) return emit({ ...found, narrative: { ...cached, cached: true } }, found.summary.error ? 1 : 0);
-    const { prompt, size } = narrativePrompt(narrativeInput(found, found.findings));
+    const { prompt, size } = narrativePrompt(narrativeInput(found, shown));
     err.write(`${prompt}\n`);
     if (!o.yes) return fail(`the narrative sends the ${size} characters above to ${o.agent} in one session: add --yes to run it`);
     if (process.env.CI) return fail('the narrative starts an agent session on a subscription and does not run in CI');

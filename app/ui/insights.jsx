@@ -1,5 +1,5 @@
 import { Badge, Button, Code, Group, List, Loader, Modal, Paper, Radio, Stack, Text, Title } from '@mantine/core';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from './api.js';
 import { fixAction } from './fix.jsx';
 import { CancelJob, Cli, useJob } from './parts.jsx';
@@ -61,12 +61,16 @@ function Narrative({ rev }) {
   if (!d || !d.count) return null;
   const agent = picked ?? d.advisers[0]?.id ?? null;
   const name = d.advisers.find((x) => x.id === agent)?.name ?? agent;
+  // A second click before the job exists would start a second request and show its 409 as an error.
+  const starting = useRef(false);
   const run = async () => {
+    if (starting.current) return;
+    starting.current = true;
     setAsking(false); setError(null);
     try {
       if (!d.consented) await api('/api/insights-narrative-consent', {});
       setJob((await api('/api/insights-narrative', { agent, id: d.id })).job);
-    } catch (e) { setError(e.message); state.reload(); }
+    } catch (e) { setError(e.message); state.reload(); } finally { starting.current = false; }
   };
   return (
     <Paper component="section" withBorder p="md" aria-labelledby="narrative-title">
@@ -103,8 +107,8 @@ function Narrative({ rev }) {
           <Title order={2} size="h4">Send the findings to an agent?</Title>
           <Text size="sm">The narrative starts one session of {name} on your login and its usage limits. It receives the input shown under Input sent to the agent, and nothing else.</Text>
           <List size="sm">
-            <List.Item>The findings only: id, signal, severity, message, counts, the window and sample size, the proposal text. A project by its folder name.</List.Item>
-            <List.Item>No message text, prompts, file contents, skill descriptions or full paths.</List.Item>
+            <List.Item>The findings only: id, signal, severity, the finding's message, counts, the window and sample size, the proposal text. A project by its folder name.</List.Item>
+            <List.Item>No session messages, prompts, file contents, skill descriptions or full paths.</List.Item>
             <List.Item>The session has no tools and no project to read. Nothing runs on a schedule or when you open this view; every run is a click, with the input beside it.</List.Item>
             <List.Item>The text is kept on this machine for these findings and dropped when they change. It cannot apply, dismiss or snooze anything.</List.Item>
           </List>

@@ -12,10 +12,12 @@ import { readText, writeAtomic } from './fsx.mjs';
 import { WINDOW_DAYS, findingKey } from './insights.mjs';
 
 const MAX_TEXT = 4000;
+// The prompt is one command-line argument (Windows allows about 32,000 characters in all): the most severe findings, the rest counted.
+const MAX_FINDINGS = 25;
 const consentFile = (ctx) => join(ctx.config, 'insights-narrative.json');
 const cacheFile = (ctx) => join(ctx.home, '.cache/benchkeeper', 'insights-narrative.json');
 // A path in a doctor message is cut to its last segment, as a project is named by its folder.
-const PATH = /(^|[\s'"`(=])((?:~|[A-Za-z]:)?[\\/][^\s'"`),;]*[\\/][^\s'"`),;]*)/g;
+const PATH = /(^|[\s'"`(=])((?:~|[A-Za-z]:)[\\/][^\s'"`),;:]*|[\\/][^\s'"`),;:]*[\\/][^\s'"`),;:]*)/g;
 const plain = (text) => String(text ?? '').replace(PATH, (m, pre, path) => pre + (path.split(/[\\/]/).filter(Boolean).at(-1) ?? '')).slice(0, 300);
 // Numbers stay, a list is its length; of the strings only the project (a folder name), the doctor check and the scope.
 const evidenceOf = (e) => Object.fromEntries(Object.entries(e).flatMap(([k, v]) => {
@@ -29,7 +31,8 @@ const evidenceOf = (e) => Object.fromEntries(Object.entries(e).flatMap(([k, v]) 
 export function narrativeInput({ samples }, findings) {
   return {
     window: { days: WINDOW_DAYS }, samples,
-    findings: findings.map((f) => ({ id: f.id, signal: f.signal, severity: f.severity, message: plain(f.message), evidence: evidenceOf(f.evidence), proposal: plain(f.fix) })),
+    omitted: Math.max(0, findings.length - MAX_FINDINGS),
+    findings: findings.slice(0, MAX_FINDINGS).map((f) => ({ id: f.id, signal: f.signal, severity: f.severity, message: plain(f.message), evidence: evidenceOf(f.evidence), proposal: plain(f.fix) })),
   };
 }
 

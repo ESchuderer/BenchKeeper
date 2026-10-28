@@ -21,7 +21,7 @@ import { contentDir, appVersion } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
 import { giveConsent, hasConsent, narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
-import { readTriage, setTriage, withTriage } from './triage.mjs';
+import { readTriage, setTriage, shownFindings, withTriage } from './triage.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
 import { blob } from './git.mjs';
@@ -188,7 +188,7 @@ export function api(ctx) {
   // The findings the Insights view shows (not dismissed or snoozed) and the input a narrative over them sends.
   const narrativeFor = async () => {
     const found = await cached('insights', () => collectInsights(ctx, { agents: installed() }));
-    const shown = withTriage(found.findings, readTriage(ctx)).filter((f) => !f.triage);
+    const shown = shownFindings(ctx, found.findings);
     return { shown, key: narrativeKey(shown), ...narrativePrompt(narrativeInput(found, shown)) };
   };
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));

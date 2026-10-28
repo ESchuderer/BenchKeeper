@@ -440,7 +440,7 @@ test.describe('views', () => {
     await noAxe(page);
     await narrative.getByRole('button', { name: 'Write with Claude Code' }).click();
     const dialog = page.getByRole('dialog', { name: 'Send the findings to an agent?' });
-    await expect(dialog).toContainText('No message text, prompts, file contents');
+    await expect(dialog).toContainText('No session messages, prompts, file contents');
     await noAxe(page);
     await dialog.getByRole('button', { name: 'Agree and write with Claude Code' }).click();
     await expect(narrative.getByText('Model text')).toBeVisible();

@@ -12,6 +12,7 @@ import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, useChange } from './accounts.mjs';
 import { limitsFor, settingsOf } from './usage.mjs';
+import { automationsView, installChanges as automationInstall, removeChanges as automationRemove, updateChanges as automationUpdate } from './automations.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { detect } from './agents.mjs';
@@ -662,6 +663,23 @@ export function api(ctx) {
       if (!job?.login?.awaitingCode || !job.sendCode) throw bad('no sign-in waits for a code');
       job.sendCode(String(b.code ?? '').slice(0, 4096));
       return { sent: true };
+    },
+    // Automations: the templates and the installed ones with their state and runs, read from the runner (cached like the
+    // other reads that start commands); install, update and remove are plans applied through /api/apply, undone in History.
+    'GET /api/automations': () => cached('automations', () => automationsView(ctx)),
+    'POST /api/automations-plan': (b) => {
+      const id = String(b.id ?? '');
+      const changes = preview(input(() => {
+        if (b.op === 'update') return automationUpdate(ctx, id);
+        if (b.op === 'remove') return automationRemove(ctx, id);
+        if (b.op !== 'install') throw new Error('op must be install, update or remove');
+        const values = b.values ?? {};
+        if (typeof values !== 'object' || Array.isArray(values) || !Object.values(values).every((v) => typeof v === 'string')) throw new Error('values must be an object of parameter name and text');
+        const dir = resolve(String(b.dir ?? ''));
+        if (!registered(dir)) throw new Error('register the project first');
+        return automationInstall(ctx, id, { values, dir });
+      }));
+      return { planId: keep(changes, ctx, 'global'), changes: serialize(changes, ctx) };
     },
     'GET /api/inventory': inventoryNow,
     // The Dashboard: installed, health, coverage and catalog by pack, from one read of the inventory and the projects.

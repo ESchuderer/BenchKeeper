@@ -36,7 +36,7 @@ export function replies({ runs = RECORDED.runList.result.runs, tasks = { [RECORD
 
 // Automations: the record a create, edit or show answers with (fields override the derived one), and the removal and
 // not-found answers. A reply's argv is the adapter's without the program name.
-export const DERIVED = { automation: JSON.parse(fixture('automation-derived.json')), removed: fixture('automation-removed-derived.json'), notFound: fixture('automation-not-found-derived.json') };
+export const DERIVED = { automation: JSON.parse(fixture('automation-derived.json')), removed: fixture('automation-removed-derived.json'), notFound: fixture('automation-not-found-derived.json'), runs: fixture('automation-runs-derived.json') };
 export const showAutomationArgv = (id) => ['automations', 'show', '--id', id, '--json'];
 export const automationReply = (argv, fields = {}, extra = {}) => {
   const d = DERIVED.automation;

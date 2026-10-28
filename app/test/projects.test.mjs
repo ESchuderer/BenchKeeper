@@ -513,6 +513,40 @@ test('unshare keeps the answers first; after a failed push, the next run pushes 
   assert.deepEqual(calls, ['gh']);
 });
 
+test('projects update --unattended skips and lists a project whose own hooks or git config are not confirmed', async () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const quiet = new Writable({ write(_c, _e, done) { done(); } });
+  const row = async (...args) => {
+    let text = '';
+    await main(['projects', 'update', '--dry-run', '--unattended', ...args, '--json'], { out: new Writable({ write(c, _, done) { text += c; done(); } }), err: quiet, ctx });
+    return JSON.parse(text).projects[0];
+  };
+  addProject(ctx, p.dir);
+  const hook = join(p.dir, '.git/hooks/pre-commit');
+  writeFileSync(hook, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  p.git('config', 'credential.helper', '!echo marker-value');
+  const skipped = await row();
+  assert.equal(skipped.ready, false);
+  assert.match(skipped.reason, /not confirmed \(credential\.helper, hook pre-commit, remote\.origin\.url\): benchkeeper projects confirm-git .*skipped/);
+  let shown = '';
+  const confirm = (answer, isTTY) => main(['projects', 'confirm-git', p.dir, '--yes'], { out: new Writable({ write(c, _, done) { shown += c; done(); } }), ctx, input: Object.assign(Readable.from([answer]), { isTTY }) });
+  assert.equal(await confirm('y\n', false), 2, 'a piped yes confirms nothing');
+  assert.match(shown, /asks in a terminal/);
+  assert.equal(await confirm('n\n', true), 1, 'a no stores nothing');
+  assert.equal((await row()).ready, false);
+  assert.equal(await confirm('y\n', true), 0);
+  assert.match(shown, /hook pre-commit\n/);
+  assert.doesNotMatch(JSON.stringify(listProjects(ctx)), /marker-value/, 'the registry keeps a hash, not the value');
+  assert.equal((await row()).ready, true);
+  writeFileSync(hook, '#!/bin/sh\necho changed\n');
+  assert.match((await row()).reason, /not confirmed \(hook pre-commit\)/);
+  let plain = '';
+  await main(['projects', 'update', '--dry-run'], { out: new Writable({ write(c, _, done) { plain += c; done(); } }), ctx });
+  assert.match(plain, /1 projects would be updated/, 'without --unattended nothing is skipped');
+});
+
 test('projects update --json: --dry-run lists the pending changes per project, --yes prints the result document, without it exit 2', async () => {
   const h = home();
   const ctx = context({ home: h });

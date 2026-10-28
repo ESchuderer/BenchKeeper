@@ -119,11 +119,11 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
             <StateBadge state={c.state} />
           </Group>
           {c.error && <Text size="sm" c="red">{c.kind === 'command' ? 'Not applied' : 'Cannot merge'}: {c.error}</Text>}
-          {c.kind === 'command' && <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code>}
+          {c.kind === 'command' && !c.diff && <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code>}
           {(() => {
             const detail = (
               <>
-                {c.kind !== 'command' && (c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null)}
+                {(c.kind !== 'command' || c.diff) && (c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null)}
                 {c.prerun && prerun && <Rehearsal c={c} prerun={prerun} />}
               </>
             );

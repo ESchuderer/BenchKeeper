@@ -1,0 +1,38 @@
+{
+  "id": "00000000-0000-4000-8000-000000000012",
+  "ok": true,
+  "result": {
+    "runs": [
+      {
+        "id": "00000000-0000-4000-8000-0000000000d2",
+        "automationId": "00000000-0000-4000-8000-0000000000a1",
+        "runNumber": 2,
+        "title": "DERIVED-TEXT",
+        "scheduledFor": 1793181600000,
+        "status": "skipped_precheck",
+        "trigger": "scheduled",
+        "outputSnapshot": null,
+        "error": "DERIVED-TEXT",
+        "startedAt": 1793181600000,
+        "createdAt": 1793181600000
+      },
+      {
+        "id": "00000000-0000-4000-8000-0000000000d1",
+        "automationId": "00000000-0000-4000-8000-0000000000a1",
+        "runNumber": 1,
+        "title": "DERIVED-TEXT",
+        "scheduledFor": 1793178000000,
+        "status": "completed",
+        "trigger": "scheduled",
+        "outputSnapshot": { "text": "DERIVED-TEXT" },
+        "error": null,
+        "startedAt": 1793178000000,
+        "createdAt": 1793178000000
+      }
+    ],
+    "nextCursor": null
+  },
+  "_meta": {
+    "runtimeId": "00000000-0000-4000-8000-000000000002"
+  }
+}

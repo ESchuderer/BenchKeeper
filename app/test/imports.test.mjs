@@ -44,10 +44,12 @@ test('imports: an import across a forbidden boundary, a cycle and the IDE name o
     'a template': "export const t = `${'x'.length} stablyai/orca`;\n",
     'a CommonJS file': "module.exports = 'Orca';\n",
     'import-like text in a string': "export const hint = 'Run import(\"https://github.com/stablyai/orca\")';\n",
+    'a call named from': "export const f = from('Orca');\n",
     'a multiline template': "export const t = `one\nhttps://github.com/stablyai/orca\ntwo`;\n",
   };
   const paths = {
     'an import path': "import n from './orca/index.mjs';\nimport h from './OrcaHelper.mjs';\nexport default [n, h];\n",
+    'an import path after a comment': "import /* note */ n from './orca/index.mjs';\nimport /* note */ h from /* x */ './OrcaHelper.mjs';\nexport default [n, h];\n",
     'a require path': "const n = require('./orca/index.mjs');\nmodule.exports = n;\n",
   };
   for (const [what, text] of Object.entries(paths)) {

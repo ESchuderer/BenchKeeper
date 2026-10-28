@@ -46,7 +46,7 @@
         "steps": [
           {
             "command": "npx benchkeeper@6.25.0",
-            "text": "Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.",
+            "text": "Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.",
             "evidence": [
               "app/README.md#web-ui",
               "app/test/server.test.mjs"
@@ -74,20 +74,21 @@
     "changes": "`npx benchkeeper@6.25.0 history` lists what changed, `npx benchkeeper@6.25.0 undo <run>` reverses a run.",
     "links": [
       { "label": "Lite level, the plugin alone", "anchor": "levels" },
-      { "label": "Full setup description", "anchor": "setup-details" }
+      { "label": "Full setup description", "anchor": "setup-details" },
+      { "label": "What the app writes and what it never does", "anchor": "what-the-app-writes-and-what-it-never-does" }
     ]
   },
   "prerequisites": [
     {
       "name": "Claude Code",
       "url": "https://code.claude.com/docs/en/setup",
-      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)",
+      "for": "agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only",
       "evidence": "docs/setup.md#agent-and-os-support"
     },
     {
       "name": "Codex CLI",
       "url": "https://developers.openai.com/codex/cli",
-      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)",
+      "for": "agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only",
       "evidence": "docs/setup.md#agent-and-os-support"
     },
     {
@@ -411,19 +412,22 @@
   "stack": {
     "reasons": [
       {
-        "name": "Quality",
-        "text": "in BenchKeeper's mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock's skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3).",
-        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+        "name": "Checks by tier",
+        "text": "every change runs the checks and reviews its tier names: the tests of the touched code after each edit, a review before pushing for standard and full work.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
+          "plugins/benchkeeper/skills/workflow/software.md"
+        ]
       },
       {
-        "name": "Time",
-        "text": "it depends on the version: setup-v4.0 with Matt Pocock's skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9. setup-v6.0 is not measured yet.",
-        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+        "name": "Long checks last",
+        "text": "the full suite, end-to-end tests and builds run once after the last edit, in a subagent that returns only failures and key lines.",
+        "evidence": "plugins/benchkeeper/skills/workflow/SKILL.md"
       },
       {
-        "name": "Cost",
-        "text": "Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3).",
-        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+        "name": "Simplicity",
+        "text": "the optional Ponytail pack adds a plugin that steers the agent to the smallest complete change.",
+        "evidence": "docs/stack.md#components"
       },
       {
         "name": "Skills by level",

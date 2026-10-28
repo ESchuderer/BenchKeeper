@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
+import SiteFooter from './SiteFooter';
 import SiteHeader from './SiteHeader';
 
 const theme = createTheme({
@@ -21,7 +22,6 @@ const theme = createTheme({
 });
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
-const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research';
 const SETUP = `${REPO}/blob/main/docs/setup.md`;
 // Backticks in facts.json become inline code, the same text the README renders.
 export const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
@@ -168,6 +168,17 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
+        <Section id="features" title="Features">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg" verticalSpacing="lg">
+            {facts.overview.parts.map((p) => (
+              <Stack key={p.id} gap={4}>
+                <Anchor href={`${base}/overview/#${p.id}`} fw={700}>{p.title}</Anchor>
+                <Text size="sm" c="dimmed">{md(`${p.text.split('. ')[0]}.`)}</Text>
+              </Stack>
+            ))}
+          </SimpleGrid>
+        </Section>
+
         <Section id="levels" title="Three sizes" intro="Start with the plugin and add what you need. Each level contains the one before.">
           <SimpleGrid cols={{ base: 1, md: 3 }}>
             {facts.levels.map((l) => (
@@ -186,7 +197,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             {facts.frameworks.items.map((f) => (
               <Paper key={f.name} withBorder p="lg" radius="lg">
                 <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
-                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/main/${f.evidence}`}>Evaluation</Anchor></Text>
+                <Text size="sm" mt="xs">Installs {md(f.installs)}.</Text>
               </Paper>
             ))}
           </SimpleGrid>
@@ -235,7 +246,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           <List spacing="sm" maw={760}>
             {facts.stack.reasons.map((r) => <List.Item key={r.name}><Text span fw={700}>{r.name}:</Text> {r.text}</List.Item>)}
           </List>
-          <Text size="sm" mt="lg">For details, check the full data: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>evaluations</Anchor>, <Anchor href={`${RESEARCH}#recorded-results`}>benchmark results</Anchor>.</Text>
         </Section>
 
         <Section id="where" title="Where things run" intro="By default the agent runs inside the repository's dev container, together with the project commands. With --env host-agent it stays on the host and sends project commands through devcontainer exec.">
@@ -254,17 +264,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         </Section>
       </main>
 
-      <Box component="footer" className="band" py="xl">
-        <Container size="lg">
-          <Group justify="space-between">
-            <Text size="sm" c="dimmed">
-              BenchKeeper, MIT License
-              {updated && commit && <>, updated {updated} (<Anchor href={`${REPO}/commit/${commit}`} size="sm">{commit.slice(0, 7)}</Anchor>)</>}
-            </Text>
-            <Anchor href={REPO} size="sm">github.com/ESchuderer/BenchKeeper</Anchor>
-          </Group>
-        </Container>
-      </Box>
+      <SiteFooter updated={updated} commit={commit} />
     </MantineProvider>
   );
 }

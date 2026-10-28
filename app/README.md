@@ -13,7 +13,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](../docs/set
 npx benchkeeper@6.25.0
 ```
 
-Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
+Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.
 
 ### CLI
 
@@ -31,7 +31,7 @@ Asks per change. `--yes` applies the default selection without questions.
 
 After either path, restart the agents. `npx benchkeeper@6.25.0 history` lists what changed, `npx benchkeeper@6.25.0 undo <run>` reverses a run.
 
-[Lite level, the plugin alone](../docs/setup.md#levels). [Full setup description](../docs/setup.md#setup-details).
+[Lite level, the plugin alone](../docs/setup.md#levels). [Full setup description](../docs/setup.md#setup-details). [What the app writes and what it never does](../docs/setup.md#what-the-app-writes-and-what-it-never-does).
 <!-- /generated:quickstart -->
 
 ## Setup

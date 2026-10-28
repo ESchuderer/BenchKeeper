@@ -1,0 +1,9 @@
+---
+import BenchLayout from '../layouts/BenchLayout.astro';
+import NotFoundPage from '../components/NotFoundPage';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+<BenchLayout title="Page not found, BenchKeeper" description="This page does not exist on the BenchKeeper site.">
+  <NotFoundPage base={base} />
+</BenchLayout>

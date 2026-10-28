@@ -120,7 +120,7 @@ The view shows per installed automation its state, whether it is enabled, its mo
 
 ## Catalogue
 
-The generic templates, ranked by what the projects need. A row without a template file is planned; its issue holds the details. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).
+The generic templates, ranked by what the projects need. Every row is shipped as a template file; its issue holds the details. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).
 
 | Template | Schedule | Precheck reads | May change | Status |
 |---|---|---|---|---|

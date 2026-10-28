@@ -238,7 +238,7 @@ function draw() {
     const older = el('details', { class: 'older', open: state.older || null }, el('summary', {}, `Show older (${old.length})`), old.map(entry));
     older.addEventListener('toggle', () => { state.older = older.open; });
     const fresh = cards.filter((c) => !old.includes(c));
-    $('rail-list').replaceChildren(...fresh.filter((c) => listed({ repo: c.k })).map(entry), all, ...fresh.filter((c) => !listed({ repo: c.k })).map(entry), old.length ? older : null);
+    $('rail-list').replaceChildren(...fresh.filter((c) => listed({ repo: c.k })).map(entry), all, ...fresh.filter((c) => !listed({ repo: c.k })).map(entry), ...(old.length ? [older] : []));
     $('rail-toggle').firstChild.textContent = `${state.project ? `${name(state.project)}${state.folder ? ` / ${folder(state.folder)}` : ''}` : all.textContent}, ${plural(cards.length, 'project')}`;
     find();
   }

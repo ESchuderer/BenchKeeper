@@ -358,7 +358,7 @@ const scriptOf = (a) => stateFile(a, 'usage.mjs');
 const settingsFile = (a) => (a.mode === 'host' ? join(a.dir, 'settings.json') : `${a.mount}/settings.json`);
 // A host account's change as a plan of the usual kind (diff, ledger run, undo; the folder may lie outside the home folder, so it
 // is added to the roots by the caller). One unit: when the settings cannot take the status line, the script is not written either.
-const requireUsage = (a) => { if (!supports(a.agent, 'usage')) throw new Error(`${notAvailable('usage', a.agent)}: ${agent(a.agent).name} has no documented source`); };
+const requireUsage = (a) => { if (!supports(a.agent, 'usage')) throw new Error(`${notAvailable('usage', a.agent)}: ${agent(a.agent).name} has no status line to track (accounts status reads Codex usage from its app-server)`); };
 export const trackChanges = (a, { remove = false } = {}) => {
   requireUsage(a);
   return [

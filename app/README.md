@@ -212,7 +212,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `POST /api/scan` | `projects scan` | |
 | `GET /api/settings` | `settings list`, `settings get` | |
 | `POST /api/settings-plan` | `settings set` | |
-| `GET /api/accounts` | `accounts list` | also the usage settings, the credential store in use and a sign-in job still running |
+| `GET /api/accounts` | `accounts list` | without `loggedIn` (the view's Check reads it), also the usage settings, the credential store in use and a sign-in job still running |
 | `GET /api/accounts-status` | `accounts status` | with the usage; `accounts track` and `accounts limits` are commands only |
 | `POST /api/accounts-plan` | `accounts add`, `accounts use`, `accounts remove` | an account that keeps a token is removed by the command, which deletes the token |
 | `POST /api/accounts-login` | `accounts login` | the job opens the sign-in link in a private browser window or shows it; `--token` is the command only |

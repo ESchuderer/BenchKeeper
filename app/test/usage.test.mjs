@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
-import { CLAUDE_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
+import { CLAUDE_TOKEN, CODEX_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
 import { NeedsConfirm, accountChecks, accountStatus, findAccount, listAccounts, runAs } from '../src/accounts.mjs';
 import { main } from '../src/cli.mjs';
 import { runCommand } from '../src/runner.mjs';
@@ -205,7 +205,7 @@ test('track: a status line of the user\'s own is an error in the plan and nothin
   const x = await add(m, 'dev', 'codex');
   const t = cli(m);
   assert.equal(await t.exec(['accounts', 'track', 'dev', '--yes']), 1);
-  assert.match(t.text(), /Codex has no documented source/);
+  assert.match(t.text(), /Codex has no status line to track/);
   const st = cli(m);
   assert.equal(await st.exec(['accounts', 'status', 'dev', '--json']), 0);
   assert.equal(st.json().accounts[0].usage, null);
@@ -498,7 +498,7 @@ test('a dev container account of an agent without a usage source is refused befo
   const before = m.calls().length;
   const c = cli(m);
   assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 1);
-  assert.match(c.text(), /Codex has no documented source/);
+  assert.match(c.text(), /Codex has no status line to track/);
   assert.equal(m.calls().length, before);
 });
 
@@ -577,6 +577,7 @@ test('Codex: status, list and run read the app-server of the account\'s CODEX_HO
   // The server refuses: the reason is shown, no usage.
   m.mode('limits', '');
   assert.match(accountStatus(m.ctx, a).notAvailable, /^not read: codex account authentication required/);
-  // No token in any argument.
-  assert.ok(m.calls().every((x) => !JSON.stringify(x.args).includes(CLAUDE_TOKEN)));
+  // No token in any argument, and the app-server gets the account's filtered environment.
+  assert.ok(m.calls().every((x) => ![CLAUDE_TOKEN, CODEX_TOKEN].some((t) => JSON.stringify(x.args).includes(t))));
+  for (const x of m.calls().filter((c) => c.args[0] === 'app-server')) for (const k of ['GH_TOKEN', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']) assert.equal(x.env[k], undefined, k);
 });

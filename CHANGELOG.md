@@ -1,6 +1,6 @@
 # Changelog
 
-Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>.<patch>` and a GitHub Release, created by the release pull request that release-please keeps open from the Conventional Commit titles on `main`; the pull request is merged once a week (Monday). Benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions. Patch: fixes. Entries with a two-part version (up to 6.23) are the earlier hand-written ones, tagged `setup-v<major>.<minor>`; release-please writes the entries above them.
+Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>.<patch>` and a GitHub Release, created by the release pull request that release-please keeps open from the Conventional Commit titles on `main`; the pull request is merged once a week (Monday). Benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions. Patch: fixes. Entries with a two-part version (up to 6.24) are the earlier hand-written ones, tagged `setup-v<major>.<minor>`; release-please writes the entries above them.
 
 ## 6.24 (2026-10-27)
 

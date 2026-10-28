@@ -26,17 +26,23 @@ const DEFAULTS = { schedule: '', workspace: 'project', reuse_session: false, pre
 const own = (o, k) => Object.hasOwn(o, k);
 const text = (v) => typeof v === 'string' && v.trim() !== '';
 const scalar = (v) => ['string', 'number', 'boolean'].includes(typeof v);
+// allow: each comma-separated item of the value starts with one of these prefixes and holds no "..".
+const outside = (allow, value) => value.split(',').filter((v) => v.includes('..') || !allow.some((a) => v.startsWith(a)));
 
 function parameter(name, p) {
   if (!NAME.test(name) || name === 'mode') throw new Error(`parameter "${name}": a lowercase name with letters, digits and underscores, not "mode"`);
   if (p === null || typeof p !== 'object' || Array.isArray(p)) throw new Error(`parameter "${name}": a table with description and default`);
-  for (const k of Object.keys(p)) if (!['default', 'description'].includes(k)) throw new Error(`parameter "${name}": unknown key "${k}"`);
+  for (const k of Object.keys(p)) if (!['default', 'description', 'allow'].includes(k)) throw new Error(`parameter "${name}": unknown key "${k}"`);
   if (!text(p.description) || /[\r\n]/.test(p.description)) throw new Error(`parameter "${name}": description must be one line`);
   const d = p.default;
   if (d !== undefined && !(scalar(d) || (Array.isArray(d) && d.every(scalar)))) throw new Error(`parameter "${name}": default must be a string, number, boolean or a list of them`);
   const value = d === undefined ? undefined : Array.isArray(d) ? d.join(',') : String(d);
   if (value !== undefined && !SAFE_VALUE.test(value)) throw new Error(`parameter "${name}": the default may hold only letters, digits and _ @ . / : , + = -`);
-  return { description: p.description, ...(value === undefined ? {} : { default: value }) };
+  const { allow } = p;
+  if (allow !== undefined && !(Array.isArray(allow) && allow.length && allow.every((a) => text(a) && SAFE_VALUE.test(a) && !a.includes(',')))) throw new Error(`parameter "${name}": allow must be a list of prefixes`);
+  const off = allow && value !== undefined ? outside(allow, value) : [];
+  if (off.length) throw new Error(`parameter "${name}": the default ${off.join(', ')} does not start with an allowed prefix`);
+  return { description: p.description, ...(value === undefined ? {} : { default: value }), ...(allow ? { allow } : {}) };
 }
 
 // Text of a template file to its fields; throws with the first thing that is wrong.
@@ -75,6 +81,10 @@ export function fill(t, values = {}) {
   if (missing.length) throw new Error(`missing parameter: ${missing.join(', ')}`);
   if (!MODES.includes(all.mode)) throw new Error('mode: report or act');
   for (const [k, v] of Object.entries(all)) if (!SAFE_VALUE.test(v)) throw new Error(`parameter ${k}: only letters, digits and _ @ . / : , + = - are allowed`);
+  for (const [k, p] of Object.entries(t.parameters)) {
+    const off = p.allow ? outside(p.allow, all[k]) : [];
+    if (off.length) throw new Error(`parameter ${k}: ${off.join(', ')} does not start with ${p.allow.join(', ')}`);
+  }
   const sub = (s) => s.replace(PLACEHOLDER, (_, k) => all[k]);
   return { prompt: sub(t.prompt), precheck: sub(t.precheck), values: all };
 }

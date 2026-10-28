@@ -30,7 +30,41 @@ Three levels, from the smallest: the BenchKeeper plugin ships no always-on instr
 | Full | standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.25.0 apply --level full` |
 <!-- /generated:levels -->
 
-Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional (Gemini CLI and Copilot untested). The app configures the agents it finds on `PATH`. It does not install agent CLIs. Linux and macOS are tested; Windows runs only a CI smoke test.
+Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional. The app configures the agents it finds on `PATH`. It does not install agent CLIs.
+
+## Agent and OS support
+
+Claude Code and Codex are supported in full. Gemini CLI and GitHub Copilot CLI are supported to what each documents: rules, skills, the settings catalog, doctor and project setup. A feature an agent has no documented surface for shows "not available for <agent>" in the app (Agents view, Accounts) and in the CLI (`plan`, `apply`, `accounts`), and is never skipped silently. Gemini CLI individual plans stopped on 2026-06-18, so its support holds for the plans that still allow it.
+
+The tables come from `app/src/agents.json`; `node web/scripts/readme.mjs` writes them.
+
+<!-- generated:support -->
+| Agent | Support | Plugin install | Usage feed | Accounts | Tier strip | Note |
+|---|---|---|---|---|---|---|
+| Claude Code | full | yes | yes | yes | yes |  |
+| Codex | full | yes | not available | yes | not available |  |
+| Gemini CLI | what the agent documents | not available | not available | not available | not available | Individual plans stopped on 2026-06-18; the support holds for the plans that still allow it. |
+| GitHub Copilot CLI | what the agent documents | not available | not available | not available | not available | Documents plugins and /usage; BenchKeeper uses neither yet. |
+
+Recorded per agent; the permission default is never written, and versions are observations, not minimums.
+
+| Agent | Wake mode | Trust | Permission default | Model flag | Effort flag | Forbidden headless forms | Observed versions |
+|---|---|---|---|---|---|---|---|
+| Claude Code | background | dialog | `--dangerously-skip-permissions` | `--model` | `--effort` | `--bg with -p` | `2.1.308` |
+| Codex | unsupported | dialog | `--dangerously-bypass-approvals-and-sandbox` | `--model` | none | `--full-auto` | `0.165.0` |
+| Gemini CLI | unsupported | dialog | `--approval-mode=yolo` | `--model` | none | `--yolo`, `--allowed-tools` | none |
+| GitHub Copilot CLI | unsupported | dialog | `--allow-all-tools` | `--model` | `--effort` | `workflow run with -p` | none |
+<!-- /generated:support -->
+
+Operating systems: Linux and macOS are tested. Native Windows is supported for the app and the CLI as documented here: CI runs the Windows smoke job (start, plan, apply with a ledger run). The skill install preview has no sandbox on Windows and is off unless you ask for it without one; use WSL2 for the sandboxed preview ([docs/security.md](security.md)).
+
+Manual Windows checklist, for when a machine is available (nothing below runs in CI):
+
+- `npx benchkeeper@6.25.0 doctor` runs and lists the installed agents.
+- `plan` previews the rules, skills and settings of an installed agent and writes nothing; `apply` writes them under the user profile, and `history` undoes the run.
+- `projects plan` and `projects apply` in a repository on an NTFS drive, with Git for Windows.
+- The browser UI starts and "Choose folder" reports that no dialog is available, without an error.
+- A WSL2 distribution runs the same commands with the sandboxed preview on.
 
 ## Setup details
 
@@ -88,7 +122,7 @@ Several logins per agent, for example work and personal, each in a folder of its
 - A hijacked session in a container can read the credentials in the volume or the variable ([warning](https://code.claude.com/docs/en/devcontainer)). Keep the egress firewall of that page in mind; BenchKeeper never sets `--dangerously-skip-permissions`.
 - Optional token for unattended containers: `accounts login <name> --token` (Claude Code `setup-token`, a subscription is needed, requests to the model only) is kept in the OS credential store, never in a file, the registry, the ledger or `devcontainer.json`, and reaches one launch through `run --token`. Where no credential store works the command refuses. Codex: pipe the access token (`printenv NAME | benchkeeper accounts login <name> --token`) and it goes to `codex login --with-access-token` in the account's folder.
 - `run`, `accounts status` and `doctor` check the sign-in first and name the command that fixes a login that is gone, and a kept token in its 11th month. Switching accounts is your choice at a launch, never inside a session, and nothing rotates accounts mid-session. Without the opt-in below, nothing switches accounts when a limit is reached either.
-- Usage (Claude Code; Codex has no documented source): `accounts track <name>` adds a status line script and a `StopFailure` hook to the account's folder (a plan with a diff and undo; an account that already has a status line of its own is refused). They keep the used percentage and reset time of the 5-hour and 7-day window, and the type and time of a failed turn (rate limit, expired login, billing error), never a credential. `accounts status`, `doctor` and the Accounts view show what is left per window (100 minus the used percentage; a reading counts only until its window resets, after that it is unknown, not full), a notice below twice the minimum and the last failure. Below the minimum headroom (defaults: 5-hour 8 percent, 7-day 3 percent, not claims about what a task needs; `accounts limits` changes them, per account too) `run` shows the account, window, what is left and the reset time, and asks before it starts; `--yes` or `accounts limits --continue-below on` starts anyway. A status line in a project's own settings takes precedence over the account's, and then no reading is kept.
+- Usage (Claude Code; Codex has no documented source): `accounts track <name>` adds a status line script and a `StopFailure` hook to the account's folder (a plan with a diff and undo; an account that already has a status line of its own is refused). They keep the used percentage and reset time of the 5-hour and 7-day window, and the type and time of a failed turn (one of the 12 documented error types, such as rate limit, expired login or billing error), never a credential. `accounts status`, `doctor` and the Accounts view show what is left per window (100 minus the used percentage; a reading counts only until its window resets, after that it is unknown, not full), a notice below twice the minimum and the last failure. Below the minimum headroom (defaults: 5-hour 8 percent, 7-day 3 percent, not claims about what a task needs; `accounts limits` changes them, per account too) `run` shows the account, window, what is left and the reset time, and asks before it starts; `--yes` or `accounts limits --continue-below on` starts anyway. A status line in a project's own settings takes precedence over the account's, and then no reading is kept.
 - Opt-in auto-pick, off by default (`accounts limits --auto-pick on`, and `accounts limits <name> --pool <pool>` for the accounts of one person): a new `run` under the default account that is below its minimum starts under the pool member with the most headroom, or, with no member at or above its minimum, stops with the reason or (`--when-none wait`) waits for the earliest reset. The account used is printed. It never acts inside a running session and never for an account named with `--account`. Rotating accounts at a limit may be read as bypassing a protective measure: the provider's consumer terms prohibit "bypassing any of our systems or protective measures" ([text](https://www.anthropic.com/legal/consumer-terms), section 3) and do not say either way, so the setting is yours to carry.
 - `run` gives the agent the app's filtered environment (no `GH_TOKEN`, API keys or other credentials of your shell) plus the account's one folder variable.
 

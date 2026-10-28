@@ -55,6 +55,7 @@ export function usersByPack(ctx) {
 // A pack moved to the other scope (PACK_SCOPES) as one plan: its installs come out of one place and go into the other, and the
 // scope file records the choice; undo takes all of it back. Agents that offer one scope only keep their install (fixed).
 // The projects' state files are left for their next projects apply, which records the skill list.
+// A change inside a project names it (project), so it can run under that project's own bounds.
 export function scopePlan(ctx, id, scope, agents) {
   const pack = libraryWith(ctx).packs.find((p) => p.id === id);
   if (!pack) throw new Error(`unknown pack ${id}`);
@@ -66,7 +67,7 @@ export function scopePlan(ctx, id, scope, agents) {
   const changes = [];
   // The other part's steps for this pack, with ids and units per project so two projects do not share one.
   const take = (list, keep, where = '', extra = {}) => changes.push(...list.filter(keep).map((c) => ({ ...c, id: `${where}${c.id}`, ...(c.unit ? { unit: `${where}${c.unit}` } : {}), ...extra })));
-  const projectSide = (keep) => { for (const path of users) take(projectItemPlan(next, path) ?? [], keep, `${path}:`, { selected: true }); };
+  const projectSide = (keep) => { for (const path of users) take(projectItemPlan(next, path) ?? [], keep, `${path}:`, { selected: true, project: path }); };
   // The global plan without a registry lookup for the host tools, whose steps are left out anyway.
   const global = (packs = []) => globalPlan({ ctx: next, agents, devcontainerCli: '0.0.0', options: { packs, level: 'full' } });
   if (pack.plugins) {
@@ -78,7 +79,7 @@ export function scopePlan(ctx, id, scope, agents) {
         const known = pluginState(ctx, a).markets;
         projectSide((c) => c.step === `pack:${id}:${a}` && !(c.argv[3] === 'add' && known.includes(pack.plugins[a].id.split('@')[1])));
       } else {
-        for (const path of users.filter((x) => localPlugins(ctx, x).includes(pid))) changes.push({ id: `scope:${id}:${a}:${path}`, step: `scope:${id}`, title: `uninstall ${pid} in ${path} (local scope; now ${scopeText(scope)})`, kind: 'command', argv: [a, 'plugin', 'uninstall', ...flags('local'), pid], undoArgv: [a, 'plugin', 'install', ...flags('local'), pid], cwd: path, selected: true });
+        for (const path of users.filter((x) => localPlugins(ctx, x).includes(pid))) changes.push({ id: `scope:${id}:${a}:${path}`, step: `scope:${id}`, title: `uninstall ${pid} in ${path} (local scope; now ${scopeText(scope)})`, kind: 'command', argv: [a, 'plugin', 'uninstall', ...flags('local'), pid], undoArgv: [a, 'plugin', 'install', ...flags('local'), pid], cwd: path, project: path, selected: true });
         take(global([id]), (c) => c.step === `plugin:${a}:${pid}`);
       }
     }

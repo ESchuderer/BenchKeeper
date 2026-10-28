@@ -190,17 +190,22 @@ test('at phone width the rail is one button with the choice that opens the list;
   await expect(page.locator('#count')).toHaveText('19 of 19 sessions');
 });
 
-test('every figure shows the change against the previous period of the same length; All time has none', async ({ page }) => {
+test('quick facts first, then test runs and merged pull requests; each shows the change against the previous period of the same length; All time has none', async ({ page }) => {
   await load(page, data());
   const tile = (name) => page.locator('#tiles .tile').filter({ has: page.locator('.label', { hasText: new RegExp(`^${name}$`) }) });
-  await expect(tile('Sessions')).toContainText('up 300% vs previous 30 days');
+  await expect(page.locator('#tiles .facts').first().locator('.label')).toHaveText(['Sessions', 'Agent time', 'Cost', 'Tokens', 'Most used agent', 'Busiest day', 'Active days', 'Longest streak']);
+  await expect(page.locator('#tiles .small .label')).toHaveText(['Tests passed', 'Merged pull requests']);
+  await expect(tile('Sessions')).toContainText('+300% vs previous 30 days');
   await expect(tile('Sessions')).toContainText('40');
+  await expect(tile('Most used agent')).toContainText('Claude Code40 of 40 sessions');
+  await expect(tile('Active days')).toContainText('of 30 days');
   await expect(tile('Tests passed')).toContainText('points vs previous 30 days');
+  await expect(page.locator('#history')).toBeHidden();
   await page.getByLabel('Period').selectOption('7');
   await expect(tile('Sessions')).toContainText('vs previous 7 days');
   await page.getByLabel('Period').selectOption('all');
   await expect(tile('Sessions')).toContainText('50');
-  await expect(page.locator('#tiles .delta')).toHaveCount(0);
+  await expect(page.locator('#tiles .delta', { hasText: /vs previous/ })).toHaveCount(0);
 });
 
 test('a metric switch redraws the stream; a legend chip hides its series and says so; the table follows', async ({ page }) => {
@@ -209,7 +214,6 @@ test('a metric switch redraws the stream; a legend chip hides its series and say
   await expect(page.locator('#chart svg')).toHaveAttribute('aria-label', /^Sessions per day by project/);
   const chips = page.locator('#legend button.chip');
   await expect(chips).toHaveCount(3);
-  await page.locator('#chart-table').locator('xpath=..').locator('summary').click();
   await expect(page.locator('#chart-table th[scope=col]')).toContainText(['Day', 'shop', 'blog', 'api', 'Total']);
   await chips.filter({ hasText: 'shop' }).click();
   await expect(chips.filter({ hasText: 'shop' })).toHaveAttribute('aria-pressed', 'false');
@@ -268,6 +272,79 @@ test('a title stays text; the cost per merged pull request counts a pull request
   await expect(page.locator('#tiles .tile').filter({ hasText: 'Merged pull requests' })).toContainText('1');
 });
 
+test('more than 6 repositories: 6 series and Other, which the legend explains; the legend and the Show select work with the keyboard', async ({ page }) => {
+  const e = errors(page);
+  await load(page, Array.from({ length: 9 }, (_, p) => many(9 - p, { project: `/work/p${p}`, repo: `/work/p${p}` }, 5)).flat(), []);
+  const chips = page.locator('#legend button.chip');
+  await expect(chips).toHaveText(['p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'Other (3 more projects)']);
+  await page.locator('#metric').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('#metric')).toHaveValue('time');
+  await chips.first().focus();
+  await page.keyboard.press('Enter');
+  await expect(chips.first()).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Space');
+  await expect(chips.nth(1)).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#chart-table th[scope=col]')).not.toContainText(['p0']);
+  expect(e).toEqual([]);
+});
+
+test('Stack by switches the chart between projects and agents and the legend follows; the agent filter is All by default', async ({ page }) => {
+  await load(page, [...data(), row({ agent: 'codex', costUSD: null, project: '/work/api' })]);
+  await expect(page.getByLabel('Agent', { exact: true })).toHaveValue('');
+  await page.locator('#metric').selectOption('sessions');
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Agent', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#legend button.chip')).toHaveText(['Claude Code', 'Codex']);
+  await expect(page.locator('#chart svg')).toHaveAttribute('aria-label', 'Sessions per day by agent');
+  await expect(page.locator('#tiles .tile').filter({ hasText: 'Cost' })).toContainText('1 Codex session without a cost');
+  await page.getByRole('button', { name: 'Project', exact: true }).click();
+  await expect(page.locator('#legend button.chip')).toHaveText(['shop', 'blog', 'api']);
+});
+
+test('no session before the period: no change text on any card and one History starts line under the header', async ({ page }) => {
+  await load(page, data().slice(0, 40));
+  await expect(page.locator('#tiles .delta', { hasText: /vs previous/ })).toHaveCount(0);
+  await expect(page.locator('#history')).toBeVisible();
+  await expect(page.locator('#history')).toHaveText(/^History starts 2026-10-08: older sessions are no longer on this machine \(Claude Code keeps transcripts for 30 days, cleanupPeriodDays\)\.$/);
+  // A filter whose previous window is empty while the machine has older sessions: no change text and no history line.
+  await load(page, data());
+  await page.getByLabel('Pattern', { exact: true }).selectOption('group');
+  await expect(page.locator('#tiles .delta', { hasText: /vs previous/ })).toHaveCount(0);
+  await expect(page.locator('#history')).toBeHidden();
+});
+
+test('the export card: names hidden by default, shown on request, theme from the page or the dialog, saved as PNG and SVG without a network request', async ({ page }) => {
+  const requests = [];
+  page.on('request', (r) => { if (!r.url().startsWith('blob:') && !r.url().startsWith('data:')) requests.push(r.url()); });
+  await load(page, [...data(), row({ project: '/home/alice/secret-repo', title: 'Prompt text here', start: ago(2) })]);
+  await page.getByRole('button', { name: 'Export card' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export card' });
+  await expect(dialog).toBeVisible();
+  const src = () => page.locator('#x-preview svg').evaluate((n) => n.outerHTML);
+  let svg = await src();
+  expect(svg).toContain('Project A');
+  for (const leak of ['shop', 'blog', 'api', 'secret-repo', '/home', 'alice', 'Prompt text']) expect(svg).not.toContain(leak);
+  await expect(page.locator('#x-preview svg')).toHaveAttribute('width', '1200');
+  await dialog.getByLabel('Show project names').check();
+  svg = await src();
+  expect(svg).toContain('>shop<');
+  for (const leak of ['/work', '/home', 'alice', 'Prompt text']) expect(svg).not.toContain(leak);
+  await dialog.getByLabel('Theme').selectOption('dark');
+  expect(await src()).toContain('#17181c');
+  const [png] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Save PNG' }).click()]);
+  expect(png.suggestedFilename()).toBe('sessions-card.png');
+  const bytes = Buffer.concat(await (await png.createReadStream()).toArray());
+  expect(bytes.subarray(1, 4).toString()).toBe('PNG');
+  expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([1200, 630]);
+  const [file] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Save SVG' }).click()]);
+  expect(file.suggestedFilename()).toBe('sessions-card.svg');
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
+  expect(requests).toEqual([]);
+});
+
 for (const [name, size] of [['desktop', { width: 1280, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
   test(`no axe violations at ${name} width, system and chosen light and dark`, async ({ page }) => {
     await page.setViewportSize(size);
@@ -285,11 +362,21 @@ for (const [name, size] of [['desktop', { width: 1280, height: 900 }], ['phone',
   });
 }
 
-test('every chart has a table of values behind a button', async ({ page }) => {
+test('every chart has a table for screen readers and a CSV download of the same rows; no table of values is left; the heatmap comes before the per-project chart', async ({ page }) => {
   await load(page, data());
-  for (const id of ['chart', 'by-tier', 'by-pattern', 'by-setup', 'by-prpr', 'by-model', 'dist-time', 'dist-turns', 'calendar']) {
-    const d = page.locator(id === 'chart' ? '#chart-table' : `#${id}`).locator(id === 'chart' ? 'xpath=..' : 'details');
-    await expect(d.first().locator('summary')).toHaveText('Table of values');
+  await expect(page.locator('details summary', { hasText: 'Table of values' })).toHaveCount(0);
+  const order = await page.locator('section h2').allTextContents();
+  expect(order.indexOf('Activity, last 12 weeks')).toBeLessThan(order.indexOf('Per day by project'));
+  await expect(page.locator('#calendar .tick')).toContainText(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Aug', 'Sep', 'Oct']);
+  for (const id of ['chart-table', 'by-tier', 'by-pattern', 'by-setup', 'by-prpr', 'by-model', 'dist-time', 'dist-turns', 'calendar']) {
+    const box = page.locator(`#${id}`);
+    for (const [i, t] of (await box.locator('.sr table').all()).entries()) {
+      const rows = await t.locator('tr').evaluateAll((trs) => trs.map((tr) => [...tr.children].map((c) => c.textContent)));
+      const [download] = await Promise.all([page.waitForEvent('download'), box.getByRole('button', { name: /^Download data \(CSV\)/ }).nth(i).click()]);
+      const csv = (await (await download.createReadStream()).toArray()).join('');
+      expect(csv).toBe(`${rows.map((r) => r.map((c) => (/[",]/.test(c) ? `"${c.replaceAll('"', '""')}"` : c)).join(',')).join('\r\n')}\r\n`);
+    }
+    await expect(box.getByRole('button', { name: /^Download data \(CSV\)/ }).first()).toBeVisible();
   }
 });
 

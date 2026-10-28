@@ -14,7 +14,7 @@ import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount
 import { limitsFor, settingsOf } from './usage.mjs';
 import { automationsView, installChanges as automationInstall, removeChanges as automationRemove, updateChanges as automationUpdate } from './automations.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
-import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
+import { CSP as BOARD_CSP, boardHtml, keepDays, registeredPaths, writeBoard } from './board.mjs';
 import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { boardFile as ponytailBoard } from './ponytail.mjs';
@@ -755,7 +755,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
         // The last scan, or one now; the page says when it was read.
         if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
         const { rows, at } = scans.get(ctx);
-        return send(200, boardHtml(rows, new Date(at).toISOString(), registeredPaths(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+        return send(200, boardHtml(rows, new Date(at).toISOString(), registeredPaths(ctx), keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     // A form post cannot send JSON: only a script of this origin gets through (the Origin and key checks above stand too).

@@ -6,7 +6,7 @@
     {
       "name": "benchkeeper",
       "source": "./plugins/benchkeeper",
-      "description": "Task kind and tier with their checks (software change, docs pass, research), plus project setup and repository maintenance skills. Uses Matt Pocock's skills and Ponytail when installed.",
+      "description": "Chooses how much checking a task gets (a software change, a docs pass or research) and sets up and maintains projects. Works next to Matt Pocock's skills and Ponytail when they are installed.",
       "category": "development"
     }
   ]

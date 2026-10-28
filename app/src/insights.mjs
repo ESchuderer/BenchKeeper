@@ -7,9 +7,11 @@
 // insights() is pure: the state in, the findings out. collectInsights() reads the state from the machine.
 import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
-import { doctor, skillFiles } from './doctor.mjs';
+import { doctor } from './doctor.mjs';
 import { frontMatter, pluginSkills } from './instructions.mjs';
+import * as orca from './orca/index.mjs';
 import { scanSessions } from './sessions.mjs';
+import { skillFiles } from './skills.mjs';
 
 export const MIN_SAMPLES = 20;
 export const WINDOW_DAYS = 90;
@@ -47,10 +49,10 @@ export function insights({ sessions = [], skills = [], doctorFindings = [] }, { 
     }
   }
   // Friction (#322): one proxy, a session whose last test run failed and that opened no pull request. Per project, among its
-  // sessions without Orca workers and research tier; Claude Code and Codex both count. Nothing below minSamples of them.
+  // sessions without dispatched workers and research tier; Claude Code and Codex both count. Nothing below minSamples of them.
   const byFolder = new Map();
   for (const s of sessions) {
-    if (!s.project || s.pattern === 'Orca worker' || s.tier?.last === 'research') continue;
+    if (!s.project || s.pattern === orca.WORKER_PATTERN || s.tier?.last === 'research') continue;
     const folder = folderOf(s.project);
     if (!folder) continue;
     if (!byFolder.has(folder)) byFolder.set(folder, []);

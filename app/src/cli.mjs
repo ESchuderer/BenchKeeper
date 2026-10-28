@@ -323,10 +323,11 @@ function asker(input, out) {
 }
 
 async function choose(plan, o, ask, out) {
-  if (o.yes) return plan.filter((c) => !c.error && (o.all || c.selected)).map((c) => c.id);
+  // A plugin BenchKeeper did not install is removed only by its own answer, never by --yes or --all.
+  if (o.yes) return plan.filter((c) => !c.error && !c.foreign && (o.all || c.selected)).map((c) => c.id);
   // --all alone is not a go-ahead: removals are on the list, so the question names them first.
   if (o.all) {
-    const all = plan.filter((c) => !c.error), removals = all.filter((c) => c.destructive);
+    const all = plan.filter((c) => !c.error && !c.foreign), removals = all.filter((c) => c.destructive);
     removals.forEach((c) => show(c, out));
     return (await ask(`Apply ${all.length} changes${removals.length ? `, ${removals.length} of them removals (listed above)` : ''}?`)) ? all.map((c) => c.id) : [];
   }
@@ -335,7 +336,7 @@ async function choose(plan, o, ask, out) {
     show(c, out);
     // One answer per unit: its changes go together.
     if (c.unit && units.has(c.unit)) { if (units.get(c.unit)) select.push(c.id); continue; }
-    const yes = !c.error && (await ask(c.unit ? 'apply (with the changes that go with it)?' : 'apply?'));
+    const yes = !c.error && (await ask(c.foreign ? 'remove it?' : c.unit ? 'apply (with the changes that go with it)?' : 'apply?'));
     if (c.unit) units.set(c.unit, yes);
     if (yes) select.push(c.id);
   }
@@ -368,7 +369,8 @@ function selectedAgents(ctx, list) {
 }
 
 function show(c, out) {
-  out.write(`${c.destructive ? 'remove ' : 'change '}${c.title}${c.error ? `\n  cannot merge: ${c.error}` : ''}\n`);
+  out.write(`${c.foreign ? '' : c.destructive ? 'remove ' : 'change '}${c.title}${c.error ? `\n  cannot merge: ${c.error}` : ''}\n`);
+  if (c.foreign) out.write(`  add ${c.pack} to a project: benchkeeper projects apply <dir> --pack ${c.pack}\n  ${c.impact}\n`);
   if (c.kind === 'command' && !c.diff) out.write(`  $ ${c.argv.join(' ')}\n`);
   else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }

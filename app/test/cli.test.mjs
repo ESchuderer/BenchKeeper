@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
+import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
@@ -37,6 +38,32 @@ test('apply --yes, history, undo', async () => {
   assert.match(c.text(), new RegExp(`${id}  apply +done`));
   assert.equal(await c.exec(['undo', id]), 0);
   assert.equal(existsSync(join(c.home, '.claude/rules/00-global.md')), false);
+});
+
+test('a pack plugin BenchKeeper did not install: shown with its impact, never removed by --yes or --all, only by its own answer', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  mkdirSync(join(home, '.claude/plugins'), { recursive: true });
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }] } }));
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: {} }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true } }));
+  const calls = [];
+  const ctx = context({ home, run: (argv) => { calls.push(argv.join(' ')); return argv[0] === 'npm' ? { code: 1, stdout: '' } : { code: 0, stdout: argv.includes('--json') ? '[]' : '1.0.0' }; } });
+  // A registered project with a setup that uses no pack.
+  const dir = join(home, 'p');
+  mkdirSync(join(dir, '.benchkeeper'), { recursive: true });
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ packs: [] }));
+  addProject(ctx, dir);
+  let text = '';
+  const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
+  const exec = (args, answers = '') => main(args, { out, ctx, input: Readable.from([answers]) });
+  assert.equal(await exec(['plan', '--agents', 'claude', '--level', 'full']), 0);
+  assert.match(text, /\nponytail \(Claude Code plugin ponytail@ponytail\) is installed on this machine, but BenchKeeper did not set it up/);
+  assert.match(text, /add ponytail to a project: benchkeeper projects apply <dir> --pack ponytail\n  removing runs claude plugin uninstall ponytail@ponytail, which deletes the plugin and its data from Claude Code; claude plugin install ponytail@ponytail brings it back/);
+  await exec(['apply', '--agents', 'claude', '--level', 'full', '--yes', '--all']);
+  await exec(['apply', '--agents', 'claude', '--level', 'full', '--all'], 'y\n');
+  assert.ok(calls.includes('claude plugin install benchkeeper@benchkeeper') && !calls.includes('claude plugin uninstall ponytail@ponytail'));
+  await exec(['apply', '--agents', 'claude', '--level', 'full'], 'n\n'.repeat(80));
+  assert.match(text, /remove it\? \[y\/N\]/);
 });
 
 test('help and unknown commands', async () => {

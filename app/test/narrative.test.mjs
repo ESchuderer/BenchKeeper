@@ -72,6 +72,7 @@ test('a path with one separator is cut to its last segment, and the prompt carri
   assert.equal(many.findings.length, 25);
   assert.equal(many.omitted, 75);
   assert.equal(narrativeInput({ samples: 0 }, [finding(0, 'm')]).omitted, 0);
+  assert.notEqual(narrativePrompt(many, 'a').id, narrativePrompt(many, 'b').id, 'a change past the cap changes the key and so the id');
 });
 
 test('the key follows the findings set: running counts keep it, a changed evidence set changes it', () => {
@@ -141,7 +142,8 @@ test('insights --narrative: no run without --yes, the input goes to stderr first
     const doc = JSON.parse(ran.text);
     assert.equal(sessions.length, 1);
     assert.equal(sessions[0][2] + '\n', ran.err, 'stderr shows what the session received');
-    assert.deepEqual({ ...doc.narrative, at: undefined }, { agent: 'claude', text: 'First: fix the env switch.', cost: { usd: 0.0123 }, at: undefined, cached: false });
+    assert.deepEqual({ ...doc.narrative, at: undefined, covers: undefined }, { agent: 'claude', text: 'First: fix the env switch.', cost: { usd: 0.0123 }, at: undefined, covers: undefined, cached: false });
+    assert.deepEqual(doc.narrative.covers, doc.findings.map((f) => f.id), 'nothing is dismissed here: all finding ids');
     const again = JSON.parse((await go([...base, '--narrative', '--agent', 'claude'])).text);
     assert.equal(again.narrative.cached, true);
     assert.equal(sessions.length, 1);
@@ -179,7 +181,9 @@ test('insights --narrative shares the cached text with the view, also when a fin
     let text = '';
     const out = new Writable({ write(c, _, done) { text += c; done(); } }), err = new Writable({ write(_c, _, done) { done(); } });
     await main(['insights', '--agents', 'claude', '--json', '--narrative', '--agent', 'claude'], { out, err, ctx });
-    assert.equal(JSON.parse(text).narrative.cached, true);
+    const printed = JSON.parse(text).narrative;
+    assert.equal(printed.cached, true);
+    assert.deepEqual(printed.covers, findings.slice(1).map((f) => f.id), 'the ids the text covers, the dismissed one left out');
     assert.equal(sessions.length, 1);
     assert.equal((await routes['GET /api/insights-narrative']()).narrative.text, 'First: fix the env switch.', 'the view keeps its text');
   } finally { if (ci !== undefined) process.env.CI = ci; }

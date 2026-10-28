@@ -190,7 +190,8 @@ export function api(ctx) {
   const narrativeFor = async () => {
     const found = await cached('insights', () => collectInsights(ctx, { agents: installed() }));
     const shown = shownFindings(ctx, found.findings);
-    return { shown, key: narrativeKey(shown), ...narrativePrompt(narrativeInput(found, shown)) };
+    const key = narrativeKey(shown);
+    return { shown, key, ...narrativePrompt(narrativeInput(found, shown), key) };
   };
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
@@ -502,6 +503,7 @@ export function api(ctx) {
       if (process.env.CI) throw bad('the narrative starts an agent session on a subscription and does not run in CI');
       if (!hasConsent(ctx)) throw bad('agree to the narrative first');
       if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
+      memo.delete('insights'); // a fresh scan, not the one up to 15 s old that the preview may have used
       const n = await narrativeFor();
       if (!n.shown.length) throw bad('no findings to summarize');
       if (n.id !== b.id) throw Object.assign(new Error('the findings changed: review the input again'), { status: 409 });

@@ -37,13 +37,14 @@ export function narrativeInput({ samples }, findings) {
 }
 
 // The text that goes to the agent, and so the text the preview shows. id changes with any byte of it.
-export function narrativePrompt(input) {
+// id: the prompt and the findings key, so a change to a finding the prompt does not carry (past the cap) still changes it.
+export function narrativePrompt(input, key = '') {
   const prompt = [
     'Below are the findings of a scan of one machine\'s coding-agent setup, as JSON. Write a short summary of what they say together,',
     'then a numbered order in which to work through them, with one sentence of reason each. Use only the data below; do not read files or run commands.',
     'Answer in plain text, at most 200 words.', '', JSON.stringify(input, null, 2),
   ].join('\n');
-  return { prompt, size: prompt.length, id: createHash('sha256').update(prompt).digest('hex').slice(0, 16) };
+  return { prompt, size: prompt.length, id: createHash('sha256').update(`${key}\n${prompt}`).digest('hex').slice(0, 16) };
 }
 
 // What the narrative was written for: the findings by key (id and a digest of the evidence set), not the running counts.

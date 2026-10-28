@@ -761,13 +761,15 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     // The findings the Insights view shows, so the view and the command share one cached narrative.
     const shown = shownFindings(ctx, found.findings);
     if (!shown.length) return fail('no findings to summarize');
-    const key = narrativeKey(shown), cached = readNarrative(ctx, key);
-    if (cached && !o.yes) return emit({ ...found, narrative: { ...cached, cached: true } }, found.summary.error ? 1 : 0);
-    const { prompt, size } = narrativePrompt(narrativeInput(found, shown));
+    const key = narrativeKey(shown), cached = readNarrative(ctx, key), input = narrativeInput(found, shown);
+    // The ids the text covers: the findings the view shows and the prompt carries (the findings array above lists all of them).
+    const covers = input.findings.map((f) => f.id);
+    if (cached && !o.yes) return emit({ ...found, narrative: { ...cached, covers, cached: true } }, found.summary.error ? 1 : 0);
+    const { prompt, size } = narrativePrompt(input, key);
     err.write(`${prompt}\n`);
     if (!o.yes) return fail(`the narrative sends the ${size} characters above to ${o.agent} in one session: add --yes to run it`);
     if (process.env.CI) return fail('the narrative starts an agent session on a subscription and does not run in CI');
-    try { return emit({ ...found, narrative: { ...(await runNarrative(ctx, { agent: o.agent, prompt, key })), cached: false } }, found.summary.error ? 1 : 0); } catch (e) { return fail(e.message); }
+    try { return emit({ ...found, narrative: { ...(await runNarrative(ctx, { agent: o.agent, prompt, key })), covers, cached: false } }, found.summary.error ? 1 : 0); } catch (e) { return fail(e.message); }
   }
   if (cmd === 'knowledge') {
     if (arg !== 'show') return fail('knowledge --json works with show');

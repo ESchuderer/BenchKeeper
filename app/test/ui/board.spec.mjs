@@ -26,6 +26,8 @@ test('the rail lists projects newest first with count and last tier; a click fil
   await load(page, data());
   const cards = page.locator('#rail button.card:not(.all)');
   await expect(cards).toHaveCount(3);
+  // No project is older than 30 days: no Show older and no stray text in its place.
+  await expect(page.locator('#rail-list')).not.toContainText(/null|Show older/);
   await expect(cards.first()).toContainText('api');
   await expect(cards.nth(1)).toContainText('20 sessions, last tier standard');
   await cards.filter({ hasText: 'blog' }).click();

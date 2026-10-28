@@ -186,6 +186,20 @@ jobs:
   assert.deepEqual(ids(dir), []);
 });
 
+test('write-all counts as publishing, at the top and on a job: no cache is suggested', () => {
+  const wf = (perms) => `on: workflow_dispatch\n${perms.top ? 'permissions: write-all\n' : ''}jobs:\n  j:\n    runs-on: ubuntu-latest\n${perms.job ? '    permissions: write-all\n' : ''}    steps:\n      - run: npm ci\n`;
+  for (const perms of [{ top: true }, { job: true }]) assert.deepEqual(ids(tree({ '.github/workflows/p.yml': wf(perms) })).filter((i) => i.includes('no-cache')), []);
+  assert.equal(ids(tree({ '.github/workflows/p.yml': wf({}) })).filter((i) => i.includes('no-cache')).length, 1);
+});
+
+test('the Markdown report replaces control characters of the audited project, one line stays one line', () => {
+  const r = { dir: '/p\x1b[31m', ran: 1, skipped: [{ id: 's\x07', reason: 'r\u009b', enable: 'e' }], summary: { error: 0, warning: 1, info: 0 },
+    findings: [{ id: 'workflows/x:a\nb', signal: 'workflows', severity: 'warning', message: 'm', evidence: { file: 'f\x1b]0;t\x07', line: 1 }, fix: 'f', effort: 'small' }] };
+  const text = auditMarkdown(r);
+  assert.doesNotMatch(text, /[\x00-\x09\x0b-\x1f\x7f-\x9f]/);
+  assert.match(text, /`workflows\/x:a\?b`/);
+});
+
 test('a workflow whose aliases expand past the limit is skipped, a job repeating two builds gives two findings', () => {
   const bomb = `x: &a [${Array(9).fill('"x"').join(', ')}]\nb: &b [${Array(9).fill('*a').join(', ')}]\nc: &c [${Array(9).fill('*b').join(', ')}]\nd: &d [${Array(9).fill('*c').join(', ')}]\ne: [${Array(9).fill('*d').join(', ')}]\n`;
   const job = (name, cmd) => `  ${name}:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${cmd}\n`;

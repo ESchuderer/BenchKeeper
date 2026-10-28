@@ -149,7 +149,7 @@ const cached = (s) => {
   return /^actions\/cache(?:\/|@)/.test(uses) || (w.cache !== undefined && w.cache !== false && w.cache !== '') || !!w['bundler-cache'] || !!w['enable-cache'] || /^actions\/setup-go@/.test(uses) && w.cache !== false;
 };
 // A workflow that publishes (a job with id-token: write) is left out: a cache there is a cache-poisoning risk.
-const publishes = (wf) => [wf.js.permissions, ...jobsOf(wf.js).map(([, j]) => j.permissions)].some((x) => x && typeof x === 'object' && x['id-token'] === 'write');
+const publishes = (wf) => [wf.js.permissions, ...jobsOf(wf.js).map(([, j]) => j.permissions)].some((x) => x === 'write-all' || x && typeof x === 'object' && x['id-token'] === 'write');
 function noCache(p) {
   return p.workflows.filter((wf) => !publishes(wf)).flatMap((wf) => jobsOf(wf.js).flatMap(([name, job]) => {
     const steps = stepsOf(job);
@@ -451,5 +451,6 @@ export function auditMarkdown(r) {
     out.push('', '## Skipped', '');
     for (const s of r.skipped) out.push(`- \`${s.id}\`: ${s.reason}. ${s.enable}.`);
   }
-  return `${out.join('\n')}\n`;
+  // The text comes from the audited project: control characters (an escape sequence in a path) must not reach the terminal.
+  return `${out.map((l) => l.replace(/[\x00-\x1f\x7f-\x9f]/g, '?')).join('\n')}\n`;
 }

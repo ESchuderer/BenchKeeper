@@ -822,6 +822,11 @@ function repoKeys(rows, registered) {
   return keys;
 }
 
+// One registered project's sessions, worktrees counted under it as on the board: its page shows only these.
+export function projectRows(rows, registered, path, keys = repoKeys(rows, registered)) {
+  return rows.filter((r) => keys.get(r.project) === path);
+}
+
 // The Projects view's cards: per registered project, its sessions of the last `days` days up to now, all agents merged and
 // worktrees counted under their repository as on the board. perDay: sessions per day, oldest first; uncosted: sessions
 // without a cost; change: the sessions against the previous period, by the cards' rule.
@@ -832,7 +837,7 @@ export function projectActivity(rows, registered, now, days = 30) {
   const cur = span(0), prev = span(days);
   const within = (list, s) => list.filter((r) => r.start.slice(0, 10) >= s[0] && r.start.slice(0, 10) <= s.at(-1));
   return Object.fromEntries(registered.map(({ path }) => {
-    const mine = rows.filter((r) => r.start && keys.get(r.project) === path);
+    const mine = projectRows(rows, registered, path, keys).filter((r) => r.start);
     const now30 = within(mine, cur), before = within(mine, prev);
     const f = periodFacts(now30, cur);
     const last = mine.reduce((a, r) => (!a || r.start > a.start ? r : a), null);

@@ -189,9 +189,10 @@ function Files({ agent, dir, limit, onPlan, onPreview }) {
 }
 
 // The instruction files each agent loads, globally or for a registered project, with the context they cost.
-export function Rules({ overview, params, refresh }) {
+// project: a registered folder; the view then shows only its files, without the choice.
+export function Rules({ overview, params, refresh, project }) {
   const projects = overview.data?.projects ?? [];
-  const [dir, setDir] = useState(params.get('path') ?? GLOBAL);
+  const [dir, setDir] = useState(project ?? params.get('path') ?? GLOBAL);
   const [pending, setPending] = useState(null);
   const [preview, setPreview] = useState(null);
   const chosen = dir === GLOBAL ? undefined : dir;
@@ -204,7 +205,7 @@ export function Rules({ overview, params, refresh }) {
   return (
     <Stack gap="lg">
       <Note>The instruction files the agents load, who wrote them, what they cost in context and what the checks found. A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Note>
-      <Select label="Show" data={[{ value: GLOBAL, label: 'Global files' }, ...projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))]} value={dir} onChange={choose} allowDeselect={false} comboboxProps={{ withinPortal: false }} maw={560} />
+      {!project && <Select label="Show" data={[{ value: GLOBAL, label: 'Global files' }, ...projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))]} value={dir} onChange={choose} allowDeselect={false} comboboxProps={{ withinPortal: false }} maw={560} />}
       <Loading state={state} label="instruction files">
         {(data) => (
           <Stack gap="xl">

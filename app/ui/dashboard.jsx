@@ -6,7 +6,7 @@ import { DoctorTable, FixEverythingButton } from './fix.jsx';
 import { OneRunButtons } from './onerun.jsx';
 import { label, plural } from './cards.js';
 import { HEALTH } from '../src/tokens.mjs';
-import { Loading, RANK, STATE_COLOR, href, useApi } from './shell.jsx';
+import { Loading, RANK, STATE_COLOR, href, projectHref, useApi } from './shell.jsx';
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
@@ -37,8 +37,8 @@ function Installed({ data, names }) {
           <Table.Tr><Table.Th scope="row">Global</Table.Th><Table.Td>{skills(data.global.skills, (id) => href('agents', { agent: id }))}</Table.Td><Table.Td>{packs(globalPacks)}</Table.Td></Table.Tr>
           {data.projects.map((p) => (
             <Table.Tr key={p.path}>
-              <Table.Th scope="row"><Anchor href={href('projects', { path: p.path })}>{label(p)}</Anchor>{p.error && <Text size="xs" fw={400}>{p.error}</Text>}</Table.Th>
-              <Table.Td>{p.setup ? skills(p.skills, () => href('projects', { path: p.path })) : p.error ? 'cannot be read' : 'not set up'}</Table.Td>
+              <Table.Th scope="row"><Anchor href={projectHref(p.path)}>{label(p)}</Anchor>{p.error && <Text size="xs" fw={400}>{p.error}</Text>}</Table.Th>
+              <Table.Td>{p.setup ? skills(p.skills, () => projectHref(p.path, 'installs')) : p.error ? 'cannot be read' : 'not set up'}</Table.Td>
               <Table.Td>{p.setup ? packs(p.packs) : 'none'}</Table.Td>
             </Table.Tr>
           ))}
@@ -50,7 +50,7 @@ function Installed({ data, names }) {
 
 function Health({ data }) {
   const rows = [{ key: 'global', label: 'Global', states: data.global.states, to: href('agents', { plan: '1' }) },
-    ...data.projects.filter((p) => p.states).map((p) => ({ key: p.path, label: label(p), states: { ...p.states, untracked: p.untracked }, to: href('projects', { path: p.path }) }))];
+    ...data.projects.filter((p) => p.states).map((p) => ({ key: p.path, label: label(p), states: { ...p.states, untracked: p.untracked }, to: projectHref(p.path, 'installs') }))];
   // The inventory's untracked is zero by definition; a project's comes from its folders.
   const total = (s, from = rows) => from.reduce((n, r) => n + (r.states[s] ?? 0), 0);
   const shown = HEALTH.filter((s) => total(s) > 0);

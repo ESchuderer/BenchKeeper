@@ -8,7 +8,7 @@ import logo from '../../assets/logo.svg';
 import { PRIMARY, SHAPE, varsOf } from '../src/tokens.mjs';
 import { api } from './api.js';
 import { EvalJob, RunProgress } from './parts.jsx';
-import { Dot, MOD, go, href, icon, useApi, useRoute } from './shell.jsx';
+import { Dot, MOD, go, href, icon, projectHref, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
 import { FixEverything } from './fix.jsx';
 import { ApplyProgress, OneRunDrawer, OneRunProvider } from './onerun.jsx';
@@ -20,7 +20,8 @@ import { Extensions } from './extensions.jsx';
 import { Insights } from './insights.jsx';
 import { Rules } from './rules.jsx';
 import { Editors } from './editors.jsx';
-import { Agents, Catalog, Dashboard, Evals, History, Projects, Sessions, Settings } from './views.jsx';
+import { Agents, Catalog, Dashboard, Evals, History, Sessions, Settings } from './views.jsx';
+import { Projects } from './project.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
@@ -135,7 +136,7 @@ function Splash({ error, retry }) {
 }
 
 function Shell() {
-  const { view, params } = useRoute();
+  const { view, rest, params } = useRoute();
   const [nav, { toggle, close }] = useDisclosure();
   const [oneRun, setOneRun] = useState(null);
   const overview = useApi('/api/overview');
@@ -152,7 +153,7 @@ function Shell() {
   const toggleTheme = () => setColorScheme(scheme === 'dark' ? 'light' : 'dark');
   // Spotlight binds mod+K itself.
   useHotkeys([...VIEWS.slice(0, 9).map(([id], i) => [`mod+${i + 1}`, () => go(id)]), ['mod+J', toggleTheme]]);
-  useEffect(close, [view, params.toString()]);
+  useEffect(close, [view, rest.join('/'), params.toString()]);
   // A refresh that fails clears the overview: the shell stays up on the last one, only the first load shows the splash.
   const seen = useRef(null);
   useEffect(() => { if (overview.data) seen.current = overview.data; }, [overview.data]);
@@ -161,7 +162,7 @@ function Shell() {
   const counts = { dashboard: doctor.data?.length, projects: o?.projects.filter((p) => !p.current).length, history: history.data?.length };
   const actions = [
     { group: 'Views', actions: views.map(([id, label]) => ({ id: `view-${id}`, label, onClick: () => go(id) })) },
-    { group: 'Projects', actions: (o?.projects ?? []).map((p) => ({ id: `project-${p.path}`, label: p.path, onClick: () => go('projects', { path: p.path }) })) },
+    { group: 'Projects', actions: (o?.projects ?? []).map((p) => ({ id: `project-${p.path}`, label: p.path, onClick: () => { window.location.hash = projectHref(p.path); } })) },
     { group: 'Skills', actions: (catalog.data?.skills ?? []).map((s) => ({ id: `skill-${s.name}`, label: s.name, description: s.pickWhen, onClick: () => go('catalog', { skill: s.name }) })) },
     { group: 'Runs', actions: (history.data ?? []).slice(0, 20).map((r) => ({ id: `run-${r.id}`, label: `${r.kind} ${r.scope}`, description: r.id, onClick: () => go('history', { run: r.id }) })) },
     { group: 'Actions', actions: [
@@ -234,7 +235,7 @@ function Shell() {
         </AppShell.Navbar>
         <AppShell.Main>
           <Title order={2} size="h3" id="view-title" tabIndex={-1} mb="md" style={{ outline: 'none' }}>{label}</Title>
-          <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} keys={{ slash, setSlash, views: VIEWS.slice(0, 9).map(([, l]) => l) }} />
+          <View key={view} rest={rest} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} keys={{ slash, setSlash, views: VIEWS.slice(0, 9).map(([, l]) => l) }} />
         </AppShell.Main>
         <Spotlight actions={actions} shortcut={slash ? ['mod + K', '/'] : 'mod + K'} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
           scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />

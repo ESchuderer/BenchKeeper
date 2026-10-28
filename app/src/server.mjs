@@ -14,7 +14,7 @@ import { AGENTS as ACCOUNT_AGENTS, accountDoc, accountStatusAsync, accountsProbl
 import { limitsFor, settingsOf } from './usage.mjs';
 import { automationsView, installChanges as automationInstall, removeChanges as automationRemove, updateChanges as automationUpdate } from './automations.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
-import { CSP as BOARD_CSP, boardHtml, keepDays, projectActivity, registeredPaths, writeBoard } from './board.mjs';
+import { CSP as BOARD_CSP, boardHtml, keepDays, projectActivity, projectRows, registeredPaths, writeBoard } from './board.mjs';
 import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { boardFile as ponytailBoard } from './ponytail.mjs';
@@ -802,7 +802,10 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
         // The last scan, or one now; the page says when it was read.
         if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
         const { rows, at } = scans.get(ctx);
-        return send(200, boardHtml(rows, new Date(at).toISOString(), registeredPaths(ctx), keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
+        // project: a project's page shows only its sessions; any other folder is refused.
+        const only = url.searchParams.get('project'), registered = registeredPaths(ctx);
+        if (only != null && !registered.some((x) => x.path === only)) return send(404, { error: 'not a registered project' });
+        return send(200, boardHtml(only == null ? rows : projectRows(rows, registered, only), new Date(at).toISOString(), registered, keepDays(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }
     const route = routes[`${req.method} ${url.pathname}`];
     // A form post cannot send JSON: only a script of this origin gets through (the Origin and key checks above stand too).

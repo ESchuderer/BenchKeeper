@@ -5,15 +5,19 @@ import { api } from './api.js';
 
 export { RANK } from '../src/states.mjs';
 
-// The view and its parameters live in the hash (#/projects?path=...), so reloads and the palette can deep-link.
+// The view, its sub path and its parameters live in the hash (#/projects/<folder>/sessions?run=...), so reloads and the
+// palette can deep-link.
 const parse = () => {
-  const [view, query = ''] = window.location.hash.replace(/^#\/?/, '').split('?');
-  return { view: view || 'dashboard', params: new URLSearchParams(query) };
+  const [path, query = ''] = window.location.hash.replace(/^#\/?/, '').split('?');
+  const [view, ...rest] = path.split('/');
+  return { view: view || 'dashboard', rest, params: new URLSearchParams(query) };
 };
 export const href = (view, params = {}) => {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString();
   return `#/${view}${q ? `?${q}` : ''}`;
 };
+// A project's own page: its folder, encoded into one segment, then the tab.
+export const projectHref = (path, tab, params) => href(`projects/${encodeURIComponent(path)}${tab ? `/${tab}` : ''}`, params);
 export const MOD = /Mac/.test(navigator.platform) ? 'Cmd' : 'Ctrl';
 export const go = (view, params) => { window.location.hash = href(view, params); };
 

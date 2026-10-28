@@ -549,7 +549,7 @@ test.describe('views', () => {
       await expect(palette.locator('[data-selected]')).toContainText('bk-ui-proj', { timeout: 1000 });
     }).toPass();
     await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/#\/projects\?path=/);
+    await expect(page).toHaveURL(/#\/projects\/[^/?]+$/);
   });
 
   test('the segmented control focus ring is the accent in dark mode', async ({ page }) => {
@@ -650,14 +650,16 @@ test.describe('views', () => {
     await expect(row).toContainText(/\d+ pending/);
     await expect(row).toContainText('dirty');
     await row.getByRole('link').click();
-    await expect(page).toHaveURL(/#\/projects\?path=/);
+    await expect(page).toHaveURL(/#\/projects\/[^/?]+$/);
+    await expect(page.getByRole('region', { name: 'Project doctor' })).toBeVisible();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     const changes = page.getByRole('region', { name: /^Changes in / });
     await expect(changes).toBeVisible();
     const skill = page.getByRole('region', { name: 'Skills' }).getByRole('switch').first();
     await skill.click();
     await expect(changes).toContainText('.benchkeeper/disabled/');
-    await expect(page.getByRole('region', { name: 'Project doctor' })).toBeVisible();
     await noAxe(page);
+    await page.getByRole('link', { name: 'All projects' }).click();
     await page.getByRole('button', { name: 'Update all', exact: true }).click();
     // The project's setup is shared: a pull request, so Update all asks first and names the count.
     const ask = page.getByRole('dialog', { name: 'Open up to 1 pull request?' });
@@ -726,8 +728,10 @@ test.describe('views', () => {
     await page.getByLabel('Display name').fill('Marketing site');
     await page.getByLabel('Notes').fill('owner: ana');
     await page.getByRole('button', { name: 'Save' }).click();
-    await expect(table.getByRole('link', { name: 'Marketing site', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Marketing site' })).toBeVisible();
     await expect(page.getByRole('region', { name: /^Project \// })).toContainText('owner: ana');
+    await page.getByRole('link', { name: 'All projects' }).click();
+    await expect(table.getByRole('link', { name: 'Marketing site', exact: true })).toBeVisible();
     // The name and the notes are searched; the filter and the sort narrow and order the rows.
     await page.getByLabel('Search projects').fill('ana');
     await expect(table.getByRole('row')).toHaveCount(2);
@@ -789,8 +793,68 @@ test.describe('views', () => {
     await page.reload();
     await expect(page.getByRole('list', { name: 'Projects' })).toBeVisible();
     await page.getByRole('list', { name: 'Projects' }).getByRole('article', { name: /^bk-ui-proj/ }).getByRole('link', { name: /^Details of / }).click();
-    await expect(page).toHaveURL(/#\/projects\?path=/);
+    await expect(page).toHaveURL(/#\/projects\/[^/?]+$/);
     await expect(page.getByRole('region', { name: /^Project \// })).toBeVisible();
+  });
+
+  test('Project page: a card opens it with name, health and folder; each tab is a route that reload and Back keep; Sessions, Rules and History show only this project; keyboard tabs; 390 px; an older link opens Installs; an unknown project offers the way back', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/#/projects');
+    await page.getByText('Cards', { exact: true }).click();
+    const card = page.getByRole('list', { name: 'Projects' }).getByRole('article', { name: /^bk-ui-proj/ });
+    const path = await card.locator('p[title]').getAttribute('title');
+    await page.route(/\/api\/history(\?|$)/, async (route) => {
+      const real = await (await route.fetch()).json();
+      await route.fulfill({ json: [{ ...real[0], id: 'mine', scope: path }, { ...real[0], id: 'not-mine', scope: 'global' }] });
+    });
+    await page.reload();
+    const route = (tab) => `#/projects/${encodeURIComponent(path)}${tab ? `/${tab}` : ''}`;
+    await card.getByRole('link', { name: /^bk-ui-proj/ }).click();
+    await expect(page).toHaveURL((u) => u.hash === route());
+    const project = page.getByRole('region', { name: `Project ${path}` });
+    await expect(project.getByRole('heading', { name: /^bk-ui-proj/ })).toBeVisible();
+    await expect(project).toContainText(/In sync|Outdated|Modified/);
+    await expect(project.getByText(path, { exact: true }).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await noAxe(page);
+    // The tabs by keyboard: an arrow key moves to the next tab and its route.
+    const tabs = project.getByRole('tablist', { name: 'Project views' });
+    await tabs.getByRole('tab', { name: 'Overview' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(tabs.getByRole('tab', { name: 'Installs' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL((u) => u.hash === route('installs'));
+    await expect(project.getByRole('region', { name: /^Changes in / })).toBeVisible();
+    // History: only this project's runs; reload keeps the tab, Back returns to the one before.
+    await tabs.getByRole('tab', { name: 'History' }).click();
+    await expect(page).toHaveURL((u) => u.hash === route('history'));
+    await expect(project.getByRole('navigation', { name: 'Runs' }).getByRole('link')).toHaveCount(1);
+    await page.reload();
+    await expect(tabs.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
+    await page.goBack();
+    await expect(page).toHaveURL((u) => u.hash === route('installs'));
+    await expect(tabs.getByRole('tab', { name: 'Installs' })).toHaveAttribute('aria-selected', 'true');
+    // Sessions: the board asked for this project shows only its sessions.
+    await tabs.getByRole('tab', { name: 'Sessions' }).click();
+    const frame = page.locator('iframe[title="Sessions board"]');
+    await expect(frame).toHaveAttribute('src', /[?&]project=/);
+    expect(new URLSearchParams((await frame.getAttribute('src')).split('?')[1]).get('project')).toBe(path);
+    const board = page.frameLocator('iframe[title="Sessions board"]');
+    await board.getByLabel('Period').selectOption('all');
+    await expect(board.locator('#count')).toHaveText('2 of 2 sessions');
+    // Rules and settings: this project's files, no choice of another.
+    await tabs.getByRole('tab', { name: 'Rules and settings' }).click();
+    await expect(project.getByRole('region', { name: /files for this project$/ }).first()).toBeVisible();
+    await expect(project.getByRole('combobox', { name: 'Show' })).toHaveCount(0);
+    await expect(project.getByRole('combobox', { name: 'Project' })).toHaveCount(0);
+    await noAxe(page);
+    // An older link opens Installs; an unknown project offers the way back.
+    await page.goto(`/#/projects?path=${encodeURIComponent(path)}`);
+    await expect(page).toHaveURL((u) => u.hash === route('installs'));
+    await page.goto('/#/projects/%2Fnowhere/sessions');
+    await expect(page.getByText('No registered project at /nowhere.')).toBeVisible();
+    await page.getByRole('link', { name: 'Back to Projects' }).click();
+    await expect(page).toHaveURL(/#\/projects$/);
+    await page.unroute(/\/api\/history(\?|$)/);
   });
 
   test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {
@@ -802,6 +866,7 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'Edit name and notes' }).click();
     await page.getByLabel('Display name').fill('Docs site');
     await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('link', { name: 'All projects' }).click();
     const moved = join(dir, '..', 'mv-moved');
     renameSync(dir, moved);
     await page.reload();
@@ -897,6 +962,7 @@ test.describe('views', () => {
     mkdirSync(join(dir, 'docs/agents'), { recursive: true });
     await doctor.getByRole('button', { name: 'Check again' }).click();
     await expect(doctor).not.toContainText('docs/agents/ does not exist');
+    await page.getByRole('link', { name: 'All projects' }).click();
     await unregister(page, ['pd-pack']);
   });
 
@@ -905,6 +971,7 @@ test.describe('views', () => {
     const table = page.getByRole('table', { name: 'Projects' });
     await addFolder(page, join(ONE, 'uno'));
     await table.getByRole('link', { name: /^bk-ui-proj/ }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     const packs = page.getByRole('region', { name: 'Packs' });
     // The saved pack leads, the others follow in their own group with what each is for.
     const frontend = packs.getByRole('group', { name: 'In use or suggested' }).getByRole('switch', { name: 'Frontend' });
@@ -922,6 +989,7 @@ test.describe('views', () => {
     await choose(page, 'Copy packs from project', 'uno: no packs');
     await expect(frontend).not.toBeChecked();
     await expect(changes.getByRole('group', { name: 'Remove', exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'All projects' }).click();
     await unregister(page, ['uno']);
   });
 
@@ -1002,6 +1070,7 @@ test.describe('views', () => {
   test('Projects: a project without a state file is set up step by step, local or on a branch', async ({ page }) => {
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'other', exact: true }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     await page.getByRole('button', { name: 'Set up this project' }).click();
     const drawer = page.getByRole('dialog', { name: 'Set up projects' });
     await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();
@@ -1080,6 +1149,7 @@ test.describe('views', () => {
     });
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: /bk-ui-proj$/ }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     await page.getByRole('button', { name: 'Change setup' }).click();
     const drawer = page.getByRole('dialog', { name: 'Set up projects' });
     await expect(drawer.getByRole('heading', { name: /Change project setup/ })).toBeVisible();

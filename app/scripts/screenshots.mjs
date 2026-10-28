@@ -49,11 +49,13 @@ const VIEWS = [
   ['projects', async (page) => {
     await nav(page, 'Projects').click();
     await page.getByRole('list', { name: 'Projects' }).getByRole('link', { name: 'shop', exact: true }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     await expect(page.getByRole('region', { name: /^Changes in / })).toBeVisible();
   }],
   ['setup', async (page) => {
     await nav(page, 'Projects').click();
     await page.getByRole('list', { name: 'Projects' }).getByRole('link', { name: 'blog', exact: true }).click();
+    await page.getByRole('tab', { name: 'Installs' }).click();
     await page.getByRole('button', { name: 'Set up this project' }).click();
     const drawer = page.getByRole('dialog', { name: 'Set up projects' });
     await expect(drawer.getByRole('checkbox', { name: 'Claude Code' })).toBeChecked();

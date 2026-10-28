@@ -6,7 +6,7 @@ import { api } from './api.js';
 import { CHIPS, HEALTH, SORT_OPTIONS, costText, health, label, lags, plural, sparkText, totals } from './cards.js';
 import { Swatch } from './dashboard.jsx';
 import { UpdateResults } from './fix.jsx';
-import { Note, go, href, icon } from './shell.jsx';
+import { Note, go, icon, projectHref } from './shell.jsx';
 
 // The filter row: search, chips (needs attention, no setup, missing folder, each pack and agent in use) and the sort.
 export function ProjectFilters({ query, onQuery, sort, onSort, chips, onChips, packs = [], agents = [] }) {
@@ -53,13 +53,34 @@ function Sparkline({ a }) {
   );
 }
 
-// One project: name and folder, the health dot with the doctor finding count, the setup in one line, the last 30 days and
-// the actions. The name opens the detail, where name, notes and relocate are.
-export function ProjectCard({ p, card, names, checked, onCheck, onApply, onUpdate, onRemoveSetup }) {
-  const id = useId();
-  const h = health(p, card);
+// The setup in one line, the packs and the last 30 days: on the card and on the project's Overview.
+export function ProjectFacts({ p, card, names }) {
   const a = card?.activity;
   const setup = p.setupVersion ? [p.agents.map((x) => names[x] ?? x).join(', '), p.tier && `tier ${p.tier}`, ...(card?.owner ?? [])].filter(Boolean).join(', ') : null;
+  return (
+    <>
+      {setup ? <Text size="sm">{setup}</Text> : null}
+      {!!p.packs?.length && <Group gap={4}>{p.packs.map((x) => <Badge key={x} variant="light" size="sm">{x}</Badge>)}</Group>}
+      {a ? (
+        <Stack gap={4}>
+          <Sparkline a={a} />
+          <Text size="sm"><span className="bk-num">{a.sessions}</span> sessions in 30 days{a.change ? ` (${a.change})` : ''}, <span className="bk-num">{costText(a)}</span></Text>
+          {a.last && <Text size="sm">Last session {a.last.time.slice(0, 16).replace('T', ' ')}{a.last.tier ? `, tier ${a.last.tier}` : ''}</Text>}
+        </Stack>
+      ) : card === undefined ? <Text size="sm">Reading sessions</Text> : null}
+    </>
+  );
+}
+
+// The health dot with the doctor finding count.
+export const HealthBadge = ({ p, card }) => {
+  const h = health(p, card);
+  return <Badge variant="default" miw="max-content" leftSection={<Swatch state={HEALTH[h].token} />}>{HEALTH[h].text}{card?.findings ? `, ${plural(card.findings, 'finding')}` : ''}</Badge>;
+};
+
+// One project: name and folder, the health dot, the facts and the actions. The name opens the project's own page.
+export function ProjectCard({ p, card, names, checked, onCheck, onApply, onUpdate, onRemoveSetup }) {
+  const id = useId();
   return (
     <Paper component="article" withBorder p="md" aria-labelledby={id}>
       <Stack gap="sm">
@@ -67,24 +88,16 @@ export function ProjectCard({ p, card, names, checked, onCheck, onApply, onUpdat
           <Group gap="xs" wrap="nowrap" align="flex-start" miw={0}>
             <SelectCheckbox p={p} checked={checked} onChange={onCheck} />
             <Stack gap={0} miw={0}>
-              <Anchor id={id} href={href('projects', { path: p.path })} fw={650} style={{ overflowWrap: 'anywhere' }}>{label(p)}</Anchor>
+              <Anchor id={id} href={projectHref(p.path)} fw={650} style={{ overflowWrap: 'anywhere' }}>{label(p)}</Anchor>
               {/* Cut at the start, the end names the folder; bdi keeps the slashes in order inside the right-to-left cut. */}
               <Text size="xs" truncate="start" title={p.path}><bdi>{p.path}</bdi></Text>
             </Stack>
           </Group>
-          <Badge variant="default" miw="max-content" leftSection={<Swatch state={HEALTH[h].token} />}>{HEALTH[h].text}{card?.findings ? `, ${plural(card.findings, 'finding')}` : ''}</Badge>
+          <HealthBadge p={p} card={card} />
         </Group>
-        {setup ? <Text size="sm">{setup}</Text> : null}
-        {!!p.packs?.length && <Group gap={4}>{p.packs.map((x) => <Badge key={x} variant="light" size="sm">{x}</Badge>)}</Group>}
-        {a ? (
-          <Stack gap={4}>
-            <Sparkline a={a} />
-            <Text size="sm"><span className="bk-num">{a.sessions}</span> sessions in 30 days{a.change ? ` (${a.change})` : ''}, <span className="bk-num">{costText(a)}</span></Text>
-            {a.last && <Text size="sm">Last session {a.last.time.slice(0, 16).replace('T', ' ')}{a.last.tier ? `, tier ${a.last.tier}` : ''}</Text>}
-          </Stack>
-        ) : card === undefined ? <Text size="sm">Reading sessions</Text> : null}
+        <ProjectFacts p={p} card={card} names={names} />
         <Group gap="xs">
-          <Button size="compact-sm" variant="default" component="a" href={href('projects', { path: p.path })} aria-label={`Details of ${label(p)}`}>Details</Button>
+          <Button size="compact-sm" variant="default" component="a" href={projectHref(p.path)} aria-label={`Details of ${label(p)}`}>Details</Button>
           <Button size="compact-sm" variant="default" onClick={() => go('sessions')}>Open board</Button>
           {p.missing ? null : !p.setupVersion
             ? <Button size="compact-sm" variant="default" aria-label={`Set up ${label(p)}`} onClick={onApply}>Set up</Button>

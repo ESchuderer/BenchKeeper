@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFile
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { CSP, SCRIPT_HASH, boardHtml, cardSvg, changeText, keepDays, periodFacts, projectActivity, registeredPaths, toCsv } from '../src/board.mjs';
+import { CSP, SCRIPT_HASH, boardHtml, cardSvg, changeText, keepDays, periodFacts, projectActivity, projectRows, registeredPaths, toCsv } from '../src/board.mjs';
 import { HEALTH, PRIMARY, TOKENS, cssVars } from '../src/tokens.mjs';
 import { MIN_SAMPLES } from '../src/insights.mjs';
 import { context } from '../src/runner.mjs';
@@ -86,6 +86,13 @@ test('project cards: sessions of both agents and of worktrees per day for 30 day
   // No session in the previous period: no change text, never "none".
   assert.equal(cards['/src/blog'].change, null);
   assert.deepEqual(cards['/src/idle'], { perDay: Array(30).fill(0), from: '2026-09-30', to: '2026-10-29', sessions: 0, week: 0, time: 0, cost: null, uncosted: 0, change: null, last: null });
+});
+
+test('a project\'s sessions: its folder and its worktrees, not another project nor a folder of none', () => {
+  const rows = [row, { ...row, id: 'w', project: '/wt/shop-fix' }, { ...row, id: 'b', project: '/src/blog' }, { ...row, id: 'x', project: '/tmp/x' }];
+  const registered = [{ path: '/work/shop', worktrees: ['/wt/shop-fix'] }, { path: '/src/blog', worktrees: [] }];
+  assert.deepEqual(projectRows(rows, registered, '/work/shop').map((r) => r.id), ['s1', 'w']);
+  assert.deepEqual(projectRows(rows, registered, '/src/blog').map((r) => r.id), ['b']);
 });
 
 // WCAG relative luminance; a mark needs 3:1 against its surface (the dataviz palette validator's contrast check).

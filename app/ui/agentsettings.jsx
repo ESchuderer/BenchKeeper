@@ -213,10 +213,11 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
 }
 
 // The agents' own settings files. Distinct from Preferences, the app's own.
-export function AgentSettings({ overview, params, refresh }) {
+// project: a registered folder; the view then writes only its project and local files.
+export function AgentSettings({ overview, params, refresh, project }) {
   const [agent, setAgent] = useState(params.get('agent') === 'codex' ? 'codex' : 'claude');
-  const [layer, setLayer] = useState(params.get('layer') === 'project' ? 'project' : 'user');
-  const [dir, setDir] = useState(params.get('path'));
+  const [layer, setLayer] = useState(project || params.get('layer') === 'project' ? 'project' : 'user');
+  const [dir, setDir] = useState(project ?? params.get('path'));
   const [advanced, setAdvanced] = useState(false);
   const [edits, setEdits] = useState({});
   const projects = overview.data?.projects ?? [];
@@ -225,14 +226,14 @@ export function AgentSettings({ overview, params, refresh }) {
   const state = useApi(layer === 'user' || chosen ? `/api/settings?${query}` : null);
   const setEdit = (key, v) => setEdits((e) => { const n = { ...e }; if (v === undefined) delete n[key]; else n[key] = v; return n; });
   const reset = (f) => (v) => { f(v); setEdits({}); };
-  const layers = agent === 'claude' ? Object.keys(LAYERS) : ['user', 'project'];
+  const layers = (agent === 'claude' ? Object.keys(LAYERS) : ['user', 'project']).filter((l) => !project || l !== 'user');
   return (
     <Stack gap="lg">
       <Note>Every change is a plan with a diff, and History undoes it.</Note>
       <Group align="flex-end">
-        <SegmentedControl styles={NOFADE} aria-label="Agent" data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} value={agent} onChange={reset((v) => { setAgent(v); if (v === 'codex' && layer === 'local') setLayer('user'); })} />
-        <Select label="Write to" data={layers.map((l) => ({ value: l, label: LAYERS[l] }))} value={layer} onChange={reset((v) => setLayer(v ?? 'user'))} allowDeselect={false} comboboxProps={{ withinPortal: false }} />
-        {layer !== 'user' && <Select label="Project" data={projects.map((p) => p.path)} value={chosen ?? null} onChange={reset(setDir)} placeholder="register a project first" allowDeselect={false} comboboxProps={{ withinPortal: false }} />}
+        <SegmentedControl styles={NOFADE} aria-label="Agent" data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} value={agent} onChange={reset((v) => { setAgent(v); if (v === 'codex' && layer === 'local') setLayer(project ? 'project' : 'user'); })} />
+        <Select label="Write to" data={layers.map((l) => ({ value: l, label: LAYERS[l] }))} value={layer} onChange={reset((v) => setLayer(v ?? layer))} allowDeselect={false} comboboxProps={{ withinPortal: false }} />
+        {layer !== 'user' && !project && <Select label="Project" data={projects.map((p) => p.path)} value={chosen ?? null} onChange={reset(setDir)} placeholder="register a project first" allowDeselect={false} comboboxProps={{ withinPortal: false }} />}
         <Switch label="Advanced: every key" checked={advanced} onChange={(e) => setAdvanced(e.currentTarget.checked)} />
       </Group>
       {layer !== 'user' && !chosen && <Note color="yellow">The project and local files belong to a registered project: add one under Projects.</Note>}

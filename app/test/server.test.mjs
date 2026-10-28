@@ -79,6 +79,9 @@ test('the sessions board: the session cookie and a one-time ticket asked for wit
   assert.deepEqual([r.status, r.headers['content-type'], r.headers['content-security-policy']], [200, 'text/html; charset=utf-8', `${BOARD_CSP}; frame-ancestors 'self'`]);
   assert.match(r.body, /<title>Sessions board<\/title>/);
   assert.equal((await req('GET', `/board?ticket=${ticket}`, { cookie })).status, 403, 'a ticket works once');
+  // A project's board names a registered folder; any other is refused.
+  const other = JSON.parse((await req('POST', '/api/board-ticket', auth({ 'content-type': 'application/json' }), '{}')).body).ticket;
+  assert.equal((await req('GET', `/board?ticket=${other}&project=${encodeURIComponent('/not/registered')}`, { cookie })).status, 404);
 });
 
 test('a session scan is reused for a minute: the board renders from it and is saved as board.html; force scans again', async () => {

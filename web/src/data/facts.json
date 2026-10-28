@@ -16,7 +16,7 @@
     },
     {
       "name": "Full",
-      "contains": "standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app",
+      "contains": "standard plus the global rules, Claude Code and Codex settings, packs and the app",
       "writes": "global rule files, settings and packs",
       "command": "npx benchkeeper@6.25.0 apply --level full"
     }
@@ -221,7 +221,7 @@
     ]
   },
   "frameworks": {
-    "rule": "Project setup asks first: it shows the list and installs nothing you did not choose. A framework that owns the workflow is a singleton: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Parts sit beside it. Everything installs inside the project; what cannot is labelled.",
+    "rule": "Project setup asks first: it shows the list and installs nothing you did not choose. A framework is a workflow system that owns how work is planned and run: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Skill packs (`packs list`) and agent files (`skills sources`) are not frameworks. Everything installs inside the project; what cannot is labelled.",
     "items": [
       {
         "name": "Superpowers",
@@ -229,27 +229,6 @@
         "role": "workflow owner",
         "installs": "a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache",
         "evaluation": "evaluations/workflow-frameworks/superpowers.md"
-      },
-      {
-        "name": "Matt Pocock's skills",
-        "url": "https://github.com/mattpocock/skills",
-        "role": "parts",
-        "installs": "the `matt-pocock` pack; its plugin installs for the user, outside the project",
-        "evaluation": "evaluations/skill-libraries/mattpocock-skills.md"
-      },
-      {
-        "name": "ECC",
-        "url": "https://github.com/affaan-m/ECC",
-        "role": "parts",
-        "installs": "three single skills from the default branch, no plugin and no hooks",
-        "evaluation": "EVALUATIONS.md"
-      },
-      {
-        "name": "agency-agents",
-        "url": "https://github.com/msitarzewski/agency-agents",
-        "role": "parts",
-        "installs": "a pick of agent files fetched at a pinned commit",
-        "evaluation": "EVALUATIONS.md"
       }
     ]
   }

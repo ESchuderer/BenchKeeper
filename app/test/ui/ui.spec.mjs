@@ -909,15 +909,14 @@ test.describe('views', () => {
     // Community skills need npx, which the fixture lacks: no pack here.
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).not.toBeChecked();
     await noAxe(page);
-    // Frameworks are listed with their evidence and chosen explicitly; none is preselected, and agency-agents asks for a pick of files.
+    // Frameworks are workflow owners, listed with their evidence and chosen explicitly; none is preselected. Agent files are a pick of their own.
     const fw = drawer.getByRole('region', { name: 'Frameworks' });
     await expect(fw.getByRole('radio', { name: /^BenchKeeper's workflow skill/ })).toBeChecked();
     await fw.getByRole('radio', { name: /^Superpowers/ }).check();
     await expect(fw).toContainText('cost higher in every with/without test but one');
-    await fw.getByRole('checkbox', { name: /^agency-agents/ }).check();
-    await expect(fw.getByRole('checkbox', { name: 'engineering-frontend-developer' })).not.toBeChecked();
+    await expect(fw.getByRole('checkbox')).toHaveCount(0);
+    await expect(drawer.getByRole('checkbox', { name: 'engineering-frontend-developer' })).not.toBeChecked();
     await noAxe(page);
-    await fw.getByRole('checkbox', { name: /^agency-agents/ }).uncheck();
     await fw.getByRole('radio', { name: /^BenchKeeper's workflow skill/ }).check();
     // An agent suggests skills only after the user agrees to its session.
     await drawer.getByRole('button', { name: 'Suggest with an agent' }).click();
@@ -1022,7 +1021,7 @@ test.describe('views', () => {
     await noAxe(page);
     await run.getByText('Unified', { exact: true }).click();
     // A step whose file no later step changed (settings.json gets later edits, so its step alone is refused).
-    await run.getByRole('button', { name: 'Undo step settings:ponytail', exact: true }).click();
+    await run.getByRole('button', { name: 'Undo step plugin:claude:ponytail@ponytail', exact: true }).click();
     await expect(page.getByRole('alert').filter({ hasText: 'Undone' })).toContainText(/1 of 1 changes undone/);
     await expect(run).toContainText('undone by');
     await run.getByRole('button', { name: 'Undo run' }).click();

@@ -3,4 +3,4 @@
 - When a check fails, fix the cause. Skip, delete or loosen a check, or use `--no-verify`, only when the user asks.
 - Shell: quote globs and URLs (`--include='*.md'`, `'https://host/path?x=1'`), keep a multi-word command prefix in a script rather than a variable, read files with Read and edit with Edit.
 - The Skill tool refuses a user-invoked skill: read its `SKILL.md` and follow it.
-- Review a change with the built-in `/code-review`; `mattpocock-skills:code-review` (when installed) checks a branch against its issue.
+- Review a change with the built-in `/code-review`; a review skill that checks a branch against its issue, when one is installed, too.

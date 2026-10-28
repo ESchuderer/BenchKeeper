@@ -1,6 +1,6 @@
 // Project setup: where the agent runs, AGENTS.md and CLAUDE.md, packs and library skills, the project state file.
-// Steps that need judgement (stack skills, AGENTS.md commands, the dev container, Matt Pocock's repository setup)
-// run in an agent session the app records (session.mjs).
+// Steps that need judgement (stack skills, AGENTS.md commands, the dev container) run in an agent session the app
+// records (session.mjs).
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
@@ -8,7 +8,7 @@ import { appVersion, contentDir, contentVersion, library } from '../content.mjs'
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { cooldownEnv } from '../cooldown.mjs';
 import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
-import { agentFilesOf, frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, ownerOf, resolveFrameworks } from '../frameworks.mjs';
+import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, migrateFrameworks, ownerOf, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
@@ -127,13 +127,14 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
 }
 
 // State schema 2 holds appVersion and contentVersion. A version 1 file (setupVersion) is read with that value as both; the next apply writes version 2.
+// Ids that left the frameworks are migrated on every read (migrateFrameworks); the next apply writes them where they now belong.
 export const STATE_SCHEMA = 2;
 export const parseState = (text) => normalizeState(JSON.parse(text));
 // Also for a state the registry kept as an object.
 export function normalizeState(s) {
   if (s?.schemaVersion > STATE_SCHEMA) throw new Error(`schemaVersion ${s.schemaVersion}, this benchkeeper reads up to ${STATE_SCHEMA}: update it with npx benchkeeper@${appVersion.split('.')[0]}`);
-  if (s && s.schemaVersion !== STATE_SCHEMA) { const { setupVersion, ...rest } = s; return { ...rest, schemaVersion: STATE_SCHEMA, appVersion: rest.appVersion ?? setupVersion, contentVersion: rest.contentVersion ?? setupVersion }; }
-  return s;
+  if (s && s.schemaVersion !== STATE_SCHEMA) { const { setupVersion, ...rest } = s; return migrateFrameworks({ ...rest, schemaVersion: STATE_SCHEMA, appVersion: rest.appVersion ?? setupVersion, contentVersion: rest.contentVersion ?? setupVersion }); }
+  return migrateFrameworks(s);
 }
 // Both versions equal this app's and its content's: a project is behind when either differs.
 export const upToDate = (s) => s?.appVersion === appVersion && s?.contentVersion === contentVersion;
@@ -165,8 +166,7 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.share = a.share === true;
   a.guards = a.guards !== false;
   a.frameworks = [a.frameworks].flat();
-  // Naming the frameworks without naming agent files keeps the saved picks of the frameworks still chosen.
-  a.agentFiles = answers.frameworks !== undefined && answers.agentFiles === undefined ? agentFilesOf(a.frameworks, prev.agentFiles ?? []) : [a.agentFiles].flat();
+  a.agentFiles = [a.agentFiles].flat();
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
   if (!isEnv(a.env)) throw new Error(`env must be one of ${Object.keys(ENVS).join(', ')}`);
@@ -276,25 +276,6 @@ export function ownSkillFiles(name, paths) {
 // A community skill's folder no longer matches the hash recorded when its install ran (no hash: not known).
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
-// The "## Agent skills" block of Matt Pocock's setup: from its heading to the next "## " heading or the end of the text.
-function agentSkillsBlock(text) {
-  const heading = text.match(/^## Agent skills[ \t]*\r?\n/m);
-  if (!heading) return null;
-  const at = heading.index;
-  const from = at + heading[0].length;
-  // From the heading's own newline, so a next heading on the very next line is found.
-  const next = text.indexOf('\n## ', from - 1);
-  const end = Math.max(from, text.trimEnd().length);
-  const start = text[at - 1] === '\n' ? at - 1 : at;
-  const stop = next < 0 ? end : Math.min(next, end);
-  return { start, stop, text: text.slice(start, stop) };
-}
-
-function withoutAgentSkillsBlock(text) {
-  const b = agentSkillsBlock(text);
-  return b ? text.slice(0, b.start) + text.slice(b.stop) : text;
-}
-
 export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const a = resolveAnswers(dir, answers);
   const lib = libraryWith(ctx);
@@ -313,7 +294,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const owner = ownerOf(a);
   const ruleLines = rules.split('\n').map((l) => l.replace(/^- /, '')).filter((l) => !owner || !/`(?:benchkeeper:)?workflow` skill/.test(l));
   const ownerLine = owner && forAgent(`Workflow owner: ${owner.title}. Its skills plan and run the work here: do not load the \`benchkeeper:workflow\` skill or write BenchKeeper issue-tracker specs.`, a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
-  const lines = [...ruleLines, ownerLine, ENVS[a.env], a.tier && `Default tier: ${a.tier}`, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
+  const packLines = a.packs.map((id) => lib.packs.find((p) => p.id === id)?.pointer).filter(Boolean);
+  const lines = [...ruleLines, ownerLine, ENVS[a.env], a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = lines.length ? lines.map((l) => `- ${l}`).join('\n') : null;
   const overrideOurs = (t) => t == null || getBlock(t, 'project') != null;
   if (a.share) {
@@ -351,13 +333,6 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   if (a.agents.includes('gemini')) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]) });
-  }
-  // Matt Pocock's setup writes its block into CLAUDE.md; Codex reads AGENTS.md, so it moves there.
-  const skillsBlock = a.agents.includes('codex') && a.agents.includes('claude') ? agentSkillsBlock(readText(at('CLAUDE.md')) ?? '') : null;
-  if (skillsBlock && !/## Agent skills/.test(readText(at('AGENTS.md')) ?? '')) {
-    const moved = skillsBlock.text.trim();
-    add('agent-skills-block', 'move the ## Agent skills block from CLAUDE.md to AGENTS.md (Codex reads AGENTS.md)', { kind: 'write', path: at('AGENTS.md'), edit: (t) => `${(t ?? '').trimEnd()}\n\n${moved}\n`, unit: 'agent-skills-block' });
-    add('agent-skills-block', 'remove the moved block from CLAUDE.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => `${withoutAgentSkillsBlock(t).trimEnd()}\n`, unit: 'agent-skills-block' });
   }
   // repo-baseline's caller workflows, on request: files in the checkout. One that differs from the bundled caller is the project's own: offered, not preselected.
   for (const m of a.callers) {

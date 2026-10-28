@@ -20,7 +20,7 @@ import { launch, openBrowser, startServer } from './server.mjs';
 import { isDir, listFiles, writeAtomic } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { frameworkRows } from './frameworks.mjs';
+import { frameworkRows, sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
 import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
@@ -98,10 +98,9 @@ Usage: benchkeeper <command> [options]
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
                                     --caller writes that repo-baseline workflow file (never GitHub settings);
-                                    --framework names the frameworks of this project (one workflow owner at most,
-                                    none clears the plugin and agent ones; a pack
-                                    framework is a pack: packs disable), --agent-file picks the agent files of agency-agents
-  frameworks [list]                 the frameworks a project can add, with the evidence and what each install writes
+                                    --framework names the workflow owner of this project (at most one; none clears it),
+                                    --agent-file picks agent files of a source (skills sources lists them; none clears)
+  frameworks [list]                 the frameworks (workflow owners) a project can add, with the evidence and what the install writes
   packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
                                     library packs and own packs (own ones in packs/ of the config folder); remove
                                     refuses a pack a registered project still names
@@ -116,6 +115,7 @@ Usage: benchkeeper <command> [options]
                                     skill edited here goes back to the library's (the edit is backed up, the diff shown);
                                     remove: a single pick leaves the project; adopt: an untracked library skill becomes a pick;
                                     disable moves a skill to .benchkeeper/disabled/, enable moves it back (names required)
+  skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
   projects [list|add <dir>..|scan <root>|remove <dir>..]
                                     projects Update all covers (projects.json in the config folder); add refuses another worktree
                                     of a registered repository unless --worktree; remove only unregisters
@@ -194,7 +194,7 @@ Usage: benchkeeper <command> [options]
                                     to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
---json (doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list, rules list, extensions list,
+--json (doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list,
         settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
@@ -280,6 +280,9 @@ function show(c, out) {
   else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }
 
+// A framework or source as `frameworks` and `skills sources` print it, with the agent files to pick.
+const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen}\n`).join('')}`;
+
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
   const ask = asker(input, out);
   try { return await command(argv, { out, err, ask, ctx }); } catch (e) {
@@ -349,11 +352,9 @@ async function command(argv, { out, err, ask, ctx }) {
     return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
   }
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
+  if (cmd === 'skills' && arg === 'sources' && [undefined, 'list'].includes(positionals[2])) { out.write(sourceRows().map(rowText).join('')); return 0; }
   if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
-  if (cmd === 'frameworks') {
-    for (const f of frameworkRows()) out.write(`${f.id.padEnd(14)} ${f.role.padEnd(6)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen}\n`).join('')}`);
-    return 0;
-  }
+  if (cmd === 'frameworks') { out.write(frameworkRows().map(rowText).join('')); return 0; }
   if (cmd === 'packs') {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
     else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
@@ -592,7 +593,7 @@ async function command(argv, { out, err, ask, ctx }) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, frameworks: o.framework?.filter((f) => f !== 'none'), agentFiles: o['agent-file'], ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, frameworks: o.framework?.filter((f) => f !== 'none'), agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }
@@ -744,6 +745,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     return setting ? emit({ agent, setting: scrub(setting) }) : fail(`${key} is not a key of ${l.name}'s reference or schema`);
   }
   if (cmd === 'frameworks' && (!arg || arg === 'list')) return surplus(2) ?? emit({ frameworks: frameworkRows() });
+  if (cmd === 'skills' && arg === 'sources') return surplus(positionals[2] === 'list' ? 3 : 2) ?? emit({ sources: sourceRows() });
   if (cmd === 'projects' && arg === 'scan') {
     const extra = surplus(3); if (extra !== undefined) return extra;
     const broken = registryFail();
@@ -807,7 +809,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show and accounts list and status');
+  return fail('--json works with doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show and accounts list and status');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

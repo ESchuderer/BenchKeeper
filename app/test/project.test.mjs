@@ -233,44 +233,28 @@ test('packs with plugins install them and list their prompts', () => {
   assert.throws(() => plan(r, { agents: ['claude'], env: 'vm' }), /env must be/);
 });
 
-test("Matt Pocock's Agent skills block moves to AGENTS.md when Codex is selected", () => {
-  const r = repo();
-  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n\n### Issue tracker\n\nGitHub.\n');
-  const { changes } = plan(r, { agents: ['claude', 'codex'], env: 'host' });
-  apply(preview(changes), r.ctx, { scope: r.dir });
-  assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n');
-  assert.match(read(join(r.dir, 'AGENTS.md')), /## Agent skills\n\n### Issue tracker\n\nGitHub\./);
+// The block of a pack's own setup in CLAUDE.md is not moved: that setup runs outside BenchKeeper's plan and undo.
+test('a pack is named in the project text only when it is on: off, no mention; on, its pointer line', () => {
+  const texts = (r) => ['AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', 'AGENTS.override.md'].map((f) => (existsSync(join(r.dir, f)) ? read(join(r.dir, f)) : '')).join('\n');
+  for (const share of [false, true]) {
+    const off = repo();
+    writeFileSync(join(off.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n\n### Issue tracker\n\nGitHub.\n');
+    apply(preview(plan(off, { agents: ['claude', 'codex'], env: 'host', share }).changes), off.ctx, { scope: off.dir });
+    assert.equal(read(join(off.dir, 'CLAUDE.md')).includes('## Agent skills'), true, 'CLAUDE.md keeps its block');
+    assert.doesNotMatch(texts(off).replace(/## Agent skills\n\n### Issue tracker\n\nGitHub\.\n/, ''), /pocock/i);
+    const on = repo();
+    apply(preview(plan(on, { agents: ['claude', 'codex'], env: 'host', share, packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'], codex: ['mattpocock-skills@mattpocock'] }).changes), on.ctx, { scope: on.dir });
+    assert.match(texts(on), /- Matt Pocock's skills \(`mattpocock-skills:<name>`\) are installed/);
+  }
 });
 
-test("Matt Pocock's Agent skills block ends at the next heading and leaves the rest of CLAUDE.md", () => {
+test("doctor: a pack whose own setup writes AGENTS.md sections is named while they are missing", () => {
   const r = repo();
-  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n\n### Issue tracker\n\nGitHub.\n\n## Notes\n\nMine.\n');
-  const { changes } = plan(r, { agents: ['claude', 'codex'], env: 'host' });
-  apply(preview(changes), r.ctx, { scope: r.dir });
-  assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n\n## Notes\n\nMine.\n');
-  const agents = read(join(r.dir, 'AGENTS.md'));
-  assert.match(agents, /## Agent skills\n\n### Issue tracker\n\nGitHub\./);
-  assert.doesNotMatch(agents, /Mine\./);
-});
-
-test("Matt Pocock's Agent skills block is found with CRLF line endings", () => {
-  const r = repo();
-  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\r\n\r\n## Agent skills\r\n\r\n### Issue tracker\r\n\r\nGitHub.\r\n\r\n## Notes\r\n\r\nMine.\r\n');
-  apply(preview(plan(r, { agents: ['claude', 'codex'], env: 'host' }).changes), r.ctx, { scope: r.dir });
-  const claude = read(join(r.dir, 'CLAUDE.md'));
-  assert.doesNotMatch(claude, /Agent skills|Issue tracker/);
-  assert.match(claude, /## Notes\r\n\r\nMine\./);
-  const agents = read(join(r.dir, 'AGENTS.md'));
-  assert.match(agents, /## Agent skills\r\n\r\n### Issue tracker/);
-  assert.doesNotMatch(agents, /Mine\./);
-});
-
-test("An empty Agent skills block does not take the heading right after it", () => {
-  const r = repo();
-  writeFileSync(join(r.dir, 'CLAUDE.md'), '@AGENTS.md\n\n## Agent skills\n## Notes\n\nMine.\n');
-  apply(preview(plan(r, { agents: ['claude', 'codex'], env: 'host' }).changes), r.ctx, { scope: r.dir });
-  assert.equal(read(join(r.dir, 'CLAUDE.md')), '@AGENTS.md\n\n## Notes\n\nMine.\n');
-  assert.doesNotMatch(read(join(r.dir, 'AGENTS.md')), /Mine\./);
+  apply(preview(plan(r, { agents: ['claude'], env: 'host', packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] }).changes), r.ctx, { scope: r.dir });
+  const found = () => projectChecks(r.ctx, r.dir, ['claude']).filter((i) => i.check === 'packs');
+  assert.deepEqual(found().map((i) => [i.level, i.fix.split(' ').slice(0, 2).join(' ')]), [['info', 'run /mattpocock-skills:setup-matt-pocock-skills']]);
+  writeFileSync(join(r.dir, 'AGENTS.md'), '## Agent skills\n\n### Issue tracker\n\nGitHub.\n\n### Triage labels\n\nDefault.\n\n### Domain docs\n\nNone.\n');
+  assert.deepEqual(found(), []);
 });
 
 test('Gemini CLI reads AGENTS.md; the sandbox option excludes devcontainer and podman', () => {

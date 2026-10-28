@@ -27,7 +27,7 @@ Three levels, from the smallest: the BenchKeeper plugin ships no always-on instr
 |---|---|---|---|
 | Lite | the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects` and `operating-benchkeeper` skills | nothing outside the plugin install, besides the app's run record for undo | `npx benchkeeper@6.25.0 apply --level lite` |
 | Standard | lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list | local files in each project you run `projects apply` in | `npx benchkeeper@6.25.0 apply --level standard && npx benchkeeper@6.25.0 projects apply` |
-| Full | standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.25.0 apply --level full` |
+| Full | standard plus the global rules, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.25.0 apply --level full` |
 <!-- /generated:levels -->
 
 Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional. The app configures the agents it finds on `PATH`. It does not install agent CLIs.
@@ -75,7 +75,7 @@ The examples write `benchkeeper` for `npx benchkeeper@6.25.0`. Until the first n
 What a full `apply` writes (`--level lite` or `--level standard` plans the BenchKeeper plugin alone; `benchkeeper doctor` names the level it finds and what the next one adds):
 
 - the global rules: Claude Code `$HOME/.claude/rules/00-global.md`; Codex, Gemini CLI and Copilot a marked block in `$HOME/.codex/AGENTS.md`, `$HOME/.gemini/GEMINI.md`, `$HOME/.copilot/copilot-instructions.md` (text outside the block stays)
-- the plugins BenchKeeper (its marketplace follows the `stable` branch; the app adds it once and never moves it, and the agent's own update keeps the plugin current) and Ponytail (not pinned: its marketplace is added as `claude plugin marketplace add` and `codex plugin marketplace add` add it, and the agent's own update keeps it current; level `full` in `$HOME/.config/ponytail/config.json`) in Claude Code and Codex; Gemini CLI and Copilot get copies of the BenchKeeper skills in `$HOME/.gemini/skills` and `$HOME/.copilot/skills`
+- the plugins BenchKeeper (its marketplace follows the `stable` branch; the app adds it once and never moves it, and the agent's own update keeps the plugin current) in Claude Code and Codex; Gemini CLI and Copilot get copies of the BenchKeeper skills in `$HOME/.gemini/skills` and `$HOME/.copilot/skills`
 - Claude Code settings (merged, other keys and hooks stay): error reporting, feedback survey and `/feedback` off, local transcripts kept 14 days instead of 30, the stable update channel (typically about one week behind latest, [docs](https://code.claude.com/docs/en/setup#configure-release-channel)), subagents without a model on Sonnet, the advisor on Opus, Remote Control on at startup, the clear-context offer when you accept a plan, and attribution hidden: no trailer or co-author line on commits, no attribution text in pull request descriptions, no session link (`attribution` set to empty `commit` and `pr` and `sessionUrl: false`; change it in Agent settings)
 - Codex commit trailer: setup writes no key for it. Current Codex reads a commit attribution switch from the account's settings (`codex-rs/ext/git-attribution/src/policy.rs` in [openai/codex](https://github.com/openai/codex/blob/main/codex-rs/ext/git-attribution/src/policy.rs)) and adds none for API-key or logged-out sessions; turn it off in the Codex account settings. The `config.toml` key named in older Codex notes is unverified for this version.
 - the default model `opusplan` in Claude Code (Opus in plan mode, Sonnet otherwise), as its own change since it replaces the model you set. Orca starts `claude` without `--model`, so it applies there too. Not benchmarked.
@@ -133,14 +133,11 @@ The Accounts view of the app does the same: add an account as a plan, check it, 
 Optional, per project: `npx benchkeeper@6.25.0 projects apply --framework <id>` (`npx benchkeeper@6.25.0 frameworks` lists them with their evidence; the setup form in the browser shows the same). The doctor reports a second workflow owner, and a framework installed outside the project that the setup did not record.
 
 <!-- generated:frameworks -->
-Project setup asks first: it shows the list and installs nothing you did not choose. A framework that owns the workflow is a singleton: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Parts sit beside it. Everything installs inside the project; what cannot is labelled.
+Project setup asks first: it shows the list and installs nothing you did not choose. A framework is a workflow system that owns how work is planned and run: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Skill packs (`packs list`) and agent files (`skills sources`) are not frameworks. Everything installs inside the project; what cannot is labelled.
 
 | Framework | Role | Installs | Evaluation |
 |---|---|---|---|
 | [Superpowers](https://github.com/obra/superpowers) | workflow owner | a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache | [superpowers.md](../evaluations/workflow-frameworks/superpowers.md) |
-| [Matt Pocock's skills](https://github.com/mattpocock/skills) | parts | the `matt-pocock` pack; its plugin installs for the user, outside the project | [mattpocock-skills.md](../evaluations/skill-libraries/mattpocock-skills.md) |
-| [ECC](https://github.com/affaan-m/ECC) | parts | three single skills from the default branch, no plugin and no hooks | [EVALUATIONS.md](../EVALUATIONS.md) |
-| [agency-agents](https://github.com/msitarzewski/agency-agents) | parts | a pick of agent files fetched at a pinned commit | [EVALUATIONS.md](../EVALUATIONS.md) |
 <!-- /generated:frameworks -->
 
 ## Update

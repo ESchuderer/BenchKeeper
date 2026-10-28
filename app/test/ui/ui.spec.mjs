@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { openBrowser } from '../../src/server.mjs';
+import { TOKENS } from '../../src/tokens.mjs';
 
 const TOKEN = 'ui-test-token-0123456789';
 const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
@@ -83,6 +84,21 @@ test.describe('views', () => {
       });
     }
   }
+
+  test('the board tokens are the app variables in both schemes; reduced motion removes the transitions', async ({ page }) => {
+    for (const scheme of ['light', 'dark']) {
+      await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+      const read = (name) => page.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
+      expect(await read('--bk-accent')).toBe(TOKENS[scheme].accent);
+      expect(await read('--bk-s2')).toBe(TOKENS[scheme].s2);
+      expect(await read('--mantine-color-text')).toBe(TOKENS[scheme].ink);
+    }
+    const button = page.getByRole('button', { name: 'Fix everything' });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    expect(await button.evaluate((el) => getComputedStyle(el).transitionDuration)).not.toBe('0s');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await button.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s');
+  });
 
   test('phone width: the header fits at 320 px; the menu holds theme and Stop, and says whether it is open', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });

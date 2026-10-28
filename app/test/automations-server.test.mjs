@@ -29,8 +29,8 @@ test('the page lists the templates; install is a plan for a registered project, 
   const { routes, dir } = world(w);
   let view = await routes['GET /api/automations']();
   assert.deepEqual(view.runner, { name: 'Orca', installed: true });
-  assert.deepEqual(view.automations.map((a) => [a.id, a.template.tier, a.installed]), [['alpha', 'user', null]]);
-  assert.deepEqual(Object.keys(view.automations[0].template.parameters), ['repository']);
+  assert.deepEqual(view.automations.filter((a) => a.template.tier === 'user').map((a) => [a.id, a.template.tier, a.installed]), [['alpha', 'user', null]]);
+  assert.deepEqual(Object.keys(view.automations.find((a) => a.id === 'alpha').template.parameters), ['repository']);
 
   await assert.rejects(async () => routes['POST /api/automations-plan']({ op: 'install', id: 'alpha', values: { repository: 'o/r' }, dir }), { status: 400, message: 'register the project first' });
   addProject(w.ctx, dir);
@@ -50,7 +50,7 @@ test('the page lists the templates; install is a plan for a registered project, 
   assert.equal(readRegistry(w.ctx).alpha.runnerId, ID);
 
   view = await routes['GET /api/automations']();
-  const i = view.automations[0].installed;
+  const i = view.automations.find((a) => a.id === 'alpha').installed;
   assert.deepEqual([i.state, i.enabled, i.values, i.dir], ['current', false, { mode: 'report', repository: 'o/r' }, dir]);
   assert.deepEqual([i.runs.last.status, i.runs.skipped], ['completed', 1]);
 
@@ -65,6 +65,6 @@ test('without the runner the templates still show and install refuses', skip, as
   const { routes, dir } = world(w);
   addProject(w.ctx, dir);
   const view = await routes['GET /api/automations']();
-  assert.deepEqual([view.runner.installed, view.automations.length], [false, 1]);
+  assert.deepEqual([view.runner.installed, view.automations.filter((a) => a.template.tier === 'user').length], [false, 1]);
   await assert.rejects(async () => routes['POST /api/automations-plan']({ op: 'install', id: 'alpha', values: { repository: 'o/r' }, dir }), { status: 400, message: /Orca is not installed/ });
 });

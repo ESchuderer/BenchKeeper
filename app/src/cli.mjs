@@ -162,10 +162,10 @@ Usage: benchkeeper <command> [options]
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
-  projects confirm-git <dir>.. [--yes]
-                                    shows the project's git config that runs code or sends git elsewhere (hooks, ssh
-                                    command, credential helper, push URL, URL rewrites and the like) and records it as
-                                    confirmed for projects update --unattended (key and a hash of each value)
+  projects confirm-git <dir>..      shows the project's git config that runs code or sends git elsewhere (hooks, ssh
+                                    command, credential helper, push URL, URL rewrites and the like) and, after a yes
+                                    typed in a terminal, records it as confirmed for projects update --unattended (key
+                                    and a hash of each value)
   projects update [dir..] [--yes] [--no-push] [--dry-run] [--unattended] [--max N] [--baseline auto|oss|private-advisory]
                                     dir..: only these registered projects (default: all); per project: local setup (the
                                     default) applied in the checkout; shared setup
@@ -624,10 +624,12 @@ async function command(argv, { out, err, ask, ctx }) {
     }
     else if (arg === 'confirm-git') {
       if (!dirs.length) { out.write('projects confirm-git needs a directory\n'); return 2; }
+      // Only the owner confirms: no --yes and no piped answer, so a scheduled session cannot confirm the run it is gated by.
+      if (!ask.tty) { out.write('projects confirm-git asks in a terminal: run it yourself\n'); return 2; }
       for (const d of dirs) {
         const found = gitCodeConfig(ctx, canon(d));
         out.write(`${canon(d)}\n${found.map((i) => `  ${i.key.startsWith('hook ') ? i.key : `${i.key} = ${redact(i.value)}`}\n`).join('') || '  none\n'}`);
-        if (!o.yes && !(await ask(`Let projects update --unattended run in ${canon(d)} with this config?`))) return 1;
+        if (!(await ask(`Let projects update --unattended run in ${canon(d)} with this config?`))) return 1;
         confirmGit(ctx, d);
         out.projects?.push({ path: canon(d), status: 'confirmed' });
       }

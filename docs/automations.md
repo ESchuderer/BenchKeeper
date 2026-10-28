@@ -135,6 +135,6 @@ The generic templates, ranked by what the projects need. A row without a templat
 | Code-scanning and quality-gate findings to fix workers, grouped by rule | weekly | open findings | pull requests | planned, [#354](https://github.com/ESchuderer/BenchKeeper/issues/354) |
 | Release watch: the published package, the pins and an install | on release | a new release tag | one issue on failure | planned, [#355](https://github.com/ESchuderer/BenchKeeper/issues/355) |
 | Provider changelog scan; reads no untrusted source | weekly | a new agent version | one report | planned, [#357](https://github.com/ESchuderer/BenchKeeper/issues/357) |
-| Update all for the registered projects | weekly | outdated projects | commits, pushes | planned, [#358](https://github.com/ESchuderer/BenchKeeper/issues/358) |
+| `update-all`: Update all for the registered projects; skips a project whose git config that runs code is not confirmed (`benchkeeper projects confirm-git <dir>`) | weekly | a project the dry run reports ready | setup commits, pushes and pull requests in act mode (push off by default) | template, [#358](https://github.com/ESchuderer/BenchKeeper/issues/358) |
 
 Not offered: merging external pull requests, applying the agent label, changing settings or rulesets, switching accounts automatically.

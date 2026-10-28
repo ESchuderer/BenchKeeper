@@ -412,19 +412,22 @@
   "stack": {
     "reasons": [
       {
-        "name": "Quality",
-        "text": "in BenchKeeper's mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock's skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3).",
-        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+        "name": "Checks by tier",
+        "text": "every change runs the checks and reviews its tier names: the tests of the touched code after each edit, a review before pushing for standard and full work.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
+          "plugins/benchkeeper/skills/workflow/software.md"
+        ]
       },
       {
-        "name": "Time",
-        "text": "it depends on the version: setup-v4.0 with Matt Pocock's skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9. setup-v6.0 is not measured yet.",
-        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+        "name": "Long checks last",
+        "text": "the full suite, end-to-end tests and builds run once after the last edit, in a subagent that returns only failures and key lines.",
+        "evidence": "plugins/benchkeeper/skills/workflow/SKILL.md"
       },
       {
-        "name": "Cost",
-        "text": "Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3).",
-        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+        "name": "Simplicity",
+        "text": "the optional Ponytail pack adds a plugin that steers the agent to the smallest complete change.",
+        "evidence": "docs/stack.md#components"
       },
       {
         "name": "Skills by level",

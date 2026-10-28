@@ -62,7 +62,6 @@ Fix everything shows each file change as a diff and each command as its command 
 - [Stack](docs/stack.md): components, repository map, how the stack was chosen, optional tools
 - [App reference](app/README.md): every command and the web UI
 - [Automations](docs/automations.md): scheduled agent runs from templates, installed disabled on the runner from the app or the CLI, with the catalogue, the file format and the lint rules
-- [Benchmarks](https://github.com/ESchuderer/BenchKeeper-research#recorded-results): scenarios, reports and per-trial results of the shared brownfield task (BenchKeeper-research)
 - [Security notes](docs/security.md) and [how to report a vulnerability](SECURITY.md)
 - [Changelog](CHANGELOG.md) and [issues](https://github.com/ESchuderer/BenchKeeper/issues)
 

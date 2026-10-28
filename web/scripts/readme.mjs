@@ -54,6 +54,7 @@ const blocks = {
     '|---|---|---|---|',
     ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} | [${cell(f.evidence.split('/').pop())}](../${f.evidence}) |`),
   ],
+  reasons: facts.stack.reasons.map((r) => `- ${r.name}: ${r.text}`),
   openhands: [
     `**Unattended or isolated runs: [${facts.openhands.name}](${facts.openhands.url}).** ${facts.openhands.summary}`,
     '',
@@ -66,7 +67,7 @@ const pick = (names) => Object.fromEntries(names.map((n) => [n, blocks[n]]));
 const targets = [
   ['README.md', pick(['description', 'quickstart'])],
   ['docs/setup.md', pick(['prerequisites', 'levels', 'support', 'frameworks'])],
-  ['docs/stack.md', pick(['core', 'tools', 'openhands'])],
+  ['docs/stack.md', pick(['core', 'reasons', 'tools', 'openhands'])],
   ['app/README.md', { quickstart: quickstart('../docs/setup.md') }],
 ];
 let stale = false;

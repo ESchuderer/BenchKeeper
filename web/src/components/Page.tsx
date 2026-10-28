@@ -22,7 +22,6 @@ const theme = createTheme({
 });
 
 const REPO = 'https://github.com/ESchuderer/BenchKeeper';
-const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research';
 const SETUP = `${REPO}/blob/main/docs/setup.md`;
 // Backticks in facts.json become inline code, the same text the README renders.
 export const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
@@ -198,7 +197,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             {facts.frameworks.items.map((f) => (
               <Paper key={f.name} withBorder p="lg" radius="lg">
                 <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
-                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/main/${f.evidence}`}>Evaluation</Anchor></Text>
+                <Text size="sm" mt="xs">Installs {md(f.installs)}.</Text>
               </Paper>
             ))}
           </SimpleGrid>
@@ -247,7 +246,6 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           <List spacing="sm" maw={760}>
             {facts.stack.reasons.map((r) => <List.Item key={r.name}><Text span fw={700}>{r.name}:</Text> {r.text}</List.Item>)}
           </List>
-          <Text size="sm" mt="lg">For details, check the full data: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>evaluations</Anchor>, <Anchor href={`${RESEARCH}#recorded-results`}>benchmark results</Anchor>.</Text>
         </Section>
 
         <Section id="where" title="Where things run" intro="By default the agent runs inside the repository's dev container, together with the project commands. With --env host-agent it stays on the host and sends project commands through devcontainer exec.">

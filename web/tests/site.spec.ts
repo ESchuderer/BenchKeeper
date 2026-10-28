@@ -7,6 +7,11 @@ for (const path of ['./', './overview/', './app/', './404.html']) {
     await expect(footer.locator('a[href="https://github.com/ESchuderer/BenchKeeper"]')).toHaveCount(1);
     await expect(footer.locator('a[href$="/SECURITY.md"]')).toHaveCount(1);
   });
+
+  test(`${path} has no benchmark or evaluation link`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.locator('a[href*="BenchKeeper-research"], a[href*="EVALUATIONS"], a[href*="evaluations/"]')).toHaveCount(0);
+  });
 }
 
 test('the sitemap lists the three pages', async ({ request }) => {

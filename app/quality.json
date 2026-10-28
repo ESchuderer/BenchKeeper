@@ -71,6 +71,7 @@
       "exports src/extensions.mjs EXTENSION_AGENTS",
       "exports src/extensions.mjs KINDS",
       "exports src/frameworks.mjs SETTINGS",
+      "exports src/frameworks.mjs agentFilesOf",
       "exports src/instructions.mjs MEMORY_DOC",
       "exports src/instructions.mjs isFile",
       "exports src/integrity.mjs packIssues",

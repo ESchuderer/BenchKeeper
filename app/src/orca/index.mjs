@@ -10,16 +10,34 @@ export const SKILL_SOURCE = 'https://github.com/stablyai/orca';
 export const SKILLS = ['orca-cli', 'orchestration'];
 const FILES = ['worker-spec.md', 'orca.yaml.sample', 'worktreeinclude.sample'];
 
-export const installed = (ctx) => ctx.run(['orca', '--version']).code === 0;
+// Its CLI: `orca` is on the PATH only in the terminals it opens; on Linux it registers `orca-ide`, and the shim in its config
+// folder execs that. The first that answers --version is used for every call, found once per context; a miss is asked
+// again, so one installed while the app runs is seen.
+const NAMES = ['orca', 'orca-ide'];
+const SHIM = ['.config', 'orca', 'linux-orca-cli-shim', 'orca'];
+const tried = (ctx) => [...NAMES, join(ctx.home, ...SHIM)];
+const found = new WeakMap();
+function probe(ctx) {
+  if (found.has(ctx)) return found.get(ctx);
+  for (const bin of tried(ctx)) {
+    const r = ctx.run([bin, '--version']);
+    if (r.code === 0) { found.set(ctx, { bin, version: String(r.stdout) }); return found.get(ctx); }
+  }
+  return null;
+}
+// Not found: the first name, so a call fails the way a missing program does.
+export const bin = (ctx) => probe(ctx)?.bin ?? NAMES[0];
+export const installed = (ctx) => probe(ctx) !== null;
+export const notInstalled = (ctx) => `${NAME} is not installed: none of ${tried(ctx).join(', ')} answered --version; put orca-ide on the PATH`;
 // The version the adapter and its recorded test fixtures were observed with. On another major version the owner runs the
 // manual checks first; doctor warns until then. Unknown output is no warning.
 export const OBSERVED = '1.4.243';
 const major = (v) => /^\s*v?(\d+)\.\d+/.exec(v)?.[1] ?? null;
 export function unobserved(ctx) {
-  const r = ctx.run(['orca', '--version']);
-  const seen = r.code === 0 ? major(String(r.stdout)) : null;
+  const v = probe(ctx)?.version;
+  const seen = v ? major(v) : null;
   if (!seen || seen === major(OBSERVED)) return null;
-  return { message: `${NAME} ${String(r.stdout).trim()} is a major version this app was not checked with (${OBSERVED})`, fix: `update benchkeeper; until a release names this version, its ${NAME} runs view may miss runs (checklist: docs/orca-checks.md in the BenchKeeper repository)` };
+  return { message: `${NAME} ${v.trim()} is a major version this app was not checked with (${OBSERVED})`, fix: `update benchkeeper; until a release names this version, its ${NAME} runs view may miss runs (checklist: docs/orca-checks.md in the BenchKeeper repository)` };
 }
 // Its hooks carry its environment variables in the command; the agent settings files get them written back.
 export const ownsHook = (command) => /ORCA_/.test(String(command ?? ''));
@@ -50,7 +68,7 @@ export const taskOf = (text) => (isWorkerPrompt(text) ? text.match(/^Your task I
 // the coordinator's and the worker's text, so the fields are picked, never spread. null when it is not installed or fails.
 const cli = async (ctx, args) => {
   const run = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
-  const r = await run(['orca', 'orchestration', ...args, '--json'], { timeout: 15e3 });
+  const r = await run([bin(ctx), 'orchestration', ...args, '--json'], { timeout: 15e3 });
   try { const j = r.code === 0 ? JSON.parse(r.stdout) : null; return j?.ok ? j.result : null; } catch { return null; }
 };
 export async function runs(ctx, limit = 20) {
@@ -77,7 +95,7 @@ export async function workers(ctx) {
 
 // ---- scheduled automations: create, edit, remove and show through its CLI (help of OBSERVED; the JSON shapes are read
 // from its source of that version). f is { name, schedule, prompt, agent, precheck, workspace, dir, reuseSession, grace }.
-const AUTO = ['orca', 'automations'];
+const AUTO = (ctx) => [bin(ctx), 'automations'];
 const AUTO_ID = /^[\w-]{1,128}$/;
 // The fields an update may change; the target (project folder, worktree mode) stays as created.
 const fields = (f) => ['--name', f.name, '--trigger', f.schedule, '--prompt', f.prompt, '--provider', f.agent,
@@ -85,14 +103,14 @@ const fields = (f) => ['--name', f.name, '--trigger', f.schedule, '--prompt', f.
   ...(f.workspace === 'project' ? [f.reuseSession ? '--reuse-session' : '--fresh-session'] : [])];
 // An explicit target: without one the CLI binds the automation to the worktree its working folder lies in.
 const target = (f) => (f.workspace === 'project' ? ['--workspace', `path:${f.dir}`] : ['--repo', `path:${f.dir}`, '--workspace-mode', 'new-per-run']);
-export const createArgv = (f) => [...AUTO, 'create', ...fields(f), ...target(f), '--disabled', '--json'];
-export const editArgv = (id, f) => [...AUTO, 'edit', '--id', id, ...fields(f), '--json'];
-export const removeArgv = (id) => [...AUTO, 'remove', '--id', id, '--json'];
+export const createArgv = (ctx, f) => [...AUTO(ctx), 'create', ...fields(f), ...target(f), '--disabled', '--json'];
+export const editArgv = (ctx, id, f) => [...AUTO(ctx), 'edit', '--id', id, ...fields(f), '--json'];
+export const removeArgv = (ctx, id) => [...AUTO(ctx), 'remove', '--id', id, '--json'];
 // The undo commands an automation change plans: remove by id, or edit by id with the fields above. A ledger file that
-// names anything else is not run.
+// names anything else is not run. Any of the CLI's names: the context that recorded it may have found another one.
 const EDIT_FLAGS = new Set(['--name', '--trigger', '--prompt', '--provider', '--precheck', '--missed-run-grace-minutes']);
-export function undoableAutomation(argv) {
-  if (!Array.isArray(argv) || argv[0] !== AUTO[0] || argv[1] !== AUTO[1] || argv[3] !== '--id' || !AUTO_ID.test(argv[4] ?? '') || argv.at(-1) !== '--json') return false;
+export function undoableAutomation(argv, ctx) {
+  if (!Array.isArray(argv) || !(ctx ? tried(ctx) : NAMES).includes(argv[0]) || argv[1] !== 'automations' || argv[3] !== '--id' || !AUTO_ID.test(argv[4] ?? '') || argv.at(-1) !== '--json') return false;
   const rest = argv.slice(5, -1);
   if (argv[2] === 'remove') return rest.length === 0;
   if (argv[2] !== 'edit') return false;
@@ -115,14 +133,14 @@ export function automationResult(r) {
   const message = j?.error?.message ?? (String(r.stderr || r.stdout).trim().split('\n').at(-1) || `exit ${r.code}`);
   return { error: `${NAME}: ${message}`, ...(/not found/i.test(message) ? { removed: true } : {}) };
 }
-export const showAutomation = (ctx, id) => automationResult(ctx.run([...AUTO, 'show', '--id', id, '--json'], { timeout: 15e3 }));
+export const showAutomation = (ctx, id) => automationResult(ctx.run([...AUTO(ctx), 'show', '--id', id, '--json'], { timeout: 15e3 }));
 // The runner name a registry record carries.
 export const RUNNER = 'orca';
 // Its run history of one automation, newest first: { runs: [{ status, trigger, at }] } or { error }. Status, trigger and the
 // due time are picked; a run's title, output and error text stay out.
-export const runsArgv = (id, limit = 20) => [...AUTO, 'runs', '--id', id, '--limit', String(limit), '--json'];
+export const runsArgv = (ctx, id, limit = 20) => [...AUTO(ctx), 'runs', '--id', id, '--limit', String(limit), '--json'];
 export function automationRuns(ctx, id) {
-  const r = ctx.run(runsArgv(id), { timeout: 15e3 });
+  const r = ctx.run(runsArgv(ctx, id), { timeout: 15e3 });
   let j = null;
   try { j = JSON.parse(r.stdout); } catch { /* not JSON: the message below */ }
   if (r.code !== 0 || !j?.ok || !Array.isArray(j.result?.runs)) return { error: `${NAME}: ${j?.error?.message ?? (String(r.stderr || r.stdout).trim().split('\n').at(-1) || `exit ${r.code}`)}` };

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { automationChecks, automationDiff, automationRuns, automationStatus, installChanges, readRegistry, registryFile, removeChanges, updateChanges, userDir } from '../src/automations.mjs';
 import { main } from '../src/cli.mjs';
-import { runsArgv, undoableAutomation } from '../src/orca/index.mjs';
+import { notInstalled, runsArgv, undoableAutomation } from '../src/orca/index.mjs';
 import { apply, preview, undo } from '../src/runner.mjs';
 import { DERIVED, RECORDED, automationReply, fake, missing, notFoundReply, removedReply, showAutomationArgv } from './fakes/orca.mjs';
 
@@ -128,25 +128,26 @@ test('status and doctor report drift: an edited prompt, a changed schedule, a re
   mkdirSync(w.ctx.config, { recursive: true });
   mkdirSync(m.ctx.config, { recursive: true });
   writeFileSync(registryFile(m.ctx), readFileSync(registryFile(w.ctx)));
-  assert.deepEqual(automationStatus(m.ctx).map((r) => [r.state, r.note]), [['unknown', 'Orca is not installed']]);
+  assert.deepEqual(automationStatus(m.ctx).map((r) => [r.state, r.note]), [['unknown', notInstalled(m.ctx)]]);
 });
 
 test('the last run that was not skipped and the skipped runs since, as the runner reports them; no history is a note', () => {
   const w = world();
   install(w);
   const rec = readRegistry(w.ctx).alpha;
-  w.update((s) => ({ replies: [{ argv: runsArgv(ID1).slice(1), stdout: DERIVED.runs }, ...s.replies] }));
+  w.update((s) => ({ replies: [{ argv: runsArgv(w.ctx, ID1).slice(1), stdout: DERIVED.runs }, ...s.replies] }));
   assert.deepEqual(automationRuns(w.ctx, rec), { last: { status: 'completed', trigger: 'scheduled', at: '2026-10-28T09:00:00.000Z' }, skipped: 1, note: null });
   // Only skipped runs: no last run, all of them counted. The run's title and error text never reach the result.
   const skipped = JSON.parse(DERIVED.runs);
   skipped.result.runs = skipped.result.runs.map((r) => ({ ...r, status: 'skipped_missed' }));
-  w.update((s) => ({ replies: [{ argv: runsArgv(ID1).slice(1), stdout: JSON.stringify(skipped) }, ...s.replies] }));
+  w.update((s) => ({ replies: [{ argv: runsArgv(w.ctx, ID1).slice(1), stdout: JSON.stringify(skipped) }, ...s.replies] }));
   const r = automationRuns(w.ctx, rec);
   assert.deepEqual([r.last, r.skipped], [null, 2]);
   assert.ok(!JSON.stringify(r).includes('DERIVED-TEXT'));
-  w.update((s) => ({ replies: [{ argv: runsArgv(ID1).slice(1), stdout: DERIVED.notFound, code: 1 }, ...s.replies] }));
+  w.update((s) => ({ replies: [{ argv: runsArgv(w.ctx, ID1).slice(1), stdout: DERIVED.notFound, code: 1 }, ...s.replies] }));
   assert.match(automationRuns(w.ctx, rec).note, /^Orca: .*not found/);
-  assert.deepEqual(automationRuns(missing().ctx, rec), { last: null, skipped: 0, note: 'Orca is not installed' });
+  const gone = missing();
+  assert.deepEqual(automationRuns(gone.ctx, rec), { last: null, skipped: 0, note: notInstalled(gone.ctx) });
 });
 
 test('doctor: a template without a precheck, and two automations on one schedule in one checkout', () => {
@@ -225,8 +226,14 @@ test('remove deletes the automation and the record; undo restores the record onl
 test('undo runs only the automation commands an automation change plans', () => {
   assert.equal(undoableAutomation(['orca', 'automations', 'remove', '--id', ID1, '--json']), true);
   assert.equal(undoableAutomation(['orca', 'automations', 'edit', '--id', ID1, '--prompt', 'x', '--trigger', 'hourly', '--fresh-session', '--json']), true);
+  const remove = (bin) => [bin, 'automations', 'remove', '--id', ID1, '--json'];
+  assert.equal(undoableAutomation(remove('orca-ide')), true);
+  assert.equal(undoableAutomation(remove('/home/u/.config/orca/linux-orca-cli-shim/orca'), { home: '/home/u' }), true);
+  assert.equal(undoableAutomation(remove('/tmp/x/.config/orca/linux-orca-cli-shim/orca'), { home: '/home/u' }), false);
+  assert.equal(undoableAutomation(remove('/home/u/.config/orca/linux-orca-cli-shim/orca')), false);
   for (const argv of [
     ['orca', 'automations', 'run', '--id', ID1, '--json'],
+    ['sh', 'automations', 'remove', '--id', ID1, '--json'],
     ['orca', 'automations', 'remove', '--id', '$(rm -rf ~)', '--json'],
     ['orca', 'automations', 'edit', '--id', ID1, '--repo', 'path:/', '--json'],
     ['orca', 'automations', 'edit', '--id', ID1, '--prompt', '--json'],

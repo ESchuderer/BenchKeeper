@@ -406,7 +406,7 @@ function undoRun(id, ctx, { step, unit } = {}) {
         });
       } else if (e.kind === 'command') {
         if (!e.undoArgv) { entry.status = 'manual'; entry.reason = e.undoNote ?? `no undo command for ${e.argv.join(' ')}`; continue; }
-        if (!undoable(e.undoArgv) && !ctx.undoable?.(e.undoArgv)) throw new Error(`the undo command is not one this app plans, so it is not run: ${mask(String(e.undoArgv).slice(0, 120))}`);
+        if (!undoable(e.undoArgv) && !ctx.undoable?.(e.undoArgv, ctx)) throw new Error(`the undo command is not one this app plans, so it is not run: ${mask(String(e.undoArgv).slice(0, 120))}`);
         if (e.cwd != null && !inside(e.cwd, [ctx.home, ...ctx.roots])) throw new Error(`the undo command's folder ${e.cwd} is outside ${ctx.home}`);
         Object.assign(entry, { argv: e.undoArgv, cwd: e.cwd });
         begin(entry);

@@ -300,7 +300,7 @@ export function globalPlan(env) {
       const env = { CLAUDE_CONFIG_DIR: acc.dir };
       const ref = state.refs?.[own.marketplace];
       // A marketplace on another ref does not move when refreshed, and moving it removes the plugin's data: by hand, never by the app.
-      if (ref && ref !== own.ref) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the marketplace ${own.marketplace} of account ${acc.name} is at ${ref}, not ${own.ref}, so a refresh does not move the plugin: remove it and add it again at ${own.ref} (removing deletes the plugin's options and data)` }); continue; }
+      if (ref && ref !== own.ref) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the marketplace ${own.marketplace} of account ${acc.name} is at ${ref}, not ${own.ref}, so a refresh does not move the plugin: remove it, add it again at ${own.ref} and install the plugin again (removing deletes the plugin's options and data)` }); continue; }
       // Undo puts back the files that name the installed version and the marketplace; the old version's folder is not restored (Claude Code
       // prunes it later, and a snapshot of it would make undo refuse once it is gone), so undo can leave an entry whose files are gone.
       const file = (f) => [join(acc.dir, 'plugins', f)];

@@ -590,6 +590,18 @@ function Profile({ overview, refresh }) {
   );
 }
 
+// The preference editors: the "Advanced" view exists only while it is on.
+function EditorSetting({ overview, refresh }) {
+  const [error, setError] = useState(null);
+  const set = (editors) => { setError(null); api('/api/preferences', { editors }).then(refresh, (e) => setError(e.message)); };
+  return (
+    <Section title="Advanced">
+      <Switch label="Editors" description="Presets, pins and policy, under Advanced in the sidebar" checked={!!overview.data?.editors} onChange={(e) => set(e.currentTarget.checked)} />
+      {error && <Note color="red" title="Not saved">{error}</Note>}
+    </Section>
+  );
+}
+
 export function Settings({ overview, refresh, keys }) {
   return (
     <Stack gap="xl">
@@ -602,11 +614,13 @@ export function Settings({ overview, refresh, keys }) {
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
       <SessionsHistory />
+      <EditorSetting overview={overview} refresh={refresh} />
       <Section title="Files">
         <List spacing={4} size="sm">
           <List.Item><Code>~/.config/benchkeeper/ledger/</Code>: one JSON file per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/backup/</Code>: replaced and removed files per run</List.Item>
           <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>
+          <List.Item><Code>~/.config/benchkeeper/preferences.json</Code>: the app's own preferences (Editors)</List.Item>
           <List.Item><Code>~/.config/benchkeeper/packs/</Code>: own packs</List.Item>
           <List.Item><Code>~/.config/benchkeeper/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
           <List.Item><Code>~/.config/benchkeeper/insights-triage.json</Code>: Insights findings you dismissed or snoozed (finding ids and dates)</List.Item>

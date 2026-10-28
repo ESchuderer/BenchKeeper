@@ -1240,6 +1240,52 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Editors: off, no sidebar entry and no route; on, a file is edited with live validation, planned, applied and undone; no axe violations at desktop and phone width', async ({ page }) => {
+    const entry = page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Presets, pins and policy' });
+    await expect(entry).toHaveCount(0);
+    await page.goto('/#/editors');
+    await expect(page.getByRole('heading', { level: 2, name: 'Dashboard' })).toBeVisible();
+    expect(await page.evaluate(async () => (await fetch('/api/params?dir=x', { headers: { 'x-benchkeeper': localStorage.getItem('benchkeeper-key') } })).status)).toBe(404);
+    await nav(page, 'Settings').click();
+    const editors = page.getByRole('switch', { name: 'Editors' });
+    await editors.click();
+    await expect(page.getByRole('group', { name: 'Advanced' })).toBeVisible();
+    await entry.click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Presets, pins and policy' })).toBeVisible();
+    await page.getByRole('combobox', { name: 'File' }).click();
+    await page.getByRole('option', { name: '.benchkeeper/pins.json', exact: true }).click();
+    const text = page.getByRole('textbox', { name: '.benchkeeper/pins.json' });
+    await expect(text).toHaveValue(/"schemaVersion": 1/);
+    await noAxe(page);
+    // The loader's errors show while typing, and Review waits for a valid text.
+    await text.fill('{ "schemaVersion": 1, "phases": { "review": { "effort": "high" } } }');
+    const errors = page.getByRole('list', { name: 'Errors in .benchkeeper/pins.json' });
+    await expect(errors).toContainText('effort-without-model at phases.review.effort');
+    await expect(page.getByRole('button', { name: 'Review change' })).toBeDisabled();
+    await noAxe(page);
+    await text.fill('{ "schemaVersion": 1, "// why": "kept", "phases": { "review": { "agent": "claude", "model": "opus", "effort": "high" } } }\n');
+    await expect(errors).toBeHidden();
+    await page.getByRole('button', { name: 'Review change' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('write .benchkeeper/pins.json');
+    await expect(changes).toContainText('"// why": "kept"');
+    await page.mouse.move(0, 0);
+    await noAxe(page);
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/#/editors');
+    await expect(page.getByRole('heading', { level: 2, name: 'Presets, pins and policy' })).toBeVisible();
+    await noAxe(page);
+    // Off again: the entry and the route are gone.
+    await page.goto('/#/settings');
+    await editors.click();
+    await expect(editors).not.toBeChecked();
+    await expect(entry).toHaveCount(0);
+  });
+
   test('Extensions: server, hook and subagent with owner and the runs-code mark, a link to the removal offer, no secret value; no axe violations', async ({ page }) => {
     await nav(page, 'Extensions').click();
     const table = page.getByRole('table', { name: 'Claude Code extensions' });

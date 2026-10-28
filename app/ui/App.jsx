@@ -1,7 +1,7 @@
 import { ActionIcon, Alert, Anchor, AppShell, Badge, Burger, Button, Code, Drawer, Group, Kbd, MantineProvider, Modal, NavLink, Loader, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys, useMediaQuery } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
-import { IconActivity, IconAdjustmentsHorizontal, IconBooks, IconChartBar, IconBulb, IconFileText, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPlug, IconPower, IconRobot, IconSearch, IconSettings, IconSun, IconUsers } from '@tabler/icons-react';
+import { IconActivity, IconAdjustmentsHorizontal, IconBooks, IconChartBar, IconBulb, IconCode, IconFileText, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPlug, IconPower, IconRobot, IconSearch, IconSettings, IconSun, IconUsers } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
@@ -17,6 +17,7 @@ import { Accounts } from './accounts.jsx';
 import { Extensions } from './extensions.jsx';
 import { Insights } from './insights.jsx';
 import { Rules } from './rules.jsx';
+import { Editors } from './editors.jsx';
 import { Agents, Catalog, Dashboard, Evals, History, Projects, Sessions, Settings } from './views.jsx';
 
 // Descriptions in the text color: Mantine's dimmed default is below 4.5:1 on white.
@@ -48,6 +49,8 @@ const resolver = () => Object.fromEntries(['light', 'dark'].map((s) => [s, {
 // Dashboard and Projects first: the views used most.
 const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot],
   ['history', 'History', History, IconHistory], ['sessions', 'Sessions', Sessions, IconActivity], ['insights', 'Insights', Insights, IconBulb], ['evals', 'Evals', Evals, IconChartBar], ['agent-settings', 'Agent settings', AgentSettings, IconAdjustmentsHorizontal], ['rules', 'Rules', Rules, IconFileText], ['extensions', 'Extensions', Extensions, IconPlug], ['accounts', 'Accounts', Accounts, IconUsers], ['settings', 'Settings', Settings, IconSettings]];
+// The "Advanced" group: only while its setting is on, else the route does not exist.
+const ADVANCED = [['editors', 'Presets, pins and policy', Editors, IconCode]];
 
 // The "/" key opens the palette unless turned off in Settings (WCAG 2.1.4: a character-key shortcut must be switchable).
 const SLASH = 'bk-slash';
@@ -146,9 +149,10 @@ function Shell() {
   const seen = useRef(null);
   useEffect(() => { if (overview.data) seen.current = overview.data; }, [overview.data]);
   const o = overview.data ?? seen.current;
+  const views = o?.editors ? [...VIEWS, ...ADVANCED] : VIEWS;
   const counts = { dashboard: doctor.data?.length, projects: o?.projects.filter((p) => !p.current).length, history: history.data?.length };
   const actions = [
-    { group: 'Views', actions: VIEWS.map(([id, label]) => ({ id: `view-${id}`, label, onClick: () => go(id) })) },
+    { group: 'Views', actions: views.map(([id, label]) => ({ id: `view-${id}`, label, onClick: () => go(id) })) },
     { group: 'Projects', actions: (o?.projects ?? []).map((p) => ({ id: `project-${p.path}`, label: p.path, onClick: () => go('projects', { path: p.path }) })) },
     { group: 'Skills', actions: (catalog.data?.skills ?? []).map((s) => ({ id: `skill-${s.name}`, label: s.name, description: s.pickWhen, onClick: () => go('catalog', { skill: s.name }) })) },
     { group: 'Runs', actions: (history.data ?? []).slice(0, 20).map((r) => ({ id: `run-${r.id}`, label: `${r.kind} ${r.scope}`, description: r.id, onClick: () => go('history', { run: r.id }) })) },
@@ -161,7 +165,7 @@ function Shell() {
       { id: 'theme', label: 'Toggle theme', onClick: toggleTheme },
     ] },
   ];
-  const [, label, View] = VIEWS.find(([id]) => id === view) ?? VIEWS[0];
+  const [, label, View] = views.find(([id]) => id === view) ?? VIEWS[0];
   // The title names the view, and a view change moves focus to its heading so a screen reader announces it; not on the
   // first load, and not while a dialog holds the focus.
   const first = useRef(true);
@@ -207,6 +211,12 @@ function Shell() {
             <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} aria-current={view === id ? 'page' : undefined}
               rightSection={counts[id] ? <Badge variant="default" size="sm" className="bk-num">{counts[id]}</Badge> : null} />
           ))}
+          {o.editors && (
+            <div role="group" aria-labelledby="nav-advanced">
+              <Text id="nav-advanced" size="xs" fw={600} px="sm" pt="sm" pb={4}>Advanced</Text>
+              {ADVANCED.map(([id, label, , Icon]) => <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} aria-current={view === id ? 'page' : undefined} />)}
+            </div>
+          )}
           {/* The header has no room for the doctor count below md, nor for theme and Stop below sm: they live here. */}
           <Stack gap="xs" mt="auto" p="xs">
             <Group hiddenFrom="md"><DoctorBadge doctor={doctor} /></Group>

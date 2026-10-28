@@ -33,6 +33,8 @@ import { exportProfile, importChoices, importPlan, installedPacks, readProfile }
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
+import { checkText, paramsChange, paramsView } from './params.mjs';
+import { readPreferences, setPreference } from './preferences.mjs';
 import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
 import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
@@ -194,8 +196,27 @@ export function api(ctx) {
     return { shown, key, ...narrativePrompt(narrativeInput(found, shown), key) };
   };
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
+  const editorsOn = () => readPreferences(ctx).editors === true;
+  // While off, the editor routes answer like routes that do not exist.
+  const editorsDir = (raw) => {
+    if (!editorsOn()) throw Object.assign(new Error('no such endpoint'), { status: 404 });
+    const dir = resolve(String(raw ?? ''));
+    if (!registered(dir)) throw bad('register the project first');
+    return dir;
+  };
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills, unavailable: unavailable(a.id) })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.contentVersion ?? null, current: upToDate(s) }; }) }),
+    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills, unavailable: unavailable(a.id) })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.contentVersion ?? null, current: upToDate(s) }; }), editors: editorsOn() }),
+    'POST /api/preferences': (b) => ({ editors: input(() => setPreference(ctx, 'editors', b.editors)).editors }),
+    // The editor view (preference editors): presets, pins and the orchestrator policy of a registered project, checked by
+    // the same loader as doctor and CI; a save is a plan applied through /api/apply and undone in History.
+    'GET /api/params': (q) => paramsView(editorsDir(q.get('dir'))),
+    'POST /api/params-check': (b) => (editorsDir(b.dir), { errors: input(() => checkText(b.file, b.text)) }),
+    'POST /api/params-plan': (b) => {
+      const dir = editorsDir(b.dir);
+      const pctx = projectCtx(ctx, dir);
+      const changes = preview(input(() => paramsChange(dir, b.file, b.text)));
+      return { planId: keep(changes, pctx, dir), changes: serialize(changes, pctx) };
+    },
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const level = q.get('level') ?? levelFor(ctx, agents);

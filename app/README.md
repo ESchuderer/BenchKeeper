@@ -130,7 +130,8 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | Rules | the instruction files per agent, globally or for a registered project, in load order: scope, owner (a file BenchKeeper did not write is yours: Doctor stays quiet about it, nothing here deletes it), size, whether it loads (on, only for matching files, off, or replaced by a Codex override) and one switch per file as a plan with a diff and undo. A file's text opens in a drawer on this machine only. The context budget adds rule files, `@` imports, skill descriptions and auto memory (first 200 lines or 25 KB of `MEMORY.md`), at four bytes per token, names the largest source and warns above 10,000 tokens (BenchKeeper's own limit); Codex notes its 32 KiB cap. Codex files that ship with a repository, or a global Codex file for one project, have no switch: Codex has no setting for it |
 | Extensions | the MCP servers, hooks, subagents, commands and output styles per agent, globally or for a registered project, read from files only: owner, the file, a "runs code" mark for hooks with a command, stdio servers and commands that run a shell line, and a link to Doctor's removal offer (full level) for a global server or hook. No switch: it only shows. Environment values and headers never appear |
 | Accounts | the accounts per agent (Claude Code, Codex) on the host or in a dev container, each with its sign-in state (Check), a default switch, Sign in and Remove; Add account as a plan with a diff and undo. Sign in is the guided flow of `accounts login`: the steps (account, private window, code if the browser shows one, check), the link and the agent's own lines, with a field for the code. The page offers no token: it shows the command. Check also shows the usage left in the 5-hour and 7-day window (or why it is unknown, or the command that starts tracking it) and the usage notices. A Usage limits section shows the minimum headroom per account, the auto-pick setting and the provider's terms caveat; the values are changed with `accounts limits`. It states the container risk (a hijacked session can read the credentials in the volume) and that nothing switches accounts mid-session | 
-| Settings | profile export and import, keyboard shortcuts (the `/` key can be switched off), the sessions history (how many days the sessions cache keeps summaries of deleted transcripts, and Clear), config files |
+| Settings | profile export and import, keyboard shortcuts (the `/` key can be switched off), the sessions history (how many days the sessions cache keeps summaries of deleted transcripts, and Clear), the Advanced switch Editors (`editors` in `preferences.json`, off by default), config files |
+| Presets, pins and policy | under Advanced, only while Editors is on in Settings (off: no view and no route). Per registered project, one of `.benchkeeper/pins.json`, `.benchkeeper/pins.local.json`, `.benchkeeper/preset.json` or `docs/agents/orchestration.json` as JSON text, checked by the same loader as doctor while you type (each error with its rule and path). The text is written as typed, so unknown and `//` keys stay. Review shows the plan with its diff; Apply writes through the runner, History undoes it |
 
 The view is part of the URL (`#/projects?path=<dir>`), so a reload keeps it. "Choose folder" opens the system dialog: `osascript` on macOS, `zenity`, then `kdialog` on Linux. With none of them, on Windows, on Linux without a display, or after a cancel, type the path. The server blocks other requests while the dialog is open.
 
@@ -215,6 +216,10 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `GET /api/extensions` | `extensions list` | |
 | `GET /api/rule-text` | `gap #320` | `rules show` |
 | `POST /api/rules-plan` | `rules disable`, `rules enable` | |
+| `POST /api/preferences` | `UI internal` | the app's own preferences (`editors`) |
+| `GET /api/params` | `pins list` | presets, pins and policy files with their errors; 404 while `editors` is off |
+| `POST /api/params-check` | `doctor` | 404 while `editors` is off |
+| `POST /api/params-plan` | `UI internal` | 404 while `editors` is off |
 | `GET /api/inventory` | `gap #319` | |
 | `GET /api/dashboard` | `gap #319` | |
 
@@ -226,7 +231,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `BENCHKEEPER_NO_UPDATE_CHECK=1` | unset | no registry request for a newer version (it runs only in a terminal, not when `CI` is set, and never installs) |
 | `BENCHKEEPER_SKILLS_CLI=x.y.z` | unset | runs exactly that skills CLI version, which must be at least 7 days old (the install keeps the 7-day cutoff, so a newer one fails instead of running); unset, the newest release at least 7 days old, never below the app's minimum |
 
-Files below `~/.config/benchkeeper/`: `ledger/` (one JSON file per run), `backup/<run>/` (replaced and removed files), `projects.json`, `accounts.json`, `packs/`, `evals/` (own cases, `results.jsonl`, outputs of rule cases), `automations/` (own [automation templates](../docs/automations.md)), `board.html`, `orca/` (the optional Orca worker spec and `orca.yaml` and `.worktreeinclude` samples, written when chosen and Orca is installed). Caches below `~/.cache/benchkeeper/`: `worktrees/`, `sessions.json`, `prs.json`.
+Files below `~/.config/benchkeeper/`: `ledger/` (one JSON file per run), `backup/<run>/` (replaced and removed files), `projects.json`, `accounts.json`, `preferences.json` (the app's own preferences: `editors` turns on the editor view), `packs/`, `evals/` (own cases, `results.jsonl`, outputs of rule cases), `automations/` (own [automation templates](../docs/automations.md)), `board.html`, `orca/` (the optional Orca worker spec and `orca.yaml` and `.worktreeinclude` samples, written when chosen and Orca is installed). Caches below `~/.cache/benchkeeper/`: `worktrees/`, `sessions.json`, `prs.json`.
 
 ## Test
 

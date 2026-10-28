@@ -169,6 +169,17 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </SimpleGrid>
         </Section>
 
+        <Section id="features" title="Features">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg" verticalSpacing="lg">
+            {facts.overview.parts.map((p) => (
+              <Stack key={p.id} gap={4}>
+                <Anchor href={`${base}/overview/#${p.id}`} fw={700}>{p.title}</Anchor>
+                <Text size="sm" c="dimmed">{md(`${p.text.split('. ')[0]}.`)}</Text>
+              </Stack>
+            ))}
+          </SimpleGrid>
+        </Section>
+
         <Section id="levels" title="Three sizes" intro="Start with the plugin and add what you need. Each level contains the one before.">
           <SimpleGrid cols={{ base: 1, md: 3 }}>
             {facts.levels.map((l) => (

@@ -17,3 +17,11 @@ test('the homepage links to the overview page in its body', async ({ page }) => 
   await page.goto('./');
   await expect(page.locator('main a[href$="/overview/"]')).toHaveCount(1);
 });
+
+test('the homepage features are the overview cards, each linked to its card', async ({ page }) => {
+  await page.goto('./overview/');
+  const ids = await page.locator('#brings [id]:not(h2)').evaluateAll((els) => els.map((e) => e.id));
+  await page.goto('./');
+  const hrefs = await page.locator('#features a').evaluateAll((as) => as.map((a) => a.getAttribute('href')!.split('#')[1]));
+  expect(hrefs).toEqual(ids);
+});

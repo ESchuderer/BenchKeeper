@@ -423,7 +423,7 @@ test('dev container accounts: a volume per account, mounted at devcontainer up, 
   assert.match(ne.text(), /no container engine/);
 });
 
-test('dev container run: the preflight runs in the container, a kept token is a --remote-env of that one launch only', skip, async () => {
+test('dev container run: the preflight runs in the container, a kept token reaches that one launch through a file, never an argument', skip, async () => {
   const m = machine({ flow: 'callback' });
   const project = join(m.root, 'project');
   mkdirSync(join(project, '.devcontainer'), { recursive: true });
@@ -440,12 +440,28 @@ test('dev container run: the preflight runs in the container, a kept token is a 
   // The token: kept in the store by a sign-in in the container, given to the next launch only.
   m.kept.set('boxed', CLAUDE_TOKEN);
   writeFileSync(join(m.ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: listAccounts(m.ctx).map((x) => ({ ...x, token: { created: new Date().toISOString() } })) }));
+  const run = m.ctx.run, seen = [];
+  m.ctx.run = (argv, o) => { seen.push({ argv, o }); return run(argv, o); };
   assert.equal(await cli(m).exec(['run', '--account', 'boxed', '--project', project, '--token', '--', 'claude', '-p', 'x']), 0);
-  const withToken = m.calls().filter((x) => x.me === 'devcontainer' && x.args.includes('-p')).at(-1);
-  assert.ok(withToken.args.includes(`CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_TOKEN}`));
-  // Only the launch carries it: the preflight command line of that run does not.
-  assert.equal(m.calls().filter((x) => x.me === 'devcontainer' && x.args.join(' ').includes(CLAUDE_TOKEN)).length, 1);
-  assert.equal(withToken.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+  m.ctx.run = run;
+  // The agent in the container gets the variable; no argument of any started process holds the token.
+  const agent = m.calls().filter((x) => x.me === 'in-container').at(-1);
+  assert.deepEqual(agent.args, ['claude', '-p', 'x']);
+  assert.equal(agent.env.CLAUDE_CODE_OAUTH_TOKEN, CLAUDE_TOKEN);
+  assert.deepEqual(m.calls().filter((x) => x.args.some((a) => a.includes(CLAUDE_TOKEN))), []);
+  assert.ok(m.calls().every((x) => x.env.CLAUDE_CODE_OAUTH_TOKEN !== CLAUDE_TOKEN || x.me === 'in-container'));
+  // It went in on the stdin of a separate exec; the launch keeps the terminal (inherited stdio, no input) and the file is gone.
+  assert.deepEqual(seen.filter((x) => x.o.input !== undefined).map((x) => x.o.input), [CLAUDE_TOKEN]);
+  const launch = seen.find((x) => x.argv.includes('-p'));
+  assert.equal(launch.o.stdio, 'inherit');
+  assert.equal(launch.o.input, undefined);
+  assert.deepEqual(grep(join(m.bin, 'vol'), CLAUDE_TOKEN), []);
+  // A file name per launch: two launches of one account do not remove each other's file.
+  m.ctx.run = (argv, o) => { seen.push({ argv, o }); return run(argv, o); };
+  assert.equal(await cli(m).exec(['run', '--account', 'boxed', '--project', project, '--token', '--', 'claude', '-p', 'y']), 0);
+  m.ctx.run = run;
+  const names = seen.filter((x) => x.o.input !== undefined).map((x) => x.argv.at(-1));
+  assert.equal(new Set(names).size, 2);
   assert.deepEqual(grep(m.ctx.config, CLAUDE_TOKEN), []);
   assert.deepEqual(grep(project, CLAUDE_TOKEN), []);
   // Codex in a container: the token goes through stdin to codex login in that container, into the mount.

@@ -4,6 +4,7 @@
 // OS credential store, goes to one launch only and never into a file, the ledger, a log or devcontainer.json.
 // Switching accounts is the user's choice at a launch. The only exception is the opt-in auto-pick (usage.mjs, settings in
 // accounts.json): a new launch under the default account may start under another account of the same pool, never a running session.
+import { randomUUID } from 'node:crypto';
 import { chmodSync, mkdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
@@ -173,10 +174,16 @@ function* engineSteps(ctx) {
 }
 export const engineOf = (ctx) => drive(engineSteps(ctx), ctx.run);
 const mounts = (ctx) => listAccounts(ctx).filter((a) => a.mode === 'container').flatMap((a) => ['--mount', `type=volume,source=${a.volume},target=${a.mount}`]);
-// devcontainer exec runs cmd in the project's container; the account's folder variable (and the token, on request) are
-// --remote-env values. shortcut: a value on a command line is visible to this user's other processes while it runs.
-const execArgv = (engine, dir, a, cmd, { token } = {}) => ['devcontainer', 'exec', '--docker-path', engine, '--workspace-folder', dir, '--remote-env', `${VAR[a.agent]}=${a.mount}`,
-  ...(token && a.agent === 'claude' ? ['--remote-env', `${TOKEN_VAR}=${token}`] : []), ...cmd];
+// devcontainer exec runs cmd in the project's container; the account's folder variable is a --remote-env value.
+const execArgv = (engine, dir, a, cmd) => ['devcontainer', 'exec', '--docker-path', engine, '--workspace-folder', dir, '--remote-env', `${VAR[a.agent]}=${a.mount}`, ...cmd];
+// A token never goes on a command line (other processes of the user see it there), and not on the launch's stdin (devcontainer
+// exec gives the agent a terminal only when its stdin is one): a file of mode 0600 in the account's volume, written through
+// stdin, that the launch reads and removes before it starts the agent.
+// The two scripts are the app's only shell, run inside the container, and take data only as "$1" and "$@" (security.test.mjs).
+// One file name per launch, so two launches of one account do not remove each other's file.
+const tokenFile = (a) => `${a.mount}/.benchkeeper-token-${randomUUID()}`;
+const writeToken = ['sh', '-c', 'umask 077 && rm -f "$1" && cat > "$1"', 'sh'];
+const withToken = ['sh', '-c', 'CLAUDE_CODE_OAUTH_TOKEN=$(cat "$1") && rm -f "$1" && export CLAUDE_CODE_OAUTH_TOKEN && shift && exec "$@"', 'sh'];
 const hasDevcontainer = (dir) => exists(join(dir, '.devcontainer')) || exists(join(dir, '.devcontainer.json'));
 
 // Starts the project's container with every container account's volume (a mount applies when the container is created) and
@@ -322,10 +329,18 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
   if (gate) return runAs(ctx, gate.account, args, { dir, useToken, say, now, pick: false, confirmed: !!gate.confirmed });
   // The folder is for this user alone, also when the agent creates its first files there.
   if (a.mode === 'host') mkdirSync(a.dir, { recursive: true, mode: 0o700 });
-  const r = a.mode === 'host'
-    ? ctx.run(args, { cwd: dir, env: accountEnv(ctx, a, { token }), stdio: 'inherit' })
-    : ctx.run(execArgv(engineOf(ctx), dir, a, args, { token }), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' });
-  return r.code;
+  if (a.mode === 'host') return ctx.run(args, { cwd: dir, env: accountEnv(ctx, a, { token }), stdio: 'inherit' }).code;
+  const engine = engineOf(ctx), opts = { cwd: dir, env: baseEnv(ctx), timeout: 60e3 };
+  if (!token) return ctx.run(execArgv(engine, dir, a, args), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' }).code;
+  const file = tokenFile(a);
+  const w = ctx.run(execArgv(engine, dir, a, [...writeToken, file]), { ...opts, input: token });
+  if (w.code !== 0) throw new Error(`could not hand the token to the container: ${tail(w, token)}`);
+  try {
+    return ctx.run(execArgv(engine, dir, a, [...withToken, file, ...args]), { cwd: dir, env: baseEnv(ctx), stdio: 'inherit' }).code;
+  } finally {
+    // The launch removes the file as it reads it; this covers a launch that never got that far.
+    ctx.run(execArgv(engine, dir, a, ['rm', '-f', file]), opts);
+  }
 }
 
 // ---- usage tracking: the status line script and the StopFailure hook in the account's folder (Claude Code)

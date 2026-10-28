@@ -58,6 +58,15 @@ if (me === 'claude' && args[0] === 'auth' && args[1] === 'status') {
   if (rest[0] === 'cat') { if (mode('cat') === 'fail') { console.error('devcontainer exec failed'); process.exit(255); } try { process.stdout.write(fs.readFileSync(vol(rest[1]))); process.exit(0); } catch { console.error('cat: ' + rest[1] + ': No such file or directory'); process.exit(1); } }
   if (rest[0] === 'rm') { fs.rmSync(vol(rest[2]), { force: true }); process.exit(0); }
   if (rest[0] === 'mkdir') { fs.mkdirSync(vol(rest[2]), { recursive: true }); process.exit(0); }
+  // The token hand-over: the write keeps stdin in the volume file, the launch reads and removes it, then logs the agent
+  // it starts with the variable in its environment.
+  if (rest[0] === 'sh' && rest[2].includes('cat >')) { let d = ''; process.stdin.on('data', (c) => { d += c; }).on('end', () => { fs.mkdirSync(path.dirname(vol(rest[4])), { recursive: true }); fs.writeFileSync(vol(rest[4]), d, { mode: 0o600 }); process.exit(0); }); return; }
+  if (rest[0] === 'sh') {
+    let tok; try { tok = fs.readFileSync(vol(rest[4]), 'utf8'); } catch { process.exit(1); }
+    fs.rmSync(vol(rest[4]));
+    fs.appendFileSync(path.join(bin, 'log.jsonl'), JSON.stringify({ me: 'in-container', args: rest.slice(5), env: { CLAUDE_CODE_OAUTH_TOKEN: tok } }) + '\n');
+    process.exit(0);
+  }
   if (rest[0] === 'tee') { let d = ''; process.stdin.on('data', (c) => { d += c; }).on('end', () => { fs.writeFileSync(vol(rest[1]), d); process.exit(0); }); return; }
   if (rest[0] === 'claude' && rest[1] === 'auth' && rest[2] === 'status') {
     const ok = mode('container-login') === 'yes';

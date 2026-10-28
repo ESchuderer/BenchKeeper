@@ -14,6 +14,9 @@ export function parseJson(text, file = 'JSON') {
   return value ?? {};
 }
 
+// Same value whatever the order of an object's keys (a formatter may reorder them).
+const canon = (v) => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : x));
+
 // edits: [{ path: [...keys], value }] sets a value, [{ path, append: [...] }] adds missing list entries after the user's own,
 // { path, remove: true } deletes a key.
 export function mergeJson(text, edits, file) {
@@ -25,7 +28,7 @@ export function mergeJson(text, edits, file) {
     if (e.append) {
       const list = at(e.path) ?? [];
       if (!Array.isArray(list)) throw new MergeError(`${file}: ${e.path.join('.')} is not a list`);
-      const missing = e.append.filter((x) => !list.some((y) => JSON.stringify(y) === JSON.stringify(x)));
+      const missing = e.append.filter((x) => !list.some((y) => canon(y) === canon(x)));
       if (!missing.length) continue;
       value = [...list, ...missing];
     }
@@ -33,7 +36,7 @@ export function mergeJson(text, edits, file) {
     if (e.pull) {
       const list = at(e.path);
       if (!Array.isArray(list)) continue;
-      value = list.filter((y) => !e.pull.some((x) => JSON.stringify(x) === JSON.stringify(y)));
+      value = list.filter((y) => !e.pull.some((x) => canon(x) === canon(y)));
       if (value.length === list.length) continue;
       if (!value.length) value = undefined;
     }

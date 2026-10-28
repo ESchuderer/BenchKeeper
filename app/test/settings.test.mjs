@@ -421,9 +421,10 @@ test('Doctor: the advisor rank sees a [1m] model id, and a pinned Sonnet 4.5 or 
   assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5[1m]', model: 'claude-sonnet-5-5' }), []);
   // The retiring id, in every place a model is named; other ids and platform forms are not touched.
   const OLD = 'claude-sonnet-4-5-20250929';
-  for (const settings of [{ model: OLD }, { model: `${OLD}[1m]` }, { advisorModel: OLD }, { fallbackModel: [OLD] }, { env: { ANTHROPIC_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_SONNET_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_HAIKU_MODEL: OLD } }, { env: { CLAUDE_CODE_SUBAGENT_MODEL: OLD } }]) {
+  for (const settings of [{ model: OLD }, { model: `${OLD}[1m]` }, { env: { ANTHROPIC_DEFAULT_MODEL: OLD } }, { advisorModel: OLD }, { fallbackModel: [OLD] }, { env: { ANTHROPIC_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_SONNET_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_HAIKU_MODEL: OLD } }, { env: { CLAUDE_CODE_SUBAGENT_MODEL: OLD } }]) {
     assert.match(messages(settings).join(), /retires on 2026-11-30/, JSON.stringify(settings));
   }
+  assert.match(messages({}, { ANTHROPIC_DEFAULT_MODEL: OLD }).join(), /retires on 2026-11-30/, 'the default for new sessions, from the process environment');
   assert.deepEqual(messages({}), []);
   assert.deepEqual(messages({ model: 'claude-sonnet-5-5' }), []);
   assert.deepEqual(messages({ model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0' }), [], 'Bedrock keeps its own schedule');
@@ -432,6 +433,8 @@ test('Doctor: the advisor rank sees a [1m] model id, and a pinned Sonnet 4.5 or 
   assert.match(messages({ env: { ...FOUNDRY, CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/);
   assert.match(messages({ model: 'opusplan', env: FOUNDRY }).join(), /Microsoft Foundry/);
   assert.match(messages({ model: 'sonnet' }, FOUNDRY).join(), /Microsoft Foundry/, 'Foundry set in the process environment');
+  assert.match(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/, 'the default for new sessions');
+  assert.match(messages({}, { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'opusplan' }).join(), /Microsoft Foundry/, 'the default for new sessions, from the process environment');
   assert.deepEqual(messages({ model: 'sonnet', env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the alias is pinned by the user');
   assert.deepEqual(messages({ model: 'sonnet' }), [], 'not on Foundry');
   assert.deepEqual(messages({ model: 'claude-sonnet-5-5', env: FOUNDRY }), []);

@@ -129,6 +129,11 @@ test('settings.json: the status line and the hook are added next to the user\'s 
   assert.deepEqual(JSON.parse(trackedSettings(JSON.stringify(legacy), script)).hooks.StopFailure, doc.hooks.StopFailure);
   assert.deepEqual(JSON.parse(trackedSettings(JSON.stringify(legacy), script, { remove: true })), JSON.parse(own));
   assert.equal(trackedSettings(on, script), on, 'twice changes nothing');
+  // A formatter that reorders the keys of an installed entry does not hide it.
+  const reordered = JSON.parse(own);
+  reordered.hooks.StopFailure.push({ hooks: [{ command: `node "${script}" failure`, type: 'command' }], matcher: LEGACY_MATCHER });
+  assert.deepEqual(JSON.parse(trackedSettings(JSON.stringify(reordered), script)).hooks.StopFailure, doc.hooks.StopFailure);
+  assert.deepEqual(JSON.parse(trackedSettings(JSON.stringify(reordered), script, { remove: true })), JSON.parse(own));
   assert.deepEqual(JSON.parse(trackedSettings(on, script, { remove: true })), JSON.parse(own));
   assert.equal(trackedSettings(null, script, { remove: true }), null);
   assert.deepEqual(JSON.parse(trackedSettings(trackedSettings(null, script), script, { remove: true })), {});

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { contentDir } from '../src/content.mjs';
+import { globalDrift } from '../src/doctor.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { inventory } from '../src/inventory.mjs';
 import { PLUGINS, benchkeeperPlugin, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
@@ -243,10 +244,10 @@ test('the BenchKeeper plugin behind the app is reported, not updated by apply', 
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'benchkeeper@benchkeeper': true } }));
   const plan = () => globalPlan({ ctx, agents: ['claude'] }).filter((c) => c.step === 'plugin:claude:benchkeeper@benchkeeper');
   installAt('6.0.0');
-  assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.0.0', available: '6.5.0' });
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.0.0', available: '6.5.0', accounts: [] });
   assert.deepEqual(plan(), []);
   installAt('6.5.0');
-  assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.5.0', available: '6.5.0' });
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.5.0', available: '6.5.0', accounts: [] });
   assert.deepEqual(plan(), []);
   writeFileSync(installedFile, JSON.stringify({ version: 2, plugins: {} }));
   assert.equal(benchkeeperPlugin(ctx, 'claude').installed, null);
@@ -258,6 +259,64 @@ test('the BenchKeeper plugin behind the app is reported, not updated by apply', 
   assert.deepEqual(globalPlan({ ctx: cctx, agents: ['codex'] }).filter((c) => c.step === 'plugin:codex:benchkeeper@benchkeeper'), []);
   assert.deepEqual(benchkeeperPlugin(cctx, 'codex'), { installed: '6.0.0', available: '6.5.0' });
   assert.ok(!calls.some((c) => /plugin (marketplace (update|upgrade)|update)/.test(c)));
+});
+
+test('each account folder has its own plugin cache: doctor names the one behind and apply updates only it', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-acct-'));
+  const folder = (dir, version) => {
+    mkdirSync(join(dir, 'plugins'), { recursive: true });
+    writeFileSync(join(dir, 'plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: version ? { 'benchkeeper@benchkeeper': [{ scope: 'user', version }] } : {} }));
+    writeFileSync(join(dir, 'plugins/known_marketplaces.json'), JSON.stringify({ benchkeeper: { source: { ref: 'stable' } } }));
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ enabledPlugins: { 'benchkeeper@benchkeeper': true } }));
+  };
+  const entry = (name, dir) => ({ name, agent: 'claude', mode: 'host', dir });
+  const dirs = { def: join(home, '.claude'), work: join(home, 'acct/work'), private: join(home, 'acct/private'), codex: join(home, 'acct/codex'), gone: join(home, 'acct/gone') };
+  folder(dirs.def, '6.0.0');
+  folder(dirs.work, '6.0.0');
+  folder(dirs.private, '6.5.0');
+  mkdirSync(dirs.codex, { recursive: true });
+  const calls = [];
+  const run = (argv, o) => {
+    calls.push({ cmd: argv.join(' '), dir: o?.env?.CLAUDE_CONFIG_DIR });
+    if (argv.join(' ') === 'claude plugin update benchkeeper@benchkeeper') {
+      writeFileSync(join(o.env.CLAUDE_CONFIG_DIR, 'plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version: '6.5.0' }] } }));
+    }
+    return { code: 0, stdout: '', stderr: '' };
+  };
+  const ctx = context({ home, appVersion: '6.5.0', run });
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [entry('work', dirs.work), entry('private', dirs.private), entry('gone', dirs.gone), { ...entry('codex', dirs.codex), agent: 'codex' }] }));
+  // Verified first: a plugin sits in each folder on its own, the default state never shows an account's.
+  folder(dirs.def, null);
+  assert.equal(pluginState(ctx, 'claude').listed.length, 0);
+  assert.equal(pluginState(ctx, 'claude', { dir: dirs.work }).listed[0].version, '6.0.0');
+  folder(dirs.def, '6.0.0');
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.0.0', available: '6.5.0', accounts: [{ name: 'work', installed: '6.0.0', behind: true }, { name: 'private', installed: '6.5.0', behind: false }] });
+  const named = globalDrift(ctx, ['claude'], undefined, 'lite');
+  assert.equal(named.length, 1);
+  assert.match(named[0].message, /account work: plugin benchkeeper@benchkeeper 6\.0\.0 to 6\.5\.0/);
+  assert.equal(named[0].tag, 'outdated');
+  const plan = preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }));
+  assert.deepEqual(plan.map((c) => c.step), ['plugin:claude:account:work', 'plugin:claude:account:work']);
+  const defaultBefore = readFileSync(join(dirs.def, 'plugins/installed_plugins.json'), 'utf8');
+  const privateBefore = readFileSync(join(dirs.private, 'plugins/installed_plugins.json'), 'utf8');
+  calls.length = 0;
+  const done = apply(plan, ctx, { scope: 'global' });
+  assert.deepEqual(calls.filter((c) => /plugin (marketplace )?update/.test(c.cmd)), [
+    { cmd: 'claude plugin marketplace update benchkeeper', dir: dirs.work }, { cmd: 'claude plugin update benchkeeper@benchkeeper', dir: dirs.work }]);
+  assert.equal(readFileSync(join(dirs.def, 'plugins/installed_plugins.json'), 'utf8'), defaultBefore);
+  assert.equal(readFileSync(join(dirs.private, 'plugins/installed_plugins.json'), 'utf8'), privateBefore);
+  assert.equal(JSON.parse(readFileSync(join(dirs.work, 'plugins/installed_plugins.json'), 'utf8')).plugins['benchkeeper@benchkeeper'][0].version, '6.5.0');
+  assert.deepEqual(globalDrift(ctx, ['claude'], undefined, 'lite'), []);
+  // Undo puts the account's file back.
+  undo(done.id, ctx);
+  assert.equal(JSON.parse(readFileSync(join(dirs.work, 'plugins/installed_plugins.json'), 'utf8')).plugins['benchkeeper@benchkeeper'][0].version, '6.0.0');
+  // A plugin an account does not have is not installed there; Codex accounts are not touched.
+  folder(dirs.work, null);
+  assert.deepEqual(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }), []);
+  // An unreadable registry adds no step (doctor reports it under accounts).
+  writeFileSync(join(ctx.config, 'accounts.json'), '{');
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts, []);
 });
 
 test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {

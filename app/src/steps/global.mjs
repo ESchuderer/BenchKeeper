@@ -3,6 +3,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
+import { accountEnv, listAccounts } from '../accounts.mjs';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
 import { contentDir } from '../content.mjs';
@@ -98,17 +99,19 @@ export function globalSkills(ctx, a) {
 // User plugins ({ id, version, enabled }), marketplace names and their git refs of Claude Code or Codex, read from the agent's own files:
 // each list command takes about 0.5 s. The CLI answers when the files are missing or unreadable.
 // shortcut: the files are internal CLI formats; if a CLI release changes them, the CLI fallback stays correct but slow.
-export function pluginState(ctx, a) {
-  const state = readPluginState(ctx, a);
+// account: a registered host account ({ dir }) whose config folder is read instead of the default one.
+export function pluginState(ctx, a, account) {
+  const state = readPluginState(ctx, a, account);
   return { ...state, listed: state.listed.filter((p) => SAFE_NAME.test(p.id ?? '')), markets: state.markets.filter((m) => SAFE_NAME.test(m ?? '')) };
 }
-function readPluginState(ctx, a) {
+function readPluginState(ctx, a, account) {
   const at = (p) => join(ctx.home, p);
+  const root = account?.dir ?? at('.claude');
   try {
     if (a === 'claude') {
-      const installed = JSON.parse(readText(at('.claude/plugins/installed_plugins.json')));
-      const markets = JSON.parse(readText(at('.claude/plugins/known_marketplaces.json')));
-      const on = parseJson(readText(at('.claude/settings.json')) ?? '{}').enabledPlugins ?? {};
+      const installed = JSON.parse(readText(join(root, 'plugins/installed_plugins.json')));
+      const markets = JSON.parse(readText(join(root, 'plugins/known_marketplaces.json')));
+      const on = parseJson(readText(join(root, 'settings.json')) ?? '{}').enabledPlugins ?? {};
       if (installed?.version === 2 && installed.plugins && markets) {
         const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, ...(p.gitCommitSha ? { commit: p.gitCommitSha } : {}), enabled: on[id] === true })));
         return { listed, markets: Object.keys(markets), refs: Object.fromEntries(Object.entries(markets).map(([m, v]) => [m, v?.source?.ref])) };
@@ -128,17 +131,27 @@ function readPluginState(ctx, a) {
     }
   } catch { /* the CLI below */ }
   if (a === 'claude') {
-    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, enabled: p.enabled })),
-      ...marketRefs(json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, [])) };
+    const opts = account ? { env: accountEnv(ctx, account) } : undefined;
+    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json'], opts).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, enabled: p.enabled })),
+      ...marketRefs(json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json'], opts).stdout, [])) };
   }
   return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => ({ id: p.pluginId, version: p.version, enabled: p.enabled })),
     ...marketRefs(json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []) };
 }
 
+// Claude Code keeps one plugin cache per config folder (CLAUDE_CONFIG_DIR), so each registered host account has its own copy of a
+// plugin, and the default-folder steps of the global plan never reach it. These are the accounts whose folder exists.
+export function claudeAccounts(ctx) {
+  try { return listAccounts(ctx).filter((a) => a.agent === 'claude' && a.mode === 'host' && exists(a.dir)); } catch { return []; /* doctor reports an unreadable registry */ }
+}
+
 // The BenchKeeper plugin of an agent: the installed version (null when not installed) and the one this app sets up.
+// claude also lists the registered accounts with their own installed version.
 export function benchkeeperPlugin(ctx, a) {
   const p = PLUGINS[a].find((x) => x.id === 'benchkeeper@benchkeeper');
-  return { installed: pluginState(ctx, a).listed.find((x) => x.id === p.id)?.version ?? null, available: pin(p, ctx.appVersion).version };
+  const available = pin(p, ctx.appVersion).version;
+  const installedIn = (account) => pluginState(ctx, a, account).listed.find((x) => x.id === p.id)?.version ?? null;
+  return { installed: installedIn(), available, ...(a === 'claude' ? { accounts: claudeAccounts(ctx).map((x) => ({ name: x.name, installed: installedIn(x), behind: behind(installedIn(x), available) })) } : {}) };
 }
 
 // Enabled plugin ids per agent.
@@ -150,6 +163,7 @@ export function installedPlugins(ctx) {
 const bySemver = (a, b) => a.split('.').map(Number).reduce((d, x, i) => d || x - b.split('.')[i], 0);
 // A version that is not x.y.z (a commit, "unknown") cannot be compared: it counts as current.
 const semver = (v) => /^\d+\.\d+\.\d+$/.test(v ?? '');
+const behind = (have, version) => !!version && semver(have) && bySemver(have, version) < 0;
 
 // The highest x.y.z release public for at least 7 days and still installable, or null.
 // The registry answer is kept per context, 6 hours, a failed one 1 minute, so a long-running server asks again.
@@ -251,6 +265,20 @@ export function globalPlan(env) {
       if (have) continue;
       if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step });
       add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step });
+    }
+    // An account folder with the plugin behind the app: the marketplace refresh and the update run with that folder only. The
+    // default folder gets none (the agent's own update keeps it current); a plugin an account lacks is not installed there.
+    const own = PLUGINS[a].find((x) => x.id === 'benchkeeper@benchkeeper');
+    for (const acc of a === 'claude' ? claudeAccounts(ctx) : []) {
+      const have = pluginState(ctx, a, acc).listed.find((x) => x.id === own.id);
+      const { version } = pin(own, ctx.appVersion);
+      if (!have || !behind(have.version, version)) continue;
+      const step = `plugin:${a}:account:${acc.name}`, title = `${name} account ${acc.name}: plugin ${own.id} ${have.version} to ${version}`;
+      const env = { CLAUDE_CONFIG_DIR: acc.dir };
+      // Undo puts back the files that name the installed version and the marketplace; the old version's folder stays in the cache.
+      const file = (f) => [join(acc.dir, 'plugins', f)];
+      add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'update', own.marketplace], env, snapshot: file('known_marketplaces.json'), outdated: true, unit: step });
+      add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', own.id], env, snapshot: file('installed_plugins.json'), outdated: true, unit: step });
     }
     for (const { id } of full ? listed : []) {
       if (!keepPlugin(id, a)) add(`other:${a}:plugin`, `remove the ${agent(a).name} plugin ${id}`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', id] : ['codex', 'plugin', 'remove', id], destructive: true });

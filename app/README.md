@@ -155,7 +155,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 |---|---|---|
 | `GET /` | `ui` | the page |
 | `GET /board` | `sessions board` | |
-| `GET /api/overview` | `gap #319` | agents, level, plugin state and setup version per project; `doctor` prints the level only |
+| `GET /api/overview` | `gap #319` | agents, level, plugin state (for Claude Code also per registered account: installed version and whether it is behind) and setup version per project; `doctor` prints the level only |
 | `GET /api/global-plan` | `plan` | |
 | `POST /api/apply` | `apply` | |
 | `POST /api/apply-all` | `apply`, `projects apply` | the UI runs the global and the project plans as one job, each its own run |

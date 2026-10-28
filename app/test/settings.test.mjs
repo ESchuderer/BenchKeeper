@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
@@ -273,13 +273,16 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
     chmodSync(socat, 0o644);
     assert.deepEqual(keys(found(on, 'linux', have())), ['socat'], 'a managed path that is no executable file is unset');
   }
-  managed({ bwrapPath: join(ctx.managedRoot, 'absent'), socatPath: socat });
+  managed({ bwrapPath: join(ctx.managedRoot, 'absent'), socatPath: join(ctx.managedRoot, 'absent-socat') });
   assert.deepEqual(keys(found(on, 'linux', have())), ['bubblewrap', 'socat'], 'a managed path that is missing is unset');
+  managed({ bwrapPath: relative(process.cwd(), bwrap), socatPath: relative(process.cwd(), socat) }); // would run from the working directory
+  assert.deepEqual(keys(found(on, 'linux', have())), ['bubblewrap', 'socat'], 'a relative managed path is unset');
   managed({});
   assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, bwrapPath: bwrap, socatPath: socat } }, 'linux', have())), ['bubblewrap', 'socat'], 'a user path is ignored');
   // A managed enabledPlatforms list that leaves the platform out makes the sandbox inert, whatever sandbox.enabled says.
   managed({ enabledPlatforms: ['macos'] });
   assert.deepEqual(keys(found(on, 'linux', have())), ['sandbox.enabled'], 'managed list without this platform');
+  assert.match(found(on, 'linux', have())[0].fix, /administrator/);
   managed({ enabledPlatforms: ['wsl'] });
   assert.deepEqual(found(on, 'linux', have('bwrap', 'socat')), [], 'WSL2 reports linux');
   managed({ enabledPlatforms: ['linux'] });
@@ -293,7 +296,7 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
     const win = found(settings, 'win32', have());
     assert.equal(win.length, 1);
     assert.equal(win[0].level, 'info');
-    assert.match(win[0].message, /unsupported on native Windows.*exits at startup/);
+    assert.match(win[0].message, /unsupported on native Windows.*exits at startup when sandbox\.failIfUnavailable is true, unless a managed sandbox\.enabledPlatforms list leaves Windows out/);
   }
   // Layers: the highest wins (a local file turns the user's sandbox off); a file that cannot be read may hold the keys: no guess.
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));

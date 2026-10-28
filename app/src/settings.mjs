@@ -3,7 +3,7 @@
 // src/settings/catalog.json, the rules between keys src/settings/couplings.json, the pinned schemas sit beside them.
 // Never writes a managed layer. Values of secret-looking names are masked in everything this module returns.
 import { accessSync, constants, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { MergeError, mergeJson, removeTable, removeToml, setToml } from './merge.mjs';
 import { exists, readText } from './fsx.mjs';
@@ -217,7 +217,7 @@ function lookup(state, agentId, key, layers) {
   return found;
 }
 const isExecutable = (p) => {
-  try { accessSync(p, constants.X_OK); return statSync(p).isFile(); } catch { return false; }
+  try { if (!isAbsolute(p)) return false; accessSync(p, constants.X_OK); return statSync(p).isFile(); } catch { return false; }
 };
 function holds(c, state, agentId) {
   if (c.all) return c.all.every((x) => holds(x, state, agentId));

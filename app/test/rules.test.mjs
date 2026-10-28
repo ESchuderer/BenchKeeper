@@ -109,6 +109,22 @@ test('a switch for one project changes that project only: two projects, one glob
   assert.equal(row(ctx, 'claude', team, a).load, 'always');
 });
 
+test('a switch changes only its own pattern in claudeMdExcludes as the file holds it at apply time', () => {
+  const ctx = machine();
+  const team = join(ctx.home, '.claude/rules/20-team.md');
+  write(team, 'x\n');
+  const settings = join(ctx.home, '.claude/settings.json');
+  const excludes = () => JSON.parse(readFileSync(settings, 'utf8')).claudeMdExcludes;
+  const off = preview(ruleChanges(ctx, { agent: 'claude', file: team, on: false }));
+  write(settings, JSON.stringify({ claudeMdExcludes: ['**/added-later.md'] }));
+  assert.equal(apply(off, ctx, { scope: 'global' }).status, 'done');
+  assert.deepEqual(excludes(), ['**/added-later.md', team]);
+  const on = preview(ruleChanges(ctx, { agent: 'claude', file: team, on: true }));
+  write(settings, JSON.stringify({ claudeMdExcludes: ['**/other.md', team, '**/added-later.md'] }));
+  assert.equal(apply(on, ctx, { scope: 'global' }).status, 'done');
+  assert.deepEqual(excludes(), ['**/other.md', '**/added-later.md']);
+});
+
 test('a file left out by a layer this view cannot write, or by another pattern, is not switched on here', () => {
   const ctx = machine();
   const team = join(ctx.home, '.claude/rules/20-team.md');

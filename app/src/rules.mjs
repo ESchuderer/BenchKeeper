@@ -11,7 +11,7 @@ import { exists, isDir, readText, real, realish } from './fsx.mjs';
 import { git } from './git.mjs';
 import { display, frontMatter, markdownIn, pluginSkills, skillDescription, textOf, walkInstructions } from './instructions.mjs';
 import { allowed } from './runner.mjs';
-import { readSettings, settingsChanges } from './settings.mjs';
+import { editFor, readSettings, settingsChanges } from './settings.mjs';
 import { projectCtx } from './steps/project.mjs';
 
 export const RULE_AGENTS = ['claude', 'codex'];
@@ -418,7 +418,13 @@ export function ruleChanges(ctx, { agent: id, file, dir, on }) {
     const rest = excludesOf(ctx, dir).map((l) => (l.layer === layer ? { ...l, patterns: next } : l)).find((l) => matches(row.path, l.patterns));
     if (on && rest) throw new Error(`${row.shown} is also left out by a pattern of the ${rest.layer} settings that is not its own path: edit claudeMdExcludes there`);
     const sctx = dir ? projectCtx(ctx, dir) : ctx;
-    return settingsChanges(sctx, 'claude', { layer, dir, edits: { claudeMdExcludes: next.length ? next : null } }).map((c) => ({ ...c, title: title(row, on, dir) }));
+    // The write maps the list in the file at apply time, so a pattern added after the plan stays.
+    const map = (current) => {
+      const list = [current].flat().filter((p) => typeof p === 'string');
+      const out = on ? list.filter((p) => p !== pattern && p !== row.path) : list.includes(pattern) ? list : [...list, pattern];
+      return out.length ? out : null;
+    };
+    return settingsChanges(sctx, 'claude', { layer, dir, edits: { claudeMdExcludes: next.length ? next : null } }).map((c) => ({ ...c, title: title(row, on, dir), edit: editFor('claude', 'claudeMdExcludes', map, c.path) }));
   }
   const parked = parkedPath(ctx, row.path);
   const [from, to] = on ? [parked, row.path] : [row.path, parked];

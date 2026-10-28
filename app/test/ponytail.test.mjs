@@ -147,3 +147,10 @@ test('ledger: nothing without Ponytail\'s folder, and a file over the limit is s
   ledgerFile(ctx, 'big.csv', `${HEADER}\n${'x'.repeat(9 * 1024 * 1024)}`);
   assert.deepEqual(readLedger(ctx), { rows: [], notes: ['Ponytail ledger big.csv skipped: larger than 8 MB'] });
 });
+
+test('ledger: a folder that cannot be listed is reported, not read as empty', () => {
+  const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-pony-file-')) });
+  mkdirSync(join(ctx.home, '.config/ponytail'), { recursive: true });
+  writeFileSync(join(ctx.home, '.config/ponytail/band'), 'not a folder');
+  assert.deepEqual(readLedger(ctx), { rows: [], notes: ['Ponytail ledger folder could not be read: ENOTDIR'] });
+});

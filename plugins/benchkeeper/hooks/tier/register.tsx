@@ -14,7 +14,13 @@ const override = atom({ plugin: 'benchkeeper', key: 'override' } as const, null)
 const where = atom({ plugin: 'benchkeeper', key: 'where' } as const, null)
 const tests = atom({ plugin: 'benchkeeper', key: 'tests' } as const, null)
 // The test commands the sessions board counts too (app/src/sessions.mjs).
-const TEST = /(?:^|[\s;&|('"])(npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/
+const COMMANDS = '(?:npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)'
+const TEST = new RegExp(`(?:^|[\\s;&|('"])${COMMANDS}(?=$|[\\s;&|):'"])`)
+const START = new RegExp(`^(?:\\w+=\\S+\\s+)*${COMMANDS}(?=$|\\s)`)
+
+// True when the command's exit code is the test's own: test commands joined by && only. With ||, ;, | or & it can come from
+// another command, and a quoted name (echo "npm test") runs no test.
+const own = (command: string) => !/[;|&\n`]|\$\(/.test(command.replaceAll('&&', ' ')) && command.split('&&').some((part) => START.test(part.trim()))
 
 // The last tier line in a text, or null.
 export function lastTier(text: string): TierLine | null {
@@ -75,11 +81,13 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  // The last test run of the main loop, as the board reads it: a failed exit code fails, any other result passes. Never denies.
+  // The last test run of the main loop, as the board reads it: a failed exit code fails, any other result passes. A compound
+  // command or a background run has no result of its own: the band shows no result then. Never denies.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const ran = await next(e)
     if (on_ && !e.agentId && TEST.test(e.command) && ran.deny === undefined) {
-      if (!ran.isError) await update($, tests, () => 'pass')
+      if (!own(e.command) || (ran as { backgroundTaskId?: unknown }).backgroundTaskId) await update($, tests, () => null)
+      else if (!ran.isError) await update($, tests, () => 'pass')
       else if (/Exit code [1-9]/.test(ran.text ?? '')) await update($, tests, () => 'fail')
     }
     return ran

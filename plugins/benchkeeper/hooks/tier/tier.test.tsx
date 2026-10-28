@@ -154,6 +154,19 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
   outcome = { isError: true, text: 'interrupted' }
   await test('node --test')
   expect(await ui.find({ type: 'Text', text: /tests: failed/ })).toBeDefined()
+  // A compound command, a quoted name and a background run do not report the test's own outcome.
+  outcome = { text: '12 passing' }
+  await test('node --test')
+  expect(await ui.find({ type: 'Text', text: /tests: passed/ })).toBeDefined()
+  for (const command of ['npm test || true', 'echo "npm test"', 'npm test | tee log', 'npm test; ls']) {
+    await test('node --test')
+    await test(command)
+    expect(await ui.find({ type: 'Text', text: /tests: not run yet/ })).toBeDefined()
+  }
+  await test('node --test')
+  outcome = { text: 'started', backgroundTaskId: 'b1' } as never
+  await test('npm test')
+  expect(await ui.find({ type: 'Text', text: /tests: not run yet/ })).toBeDefined()
   level = ''
   await step($)
   expect(await ui.find({ type: 'Text', text: /Ponytail/ })).toBeUndefined()

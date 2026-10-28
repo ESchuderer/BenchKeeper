@@ -72,7 +72,10 @@ export function readLedger(ctx) {
   const dir = join(ctx.home, LEDGER);
   const notes = [];
   let files = [];
-  try { files = readdirSync(dir).filter((f) => f.endsWith('.csv')).sort(); } catch { return { rows: [], notes }; }
+  try { files = readdirSync(dir).filter((f) => f.endsWith('.csv')).sort(); } catch (e) {
+    // An absent folder means no Ponytail ledger; one that cannot be listed is reported, not read as empty.
+    return { rows: [], notes: e?.code === 'ENOENT' ? notes : [`Ponytail ledger folder could not be read: ${e?.code ?? 'error'}`] };
+  }
   const bySession = new Map();
   for (const f of files) {
     let size = 0;

@@ -108,6 +108,8 @@ test('Update all runs no hook of the fetched tree for add and status in the work
   const ctx = context({ home: h });
   const p = project(h);
   const mark = join(h, 'index-hook-ran');
+  // A global core.hooksPath of .githooks would run the hook during the fixture's own add and commit.
+  p.git('config', 'core.hooksPath', join(h, 'no-hooks'));
   mkdirSync(join(p.dir, '.githooks'), { recursive: true });
   writeFileSync(join(p.dir, '.githooks', 'post-index-change'), `#!/bin/sh\necho fetched > '${mark}'\n`, { mode: 0o755 });
   p.git('add', '-A');

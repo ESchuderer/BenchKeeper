@@ -1,0 +1,10 @@
+{
+  "//": "kept as written",
+  "schemaVersion": 1,
+  "futureKey": { "any": ["thing"] },
+  "phases": {
+    "//review": "another agent reviews",
+    "implement": { "agent": "claude", "model": "claude-opus-4-7", "effort": "high", "note": "unknown keys survive" },
+    "review": { "agent": "codex", "model": "default", "effort": "default" }
+  }
+}

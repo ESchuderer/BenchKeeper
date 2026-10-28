@@ -86,6 +86,17 @@ const LINE = 'You are working inside Orca, a multi-agent IDE. You are a dispatch
 const PREAMBLE = `${LINE}\nYour coordinator's terminal handle is: term_1\nYour task ID is: task_1`;
 const wakeup = (t, id) => assistant(t, id, [{ type: 'tool_use', id: `w${id}`, name: 'ScheduleWakeup', input: { delaySeconds: 1200, prompt: 'check', reason: 'wait' } }]);
 // Sessions of each pattern in the project `app`, kept apart from writeSessions so the counts of the other tests stay.
+// One short Claude Code session in each folder.
+export function writeTreeSessions(home, dirs) {
+  for (const [i, cwd] of dirs.entries()) {
+    const at = (l) => ({ ...l, cwd, sessionId: `w${i}` });
+    jsonl(join(home, '.claude/projects', cwd.replaceAll('/', '-'), `w${i}.jsonl`), [
+      at(human(`2026-10-22T0${i}:00:00.000Z`, 'rename a variable')),
+      at(assistant(`2026-10-22T0${i}:00:05.000Z`, `w${i}`, [{ type: 'text', text: 'Renamed.' }])),
+    ]);
+  }
+}
+
 export function writePatternSessions(home, { root = '/work' } = {}) {
   work = root;
   const dir = join(home, '.claude/projects', `${root}/app`.replaceAll('/', '-'));

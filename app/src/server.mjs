@@ -26,7 +26,7 @@ import { readTriage, setTriage, shownFindings, withTriage } from './triage.mjs';
 import { exists, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
-import { frameworkRows, sourceRows } from './frameworks.mjs';
+import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
@@ -100,8 +100,7 @@ function setupAnswers(src) {
   const all = (k) => (src instanceof URLSearchParams ? src.getAll(k) : [src[k] ?? []].flat()).filter((x) => typeof x === 'string');
   const list = (k) => (src instanceof URLSearchParams ? all(k).flatMap((x) => x.split(',')).filter(Boolean) : all(k));
   return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'),
-    // Frameworks are kept unless the answers name them (a form of agents, packs and tier alone does not take them out).
-    frameworks: named(src, 'framework', 'frameworks') ? list(src instanceof URLSearchParams ? 'framework' : 'frameworks') : undefined,
+    // Agent files are kept unless the answers name them (a form of agents, packs and tier alone does not take them out).
     agentFiles: named(src, 'agent-file', 'agentFiles') ? list(src instanceof URLSearchParams ? 'agent-file' : 'agentFiles') : undefined,
     // An empty tier clears the saved one; no tier keeps it.
     tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined,
@@ -391,7 +390,7 @@ export function api(ctx) {
       const lib = libraryWith(ctx);
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: projectState(ctx, dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
-        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })), frameworks: frameworkRows(), sources: sourceRows() };
+        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })), sources: sourceRows() };
     },
     // What a one-run setup starts from: the installed agents and advisers, and each project with its setup state. A
     // blocked project is left to Update all: one-run writes local setups in the checkout, and that is not possible for a

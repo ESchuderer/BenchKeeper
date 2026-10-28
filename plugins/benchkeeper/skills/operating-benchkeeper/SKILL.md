@@ -28,7 +28,7 @@ Never run `apply`, `undo`, `restore` or `projects update` against a home folder 
 | Install level, drift, fixes | `doctor [dir] --json` |
 | Files match the ledger, project skills at their pins | `verify [dir] --json` |
 | Global setup | `plan --json`, then `apply --yes` (`--agents a,b`, `--pack p`, `--level lite\|standard\|full`) |
-| One project's setup | `projects plan [dir] --json`, then `projects apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--framework`) |
+| One project's setup | `projects plan [dir] --json`, then `projects apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--agent-file`) |
 | Answers of a project | `.benchkeeper/state.json`; a changed answer is a new `projects plan` |
 | Registered projects | `projects list --json`, `projects scan <root> --json`, `projects add <dir>` |
 | Update one project | `projects plan [dir]`, then `projects apply [dir] --yes` (the answers default to its state file) |

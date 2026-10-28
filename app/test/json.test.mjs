@@ -144,11 +144,8 @@ test('--json: the read-only list commands print their documented keys and no val
     const get = await shape(['settings', 'get', list.settings[0].key], 'settings get', ['agent', 'setting']);
     assert.equal(get.setting.key, list.settings[0].key);
 
-    const frameworks = await shape(['frameworks'], 'frameworks list', ['frameworks']);
-    assert.ok(frameworks.frameworks.length > 0 && frameworks.frameworks.every((f) => f.id && f.title && Array.isArray(f.files)));
-    assert.deepEqual((await shape(['frameworks', 'list'], 'frameworks list', ['frameworks'])).frameworks, frameworks.frameworks);
     const sources = await shape(['skills', 'sources'], 'skills sources', ['sources']);
-    assert.ok(sources.sources.length > 0 && sources.sources.every((f) => f.id && f.role === null && f.files.length > 0));
+    assert.ok(sources.sources.length > 0 && sources.sources.every((f) => f.id && f.title && f.files.length > 0));
     assert.deepEqual((await shape(['skills', 'sources', 'list'], 'skills sources', ['sources'])).sources, sources.sources);
 
     const scan = await shape(['projects', 'scan', dir], 'projects scan', ['root', 'found']);
@@ -179,12 +176,10 @@ test('--json: an invalid argument to a list command exits 2 with an error docume
     [['projects', 'scan', dir, 'extra'], 'projects scan', /unexpected argument extra/],
     [['skills', 'list', 'extra'], 'skills list', /unexpected argument extra/],
     [['rules', 'list', 'extra'], 'rules list', /unexpected argument extra/],
-    [['frameworks', 'list', 'extra'], 'frameworks list', /unexpected argument extra/],
     [['skills', 'sources', 'list', 'extra'], 'skills sources', /unexpected argument extra/],
     [['sessions', 'board', 'extra'], 'sessions board', /unexpected argument extra/],
     [['projects', 'list', 'extra'], 'projects list', /unexpected argument extra/],
     [['packs', 'list', 'extra'], 'packs list', /unexpected argument extra/],
-    [['frameworks', 'nope'], 'frameworks nope', /--json works with/],
     [['skills', 'reset'], 'skills reset', /--json works with/],
     [['profile', 'import', 'p.json'], 'profile import', /--json works with/],
   ]) {
@@ -200,7 +195,7 @@ test('--json: an invalid argument to a list command exits 2 with an error docume
   for (const args of [['projects', 'scan', dir], ['profile', 'export']]) assert.equal((await run(ctx, [...args, '--json'])).code, 2, args.join(' '));
   // Without --json the commands print what they printed.
   const text = async (args) => { let t = ''; await main(args, { out: new Writable({ write(c, _, d) { t += c; d(); } }), err: new Writable({ write(_c, _e, d) { d(); } }), ctx }); return t; };
-  assert.match(await text(['frameworks']), /^\S+\s+\w+\s+\w+\s+/);
+  assert.match(await text(['skills', 'sources']), /^agency-agents\s+agents\s+/);
   assert.match(await text(['rules', 'list', '--agent', 'codex']), /^Codex/);
 });
 

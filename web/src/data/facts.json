@@ -34,7 +34,7 @@
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
     "url": "https://github.com/mattpocock/skills",
-    "role": "his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)",
+    "role": "the workflow owner: his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)",
     "evidence": "plugins/benchkeeper/skills/workflow/software.md#matt-pococks-skills-when-installed"
   },
   "quickstart": {
@@ -397,18 +397,6 @@
       }
     ]
   },
-  "frameworks": {
-    "rule": "Project setup asks first: it shows the list and installs nothing you did not choose. A framework is a workflow system that owns how work is planned and run: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Skill packs (`packs list`) and agent files (`skills sources`) are not frameworks. Everything installs inside the project; what cannot is labelled.",
-    "items": [
-      {
-        "name": "Superpowers",
-        "url": "https://github.com/obra/superpowers",
-        "role": "workflow owner",
-        "installs": "a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache",
-        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/superpowers.md"
-      }
-    ]
-  },
   "stack": {
     "reasons": [
       {
@@ -458,10 +446,6 @@
       "docs/setup.md#update"
     ],
     "sdlc.requirements": "docs/automations.md#catalogue",
-    "frameworks.rule": [
-      "docs/setup.md#frameworks",
-      "app/test/frameworks.test.mjs"
-    ],
     "quickstart.needs": "app/package.json",
     "quickstart.choose": [
       "app/README.md#web-ui",

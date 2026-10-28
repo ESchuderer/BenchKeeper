@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -263,7 +263,29 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
   assert.deepEqual(keys(found(on, 'linux', have('socat'))), ['bubblewrap']);
   assert.deepEqual(keys(found(on, 'linux', have('bwrap'))), ['socat']);
   assert.deepEqual(keys(found(on, 'linux', have())), ['bubblewrap', 'socat']);
-  assert.deepEqual(found({ sandbox: { ...on.sandbox, bwrapPath: '/opt/bwrap', socatPath: '/opt/socat' } }, 'linux', have()), [], 'a configured path replaces the PATH lookup');
+  // Only a managed path counts, and only when it names an executable file; a user path is ignored by Claude Code.
+  const bwrap = join(ctx.managedRoot, 'bwrap'), socat = join(ctx.managedRoot, 'socat');
+  for (const f of [bwrap, socat]) { write(f, '#!/bin/sh\n'); chmodSync(f, 0o755); }
+  const managed = (sandbox) => write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, JSON.stringify({ sandbox }));
+  managed({ bwrapPath: bwrap, socatPath: socat });
+  assert.deepEqual(found(on, 'linux', have()), [], 'a managed path replaces the PATH lookup');
+  if (process.platform !== 'win32') { // Windows has no execute bit.
+    chmodSync(socat, 0o644);
+    assert.deepEqual(keys(found(on, 'linux', have())), ['socat'], 'a managed path that is no executable file is unset');
+  }
+  managed({ bwrapPath: join(ctx.managedRoot, 'absent'), socatPath: socat });
+  assert.deepEqual(keys(found(on, 'linux', have())), ['bubblewrap', 'socat'], 'a managed path that is missing is unset');
+  managed({});
+  assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, bwrapPath: bwrap, socatPath: socat } }, 'linux', have())), ['bubblewrap', 'socat'], 'a user path is ignored');
+  // A managed enabledPlatforms list that leaves the platform out makes the sandbox inert, whatever sandbox.enabled says.
+  managed({ enabledPlatforms: ['macos'] });
+  assert.deepEqual(keys(found(on, 'linux', have())), ['sandbox.enabled'], 'managed list without this platform');
+  managed({ enabledPlatforms: ['wsl'] });
+  assert.deepEqual(found(on, 'linux', have('bwrap', 'socat')), [], 'WSL2 reports linux');
+  managed({ enabledPlatforms: ['linux'] });
+  assert.deepEqual(found(on, 'darwin', have()).map((i) => i.level), ['warning'], 'macOS left out');
+  assert.deepEqual(found(on, 'linux', have('bwrap', 'socat')), []);
+  write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, '{}');
   assert.deepEqual(keys(found({}, 'linux', have())), ['sandbox.allowUnsandboxedCommands', 'sandbox.enabled'], 'a missing program matters only while the sandbox is on');
   assert.deepEqual(found(on, 'darwin', have()), [], 'macOS needs neither');
   // Native Windows: unsupported, information, never a warning, whatever the settings say.
@@ -271,7 +293,7 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
     const win = found(settings, 'win32', have());
     assert.equal(win.length, 1);
     assert.equal(win[0].level, 'info');
-    assert.match(win[0].message, /unsupported on native Windows/);
+    assert.match(win[0].message, /unsupported on native Windows.*exits at startup/);
   }
   // Layers: the highest wins (a local file turns the user's sandbox off); a file that cannot be read may hold the keys: no guess.
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));

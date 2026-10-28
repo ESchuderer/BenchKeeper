@@ -44,7 +44,8 @@
    "You can disable the unsandboxed retry by setting \"allowUnsandboxedCommands\": false in your sandbox settings.",
    "On Linux and WSL2, the sandbox relies on these packages: bubblewrap : the unprivileged sandboxing tool that enforces filesystem isolation socat : the relay used to route network traffic through the sandbox proxy",
    "Linux and WSL2 : the sandbox relies on `bubblewrap` and `socat`, covered in Set up Linux and WSL2.",
-   "Connections go through a proxy on your machine that checks each host against your allowed domains, which start empty. Domain restrictions : your allowed domains start empty."
+   "Connections go through a proxy on your machine that checks each host against your allowed domains, which start empty. Domain restrictions : your allowed domains start empty.",
+   "strict sandbox mode](#turn-off-the-retry-with-strict-sandbox-mode) for the sessions where typed commands run sandboxed. The sandbox doesn't run on native Windows, so with `failIfUnavailable` set, Claude Code exits at startup on those machines. If your fleet includes Windows hosts, you can: * **Deliver the configuration by operating system**: deploy it through y"
   ]
  }
 }

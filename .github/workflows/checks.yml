@@ -67,6 +67,7 @@ jobs:
       contents: read
     env:
       LC_ALL: C.UTF-8
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.ms-playwright
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -74,9 +75,32 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.3
+      - name: Install app packages
+        working-directory: app
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      # Browser download only: the system packages (apt) are not cached. The step is time-boxed and retried once because the install stalls now and then.
+      - name: Cache the browser
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('app/package-lock.json') }}
+      - name: Install the browser
+        id: browser
+        continue-on-error: true
+        timeout-minutes: 4
+        working-directory: app
+        run: node_modules/.bin/playwright install --with-deps chromium
+      - name: Install the browser (retry)
+        if: steps.browser.outcome != 'success'
+        timeout-minutes: 4
+        working-directory: app
+        # The runner cannot signal a root-owned apt-get that outlives the timed-out step, and it holds the apt lock.
+        run: |
+          sudo pkill -x apt-get || true
+          node_modules/.bin/playwright install --with-deps chromium
       - name: App UI tests
         working-directory: app
-        run: npm ci --ignore-scripts --no-audit --no-fund && node_modules/.bin/playwright install --with-deps chromium && npm run build && npm run test:ui
+        run: npm run build && npm run test:ui
 
   # Required check: passes when both parallel jobs pass.
   checks:

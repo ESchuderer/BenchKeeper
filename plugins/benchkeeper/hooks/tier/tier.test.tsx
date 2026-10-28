@@ -142,7 +142,8 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
   const test = (command: string) => $.tool.call({ tool: 'Bash', command } as never)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   await step($)
-  expect(await ui.find({ type: 'Text', text: /^shop \(feat\/cart\)  tests: not run yet  Ponytail: full$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^shop \(feat\/cart\)  Ponytail: full$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^tests: not run  lint\/types: not run$/ })).toBeDefined()
   await test('cd app && npm test')
   expect(await ui.find({ type: 'Text', text: /tests: passed/ })).toBeDefined()
   // A command that is no test run, and a failed command that is not a test failure, leave the result.
@@ -161,7 +162,7 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
   for (const command of ['npm test || true', 'echo "npm test"', 'npm test | tee log', 'npm test; ls']) {
     await test('node --test')
     await test(command)
-    expect(await ui.find({ type: 'Text', text: /tests: not run yet/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /tests: not run / })).toBeDefined()
   }
   // In a chain that failed, the failure may belong to another part: false && npm test ran no test, npm test && false passed it.
   for (const command of ['false && npm test', 'npm test && false', 'cd app && npm test']) {
@@ -169,13 +170,13 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
     await test('node --test')
     outcome = { isError: true, text: 'Exit code 1' }
     await test(command)
-    expect(await ui.find({ type: 'Text', text: /tests: not run yet/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /tests: not run / })).toBeDefined()
   }
   outcome = { text: '12 passing' }
   await test('node --test')
   outcome = { text: 'started', backgroundTaskId: 'b1' } as never
   await test('npm test')
-  expect(await ui.find({ type: 'Text', text: /tests: not run yet/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /tests: not run / })).toBeDefined()
   level = ''
   await step($)
   expect(await ui.find({ type: 'Text', text: /Ponytail/ })).toBeUndefined()
@@ -192,7 +193,7 @@ test('on: the project row comes back after /clear, /resume and /branch', ON, asy
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /shop/ })).toBeUndefined()
   await $.classic.SessionStart({ source: 'resume' })
-  expect(await ui.find({ type: 'Text', text: /^shop \(main\)  tests: not run yet$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^shop \(main\)$/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -213,5 +214,114 @@ test('on: doctor asks the agent to run the doctor, ? explains the band and how t
   expect(sent).toEqual(['/benchkeeper:operating-benchkeeper run benchkeeper doctor for this project and list the findings'])
   await ui.press({ key: 'help' })
   expect(toasts[0]).toMatch(/Nothing leaves this machine\. Turn off: set Tier band to false/)
+  await ui.unmount()
+})
+
+// One stub answers every tool call: Bash with the outcome set, the edit tools with it too.
+function tools($: Parameters<Parameters<typeof test>[1]>[0], on: Parameters<Parameters<typeof test>[1]>[1]) {
+  let outcome: { isError?: true; text: string } = { text: 'ok' }
+  on('tool.call', () => ({ result: {}, ...outcome }) as never)
+  return {
+    set: (o: typeof outcome) => { outcome = o },
+    bash: (command: string) => $.tool.call({ tool: 'Bash', command } as never),
+    edit: (agentId?: string) => $.tool.call({ tool: 'Edit', file_path: 'a.ts', old_string: 'a', new_string: 'b', ...(agentId ? { agentId } : {}) } as never),
+  }
+}
+
+test('on: an edit of the main loop makes the last results stale; a failed or subagent edit does not', ON, async ($, on) => {
+  engine(on)
+  const t = tools($, on)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await t.edit()
+  expect(await ui.find({ type: 'Text', text: /^tests: not run  lint\/types: not run$/ })).toBeDefined()
+  await t.bash('npm test')
+  await t.edit()
+  expect(await ui.find({ type: 'Text', text: /tests: stale \(1 edit since\)  lint\/types: not run/ })).toBeDefined()
+  await t.edit('subagent-1')
+  t.set({ isError: true, text: 'String not found' })
+  await t.edit()
+  t.set({ text: 'ok' })
+  expect(await ui.find({ type: 'Text', text: /tests: stale \(1 edit since\)/ })).toBeDefined()
+  await $.tool.call({ tool: 'Write', file_path: 'b.ts', content: '' } as never)
+  expect(await ui.find({ type: 'Text', text: /tests: stale \(2 edits since\)/ })).toBeDefined()
+  await t.bash('npm test')
+  expect(await ui.find({ type: 'Text', text: /tests: passed/ })).toBeDefined()
+  t.set({ isError: true, text: 'Exit code 1' })
+  await t.bash('npm test')
+  expect(await ui.find({ type: 'Text', text: /tests: failed/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('on: a lint or type check is read with the chain rules of a test run; a quoted name is not one', ON, async ($, on) => {
+  engine(on)
+  const t = tools($, on)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  for (const command of ['ruff check .', 'cd app && npm run lint', 'npx tsc --noEmit', 'CI=1 eslint .', 'go vet ./...', 'cargo clippy']) {
+    t.set({ isError: true, text: 'Exit code 1' })
+    await t.bash('mypy')
+    t.set({ text: 'ok' })
+    await t.bash(command)
+    expect(await ui.find({ type: 'Text', text: /lint\/types: passed/ })).toBeDefined()
+  }
+  // A quoted name, a name that is no part's start (npx eslint, npm run lint:fix) or a compound command has no result.
+  for (const command of ['echo "eslint"', 'npx eslint .', 'npm run lint:fix', 'tsc || true']) {
+    await t.bash('tsc')
+    await t.bash(command)
+    expect(await ui.find({ type: 'Text', text: /lint\/types: not run/ })).toBeDefined()
+  }
+  t.set({ isError: true, text: 'Exit code 2' })
+  await t.bash('pyright')
+  expect(await ui.find({ type: 'Text', text: /lint\/types: failed/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /tests: not run/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('on: the verdict follows the tier of the last answer or the override, and the checks since the last edit', ON, async ($, on) => {
+  const e = engine(on)
+  const t = tools($, on)
+  on('command.run', () => ({ text: '' }))
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const verdict = async () => (await ui.find({ type: 'Text', text: /^tests: / }))?.text.replace(/^.*lint\/types: (?:not run|passed|failed|stale \(\d+ edits? since\))\s*/, '')
+  expect(await verdict()).toBe('')
+  e.answer('Tier: research')
+  await step($)
+  expect(await verdict()).toBe('')
+  e.answer('Tier: quick (typo)')
+  await step($)
+  expect(await verdict()).toBe('checks needed: tests or lint/types')
+  await t.bash('tsc')
+  expect(await verdict()).toBe('ready')
+  await t.edit()
+  expect(await verdict()).toBe('checks needed: tests or lint/types')
+  await t.bash('npm test')
+  expect(await verdict()).toBe('ready')
+  t.set({ isError: true, text: 'Exit code 1' })
+  await t.bash('eslint .')
+  expect(await verdict()).toBe('checks needed: lint/types')
+  t.set({ text: 'ok' })
+  e.answer('Tier: standard (bug, known cause)')
+  await step($)
+  await t.bash('eslint .')
+  await t.edit()
+  await t.bash('tsc')
+  expect(await verdict()).toBe('checks needed: tests')
+  await t.bash('npm test')
+  expect(await verdict()).toBe('ready, review is yours')
+  // The override wins over the tier line: quick needs only the fast checks.
+  await t.edit()
+  await t.bash('tsc')
+  expect(await verdict()).toBe('checks needed: tests')
+  await ui.press({ key: 'quick' })
+  expect(await verdict()).toBe('ready')
+  await ui.press({ key: 'full' })
+  expect(await verdict()).toBe('checks needed: tests')
+  t.set({ isError: true, text: 'Exit code 1' })
+  await t.bash('npm test')
+  await t.bash('tsc')
+  expect(await verdict()).toBe('checks needed: tests, lint/types')
+  t.set({ text: 'ok' })
+  await t.bash('npm test')
+  await t.bash('tsc')
+  expect(await verdict()).toBe('ready, review is yours')
   await ui.unmount()
 })

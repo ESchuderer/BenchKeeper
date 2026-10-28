@@ -58,7 +58,8 @@ Usage: benchkeeper <command> [options]
                                     global setup: the changes, with a diff each, nothing written
   apply [--agents a,b] [--pack p] [--level l] [--yes] [--all]
                                     global setup: asks per change; --yes takes the default selection,
-                                    --all also the removals. --level lite|standard: the BenchKeeper plugin
+                                    --all also the removals, except a plugin BenchKeeper did not install
+                                    (removed only by its own answer). --level lite|standard: the BenchKeeper plugin
                                     alone, nothing else on the machine (standard: then projects apply writes
                                     the local block per repository); full: rules, settings, plugins, tools.
                                     Default: the level found (doctor shows it), full on a machine without BenchKeeper
@@ -328,10 +329,11 @@ function asker(input, out) {
 }
 
 async function choose(plan, o, ask, out) {
-  if (o.yes) return plan.filter((c) => !c.error && (o.all || c.selected)).map((c) => c.id);
+  // A plugin BenchKeeper did not install is removed only by its own answer, never by --yes or --all.
+  if (o.yes) return plan.filter((c) => !c.error && !c.foreign && (o.all || c.selected)).map((c) => c.id);
   // --all alone is not a go-ahead: removals are on the list, so the question names them first.
   if (o.all) {
-    const all = plan.filter((c) => !c.error), removals = all.filter((c) => c.destructive);
+    const all = plan.filter((c) => !c.error && !c.foreign), removals = all.filter((c) => c.destructive);
     removals.forEach((c) => show(c, out));
     return (await ask(`Apply ${all.length} changes${removals.length ? `, ${removals.length} of them removals (listed above)` : ''}?`)) ? all.map((c) => c.id) : [];
   }
@@ -340,7 +342,7 @@ async function choose(plan, o, ask, out) {
     show(c, out);
     // One answer per unit: its changes go together.
     if (c.unit && units.has(c.unit)) { if (units.get(c.unit)) select.push(c.id); continue; }
-    const yes = !c.error && (await ask(c.unit ? 'apply (with the changes that go with it)?' : 'apply?'));
+    const yes = !c.error && (await ask(c.foreign ? 'remove it?' : c.unit ? 'apply (with the changes that go with it)?' : 'apply?'));
     if (c.unit) units.set(c.unit, yes);
     if (yes) select.push(c.id);
   }
@@ -373,7 +375,8 @@ function selectedAgents(ctx, list) {
 }
 
 function show(c, out) {
-  out.write(`${c.destructive ? 'remove ' : 'change '}${c.title}${c.error ? `\n  cannot merge: ${c.error}` : ''}\n`);
+  out.write(`${c.foreign ? '' : c.destructive ? 'remove ' : 'change '}${c.title}${c.error ? `\n  cannot merge: ${c.error}` : ''}\n`);
+  if (c.foreign) out.write(`  add ${c.pack} to a project: benchkeeper projects apply <dir> --pack ${c.pack}\n  ${c.impact}\n`);
   if (c.kind === 'command' && !c.diff) out.write(`  $ ${c.argv.join(' ')}\n`);
   else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }
@@ -910,7 +913,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   const steps = new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => ids.includes(p.pack)).map((p) => `plugin:${a}:${p.id}`)));
   // The other installed packs stay as they are; the pack asked for is the only one on or off.
   const packs = on ? [...new Set([...have, ...ids])] : have.filter((p) => !ids.includes(p));
-  const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true }));
+  const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true, foreign: false }));
   for (const id of on ? [] : ids) { const users = projectsUsing(ctx, id); if (users.length) out.write(`note: ${users.join(', ')} still name${users.length === 1 ? 's' : ''} ${id}\n`); }
   return applyChosen(plan, ctx, { o, ask, out });
 }

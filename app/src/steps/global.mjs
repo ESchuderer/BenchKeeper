@@ -47,6 +47,15 @@ const packPlugins = (a) => library().packs.filter((p) => p.plugins?.[a]).map((p)
 const OWN = { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] };
 export const PLUGINS = Object.fromEntries(['claude', 'codex'].map((a) => [a, [OWN, ...packPlugins(a)]]));
 // The ref and version a plugin is pinned to, for this app version.
+// BenchKeeper installed the plugin a removal argv names: the newest done, not undone command of the ledger on it installs it.
+function installedByApp(ctx, [a, , , id]) {
+  for (const run of ctx.ledger.list()) {
+    const e = [...run.entries].reverse().find((x) => x.kind === 'command' && x.status === 'done' && !x.undone && x.argv?.[0] === a && x.argv[1] === 'plugin' && x.argv[3] === id);
+    if (e) return ['install', 'add'].includes(e.argv[2]);
+  }
+  return false;
+}
+
 export function pin(p, appVersion) {
   return { ref: p.ref, version: p.version === 'app' ? appVersion : p.version };
 }
@@ -283,7 +292,11 @@ export function globalPlan(env) {
       }
       // Offered, not preselected: uninstalling deletes the plugin's data, and unregistered projects may still use it.
       if (have && p.pack && !options.packs?.includes(p.pack) && options.packsInUse && !options.packsInUse.includes(p.pack)) {
-        add(step, `remove ${name} plugin ${p.id}: no registered project uses the ${p.pack} pack`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], undoArgv: a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id], destructive: true, installUnit });
+        const argv = a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], undoArgv = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
+        if (installedByApp(ctx, argv)) add(step, `remove ${name} plugin ${p.id}: no registered project uses the ${p.pack} pack`, { kind: 'command', argv, undoArgv, destructive: true, installUnit });
+        // The user's own plugin: kept unless removed on its own (never by --yes or --all); its pack stays choosable, so adding it to a project comes first.
+        else add(step, `${p.pack} (${name} plugin ${p.id}) is installed on this machine, but BenchKeeper did not set it up and no project in your list selects it. Keep it (default) or remove it.`, { kind: 'command', argv, undoArgv, destructive: true, foreign: true, pack: p.pack,
+          impact: `removing runs ${argv.join(' ')}, which deletes the plugin and its data from ${name}; ${undoArgv.join(' ')} brings it back`, installUnit });
         continue;
       }
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);

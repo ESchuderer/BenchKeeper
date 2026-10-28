@@ -406,7 +406,7 @@ test('Doctor: a bypass default mode in project or local settings is flagged, in 
 
 test('Doctor: the advisor rank sees a [1m] model id, and a pinned Sonnet 4.5 or the sonnet alias on Foundry is warned about', () => {
   const ctx = machine();
-  const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)).map((i) => i.message); };
+  const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message)).map((i) => i.message); };
   assert.match(messages({ advisorModel: 'claude-sonnet-5-5[1m]', model: 'claude-opus-5-5' })[0], /ranks below the main model/);
   assert.match(messages({ advisorModel: 'claude-opus-4-6[1m]', model: 'claude-opus-5-5[1m]' })[0], /ranks below the main model/);
   assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5[1m]', model: 'claude-sonnet-5-5' }), []);
@@ -435,13 +435,13 @@ test('Doctor: the keys the settings reference marks deprecated or removed are fl
   assert.deepEqual(reference.filter((r) => /^(Deprecated|Removed)\b/.test(r.description) && r.key !== 'includeCoAuthoredBy').map((r) => r.key).sort(), keys);
   for (const key of keys) {
     write(claudeUser(ctx), JSON.stringify({ [key]: true }));
-    const found = doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message));
+    const found = doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message));
     assert.equal(found.length, 1, key);
     assert.match(found[0].message, new RegExp(`${key}: (Deprecated|Removed)`));
     assert.ok(listSettings(ctx, 'claude', { advanced: true }).advanced.find((a) => a.key === key), key);
   }
   write(claudeUser(ctx), '{}');
-  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)), []);
+  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message)), []);
 });
 
 test('Codex: a TOML edit keeps comments, key order and keys the app does not know', () => {

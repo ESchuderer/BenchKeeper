@@ -58,7 +58,8 @@ Usage: benchkeeper <command> [options]
                                     global setup: the changes, with a diff each, nothing written
   apply [--agents a,b] [--pack p] [--level l] [--yes] [--all]
                                     global setup: asks per change; --yes takes the default selection,
-                                    --all also the removals. --level lite|standard: the BenchKeeper plugin
+                                    --all also the removals, except a plugin BenchKeeper did not install
+                                    (removed only by its own answer). --level lite|standard: the BenchKeeper plugin
                                     alone, nothing else on the machine (standard: then projects apply writes
                                     the local block per repository); full: rules, settings, plugins, tools.
                                     Default: the level found (doctor shows it), full on a machine without BenchKeeper
@@ -907,7 +908,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   const steps = new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => ids.includes(p.pack)).map((p) => `plugin:${a}:${p.id}`)));
   // The other installed packs stay as they are; the pack asked for is the only one on or off.
   const packs = on ? [...new Set([...have, ...ids])] : have.filter((p) => !ids.includes(p));
-  const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true }));
+  const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true, foreign: false }));
   for (const id of on ? [] : ids) { const users = projectsUsing(ctx, id); if (users.length) out.write(`note: ${users.join(', ')} still name${users.length === 1 ? 's' : ''} ${id}\n`); }
   return applyChosen(plan, ctx, { o, ask, out });
 }

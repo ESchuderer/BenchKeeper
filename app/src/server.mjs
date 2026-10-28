@@ -37,9 +37,10 @@ import { checkText, paramsChange, paramsView } from './params.mjs';
 import { readPreferences, setPreference } from './preferences.mjs';
 import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
-import { clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
+import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
-import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
+import { bundleEdits, isSettingsFile, listSettings, readSettings, redact, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, upToDate } from './steps/project.mjs';
@@ -128,6 +129,7 @@ function setupAnswers(src) {
 
 // The last session scan per app context: GET /board renders from it, and a reload soon after needs no scan.
 const scans = new WeakMap();
+const TIER_BAND = 'pluginConfigs.benchkeeper@benchkeeper.options.tierBand';
 const keepScan = (ctx, rows) => { const at = Date.now(); scans.set(ctx, { rows, at }); try { writeBoard(ctx, rows, new Date(at).toISOString()); } catch { /* the file is a convenience; the scan and the framed board still work */ } };
 const FRESH_SCAN_MS = 60e3;
 // GET /board is a frame, which cannot send the API key: it needs a one-time ticket that the page asks for with the key,
@@ -203,6 +205,12 @@ export function api(ctx) {
     const dir = resolve(String(raw ?? ''));
     if (!registered(dir)) throw bad('register the project first');
     return dir;
+  };
+  // The newest ledger run per project folder (the ledger lists newest first); an Update all run counts for its folder.
+  const newestRuns = () => {
+    const last = new Map();
+    for (const r of ctx.ledger.list()) { const key = r.note?.updateAll ?? r.scope; if (!last.has(key)) last.set(key, r); }
+    return last;
   };
   const routes = {
     'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills, unavailable: unavailable(a.id) })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.contentVersion ?? null, current: upToDate(s) }; }), editors: editorsOn() }),
@@ -322,13 +330,11 @@ export function api(ctx) {
     // seen: the skills each chosen agent loads there, its global ones included.
     'GET /api/projects': async () => {
       await originsOfProjects();
-      // The newest run per project folder (the ledger lists newest first): the last change, for sorting.
-      const last = new Map();
-      for (const r of ctx.ledger.list()) { const key = r.note?.updateAll ?? r.scope; if (!last.has(key)) last.set(key, r.time); }
+      const last = newestRuns();
       return listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
         const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
-        return { ...s, seen, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path) ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
+        return { ...s, seen, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path)?.time ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
       });
     },
     // What adding a folder runs into: registered already, another worktree of a registered repository, inside a project.
@@ -456,6 +462,31 @@ export function api(ctx) {
       else throw bad('send clear: true or keepDays');
       scans.delete(ctx);
       return sessionCache(ctx);
+    },
+    // The terminal tier strip: the plugin option the Settings switch plans through /api/settings-plan.
+    'GET /api/tier-band': () => ({ key: TIER_BAND, on: valuesOf(readSettings(ctx, 'claude'), 'claude', TIER_BAND)[0]?.value === true }),
+    // The runs view, read only when it is opened or refreshed: the orchestrated runs of the sessions scan in the registered
+    // projects and their worktrees (git), each project's last setup change from the ledger, and the IDE's runs when it is
+    // installed (not joined: a run line names the coordinator's fan-out, not the IDE's run). Fields are picked: a row's
+    // title can hold prompt text.
+    'GET /api/runs': async () => {
+      if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
+      const { rows, at } = scans.get(ctx);
+      const inside = (dir, p) => p === dir || p?.startsWith(`${dir}/`) || p?.startsWith(`${dir}\\`);
+      const registered = registeredPaths(ctx);
+      const dirs = registered.flatMap(({ path, worktrees }) => [path, ...worktrees]);
+      // A session counts in the deepest worktree holding its folder: a worktree can sit inside its project.
+      const home = (r) => dirs.filter((d) => inside(d, r.project)).sort((a, b) => b.length - a.length)[0];
+      const kept = rows.filter(home);
+      const where = new Map(kept.map((r) => [`${r.run}\n${r.task}`, { worktree: home(r), branch: r.branch ?? null }]));
+      const pick = ({ sessions, costUSD, tokens }) => ({ sessions, costUSD, tokens });
+      const last = newestRuns();
+      return {
+        scanned: new Date(at).toISOString(),
+        runs: byRun(kept).map((x) => ({ run: x.run, ...pick(x), tasks: x.tasks.map((t) => ({ task: t.task, ...pick(t), ...where.get(`${x.run}\n${t.task}`) })) })),
+        setup: registered.map(({ path }) => { const r = last.get(path); return { project: path, lastChange: r ? { kind: r.kind, time: r.time, status: r.status } : null }; }),
+        ide: { name: orca.NAME, runs: orca.installed(ctx) ? await orca.runs(ctx) : null },
+      };
     },
     'POST /api/update-all': (b) => {
       idle();

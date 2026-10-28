@@ -8,7 +8,7 @@ import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
 import { CSP as BOARD_CSP } from '../src/board.mjs';
 import { SANDBOX, viaSrt } from './fixtures/srt.mjs';
-import { writeSessions } from './fixtures/sessions.mjs';
+import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
@@ -764,4 +764,67 @@ test('apply-all: a cancel stops after the running change; later changes are skip
   assert.ok(first > 0 && statuses.slice(0, first).every((x) => x === 'done') && statuses.slice(first).every((x) => x === 'skipped'), statuses.join());
   assert.equal(s.sections[1].run, null);
   assert.ok(!existsSync(join(dirs[0], 'CLAUDE.local.md')));
+});
+
+test('runs: a run with its tasks, worktree, branch and cost, the last setup change, the IDE runs as ids, states and counts; no worker or task text', async () => {
+  const MARK = 'PLANTED-WORKER-TEXT-4711';
+  const ide = (argv) => {
+    const cmd = argv.join(' ');
+    const ok = (result) => ({ code: 0, stdout: JSON.stringify({ ok: true, result }), stderr: '' });
+    if (cmd === 'orca --version') return { code: 0, stdout: '1.4.0', stderr: '' };
+    if (cmd.startsWith('orca orchestration run-list')) return ok({ runs: [{ id: 'run_a', objective: MARK, created_at: '2026-10-23T08:00:00Z', updated_at: '2026-10-23T12:00:00Z' }] });
+    if (cmd.startsWith('orca orchestration task-list --run run_a')) {
+      return ok({ tasks: [{ id: 'task_a', status: 'completed', spec: MARK, display_name: MARK, task_title: MARK, result: JSON.stringify({ subject: MARK, body: MARK }) }, { id: 'task_b', status: 'running', spec: MARK }] });
+    }
+    return realGit(argv, {});
+  };
+  const { ctx, routes } = fixture(ide);
+  const dir = repo('runs');
+  routes['POST /api/projects']({ path: dir });
+  // A session title can hold prompt text: it is planted too, and the view never takes it.
+  writeRunSessions(ctx.home, join(dir, 'app'), MARK, { title: MARK });
+  // A worker outside the registered projects is left out.
+  writeRunSessions(ctx.home, join(TMP, 'elsewhere'), MARK);
+  apply([{ id: '1', step: 's', title: 'create', kind: 'write', path: join(ctx.home, 'x.txt'), after: 'x\n' }], ctx, { scope: dir });
+  const logged = [];
+  const log = console.log, error = console.error;
+  console.log = (...a) => logged.push(a.join(' ')); console.error = (...a) => logged.push(a.join(' '));
+  let r;
+  try { r = await routes['GET /api/runs'](); } finally { console.log = log; console.error = error; }
+  const at = { worktree: dir, branch: 'feat/cart' };
+  assert.deepEqual(r.runs, [{ run: 'r-9', sessions: 3, costUSD: 2.25, tokens: 345, tasks: [{ task: 'task_b', sessions: 1, costUSD: 0.25, tokens: 115, ...at }, { task: 'task_a', sessions: 2, costUSD: 2, tokens: 230, ...at }] }]);
+  assert.deepEqual(r.setup.map((p) => [p.project, p.lastChange?.kind, p.lastChange?.status]), [[dir, 'apply', 'done']]);
+  assert.deepEqual(r.ide, { name: 'Orca', runs: [{ id: 'run_a', created: '2026-10-23T08:00:00Z', updated: '2026-10-23T12:00:00Z', tasks: 2, states: { completed: 1, running: 1 } }] });
+  for (const text of [JSON.stringify(r), ...logged]) assert.ok(!text.includes(MARK));
+});
+
+test('runs: without the IDE its runs are null and it is asked nothing more; the Settings page routes run no command', async () => {
+  const asked = [];
+  const { routes } = fixture((argv) => { asked.push(argv.join(' ')); return null; });
+  routes['GET /api/tier-band']();
+  routes['GET /api/sessions-cache']();
+  assert.deepEqual(asked, []);
+  const r = await routes['GET /api/runs']();
+  assert.deepEqual([r.runs, r.setup, r.ide.runs], [[], [], null]);
+  assert.deepEqual(asked.filter((c) => c.startsWith('orca')), ['orca --version']);
+});
+
+test('the tier strip switch: off by default; on and off are plans in the Claude Code user settings, and off can be undone', async () => {
+  const { ctx, routes } = fixture();
+  const file = join(ctx.home, '.claude/settings.json');
+  mkdirSync(join(ctx.home, '.claude'), { recursive: true });
+  writeFileSync(file, JSON.stringify({ pluginConfigs: { 'other@x': { options: { a: 1 } } } }));
+  const band = () => routes['GET /api/tier-band']();
+  assert.deepEqual(band(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.tierBand', on: false });
+  const set = async (on) => {
+    const plan = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { [band().key]: on } });
+    return (await finished(routes, routes['POST /api/apply']({ planId: plan.planId }).job)).run;
+  };
+  await set(true);
+  assert.equal(band().on, true);
+  const off = await set(false);
+  assert.equal(band().on, false);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pluginConfigs, { 'other@x': { options: { a: 1 } }, 'benchkeeper@benchkeeper': { options: { tierBand: false } } });
+  routes['POST /api/undo']({ run: off.id });
+  assert.equal(band().on, true);
 });

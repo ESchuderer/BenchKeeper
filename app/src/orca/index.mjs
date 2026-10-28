@@ -26,3 +26,25 @@ const PREAMBLE = [/^You are working inside Orca, a multi-agent IDE\./m, /^Your t
 export const isWorkerPrompt = (text) => PREAMBLE.every((r) => r.test(text));
 // The line the worker-spec template carries: its value joins a coordinator's workers.
 export const runOf = (text) => text.match(/^Orca run: ([\w.-]{1,64})[ \t]*$/m)?.[1] ?? null;
+// The task id of the preamble, only in a worker prompt.
+export const taskOf = (text) => (isWorkerPrompt(text) ? text.match(/^Your task ID is: ([\w.-]{1,64})[ \t]*$/m)?.[1] ?? null : null);
+
+// Its runs and their tasks, read when the runs view asks: ids, states and counts only. A task's spec, title and result hold
+// the coordinator's and the worker's text, so the fields are picked, never spread. null when it is not installed or fails.
+const cli = async (ctx, args) => {
+  const run = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
+  const r = await run(['orca', 'orchestration', ...args, '--json'], { timeout: 15e3 });
+  try { const j = r.code === 0 ? JSON.parse(r.stdout) : null; return j?.ok ? j.result : null; } catch { return null; }
+};
+export async function runs(ctx, limit = 20) {
+  const list = await cli(ctx, ['run-list', '--limit', String(limit)]);
+  if (!Array.isArray(list?.runs)) return null;
+  const out = [];
+  for (const r of list.runs.slice(0, limit)) {
+    const tasks = (await cli(ctx, ['task-list', '--run', String(r.id)]))?.tasks;
+    const states = {};
+    for (const t of Array.isArray(tasks) ? tasks : []) states[String(t.status)] = (states[String(t.status)] ?? 0) + 1;
+    out.push({ id: String(r.id), created: r.created_at ?? null, updated: r.updated_at ?? null, tasks: Array.isArray(tasks) ? tasks.length : null, states });
+  }
+  return out;
+}

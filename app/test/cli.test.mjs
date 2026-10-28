@@ -7,7 +7,7 @@ import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { context } from '../src/runner.mjs';
-import { writeSessions } from './fixtures/sessions.mjs';
+import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 function cli(answers = '') {
   const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
@@ -56,6 +56,24 @@ test('board writes the sessions page for this user only', async () => {
   assert.match(readFileSync(file, 'utf8'), /"id":"c1"/);
 });
 
+test('sessions list: cost and tokens per run, with --run per task; no worker text or title', async () => {
+  const MARK = 'PLANTED-WORKER-TEXT-4711';
+  const c = cli();
+  writeRunSessions(c.home, '/work/app', MARK, { title: MARK });
+  assert.equal(await c.exec(['sessions', 'list']), 0);
+  assert.equal(await c.exec(['sessions', 'list', '--run', 'r-9']), 0);
+  assert.equal(c.text(), [
+    'run r-9: 3 sessions, $2.25, 345 tokens',
+    'run r-9: 3 sessions, $2.25, 345 tokens',
+    '  task task_b: 1 session, $0.25, 115 tokens',
+    '  task task_a: 2 sessions, $2.00, 230 tokens',
+    '',
+  ].join('\n'));
+  assert.equal(await c.exec(['sessions', 'list', '--run', 'nope']), 1);
+  assert.match(c.text(), /no sessions of run nope/);
+  assert.ok(!c.text().includes(MARK));
+});
+
 test('the old command names are unknown and the removed skill flags are refused', async () => {
   for (const old of [['project', 'plan'], ['update-all'], ['test'], ['board'], ['record'], ['eval'], ['case', 'add'], ['maintain', 'knowledge', 'show']]) {
     const c = cli();
@@ -85,5 +103,5 @@ test('sessions record runs the command after -- and records its files; sessions 
   o = await exec(['sessions', 'record', '--project', dir]);
   assert.deepEqual([o.code, /sessions record needs the agent command after --/.test(o.text)], [2, true]);
   o = await exec(['sessions']);
-  assert.deepEqual([o.code, /sessions needs board or record/.test(o.text)], [2, true]);
+  assert.deepEqual([o.code, /sessions needs board, list or record/.test(o.text)], [2, true]);
 });

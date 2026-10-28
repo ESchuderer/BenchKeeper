@@ -13,7 +13,7 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Insights', 'Evals', 'Agent settings', 'Rules', 'Extensions', 'Accounts', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Runs', 'Insights', 'Evals', 'Agent settings', 'Rules', 'Extensions', 'Accounts', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.

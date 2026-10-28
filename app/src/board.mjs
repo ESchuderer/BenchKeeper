@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { writeAtomic } from './fsx.mjs';
 import { MIN_SAMPLES } from './insights.mjs';
 import { listProjects } from './projects.mjs';
+import { byRun } from './sessions.mjs';
 import { cssVars } from './tokens.mjs';
 
 // Runs in the browser only: toString() of this function is the page script. The UI tests cover it, not the unit coverage.
@@ -500,6 +501,11 @@ function draw() {
     renderTable(list);
   }
   render();
+  // Runs over all periods and filters: cost and tokens per run, then per task.
+  const total = (x) => [String(x.sessions), money(x.costUSD), compact(x.tokens)];
+  $('by-run').replaceChildren(!D.runs.length ? el('p', { class: 'muted' }, 'No orchestrated sessions.') : table('Cost and tokens per run and task, all periods', ['Run', 'Task', 'Sessions', 'Cost', 'Tokens'],
+    D.runs.slice(0, 50).flatMap((x) => [[x.run ?? 'not recorded', 'all tasks', ...total(x)], ...x.tasks.map((t) => [x.run ?? 'not recorded', t.task ?? 'not recorded', ...total(t)])])));
+  scrollStops();
 }
 /* node:coverage enable */
 
@@ -580,7 +586,7 @@ details summary { cursor: pointer; color: var(--ink-2); margin-top: 8px; }
 // projects Registered only keeps, with their worktrees for rows cached without a repository.
 export function boardHtml(rows, now = new Date().toISOString(), registered = []) {
   // JSON in a script element: < as <, so no value can close the element.
-  const data = JSON.stringify({ rows, now, registered, minSamples: MIN_SAMPLES }).replace(/</g, '\\u003c');
+  const data = JSON.stringify({ rows, runs: byRun(rows), now, registered, minSamples: MIN_SAMPLES }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -610,6 +616,7 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 <section aria-labelledby="h-dist"><h2 id="h-dist">Distribution</h2><div class="cmps"><div id="dist-time"></div><div id="dist-turns"></div></div></section>
 <section aria-labelledby="h-cal"><h2 id="h-cal">Activity, last 12 weeks</h2><div id="calendar"></div></section>
 <section aria-labelledby="h-change"><h2 id="h-change">Moved up</h2><div id="by-change"></div></section>
+<section aria-labelledby="h-run"><h2 id="h-run">By run</h2><p class="note">Orchestrated sessions, matched by the run and task ids in the worker's first prompt. Codex records tokens, not cost.</p><div id="by-run"></div></section>
 <section aria-labelledby="h-skills"><h2 id="h-skills">Skills used</h2><div id="skills"></div></section>
 <section aria-labelledby="h-sessions"><div class="row"><h2 id="h-sessions">Sessions</h2><label>Search <input id="search" type="search"></label></div><p id="count" class="muted"></p><span id="count-live" class="sr" role="status"></span><div id="sessions"></div></section>
 </div>

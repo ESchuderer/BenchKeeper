@@ -9,6 +9,7 @@ import { updateProjects } from './update.js';
 import { ProjectSetup } from './setup.jsx';
 import { PackSwitches, SkillStates } from './skillstates.jsx';
 import { SessionsHistory } from './sessionscache.jsx';
+import { Surfaces } from './runs.jsx';
 import { AddNotices, BulkBar, EditProject, MissingBadge, FILTER_OPTIONS, ProjectFilters, Relocate, RemoveFromList, RemoveSetup, SelectCheckbox, label, plural, visibleProjects } from './projects.jsx';
 import { Dot, Loading, MOD, Note, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
 
@@ -613,6 +614,7 @@ export function Settings({ overview, refresh, keys }) {
         </Table>
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
+      <Surfaces />
       <SessionsHistory />
       <EditorSetting overview={overview} refresh={refresh} />
       <Section title="Files">

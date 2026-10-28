@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { boardHtml } from '../src/board.mjs';
-import { clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache } from '../src/sessions.mjs';
-import { TITLE, writePatternSessions, writeSessions } from './fixtures/sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, prStates, scanSessions, sessionCache } from '../src/sessions.mjs';
+import { TITLE, writePatternSessions, writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 
 const fixture = (run = () => ({ code: 127, stdout: '', stderr: 'not installed' })) => {
   const home = mkdtempSync(join(tmpdir(), 'bk-sessions-'));
@@ -70,6 +70,22 @@ test('pattern: single, loop, group and Orca worker; one value when several apply
   assert.deepEqual(got('p5'), ['single', 0, null], 'quoted text, in a later prompt or a tool result, marks no worker');
   assert.deepEqual(got('p7'), ['single', 0, null], 'one quoted line of the dispatch text in the first prompt marks no worker');
   assert.ok(rows.p2.skills.includes('goal'));
+  assert.deepEqual(['p3', 'p4', 'p5', 's2'].map((id) => rows[id].task), ['task_1', 'task_1', null, null], 'the task id only from a worker\'s first prompt');
+});
+
+test('byRun: cost and tokens per run and per task from the run fixture; Codex adds tokens only; no worker text in a row or on the board', async () => {
+  const MARK = 'PLANTED-WORKER-TEXT-4711';
+  const { home, ctx } = fixture();
+  writeRunSessions(home, '/work/app', MARK);
+  const rows = await scanSessions(ctx);
+  const codex = { agent: 'codex', run: 'r-9', task: 'task_c', costUSD: null, tokens: 500 };
+  const [run, ...rest] = byRun([...rows, codex]);
+  assert.deepEqual(rest, [], 'sessions without a run or task id are no run');
+  assert.deepEqual([run.run, run.sessions, run.costUSD, run.tokens], ['r-9', 4, 2.25, 3 * 115 + 500]);
+  assert.deepEqual(run.tasks.map((t) => [t.task, t.sessions, t.costUSD, t.tokens]), [['task_b', 1, 0.25, 115], ['task_a', 2, 2, 230], ['task_c', 1, null, 500]]);
+  assert.ok(!JSON.stringify(rows).includes(MARK));
+  assert.ok(!boardHtml(rows).includes(MARK));
+  assert.match(boardHtml(rows), /"runs":\[\{"run":"r-9"/);
 });
 
 test('pattern: a cached summary from before it was read is parsed again; one whose transcript is gone stays and reads not recorded', async () => {

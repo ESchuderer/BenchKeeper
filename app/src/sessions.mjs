@@ -19,7 +19,7 @@ const TEST = /(?:^|[\s;&|('"])(npm (?:run )?test|node --test|npx playwright test
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
 const LOOP_COMMANDS = ['goal', 'loop'];
 // Part of every file's cache key: a change to what a transcript summary holds reads the transcripts again, and the summary of one the agent has deleted stays as it was.
-const PARSE = 2;
+const PARSE = 3;
 const PR = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
 const bare = (name) => name.split(':').pop();
 
@@ -34,7 +34,7 @@ const tiers = (data, text) => { for (const m of text.matchAll(TIER)) data.tiers.
 
 // One Claude Code transcript (or a subagent's, of which only the skills count).
 async function claudeFile(file) {
-  const d = { tiers: [], skills: new Set(), usage: {}, prs: new Set(), turns: 0, tests: null, models: new Set(), loop: false, orca: false, run: null };
+  const d = { tiers: [], skills: new Set(), usage: {}, prs: new Set(), turns: 0, tests: null, models: new Set(), loop: false, orca: false, run: null, task: null };
   const pending = new Map();
   await lines(file, (line) => {
     const ts = line.match(/"timestamp":"([^"]+)"/)?.[1];
@@ -67,7 +67,7 @@ async function claudeFile(file) {
       // A typed prompt, or the approved plan that starts a session after plan mode.
       if ((e.origin?.kind === 'human' && !e.isMeta) || e.planContent) {
         // Only the first typed prompt: a later one, or tool output, can quote the text.
-        if (!d.turns) for (const t of texts(content)) { d.run ??= orca.runOf(t); d.orca ||= !!d.run || orca.isWorkerPrompt(t); }
+        if (!d.turns) for (const t of texts(content)) { d.run ??= orca.runOf(t); d.task ??= orca.taskOf(t); d.orca ||= !!d.run || orca.isWorkerPrompt(t); }
         d.turns++;
       }
       for (const t of texts(content)) for (const m of t.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) { d.skills.add(m[1]); if (LOOP_COMMANDS.includes(bare(m[1]))) d.loop = true; }
@@ -284,7 +284,7 @@ function withLedger(ctx, rows, since, onNote) {
     if (since && start < since) continue;
     rows.push({
       agent: 'claude', id: `${l.id}-${l.startedMs}`, project: l.project, branch: null, agentVersion: null, title: null, start, end: start, turns: l.turns, models: l.model ? [l.model] : [],
-      costUSD: l.costUSD, busyMs: l.agentMinutes == null ? null : Math.round(l.agentMinutes * 60e3), tokens: l.tokens ?? 0, tier: null, skills: [], tests: l.tests, setup: null, pattern: null, subagents: 0, run: null,
+      costUSD: l.costUSD, busyMs: l.agentMinutes == null ? null : Math.round(l.agentMinutes * 60e3), tokens: l.tokens ?? 0, tier: null, skills: [], tests: l.tests, setup: null, pattern: null, subagents: 0, run: null, task: null,
       setupVersion: null, prs: [], repo: null, source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
     });
   }
@@ -329,7 +329,7 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
       agentVersion: d.agentVersion ?? null, title: d.title ?? null, start: d.start, end: d.end, turns: d.turns, models,
       costUSD: d.cost?.usd ?? null, busyMs: kind === 'codex' ? d.busy : d.cost?.busy ?? null, tokens,
       tier: tierOf(d.tiers), skills: [...new Set(skills.map(bare))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), tests: d.tests, setup: d.installed ? setupLabels(d.installed) : null,
-      pattern: patternOf(d, subagents), subagents, run: d.run ?? null,
+      pattern: patternOf(d, subagents), subagents, run: d.run ?? null, task: d.task ?? null,
       setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs, repo: d.repo ?? null,
     });
   }
@@ -337,4 +337,21 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
   for (const r of rows) r.prs = r.prs.map((url) => ({ url, state: states[url] }));
   rows.sort((a, b) => (a.start < b.start ? 1 : -1));
   return ledger ? withLedger(ctx, rows, since, onNote) : rows;
+}
+
+// Cost and tokens per orchestrated run and per task, matched by the ids the scan took from the worker's first prompt; a
+// worker without a run line counts under run null. A Codex row adds tokens only: cost stays null until a row has one.
+export function byRun(rows) {
+  const runs = new Map();
+  const add = (x, r) => { x.sessions++; x.tokens += r.tokens ?? 0; if (r.costUSD != null) x.costUSD = (x.costUSD ?? 0) + r.costUSD; };
+  const blank = (k, v) => ({ [k]: v, sessions: 0, costUSD: null, tokens: 0 });
+  for (const r of rows) {
+    if (!r.run && !r.task) continue;
+    if (!runs.has(r.run)) runs.set(r.run, { ...blank('run', r.run), tasks: new Map() });
+    const x = runs.get(r.run);
+    if (!x.tasks.has(r.task)) x.tasks.set(r.task, blank('task', r.task));
+    add(x, r);
+    add(x.tasks.get(r.task), r);
+  }
+  return [...runs.values()].map((x) => ({ ...x, tasks: [...x.tasks.values()] }));
 }

@@ -118,3 +118,18 @@ export function writePatternSessions(home, { root = '/work' } = {}) {
   at('p6', [human('2026-10-22T14:00:00.000Z', '<command-name>/loop</command-name>', { isMeta: true }), human('2026-10-22T14:00:01.000Z', 'x')]);
   for (const n of [1, 2]) jsonl(join(dir, `p6/subagents/agent-${n}.jsonl`), [assistant('2026-10-22T14:00:30.000Z', `a${n}`, [{ type: 'text', text: 'x' }])]);
 }
+
+// Three dispatched workers of run r-9 in `dir`: tasks task_a (two sessions) and task_b, each with a cost. `mark` stands in
+// for worker text: it is in each prompt, an answer and a tool result, and must reach no view.
+export function writeRunSessions(home, dir, mark, { title } = {}) {
+  const at = (id, lines) => jsonl(join(home, '.claude/projects', dir.replaceAll(/[\\/]/g, '-'), `${id}.jsonl`), lines.map((l) => ({ ...l, cwd: dir, sessionId: id })));
+  for (const [id, task, usd, t] of [['r1', 'task_a', 1.5, '09'], ['r2', 'task_a', 0.5, '10'], ['r3', 'task_b', 0.25, '11']]) {
+    at(id, [
+      human(`2026-10-23T${t}:00:00.000Z`, `${PREAMBLE.replace('task_1', task)}\n\n=== TASK ===\n${mark}\nOrca run: r-9\n`),
+      assistant(`2026-10-23T${t}:00:01.000Z`, `m${id}`, [{ type: 'text', text: `Working on ${mark}` }]),
+      result(`2026-10-23T${t}:00:02.000Z`, `q${id}`, mark, false),
+      { type: 'cost-state', totalCostUSD: usd, totalAPIDuration: 1000, totalToolDuration: 0, modelUsage: {} },
+      ...(title ? [{ type: 'ai-title', aiTitle: title }] : []),
+    ]);
+  }
+}

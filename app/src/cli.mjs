@@ -27,7 +27,7 @@ import { extensionLines, extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
-import { scanSessions } from './sessions.mjs';
+import { byRun, scanSessions } from './sessions.mjs';
 import { ADVISERS } from './advise.mjs';
 import { collectInsights } from './insights.mjs';
 import { shownFindings } from './triage.mjs';
@@ -146,6 +146,8 @@ Usage: benchkeeper <command> [options]
   sessions board [--no-open]        sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html);
                                     Ponytail's ledger, when present, is read beside them (read only)
+  sessions list [--run id]          orchestrated runs with cost (Claude Code, API-equivalent USD) and tokens (Codex: tokens
+                                    only) from the sessions scan; --run: that run per task
   sessions record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
   accounts [list]                   the accounts per agent (Claude Code, Codex): name, agent, host or dev container, default
@@ -462,7 +464,18 @@ async function command(argv, { out, err, ask, ctx }) {
     return 0;
   }
   if (cmd === 'insights') { out.write('insights works with --json\n'); return 2; }
-  if (cmd === 'sessions' && !['board', 'record'].includes(arg)) { out.write('sessions needs board or record\n'); return 2; }
+  if (cmd === 'sessions' && !['board', 'list', 'record'].includes(arg)) { out.write('sessions needs board, list or record\n'); return 2; }
+  if (cmd === 'sessions' && arg === 'list') {
+    const runs = byRun(await scanSessions(ctx)).filter((x) => o.run === undefined || x.run === o.run);
+    if (o.run !== undefined && !runs.length) { out.write(`no sessions of run ${o.run}\n`); return 1; }
+    const line = (x) => `${x.sessions} session${x.sessions === 1 ? '' : 's'}, ${x.costUSD == null ? 'cost not recorded' : `$${x.costUSD.toFixed(2)}`}, ${x.tokens} tokens`;
+    for (const x of runs) {
+      out.write(`run ${x.run ?? 'not recorded'}: ${line(x)}\n`);
+      if (o.run !== undefined) for (const t of x.tasks) out.write(`  task ${t.task ?? 'not recorded'}: ${line(t)}\n`);
+    }
+    if (!runs.length) out.write('no orchestrated sessions\n');
+    return 0;
+  }
   if (cmd === 'sessions' && arg === 'board') {
     out.write('Reading the transcripts; the first run reads all of them, later runs only new or changed ones.\n');
     const rows = await scanSessions(ctx, { ledger: true, onNote: (n) => out.write(`${n}\n`) });

@@ -149,7 +149,7 @@ function readPluginState(ctx, a, account) {
 
 // Claude Code keeps one plugin cache per config folder (CLAUDE_CONFIG_DIR), so each registered host account has its own copy of a
 // plugin, and the default-folder steps of the global plan never reach it. These are the accounts whose folder exists and is not the
-// default folder (a registered path that resolves to ~/.claude, a link included, is the default one).
+// default folder (a registered path that resolves to the default one, a link included, is that folder).
 export function claudeAccounts(ctx) {
   const real = (p) => { try { return realpathSync(p); } catch { return p; } };
   const def = real(join(ctx.home, '.claude'));

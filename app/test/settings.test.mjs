@@ -263,7 +263,10 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
   assert.deepEqual(keys(found(on, 'linux', have('socat'))), ['bubblewrap']);
   assert.deepEqual(keys(found(on, 'linux', have('bwrap'))), ['socat']);
   assert.deepEqual(keys(found(on, 'linux', have())), ['bubblewrap', 'socat']);
-  assert.deepEqual(found({ sandbox: { ...on.sandbox, bwrapPath: '/opt/bwrap', socatPath: '/opt/socat' } }, 'linux', have()), [], 'a configured path replaces the PATH lookup');
+  assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, bwrapPath: '/opt/bwrap', socatPath: '/opt/socat' } }, 'linux', have())), ['bubblewrap', 'socat'], 'Claude Code ignores the path keys outside managed settings');
+  write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, JSON.stringify({ sandbox: { bwrapPath: '/opt/bwrap', socatPath: '/opt/socat' } }));
+  assert.deepEqual(found(on, 'linux', have()), [], 'a managed path replaces the PATH lookup');
+  write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, '{}');
   assert.deepEqual(keys(found({}, 'linux', have())), ['sandbox.allowUnsandboxedCommands', 'sandbox.enabled'], 'a missing program matters only while the sandbox is on');
   assert.deepEqual(found(on, 'darwin', have()), [], 'macOS needs neither');
   // Native Windows: unsupported, information, never a warning, whatever the settings say.
@@ -271,7 +274,7 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
     const win = found(settings, 'win32', have());
     assert.equal(win.length, 1);
     assert.equal(win[0].level, 'info');
-    assert.match(win[0].message, /unsupported on native Windows/);
+    assert.match(win[0].message, /unsupported on native Windows.*failIfUnavailable true Claude Code exits at startup/);
   }
   // Layers: the highest wins (a local file turns the user's sandbox off); a file that cannot be read may hold the keys: no guess.
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));

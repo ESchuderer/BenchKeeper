@@ -231,8 +231,8 @@ function holds(c, state, agentId) {
     // What follows the anchor must be the folder itself, bare or followed by /* or /**: a rule for one file in it, for .ssh-backup or for work/.ssh does not count.
     return COUPLINGS.credentialDirs.some((d) => !reads.some((r) => new RegExp(`^${d.slice(1).replaceAll('.', '\\.')}(/\\*{1,2})?$`).test(r)));
   }
-  // The settings may name the program's path; then the PATH is not looked at.
-  if (c.op === 'toolMissing') return lookup(state, agentId, c.setting).length === 0 && !state.has(c.tool);
+  // Claude Code honors the program's path setting from managed settings only; then the PATH is not looked at. shortcut: the path is not checked to name an executable, add it if a stale managed path matters.
+  if (c.op === 'toolMissing') return lookup(state, agentId, c.setting, ['managed']).length === 0 && !state.has(c.tool);
   // shortcut: the lists of all layers, not the managed-only switch; add it if allowManagedDomainsOnly matters.
   if (c.op === 'allowlistEmpty') return lookup(state, agentId, 'sandbox.network.allowedDomains').flat().length === 0;
   if (c.op === 'effortDiffers') {

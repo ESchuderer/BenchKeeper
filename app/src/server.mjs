@@ -19,6 +19,8 @@ import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { contentDir, appVersion } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
+import { collectInsights } from './insights.mjs';
+import { readTriage, setTriage, withTriage } from './triage.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
 import { blob } from './git.mjs';
@@ -472,6 +474,12 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       return projectChecks(ctx, dir);
     },
+    // The findings of `insights --json` with their triage (dismissed, snoozed until a date); a triage click does not scan again.
+    'GET /api/insights': async () => {
+      const found = await cached('insights', () => collectInsights(ctx, { agents: installed() }));
+      return { ...found, findings: withTriage(found.findings, readTriage(ctx)) };
+    },
+    'POST /api/insights-triage': (b) => input(() => setTriage(ctx, b.key, b.action)),
     'POST /api/pick-folder': () => pickFolder(ctx),
     // Opens a registered project in the file manager.
     'POST /api/reveal': (b) => {

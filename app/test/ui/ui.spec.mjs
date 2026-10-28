@@ -12,7 +12,7 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Evals', 'Agent settings', 'Rules', 'Extensions', 'Accounts', 'Settings'];
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Insights', 'Evals', 'Agent settings', 'Rules', 'Extensions', 'Accounts', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -373,6 +373,42 @@ test.describe('views', () => {
     await doctor.getByRole('row', { name: /Claude Code rules/ }).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
+  });
+
+  test('Insights: Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
+    await nav(page, 'Insights').click();
+    const card = (re) => page.getByRole('article', { name: re });
+    const advisor = card(/The advisor stays off/), deny = card(/No Read deny rule/), scrub = card(/SUBPROCESS_ENV_SCRUB/);
+    // The seeded dismissal belongs to other evidence and the seeded snooze has ended: both findings show.
+    await expect(deny).toBeVisible();
+    await expect(scrub).toBeVisible();
+    await expect(deny.getByRole('link', { name: 'Apply' })).toHaveAttribute('href', /^#\/agent-settings/);
+    await expect(deny).toContainText('permissions.deny');
+    await noAxe(page);
+    await card(/not installed: Claude Code plugin/).first().getByRole('link', { name: 'Apply' }).click();
+    await expect(page).toHaveURL(/#\/agents\?plan=1$/);
+    await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
+    await nav(page, 'Insights').click();
+    await advisor.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(advisor).toHaveCount(0);
+    await scrub.getByRole('button', { name: 'Snooze 7 days' }).click();
+    await expect(scrub).toHaveCount(0);
+    await page.reload();
+    await expect(deny).toBeVisible();
+    await expect(advisor).toHaveCount(0);
+    await expect(scrub).toHaveCount(0);
+    const hidden = page.getByRole('region', { name: 'Hidden findings' });
+    await hidden.getByRole('button', { name: 'Hidden (2)' }).click();
+    const week = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    await expect(hidden).toContainText('Dismissed');
+    await expect(hidden).toContainText(`Snoozed until ${week}`);
+    await noAxe(page);
+    await hidden.getByRole('button', { name: 'Show again' }).first().click();
+    await expect(advisor.or(scrub)).toHaveCount(1);
+    await hidden.getByRole('button', { name: 'Show again' }).click();
+    await expect(hidden).toHaveCount(0);
+    await expect(advisor).toBeVisible();
+    await expect(scrub).toBeVisible();
   });
 
   test('Stop: the header button asks first; Cancel keeps the server running', async ({ page }) => {

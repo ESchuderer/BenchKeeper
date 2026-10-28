@@ -22,6 +22,9 @@ const KEYS = ['check', 'message', 'dir', 'file', 'line', 'scope', 'rule', 'repos
 const tokensOf = (text) => Math.ceil(frontMatter(text.replaceAll('\r\n', '\n')).length / 4);
 // The project's folder name; the full path never leaves the scan.
 const folderOf = (path) => path.split(/[\\/]/).filter(Boolean).at(-1);
+// What a triage entry is tied to: the finding id and a digest of the set its evidence names (the failed sessions, the unused
+// skills, a doctor finding's keys), not the counters that change with every session. A changed set is a new key.
+export const findingKey = (f) => `${f.id}@${hash(JSON.stringify(f.evidence.sessionIds ?? f.evidence.skills?.map((s) => `${s.scope}:${s.name}`) ?? f.evidence))}`;
 const evidenceOf = (f) => Object.fromEntries(KEYS.filter((k) => f[k] !== undefined).map((k) => [k, f[k]]));
 
 // state: { sessions: rows of scanSessions, skills: [{ name, scope, tokens }] installed, doctorFindings }. Only Claude Code sessions count: the installed skills are Claude Code's.

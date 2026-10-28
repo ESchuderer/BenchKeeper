@@ -38,7 +38,7 @@ function install(w, id = ID1) {
 
 test('install creates the automation disabled in the project folder and records the runner id, parameters and version', (t) => {
   // A token in the environment the runner gets must not reach the registry or the plan.
-  const token = 'ghp_0123456789abcdefghijklmnopqrstuvwxyzAB';
+  const token = 'value-that-must-not-leak-7a3b';
   process.env.GH_TOKEN = token;
   t.after(() => { delete process.env.GH_TOKEN; });
   const w = world();

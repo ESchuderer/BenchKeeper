@@ -107,7 +107,7 @@ export function lint(t, { generic = true, privateNames = [] } = {}) {
   }
   if (generic) {
     const meta = Object.values(t.parameters).flatMap((p) => [p.description, p.default ?? '']);
-    const all = [t.title, t.prompt, t.precheck, ...meta, ...files.map((f) => f.text ?? '')].join('\n');
+    const all = [t.id, t.title, t.prompt, t.precheck, ...meta, ...files.flatMap((f) => [f.path, f.text ?? ''])].join('\n');
     if (HOME_PATH.test(all)) bad('private', 'a home, mount or drive path: use $HOME or a parameter');
     for (const n of privateNames) if (new RegExp(`(?<!\\w)${re(n)}(?!\\w)`, 'i').test(all)) bad('private', `the private name "${n}"`);
   }

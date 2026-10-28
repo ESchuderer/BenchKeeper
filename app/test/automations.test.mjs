@@ -89,6 +89,11 @@ test('lint rule private: paths and given names fail the generic tier only', () =
   const param = (line) => tier(template().replace('description = "The repository."', line));
   assert.deepEqual(problems(param(`description = "The repository."\ndefault = "${abs('home', 'alice')}/repo"`)), ['private'], 'a path in a default');
   assert.deepEqual(problems(param('description = "Repository of acme-internal."'), { privateNames: ['acme-internal'] }), ['private'], 'a name in a description');
+  const shipped = (id, helpers) => parse(`+++\nid = "${id}"\ntitle = "T"\nagent = "claude"\nprecheck = "true"\nhelpers = [${helpers}]\n+++\nBody {{mode}}.\n`);
+  const named_by = (t) => lint(t, { privateNames: ['acme'] }).filter((p) => p.rule === 'private').length;
+  assert.equal(named_by(shipped('acme', '')), 1, 'the shipped file is named by the id');
+  assert.equal(named_by(shipped('other', '"other/acme.sh"')), 1, 'a helper path');
+  assert.equal(named_by(shipped('other', '"other/run.sh"')), 0);
   const user = check(machine(), { tiers: [['user', tier(template({}, body))]], privateNames: ['x'] });
   assert.deepEqual(user, [], 'the user tier may name its own paths');
 });

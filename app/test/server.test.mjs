@@ -832,13 +832,13 @@ test('runs: a run with its tasks, worktree, branch and cost, the last setup chan
 test('runs: without the IDE its runs are null and it is asked nothing more; the Settings page routes run no command', async () => {
   const asked = [];
   const gone = missing();
-  const { routes } = fixture((argv, o) => { asked.push(argv.join(' ')); return argv[0] === 'orca' ? gone.ctx.run(argv, o) : null; });
+  const { routes } = fixture((argv, o) => { asked.push(argv.join(' ')); return /orca/.test(argv[0]) ? gone.ctx.run(argv, o) : null; });
   routes['GET /api/tier-band']();
   routes['GET /api/sessions-cache']();
   assert.deepEqual(asked, []);
   const r = await routes['GET /api/runs']();
   assert.deepEqual([r.runs, r.setup, r.ide.runs], [[], [], null]);
-  assert.deepEqual(asked.filter((c) => c.startsWith('orca')), ['orca --version']);
+  assert.deepEqual(asked.filter((c) => /orca/.test(c)).map((c) => c.replace(/^\/\S*\//, '')), ['orca --version', 'orca-ide --version', 'orca --version']);
 });
 
 test('the tier strip switch: off by default; on and off are plans in the Claude Code user settings, and off can be undone', async () => {

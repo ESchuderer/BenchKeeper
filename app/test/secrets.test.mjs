@@ -108,7 +108,7 @@ test('global skills come from the default branch, run without lifecycle scripts,
   const run = (argv, o) => {
     seen.push({ argv, env: o?.env });
     if (argv[0] === 'npx') { mkdirSync(join(home, '.claude/skills/find-skills'), { recursive: true }); writeFileSync(join(home, '.claude/skills/find-skills/SKILL.md'), '# x\n'); writeFileSync(join(home, '.agents/.skill-lock.json'), '{"find-skills":1}\n'); }
-    return { code: argv[0] === 'orca' || argv[0] === 'devcontainer' ? 127 : 0, stdout: '', stderr: '' };
+    return { code: /orca/.test(argv[0]) || argv[0] === 'devcontainer' ? 127 : 0, stdout: '', stderr: '' };
   };
   mkdirSync(join(home, '.claude'), { recursive: true });
   mkdirSync(join(home, '.agents'), { recursive: true });

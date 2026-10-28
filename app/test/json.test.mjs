@@ -133,14 +133,14 @@ test('--json: the read-only list commands print their documented keys and no val
     assert.ok(rules.agents[0].rows.some((r) => r.path === join(dir, 'CLAUDE.md') && r.tokens > 0 && !('text' in r)));
     assert.deepEqual((await shape(['rules', 'list', '--agent', 'codex'], 'rules list', ['dir', 'agents'])).agents.map((a) => a.id), ['codex']);
 
-    const list = await shape(['settings', 'list', '--project', dir], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes']);
+    const list = await shape(['settings', 'list', '--project', dir], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes', 'dismissed']);
     assert.equal(list.agent, 'claude');
     assert.ok(list.settings.length > 0 && list.layers.some((l) => l.error === 'the file does not parse'));
-    const advanced = await shape(['settings', 'list', '--advanced'], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes', 'advanced', 'outside', 'env']);
+    const advanced = await shape(['settings', 'list', '--advanced'], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes', 'dismissed', 'advanced', 'outside', 'env']);
     assert.deepEqual(advanced.env.map((e) => [e.name, e.layer, 'value' in e]), [['DISABLE_TELEMETRY', 'user', false]]);
     const switchKey = await shape(['settings', 'get', 'env.DISABLE_TELEMETRY'], 'settings get', ['agent', 'setting']);
     assert.ok(switchKey.setting.sets.length === 1 && !('value' in switchKey.setting.sets[0]));
-    await shape(['settings', 'list', '--agent', 'codex'], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes', 'trust']);
+    await shape(['settings', 'list', '--agent', 'codex'], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes', 'dismissed', 'trust']);
     const get = await shape(['settings', 'get', list.settings[0].key], 'settings get', ['agent', 'setting']);
     assert.equal(get.setting.key, list.settings[0].key);
 

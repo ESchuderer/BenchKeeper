@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { doctor } from '../src/doctor.mjs';
-import { installed, OBSERVED, runs, unobserved } from '../src/orca/index.mjs';
+import { bin, createArgv, installed, notInstalled, OBSERVED, runs, unobserved } from '../src/orca/index.mjs';
 import { fake, missing, RECORDED, replies, RUN_LIST, taskListArgv, WATCHDOG_MS } from './fakes/orca.mjs';
 
 const MARK = 'RECORDED-TEXT-NOT-FOR-VIEWS';
@@ -38,7 +38,7 @@ test('hang: the watchdog stops a command that never ends, and the read fails fas
   const t0 = Date.now();
   assert.equal(await runs(ctx), null);
   assert.ok(Date.now() - t0 < WATCHDOG_MS + 2e3, `took ${Date.now() - t0} ms`);
-  assert.deepEqual(calls(), [RUN_LIST]);
+  assert.deepEqual(calls(), [['--version'], RUN_LIST]);
 });
 
 test('parked prompt: a command that waits for an answer gets none and fails; nothing waits on it', guard, async () => {
@@ -46,7 +46,7 @@ test('parked prompt: a command that waits for an answer gets none and fails; not
   const t0 = Date.now();
   assert.equal(await runs(ctx), null);
   assert.ok(Date.now() - t0 < WATCHDOG_MS, 'the prompt read the end of its input instead of waiting for the watchdog');
-  assert.deepEqual(calls(), [RUN_LIST]);
+  assert.deepEqual(calls(), [['--version'], RUN_LIST]);
 });
 
 test('retry: a task list that fails once costs that run its counts; the next read has them', guard, async () => {
@@ -69,14 +69,14 @@ test('resume: resolving the gate changes the fake\'s state; the next read shows 
   assert.equal(ctx.run(['orca', ...resolve]).code, 0);
   const [r] = await runs(ctx);
   assert.deepEqual([r.updated, r.states], ['2026-10-28T14:00:00Z', { dispatched: 1 }]);
-  assert.deepEqual(calls(), [RUN_LIST, taskListArgv(A), resolve, RUN_LIST, taskListArgv(A)]);
+  assert.deepEqual(calls(), [['--version'], RUN_LIST, taskListArgv(A), resolve, RUN_LIST, taskListArgv(A)]);
 });
 
 test('a failing command: an exit code, the recorded error envelope or output that is no JSON reads as no runs', guard, async () => {
   for (const change of [{ code: 3, stdout: '', stderr: 'no runtime\n' }, { code: 1, stdout: RECORDED.error }, { code: 0, stdout: RECORDED.error }, { code: 0, stdout: 'not json' }]) {
     const { ctx, calls } = fake({ replies: replace(replies(), RUN_LIST, change) });
     assert.equal(await runs(ctx), null, JSON.stringify(change));
-    assert.deepEqual(calls(), [RUN_LIST], 'no task list is read without runs');
+    assert.deepEqual(calls(), [['--version'], RUN_LIST], 'no task list is read without runs');
   }
   const { ctx, calls } = fake({ replies: replies() });
   assert.equal(ctx.run(['orca', 'orchestration', 'nonexistent']).code, 2);
@@ -90,8 +90,31 @@ test('a missing binary: not installed, no runs, and doctor stays quiet about its
   assert.equal(unobserved(ctx), null);
 });
 
+test('the CLI: orca, else orca-ide, else the shim in its config folder, asked once per context; every call uses the one found', async () => {
+  const SHIM = '/h/.config/orca/linux-orca-cli-shim/orca';
+  const at = (have) => {
+    const asked = [];
+    return { asked, home: '/h', run: (argv) => { asked.push(argv[0]); return { code: have.includes(argv[0]) ? 0 : 127, stdout: argv[1] === '--version' ? '2.0.0\n' : '{"ok":true,"result":{"runs":[]}}', stderr: '' }; } };
+  };
+  const f = { name: 'n', schedule: 'hourly', prompt: 'p', agent: 'claude', workspace: 'project', dir: '/p' };
+  for (const [have, found, probes] of [[['orca', 'orca-ide'], 'orca', ['orca']], [['orca-ide'], 'orca-ide', ['orca', 'orca-ide']], [[SHIM], SHIM, ['orca', 'orca-ide', SHIM]]]) {
+    const ctx = at(have);
+    assert.equal(installed(ctx), true);
+    assert.equal(bin(ctx), found);
+    assert.match(unobserved(ctx).message, /^Orca 2\.0\.0 /);
+    assert.equal(createArgv(ctx, f)[0], found);
+    assert.deepEqual(await runs(ctx), []);
+    assert.deepEqual(ctx.asked, [...probes, found], have.join());
+  }
+  const none = at([]);
+  assert.equal(installed(none), false);
+  assert.equal(unobserved(none), null);
+  assert.match(notInstalled(none), /none of orca, orca-ide, \/h\/\.config\/orca\/linux-orca-cli-shim\/orca answered --version; put orca-ide on the PATH/);
+  assert.deepEqual(none.asked, ['orca', 'orca-ide', SHIM, 'orca', 'orca-ide', SHIM], 'a miss is asked again');
+});
+
 test('doctor warns on a major version the adapter was not observed with, and only then', () => {
-  const at = (stdout, code = 0) => ({ run: () => ({ code, stdout, stderr: '' }) });
+  const at = (stdout, code = 0) => ({ home: '/nonexistent', run: () => ({ code, stdout, stderr: '' }) });
   assert.equal(unobserved(at(`${OBSERVED}\n`)), null);
   assert.equal(unobserved(at('1.9.0\n')), null);
   assert.equal(unobserved(at('not a version')), null);

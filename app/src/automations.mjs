@@ -234,7 +234,7 @@ function runnerResult(r) {
   if (!a.automation) throw new Error(a.error);
   return a.automation;
 }
-const needRunner = (ctx) => { if (!orca.installed(ctx)) throw new Error(`${orca.NAME} is not installed: the automations runner is its CLI`); };
+const needRunner = (ctx) => { if (!orca.installed(ctx)) throw new Error(`${orca.notInstalled(ctx)} (the automations runner is its CLI)`); };
 
 // Install: the runner creates it disabled, then the registry records its id. A record whose automation the runner no
 // longer has is replaced.
@@ -246,8 +246,8 @@ export function installChanges(ctx, id, { values = {}, dir }) {
   const step = `automation:${id}`;
   return [
     ...helperChanges(ctx, t, step, step),
-    { id: `${step}:runner`, step, unit: step, title: `${orca.NAME} automation ${t.title}, disabled`, kind: 'command', argv: orca.createArgv(f),
-      outcome: (r) => { const a = runnerResult(r); return { result: a, undoArgv: orca.removeArgv(a.id) }; } },
+    { id: `${step}:runner`, step, unit: step, title: `${orca.NAME} automation ${t.title}, disabled`, kind: 'command', argv: orca.createArgv(ctx, f),
+      outcome: (r) => { const a = runnerResult(r); return { result: a, undoArgv: orca.removeArgv(ctx, a.id) }; } },
     recordChange(ctx, step, step, id, (made) => ({ tier: t.tier, version: version(f), values: all, dir: f.dir, runner: orca.RUNNER, runnerId: made?.id ?? '(the id the runner gives)',
       spec: f, installed: made ? reported(made) : reported(f), time: made ? new Date().toISOString() : '(now)' })),
   ];
@@ -256,7 +256,7 @@ export function installChanges(ctx, id, { values = {}, dir }) {
 // The runner's automation as the fields specText shows, and what it holds now: { now, note }. A schedule the runner keeps
 // in its own form (RRULE) shows as the template's while it is unchanged since install.
 function onRunner(ctx, rec) {
-  if (!orca.installed(ctx)) return { note: `${orca.NAME} is not installed` };
+  if (!orca.installed(ctx)) return { note: orca.notInstalled(ctx) };
   const s = orca.showAutomation(ctx, rec.runnerId);
   if (!s.automation) return { note: s.removed ? `${orca.NAME} no longer has it` : s.error, removed: s.removed };
   const a = s.automation;
@@ -281,8 +281,8 @@ export function updateChanges(ctx, id) {
   const t = template(ctx, id), step = `automation:${id}`;
   return [
     ...helperChanges(ctx, t, step, step),
-    { id: `${step}:runner`, step, unit: step, title: `${orca.NAME} automation ${t.title}: the template's fields`, kind: 'command', argv: orca.editArgv(rec.runnerId, f), diff,
-      undoArgv: orca.editArgv(rec.runnerId, runner.now), outcome: (r) => ({ result: runnerResult(r) }) },
+    { id: `${step}:runner`, step, unit: step, title: `${orca.NAME} automation ${t.title}: the template's fields`, kind: 'command', argv: orca.editArgv(ctx, rec.runnerId, f), diff,
+      undoArgv: orca.editArgv(ctx, rec.runnerId, runner.now), outcome: (r) => ({ result: runnerResult(r) }) },
     recordChange(ctx, step, step, id, (made) => ({ ...rec, tier: t.tier, version: version(f), spec: f, installed: made ? reported(made) : reported(f), time: made ? new Date().toISOString() : '(now)' })),
   ];
 }
@@ -294,7 +294,7 @@ export function removeChanges(ctx, id) {
   needRunner(ctx);
   const step = `automation:${id}`, gone = orca.showAutomation(ctx, rec.runnerId).removed;
   return [
-    ...(gone ? [] : [{ id: `${step}:runner`, step, unit: step, title: `remove the ${orca.NAME} automation ${rec.spec.name} and its run history (disabling it in ${orca.NAME} keeps the history)`, kind: 'command', argv: orca.removeArgv(rec.runnerId),
+    ...(gone ? [] : [{ id: `${step}:runner`, step, unit: step, title: `remove the ${orca.NAME} automation ${rec.spec.name} and its run history (disabling it in ${orca.NAME} keeps the history)`, kind: 'command', argv: orca.removeArgv(ctx, rec.runnerId),
       destructive: true, selected: true, undoNote: `${orca.NAME} removed the automation with its run history: benchkeeper automations install ${id} creates it again` }]),
     { id: `${step}:registry`, step, unit: step, title: `remove ${id} from ${registryFile(ctx)}`, kind: 'write', path: registryFile(ctx), edit: (text) => withRecord(text, id, null) },
     ...(exists(helperDir(ctx, id)) ? [{ id: `${step}:helpers`, step, unit: step, title: `the precheck helpers of ${id}`, kind: 'remove', path: helperDir(ctx, id), selected: true }] : []),
@@ -326,7 +326,7 @@ export function automationStatus(ctx) {
 // The runner's last run of an installed automation that was not skipped, and how many runs it skipped since (of its newest
 // 20): { last: { status, trigger, at } | null, skipped, note }. A runner that keeps no history or cannot be read gives a note.
 export function automationRuns(ctx, rec) {
-  if (!orca.installed(ctx)) return { last: null, skipped: 0, note: `${orca.NAME} is not installed` };
+  if (!orca.installed(ctx)) return { last: null, skipped: 0, note: orca.notInstalled(ctx) };
   const r = orca.automationRuns(ctx, rec.runnerId);
   if (r.error) return { last: null, skipped: 0, note: r.error };
   const at = r.runs.findIndex((x) => !x.status.startsWith('skipped'));
@@ -370,7 +370,7 @@ export function automationsView(ctx) {
   const keys = ['tier', 'title', 'agent', 'schedule', 'workspace', 'precheck', 'mode', 'parameters', 'prompt'];
   const ids = [...new Set([...templates.map((t) => t.id), ...Object.keys(registry)])];
   return {
-    runner: { name: orca.NAME, installed: runner },
+    runner: { name: orca.NAME, installed: runner, ...(runner ? {} : { note: orca.notInstalled(ctx) }) },
     errors,
     automations: ids.map((id) => {
       const t = templates.find((x) => x.id === id), rec = registry[id];

@@ -121,6 +121,7 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.deepEqual(st.hooks.PostToolUse, []);
   assert.equal(st.model, 'opusplan');
   assert.deepEqual(st.attribution, { commit: '', pr: '', sessionUrl: false });
+  assert.equal(st.remoteControlAtStartup, undefined, 'Remote Control is opt-in');
   assert.ok(st.cleanupPeriodDays === 14 && st.autoUpdatesChannel === 'stable' && st.env.DISABLE_FEEDBACK_COMMAND === '1' && st.env.CLAUDE_CODE_SUBAGENT_MODEL === 'sonnet');
   assert.equal(st.autoCompactWindow, 400000);
   assert.equal(st.pluginConfigs['benchkeeper@benchkeeper'].options.tierBand, true);

@@ -6,6 +6,7 @@ import { Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { MIN_SAMPLES, collectInsights, insights } from '../src/insights.mjs';
+import { narrativeInput } from '../src/narrative.mjs';
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { writeSessions } from './fixtures/sessions.mjs';
@@ -62,6 +63,31 @@ test('friction: nothing below the threshold, without a failed last run, for Orca
   assert.equal(insights({ sessions: [...mixed, ...project(1, failing)] }).findings[0].evidence.sessions, 20);
   const two = insights({ sessions: [...project(MIN_SAMPLES, failing), ...project(MIN_SAMPLES, failing, '/work/blog'), { id: 'x', project: null, tests: 'fail', prs: [] }] });
   assert.deepEqual(two.findings.map((f) => f.evidence.project).sort(), ['blog', 'shop']);
+});
+
+test('skill proposals: turn off what the project sessions did not use, add what a matched pack brings, update what is behind', () => {
+  const dir = '/work/my shop';
+  const p = { dir, skills: [{ name: 'used', state: 'current' }, { name: 'idle', state: 'current' }, { name: 'named', state: 'current' }, { name: 'off', state: 'disabled' }, { name: 'gone', state: 'removed' }, { name: 'old', state: 'outdated' }], keep: ['named'], add: ['a11y', 'ui'], packs: ['frontend'] };
+  const inProject = sessions(MIN_SAMPLES, ['used', 'old']).map((s) => ({ ...s, dir: `${dir}/app` }));
+  const r = insights({ sessions: inProject, projects: [p] });
+  const by = Object.fromEntries(r.findings.map((f) => [f.id.split(':')[0], f]));
+  assert.deepEqual(Object.keys(by).sort(), ['skill-add', 'skill-disable', 'skill-update']);
+  assert.ok(r.findings.every((f) => f.signal === 'skills' && f.severity === 'info' && f.evidence.dir === dir));
+  assert.deepEqual(by['skill-disable'].evidence.skills, [{ name: 'idle', scope: 'my shop' }]);
+  assert.equal(by['skill-disable'].fix, 'benchkeeper skills disable idle --project "/work/my shop"');
+  assert.match(by['skill-disable'].message, /^1 skill of my shop not used in any of its last 20 sessions: idle$/);
+  assert.equal(by['skill-add'].fix, 'benchkeeper skills add a11y ui --project "/work/my shop"');
+  assert.deepEqual([by['skill-add'].evidence.action, by['skill-add'].evidence.packs], ['pick', ['frontend']]);
+  assert.equal(by['skill-update'].fix, 'benchkeeper skills update old --project "/work/my shop"');
+  // The narrative gets the folder name, never the path the fix needs.
+  assert.ok(!JSON.stringify(narrativeInput(r, r.findings)).includes('/work'));
+});
+
+test('skill proposals: no remove below the threshold of the project sessions, sessions of another project do not count', () => {
+  const p = { dir: '/work/shop', skills: [{ name: 'idle', state: 'current' }], keep: [], add: [], packs: [] };
+  const elsewhere = sessions(MIN_SAMPLES).map((s) => ({ ...s, dir: '/work/shopping' }));
+  assert.deepEqual(ids(insights({ sessions: elsewhere, projects: [p] })), []);
+  assert.deepEqual(ids(insights({ sessions: elsewhere.slice(1).map((s) => ({ ...s, dir: '/work/shop' })), projects: [p] })), []);
 });
 
 test('hygiene and freshness: the doctor findings are split, each fact appears once', () => {

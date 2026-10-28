@@ -108,12 +108,13 @@ Usage: benchkeeper <command> [options]
                                     switches packs on top of the current state, as a plan with a diff (undo restores it):
                                     a project's packs (default: the current folder), or the plugins of a pack that
                                     installs one (--global). Disabling removes the skills no other pack or single pick needs
-  skills [list|update|reset|remove|adopt|enable|disable] [name..] [--project dir] [--yes]
+  skills [list|update|reset|remove|adopt|add|enable|disable] [name..] [--project dir] [--yes]
                                     skills of a project: state (current, outdated, modified, removed, disabled), the commit
                                     installed and the one the library offers, and folders no setup installed (untracked,
                                     never touched). update: to the library's copy (no name: every outdated one); reset: a
                                     skill edited here goes back to the library's (the edit is backed up, the diff shown);
                                     remove: a single pick leaves the project; adopt: an untracked library skill becomes a pick;
+                                    add: a library skill the project lacks becomes a pick (names required);
                                     disable moves a skill to .benchkeeper/disabled/, enable moves it back (names required)
   skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
   projects [list|add <dir>..|scan <root>|remove <dir>..]
@@ -632,8 +633,8 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
 }
 
-const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'enable', 'disable'];
-// skills list|update|reset|remove|adopt|enable|disable: the Catalog's skill management, through the same plan, diff and undo.
+const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'];
+// skills list|update|reset|remove|adopt|add|enable|disable: the Catalog's skill management, through the same plan, diff and undo.
 async function skillsCommand(ctx, { o, positionals, out, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');
@@ -648,9 +649,9 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
     return 0;
   }
   if (!rows) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b\n`); return 1; }
-  if (['enable', 'disable'].includes(sub) && !names.length) { out.write(`skills ${sub} needs a skill name\n`); return 2; }
+  if (['add', 'enable', 'disable'].includes(sub) && !names.length) { out.write(`skills ${sub} needs a skill name\n`); return 2; }
   let action;
-  try { action = skillAction(rows, sub, names); } catch (e) { out.write(`${e.message}\n`); return 1; }
+  try { action = skillAction(rows, sub, names, libraryWith(ctx)); } catch (e) { out.write(`${e.message}\n`); return 1; }
   if (!action.names.length) { out.write('nothing to change\n'); return 0; }
   return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, { ...action.answers, focus: action.names, partial: true }));
 }

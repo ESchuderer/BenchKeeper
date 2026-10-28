@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { fixAction } from './fix.jsx';
 import { CancelJob, Cli, useJob } from './parts.jsx';
 import { Dot, Loading, Note, href, useApi } from './shell.jsx';
+import { ActionPlan } from './skillstates.jsx';
 
 const SEVERITY_COLOR = { error: 'red', warning: 'yellow', info: 'blue' };
 const SHOWN = 10;
@@ -23,9 +24,13 @@ function Evidence({ finding: { evidence: e } }) {
   );
 }
 
-function Card({ finding: f, busy, onTriage }) {
+// A skill proposal opens the plan of its project with the same switches as the Catalog; nothing is written before that plan is applied.
+const proposal = (f) => f.evidence.action && { dir: f.evidence.dir, title: f.message, params: f.evidence.skills.flatMap((s) => [[f.evidence.action, s.name], ['focus', s.name]]) };
+
+function Card({ finding: f, busy, onTriage, onPlan }) {
   // The doctor's finding shape decides whether the setup can fix it, as in the Dashboard.
   const action = fixAction({ ...f.evidence, message: f.message, fix: f.fix });
+  const plan = proposal(f);
   return (
     <Paper component="article" withBorder p="md" aria-labelledby={`finding-${f.key}`}>
       <Stack gap="sm">
@@ -35,9 +40,10 @@ function Card({ finding: f, busy, onTriage }) {
         </Group>
         <Title order={3} size="h5" id={`finding-${f.key}`}>{f.message}</Title>
         <Evidence finding={f} />
-        {!(action && f.fix.startsWith('benchkeeper ')) && <Text size="sm">{f.fix}</Text>}
+        {!((action || plan) && f.fix.startsWith('benchkeeper ')) && <Text size="sm">{f.fix}</Text>}
         <Group gap="xs">
           {action && <Button component="a" href={action[0]} size="xs">Apply</Button>}
+          {plan && <Button size="xs" onClick={() => onPlan(plan)}>Plan</Button>}
           <Button size="xs" variant="default" disabled={busy} onClick={() => onTriage(f, 'dismiss')}>Dismiss</Button>
           <Button size="xs" variant="default" disabled={busy} onClick={() => onTriage(f, 'snooze')}>Snooze 7 days</Button>
         </Group>
@@ -143,6 +149,7 @@ export function Insights() {
   const [hiddenOpen, setHiddenOpen] = useState(false);
   // Counts the saved triage clicks: the narrative covers the findings shown, so it reads its input again after each.
   const [rev, setRev] = useState(0);
+  const [act, setAct] = useState(null);
   const triage = (f, action) => {
     setBusy(f.key); setError(null);
     api('/api/insights-triage', { key: f.key, action }).then((r) => { setLocal((l) => ({ ...l, [r.key]: r.triage })); setRev((n) => n + 1); }, (e) => setError(e.message)).finally(() => setBusy(null));
@@ -159,7 +166,7 @@ export function Insights() {
               {error && <Note color="red" title="Not saved">{error}</Note>}
               {samples.sessions < samples.minSamples && <Text size="sm">{samples.sessions} Claude Code sessions in the last 90 days: the unused-skills signal needs {samples.minSamples}, and friction needs {samples.minSamples} in one project.</Text>}
               <Narrative rev={rev} />
-              {shown.length ? shown.map((f) => <Card key={f.key} finding={f} busy={busy === f.key} onTriage={triage} />) : <Text>No findings.</Text>}
+              {shown.length ? shown.map((f) => <Card key={f.key} finding={f} busy={busy === f.key} onTriage={triage} onPlan={setAct} />) : <Text>No findings.</Text>}
               {hidden.length > 0 && (
                 <Stack gap="sm" component="section" aria-label="Hidden findings">
                   <div><Button variant="default" size="xs" aria-expanded={hiddenOpen} aria-controls="hidden-findings" onClick={() => setHiddenOpen(!hiddenOpen)}>Hidden ({hidden.length})</Button></div>
@@ -179,6 +186,7 @@ export function Insights() {
           );
         }}
       </Loading>
+      <ActionPlan act={act} onClose={() => { setAct(null); state.reload(); }} />
       <Cli>{'benchkeeper insights --json [--project <dir>] [--agents <a,b>] [--narrative --agent <claude|codex> [--yes]]'}</Cli>
     </Stack>
   );

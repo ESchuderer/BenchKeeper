@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -48,9 +49,41 @@ test('help and unknown commands', async () => {
 test('board writes the sessions page for this user only', async () => {
   const c = cli();
   writeSessions(c.home);
-  assert.equal(await c.exec(['board', '--no-open']), 0);
+  assert.equal(await c.exec(['sessions', 'board', '--no-open']), 0);
   const file = join(c.home, '.config/benchkeeper/board.html');
   assert.match(c.text(), /3 sessions: .*board\.html/);
   assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.match(readFileSync(file, 'utf8'), /"id":"c1"/);
+});
+
+test('the old command names are unknown and the removed skill flags are refused', async () => {
+  for (const old of [['project', 'plan'], ['update-all'], ['test'], ['board'], ['record'], ['eval'], ['case', 'add'], ['maintain', 'knowledge', 'show']]) {
+    const c = cli();
+    assert.equal(await c.exec(old), 2, old.join(' '));
+    assert.match(c.text(), /unknown command/, old.join(' '));
+  }
+  await assert.rejects(cli().exec(['projects', 'apply', '--disable', 'x']), /Unknown option '--disable'/);
+  await assert.rejects(cli().exec(['projects', 'apply', '--enable', 'x']), /Unknown option '--enable'/);
+});
+
+test('sessions record runs the command after -- and records its files; sessions without a subcommand is a usage error', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-rec-'));
+  const git = (...a) => execFileSync('git', ['-C', dir, ...a], { stdio: 'pipe' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 't');
+  writeFileSync(join(dir, 'README.md'), '# P\n');
+  git('add', '-A');
+  git('commit', '-qm', 'init');
+  // The default runner: the recording needs real git and a real process.
+  const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-rec-home-')) });
+  const exec = async (args) => { let text = ''; const code = await main(args, { out: new Writable({ write(c, _, done) { text += c; done(); } }), ctx, input: Readable.from(['']) }); return { code, text }; };
+  let o = await exec(['sessions', 'record', '--project', dir, '--', 'sh', '-c', 'echo x > n']);
+  assert.equal(o.code, 0, o.text);
+  assert.match(o.text, /session exit 0, 1 files changed/);
+  assert.equal(readFileSync(join(dir, 'n'), 'utf8'), 'x\n');
+  o = await exec(['sessions', 'record', '--project', dir]);
+  assert.deepEqual([o.code, /sessions record needs the agent command after --/.test(o.text)], [2, true]);
+  o = await exec(['sessions']);
+  assert.deepEqual([o.code, /sessions needs board or record/.test(o.text)], [2, true]);
 });

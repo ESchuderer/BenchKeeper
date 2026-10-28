@@ -105,7 +105,7 @@ test('local: two projects in one repository keep their own exclude blocks; a dro
 test('a recorded session in a local setup holds the skills git ignores, so undo restores them', () => {
   const r = repo();
   apply(preview(plan(r, { agents: ['claude'], env: 'host-agent' }).changes), r.ctx, { scope: r.dir });
-  // The setup session installs a stack skill, then project apply lists it in the exclude block (skills-lock.json).
+  // The setup session installs a stack skill, then projects apply lists it in the exclude block (skills-lock.json).
   recordSession(r.ctx, r.dir, ['sh', '-c', 'mkdir -p .claude/skills/stack && echo s > .claude/skills/stack/SKILL.md && echo \'{"skills":{"stack":{}}}\' > skills-lock.json']);
   apply(preview(plan(r, {}).changes), r.ctx, { scope: r.dir });
   assert.match(read(join(r.dir, '.git/info/exclude')), /\n\/\.claude\/skills\/stack\/\n/);

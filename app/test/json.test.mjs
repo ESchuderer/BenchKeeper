@@ -54,11 +54,11 @@ test('--json: every listed command prints one document with schemaVersion and th
     assert.ok(doctor.summary.error >= 1 && doctor.summary.warning >= 1);
     assert.deepEqual(doctor.findings.find((f) => f.check === 'instructions'), { level: 'error', check: 'instructions', message: '.claude/rules/r.md:2 imports gone.md, which does not exist', fix: doctor.findings.find((f) => f.check === 'instructions').fix, file: '.claude/rules/r.md', line: 2 });
     assert.ok(doctor.findings.some((f) => f.check === 'allow-rules' && f.rule === 'Bash(python *)'));
-    const test_ = await shape(['test', '--agents', 'claude'], 1, 'test', ['ok', 'checks']);
+    const test_ = await shape(['verify', '--agents', 'claude'], 1, 'verify', ['ok', 'checks']);
     assert.ok(test_.checks.every((c) => typeof c.name === 'string' && Array.isArray(c.problems)));
     const plan = await shape(['plan', '--agents', 'claude'], 0, 'plan', ['agents', 'level', 'changes']);
     assert.ok(plan.changes.length > 0 && plan.changes.every((c) => c.id && c.title && !('diff' in c)));
-    const project = await shape(['project', 'plan', dir, '--agents', 'claude'], 0, 'project plan', ['dir', 'changes', 'skills', 'warnings']);
+    const project = await shape(['projects', 'plan', dir, '--agents', 'claude'], 0, 'projects plan', ['dir', 'changes', 'skills', 'warnings']);
     assert.ok(project.changes.length > 0);
     await shape(['history'], 0, 'history', ['runs', 'backups']);
     assert.deepEqual((await shape(['projects', 'list'], 0, 'projects list', ['projects'])).projects.map((p) => p.path), [dir]);
@@ -95,7 +95,7 @@ test('--json: a clean doctor exits 0; usage failures exit 2 with an error docume
     assert.match(r.doc.error, /has no projects list/);
   }
   assert.match(bad.doc.error, /nope/);
-  for (const [args, message] of [[['plan', '--agents', 'claude', '--level', 'nope'], /--level must be one of/], [['doctor', '--baseline', 'x'], /--baseline must be/], [['plan'], /no agent found/], [['project', 'apply'], /--json works with project plan/], [['apply'], /--json works with/], [['packs', 'save'], /--json works with/]]) {
+  for (const [args, message] of [[['plan', '--agents', 'claude', '--level', 'nope'], /--level must be one of/], [['doctor', '--baseline', 'x'], /--baseline must be/], [['plan'], /no agent found/], [['projects', 'apply'], /--json works with/], [['apply'], /--json works with/], [['packs', 'save'], /--json works with/]]) {
     const r = await run(ctx, [...args, '--json']);
     assert.equal(r.code, 2, args.join(' '));
     assert.match(r.doc.error, message);
@@ -124,7 +124,7 @@ test('--json: the read-only list commands print their documented keys and no val
     // Nothing is written by a list command, so no run enters the ledger.
     const none = await shape(['skills', 'list', '--project', dir, '--agents', 'claude'], 'skills list', ['dir', 'hasSetup', 'skills', 'untracked', 'globalUntracked']);
     assert.deepEqual([none.dir, none.hasSetup, none.skills], [dir, false, []]);
-    assert.equal(await main(['project', 'apply', dir, '--agents', 'claude', '--skill', 'frontend-design', '--yes'], { out: new Writable({ write(_c, _e, d) { d(); } }), err: new Writable({ write(_c, _e, d) { d(); } }), ctx }), 0);
+    assert.equal(await main(['projects', 'apply', dir, '--agents', 'claude', '--skill', 'frontend-design', '--yes'], { out: new Writable({ write(_c, _e, d) { d(); } }), err: new Writable({ write(_c, _e, d) { d(); } }), ctx }), 0);
     const skills = await shape(['skills', '--project', dir, '--agents', 'claude'], 'skills list', ['dir', 'hasSetup', 'skills', 'untracked', 'globalUntracked']);
     assert.ok(skills.hasSetup && skills.skills.some((s) => s.name === 'frontend-design' && s.state && s.single));
 
@@ -151,7 +151,7 @@ test('--json: the read-only list commands print their documented keys and no val
     const scan = await shape(['projects', 'scan', dir], 'projects scan', ['root', 'found']);
     assert.deepEqual([scan.root, scan.found], [dir, [{ path: dir, registered: true }]]);
 
-    const board = await shape(['board'], 'board', ['sessions']);
+    const board = await shape(['sessions', 'board'], 'sessions board', ['sessions']);
     assert.ok(board.sessions.length > 0 && board.sessions.every((s) => s.agent && s.start && !('title' in s)));
     assert.ok(!JSON.stringify(board).includes('onerror'));
 
@@ -177,7 +177,7 @@ test('--json: an invalid argument to a list command exits 2 with an error docume
     [['skills', 'list', 'extra'], 'skills list', /unexpected argument extra/],
     [['rules', 'list', 'extra'], 'rules list', /unexpected argument extra/],
     [['frameworks', 'list', 'extra'], 'frameworks list', /unexpected argument extra/],
-    [['board', 'extra'], 'board', /unexpected argument extra/],
+    [['sessions', 'board', 'extra'], 'sessions board', /unexpected argument extra/],
     [['projects', 'list', 'extra'], 'projects list', /unexpected argument extra/],
     [['packs', 'list', 'extra'], 'packs list', /unexpected argument extra/],
     [['frameworks', 'nope'], 'frameworks nope', /--json works with/],

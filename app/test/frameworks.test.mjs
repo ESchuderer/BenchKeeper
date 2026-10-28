@@ -271,11 +271,11 @@ test('CLI and server: the list shows the evidence, --framework and --agent-file 
   assert.match(s.text(), /superpowers\s+owner\s+plugin\s+Superpowers[^\n]*cost higher in every with\/without test but one[^\n]*evaluations\/workflow-frameworks\/superpowers\.md/);
   assert.match(s.text(), /--agent-file engineering\/engineering-frontend-developer\.md: A web UI is built or changed/);
   const t = sink();
-  const code = await main(['project', 'apply', r.dir, '--agents', 'claude', '--env', 'host', '--framework', 'agency-agents', '--agent-file', FILE, '--yes'], { out: t.out, ctx: r.ctx, input: Readable.from(['']) });
+  const code = await main(['projects', 'apply', r.dir, '--agents', 'claude', '--env', 'host', '--framework', 'agency-agents', '--agent-file', FILE, '--yes'], { out: t.out, ctx: r.ctx, input: Readable.from(['']) });
   assert.equal(code, 0, t.text());
   assert.deepEqual(readState(r.dir).frameworks, ['agency-agents']);
   const u = sink();
-  assert.equal(await main(['project', 'apply', r.dir, '--framework', 'none', '--yes'], { out: u.out, ctx: r.ctx, input: Readable.from(['']) }), 0, u.text());
+  assert.equal(await main(['projects', 'apply', r.dir, '--framework', 'none', '--yes'], { out: u.out, ctx: r.ctx, input: Readable.from(['']) }), 0, u.text());
   assert.equal(readState(r.dir).frameworks, undefined);
   assert.ok(!existsSync(join(r.dir, AGENT)));
   const routes = api({ ...r.ctx, run: (argv, o) => (argv.join(' ') === 'claude --version' ? { code: 0, stdout: '2.1.0 (Claude Code)', stderr: '' } : r.ctx.run(argv, o)) });

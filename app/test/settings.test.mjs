@@ -436,6 +436,11 @@ test('Doctor: the advisor rank sees a [1m] model id, and a pinned Sonnet 4.5 or 
   assert.match(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/, 'the default for new sessions');
   assert.match(messages({}, { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'opusplan' }).join(), /Microsoft Foundry/, 'the default for new sessions, from the process environment');
   assert.deepEqual(messages({ model: 'sonnet', env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the alias is pinned by the user');
+  assert.match(messages({ env: FOUNDRY }).join(), /Microsoft Foundry/, 'no model selector: the Foundry default is Sonnet 4.5');
+  assert.match(messages({ model: 'default', env: FOUNDRY }).join(), /Microsoft Foundry/);
+  assert.deepEqual(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the default is pinned by the user');
+  assert.deepEqual(messages({ model: 'claude-opus-4-6', env: FOUNDRY }), [], 'a named model replaces the default');
+  assert.deepEqual(messages({}), [], 'no Foundry, no model selector');
   assert.deepEqual(messages({ model: 'sonnet' }), [], 'not on Foundry');
   assert.deepEqual(messages({ model: 'claude-sonnet-5-5', env: FOUNDRY }), []);
 });

@@ -17,7 +17,7 @@ const SRT_SPEC = `@anthropic-ai/sandbox-runtime@npm:@anthropic-ai/sandbox-runtim
 export const srtVerify = () => verifyArgv(`@anthropic-ai/sandbox-runtime@${SRT_VERSION}`);
 
 const isFile = (p) => { try { accessSync(p, constants.X_OK); return true; } catch { return false; } };
-const onPath = (bin) => (process.env.PATH ?? '').split(delimiter).filter(Boolean).some((d) => isFile(join(d, bin)));
+export const onPath = (bin) => (process.env.PATH ?? '').split(delimiter).filter(Boolean).some((d) => isFile(join(d, bin)));
 // srt needs Node 22.12 (its engines field).
 const nodeOk = (v) => { const [a, b] = v.split('.').map(Number); return a > 22 || (a === 22 && b >= 12); };
 

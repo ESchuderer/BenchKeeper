@@ -26,7 +26,7 @@ function Source({ path }: { path: string }) {
 
 export default function OverviewPage({ base }: { base: string }) {
   return (
-    <BenchShell base={base} bench={false}>
+    <BenchShell base={base}>
       <Stack gap={56}>
         <Stack gap="xs" maw={720}>
           <Title order={1} fz={{ base: 34, md: 44 }}>{overview.title}</Title>

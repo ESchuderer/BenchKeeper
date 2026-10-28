@@ -21,7 +21,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](docs/setup.
 npx benchkeeper@6.25.0
 ```
 
-Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
+Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.
 
 ### CLI
 
@@ -39,7 +39,7 @@ Asks per change. `--yes` applies the default selection without questions.
 
 After either path, restart the agents. `npx benchkeeper@6.25.0 history` lists what changed, `npx benchkeeper@6.25.0 undo <run>` reverses a run.
 
-[Lite level, the plugin alone](docs/setup.md#levels). [Full setup description](docs/setup.md#setup-details).
+[Lite level, the plugin alone](docs/setup.md#levels). [Full setup description](docs/setup.md#setup-details). [What the app writes and what it never does](docs/setup.md#what-the-app-writes-and-what-it-never-does).
 <!-- /generated:quickstart -->
 
 If `npx` cannot find that version, run the app from a clone: [steps](docs/setup.md#setup-details). Linux and macOS are tested. Windows runs only a CI smoke test.
@@ -62,7 +62,7 @@ Fix everything shows each file change as a diff and each command as its command 
 - [Stack](docs/stack.md): components, repository map, how the stack was chosen, optional tools
 - [App reference](app/README.md): every command and the web UI
 - [Automations](docs/automations.md): scheduled agent runs from templates, installed disabled on the runner from the app or the CLI, with the catalogue, the file format and the lint rules
-- [Benchmarks](https://github.com/ESchuderer/BenchKeeper-research#recorded-results): scenarios, reports and per-trial results of the shared brownfield task (BenchKeeper-research)
+- [Evaluations](https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md): the evidence for each component BenchKeeper ships or left out, kept in BenchKeeper-research
 - [Security notes](docs/security.md) and [how to report a vulnerability](SECURITY.md)
 - [Changelog](CHANGELOG.md) and [issues](https://github.com/ESchuderer/BenchKeeper/issues)
 

@@ -229,7 +229,6 @@ const isExecutable = (p) => {
   try { if (!isAbsolute(p)) return false; accessSync(p, constants.X_OK); return statSync(p).isFile(); } catch { return false; }
 };
 function holds(c, state, agentId) {
-  if (c.keys) return c.keys.some((key) => holds({ ...c, keys: undefined, key }, state, agentId));
   if (c.all) return c.all.every((x) => holds(x, state, agentId));
   if (c.any) return c.any.some((x) => holds(x, state, agentId));
   if (c.not) return !holds(c.not, state, agentId);
@@ -266,7 +265,6 @@ function holds(c, state, agentId) {
     if (c.set) return true;
     if ('eq' in c) return v === c.eq;
     if (c.in) return c.in.includes(v);
-    if (c.match) return [v].flat().some((x) => typeof x === 'string' && new RegExp(c.match).test(x));
     if ('lt' in c) return typeof v === 'number' && v < c.lt;
     if (c.falsy) return v === '0' || v === 0 || v === false || /^false$/i.test(String(v));
     // A switch that counts any value as set, versus a plain boolean that 0 and false turn off.

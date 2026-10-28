@@ -1,4 +1,4 @@
-// Checks one recorded run of the orchestrating-projects scenario (evaluations/practices/orchestrating-projects.md).
+// Checks one recorded run of the orchestrating-projects scenario (https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/practices/orchestrating-projects.md).
 // Usage: node .github/scripts/orchestration-log.mjs <events.jsonl>   exit 1 when a check fails.
 // An event: { project, actor: "coordinator"|"worker", kind: "start"|"settled"|"merge"|"release"|"worktree_remove"|"user_turn"|"command", issue?, outcome?: "done"|"blocked"|"failed", text? }
 import { readFileSync } from 'node:fs';

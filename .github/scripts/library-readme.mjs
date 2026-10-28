@@ -48,12 +48,12 @@ export function render(manifest) {
   }
   out.push('', '## Frameworks', '', 'The frameworks project setup offers (`--framework <id>`): workflow systems that own how work is planned and run. At most one per project, and BenchKeeper\'s own workflow skill gives way in it. Evidence per framework: its evaluation file.', '');
   out.push(row(['Framework', 'Installs', 'Evaluation']), row(['---', '---', '---']));
-  for (const f of manifest.frameworks ?? []) out.push(row([`\`${f.id}\``, `plugin \`${f.install.plugin}\` for the project only${f.limits ? `. ${f.limits}` : ''}`, `[${f.evaluation.split('/').pop()}](../../../${f.evaluation})`]));
+  for (const f of manifest.frameworks ?? []) out.push(row([`\`${f.id}\``, `plugin \`${f.install.plugin}\` for the project only${f.limits ? `. ${f.limits}` : ''}`, `[${f.evaluation.split('/').pop()}](${f.evaluation})`]));
   out.push('', '## Sources', '', 'Agent files a project picks one by one (`--agent-file <path>`), fetched at a pinned commit.', '');
   out.push(row(['Source', 'Agent files', 'Evaluation']), row(['---', '---', '---']));
   for (const f of manifest.sources ?? []) {
     const i = f.install;
-    out.push(row([`\`${f.id}\``, `\`${i.source}\` at \`${i.ref.slice(0, 12)}\`: ${code(i.files.map((x) => x.path.split('/').pop().replace(/\.md$/, '')))}${f.limits ? `. ${f.limits}` : ''}`, `[${f.evaluation.split('/').pop()}](../../../${f.evaluation})`]));
+    out.push(row([`\`${f.id}\``, `\`${i.source}\` at \`${i.ref.slice(0, 12)}\`: ${code(i.files.map((x) => x.path.split('/').pop().replace(/\.md$/, '')))}${f.limits ? `. ${f.limits}` : ''}`, `[${f.evaluation.split('/').pop()}](${f.evaluation})`]));
   }
   return out.join('\n');
 }

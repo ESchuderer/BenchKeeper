@@ -32,6 +32,12 @@ await new Promise((ok, fail) => {
 const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 // [file name, steps that bring the app to the pictured state, what to cut out: a locator, or the whole window]
 const VIEWS = [
+  // The Dashboard as the app opens: the setup flow and the one-run buttons.
+  ['start', async () => {}],
+  ['onerun', async (page) => {
+    await page.getByRole('group', { name: 'One-run setup' }).getByRole('button', { name: 'Set up everything' }).click();
+    await expect(page.getByRole('dialog', { name: 'One-run setup' })).toBeVisible();
+  }],
   // Scrolled to Health: the flow boxes above it are four numbers, the health, coverage and catalog figures are the view.
   ['dashboard', async (page) => { await page.getByRole('region', { name: 'Health' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); }); }],
   // A taller window: the table is longer than 900 pixels and the sticky header would cover its title.
@@ -60,7 +66,15 @@ const VIEWS = [
     const board = page.frameLocator('iframe[title="Sessions board"]');
     await board.getByLabel('Period').selectOption('all');
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Fix the cart total');
+    await board.getByRole('button', { name: /^All projects/ }).click();
   }],
+  // Scrolled to Skill states: the library list above it is the same on every machine.
+  ['skills', async (page) => {
+    await nav(page, 'Catalog').click();
+    await page.getByRole('table', { name: 'Skill states' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -200); });
+  }],
+  ['rules', async (page) => { await nav(page, 'Rules').click(); }],
+  ['settings', async (page) => { await nav(page, 'Agent settings').click(); }],
   ['history', async (page) => {
     await nav(page, 'History').click();
     await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: /^Apply: global setup/ }).first().click();

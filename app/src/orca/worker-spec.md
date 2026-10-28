@@ -33,9 +33,10 @@ Observable acceptance: <the test, output or evidence that proves completion>
 
 Authority: agent <agent>, model <model or agent default>, effort <effort or agent default>, permission mode the agent's default. You may create the branch above, commit changes to the owned paths, run the checks, push that branch, and open or update its draft pull request. You may not merge, force-push, stash, reset, clean, push another branch or change a path outside Ownership.
 Steps: implement, run the checks, review the diff before pushing (one correctness pass against Change and Observable acceptance, fixes made once; full tier more rounds), commit, push, open the draft pull request, wait for its checks once. The coordinator marks it ready.
-Acknowledge: send one heartbeat as your first action.
+Acknowledge: send one heartbeat as your first action, and more heartbeats during long work. Ask a blocking question with `ORCA orchestration ask`, never a local prompt.
+Checkpoints: set the worktree's status and a one-line comment with ids and states only at start (`ORCA worktree set --worktree active --workspace-status in-progress --comment "..." --json`), when the draft pull request is open (`in-review`) and when done (`completed`). Read the current comment first (`ORCA worktree current --json`) and keep what is still valid, so context a person wrote there survives.
 Outcome: DONE (`worker_done --outcome succeeded`), BLOCKED (`--outcome failed`, subject starts `BLOCKED:`; a hook refused, a credential is missing, a dialog needs a person, a check fails for a cause you cannot fix) or NEEDS_REPLAN (`--outcome failed`, subject starts `NEEDS_REPLAN:`; this spec does not fit the work). Never bypass a hook and never answer a trust dialog.
-Report: the body in three sentences (what you did, what you found, what is left); the handoff block in .benchkeeper/handoff.md of your worktree, passed with `--report-path` (in the body when `git check-ignore -q .benchkeeper/handoff.md` fails):
+Report: one `worker_done` with `--outcome`, sent exactly once, also on failure; the body in three sentences (what you did, what you found, what is left); the handoff block in .benchkeeper/handoff.md of your worktree, passed with `--report-path` (in the body when `git check-ignore -q .benchkeeper/handoff.md` fails):
   Outcome: <DONE|BLOCKED|NEEDS_REPLAN>
   What changed: <pull request, commits, files>
   Checks and results: <each command and its result>

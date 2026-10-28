@@ -133,7 +133,7 @@ The frameworks project setup offers (`--framework <id>`): workflow systems that 
 
 | Framework | Installs | Evaluation |
 | --- | --- | --- |
-| `superpowers` | plugin `superpowers@claude-plugins-official` for the project only. Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project. | [superpowers.md](../../../evaluations/workflow-frameworks/superpowers.md) |
+| `superpowers` | plugin `superpowers@claude-plugins-official` for the project only. Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project. | [superpowers.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/superpowers.md) |
 
 ## Sources
 
@@ -141,5 +141,5 @@ Agent files a project picks one by one (`--agent-file <path>`), fetched at a pin
 
 | Source | Agent files | Evaluation |
 | --- | --- | --- |
-| `agency-agents` | `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run. | [agency-agents.md](../../../evaluations/workflow-frameworks/agency-agents.md) |
+| `agency-agents` | `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run. | [agency-agents.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md) |
 <!-- /generated:catalog -->

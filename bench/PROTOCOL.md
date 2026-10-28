@@ -230,4 +230,4 @@ Purpose: one small task per phase on which a skill of that phase should change t
 
 ## Site (`web/src/pages/bench/`)
 
-- The summary page `/bench/` is built from `bench/results/` (`web/scripts/bench-data.mjs`): per run the setup, the arms of each runtime ranked by review overall, then features, robustness and fewer minutes, key findings and the report link, and per brief the top 10 trials by final score. It shows no cost figures and no list of excluded components. Those stay in the reports and `evaluations/`.
+- The summary page `/bench/` is built from `bench/results/` (`web/scripts/bench-data.mjs`): per run the setup, the arms of each runtime ranked by review overall, then features, robustness and fewer minutes, key findings and the report link, and per brief the top 10 trials by final score. It shows no cost figures and no list of excluded components. Those stay in the reports and in the evaluations in BenchKeeper-research.

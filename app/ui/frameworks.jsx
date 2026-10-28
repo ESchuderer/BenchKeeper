@@ -1,7 +1,5 @@
 import { Anchor, Badge, Checkbox, Group, Paper, Stack, Text } from '@mantine/core';
 
-const REPO = 'https://github.com/ESchuderer/BenchKeeper/blob/main/';
-
 // What one install writes, as the list and the plan name it.
 const WRITES = { plugin: 'a Claude Code plugin enabled for this project only', agents: 'agent files in the project, fetched at a pinned commit' };
 
@@ -9,7 +7,7 @@ function Evidence({ f }) {
   return (
     <Stack gap={2}>
       <Text size="xs">{f.verdict} {f.hooks} Installs {WRITES[f.kind]}.{f.limits ? ` ${f.limits}` : ''}</Text>
-      <Text size="xs"><Anchor href={`${REPO}${f.evaluation}`} target="_blank" rel="noreferrer" underline="always">Evaluation</Anchor>, {f.license}, {f.pin}</Text>
+      <Text size="xs"><Anchor href={f.evaluation} target="_blank" rel="noreferrer" underline="always">Evaluation</Anchor>, {f.license}, {f.pin}</Text>
     </Stack>
   );
 }

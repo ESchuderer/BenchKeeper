@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // Recorded history and benchmark arms keep the versions they name; skill text under plugins/ names the major (npx benchkeeper@6), not a pin.
-export const SKIP = /^(bench\/|evaluations\/|EVALUATIONS\.md|CHANGELOG\.md|app\/test\/|plugins\/)|package-lock\.json$/;
+export const SKIP = /^(bench\/|evaluations\/|CHANGELOG\.md|app\/test\/|plugins\/)|package-lock\.json$/;
 
 export function pins(text, version) {
   return text

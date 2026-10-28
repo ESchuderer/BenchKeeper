@@ -17,10 +17,10 @@ Not measured. Trigger rate of `benchkeeper:workflow` with no rule line: unverifi
   2. Log in there with the subscription (not an API key).
   3. `HOME=$SCRATCH CLAUDE_CONFIG_DIR=$SCRATCH/.claude npx benchkeeper@<version> evals run --target skill:workflow --model sonnet --all --yes`
   4. Repeat with the rule line present (`apply --level full`, then projects apply) as the baseline; compare miss rate and false trigger rate.
-- Record here: agent and model versions, cases, sessions per case, miss rate and false trigger rate for both arms. 13 cases at one session each is a signal, not a measurement (see the rules in [EVALUATIONS.md](../../EVALUATIONS.md#rules)).
+- Record here: agent and model versions, cases, sessions per case, miss rate and false trigger rate for both arms. 13 cases at one session each is a signal, not a measurement (see the rules in [EVALUATIONS.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md#rules)).
 
 ## Decision
 
 Lite ships as a level, `apply` plans the level found on the machine and `full` on a machine without BenchKeeper, so no default depends on this number. Until the rate is recorded, the docs say lite relies on the skill description and nothing promises it triggers.
 
-[All evaluations](../../EVALUATIONS.md)
+[All evaluations](https://github.com/ESchuderer/BenchKeeper-research/blob/main/EVALUATIONS.md)

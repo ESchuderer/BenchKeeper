@@ -98,7 +98,7 @@ test('the dev container wrapper and the worktree files: offered by what the proj
   const dc = shown.find((c) => c.step === 'dc'), files = shown.filter((c) => c.step === 'worktrees');
   assert.ok(dc.selected && dc.title.startsWith('scripts/dc:'));
   assert.deepEqual(files.map((c) => [basename(c.path), c.selected]), [['orca.yaml', false], ['.worktreeinclude', false]]);
-  assert.match(files[0].after, /\n {4}devcontainer up --workspace-folder \. && scripts\/dc npm ci\n/);
+  assert.match(files[0].after, /\n {4}scripts\/dc up && scripts\/dc npm ci\n/);
   assert.match(files[0].title, /setup hook: npm ci \(package-lock\.json\), through scripts\/dc/);
   for (const p of ['CLAUDE.local.md', '.benchkeeper', 'scripts/dc', 'orca.yaml']) assert.ok(files[1].after.split('\n').includes(p), p);
   assert.match(shown.find((c) => c.step === 'local-claude').diff, /scripts\/dc <command>/);
@@ -146,13 +146,28 @@ test('scripts/dc runs the command in the dev container of its checkout with each
   mkdirSync(join(r.dir, '.devcontainer'));
   const shown = preview(plan(r, { agents: ['claude'], env: 'host-agent' }).changes);
   apply(shown, r.ctx, { scope: r.dir, select: shown.filter((c) => c.step === 'dc').map((c) => c.id) });
-  // A devcontainer stub that prints each argument on a line of its own.
+  // A devcontainer stub that prints the compose project name, then each argument on a line of its own.
   const bin = mkdtempSync(join(TMP, 'bk-bin-'));
-  writeFileSync(join(bin, 'devcontainer'), '#!/bin/sh\nfor a in "$@"; do printf \'%s\\n\' "$a"; done\n');
+  writeFileSync(join(bin, 'devcontainer'), '#!/bin/sh\nprintf \'%s\\n\' "$COMPOSE_PROJECT_NAME"; for a in "$@"; do printf \'%s\\n\' "$a"; done\n');
   chmodSync(join(bin, 'devcontainer'), 0o755);
   mkdirSync(join(r.dir, 'web'));
-  const out = execFileSync(join(r.dir, 'scripts/dc'), ['sh', '-lc', "cd web && echo 'a  b' *"], { cwd: join(r.dir, 'web'), env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } }).toString();
-  assert.equal(out, `exec\n--workspace-folder\n${r.dir}\nsh\n-lc\ncd web && echo 'a  b' *\n`);
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+  delete env.COMPOSE_PROJECT_NAME;
+  const dc = (args, e = env) => execFileSync(join(r.dir, 'scripts/dc'), args, { cwd: join(r.dir, 'web'), env: e }).toString().split('\n');
+  const [name, ...out] = dc(['sh', '-lc', "cd web && echo 'a  b' *"]);
+  assert.deepEqual(out, ['exec', '--workspace-folder', r.dir, 'sh', '-lc', "cd web && echo 'a  b' *", '']);
+  // Named after the folder and its path: a clone at another path with the same folder name gets another name.
+  assert.match(name, new RegExp(`^\\d+-${basename(r.dir).toLowerCase().replace(/[^a-z0-9_-]/g, '')}$`));
+  const twin = join(mkdtempSync(join(TMP, 'bk-twin-')), basename(r.dir), 'scripts');
+  mkdirSync(twin, { recursive: true });
+  writeFileSync(join(twin, 'dc'), read(join(r.dir, 'scripts/dc')), { mode: 0o755 });
+  const twinName = execFileSync(join(twin, 'dc'), ['true'], { env }).toString().split('\n')[0];
+  assert.ok(twinName !== name && twinName.endsWith(name.replace(/^\d+/, '')), twinName);
+  assert.deepEqual(dc(['up', '--log-level', 'info']), [name, 'up', '--workspace-folder', r.dir, '--log-level', 'info', '']);
+  // A name the user set is kept.
+  assert.equal(dc(['true'], { ...env, COMPOSE_PROJECT_NAME: 'mine' })[0], 'mine');
+  writeFileSync(join(r.dir, '.devcontainer/.env'), 'COMPOSE_PROJECT_NAME=fromenv\n');
+  assert.equal(dc(['true'])[0], '');
 });
 
 test('local: two projects in one repository keep their own exclude blocks; a dropped agent loses its local file; a committed setup is refused', () => {

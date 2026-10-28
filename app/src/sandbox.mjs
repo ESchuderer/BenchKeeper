@@ -44,7 +44,7 @@ const SECRET_PATHS = ['.ssh', '.aws', '.gnupg', '.azure', '.kube', '.docker', '.
 // Registry hosts of an npm settings text and of the registry variable: the hosts srt lets the command reach besides the defaults.
 const hostOf = (u) => { try { return new URL(u.trim()).hostname; } catch { return null; } };
 export const registryHosts = (npmrc, env) => [...new Set([
-  ...(npmrc ?? '').split('\n').map((l) => /^\s*(@[^:\s]+:)?registry\s*=\s*(\S+)/.exec(l)?.[2]).filter(Boolean).map(hostOf),
+  ...(npmrc ?? '').split('\n').map((l) => l.match(/^\s*(@[^:\s]+:)?registry\s*=\s*(\S+)/)?.[2]).filter(Boolean).map(hostOf),
   ...Object.entries(env).filter(([k, v]) => /^npm_config_registry$/i.test(k) && v).map(([, v]) => hostOf(v)),
 ].filter(Boolean))];
 

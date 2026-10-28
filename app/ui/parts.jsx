@@ -99,7 +99,7 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
       {prerun && !prerun.asked && (
         <Group gap="xs">
           <Button size="xs" variant="default" onClick={prerun.start}>Preview the files the skill installs write</Button>
-          <Text size="sm">Runs the install in a scratch folder, in an OS sandbox where one starts: it downloads and runs third-party code.</Text>
+          <Text size="sm">Runs the install in a scratch folder: it downloads and runs third-party code.</Text>
         </Group>
       )}
       {prerun?.asked && !prerun.unconfined && Object.values(prerun.state?.results ?? {}).some((r) => r.unavailable) && (

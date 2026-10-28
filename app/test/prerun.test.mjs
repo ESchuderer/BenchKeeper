@@ -217,7 +217,7 @@ test('prerun: where no sandbox exists there is no preview; only the caller askin
   assert.equal(anyway.error, null);
   assert.equal(anyway.sandbox, 'none');
   assert.deepEqual(calls.map((c) => c.argv), [GLOBAL.argv], 'the plain command, once');
-  assert.equal(calls[0].env.npm_config_cache, join(home, '.npm'), 'without a sandbox the cache is the user\'s');
+  assert.equal(calls[0].env.npm_config_cache, process.env.npm_config_cache ?? join(home, '.npm'), 'without a sandbox the cache is the user\'s');
 });
 
 test('prerun: where srt cannot run, bubblewrap or sandbox-exec confine the writes and the result says the network was open', async () => {

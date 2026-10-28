@@ -409,6 +409,23 @@ test('status: a version 1 state kept in the registry is read as version 2 and be
   assert.deepEqual([s.setupVersion, s.checkout, s.origin], ['5.9.0', '5.9.0', 'origin/main']);
 });
 
+test('a state kept in the registry above schema 2 stops the project in Update all and shows in status; it does not fall back to origin', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const other = project(h);
+  p.git('rm', '-q', STATE);
+  p.git('commit', '-qm', 'drop state');
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ schemaVersion: 1, projects: [{ path: canon(p.dir), added: '2026-01-01T00:00:00.000Z', state: { schemaVersion: 3, appVersion: '9.0.0', contentVersion: '9.0.0', agents: ['claude'] } }, { path: canon(other.dir), added: '2026-01-01T00:00:00.000Z' }] }));
+  assert.match(status(ctx, p.dir).error, /schemaVersion 3, this benchkeeper reads up to 2/);
+  const [bad, good] = updateAll(ctx, { paths: [p.dir, other.dir], push: false });
+  assert.equal(bad.status, 'stopped');
+  assert.match(bad.reason, /schemaVersion 3/);
+  assert.notEqual(good.status, 'stopped', good.reason);
+  assert.ok(!existsSync(join(p.dir, STATE)));
+});
+
 test('projects unshare: a pull request without the committed setup; the checkout stays as it is until the pull, then Update all writes the local setup from the kept answers', async () => {
   const h = home();
   const p = project(h);

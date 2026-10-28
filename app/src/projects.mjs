@@ -56,10 +56,13 @@ function save(ctx, projects) {
 // The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the
 // project has its own again (local, untracked).
 // Normalized like a state file: an earlier app kept version 1.
-const kept = (ctx, path) => {
+// Throws for a state this app cannot read (schemaVersion above 2), so a batch stops that project instead of using an older setup from origin.
+const keptStrict = (ctx, path) => {
   const s = listProjects(ctx).find((p) => p.path === canon(path))?.state;
-  try { return s ? normalizeState(s) : null; } catch { return null; }
+  try { return s ? normalizeState(s) : null; } catch (e) { throw new Error(`the setup kept for ${canon(path)}: ${e.message}`); }
 };
+// For listings: an unreadable kept state counts as none.
+const kept = (ctx, path) => { try { return keptStrict(ctx, path); } catch { return null; } };
 // A registered project's answers: its state file, or the one kept after a removal pull request.
 export const projectState = (ctx, path) => tryState(path) ?? kept(ctx, path);
 function keepState(ctx, dir, state) {
@@ -269,7 +272,7 @@ export function status(ctx, path) {
   let local = null, error = null;
   try { local = readState(path); } catch (e) { error = e.message; }
   const own = local;
-  local ??= kept(ctx, path);
+  if (!local) try { local = keptStrict(ctx, path); } catch (e) { error ??= e.message; }
   const { state, checkout, origin } = setupOf(ctx, path, local);
   const repo = isRepo(ctx, path);
   const branch = repo ? git(ctx, path, ['branch', '--show-current']).stdout.trim() : null;
@@ -296,7 +299,7 @@ export const MAX_PROJECTS = 25;
 // checkout; a shared one lands on branch chore/agent-setup-<version> with one commit and a pull request.
 // The setup that counts for a project says whether it is shared: the checkout's, the one kept from a removal pull request,
 // or origin's.
-const setupFor = (ctx, path, local = readState(path)) => local ?? kept(ctx, path) ?? (isRepo(ctx, path) ? setupOf(ctx, path, local).state : null);
+const setupFor = (ctx, path, local = readState(path)) => local ?? keptStrict(ctx, path) ?? (isRepo(ctx, path) ? setupOf(ctx, path, local).state : null);
 // The paths a pushed run would push: a GitHub origin and a pull request (a shared setup, or a committed one that goes local).
 // A local setup is applied in the checkout and pushes nothing.
 export const pushTargets = (ctx, paths, answers = {}) => paths.filter((p) => {

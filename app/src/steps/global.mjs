@@ -158,12 +158,16 @@ export function claudeAccounts(ctx) {
 }
 
 // The BenchKeeper plugin of an agent: the installed version (null when not installed) and the one this app sets up.
-// claude also lists the registered accounts with their own installed version.
+// claude also lists the registered accounts with their own installed version, and the marketplace ref when it is not stable.
 export function benchkeeperPlugin(ctx, a) {
   const p = PLUGINS[a].find((x) => x.id === 'benchkeeper@benchkeeper');
   const available = pin(p, ctx.appVersion).version;
   const installedIn = (account) => pluginState(ctx, a, account).listed.find((x) => x.id === p.id)?.version ?? null;
-  return { installed: installedIn(), available, ...(a === 'claude' ? { accounts: claudeAccounts(ctx).map((x) => ({ name: x.name, installed: installedIn(x), behind: behind(installedIn(x), available) })) } : {}) };
+  const account = (x) => {
+    const ref = pluginState(ctx, a, x).refs?.[p.marketplace];
+    return { name: x.name, installed: installedIn(x), behind: behind(installedIn(x), available), ...(ref && ref !== p.ref ? { ref } : {}) };
+  };
+  return { installed: installedIn(), available, ...(a === 'claude' ? { accounts: claudeAccounts(ctx).map(account) } : {}) };
 }
 
 // The first installed BenchKeeper plugin whose content needs a newer app than this one, as a message; null when none does.
@@ -301,8 +305,8 @@ export function globalPlan(env) {
       // The runner changes only what lies under its roots (the home folder): a folder elsewhere is updated by hand.
       if (!inside(acc.dir, ctx.roots)) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the folder of account ${acc.name} lies outside ${ctx.roots.join(', ')}, which the app does not change: run claude plugin update --scope user ${own.id} with CLAUDE_CONFIG_DIR set to it` }); continue; }
       const ref = state.refs?.[own.marketplace];
-      // A marketplace on another ref does not move when refreshed, and moving it removes the plugin's data: by hand, never by the app.
-      if (ref && ref !== own.ref) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the marketplace ${own.marketplace} of account ${acc.name} is at ${ref}, not ${own.ref}, so a refresh does not move the plugin: remove it, add it again at ${own.ref} and install the plugin again (removing deletes the plugin's options and data)` }); continue; }
+      // A marketplace on another ref does not move when refreshed, and moving it removes the plugin's data: left to its own update.
+      if (ref && ref !== own.ref) continue;
       // Undo puts back the files that name the installed version and the marketplace; the old version's folder is not restored (Claude Code
       // prunes it later, and a snapshot of it would make undo refuse once it is gone), so undo can leave an entry whose files are gone.
       const file = (f) => [join(acc.dir, 'plugins', f)];

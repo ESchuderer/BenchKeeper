@@ -352,11 +352,8 @@ test('an account on another marketplace ref or sharing the default plugins folde
   assert.match(away[0].error, /account outside lies outside/);
   assert.equal(away[0].selected, false);
   writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: ['tagged', 'shared'].map((name) => ({ name, agent: 'claude', mode: 'host', dir: join(home, 'acct', name) })) }));
-  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => x.name), ['tagged']);
-  const plan = preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }));
-  assert.equal(plan.length, 1);
-  assert.match(plan[0].error, /of account tagged is at v6\.0\.0, not stable/);
-  assert.equal(plan[0].selected, false);
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => [x.name, x.ref]), [['tagged', 'v6.0.0']]);
+  assert.deepEqual(preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } })), []);
 });
 
 test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {

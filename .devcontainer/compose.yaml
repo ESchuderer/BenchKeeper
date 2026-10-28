@@ -5,6 +5,10 @@ services:
       dockerfile: Dockerfile
     # rootless podman: map the host user to the container user node (uid 1000) so the bind mount is writable
     userns_mode: keep-id:uid=1000,gid=1000
+    # the skill install preview runs in a nested user namespace (bubblewrap), which rootless podman allows only with an unmasked
+    # /proc; the test that starts the real sandbox runs only where this variable is set
+    security_opt:
+      - unmask=/proc/*
     # an init process reaps the exited children of test runs
     init: true
     # WORKSPACE and GIT_COMMON come from .env, written by initializeCommand; host paths are kept so git worktree paths match
@@ -20,4 +24,5 @@ services:
     command: sleep infinity
     environment:
       DO_NOT_TRACK: "1"
+      BENCHKEEPER_SANDBOX_TEST: "1"
       ASTRO_TELEMETRY_DISABLED: "1"

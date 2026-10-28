@@ -8,6 +8,7 @@ import { apply, context, preview } from '../../src/runner.mjs';
 import { startServer } from '../../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../../src/steps/global.mjs';
 import { projectPlan } from '../../src/steps/project.mjs';
+import { SANDBOX, viaSrt } from '../fixtures/srt.mjs';
 import { writeSessions } from '../fixtures/sessions.mjs';
 
 // git from a system folder, so the PATH search does not decide which program runs.
@@ -76,10 +77,13 @@ const run = (argv, o = {}) => {
   if (argv[0] === 'claude') return { code: 0, stdout: argv.includes('--json') ? '[]' : '', stderr: '' };
   return { code: 127, stdout: '', stderr: 'not installed' };
 };
-const ctx = context({ home, run, appVersion: '6.0.0' });
+// The skill install preview runs in an OS sandbox: a stand-in that starts what it wraps, so no machine program is needed.
+const wrapped = viaSrt(run);
+const ctx = context({ home, run: wrapped, appVersion: '6.0.0' });
+ctx.sandbox = SANDBOX;
 ctx.runAsync = async (argv, o) => {
   if (argv.includes('--restricted') && /[\\/](duo|quatro)$/.test(o.cwd ?? '')) for (let i = 0; i < 400 && existsSync(GATE); i++) await new Promise((r) => setTimeout(r, 50));
-  return run(argv, o);
+  return wrapped(argv, o);
 };
 const first = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
 apply(first, ctx);

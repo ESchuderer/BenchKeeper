@@ -607,7 +607,7 @@
       "repo": "obra/superpowers",
       "license": "MIT",
       "pin": "the official Claude Code marketplace's pin (7.0.0 on 2026-10-25; the repository is at 7.0.1)",
-      "evaluation": "evaluations/workflow-frameworks/superpowers.md",
+      "evaluation": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/superpowers.md",
       "verdict": "Not in by default: cost higher in every with/without test but one, pass rate not significantly different.",
       "hooks": "One SessionStart hook.",
       "gives": "BenchKeeper's workflow skill and the issue-tracker specs give way in this project.",
@@ -628,7 +628,7 @@
       "repo": "msitarzewski/agency-agents",
       "license": "MIT",
       "pin": "b37b5bb33b78 (no release)",
-      "evaluation": "evaluations/workflow-frameworks/agency-agents.md",
+      "evaluation": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md",
       "verdict": "No outcome measurement. Offered as a pick of agent files, never the whole roster.",
       "hooks": "None (agent files only).",
       "install": {

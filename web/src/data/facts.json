@@ -405,7 +405,7 @@
         "url": "https://github.com/obra/superpowers",
         "role": "workflow owner",
         "installs": "a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache",
-        "evidence": "evaluations/workflow-frameworks/superpowers.md"
+        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/superpowers.md"
       }
     ]
   },

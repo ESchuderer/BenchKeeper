@@ -58,12 +58,12 @@ const frameworkSteps = (p) => p.changes.filter((c) => c.step.startsWith('framewo
 const base = { agents: ['claude'], env: 'host' };
 const sink = () => { let text = ''; return { out: new Writable({ write(c, _, done) { text += c; done(); } }), text: () => text }; };
 
-test('the catalog: frameworks are workflow owners, agent files a source; each has an evaluation file and a pinned source', () => {
+test('the catalog: frameworks are workflow owners, agent files a source; each has an evaluation in BenchKeeper-research and a pinned source', () => {
   const lib = library();
   assert.deepEqual(catalog(lib).map((f) => [f.id, f.role, f.install.kind]), [['superpowers', 'owner', 'plugin']]);
   assert.deepEqual(sources(lib).map((f) => f.id), ['agency-agents']);
   for (const f of [...catalog(lib), ...sources(lib)]) {
-    assert.ok(existsSync(new URL(`../../${f.evaluation}`, import.meta.url)), f.evaluation);
+    assert.match(f.evaluation, /^https:\/\/github\.com\/ESchuderer\/BenchKeeper-research\/blob\/main\/evaluations\/[a-z-]+\/[a-z-]+\.md$/);
     if (f.install.kind === 'agents') {
       assert.match(f.install.ref, /^[0-9a-f]{40}$/);
       for (const { path } of f.install.files) assert.match(path, /^[a-z0-9-]+\/[a-z0-9-]+\.md$/);

@@ -1,7 +1,7 @@
 // The agent support tables of docs/setup.md, derived from app/src/agents.json.
 const LEVEL = { true: 'full', false: 'what the agent documents' };
 const FEATURES = [['plugins', 'Plugin install'], ['usage', 'Usage feed'], ['accounts', 'Accounts'], ['tier', 'Tier strip']];
-const cell = (s) => String(s).replace(/\|/g, '\\|');
+const cell = (s) => String(s).replace(/[\\|]/g, '\\$&');
 const code = (v) => (v == null ? 'none' : `\`${cell(v)}\``);
 const list = (xs) => (xs.length ? xs.map(code).join(', ') : 'none');
 const yes = (a, f) => ((f === 'plugins' ? a.plugins : a.features[f]) ? 'yes' : 'not available');

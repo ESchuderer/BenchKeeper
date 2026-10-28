@@ -28,7 +28,10 @@ import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { scanSessions } from './sessions.mjs';
+import { ADVISERS } from './advise.mjs';
 import { collectInsights } from './insights.mjs';
+import { shownFindings } from './triage.mjs';
+import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
 import { resolvePins } from './params.mjs';
@@ -178,10 +181,11 @@ Usage: benchkeeper <command> [options]
                                     runs the agent as an account (default: the agent's default account) after a sign-in
                                     check and, below the minimum headroom, a question (--yes answers it); environment: the filtered one plus the account's folder variable (--token: the
                                     kept token, Claude Code only). Dev container accounts run through devcontainer exec
-  insights --json [--project dir] [--agents a,b]
+  insights --json [--project dir] [--agents a,b] [--narrative --agent claude|codex [--yes]]
                                     findings with id, severity, evidence and a fix: installed skills no session used,
                                     doctor findings, pins behind the newest release; the session signal needs 20 sessions
-                                    of the last 90 days and reports nothing below that; nothing is written
+                                    of the last 90 days and reports nothing below that; nothing is written, except with --narrative --yes: the
+                                    findings go to the agent in one session and its answer is cached on this machine
   knowledge show [dir]              what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
                                     ignored by git): entries per file; a file that does not parse is listed as ignored
   knowledge clear [dir] [--yes]
@@ -202,7 +206,7 @@ const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, framework: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
-  'no-push': { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
+  'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
@@ -765,7 +769,21 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const broken = registryFail();
     if (broken !== undefined) return broken;
     const found = await collectInsights(ctx, { agents: selectedAgents(ctx, o.agents), dir: o.project && resolve(o.project) });
-    return emit(found, found.summary.error ? 1 : 0);
+    if (!o.narrative) return emit(found, found.summary.error ? 1 : 0);
+    // The narrative starts an agent session on your login: the flag, an agent and, for a new run, --yes. The input goes to stderr first.
+    if (!ADVISERS.includes(o.agent)) return fail(`--narrative needs --agent ${ADVISERS.join(' or ')}`);
+    // The findings the Insights view shows, so the view and the command share one cached narrative.
+    const shown = shownFindings(ctx, found.findings);
+    if (!shown.length) return fail('no findings to summarize');
+    const key = narrativeKey(shown), cached = readNarrative(ctx, key), input = narrativeInput(found, shown);
+    // The ids the text covers: the findings the view shows and the prompt carries (the findings array above lists all of them).
+    const covers = input.findings.map((f) => f.id);
+    if (cached && !o.yes) return emit({ ...found, narrative: { ...cached, covers, cached: true } }, found.summary.error ? 1 : 0);
+    const { prompt, size } = narrativePrompt(input, key);
+    err.write(`${prompt}\n`);
+    if (!o.yes) return fail(`the narrative sends the ${size} characters above to ${o.agent} in one session: add --yes to run it`);
+    if (process.env.CI) return fail('the narrative starts an agent session on a subscription and does not run in CI');
+    try { return emit({ ...found, narrative: { ...(await runNarrative(ctx, { agent: o.agent, prompt, key })), covers, cached: false } }, found.summary.error ? 1 : 0); } catch (e) { return fail(e.message); }
   }
   if (cmd === 'knowledge') {
     if (arg !== 'show') return fail('knowledge --json works with show');

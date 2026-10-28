@@ -26,6 +26,9 @@ export function withTriage(findings, state, now = Date.now()) {
   });
 }
 
+// The findings the Insights view shows: neither dismissed nor snoozed.
+export const shownFindings = (ctx, findings) => withTriage(findings, readTriage(ctx)).filter((f) => !f.triage);
+
 // action: dismiss, snooze (SNOOZE_DAYS days) or reopen. Returns the key's triage as withTriage shows it.
 export function setTriage(ctx, key, action, now = Date.now()) {
   if (typeof key !== 'string' || !KEY.test(key)) throw new Error('key must be a finding key');

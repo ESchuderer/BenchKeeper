@@ -432,6 +432,31 @@ test.describe('views', () => {
     await expect(scrub).toBeVisible();
   });
 
+  test('Insights narrative: the input is on the page, the first run asks for consent, the text is marked as model text and a dismissal drops it; no axe violations', async ({ page }) => {
+    await nav(page, 'Insights').click();
+    const narrative = page.getByRole('region', { name: 'Adviser narrative' });
+    await expect(narrative).toBeVisible();
+    await narrative.getByRole('button', { name: /^Input sent to the agent \(\d/ }).click();
+    await expect(narrative.locator('#narrative-input')).toContainText('"findings"');
+    await noAxe(page);
+    await narrative.getByRole('button', { name: 'Write with Claude Code' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Send the findings to an agent?' });
+    await expect(dialog).toContainText('No session messages, prompts, file contents');
+    await noAxe(page);
+    await dialog.getByRole('button', { name: 'Agree and write with Claude Code' }).click();
+    await expect(narrative.getByText('Model text')).toBeVisible();
+    await expect(narrative).toContainText('Fix the deny rule first.');
+    await expect(narrative).toContainText('$0.0214');
+    await page.reload();
+    await expect(narrative).toContainText('Fix the deny rule first.');
+    await expect(narrative.getByRole('button', { name: 'Write again with Claude Code' })).toBeVisible();
+    await page.getByRole('article', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('button', { name: 'Dismiss' }).click();
+    await expect(narrative.getByText('Model text')).toHaveCount(0);
+    const hidden = page.getByRole('region', { name: 'Hidden findings' });
+    await hidden.getByRole('button', { name: /^Hidden/ }).click();
+    await hidden.getByRole('button', { name: 'Show again' }).click();
+  });
+
   test('Stop: the header button asks first; Cancel keeps the server running', async ({ page }) => {
     await page.getByRole('button', { name: 'Stop BenchKeeper' }).click();
     const dialog = page.getByRole('dialog', { name: 'Stop BenchKeeper?' });

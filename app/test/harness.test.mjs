@@ -82,7 +82,7 @@ test('benchkeeper evals: rates per target, results stored, unchanged targets ski
   const calls = [];
   const ctx = machine(stubAgent(calls));
   const plan = evalPlan(ctx, { model: 'sonnet' });
-  assert.deepEqual(plan.map((p) => p.target).sort(), ['skill:designing-technical-uis', 'skill:maintaining-repos', 'skill:workflow']);
+  assert.deepEqual(plan.map((p) => p.target).sort(), ['skill:designing-technical-uis', 'skill:maintaining-repos', 'skill:operating-benchkeeper', 'skill:workflow']);
   const res = await runEval(ctx, plan);
   const ui = res.find((r) => r.target === 'skill:designing-technical-uis');
   assert.deepEqual([ui.agentVersion, ui.model, ui.cases], ['9.9.9 (Claude Code)', 'sonnet', 12]);
@@ -92,8 +92,8 @@ test('benchkeeper evals: rates per target, results stored, unchanged targets ski
   // The library skill is copied into the scratch repository for its own cases only.
   assert.equal(calls.filter((c) => c.lib).length, 12);
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
-  assert.equal(evalPlan(ctx, { model: 'sonnet', all: true }).length, 3);
-  assert.equal(evalPlan(ctx, { model: 'opus' }).length, 3);
+  assert.equal(evalPlan(ctx, { model: 'sonnet', all: true }).length, 4);
+  assert.equal(evalPlan(ctx, { model: 'opus' }).length, 4);
   addCase(ctx, { target: 'skill:workflow', expected: 'loads', query: 'Rename the CLI flag --out to --output.' });
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }).map((p) => p.target), ['skill:workflow']);
   assert.equal(triggered('{"type":"x"}\nRead /h/.agents/skills/workflow/SKILL.md', 'workflow'), true);

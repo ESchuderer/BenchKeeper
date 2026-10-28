@@ -58,7 +58,7 @@ Fix everything shows each file change as a diff and each command as its command 
 - [Accounts](docs/setup.md#accounts): several Claude Code and Codex logins, signed in through private browser windows, on the host and in dev containers
 - [Stack](docs/stack.md): components, repository map, how the stack was chosen, optional tools
 - [App reference](app/README.md): every command and the web UI
-- [Automation templates](docs/automations.md): the file format, parameters and lint rules for scheduled agent runs
+- [Automations](docs/automations.md): scheduled agent runs from templates, installed disabled on the runner from the app or the CLI, with the catalogue, the file format and the lint rules
 - [Benchmarks](https://github.com/ESchuderer/BenchKeeper-research#recorded-results): scenarios, reports and per-trial results of the shared brownfield task (BenchKeeper-research)
 - [Security notes](docs/security.md) and [how to report a vulnerability](SECURITY.md)
 - [Changelog](CHANGELOG.md) and [issues](https://github.com/ESchuderer/BenchKeeper/issues)

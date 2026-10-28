@@ -13,7 +13,9 @@ const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Runs', 'Insights', 'Evals', 'Agent settings', 'Rules', 'Extensions', 'Accounts', 'Settings'];
+// While this file exists, the stubbed automations runner answers (serve.mjs).
+const RUNNER = join(tmpdir(), 'bk-ui-runner-4410');
+const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Runs', 'Insights', 'Evals', 'Agent settings', 'Rules', 'Extensions', 'Accounts', 'Automations', 'Settings'];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -1310,6 +1312,49 @@ test.describe('views', () => {
     await expect(hook).toContainText('local');
     await expect(page.locator('body')).not.toContainText(/dummy-(env|hook)-secret/);
     await noAxe(page);
+  });
+
+  test('Automations: install and remove by keyboard against the fake runner, the last run and skipped runs; no axe violations at desktop and phone width', async ({ page }) => {
+    writeFileSync(RUNNER, '');
+    try {
+      await nav(page, 'Automations').click();
+      const row = page.getByRole('table', { name: 'Automations' }).getByRole('row', { name: /Pull request watch/ });
+      await expect(row).toContainText('private');
+      await expect(row).toContainText('Not installed');
+      await row.getByRole('button', { name: 'Install Pull request watch' }).focus();
+      await page.keyboard.press('Enter');
+      const form = page.getByRole('form', { name: 'Install Pull request watch' });
+      await expect(form.getByRole('combobox', { name: 'Project' })).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(form.getByRole('textbox', { name: 'repository' })).toBeFocused();
+      await page.keyboard.type('acme/alpha');
+      await page.keyboard.press('Enter');
+      const changes = page.getByRole('region', { name: 'Changes' });
+      await expect(changes).toContainText('automation Pull request watch, disabled');
+      await noAxe(page);
+      await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).focus();
+      await page.keyboard.press('Enter');
+      await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+      await expect(row).toContainText('matches the template');
+      await expect(row).toContainText('Disabled, mode report');
+      await expect(row).toContainText('completed, 2026-10-28 09:00 UTC');
+      await expect(row).toContainText('1 skipped since');
+      await page.setViewportSize({ width: 390, height: 844 });
+      await noAxe(page);
+      await page.setViewportSize({ width: 1280, height: 720 });
+
+      await changes.getByRole('button', { name: 'Close', exact: true }).click();
+      await row.getByRole('button', { name: 'Remove Pull request watch' }).focus();
+      await page.keyboard.press('Enter');
+      await expect(changes).toContainText('Remove: remove the');
+      await expect(changes.getByRole('checkbox', { name: /^Remove: / })).toBeChecked();
+      await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).focus();
+      await page.keyboard.press('Enter');
+      await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+      await expect(row).toContainText('Not installed');
+    } finally {
+      rmSync(RUNNER, { force: true });
+    }
   });
 
   test('Accounts: an account is added as a plan and undone; the container risk and the token note are stated; no axe violations', async ({ page }) => {

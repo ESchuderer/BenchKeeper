@@ -35,7 +35,8 @@ export function pick({ platform = process.platform, has = onPath, node = process
   if (!has(base)) return { tool: null, why: `${base} is missing: ${INSTALL[platform]}` };
   const missing = ['socat', 'rg'].filter((b) => (platform === 'linux' || b === 'rg') && !has(b));
   if (!missing.length && nodeOk(node)) return { tool: 'srt' };
-  return { tool: base, note: `${missing.length ? `${missing.join(' and ')} missing` : `Node ${node} is older than 22.12`}, so the network is not limited (${platform === 'linux' ? INSTALL.linux : 'install ripgrep'})` };
+  const fix = missing.length ? (platform === 'linux' ? INSTALL.linux : 'install ripgrep') : 'use Node 22.12 or newer';
+  return { tool: base, fix, note: `${missing.length ? `${missing.join(' and ')} missing` : `Node ${node} is older than 22.12`}, so the network is not limited (${fix})` };
 }
 
 // Credential folders and files below the home that the command cannot read (srt only; the fallbacks confine writes).

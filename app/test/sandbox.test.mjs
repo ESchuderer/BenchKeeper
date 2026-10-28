@@ -20,7 +20,8 @@ test('sandbox: srt where its programs and Node are there, the platform tool alon
   assert.equal(pick(facts('linux', ['bwrap'])).note.split(',')[0], 'socat and rg missing');
   assert.equal(pick(facts('linux', ['bwrap', 'socat', 'rg'], '22.11.9')).tool, 'bwrap');
   assert.match(pick(facts('linux', ['bwrap', 'socat', 'rg'], '22.11.9')).note, /^Node 22\.11\.9 is older than 22\.12/);
-  assert.deepEqual(pick(facts('darwin', ['sandbox-exec'])), { tool: 'sandbox-exec', note: 'rg missing, so the network is not limited (install ripgrep)' });
+  assert.deepEqual(pick(facts('darwin', ['sandbox-exec'])), { tool: 'sandbox-exec', fix: 'install ripgrep', note: 'rg missing, so the network is not limited (install ripgrep)' });
+  assert.equal(pick(facts('linux', ALL, '22.11.0')).fix, 'use Node 22.12 or newer');
   // Nothing to build on: a message that names the cause.
   assert.match(pick(facts('linux', [])).why, /^bwrap is missing: install bubblewrap, socat and ripgrep \(Debian, Ubuntu, WSL2: apt install/);
   assert.match(pick(facts('darwin', [])).why, /^sandbox-exec is missing/);

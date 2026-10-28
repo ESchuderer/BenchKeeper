@@ -49,6 +49,8 @@ test('the skill install preview sandbox: doctor names what is missing, from the 
   assert.match(none[0].fix, /Rehearse anyway without a sandbox/);
   assert.match(sandbox({ platform: 'win32' })[0].message, /Windows has no sandbox the app can use \(unsupported\)/);
   assert.match(sandbox({ platform: 'linux', has: (b) => b !== 'rg', node: '22.22.0' })[0].message, /^the skill install preview confines writes only: rg missing/);
+  const old = sandbox({ platform: 'linux', has: () => true, node: '22.5.0' })[0];
+  assert.equal(old.fix, 'use Node 22.12 or newer');
 });
 
 test('global drift: rules changed after apply are an error, unexpected items a warning, no engine a warning', () => {

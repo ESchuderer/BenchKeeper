@@ -10,13 +10,14 @@ import { WINDOWS, limitsFor, settingsOf } from './usage.mjs';
 import { detect } from './agents.mjs';
 import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
+import { GROUPS, audit, auditMarkdown } from './audit.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { addCase } from './cases.mjs';
 import { doctor } from './doctor.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
-import { listFiles, writeAtomic } from './fsx.mjs';
+import { isDir, listFiles, writeAtomic } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { frameworkRows } from './frameworks.mjs';
@@ -114,6 +115,12 @@ Usage: benchkeeper <command> [options]
   projects [list|add <dir>..|scan <root>|remove <dir>..]
                                     projects Update all covers (projects.json in the config folder); add refuses another worktree
                                     of a registered repository unless --worktree; remove only unregisters
+  projects audit [dir] [--only workflows,tests,code,findings] [--json]
+                                    where the project's CI and tests are bloated or in bad shape, from files only: workflow
+                                    triggers, cancel, cache, repeated builds, matrix size, pins, permissions, a coverage floor
+                                    far below the measured value, duplicated code and tests, large files, a lint step that
+                                    cannot fail; a check whose need is missing (a report, a floor) is listed as skipped with
+                                    how to enable it; Markdown, nothing is run or written
   projects rename <dir> [name] [--notes text]
                                     display name and notes (in projects.json only; an empty one clears it)
   projects relocate <old> <new>     the folder moved: the entry, its answers and its history follow it
@@ -178,7 +185,7 @@ Usage: benchkeeper <command> [options]
   knowledge clear [dir] [--yes]
                                     removes that folder after a question and nothing else of the project
 
---json (doctor, verify, plan, projects plan, history, projects list and scan, packs list, skills list, rules list, extensions list,
+--json (doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list, rules list, extensions list,
         settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
@@ -194,7 +201,7 @@ const OPTIONS = {
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
-  json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
+  only: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   account: { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
@@ -291,10 +298,21 @@ async function removeSetups(ctx, dirs, { o, out, ask }) {
   return results.some((r) => r.status === 'stopped') ? 1 : 0;
 }
 
+// projects audit: the folder and the groups to check, or the message that refuses them.
+function auditTarget(o, positionals) {
+  if (positionals.length > 3) return { error: `unexpected argument ${positionals[3]}` };
+  const dir = resolve(positionals[2] ?? '.');
+  const only = o.only === undefined ? GROUPS : o.only.split(',').map((g) => g.trim());
+  const bad = only.find((g) => !GROUPS.includes(g));
+  if (bad !== undefined) return { error: `--only takes ${GROUPS.join(', ')}, not "${bad}"` };
+  return isDir(dir) ? { dir, only } : { error: `${dir} is not a folder` };
+}
+
 async function command(argv, { out, err, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   const [cmd = 'ui', arg] = positionals;
   if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
+  if (o.only !== undefined && !(cmd === 'projects' && arg === 'audit')) { out.write('--only belongs to projects audit\n'); return 2; }
   if (o.json && cmd !== 'verify') return jsonCommand({ cmd, arg, o, positionals, out, err, ctx });
   if (cmd === 'ui') {
     const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });
@@ -395,6 +413,13 @@ async function command(argv, { out, err, ask, ctx }) {
     const dirs = positionals.slice(2);
     if (arg === 'add') dirs.forEach((d) => out.write(`added ${addProject(ctx, d, { worktree: o.worktree })}\n`));
     else if (arg === 'scan') for (const d of scan(ctx, dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === canon(d)) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
+    else if (arg === 'audit') {
+      const t = auditTarget(o, positionals);
+      if (t.error) { out.write(`${t.error}\n`); return 2; }
+      const r = audit(ctx, t.dir, { only: t.only });
+      out.write(auditMarkdown(r));
+      return r.summary.error ? 1 : 0;
+    }
     else if (arg === 'rename') {
       if (!dirs[0]) { out.write('projects rename needs a directory\n'); return 2; }
       renameProject(ctx, dirs[0], { name: dirs[1] ?? (o.notes === undefined ? '' : undefined), notes: o.notes });
@@ -712,6 +737,12 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const sessions = (await scanSessions(ctx)).map(({ title, ...s }) => s);
     return emit({ sessions });
   }
+  if (cmd === 'projects' && arg === 'audit') {
+    const t = auditTarget(o, positionals);
+    if (t.error) return fail(t.error);
+    const r = audit(ctx, t.dir, { only: t.only });
+    return emit(r, r.summary.error ? 1 : 0);
+  }
   if (cmd === 'insights') {
     const extra = surplus(1); if (extra !== undefined) return extra;
     const broken = registryFail();
@@ -741,7 +772,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, verify, plan, projects plan, history, projects list and scan, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show and accounts list and status');
+  return fail('--json works with doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show and accounts list and status');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

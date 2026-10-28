@@ -398,14 +398,14 @@ test.describe('views', () => {
   test('Insights: Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const card = (re) => page.getByRole('article', { name: re });
-    const market = card(/not installed: Claude Code marketplace/), deny = card(/No Read deny rule/), scrub = card(/SUBPROCESS_ENV_SCRUB/);
+    const market = card(/marketplace benchkeeper$/), deny = card(/No Read deny rule/), scrub = card(/SUBPROCESS_ENV_SCRUB/);
     // The seeded dismissal belongs to other evidence and the seeded snooze has ended: both findings show.
     await expect(deny).toBeVisible();
     await expect(scrub).toBeVisible();
     await expect(deny.getByRole('link', { name: 'Apply' })).toHaveAttribute('href', /^#\/agent-settings/);
     await expect(deny).toContainText('permissions.deny');
     await noAxe(page);
-    await card(/not installed: Claude Code plugin/).first().getByRole('link', { name: 'Apply' }).click();
+    await card(/plugin benchkeeper@benchkeeper$/).getByRole('link', { name: 'Apply' }).click();
     await expect(page).toHaveURL(/#\/agents\?plan=1$/);
     await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
     await nav(page, 'Insights').click();

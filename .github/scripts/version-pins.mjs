@@ -1,4 +1,4 @@
-// Writes the current app version into the install commands of the docs: `npx benchkeeper@<version>` and the clone
+// Writes the current app version into the install commands of the docs (not the plugin's skill text): `npx benchkeeper@<version>` and the clone
 // tag `--branch setup-v<version>`. Other version mentions (benchmark arms, history) stay as written.
 // Usage: node .github/scripts/version-pins.mjs [--check]   (--check: exit 1 when a file differs)
 import { execFileSync } from 'node:child_process';
@@ -7,8 +7,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-// Recorded history and benchmark arms keep the versions they name.
-const SKIP = /^(bench\/|evaluations\/|EVALUATIONS\.md|CHANGELOG\.md|app\/test\/)|package-lock\.json$/;
+// Recorded history and benchmark arms keep the versions they name; skill text under plugins/ names the major (npx benchkeeper@6), not a pin.
+export const SKIP = /^(bench\/|evaluations\/|EVALUATIONS\.md|CHANGELOG\.md|app\/test\/|plugins\/)|package-lock\.json$/;
 
 export function pins(text, version) {
   return text

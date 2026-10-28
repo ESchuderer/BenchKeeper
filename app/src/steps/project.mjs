@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
-import { appVersion, contentDir, library } from '../content.mjs';
+import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { cooldownEnv } from '../cooldown.mjs';
 import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
@@ -117,10 +117,21 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   return changes;
 }
 
+// State schema 2 holds appVersion and contentVersion. A version 1 file (setupVersion) is read with that value as both; the next apply writes version 2.
+export const STATE_SCHEMA = 2;
+export const parseState = (text) => normalizeState(JSON.parse(text));
+// Also for a state the registry kept as an object.
+export function normalizeState(s) {
+  if (s?.schemaVersion > STATE_SCHEMA) throw new Error(`schemaVersion ${s.schemaVersion}, this benchkeeper reads up to ${STATE_SCHEMA}: update it with npx benchkeeper@${appVersion.split('.')[0]}`);
+  if (s && s.schemaVersion !== STATE_SCHEMA) { const { setupVersion, ...rest } = s; return { ...rest, schemaVersion: STATE_SCHEMA, appVersion: rest.appVersion ?? setupVersion, contentVersion: rest.contentVersion ?? setupVersion }; }
+  return s;
+}
+// Both versions equal this app's and its content's: a project is behind when either differs.
+export const upToDate = (s) => s?.appVersion === appVersion && s?.contentVersion === contentVersion;
 export function readState(dir) {
   const text = readText(join(dir, STATE));
   if (!text) return null;
-  try { return JSON.parse(text); } catch (e) { throw new Error(`${join(dir, STATE)}: ${e.message}`); }
+  try { return parseState(text); } catch (e) { throw new Error(`${join(dir, STATE)}: ${e.message}`); }
 }
 // For listings: an unreadable state file counts as none, so one broken project does not hide the others.
 export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
@@ -475,10 +486,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run, runCtx) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, prev, ran: ranFw(run) }),
+  const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, prev, ran: ranFw(run) }),
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
-  add('state', `${STATE}: setup version ${appVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
+  add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
   // Local: everything above goes to the repository's exclude list ($GIT_COMMON_DIR/info/exclude, shared by its
   // worktrees), so git status stays clean. Files git already tracks stay tracked until a pull request removes them

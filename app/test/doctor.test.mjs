@@ -39,6 +39,20 @@ test('feature switches: environment, shell files, settings; names and places, ne
   assert.ok(!JSON.stringify(found).includes(SECRET));
 });
 
+test('the skill install preview sandbox: doctor names what is missing, from the programs alone, and is quiet when srt can run', () => {
+  const ctx = machine();
+  const sandbox = (facts) => { ctx.sandbox = facts; return doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).filter((i) => i.check === 'sandbox'); };
+  assert.deepEqual(sandbox({ platform: 'linux', has: () => true, node: '22.22.0' }), []);
+  const none = sandbox({ platform: 'linux', has: () => false, node: '22.22.0' });
+  assert.deepEqual(none.map((i) => i.level), ['info']);
+  assert.match(none[0].message, /^the skill install preview is off: bwrap is missing: install bubblewrap, socat and ripgrep/);
+  assert.match(none[0].fix, /Rehearse anyway without a sandbox/);
+  assert.match(sandbox({ platform: 'win32' })[0].message, /Windows has no sandbox the app can use \(unsupported\)/);
+  assert.match(sandbox({ platform: 'linux', has: (b) => b !== 'rg', node: '22.22.0' })[0].message, /^the skill install preview confines writes only: rg missing/);
+  const old = sandbox({ platform: 'linux', has: () => true, node: '22.5.0' })[0];
+  assert.equal(old.fix, 'use Node 22.12 or newer');
+});
+
 test('global drift: rules changed after apply are an error, unexpected items a warning, no engine a warning', () => {
   const ctx = machine({ engine: false });
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);

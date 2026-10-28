@@ -9,6 +9,7 @@ import { contentDir } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
+import { SRT_VERSION } from '../sandbox.mjs';
 import { verifyArgv } from '../verify.mjs';
 
 // lite: the BenchKeeper plugin alone (nothing outside the plugin install). standard: the same on the machine, plus the local block
@@ -26,10 +27,11 @@ export const SKILL_SOURCES = {
   'vercel-labs/skills': 'https://github.com/vercel-labs/skills',
   'https://github.com/stablyai/orca': 'https://github.com/stablyai/orca',
 };
-// When the CLI minimum was published (npm `time`), written by hand when SKILLS_CLI is raised: a minimum under 7 days old fails
-// the test, as the host tools are held back that long.
+// When the CLI minimum and the sandbox of the skill install preview (srt, an exact pin) were published (npm `time`), written by
+// hand when either is raised: one under 7 days old fails the test, as the host tools are held back that long.
 export const PIN_DATES = {
   [`skills@${SKILLS_CLI}`]: '2026-10-09T16:49:31Z',
+  [`@anthropic-ai/sandbox-runtime@${SRT_VERSION}`]: '2026-10-20T01:13:23Z',
 };
 // ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
 // BenchKeeper's marketplace follows the branch stable, which each release moves, so an update is a marketplace refresh: moving

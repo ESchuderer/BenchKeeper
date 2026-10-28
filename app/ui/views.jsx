@@ -609,6 +609,7 @@ export function Settings({ overview, refresh, keys }) {
           <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>
           <List.Item><Code>~/.config/benchkeeper/packs/</Code>: own packs</List.Item>
           <List.Item><Code>~/.config/benchkeeper/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
+          <List.Item><Code>~/.config/benchkeeper/insights-triage.json</Code>: Insights findings you dismissed or snoozed (finding ids and dates)</List.Item>
           <List.Item><Code>.cache/benchkeeper/sessions.json</Code> in your home folder: session summaries for the Sessions board</List.Item>
         </List>
         <Text size="sm"><Code>BENCHKEEPER_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>

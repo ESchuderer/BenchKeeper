@@ -1312,6 +1312,9 @@ test.describe('views', () => {
   test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
     await nav(page, 'Rules').click();
     await expect(page.getByRole('heading', { level: 2, name: 'Claude Code' })).toBeVisible();
+    // The checks come before the files; each limit is a bar that names who sets it.
+    await expect(page.getByRole('region', { name: 'Checks' })).toBeVisible();
+    await expect(page.getByRole('progressbar', { name: /^At the start of a session: .* tokens, limit set by BenchKeeper$/ }).first()).toBeVisible();
     const files = page.getByRole('table', { name: 'Claude Code instruction files' });
     const team = files.getByRole('row', { name: /20-team\.md/ });
     await expect(team).toContainText('yours');

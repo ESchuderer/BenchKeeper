@@ -228,6 +228,23 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   assert.ok(rm.destructive && rm.argv.join(' ') === 'claude plugin uninstall mattpocock-skills@claude-plugins-official' && rm.undoArgv.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official');
   assert.equal(preview([rm])[0].selected, false);
   assert.deepEqual([mp(['matt-pocock']), mp(['frontend'], ['matt-pocock']), mp(null)], [[], [], []]);
+  // Not installed by BenchKeeper (no ledger entry): the user's own, kept by default, in its own group, with what removing deletes.
+  assert.ok(rm.foreign && rm.pack === 'matt-pocock');
+  assert.equal(rm.title, 'matt-pocock (Claude Code plugin mattpocock-skills@claude-plugins-official) is installed on this machine, but BenchKeeper did not set it up and no project in your list selects it. Keep it (default) or remove it.');
+  assert.equal(rm.impact, 'removing runs claude plugin uninstall mattpocock-skills@claude-plugins-official, which deletes the plugin and its data from Claude Code; claude plugin install mattpocock-skills@claude-plugins-official brings it back');
+  const [cx] = globalPlan({ ctx, agents: ['codex'], options: { packsInUse: [] } }).filter((c) => c.step === 'plugin:codex:ponytail@ponytail');
+  assert.ok(cx.foreign && cx.title.startsWith('ponytail (Codex plugin ponytail@ponytail) is installed on this machine'));
+  assert.equal(cx.impact, 'removing runs codex plugin remove ponytail@ponytail, which deletes the plugin and its data from Codex; codex plugin add ponytail@ponytail brings it back');
+  // BenchKeeper installed it: the plain removal, outside that group; a later removal by BenchKeeper makes a reinstall the user's again.
+  const entry = (verb, n) => ({ id: `e${n}`, step: 'plugin:claude:mattpocock-skills@claude-plugins-official', kind: 'command', status: 'done', argv: ['claude', 'plugin', verb, 'mattpocock-skills@claude-plugins-official'] });
+  ctx.ledger.save({ schema: 1, id: '20260101T000000Z-aaaaaa', entries: [entry('install', 1)] });
+  const [own] = mp([]);
+  assert.ok(!own.foreign && own.title === 'remove Claude Code plugin mattpocock-skills@claude-plugins-official: no registered project uses the matt-pocock pack');
+  ctx.ledger.save({ schema: 1, id: '20260102T000000Z-aaaaaa', entries: [entry('uninstall', 2)] });
+  assert.ok(mp([])[0].foreign);
+  rmSync(join(ctx.config, 'ledger'), { recursive: true });
+  // The doctor plans without the projects' packs: no finding for the user's own pack plugin.
+  assert.ok(!globalDrift(ctx, ['claude', 'codex']).some((i) => /mattpocock-skills|ponytail@ponytail/.test(i.message)));
   const inv = inventory(ctx, ['claude', 'codex']);
   assert.equal(inv.find((i) => i.step === 'plugin:claude:benchkeeper@benchkeeper').state, 'current');
   // A version that is not x.y.z (a commit) cannot be compared and counts as current.

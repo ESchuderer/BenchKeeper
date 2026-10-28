@@ -113,11 +113,11 @@ export function SettingFactsOf({ settings: s }) {
 }
 
 // A change's diff behind a button: a long review page stays short until one is opened.
-function Folded({ title, children }) {
+function Folded({ title, children, label = ['Show diff', 'Hide diff'], name = `diff of ${title}` }) {
   const [open, setOpen] = useState(false);
   return (
     <Stack gap={4}>
-      <Group><Button size="compact-xs" variant="default" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} diff of ${title}`} onClick={() => setOpen(!open)}>{open ? 'Hide diff' : 'Show diff'}</Button></Group>
+      <Group><Button size="compact-xs" variant="default" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} ${name}`} onClick={() => setOpen(!open)}>{label[open ? 1 : 0]}</Button></Group>
       {open && children}
     </Stack>
   );
@@ -131,11 +131,21 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
   const unitOf = (c) => (c.unit ? plan.changes.filter((x) => x.unit === c.unit).map((x) => x.id) : [c.id]);
   const toggle = (c) => setSelect((s) => (s.includes(c.id) ? s.filter((x) => !unitOf(c).includes(x)) : [...new Set([...s, ...unitOf(c)])]));
   // A unit's changes are listed together under one note, at the place of its first change.
-  const units = new Map(), groups = [];
+  const units = new Map(), groups = [], foreign = [];
   plan.changes.forEach((c, i) => {
-    if (c.unit && units.has(c.unit)) units.get(c.unit).push([c, i]);
+    if (c.foreign) foreign.push([c, i]);
+    else if (c.unit && units.has(c.unit)) units.get(c.unit).push([c, i]);
     else { const g = [[c, i]]; if (c.unit) units.set(c.unit, g); groups.push(g); }
   });
+  // A plugin BenchKeeper did not install: kept by default, adding its pack to a project comes before removing it.
+  const foreignRow = ([c, i]) => (
+    <Stack key={`${c.id}:${i}`} gap={4}>
+      <Group gap="xs" wrap="nowrap" align="flex-start"><Text size="sm">{c.title}</Text><StateBadge state={c.state} /></Group>
+      <Text size="sm">Impact: {c.impact}.</Text>
+      <Group><Button component="a" href={href('projects')} size="xs" variant="default">Add {c.pack} to a project</Button></Group>
+      {select && <Checkbox checked={select.includes(c.id)} disabled={!!c.error} onChange={() => toggle(c)} label={`Remove ${c.argv.at(-1)}`} />}
+    </Stack>
+  );
   const row = ([c, i]) => (
     <Stack key={`${c.id}:${i}`} gap={4}>
       <Group gap="xs" wrap="nowrap" align="flex-start">
@@ -180,6 +190,12 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
           {g.map(row)}
         </Stack>
       ) : row(g[0])))}
+      {!!foreign.length && (
+        <Stack gap="sm" role="group" aria-label="Plugins BenchKeeper did not install">
+          <Text size="sm" fw={600}>Plugins BenchKeeper did not install ({foreign.length})</Text>
+          <Folded title="Plugins BenchKeeper did not install" label={['Show', 'Hide']} name="plugins BenchKeeper did not install">{foreign.map(foreignRow)}</Folded>
+        </Stack>
+      )}
     </Stack>
   );
 }

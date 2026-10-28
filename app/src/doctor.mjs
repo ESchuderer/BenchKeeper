@@ -108,6 +108,8 @@ export function projectChecks(ctx, dir, agents) {
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   out.push(...packSetupChecks(dir, state), ...guardChecks(dir, state));
   out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }), ...paramChecks(ctx, dir));
+  // The global files are reported once, by the global checks; imports that point nowhere by instructionChecks.
+  out.push(...rulesChecks(ctx, { agents, dir }).filter((f) => f.scope !== 'global' && f.kind !== 'import'));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
   const scoped = (scope, own, list) => list.map((f) => ({ ...f, scope, own }));
   out.push(...skillOverlap(ctx, dir, [...scoped('project', true, skillFiles(dir)), ...scoped('global', false, skillFiles(ctx.home)), ...pluginSkills(ctx, dir)], true));
@@ -127,7 +129,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   out.push(...automationChecks(ctx));
   if (!agents || agents.includes('claude')) out.push(...bandChecks(ctx));
   if (level === 'full') {
-    out.push(...rulesChecks(ctx, agents));
+    out.push(...rulesChecks(ctx, { agents }).filter((f) => f.kind !== 'import'));
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));
     // The skill install preview runs in an OS sandbox; read from the programs on the PATH, nothing is started.
     const sandbox = pick(ctx.sandbox);

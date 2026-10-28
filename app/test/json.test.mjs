@@ -128,10 +128,10 @@ test('--json: the read-only list commands print their documented keys and no val
     const skills = await shape(['skills', '--project', dir, '--agents', 'claude'], 'skills list', ['dir', 'hasSetup', 'skills', 'untracked', 'globalUntracked']);
     assert.ok(skills.hasSetup && skills.skills.some((s) => s.name === 'frontend-design' && s.state && s.single));
 
-    const rules = await shape(['rules', 'list', '--project', dir], 'rules list', ['dir', 'agents']);
+    const rules = await shape(['rules', 'list', '--project', dir], 'rules list', ['dir', 'agents', 'limit', 'findings']);
     assert.deepEqual(rules.agents.map((a) => a.id), ['claude', 'codex']);
     assert.ok(rules.agents[0].rows.some((r) => r.path === join(dir, 'CLAUDE.md') && r.tokens > 0 && !('text' in r)));
-    assert.deepEqual((await shape(['rules', 'list', '--agent', 'codex'], 'rules list', ['dir', 'agents'])).agents.map((a) => a.id), ['codex']);
+    assert.deepEqual((await shape(['rules', 'list', '--agent', 'codex'], 'rules list', ['dir', 'agents', 'limit', 'findings'])).agents.map((a) => a.id), ['codex']);
 
     const list = await shape(['settings', 'list', '--project', dir], 'settings list', ['agent', 'name', 'layers', 'settings', 'bundles', 'notes', 'dismissed']);
     assert.equal(list.agent, 'claude');

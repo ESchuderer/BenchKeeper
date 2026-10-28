@@ -1277,6 +1277,47 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
   });
 
+  test('Setting facts: Agent settings, the doctor, Insights and the Plan and Apply drawers show summary, plain words, impact, default and the current value with its source; no axe violations', async ({ page }) => {
+    const about = (scope, key) => scope.getByRole('group', { name: `About ${key}` }).first();
+    const facts = async (box) => {
+      for (const t of ['In plain words:', 'Impact:', 'Default:', 'Current:']) await expect(box).toContainText(t);
+      await expect(box.getByRole('link', { name: 'Docs' })).toHaveAttribute('href', /^https:\/\//);
+    };
+    await nav(page, 'Agent settings').click();
+    const advisor = about(page, 'advisorModel');
+    await facts(advisor);
+    await expect(advisor).toContainText('from the user file');
+    await expect(about(page, 'cleanupPeriodDays')).toContainText('Current: the default');
+    // A key outside the catalog: no guessed text, the rest of the facts still there.
+    await page.getByRole('switch', { name: 'Advanced: every key' }).check();
+    await page.getByLabel('Search settings').fill('modelSettings');
+    const outside = about(page.getByRole('table', { name: 'Advanced keys' }), 'modelSettings');
+    await expect(outside).toContainText('Not explained yet.');
+    await expect(outside).toContainText('Default:');
+    await expect(outside).not.toContainText('Impact:');
+    await page.getByRole('switch', { name: 'Advanced: every key' }).uncheck();
+    await page.getByLabel('Search settings').fill('');
+    // The Plan drawer: the planned key with its facts.
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    await facts(about(page.getByRole('region', { name: 'Changes' }), 'cleanupPeriodDays'));
+    await noAxe(page);
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    // The doctor and Insights name the keys of a settings finding.
+    await nav(page, 'Dashboard').click();
+    await facts(about(page.getByRole('table', { name: 'Doctor findings' }), 'permissions.deny'));
+    await nav(page, 'Insights').click();
+    await facts(about(page.getByRole('article', { name: /No Read deny rule/ }), 'permissions.deny'));
+    await noAxe(page);
+    // The Apply drawer: the global settings change lists the facts of each key it writes.
+    await nav(page, 'Dashboard').click();
+    await page.getByRole('button', { name: 'Fix everything' }).click();
+    const fix = page.getByRole('dialog', { name: 'Fix everything' });
+    await facts(about(fix, 'advisorModel'));
+    await noAxe(page);
+    await page.keyboard.press('Escape');
+  });
+
 
   test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
     await nav(page, 'Rules').click();

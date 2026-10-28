@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { AGENTS, NeedsConfirm, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, handover, limitsChange, listAccounts, login, newAccount, pickAccount, registrySettings, removeChange, rotationFor, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer, writeHandover } from './accounts.mjs';
+import { AGENTS, NeedsConfirm, ROTATE_WARNING, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, handover, limitsChange, listAccounts, login, loginVars, newAccount, pickAccount, registrySettings, removeChange, rotationFor, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer, writeHandover } from './accounts.mjs';
 import { ROTATE, WINDOWS, limitsFor, settingsOf } from './usage.mjs';
 import { detect, unavailable } from './agents.mjs';
 import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
@@ -1545,6 +1545,7 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
       if (name) findAccount(ctx, name);
       if (!given) { limitsShown(ctx).forEach((l) => out.write(`${l}\n`)); return 0; }
       change = name ? limitsChange(ctx, name, flags) : settingsChange(ctx, flags);
+      for (const [agent, v] of Object.entries(flags.rotate ?? {})) if (v === 'handover') out.write(`${ROTATE_WARNING[agent]}\n`);
     } else if (sub === 'add') {
       // What is missing is asked, as the Accounts page does step by step; with --yes it is a usage error.
       const asked = !name || !o.agent;
@@ -1617,7 +1618,8 @@ async function handoverFlow(ctx, a, { dir, yes, ask, out, after = false }) {
   }
   if (after && !ask.tty) { out.write(`account ${a.name} is below its minimum: benchkeeper accounts handover ${a.name} hands the work to ${r.target.name}\n`); return null; }
   const h = handover(ctx, dir, { from: a, to: r.target });
-  out.write(`current account: ${a.name}\ntarget account:  ${r.target.name} (pool ${a.pool})\n\n${h.text}\n`);
+  out.write(`current account: ${a.name}\ntarget account:  ${r.target.name} (pool ${a.pool})\n\n${h.text}\n${ROTATE_WARNING[a.agent]}\n`);
+  for (const k of loginVars(ctx, a.agent)) out.write(`warning: ${k} is set in this environment; the agent uses it instead of the account's login when it reaches the session (only when BENCHKEEPER_PASS_ENV names it)\n`);
   const go = yes || settingsOf(registrySettings(ctx)).continueBelow || (await ask(`Write ${h.path} and start ${a.agent} as ${r.target.name} with it as the first prompt?`));
   // The agent reads the terminal next, and a declined question must not keep the input open.
   ask.close();

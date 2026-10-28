@@ -661,7 +661,9 @@ test('handover (Claude Code): shows both accounts and the text, declining starts
   const m = machine();
   const [work, spare, most] = await pooled(m, 'claude', 'work', 'spare', 'most');
   await add(m, 'outside');
-  assert.equal(await cli(m).exec(['accounts', 'limits', '--rotate-claude', 'handover', '--yes']), 0);
+  const on = cli(m);
+  assert.equal(await on.exec(['accounts', 'limits', '--rotate-claude', 'handover', '--yes']), 0);
+  assert.match(on.text(), /^warning: rotating accounts .*https:\/\/code\.claude\.com\/docs\/en\/legal-and-compliance\).*consumer-terms, section 3\)\. The risk is yours; this is not legal advice\.$/m);
   const shown = cli(m);
   await shown.exec(['accounts', 'limits']);
   assert.match(shown.text(), /rotation: claude handover, codex off/);
@@ -678,7 +680,8 @@ test('handover (Claude Code): shows both accounts and the text, declining starts
   assert.equal(await no.exec(['accounts', 'handover', 'work', '--project', dir]), 1);
   assert.match(no.text(), /current account: work\ntarget account: {2}most \(pool me\)\n\n# Handover from account work to most/);
   for (const h of SIX) assert.ok(no.text().includes(h), h);
-  assert.match(no.text(), /start claude as most with it as the first prompt\? \[y\/N\] not started/);
+  assert.match(no.text(), /section 3\)\. The risk is yours; this is not legal advice\.\nwarning: ANTHROPIC_API_KEY is set in this environment; .*\nwarning: CLAUDE_CODE_OAUTH_TOKEN is set .*\nWrite .*start claude as most with it as the first prompt\? \[y\/N\] not started/);
+  assert.doesNotMatch(no.text(), /dummy-api-key|inherited-oauth-token/);
   assert.equal(starts().length, 0);
   assert.equal(existsSync(join(dir, '.benchkeeper', 'handover.md')), false);
   const yes = cli(m, ['y\n']);
@@ -723,7 +726,10 @@ test('run: after the session the handover is offered in a terminal only, for the
 test('handover (Codex): the fake app-server per account, the same decision and launcher', skip, async () => {
   const m = machine();
   const [dev, spare] = await pooled(m, 'codex', 'dev', 'spare');
-  assert.equal(await cli(m).exec(['accounts', 'limits', '--rotate-codex', 'handover', '--yes']), 0);
+  const on = cli(m);
+  assert.equal(await on.exec(['accounts', 'limits', '--rotate-codex', 'handover', '--yes']), 0);
+  assert.match(on.text(), /^warning: OpenAI's Terms of Use .*terms-of-use\/\).*sign-in-with-chatgpt-terms\/\)\. The risk is yours; this is not legal advice\.$/m);
+  m.env.OPENAI_API_KEY = 'dummy-openai-key';
   const limits = (a, used) => writeFileSync(join(a.dir, 'limits.json'), JSON.stringify({ primary: codexWindow(used, 300), secondary: codexWindow(10, 10080) }));
   limits(dev, 97);
   limits(spare, 20);
@@ -734,6 +740,9 @@ test('handover (Codex): the fake app-server per account, the same decision and l
   assert.equal(start.length, 1);
   assert.equal(start[0].env.CODEX_HOME, spare.dir);
   assert.match(start[0].args[0], /^# Handover from account dev to spare/);
+  assert.match(c.text(), /^warning: OpenAI's Terms of Use/m);
+  assert.match(c.text(), /^warning: OPENAI_API_KEY is set in this environment/m);
+  assert.equal(start[0].env.OPENAI_API_KEY, undefined);
   // Between the notice level and the minimum: a notice, nothing started.
   limits(dev, 88);
   const near = cli(m);

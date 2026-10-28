@@ -367,6 +367,16 @@ export function rotationFor(ctx, a, { dir, now = Date.now() } = {}) {
   return { ...rotation(usage(a), pool, setting, now), setting };
 }
 
+// Shown when rotation is turned on and before each handover. The sources are the providers' own pages; this is not legal advice.
+export const ROTATE_WARNING = {
+  claude: 'warning: rotating accounts to extend usage may go against Anthropic\'s terms: the usage limits of Pro and Max assume ordinary, individual usage (https://code.claude.com/docs/en/legal-and-compliance), and the consumer terms prohibit bypassing its protective measures (https://www.anthropic.com/legal/consumer-terms, section 3). The risk is yours; this is not legal advice.',
+  codex: 'warning: OpenAI\'s Terms of Use forbid circumventing rate limits (https://openai.com/policies/terms-of-use/), and its Sign in with ChatGPT Terms forbid rotating accounts to bypass usage limits (https://openai.com/policies/sign-in-with-chatgpt-terms/). The risk is yours; this is not legal advice.',
+};
+// A login variable in the environment takes precedence over the account's folder in the agent. childEnv drops these names,
+// so one reaches a session only when BENCHKEEPER_PASS_ENV names it.
+const LOGIN_VARS = { claude: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'], codex: ['OPENAI_API_KEY', 'CODEX_API_KEY'] };
+export const loginVars = (ctx, agent) => LOGIN_VARS[agent].filter((k) => where(ctx)[k]);
+
 const HANDOFF = '.benchkeeper/handoff.md';
 const HANDOVER = '.benchkeeper/handover.md';
 const FIELDS = ['Outcome', 'What changed', 'Checks and results', 'Open risks', 'Next step'];

@@ -11,7 +11,7 @@ import { doctor } from '../src/doctor.mjs';
 import { hashPath } from '../src/fsx.mjs';
 import { exportProfile } from '../src/profile.mjs';
 import { addProject } from '../src/projects.mjs';
-import { BUDGET_TOKENS, globRegex, ruleChanges, ruleStates, ruleText, rulesView, tokensOf } from '../src/rules.mjs';
+import { BUDGET_TOKENS, globRegex, ruleChanges, rulesChecks, ruleStates, ruleText, rulesView, tokensOf } from '../src/rules.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
@@ -298,4 +298,88 @@ test('rules list, disable and enable on the command line', async () => {
   assert.equal((await cli('rules', 'disable', join(ctx.home, 'notes.txt'), '--yes')).code, 1);
   assert.equal((await cli('rules', 'disable')).code, 2);
   assert.equal((await cli('rules', 'frob')).code, 2);
+});
+
+// One project with one case per check, after the global setup of both agents.
+function broken() {
+  const ctx = machine();
+  apply(preview(globalPlan({ ctx, agents: ['claude', 'codex'], devcontainerCli: '1.0.0' })), ctx);
+  const dir = project();
+  const repeated = `- ${SECRET} belongs in one file only, not two`;
+  write(join(ctx.home, '.claude/rules/20-team.md'), `${repeated}\n`);
+  write(join(dir, 'package.json'), JSON.stringify({ scripts: { build: 'true' } }));
+  write(join(dir, 'CLAUDE.md'), `# Project\n\n@docs/gone.md\nSee [the guide](docs/missing.md).\nRun \`npm run deploy\` before a release, then \`npm run build\`.\n${repeated}\n`);
+  write(join(dir, '.claude/rules/big.md'), `${'Keep it short. '.repeat(300)}\n`);
+  write(join(dir, '.claude/rules/api.md'), '---\npaths:\n  - "api/**/*.ts"\n---\n\nAPI rules\n');
+  write(join(dir, '.claude/rules/empty.md'), '');
+  mkdirSync(join(dir, '.claude/rules/folder.md'));
+  write(join(dir, '.claude/rules/notes.txt'), 'not loaded\n');
+  write(join(ctx.home, '.claude/projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 'memory/MEMORY.md'), `${Array.from({ length: 300 }, (_, i) => `- note ${i}`).join('\n')}\n`);
+  return { ctx, dir };
+}
+
+test('the checks: one case per check yields exactly its finding with file and line, a clean project none', () => {
+  const { ctx, dir } = broken();
+  const found = rulesChecks(ctx, { agents: ['claude', 'codex'], dir, limit: 1000 });
+  assert.deepEqual(found.map((f) => f.kind).sort(), ['command', 'duplicate', 'empty', 'glob', 'import', 'link', 'memory', 'size', 'unloaded', 'unreadable']);
+  const by = Object.fromEntries(found.map((f) => [f.kind, f]));
+  assert.deepEqual([by.import.file, by.import.line, by.import.level], ['CLAUDE.md', 3, 'error']);
+  assert.deepEqual([by.link.line, by.link.level], [4, 'error']);
+  assert.match(by.command.message, /^CLAUDE\.md:5 runs npm run deploy, which no package\.json/);
+  assert.match(by.duplicate.message, /^CLAUDE\.md:6 repeats ~\/\.claude\/rules\/20-team\.md:1: both load in the same Claude Code session/);
+  assert.match(by.size.message, /\.claude\/rules\/big\.md has about 1126 tokens, over the limit of 1000 per file/);
+  assert.deepEqual(by.size.action, { agent: 'claude', file: join(dir, '.claude/rules/big.md') }, 'a file with a switch can be turned off');
+  assert.deepEqual([by.glob.file, by.glob.line], ['.claude/rules/api.md', 2]);
+  assert.match(by.empty.message, /empty\.md is empty/);
+  assert.match(by.unreadable.message, /folder\.md cannot be read/);
+  assert.match(by.unloaded.message, /notes\.txt is not a \.md file: Claude Code does not load it/);
+  assert.deepEqual([by.memory.line, by.memory.scope], [201, 'project']);
+  assert.ok(found.every((f) => ['error', 'warning'].includes(f.level) && f.message && f.fix));
+  // The default limit is the budget; a file over it is the only change.
+  assert.ok(!rulesChecks(ctx, { agents: ['claude'], dir }).some((f) => f.kind === 'size'));
+  const clean = project();
+  write(join(clean, 'CLAUDE.md'), '@AGENTS.md\n\nRun `npm run build` before a pull request.\n');
+  write(join(clean, 'AGENTS.md'), '# Rules\n\nSee [the readme](README.md).\n');
+  write(join(clean, 'README.md'), '# Clean\n');
+  write(join(clean, 'package.json'), JSON.stringify({ scripts: { build: 'true' } }));
+  write(join(clean, '.claude/rules/web.md'), '---\npaths: "web/**/*.ts"\n---\n\nWeb rules\n');
+  write(join(clean, 'web/src/a.ts'), '');
+  assert.deepEqual(rulesChecks(ctx, { agents: ['claude', 'codex'], dir: clean }).filter((f) => f.scope !== 'global'), []);
+  const fresh = machine();
+  apply(preview(globalPlan({ ctx: fresh, agents: ['claude', 'codex'], devcontainerCli: '1.0.0' })), fresh);
+  assert.deepEqual(rulesChecks(fresh, { agents: ['claude', 'codex'] }), [], 'the global setup alone is clean');
+});
+
+test('the limits show as bars: the session budget by BenchKeeper, the Codex size and auto memory by the agent', () => {
+  const { ctx, dir } = broken();
+  const view = rulesView(ctx, { dir, limit: 1000 });
+  assert.equal(view.limit, 1000);
+  const claude = view.agents.find((a) => a.id === 'claude').budget.limits;
+  assert.deepEqual(claude.map((l) => [l.label, l.by, l.unit]), [['At the start of a session', 'BenchKeeper', 'tokens'], ['MEMORY.md', 'Claude Code', 'lines']]);
+  assert.deepEqual([claude[1].value, claude[1].max], [300, 200]);
+  assert.deepEqual(view.agents.find((a) => a.id === 'codex').budget.limits[1], { label: 'AGENTS.md files together', value: view.agents.find((a) => a.id === 'codex').budget.items.filter((i) => i.kind === 'rules').reduce((n, i) => n + i.bytes, 0), max: 32 * 1024, unit: 'bytes', by: 'Codex' });
+});
+
+test('rules check exits 1 on an error finding and prints --json; Doctor lists the findings once; no rule text in any of them', async () => {
+  const { ctx, dir } = broken();
+  addProject(ctx, dir);
+  const cli = async (...args) => { const o = output(); const code = await main(args, { out: o.stream, err: o.stream, ctx }); return { code, text: o.text }; };
+  const text = await cli('rules', 'check', '--project', dir, '--agents', 'claude,codex');
+  assert.equal(text.code, 1, text.text);
+  assert.match(text.text, /^error +CLAUDE\.md:4 links docs\/missing\.md, which does not exist\n {8}fix: /m);
+  assert.match(text.text, /\d+ errors, \d+ warnings\n$/);
+  const json = await cli('rules', 'check', '--project', dir, '--json');
+  assert.equal(json.code, 1);
+  const doc = JSON.parse(json.text);
+  assert.equal(doc.command, 'rules check');
+  assert.ok(doc.summary.error >= 3 && doc.findings.every((f) => f.check === 'rules' && f.message));
+  assert.equal((await cli('rules', 'check', '--limit', 'x')).code, 2);
+  const clean = machine();
+  const cleanRun = async (...args) => { const o = output(); return main(args, { out: o.stream, err: o.stream, ctx: clean }); };
+  assert.equal(await cleanRun('rules', 'check'), 0);
+  const found = doctor(ctx, { agents: ['claude', 'codex'], dir, env: {}, devcontainerCli: '1.0.0' });
+  const rules = found.filter((f) => f.check === 'rules');
+  assert.deepEqual(rules.map((f) => f.kind).sort(), ['command', 'duplicate', 'empty', 'glob', 'link', 'memory', 'unloaded', 'unreadable']);
+  assert.equal(found.filter((f) => /imports docs\/gone\.md/.test(f.message)).length, 1, 'a missing import is reported once');
+  for (const out of [text.text, json.text, JSON.stringify(found), JSON.stringify(rulesView(ctx, { dir })), JSON.stringify(ctx.ledger.list()), exportProfile(ctx, { agents: ['claude', 'codex'], packs: [] })]) assert.ok(!out.includes(SECRET));
 });

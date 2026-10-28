@@ -73,7 +73,10 @@ const VIEWS = [
     await nav(page, 'Catalog').click();
     await page.getByRole('table', { name: 'Skill states' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -200); });
   }],
-  ['rules', async (page) => { await nav(page, 'Rules').click(); }],
+  ['rules', async (page) => {
+    await nav(page, 'Rules').click();
+    await expect(page.getByRole('region', { name: 'Checks' })).toBeVisible();
+  }],
   ['settings', async (page) => { await nav(page, 'Agent settings').click(); }],
   ['history', async (page) => {
     await nav(page, 'History').click();

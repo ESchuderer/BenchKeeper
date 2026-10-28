@@ -26,7 +26,7 @@ import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
-import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
+import { BUDGET_TOKENS, RULE_AGENTS, ruleChanges, ruleText, rulesChecks, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
@@ -88,6 +88,11 @@ Usage: benchkeeper <command> [options]
                                     the app's own); nothing is deleted, the plan has a diff and undo restores it
   rules show <file> [--agent a] [--project dir]
                                     the text of one file rules list shows (the first 200000 characters)
+  rules check [--agent a] [--project dir] [--limit tokens]
+                                    checks the files rules list shows: over the size limit of one file (default 10000
+                                    tokens), auto memory beyond what loads, imports, links and npm scripts that do not
+                                    exist, the same line in two loaded files, path-scoped rules that match no file,
+                                    empty or unreadable files, rule files no agent reads; exit 1 on an error finding
   extensions list [--agent claude|codex] [--project dir]
                                     MCP servers, hooks, subagents, commands and output styles each agent loads,
                                     read from files only (no agent starts), with owner and a runs-code mark; env
@@ -272,7 +277,7 @@ Usage: benchkeeper <command> [options]
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
 --json (doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list,
-        show and warnings, skills list, show and sources, rules list and show, extensions list, settings list and get,
+        show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get,
         sessions board, list and cache, insights, profile export, knowledge show, accounts list and status,
         evals plan, run and results, inventory, dashboard; apply, projects apply, add, remove, rename, relocate and
         update, settings set, rules and packs enable|disable, skills update, undo)
@@ -296,7 +301,7 @@ const OPTIONS = {
   origins: { type: 'boolean' }, 'clone-into': { type: 'string' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
-  account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
+  limit: { type: 'string' }, account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -1063,6 +1068,13 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const found = selectedAgents(ctx, o.agents).filter((a) => RULE_AGENTS.includes(a));
     return emit(rulesView(ctx, { agents: o.agent ? [o.agent] : found.length ? found : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined }));
   }
+  if (cmd === 'rules' && arg === 'check') {
+    const extra = surplus(2); if (extra !== undefined) return extra;
+    const opts = rulesCheckOptions(ctx, o);
+    if (opts.error) return fail(opts.error);
+    const found = rulesChecks(ctx, opts);
+    return emit({ dir: opts.dir ?? null, limit: opts.limit, findings: found.map(finding), summary: { error: count(found, 'error'), warning: count(found, 'warning') } }, count(found, 'error') ? 1 : 0);
+  }
   if (cmd === 'extensions' && (!arg || arg === 'list')) {
     const extra = surplus(2); if (extra !== undefined) return extra;
     if (o.agent && !RULE_AGENTS.includes(o.agent)) return fail(`agent must be one of ${RULE_AGENTS.join(', ')}`);
@@ -1183,7 +1195,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [] })) });
   }
-  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list and show, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
+  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
@@ -1266,12 +1278,28 @@ async function knowledgeCommand({ o, positionals, out, ask }) {
   return 0;
 }
 
-// rules list|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
+// The agents, project and file size limit of rules check, or { error }.
+function rulesCheckOptions(ctx, o) {
+  if (o.agent && !RULE_AGENTS.includes(o.agent)) return { error: `agent must be one of ${RULE_AGENTS.join(', ')}` };
+  if (o.limit !== undefined && !/^[1-9]\d*$/.test(o.limit)) return { error: '--limit must be a whole number of tokens above 0' };
+  const found = selectedAgents(ctx, o.agents).filter((a) => RULE_AGENTS.includes(a));
+  return { agents: o.agent ? [o.agent] : found.length ? found : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined, limit: o.limit ? Number(o.limit) : BUDGET_TOKENS };
+}
+
+// rules list|check|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
 async function rulesCommand({ o, positionals, out, ask, ctx }) {
   const [, sub, file] = positionals;
-  if (!['list', 'disable', 'enable'].includes(sub)) { out.write('rules needs list, show, disable or enable\n'); return 2; }
+  if (!['list', 'check', 'disable', 'enable'].includes(sub)) { out.write('rules needs list, show, check, disable or enable\n'); return 2; }
   if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
   const dir = o.project ? resolve(o.project) : undefined;
+  if (sub === 'check') {
+    const opts = rulesCheckOptions(ctx, o);
+    if (opts.error) { out.write(`${opts.error}\n`); return 2; }
+    const found = rulesChecks(ctx, opts);
+    for (const i of found) out.write(`${i.level.padEnd(8)} ${i.message}\n        fix: ${i.fix}\n`);
+    out.write(found.length ? `${count(found, 'error')} errors, ${count(found, 'warning')} warnings\n` : 'no problems found\n');
+    return count(found, 'error') ? 1 : 0;
+  }
   if (sub === 'list') {
     const found = selectedAgents(ctx, o.agents).filter((a) => RULE_AGENTS.includes(a));
     for (const a of rulesView(ctx, { agents: o.agent ? [o.agent] : found.length ? found : RULE_AGENTS, dir }).agents) {

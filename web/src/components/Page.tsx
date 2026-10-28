@@ -70,10 +70,10 @@ function StepList({ from, className }: { from: number; className?: string }) {
 }
 
 const repoSteps: [string, string, string][] = [
-  ['Project setup, in each repository root', 'npx benchkeeper@6.25.0 project apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. project plan shows the changes first.'],
-  ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.25.0 record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
-  ['Update later', 'npx benchkeeper@6.25.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.25.0 update-all, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
-  ['Track sessions', 'npx benchkeeper@6.25.0 board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
+  ['Project setup, in each repository root', 'npx benchkeeper@6.25.0 projects apply --agents claude,codex', '--agents names the agents the repository uses. Where commands run and the default tier, library packs with --pack, and .benchkeeper/state.json. It stays on this machine: CLAUDE.local.md, AGENTS.override.md and the skills, all in .git/info/exclude. --share commits it to the repository instead. project plan shows the changes first.'],
+  ['Stack skills and the dev container, as a recorded session', "npx benchkeeper@6.25.0 sessions record -- claude '/benchkeeper:setting-up-projects'", "Codex: the same with codex '$benchkeeper:setting-up-projects'. With the matt-pocock pack, also /mattpocock-skills:setup-matt-pocock-skills. Commit the result."],
+  ['Update later', 'npx benchkeeper@6.25.0 apply', 'With the version of the newest release. The plan lists what changed, including the plugin. Projects: npx benchkeeper@6.25.0 projects update, or Fix everything in the browser, updates each local setup in place; a shared one, or a setup still committed from before, gets a pull request.'],
+  ['Track sessions', 'npx benchkeeper@6.25.0 sessions board', 'Writes a static page, board.html in the BenchKeeper config folder, from the Claude Code and Codex transcripts on this machine: per session the tier, the setup installed at the time, skills used, the last test run, cost, time and pull request state. The Sessions view in the browser app shows the same board.'],
 ];
 
 function CmdRow({ cmd, note }: { cmd: string; note: ReactNode }) {
@@ -254,7 +254,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Side label="Devcontainer, one per repository" color="orange" items={container} />
           </SimpleGrid>
           <Alert mt="xl" variant="default" role="note" icon={<IconAlertTriangle size={20} />} title="Isolation">
-            In the default container environment the agent sees the project mount instead of your home folder, but a container shares the host kernel and is not a security boundary. With --env host-agent, project apply --sandbox turns on Claude Code's sandbox. For a separate kernel, use a Docker Sandboxes microVM (--env sandbox, untested) or a VM.
+            In the default container environment the agent sees the project mount instead of your home folder, but a container shares the host kernel and is not a security boundary. With --env host-agent, projects apply --sandbox turns on Claude Code's sandbox. For a separate kernel, use a Docker Sandboxes microVM (--env sandbox, untested) or a VM.
           </Alert>
         </Section>
       </main>

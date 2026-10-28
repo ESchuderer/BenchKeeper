@@ -1,5 +1,5 @@
 // Eval cases: an observed miss becomes a regression case for a skill or rule. The app's sets ship in
-// <content>/evals/, the user's own go to ~/.config/benchkeeper/evals/; benchkeeper eval reads both.
+// <content>/evals/, the user's own go to ~/.config/benchkeeper/evals/; benchkeeper evals reads both.
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';

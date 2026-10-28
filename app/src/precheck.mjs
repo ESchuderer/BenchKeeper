@@ -93,7 +93,7 @@ async function issuePickup(ctx, dir, v) {
 
 const QUERY = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, first: 100) { nodes {
   number isDraft isCrossRepository headRefName headRefOid body mergeable reviewDecision author { login } labels(first: 50) { nodes { name } }
-  commits(first: 100) { nodes { commit { authors(first: 10) { nodes { user { login } } } } } }
+  commits(first: 100) { nodes { commit { author { user { login } } } } }
   reviewThreads(first: 100) { nodes { id isResolved } }
   comments(last: 50) { nodes { author { login } body } }
   head: commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
@@ -117,7 +117,8 @@ async function prWatcher(ctx, dir, v) {
     if (p.headRefName.startsWith('release-please--') || labels.includes('autorelease: pending')) return { skip: 'release pull request' };
     if (p.isCrossRepository) return { skip: 'from a fork' };
     if (!allowed.has(author)) return { skip: `external, by ${author}` };
-    if (p.commits.nodes.some((c) => c.commit.authors.nodes.some((a) => who(a.user?.login) !== author))) return { skip: 'holds a commit by someone else' };
+    // The git author: a co-author trailer, such as an agent's attribution, does not make a commit someone else's.
+    if (p.commits.nodes.some((c) => who(c.commit.author?.user?.login) !== author)) return { skip: 'holds a commit by someone else' };
     if (labels.includes(v.hold_label)) return { skip: `label ${v.hold_label}` };
     if (workers.some((w) => w.working && w.branch === p.headRefName)) return { skip: 'a worker is on it' };
     if (v.head && p.headRefOid !== v.head) return { skip: `head is ${p.headRefOid}, not ${v.head}` };

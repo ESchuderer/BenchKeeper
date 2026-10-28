@@ -3,6 +3,7 @@
 //                                           folder; existing content goes to the backup first; mode sets the file mode
 //   { kind: 'remove', path }                moves a file or folder to the backup
 //   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists
+//   { kind: 'clone', argv, cwd, path }       a git clone into a folder that does not exist yet; undone only while the clone is untouched
 // Every change has id, step, title, and destructive (confirmed separately, off by default).
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
@@ -10,7 +11,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { childEnv } from './childenv.mjs';
 import { diffLines } from './diff.mjs';
 import { copy, exists, hashPath, hashText, inside, isDir, listFiles, move, readText, real, writeAtomic } from './fsx.mjs';
-import { blob, fileMode, hasTree } from './git.mjs';
+import { blob, fileMode, git, hasTree } from './git.mjs';
 import { Ledger, SCHEMA, runId } from './ledger.mjs';
 import { mask } from './redact.mjs';
 
@@ -141,7 +142,20 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
     if (c.unit) startedUnits.add(c.unit);
     if (failedSteps.has(c.step)) { entry.status = 'skipped'; entry.reason = 'an earlier change of this step failed'; continue; }
     try {
-      if (c.kind === 'command') {
+      if (c.kind === 'clone') {
+        const path = resolve(c.path);
+        if (!allowed(path, ctx, false)) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
+        if (exists(path)) throw new Error(`${path} exists already`);
+        // Journaled before it starts: a clone cut off by a crash shows in history.
+        Object.assign(entry, { path, existed: false, argv: c.argv, cwd: c.cwd, status: 'running', touched: true });
+        ctx.ledger.save(run);
+        const r = yield { argv: c.argv, opts: { cwd: c.cwd ?? ctx.home, env: childEnv(c.env) }, entry };
+        entry.exit = r.code;
+        if (!exists(path)) delete entry.touched;
+        if (r.code !== 0) throw new Error(failure(r));
+        // The refs as the clone left them: undo removes the folder only while they are these.
+        entry.refs = (yield { argv: ['git', '-c', 'core.fsmonitor=false', '-C', path, 'for-each-ref', '--format=%(refname) %(objectname)'], opts: { cwd: path, env: childEnv() }, entry }).stdout.trim();
+      } else if (c.kind === 'command') {
         // Journaled before it starts: a command cut off by a crash shows in history and can be undone.
         Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null, status: 'running', touched: true });
         // Paths the command changes (skill folders, a lockfile) are copied first; undo puts these copies back.
@@ -346,6 +360,23 @@ function undoRun(id, ctx, { step } = {}) {
           if (f.backup) copy(f.backup, f.path);
           entry.files[i].hashAfter = hashPath(f.path);
         });
+      } else if (e.kind === 'clone') {
+        // A clone nobody touched goes (to the backup, so undoing the undo brings it back): no change in the working tree,
+        // ignored and untracked files included, and no new branch, tag, stash or commit. A setup run that wrote into the
+        // folder is undone first.
+        within(e.path, false);
+        if (exists(e.path)) {
+          const state = git(ctx, e.path, ['status', '--porcelain', '--ignored=matching', '--untracked-files=all']);
+          if (state.code !== 0) throw new Error(`${e.path} cannot be checked (${failure(state)}): remove it by hand if it is not needed`);
+          if (state.stdout.trim()) throw new Error(`${e.path} holds changes: undo the setup runs of the project first, then move or commit what is yours`);
+          const refs = git(ctx, e.path, ['for-each-ref', '--format=%(refname) %(objectname)']).stdout.trim();
+          if (refs !== (e.refs ?? '')) throw new Error(`${e.path} has branches, tags or commits that are not the clone's`);
+          const [backup] = backups([e.path], run.entries.length);
+          Object.assign(entry, { kind: 'restore', files: [{ path: e.path, backup }] });
+          begin(entry);
+          aside(entry.files[0], e.path);
+          entry.files[0].hashAfter = hashPath(e.path);
+        }
       } else if (e.kind === 'command' && e.snapshot) {
         // The paths come back from the copies taken before the command, while they are as it left them.
         for (const x of e.snapshot) {

@@ -19,6 +19,8 @@ import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
 import { isDir, listFiles, readText, writeAtomic } from './fsx.mjs';
 import { mask } from './redact.mjs';
+import { cloneMissing } from './bootstrap.mjs';
+import { projectOrigins } from './origin.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { frameworkRows, sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
@@ -56,9 +58,12 @@ Usage: benchkeeper <command> [options]
                                     alone, nothing else on the machine (standard: then projects apply writes
                                     the local block per repository); full: rules, settings, plugins, tools.
                                     Default: the level found (doctor shows it), full on a machine without BenchKeeper
-  profile export [file] [--agents a,b]
-                                    agents, packs, own packs and registered projects with their answers as one file
-  profile import <file> [--yes]     shows the global and project changes, applies the chosen ones; missing paths are skipped
+  profile export [file] [--agents a,b] [--origins]
+                                    agents, packs, own packs and registered projects with their answers as one file;
+                                    --origins adds each project's origin address (listed first; a login in it is dropped)
+  profile import <file> [--yes] [--clone-into dir]
+                                    shows the global and project changes, applies the chosen ones; a missing project with an
+                                    origin is cloned into dir after its own question (never under --yes); other missing paths are skipped
   doctor [dir] [--agents a,b] [--baseline auto|oss|private-advisory] [--baseline-ref ref]
                                     the install level, setup problems with a fix each, nothing written; exit 1 on an error;
                                     --baseline also compares the GitHub settings and caller workflows with a
@@ -245,6 +250,7 @@ const OPTIONS = {
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
   only: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
+  origins: { type: 'boolean' }, 'clone-into': { type: 'string' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
@@ -288,6 +294,13 @@ async function choose(plan, o, ask, out) {
     if (yes) select.push(c.id);
   }
   return select;
+}
+
+// The origin addresses an export would write, listed before it writes them (to stderr when the profile itself goes to stdout).
+function shownOrigins(ctx, to) {
+  const found = projectOrigins(ctx, listProjects(ctx).map((x) => x.path));
+  for (const f of found) to.write(f.url ? `origin ${f.path}: ${f.url}\n` : `no origin written for ${f.path}: ${f.reason}\n`);
+  return found;
 }
 
 function report(run, out) {
@@ -652,19 +665,22 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'profile') {
     if (arg === 'export') {
-      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) });
+      const origins = o.origins ? shownOrigins(ctx, positionals[2] ? out : err) : [];
+      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins });
       if (positionals[2]) { writeAtomic(resolve(positionals[2]), text); out.write(`wrote ${resolve(positionals[2])}\n`); } else out.write(text);
       return 0;
     }
     if (arg !== 'import' || !positionals[2]) { out.write('profile needs export [file] or import <file>\n'); return 2; }
     const p = readProfile(readFileSync(positionals[2], 'utf8'));
-    // Own packs first: the project plans can name them.
+    let code = 0;
+    // Clones first: a cloned project is registered and set up below like one that was here.
+    for (const run of await cloneMissing(ctx, p, { into: o['clone-into'], yes: o.yes, ask, out })) code |= report(run, out);
+    // Own packs next: the project plans can name them.
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
     for (const r of done.refused) out.write(`refused: ${r}\n`);
     const plan = importPlan(ctx, p);
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
-    let code = 0;
     if (plan.global.length) code |= report(apply(plan.global, ctx, { scope: 'global', select: await choose(plan.global, o, ask, out) }), out);
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);
@@ -1096,7 +1112,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (positionals[2]) return fail('profile export --json prints the document: redirect stdout and take `.profile` before profile import');
     const broken = registryFail();
     if (broken !== undefined) return broken;
-    return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
+    return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [] })) });
   }
   return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list and show, extensions list, settings list and get, frameworks list, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }

@@ -23,4 +23,8 @@ The commands of the `benchkeeper` CLI follow one scheme: a noun group, then a ve
 
 `ui`, `plan`, `apply`, `doctor`, `history`, `undo`, `restore`, `run`, `insights`, `profile`, `settings`, `rules`, `extensions`, `packs`, `frameworks`, `accounts`, `skills` and `projects list|add|scan|remove|rename|relocate|unshare` keep their names and options. The UI routes under `/api/` keep theirs.
 
-Scripts and notes that call the old names need the new ones; a project's `.benchkeeper/state.json` needs no change.
+Scripts and notes that call the old names need the new ones.
+
+## Project state
+
+`.benchkeeper/state.json` moves to `schemaVersion` 2: `appVersion` and `contentVersion` replace `setupVersion`. 7.0 reads a version 1 file with `setupVersion` as both values and writes version 2 on the next `projects apply`; a project is behind when either version differs. BenchKeeper 6.x may misread or overwrite a version 2 file, so everyone who works on a repository with a shared setup (committed state file) updates to 7.0 together.

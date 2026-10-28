@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BenchKeeper orchestrator policy (docs/agents/orchestration.json)",
+  "type": "object",
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "startLabel": { "type": "string", "minLength": 1 },
+    "trustedAuthors": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "workersPerProject": { "type": "integer", "minimum": 1, "maximum": 32 },
+    "hostWorkerLimit": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "stallMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+    "merge": {
+      "type": "object",
+      "properties": {
+        "allowed": { "type": "boolean" },
+        "requiredChecks": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "closeIssue": { "type": "boolean" },
+    "deleteMergedBranch": { "type": "boolean" }
+  }
+}

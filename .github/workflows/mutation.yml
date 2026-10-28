@@ -1,0 +1,66 @@
+name: Mutation
+
+# Stryker over the logic modules of app/quality.json "mutation", one job per module: weekly, and on demand for one module.
+# A module fails below its floor (the first measured score minus 2 points); one without a floor only reports its score.
+on:
+  schedule:
+    - cron: '23 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      module:
+        description: One module of app/quality.json "mutation", empty for all
+        required: false
+        default: ''
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.module }}
+  cancel-in-progress: false
+
+jobs:
+  modules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Modules to mutate
+        id: list
+        env:
+          MODULE: ${{ inputs.module }}
+        run: |
+          node -e '
+            const all = Object.keys(require("./app/quality.json").mutation);
+            const one = process.env.MODULE;
+            if (one && !all.includes(one)) { console.error("::error::" + one + " is not a module of app/quality.json mutation"); process.exit(1); }
+            console.log("list=" + JSON.stringify(one ? [one] : all));
+          ' >> "$GITHUB_OUTPUT"
+
+  mutate:
+    needs: modules
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.modules.outputs.list) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
+      - name: Mutation testing
+        working-directory: app
+        env:
+          MUTATE_MODULE: ${{ matrix.module }}
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run mutate

@@ -24,6 +24,8 @@ Planted-problem fixture (6 modules, scratch): knip found the dead export; jscpd 
 
 Skill shape: `disable-model-invocation: true` keeps the description out of context in Claude Code ([skills](https://code.claude.com/docs/en/skills)); for Codex `allow_implicit_invocation: false` stops prompt matching ([build skills](https://learn.chatgpt.com/docs/build-skills)), and whether the description then stays in the startup list is unverified. One skill with disclosed files therefore costs nothing at startup in Claude Code, and the owner's options B and C were not drafted.
 
+BenchKeeper's own gate (issue [#486](https://github.com/ESchuderer/BenchKeeper/issues/486), 2026-10-28, knip 6.42.1, jscpd 5.4.2, StrykerJS 10.0.0): the command runner works with `node --test`; a sandbox copy of `app/` fails tests that read `plugins/` or `web/scripts/`, so Stryker runs in place with `disableTypeChecks: false` (otherwise it writes `// @ts-nocheck` into every source and test file, and a killed run leaves them). It needs `ps` (procps) to stop test processes. Scores in place on the module's importing test files: allow 71.58, fsx 61.94, ledger 37.36, merge 65.19, packs 75.21, redact 70.49, roots 31.03 (indirect tests only), rules 71.28, settings 64.17, skills 64.41 (skills, ledger and roots in a sandbox with packed content); 12 s to 7 min per module. Floors, coverage per module and the knip and jscpd baselines are in `app/quality.json`.
+
 ## Not measured
 
 - Python and Rust tools (vulture 2.16, deptry 0.25.1, import-linter 2.15, mutmut 3.8.0, cosmic-ray 8.7.0, cargo-machete 0.9.2, cargo-udeps 0.1.61, cargo-mutants 27.1.0): versions and licenses only, install, run time and false-positive rate unverified.

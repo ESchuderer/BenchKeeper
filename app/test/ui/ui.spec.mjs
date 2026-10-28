@@ -1220,7 +1220,7 @@ test.describe('views', () => {
     await page.getByRole('combobox', { name: 'Show' }).click();
     await page.getByRole('option', { name: /bk-ui-proj/ }).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Claude Code extensions for this project' })).toBeVisible();
-    const hook = page.getByRole('table', { name: 'Claude Code extensions' }).getByRole('row', { name: /Hook/ });
+    const hook = page.getByRole('table', { name: 'Claude Code extensions' }).getByRole('row', { name: /Hook.*AUDIT_TOKEN/ });
     await expect(hook).toContainText('PreToolUse');
     await expect(hook).toContainText('runs code');
     await expect(hook).toContainText('AUDIT_TOKEN=***');

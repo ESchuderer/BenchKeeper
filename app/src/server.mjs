@@ -40,7 +40,7 @@ import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
 import { bundleEdits, isSettingsFile, listSettings, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { detectLevel, levelFor } from './level.mjs';
 import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, upToDate } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
@@ -119,7 +119,8 @@ function setupAnswers(src) {
     agentFiles: named(src, 'agent-file', 'agentFiles') ? list(src instanceof URLSearchParams ? 'agent-file' : 'agentFiles') : undefined,
     // An empty tier clears the saved one; no tier keeps it.
     tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined,
-    // No share keeps the saved choice.
+    // No guards or share keeps the saved choice.
+    guards: named(src, 'guards', 'guards') ? get('guards') === '1' || get('guards') === true : undefined,
     share: (src instanceof URLSearchParams ? src.has('share') : 'share' in src) ? get('share') === '1' || get('share') === true : undefined };
 }
 
@@ -193,7 +194,7 @@ export function api(ctx) {
   };
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
+    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.contentVersion ?? null, current: upToDate(s) }; }) }),
     'GET /api/global-plan': (q) => {
       const agents = q.get('agents') ? q.get('agents').split(',') : installed();
       const level = q.get('level') ?? levelFor(ctx, agents);

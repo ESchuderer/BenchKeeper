@@ -12,7 +12,7 @@ export const ENV_TITLE = { container: 'Agent in the dev container (recommended)'
 
 // The query of a project plan for these first-setup answers.
 export const planQuery = (dir, a) => {
-  const q = new URLSearchParams({ dir, setup: '1', agents: a.agents.join(','), env: a.env, sandbox: a.sandbox ? '1' : '0', share: a.share ? '1' : '0' });
+  const q = new URLSearchParams({ dir, setup: '1', agents: a.agents.join(','), env: a.env, sandbox: a.sandbox ? '1' : '0', guards: a.guards ? '1' : '0', share: a.share ? '1' : '0' });
   for (const p of a.packs) q.append('pack', p);
   for (const s of a.skills) q.append('skill', s);
   // Named whenever the answers have them (an empty choice takes the frameworks of a saved setup out); the one-run form has none.
@@ -119,8 +119,8 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     if (!setup.data || a) return;
     // A project set up before starts from its state file, so only what the user changes is cleaned up.
     const st = setup.data.state;
-    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], frameworks: st.frameworks ?? [], agentFiles: st.agentFiles ?? [], tier: st.tier ?? '', share: st.share === true }
-      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], frameworks: [], agentFiles: [], tier: '', share: false });
+    setA(st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, guards: st.guards !== false, packs: st.packs ?? [], skills: st.singles ?? [], frameworks: st.frameworks ?? [], agentFiles: st.agentFiles ?? [], tier: st.tier ?? '', share: st.share === true }
+      : { agents: setup.data.agents.map((x) => x.id), env: setup.data.suggested.env?.id ?? 'container', sandbox: false, guards: true, packs: setup.data.suggested.packs.map((p) => p.id), skills: [], frameworks: [], agentFiles: [], tier: '', share: false });
   }, [setup.data]);
   // An environment the user chose is kept: a suggestion fills it only while it still has its starting value.
   const envTouched = useRef(false);
@@ -182,6 +182,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             {s.suggested.devcontainer && <Text size="sm" mt="xs">This project has a <Code>.devcontainer/</Code>.</Text>}
             {s.suggested.env && <Text size="sm" mt="xs">Preselected {ENV_TITLE[s.suggested.env.id] ?? s.suggested.env.id}: {s.suggested.env.reason}.</Text>}
             <Switch mt="md" label="Claude Code sandbox for the agent's commands" checked={a.sandbox} onChange={(e) => set('sandbox')(e.currentTarget.checked)} />
+            <Switch mt="md" label="Deny rules and a guard hook for --no-verify, force push, sudo and applying changes to shared systems (Claude Code)" checked={a.guards} onChange={(e) => set('guards')(e.currentTarget.checked)} />
           </Stepper.Step>
           <Stepper.Step label="Skills">
             <AgentAdvice dir={dir} advisers={s.advisers} onAdvice={applyAdvice} />

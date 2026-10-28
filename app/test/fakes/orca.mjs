@@ -7,7 +7,8 @@
 // command changes what later calls get. hang never ends; prompt asks on stderr and answers only after a line starting with y
 // on stdin. A call no reply matches exits 2 and is logged with unknown: true.
 // The automations replies are derived from the CLI's source at the observed version, not recorded (fixtures *-derived.json):
-// recording needs a throwaway automation in a real store, a step of docs/orca-checks.md.
+// recording needs a throwaway automation in a real store, a step of docs/orca-checks.md. Recorded so far: the refusal of a
+// create whose workspace is in no registered repository (automation-create-unregistered.json).
 import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,7 +20,7 @@ const self = fileURLToPath(import.meta.url);
 // A hung or parked command is stopped after this long: the test fails fast instead of waiting for the adapter's own timeout.
 export const WATCHDOG_MS = 1500;
 const fixture = (f) => readFileSync(new URL(`../fixtures/orca/${f}`, import.meta.url), 'utf8');
-export const RECORDED = { version: fixture('version.txt'), runList: JSON.parse(fixture('run-list.json')), taskList: JSON.parse(fixture('task-list.json')), error: fixture('error.json') };
+export const RECORDED = { version: fixture('version.txt'), runList: JSON.parse(fixture('run-list.json')), taskList: JSON.parse(fixture('task-list.json')), error: fixture('error.json'), createUnregistered: fixture('automation-create-unregistered.json') };
 
 // The replies of the calls the adapter makes. runs and tasks (by run id) default to the recorded ones.
 const json = (x) => `${JSON.stringify(x, null, 2)}\n`;

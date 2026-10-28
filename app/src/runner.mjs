@@ -22,7 +22,9 @@ const PRIVATE_NEW = /[\\/]\.(claude|codex|gemini|copilot)[\\/](settings(\.local)
 // A Windows system tool by its full path, so the PATH search does not decide which program runs.
 export const windowsTool = (...parts) => join(process.env.SystemRoot ?? 'C:\\Windows', ...parts);
 // The last lines of a failed command's output, as stored in the ledger and shown: tokens masked.
-const failure = (r, lines = 3) => mask((r.stderr || r.stdout || '').trim().split('\n').slice(-lines).join(' ')) || `exit ${r.code}`;
+// A --json command that fails prints its error as a JSON object on stdout: its message, not the object's last lines.
+const jsonError = (s) => { try { const m = JSON.parse(s)?.error?.message; return typeof m === 'string' ? m : undefined; } catch { return undefined; } };
+const failure = (r, lines = 3) => mask((r.stderr || jsonError(r.stdout) || r.stdout || '').trim().split('\n').slice(-lines).join(' ')) || `exit ${r.code}`;
 
 // The undo commands plans produce: the plugin and marketplace commands of the two agents, with a plain name. A ledger file
 // that names anything else is not run (the ledger is a file the user's other processes can write).

@@ -75,6 +75,11 @@ const VIEWS = [
   }],
   ['rules', async (page) => { await nav(page, 'Rules').click(); }],
   ['settings', async (page) => { await nav(page, 'Agent settings').click(); }],
+  ['accounts', async (page) => {
+    await nav(page, 'Accounts').click();
+    await expect(page.getByRole('article', { name: 'work' })).toContainText('72% left');
+    await expect(page.getByRole('article', { name: 'personal' })).toContainText('Usage not tracked');
+  }],
   ['history', async (page) => {
     await nav(page, 'History').click();
     await page.getByRole('navigation', { name: 'Runs' }).getByRole('link', { name: /^Apply: global setup/ }).first().click();

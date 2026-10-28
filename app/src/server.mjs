@@ -10,7 +10,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, useChange } from './accounts.mjs';
+import { AGENTS as ACCOUNT_AGENTS, accountDoc, accountStatusAsync, accountsProblem, addBySignIn, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, trackChanges, useChange } from './accounts.mjs';
 import { limitsFor, settingsOf } from './usage.mjs';
 import { automationsView, installChanges as automationInstall, removeChanges as automationRemove, updateChanges as automationUpdate } from './automations.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
@@ -160,6 +160,21 @@ export function api(ctx) {
     for (const old of [...plans.keys()].slice(0, -50)) plans.delete(old);
     return id;
   };
+  // A guided sign-in as a job that polls like an apply: run gets the io and signal of login() and the job's state.
+  const signInJob = (title, run) => start(1, async (job) => {
+    const state = job.login = { step: 'start', url: null, browser: null, awaitingCode: false, lines: [], loggedIn: null, account: null };
+    const io = {
+      say: (line) => { state.lines.push(line); state.lines.splice(0, state.lines.length - 200); },
+      step: (name, info) => { state.step = name; if (info?.url) Object.assign(state, { url: info.url, browser: info.browser ?? null }); if (name === 'done') state.loggedIn = info?.loggedIn ?? null; },
+      // What the user pastes goes to the agent; it is not kept in the lines or anywhere else.
+      code: () => new Promise((ok) => {
+        state.awaitingCode = true;
+        job.sendCode = (c) => { state.awaitingCode = false; ok(c); };
+        job.ctl.signal.addEventListener('abort', () => ok(null), { once: true });
+      }),
+    };
+    try { await run({ io, signal: job.ctl.signal }, state); } finally { state.awaitingCode = false; }
+  }, { kind: 'login', title });
   // Machine reads that start agent commands (versions, doctor, inventory) are kept 15 s and dropped by every change.
   const memo = new Map();
   const cached = (key, f) => {
@@ -637,11 +652,18 @@ export function api(ctx) {
     },
     'POST /api/accounts-plan': (b) => {
       const text = (v) => (typeof v === 'string' && v ? v : undefined);
+      // Usage tracking writes into a host account's folder, which may lie outside the home folder (as `accounts track` does).
+      if (b.op === 'track') {
+        const a = input(() => findAccount(ctx, String(b.name ?? '')));
+        if (a.mode !== 'host') throw bad(`a container account is tracked in a terminal: benchkeeper accounts track ${a.name} --project <dir>`);
+        const changes = preview(input(() => trackChanges(a)));
+        return { planId: keep(changes, { ...ctx, roots: [...ctx.roots, a.dir] }, 'global'), changes: serialize(changes, ctx) };
+      }
       const change = input(() => {
         if (b.op === 'add') return addChange(ctx, newAccount(ctx, { name: text(b.name), agent: text(b.agent), container: b.container === true, label: text(b.label), dir: text(b.dir), mount: text(b.mount) }));
         const a = findAccount(ctx, String(b.name ?? ''));
         if (b.op === 'use') return useChange(ctx, a.name);
-        if (b.op !== 'remove') throw new Error('op must be add, use or remove');
+        if (b.op !== 'remove') throw new Error('op must be add, use, track or remove');
         // A stored token is deleted by the command, which the page does not offer.
         if (a.token) throw new Error(`account ${a.name} keeps a token: remove it in a terminal with benchkeeper accounts remove ${a.name}, which also deletes the token`);
         return removeChange(ctx, a.name);
@@ -657,20 +679,14 @@ export function api(ctx) {
       if (dir && !registered(dir)) throw bad('register the project first');
       if (a.mode === 'container' && !dir) throw bad('a container account signs in inside the dev container of a project: choose the project');
       const email = typeof b.email === 'string' && b.email ? b.email : undefined;
-      return start(1, async (job) => {
-        const state = job.login = { step: 'start', url: null, browser: null, awaitingCode: false, lines: [], loggedIn: null };
-        const io = {
-          say: (line) => { state.lines.push(line); state.lines.splice(0, state.lines.length - 200); },
-          step: (name, info) => { state.step = name; if (info?.url) Object.assign(state, { url: info.url, browser: info.browser ?? null }); if (name === 'done') state.loggedIn = info?.loggedIn ?? null; },
-          // What the user pastes goes to the agent; it is not kept in the lines or anywhere else.
-          code: () => new Promise((ok) => {
-            state.awaitingCode = true;
-            job.sendCode = (c) => { state.awaitingCode = false; ok(c); };
-            job.ctl.signal.addEventListener('abort', () => ok(null), { once: true });
-          }),
-        };
-        try { await login(ctx, a, { io, dir: dir ?? process.cwd(), email, signal: job.ctl.signal }); } finally { state.awaitingCode = false; }
-      }, { kind: 'login', title: `sign in ${a.name}` });
+      return signInJob(`sign in ${a.name}`, (opts) => login(ctx, a, { ...opts, dir: dir ?? process.cwd(), email }));
+    },
+    // Add by sign-in: one click per agent, no question up front. The account is registered only once it is signed in, under
+    // a name from its identity, in the default folder (accounts.mjs addBySignIn); the job's login.account names it.
+    'POST /api/accounts-add': (b) => {
+      idle();
+      if (!ACCOUNT_AGENTS.includes(b.agent)) throw bad(`agent must be one of ${ACCOUNT_AGENTS.join(', ')}`);
+      return signInJob(`add a ${b.agent} account`, async (opts, state) => { state.account = await addBySignIn(ctx, b.agent, { ...opts, dir: process.cwd() }); });
     },
     'POST /api/accounts-code': (b) => {
       const job = jobs.get(b.job ?? '');

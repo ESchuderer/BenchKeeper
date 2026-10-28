@@ -92,6 +92,7 @@ function registryChange(title, ctx, f, g = (s) => s) {
 }
 export const commit = (ctx, change, select) => apply(preview([change]), ctx, { scope: 'global', select });
 
+const dataDir = (ctx, name) => join(home(ctx), '.local/share/benchkeeper/accounts', name);
 // The entry `accounts add` plans; opts: { name, agent, container, label, dir, mount (container accounts) }.
 export function newAccount(ctx, o) {
   if (!NAME.test(o.name ?? '')) throw new Error('the name is 1 to 32 characters: lower case letters, digits, - and _, starting with a letter or digit');
@@ -104,7 +105,7 @@ export function newAccount(ctx, o) {
     return { ...base, mode: 'container', volume: `benchkeeper-${o.agent}-${o.name}`, mount };
   }
   // Outside the config folder: the agent's own login file sits there, and the config folder is what the ledger and backups hold.
-  const dir = resolve(o.dir ?? join(home(ctx), '.local/share/benchkeeper/accounts', o.name));
+  const dir = resolve(o.dir ?? dataDir(ctx, o.name));
   if (inside(dir, [ctx.config])) throw new Error('the account folder must lie outside the BenchKeeper config folder');
   return { ...base, mode: 'host', dir };
 }
@@ -232,7 +233,7 @@ function* usageNowSteps(ctx, a, { dir, now }) {
 // Whether the account is signed in, how old its token is, and what to run when it is not. Reads only. loggedIn null: not checked.
 // dir: the project whose dev container a container account is checked in. usage false: the sign-in only (accounts list).
 function* statusSteps(ctx, a, { dir, now = Date.now(), token, usage = true } = {}) {
-  const out = /** @type {{ name: string, agent: string, mode: string, loggedIn: boolean | null, method: string | null, tokenAgeDays?: number, usage: object | null, notAvailable?: string, findings: object[] }} */ ({ name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, usage: null, findings: [] });
+  const out = /** @type {{ name: string, agent: string, mode: string, loggedIn: boolean | null, method: string | null, email: string | null, plan: string | null, tokenAgeDays?: number, usage: object | null, tracking?: boolean, notAvailable?: string, findings: object[] }} */ ({ name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, email: null, plan: null, usage: null, findings: [] });
   const age = a.token?.created ? Math.floor((now - Date.parse(a.token.created)) / DAY) : null;
   const relogin = `benchkeeper accounts login ${a.name}`;
   let r, gone = false, engine = null;
@@ -251,7 +252,9 @@ function* statusSteps(ctx, a, { dir, now = Date.now(), token, usage = true } = {
     // Claude Code prints JSON (exit 1 when not logged in); Codex prints a line and uses the exit code.
     let doc = null;
     try { doc = JSON.parse(r.stdout); } catch { /* not JSON */ }
-    if (a.agent === 'claude' && typeof doc?.loggedIn === 'boolean') { out.loggedIn = doc.loggedIn; out.method = typeof doc.authMethod === 'string' ? clean(doc.authMethod).slice(0, 40) : null; }
+    const field = (v, n) => (typeof v === 'string' && v ? clean(v).slice(0, n) : null);
+    // email and subscriptionType are unverified: the CLI reference documents loggedIn, authMethod and configDirectory only.
+    if (a.agent === 'claude' && typeof doc?.loggedIn === 'boolean') Object.assign(out, { loggedIn: doc.loggedIn, method: field(doc.authMethod, 40), email: field(doc.email, 200), plan: field(doc.subscriptionType, 40) });
     else if (a.agent === 'codex' && (r.code === 0 || (r.code === 1 && /not logged in/i.test(`${r.stdout}\n${r.stderr}`)))) out.loggedIn = r.code === 0;
     if (out.loggedIn === false) out.findings.push(finding('warning', a.name, 'not signed in, or the login expired', relogin));
     else if (out.loggedIn === null) out.findings.push(finding('info', a.name, `login state not read: ${tail(r)}`, 'run the agent in this account once to see why'));
@@ -271,6 +274,8 @@ function* statusSteps(ctx, a, { dir, now = Date.now(), token, usage = true } = {
     if (c.usage) out.usage = assess({ usage: c.usage, failures: [] }, limitsFor(registrySettings(ctx), a), now);
     else out.notAvailable = `not read: ${hide(c.reason)}`;
   } else out.notAvailable = notAvailable('usage', a.agent);
+  // Tracking set up but no reading yet (no session since): the page says so instead of offering to track again.
+  if (supports(a.agent, 'usage') && a.mode === 'host') out.tracking = exists(scriptOf(a));
   if (out.usage) out.findings.push(...usageFindings(a.name, out.usage, relogin));
   return out;
 }
@@ -541,7 +546,25 @@ export async function login(ctx, a, { io, token = false, email, noBrowser = fals
   const s = await accountStatusAsync(ctx, a, { dir });
   if (s.loggedIn === false) throw new Error(`the sign-in ended but ${a.name} is still not signed in: ${s.findings[0]?.fix ?? 'try again'}`);
   io.step('done', { loggedIn: s.loggedIn, method: s.method });
-  return { stored: false };
+  return { stored: false, status: s };
+}
+
+// The first of base, base-2, base-3 ... that taken does not hold.
+const free = (base, taken) => { let n = 1; while (taken(n === 1 ? base : `${base}-${n}`)) n++; return n === 1 ? base : `${base}-${n}`; };
+// The local part of an address as a name: 29 characters at most, so a number on a clash still fits.
+const slug = (email) => String(email ?? '').split('@')[0].toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 29).replace(/^[-_]+|[-_]+$/g, '');
+// Add by sign-in: the agent signs in first, in a new folder below the data folder, and only a signed-in account is registered,
+// under a name from its identity (Claude Code's address; Codex prints none, so its name is the agent's with a number).
+// The folder keeps its first name: the agent may tie its stored login to the folder path. opts: those of login.
+export async function addBySignIn(ctx, agentId, opts) {
+  const names = new Set(listAccounts(ctx).map((x) => x.name));
+  const a = newAccount(ctx, { name: free(agentId, (n) => names.has(n) || exists(dataDir(ctx, n))), agent: agentId });
+  const { status } = await login(ctx, a, opts);
+  const taken = new Set(listAccounts(ctx).map((x) => x.name));
+  const name = free(slug(status.email) || agentId, (n) => taken.has(n));
+  const run = commit(ctx, addChange(ctx, { ...a, name }));
+  if (run.status !== 'done') throw new Error(`signed in, but the account was not added: ${run.entries.find((e) => e.error)?.error ?? run.status}. Add it by hand: benchkeeper accounts add ${name} --agent ${agentId} --dir ${a.dir}`);
+  return name;
 }
 
 // Codex has no token command: the access token comes from stdin (a pipe, never an argument) and goes to codex login

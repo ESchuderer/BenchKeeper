@@ -1464,31 +1464,58 @@ test.describe('views', () => {
     }
   });
 
-  test('Accounts: an account is added as a plan and undone; the container risk and the token note are stated; no axe violations', async ({ page }) => {
+  test('Accounts: two add buttons when empty; Advanced adds as a plan; cards with sign-in and usage; one-click default and tracking; no axe violations', async ({ page }) => {
     await nav(page, 'Accounts').click();
-    await expect(page.getByText('No account yet.')).toBeVisible();
-    await expect(page.getByText('A hijacked session in a container can read the credentials in its volume.')).toBeVisible();
+    const accounts = page.getByRole('region', { name: 'Accounts' });
+    await expect(accounts).toContainText('No account yet');
+    await expect(accounts.getByRole('button', { name: 'Add Claude Code account' })).toBeVisible();
+    await expect(accounts.getByRole('button', { name: 'Add Codex account' })).toBeVisible();
+    await expect(page.getByText('Each login stays in the agent\'s own folder (mode 0700)')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Token for unattended containers' })).toContainText('never in a file');
     await expect(page.getByRole('region', { name: 'Usage limits' })).toContainText('Auto-pick is off');
     await expect(page.getByRole('region', { name: 'Usage limits' })).toContainText('minimum 5-hour 8%, 7-day 3%');
-    await page.getByLabel('Name', { exact: true }).fill('work');
-    await page.getByRole('button', { name: 'Plan the new account' }).click();
-    const changes = page.getByRole('region', { name: 'Changes' });
-    await expect(changes).toContainText('add claude account work');
     await noAxe(page);
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
-    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
-    const row = page.getByRole('table', { name: 'Accounts' }).getByRole('row', { name: /work/ });
-    await expect(row).toContainText('default for Claude Code');
-    await expect(row.getByRole('button', { name: 'Sign in work' })).toBeVisible();
+    // Advanced: the form of a name, label, folder or dev container, as a plan.
+    await page.getByText('Advanced: choose the name').click();
+    await expect(page.getByText('A hijacked session in a container can read the credentials in its volume.')).toBeVisible();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    for (const name of ['work', 'home']) {
+      await page.getByLabel('Name', { exact: true }).fill(name);
+      await page.getByRole('button', { name: 'Plan the new account' }).click();
+      await expect(changes).toContainText(`add claude account ${name}`);
+      await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+      await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+      await changes.getByRole('button', { name: 'Close' }).click();
+    }
+    const work = page.getByRole('article', { name: 'work' }), home = page.getByRole('article', { name: 'home' });
+    await expect(work).toContainText('For new sessions');
+    await expect(work).toContainText('not signed in (its folder does not exist yet)');
+    await expect(home).not.toContainText('For new sessions');
     // The container form asks for the mount path.
     await page.getByRole('radio', { name: 'In a dev container' }).check({ force: true });
     await expect(page.getByRole('button', { name: 'Plan the new account' })).toBeDisabled();
     await noAxe(page);
-    await changes.getByRole('button', { name: 'Undo run' }).click();
-    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
-    await page.reload();
-    await expect(page.getByText('No account yet.')).toBeVisible();
+    // One click each: the default moves, tracking is set up; both are runs in History.
+    await home.getByRole('button', { name: 'Use for new sessions: home' }).click();
+    await expect(home).toContainText('For new sessions');
+    await expect(work).not.toContainText('For new sessions');
+    await work.getByRole('button', { name: 'Track usage of work' }).click();
+    await expect(work).toContainText('Usage is tracked: it shows after the next session of this account.');
+    // Tracking created the folder, so the status runs: the stub signs it in with an address and a plan.
+    await expect(work).toContainText('work@example.com, max');
+    await expect(work.getByText('signed in', { exact: true })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(work).toBeVisible();
+    await noAxe(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    // Back to no account, as the other tests expect the machine.
+    for (const card of [home, work]) {
+      await card.getByRole('button', { name: /^Remove / }).click();
+      await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+      await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+      await changes.getByRole('button', { name: 'Close' }).click();
+    }
+    await expect(page.getByRole('region', { name: 'Accounts' })).toContainText('No account yet');
   });
 
   // The one-run setup, last: it applies project setups and registers four more projects.

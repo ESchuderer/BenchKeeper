@@ -254,12 +254,13 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `POST /api/scan` | `projects scan` | |
 | `GET /api/settings` | `settings list`, `settings get` | |
 | `POST /api/settings-plan` | `settings set` | |
-| `GET /api/accounts` | `accounts list` | without `loggedIn` (the view's Check reads it), also the usage settings, the credential store in use and a sign-in job still running |
-| `GET /api/accounts-status` | `accounts status` | with the usage; `accounts track` and `accounts limits` are commands only |
-| `POST /api/accounts-plan` | `accounts add`, `accounts use`, `accounts remove` | an account that keeps a token is removed by the command, which deletes the token |
+| `GET /api/accounts` | `accounts list` | without `loggedIn` (each card reads it through the status route), also the usage settings, the credential store in use and a sign-in job still running |
+| `GET /api/accounts-status` | `accounts status` | with the usage and, for Claude Code, the address and plan when its status gives them; `accounts limits` is a command only |
+| `POST /api/accounts-plan` | `accounts add`, `accounts use`, `accounts track`, `accounts remove` | an account that keeps a token is removed by the command, which deletes the token; a dev container account is tracked by the command |
 | `GET /api/automations` | `automations list`, `automations status` | per template its fields and parameters, per installed one its state, values, project folder, last run and skipped runs as the runner reports them |
 | `POST /api/automations-plan` | `automations install`, `automations update`, `automations remove` | install only into a registered project |
 | `POST /api/accounts-login` | `accounts login` | the job opens the sign-in link in a private browser window or shows it; `--token` is the command only |
+| `POST /api/accounts-add` | `accounts add`, `accounts login` | add by sign-in: signs in first in a new default folder, then registers the account under a name from its identity |
 | `POST /api/accounts-code` | `UI internal` | the code the browser shows, handed to the agent and kept nowhere |
 | `GET /api/rules` | `rules list` | |
 | `GET /api/extensions` | `extensions list` | |

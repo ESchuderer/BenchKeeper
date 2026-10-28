@@ -24,7 +24,7 @@ const write = (d, f, o) => { fs.mkdirSync(d, { recursive: true }); fs.writeFileS
 const logged = (d, f) => d && fs.existsSync(path.join(d, f));
 if (me === 'claude' && args[0] === 'auth' && args[1] === 'status') {
   const ok = logged(dir, '.credentials.json');
-  console.log(JSON.stringify({ loggedIn: ok, authMethod: ok ? 'claude.ai' : 'none', configDirectory: dir }));
+  console.log(JSON.stringify({ loggedIn: ok, authMethod: ok ? 'claude.ai' : 'none', configDirectory: dir, ...(ok && mode('email') ? { email: mode('email'), subscriptionType: 'max' } : {}) }));
   process.exit(ok ? 0 : 1);
 } else if (me === 'claude' && args[0] === 'auth' && args[1] === 'login') {
   console.log('Opening browser to sign in...');

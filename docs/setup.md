@@ -140,7 +140,7 @@ Several logins per agent, for example work and personal, each in a folder of its
   - Codex in dev containers: one `CODEX_HOME` volume per account and container. Never share one `auth.json` across containers that run in parallel.
 - `run` gives the agent the app's filtered environment (no `GH_TOKEN`, API keys or other credentials of your shell) plus the account's one folder variable.
 
-The Accounts view of the app does the same: add an account as a plan, check it, and sign in with the steps shown (private window, a field for the code, check). The token is set in a terminal only. Every command and its output keys: [App reference](../app/README.md#commands).
+The Accounts view of the app does the same with fewer steps. Add Claude Code account and Add Codex account start the sign-in at once (private window, a field for the code, check) in a new folder `.local/share/benchkeeper/accounts/<agent>[-n]`, and register the account only once it is signed in. Its name comes from the address that `claude auth status` reports (field `email`, unverified: the CLI reference does not document it), with a number on a clash. `codex login status` prints no identity, so a Codex account is named `codex`, `codex-2` and so on. Advanced keeps the form with name, label, folder and dev container. Each account is a card with its sign-in, the address and plan when the status gives them, and the 5-hour and 7-day windows as bars with the percent left and the reset time. Use for new sessions makes it the default in one click, and Track usage sets up tracking for a Claude Code host account in one click. Both are runs with an undo in History. The token is set in a terminal only. Every command and its output keys: [App reference](../app/README.md#commands).
 
 ## Update
 

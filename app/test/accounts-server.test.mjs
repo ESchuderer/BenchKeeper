@@ -41,7 +41,7 @@ test('add, use and remove are plans applied through /api/apply; a duplicate is a
   assert.deepEqual(listAccounts(m.ctx).filter((a) => a.agent === 'claude').map((a) => [a.name, !!a.default]), [['work', false], ['home', true]]);
   await applyPlan(routes, { op: 'remove', name: 'home' });
   assert.deepEqual(listAccounts(m.ctx).map((a) => a.name), ['work', 'dev']);
-  for (const [body, re] of [[{ op: 'add', name: 'Bad', agent: 'claude' }, /the name is 1 to 32/], [{ op: 'add', name: 'x', agent: 'claude', container: true }, /--mount is the absolute path/], [{ op: 'use', name: 'ghost' }, /no account ghost/], [{ op: 'frob', name: 'work' }, /op must be add, use or remove/], [{ op: 'add', name: 5, agent: 'claude' }, /the name is 1 to 32/]]) {
+  for (const [body, re] of [[{ op: 'add', name: 'Bad', agent: 'claude' }, /the name is 1 to 32/], [{ op: 'add', name: 'x', agent: 'claude', container: true }, /--mount is the absolute path/], [{ op: 'use', name: 'ghost' }, /no account ghost/], [{ op: 'frob', name: 'work' }, /op must be add, use, track or remove/], [{ op: 'add', name: 5, agent: 'claude' }, /the name is 1 to 32/]]) {
     await assert.rejects(async () => routes['POST /api/accounts-plan'](body), (e) => e.status === 400 && re.test(e.message), JSON.stringify(body));
   }
 });
@@ -156,4 +156,58 @@ test('the page data carries the thresholds and the settings; status carries the 
   const s = await routes['GET /api/accounts-status'](q({ name: 'work' }));
   assert.deepEqual([s.usage.fiveHour.state, s.usage.fiveHour.remaining, s.usage.sevenDay.state], ['low', 4, 'unknown']);
   assert.ok(s.findings.some((f) => /5-hour window has 4% left/.test(f.message)));
+});
+
+test('add by sign-in: no question up front, the name from the identity with a number on a clash, the default folder, no credential kept', skip, async () => {
+  const m = machine({ flow: 'callback' });
+  const routes = api(m.ctx);
+  m.mode('email', 'John.Doe@example.com');
+  const added = async (agent) => {
+    const { job: id } = await routes['POST /api/accounts-add']({ agent });
+    const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+    assert.equal(done.error, null);
+    assert.equal(done.login.browser, 'Firefox');
+    assert.ok(!JSON.stringify(done).includes('dummy-oauth-access') && !JSON.stringify(done).includes('dummy-codex-access'));
+    return done.login.account;
+  };
+  assert.equal(await added('claude'), 'john-doe');
+  assert.equal(await added('claude'), 'john-doe-2');
+  assert.equal(await added('codex'), 'codex');
+  const base = join(m.home, '.local/share/benchkeeper/accounts');
+  assert.deepEqual(listAccounts(m.ctx).map((a) => [a.name, a.agent, a.dir, !!a.default]), [['john-doe', 'claude', join(base, 'claude'), true], ['john-doe-2', 'claude', join(base, 'claude-2'), false], ['codex', 'codex', join(base, 'codex'), true]]);
+  const s = await routes['GET /api/accounts-status'](q({ name: 'john-doe' }));
+  assert.deepEqual([s.loggedIn, s.email, s.plan], [true, 'John.Doe@example.com', 'max']);
+  // The registry, its ledger runs and backups are under the config folder; the page data comes from them.
+  for (const secret of ['dummy-oauth-access', 'dummy-codex-access']) {
+    assert.deepEqual(grep(m.ctx.config, secret), []);
+    assert.ok(!JSON.stringify(await routes['GET /api/accounts']()).includes(secret));
+    assert.ok(!JSON.stringify(s).includes(secret));
+  }
+  await assert.rejects(async () => routes['POST /api/accounts-add']({ agent: 'gemini' }), (e) => e.status === 400 && /agent must be one of claude, codex/.test(e.message));
+});
+
+test('a failed sign-in adds no account', skip, async () => {
+  const m = machine({ flow: 'fail' });
+  const routes = api(m.ctx);
+  const { job: id } = await routes['POST /api/accounts-add']({ agent: 'claude' });
+  const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+  assert.match(done.error, /exit 1/);
+  assert.equal(done.login.account, null);
+  assert.deepEqual(listAccounts(m.ctx), []);
+});
+
+test('usage tracking is a plan for a host account, written in its folder; a container account is told the command', skip, async () => {
+  const m = machine({ flow: 'callback' });
+  const routes = api(m.ctx);
+  await applyPlan(routes, { op: 'add', name: 'work', agent: 'claude', dir: join(m.root, 'elsewhere/work') });
+  assert.equal((await routes['GET /api/accounts-status'](q({ name: 'work' }))).tracking, false);
+  const { state } = await applyPlan(routes, { op: 'track', name: 'work' });
+  assert.equal(state.error, null);
+  assert.equal(state.run.status, 'done');
+  assert.equal((await routes['GET /api/accounts-status'](q({ name: 'work' }))).tracking, true);
+  assert.match(readFileSync(join(m.root, 'elsewhere/work/settings.json'), 'utf8'), /statusLine/);
+  await applyPlan(routes, { op: 'add', name: 'boxed', agent: 'claude', container: true, mount: '/data/accounts/boxed' });
+  const boxed = await routes['GET /api/accounts-status'](q({ name: 'boxed' }));
+  assert.deepEqual([boxed.usage, boxed.notAvailable, boxed.tracking], [null, undefined, undefined]);
+  await assert.rejects(async () => routes['POST /api/accounts-plan']({ op: 'track', name: 'boxed' }), (e) => e.status === 400 && /benchkeeper accounts track boxed --project/.test(e.message));
 });

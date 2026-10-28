@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
@@ -243,6 +243,15 @@ test('a git repository lists its files without the ignored ones; a folder is wal
   execFileSync('git', ['-C', dir, 'init', '-q']);
   writeFileSync(join(dir, '.gitignore'), 'ignored/\nnode_modules/\n');
   assert.deepEqual(ids(dir), ['code/large-file:.hidden/x.js', 'code/large-file:src/a.js'], 'nothing is added yet, the untracked files count');
+});
+
+test('an unreadable file or folder is skipped, and the workflows folder is bounded like the file list', { skip: process.getuid?.() === 0 }, () => {
+  const dir = tree({ 'src/a.js': lines(1001, 'a'), 'src/locked.js': lines(1001, 'l'), 'locked/b.js': lines(1001, 'b') });
+  chmodSync(join(dir, 'src/locked.js'), 0);
+  chmodSync(join(dir, 'locked'), 0);
+  try { assert.deepEqual(ids(dir), ['code/large-file:src/a.js']); } finally { chmodSync(join(dir, 'locked'), 0o755); }
+  const flows = tree(Object.fromEntries(Array.from({ length: 5002 }, (_, i) => [`.github/workflows/w${i}.yml`, 'on: [push, pull_request]\njobs: {}\n'])));
+  assert.equal(audit(ctx, flows, { only: ['workflows'] }).findings.filter((f) => f.id.startsWith('workflows/duplicate-trigger')).length, 5000);
 });
 
 test('an empty folder lists every check as skipped and --only limits the groups', () => {

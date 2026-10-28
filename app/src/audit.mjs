@@ -14,7 +14,7 @@ import { git } from './git.mjs';
 
 export const GROUPS = ['workflows', 'tests', 'code', 'findings'];
 const SEVERITY = ['error', 'warning', 'info'];
-// shortcut: a file over 512 KiB is not read (so a very large generated file is not reported), at most 5000 files and 500000 tokens are scanned; upgrade when a project needs more.
+// shortcut: a file over 512 KiB is not read (so a very large generated file is not reported), at most 5000 files and 500000 tokens per scan are read; upgrade when a project needs more.
 const MAX_FILES = 5000, MAX_BYTES = 512 * 1024, MAX_TOKENS = 500000, MAX_FINDINGS = 20;
 const COVERAGE_GAP = 10, SNAPSHOT_BYTES = 1024 * 1024, FILE_LINES = 1000, MATRIX_SIZE = 8;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage']);
@@ -22,7 +22,9 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage']);
 // ---- the project: its file list and the files a check reads, each bounded
 
 function walk(dir, rel = '', out = []) {
-  for (const e of readdirSync(join(dir, rel), { withFileTypes: true })) {
+  let entries;
+  try { entries = readdirSync(join(dir, rel), { withFileTypes: true }); } catch { return out; }
+  for (const e of entries) {
     if (out.length >= MAX_FILES) break;
     const p = rel ? `${rel}/${e.name}` : e.name;
     if (e.isDirectory() && !e.name.startsWith('.') && !SKIP_DIRS.has(e.name)) walk(dir, p, out);
@@ -47,11 +49,15 @@ function load(ctx, dir) {
   const cache = new Map();
   const info = (rel) => { try { const s = lstatSync(join(dir, rel)); return s.isFile() ? s : null; } catch { return null; } };
   const text = (rel) => {
-    if (!cache.has(rel)) { const s = info(rel); cache.set(rel, s && s.size <= MAX_BYTES ? readFileSync(join(dir, rel), 'utf8') : null); }
+    if (!cache.has(rel)) {
+      let body = null;
+      try { const s = info(rel); if (s && s.size <= MAX_BYTES) body = readFileSync(join(dir, rel), 'utf8'); } catch { /* unreadable: skipped */ }
+      cache.set(rel, body);
+    }
     return cache.get(rel);
   };
   let names = [];
-  try { names = readdirSync(join(dir, '.github/workflows')).filter((n) => /\.ya?ml$/.test(n)).sort(); } catch { /* none */ }
+  try { names = readdirSync(join(dir, '.github/workflows')).filter((n) => /\.ya?ml$/.test(n)).sort().slice(0, MAX_FILES); } catch { /* none */ }
   const workflows = names.flatMap((n) => {
     const file = `.github/workflows/${n}`, body = text(file);
     if (body == null) return [];

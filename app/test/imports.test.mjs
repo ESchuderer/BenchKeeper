@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 function check(files) {
   const root = mkdtempSync(join(tmpdir(), 'bk-imports-'));
   for (const [f, text] of Object.entries(files)) { mkdirSync(dirname(join(root, f)), { recursive: true }); writeFileSync(join(root, f), text); }
-  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/imports.mjs', import.meta.url)), root], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/imports.mjs', import.meta.url))], { encoding: 'utf8', env: { ...process.env, APP_ROOT: root } });
   return { code: r.status, out: r.stdout + r.stderr };
 }
 

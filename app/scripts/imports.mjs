@@ -1,12 +1,12 @@
 // Import rules of src/ and ui/ (.dependency-cruiser.cjs) and the rule that the name of the multi-agent IDE appears only in src/orca/.
-// Usage: node scripts/imports.mjs [app-folder]. Exit 1 on a violation.
+// Usage: node scripts/imports.mjs. Exit 1 on a violation. The tests check another app folder through APP_ROOT.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = fileURLToPath(new URL('..', import.meta.url));
-const root = resolve(process.argv[2] ?? here);
+const root = resolve(process.env.APP_ROOT ?? here);
 const bin = join(here, 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs');
 
 const cruise = spawnSync(process.execPath, [bin, '--config', join(here, '.dependency-cruiser.cjs'), ...['src', 'ui'].filter((d) => existsSync(join(root, d)))], { cwd: root, stdio: 'inherit' });

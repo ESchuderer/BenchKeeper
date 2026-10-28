@@ -2,6 +2,7 @@
 import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { accountChecks } from './accounts.mjs';
+import { automationChecks } from './automations.mjs';
 import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion, contentDir, contentRefusal, contentVersion, library } from './content.mjs';
@@ -124,6 +125,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   out.push(...accountChecks(ctx, { dir, now }));
   const ide = orca.unobserved(ctx);
   if (ide) out.push(issue('warning', 'tools', ide.message, ide.fix));
+  out.push(...automationChecks(ctx));
   if (!agents || agents.includes('claude')) out.push(...bandChecks(ctx));
   if (level === 'full') {
     out.push(...rulesChecks(ctx, agents));

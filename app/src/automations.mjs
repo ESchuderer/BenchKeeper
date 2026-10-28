@@ -1,11 +1,15 @@
 // Automation templates: one Markdown file per scheduled agent run, TOML front matter between +++ lines and the prompt as the body.
 // Two tiers: the generic ones ship in <content>/automations/, the user's own live in <config>/automations/ and are never committed.
-// Loading, filling and linting read files only; no runner is started.
+// Loading, filling and linting read files only; no runner is started. Installing goes through the runner adapter and the
+// registry of installed automations (<config>/automations.json), as a plan with a diff and undo.
 import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
-import { basename, join, sep } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { registry } from './agents.mjs';
 import { contentDir } from './content.mjs';
+import { diffLines } from './diff.mjs';
+import { exists, hashText, readText } from './fsx.mjs';
+import * as orca from './orca/index.mjs';
 
 export const genericDir = join(contentDir, 'automations');
 export const userDir = (ctx) => join(ctx.config, 'automations');
@@ -163,4 +167,155 @@ export function check(ctx, { tiers, privateNames = [] } = {}) {
     ...errors.map((e) => ({ ...e, rule: 'format' })),
     ...templates.flatMap((t) => lint(t, { generic: t.tier === 'generic', privateNames }).map((p) => ({ tier: t.tier, file: t.file, ...p }))),
   ];
+}
+
+// ---- installed automations: the registry and the runner
+
+export const registryFile = (ctx) => join(ctx.config, 'automations.json');
+// Copies of the helpers an installed precheck calls: the generic tier lies in the app's package, which moves on an update.
+const helperDir = (ctx, id) => join(ctx.config, 'automations-installed', id);
+const quote = (p) => `'${p.replaceAll("'", "'\\''")}'`;
+
+// The installed automations by template id: { tier, version, values, dir, runner, runnerId, spec, installed, time }.
+// spec is what BenchKeeper asked the runner for, installed what the runner reported back. Parameter values only, no credential.
+export function readRegistry(ctx) {
+  const text = readText(registryFile(ctx));
+  if (text == null) return {};
+  try { return JSON.parse(text).automations ?? {}; } catch { throw new Error(`${registryFile(ctx)} is not valid JSON: fix or move it`); }
+}
+const withRecord = (text, id, rec) => {
+  const all = text == null ? {} : JSON.parse(text).automations ?? {};
+  if (rec) all[id] = rec; else delete all[id];
+  return `${JSON.stringify({ automations: Object.fromEntries(Object.entries(all).sort(([a], [b]) => a.localeCompare(b))) }, null, 2)}\n`;
+};
+
+function template(ctx, id) {
+  const t = load(ctx).templates.find((x) => x.id === id);
+  if (!t) throw new Error(`no automation template ${id}, see benchkeeper automations list`);
+  return t;
+}
+
+// What the runner gets for a template filled with values in the project folder dir.
+function spec(ctx, t, values, dir) {
+  if (t.schedule === '') throw new Error(`${t.id} has no schedule: the runner needs one`);
+  const filled = fill(t, values);
+  let precheck = filled.precheck;
+  for (const h of t.helpers) precheck = precheck.split(h).join(quote(join(helperDir(ctx, t.id), h.slice(t.id.length + 1))));
+  return { values: filled.values, f: { name: t.title, schedule: t.schedule, prompt: filled.prompt, agent: t.agent, precheck, workspace: t.workspace, dir, reuseSession: t.reuse_session, grace: t.missed_run_grace_minutes } };
+}
+const version = (f) => hashText(JSON.stringify(f)).slice(0, 16);
+const specText = (f) => `name: ${f.name}\nschedule: ${f.schedule}\nagent: ${f.agent}\nprecheck: ${f.precheck}\nprompt:\n${f.prompt}\n`;
+const helperChanges = (ctx, t, step, unit) => t.helper_files.filter((h) => h.text != null).map((h) => ({
+  id: `${step}:helper:${h.path}`, step, unit, title: `precheck helper ${h.path}`, kind: 'write', path: join(helperDir(ctx, t.id), h.path.slice(t.id.length + 1)), from: join(t.file, '..', h.path),
+}));
+// The registry change after a runner command of the same run: the record with what the runner reported. In the preview
+// (no run yet) the runner's part is what was asked for.
+const recordChange = (ctx, step, unit, id, make) => ({
+  id: `${step}:registry`, step, unit, title: `record ${id} in ${registryFile(ctx)}`, kind: 'write', path: registryFile(ctx),
+  edit: (text, run) => withRecord(text, id, make(run ? run.entries.find((e) => e.id === `${step}:runner`)?.result : null)),
+});
+const reported = (a) => ({ name: a.name, schedule: a.schedule, prompt: a.prompt, precheck: a.precheck, agent: a.agent });
+function runnerResult(r) {
+  const a = orca.automationResult(r);
+  if (!a.automation) throw new Error(a.error);
+  return a.automation;
+}
+const needRunner = (ctx) => { if (!orca.installed(ctx)) throw new Error(`${orca.NAME} is not installed: the automations runner is its CLI`); };
+
+// Install: the runner creates it disabled, then the registry records its id. A record whose automation the runner no
+// longer has is replaced.
+export function installChanges(ctx, id, { values = {}, dir }) {
+  const t = template(ctx, id), rec = readRegistry(ctx)[id];
+  needRunner(ctx);
+  if (rec && !orca.showAutomation(ctx, rec.runnerId).removed) throw new Error(`${id} is installed already: benchkeeper automations update ${id}`);
+  const { values: all, f } = spec(ctx, t, values, resolve(dir));
+  const step = `automation:${id}`;
+  return [
+    ...helperChanges(ctx, t, step, step),
+    { id: `${step}:runner`, step, unit: step, title: `${orca.NAME} automation ${t.title}, disabled`, kind: 'command', argv: orca.createArgv(f),
+      outcome: (r) => { const a = runnerResult(r); return { result: a, undoArgv: orca.removeArgv(a.id) }; } },
+    recordChange(ctx, step, step, id, (made) => ({ tier: t.tier, version: version(f), values: all, dir: f.dir, runner: orca.RUNNER, runnerId: made?.id ?? '(the id the runner gives)',
+      spec: f, installed: made ? reported(made) : reported(f), time: made ? new Date().toISOString() : '(now)' })),
+  ];
+}
+
+// The runner's automation as the fields specText shows, and what it holds now: { now, note }. A schedule the runner keeps
+// in its own form (RRULE) shows as the template's while it is unchanged since install.
+function onRunner(ctx, rec) {
+  if (!orca.installed(ctx)) return { note: `${orca.NAME} is not installed` };
+  const s = orca.showAutomation(ctx, rec.runnerId);
+  if (!s.automation) return { note: s.removed ? `${orca.NAME} no longer has it` : s.error, removed: s.removed };
+  const a = s.automation;
+  return { automation: a, now: { ...rec.spec, ...reported(a), schedule: a.schedule === rec.installed.schedule ? rec.spec.schedule : a.schedule } };
+}
+
+// The diff of the installed automation (as the runner holds it) and the template now, with the registry record.
+export function automationDiff(ctx, id) {
+  const rec = readRegistry(ctx)[id];
+  if (!rec) throw new Error(`${id} is not installed, see benchkeeper automations status`);
+  const { f } = spec(ctx, template(ctx, id), rec.values, rec.dir);
+  const r = onRunner(ctx, rec);
+  return { rec, f, runner: r, diff: diffLines(specText(r.now ?? rec.spec), specText(f), `automation ${id}`), note: r.note ?? null };
+}
+
+// Update: the runner's automation gets the template's fields again (its enabled state stays); undo edits back to what
+// the runner held before.
+export function updateChanges(ctx, id) {
+  needRunner(ctx);
+  const { rec, f, runner, diff } = automationDiff(ctx, id);
+  if (!runner.automation) throw new Error(`${id}: ${runner.note}${runner.removed ? `: benchkeeper automations install ${id}` : ''}`);
+  const t = template(ctx, id), step = `automation:${id}`;
+  return [
+    ...helperChanges(ctx, t, step, step),
+    { id: `${step}:runner`, step, unit: step, title: `${orca.NAME} automation ${t.title}: the template's fields`, kind: 'command', argv: orca.editArgv(rec.runnerId, f), diff,
+      undoArgv: orca.editArgv(rec.runnerId, runner.now), outcome: (r) => ({ result: runnerResult(r) }) },
+    recordChange(ctx, step, step, id, (made) => ({ ...rec, tier: t.tier, version: version(f), spec: f, installed: made ? reported(made) : reported(f), time: made ? new Date().toISOString() : '(now)' })),
+  ];
+}
+
+// Remove: the runner deletes it with its run history, so undo puts back the record only and install creates it again.
+export function removeChanges(ctx, id) {
+  const rec = readRegistry(ctx)[id];
+  if (!rec) throw new Error(`${id} is not installed, see benchkeeper automations status`);
+  needRunner(ctx);
+  const step = `automation:${id}`, gone = orca.showAutomation(ctx, rec.runnerId).removed;
+  return [
+    ...(gone ? [] : [{ id: `${step}:runner`, step, unit: step, title: `remove the ${orca.NAME} automation ${rec.spec.name} and its run history (disabling it in ${orca.NAME} keeps the history)`, kind: 'command', argv: orca.removeArgv(rec.runnerId),
+      destructive: true, selected: true, undoNote: `${orca.NAME} removed the automation with its run history: benchkeeper automations install ${id} creates it again` }]),
+    { id: `${step}:registry`, step, unit: step, title: `remove ${id} from ${registryFile(ctx)}`, kind: 'write', path: registryFile(ctx), edit: (text) => withRecord(text, id, null) },
+    ...(exists(helperDir(ctx, id)) ? [{ id: `${step}:helpers`, step, unit: step, title: `the precheck helpers of ${id}`, kind: 'remove', path: helperDir(ctx, id), selected: true }] : []),
+  ];
+}
+
+// Each installed automation: current, outdated (the template changed since install), modified (changed on the runner
+// outside BenchKeeper: changed lists the fields), removed (the runner no longer has it), unknown (the template or the
+// runner cannot be read: note says why).
+export function automationStatus(ctx) {
+  return Object.entries(readRegistry(ctx)).map(([id, rec]) => {
+    const row = { id, name: rec.spec.name, runnerId: rec.runnerId, state: 'current', changed: [], note: null, enabled: null };
+    const r = onRunner(ctx, rec);
+    if (r.automation) {
+      row.enabled = r.automation.enabled;
+      row.changed = ['name', 'schedule', 'prompt', 'precheck', 'agent'].filter((k) => r.automation[k] !== rec.installed[k]);
+    }
+    let f = null;
+    try { ({ f } = spec(ctx, template(ctx, id), rec.values, rec.dir)); } catch (e) { row.note = e.message; }
+    if (r.removed) row.state = 'removed';
+    else if (row.changed.length) row.state = 'modified';
+    else if (!r.automation) { row.state = 'unknown'; row.note = r.note; }
+    else if (!f) row.state = 'unknown';
+    else if (version(f) !== rec.version) row.state = 'outdated';
+    return row;
+  });
+}
+
+// Doctor's findings: one warning per installed automation that is not current. The runner is asked only when one is installed.
+const FIX = { outdated: (id) => `benchkeeper automations update ${id}`, modified: (id) => `benchkeeper automations diff ${id}, then update ${id} to restore the template`,
+  removed: (id) => `benchkeeper automations install ${id}`, unknown: () => 'benchkeeper automations status' };
+export function automationChecks(ctx) {
+  let rows;
+  try { rows = automationStatus(ctx); } catch (e) { return [{ level: 'warning', check: 'automations', message: e.message, fix: `fix or move ${registryFile(ctx)}` }]; }
+  return rows.filter((r) => r.state !== 'current').map((r) => ({ level: 'warning', check: 'automations',
+    message: `automation ${r.id} is ${r.state}${r.changed.length ? ` (${r.changed.join(', ')} changed outside BenchKeeper)` : ''}${r.note ? `: ${r.note}` : ''}`,
+    fix: FIX[r.state](r.id) }));
 }

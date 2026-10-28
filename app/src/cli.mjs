@@ -42,6 +42,8 @@ import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal } from 
 import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
+import { automationDiff, automationStatus, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
+import { undoableAutomation } from './orca/index.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -219,6 +221,18 @@ Usage: benchkeeper <command> [options]
                                     removes that folder after a question and nothing else of the project
   inventory [--agents a,b]          the global setup items with their state, as the Dashboard counts them
   dashboard [--agents a,b]          the machine's and each registered project's item states, packs per agent, catalog
+  automations [list]                the automation templates (generic ones and your own in automations/ of the config
+                                    folder) and which are installed
+  automations show <id>             one template: its fields, parameters and prompt
+  automations install <id> [--param name=value..] [--project dir] [--yes]
+                                    creates the automation on the runner, disabled, and records it
+                                    in automations.json of the config folder; a plan, undo removes it again
+  automations update <id> [--yes]   shows the diff, then sets the runner's automation to the template again
+  automations remove <id> [--yes]   removes it from the runner with its run history and from the record; undo restores
+                                    the record only, install creates it again
+  automations diff <id>             the installed automation as the runner holds it against the template now
+  automations status                each installed one: current, outdated (template changed), modified (changed on
+                                    the runner), removed (gone from the runner) or unknown; nothing is written
   pins list [dir]                   each phase (research, implement, review, verify) with the agent, model and effort
                                     to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
@@ -246,6 +260,7 @@ const OPTIONS = {
   only: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
+  param: { type: 'string', multiple: true },
   account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
@@ -299,7 +314,7 @@ function report(run, out) {
 
 export function machineContext(env = process.env) {
   const home = env.BENCHKEEPER_HOME || homedir();
-  const ctx = context({ home, appVersion, refuse: () => contentRefusal(contentDir) ?? installedRefusal(ctx) });
+  const ctx = context({ home, appVersion, refuse: () => contentRefusal(contentDir) ?? installedRefusal(ctx), undoable: undoableAutomation });
   return ctx;
 }
 
@@ -310,7 +325,7 @@ export function selectedAgents(ctx, list) {
 
 function show(c, out) {
   out.write(`${c.destructive ? 'remove ' : 'change '}${c.title}${c.error ? `\n  cannot merge: ${c.error}` : ''}\n`);
-  if (c.kind === 'command') out.write(`  $ ${c.argv.join(' ')}\n`);
+  if (c.kind === 'command' && !c.diff) out.write(`  $ ${c.argv.join(' ')}\n`);
   else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }
 
@@ -697,6 +712,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
+  if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'extensions') {
     if (arg && arg !== 'list') { out.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
@@ -831,6 +847,11 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   const packs = on ? [...new Set([...have, ...ids])] : have.filter((p) => !ids.includes(p));
   const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true }));
   for (const id of on ? [] : ids) { const users = projectsUsing(ctx, id); if (users.length) out.write(`note: ${users.join(', ')} still name${users.length === 1 ? 's' : ''} ${id}\n`); }
+  return applyChosen(plan, ctx, { o, ask, out });
+}
+
+// A global plan: nothing to change, or the changes chosen applied as one run.
+async function applyChosen(plan, ctx, { o, ask, out }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
 }
@@ -872,12 +893,13 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts', 'knowledge', 'sessions', 'evals'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts', 'knowledge', 'sessions', 'evals', 'automations'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
 const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'remove', 'rename', 'relocate', 'update'].includes(arg))
-  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'skills' && arg === 'update');
+  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'skills' && arg === 'update')
+  || (cmd === 'automations' && ['install', 'update', 'remove'].includes(arg));
 const entryDoc = (e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) });
 const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map(entryDoc) });
 // A project's setup state as projects status prints it: the pending changes without their diffs.
@@ -955,6 +977,10 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     return emit({ version: r.version, level: r.level.level ?? null, adds: r.level.adds ?? null, agents: r.agents, projects: r.projects.map(statusDoc) });
   }
   if (cmd === 'projects' && (!arg || arg === 'list')) return surplus(2) ?? registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
+  if (cmd === 'automations') {
+    const r = automationsDoc(ctx, arg, positionals);
+    return r.error ? fail(r.error) : emit(r.doc, r.code ?? 0);
+  }
   if (textRead(cmd, arg)) {
     const r = await readDoc(ctx, { cmd, o, positionals, err });
     return r.error ? fail(r.error) : emit(r.doc);
@@ -1204,6 +1230,68 @@ async function rulesCommand({ o, positionals, out, ask, ctx }) {
   if (!plan.length) { out.write('nothing to change\n'); return 0; }
   const rctx = dir ? projectCtx(ctx, dir) : ctx;
   return report(apply(plan, rctx, { scope: dir ?? 'global', select: await choose(plan, o, ask, out) }), out);
+}
+
+// ---- automations: templates (automations.mjs) installed on the runner
+
+// list, show, diff and status as a document, or { error, code } (the terminal prints it; 2: usage).
+function automationsDoc(ctx, sub = 'list', positionals) {
+  const id = positionals[2];
+  if (positionals.length > (['show', 'diff'].includes(sub) ? 3 : 2)) return { error: `unexpected argument ${positionals.at(-1)}`, code: 2 };
+  if (['show', 'diff'].includes(sub) && !id) return { error: `automations ${sub} needs a template id, see benchkeeper automations list`, code: 2 };
+  try {
+    if (sub === 'list') {
+      const { templates, errors } = loadAutomations(ctx), installed = readRegistry(ctx);
+      return { doc: { templates: templates.map((t) => ({ id: t.id, tier: t.tier, title: t.title, agent: t.agent, schedule: t.schedule, installed: !!installed[t.id] })), errors } };
+    }
+    if (sub === 'show') {
+      const t = loadAutomations(ctx).templates.find((x) => x.id === id);
+      if (!t) return { error: `no automation template ${id}, see benchkeeper automations list`, code: 1 };
+      const keys = ['id', 'tier', 'title', 'agent', 'schedule', 'workspace', 'reuse_session', 'precheck', 'missed_run_grace_minutes', 'mode', 'parameters', 'helpers', 'prompt'];
+      return { doc: { template: Object.fromEntries(keys.map((k) => [k, t[k]])) } };
+    }
+    if (sub === 'diff') { const d = automationDiff(ctx, id); return { doc: { id, diff: d.diff, note: d.note } }; }
+    if (sub === 'status') {
+      const rows = automationStatus(ctx);
+      return { doc: { automations: rows }, code: rows.some((r) => r.state !== 'current') ? 1 : 0 };
+    }
+  } catch (e) { return { error: e.message, code: 1 }; }
+  return { error: 'automations needs list, show, install, update, remove, diff or status', code: 2 };
+}
+
+async function automationsCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub = 'list', id] = positionals;
+  if (['install', 'update', 'remove'].includes(sub)) {
+    if (!id) { out.write(`automations ${sub} needs a template id\n`); return 2; }
+    if (o.param && sub !== 'install') { out.write('--param belongs to automations install\n'); return 2; }
+    const values = {};
+    for (const p of o.param ?? []) {
+      const at = p.indexOf('=');
+      if (at < 1) { out.write(`--param ${p}: name=value\n`); return 2; }
+      values[p.slice(0, at)] = p.slice(at + 1);
+    }
+    let plan;
+    try { plan = preview(sub === 'install' ? installChanges(ctx, id, { values, dir: o.project ?? '.' }) : sub === 'update' ? updateChanges(ctx, id) : removeChanges(ctx, id)); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    return applyChosen(plan, ctx, { o, ask, out });
+  }
+  const r = automationsDoc(ctx, sub, positionals);
+  if (r.error) { out.write(`${r.error}\n`); return r.code; }
+  const d = r.doc;
+  if (sub === 'list') {
+    for (const t of d.templates) out.write(`${t.id.padEnd(24)} ${t.tier.padEnd(8)} ${(t.installed ? 'installed' : '').padEnd(10)} ${t.title}\n`);
+    for (const e of d.errors) out.write(`error    ${e.file}: ${e.message}\n`);
+    if (!d.templates.length && !d.errors.length) out.write('no automation templates\n');
+  } else if (sub === 'show') {
+    const t = d.template;
+    out.write(`${t.id} (${t.tier}): ${t.title}\nagent ${t.agent}, schedule ${t.schedule || 'none'}, workspace ${t.workspace}, mode ${t.mode}\nprecheck: ${t.precheck}\n`);
+    for (const [k, p] of Object.entries(t.parameters)) out.write(`--param ${k}=${p.default ?? '(required)'}  ${p.description}\n`);
+    out.write(`\n${t.prompt}\n`);
+  } else if (sub === 'diff') out.write(`${d.note ? `${d.note}\n` : ''}${d.diff || 'the installed automation matches the template\n'}`);
+  else {
+    for (const a of d.automations) out.write(`${a.id.padEnd(24)} ${a.state.padEnd(9)} ${a.enabled === null ? '' : a.enabled ? 'enabled ' : 'disabled'} ${a.changed.length ? `changed: ${a.changed.join(', ')}` : ''}${a.note ? ` ${a.note}` : ''}\n`);
+    if (!d.automations.length) out.write('no automation installed\n');
+  }
+  return r.code ?? 0;
 }
 
 // ---- accounts: the registry, the guided sign-in and the launcher (accounts.mjs)

@@ -65,3 +65,47 @@ export async function runs(ctx, limit = 20) {
   }
   return out;
 }
+
+// ---- scheduled automations: create, edit, remove and show through its CLI (help of OBSERVED; the JSON shapes are read
+// from its source of that version). f is { name, schedule, prompt, agent, precheck, workspace, dir, reuseSession, grace }.
+const AUTO = ['orca', 'automations'];
+const AUTO_ID = /^[\w-]{1,128}$/;
+// The fields an update may change; the target (project folder, worktree mode) stays as created.
+const fields = (f) => ['--name', f.name, '--trigger', f.schedule, '--prompt', f.prompt, '--provider', f.agent,
+  ...(f.precheck ? ['--precheck', f.precheck] : []), ...(f.grace > 0 ? ['--missed-run-grace-minutes', String(f.grace)] : []),
+  ...(f.workspace === 'project' ? [f.reuseSession ? '--reuse-session' : '--fresh-session'] : [])];
+// An explicit target: without one the CLI binds the automation to the worktree its working folder lies in.
+const target = (f) => (f.workspace === 'project' ? ['--workspace', `path:${f.dir}`] : ['--repo', `path:${f.dir}`, '--workspace-mode', 'new-per-run']);
+export const createArgv = (f) => [...AUTO, 'create', ...fields(f), ...target(f), '--disabled', '--json'];
+export const editArgv = (id, f) => [...AUTO, 'edit', '--id', id, ...fields(f), '--json'];
+export const removeArgv = (id) => [...AUTO, 'remove', '--id', id, '--json'];
+// The undo commands an automation change plans: remove by id, or edit by id with the fields above. A ledger file that
+// names anything else is not run.
+const EDIT_FLAGS = new Set(['--name', '--trigger', '--prompt', '--provider', '--precheck', '--missed-run-grace-minutes']);
+export function undoableAutomation(argv) {
+  if (!Array.isArray(argv) || argv[0] !== AUTO[0] || argv[1] !== AUTO[1] || argv[3] !== '--id' || !AUTO_ID.test(argv[4] ?? '') || argv.at(-1) !== '--json') return false;
+  const rest = argv.slice(5, -1);
+  if (argv[2] === 'remove') return rest.length === 0;
+  if (argv[2] !== 'edit') return false;
+  for (let i = 0; i < rest.length; i += 1) {
+    if (['--reuse-session', '--fresh-session'].includes(rest[i])) continue;
+    if (!EDIT_FLAGS.has(rest[i]) || typeof rest[i + 1] !== 'string') return false;
+    i += 1;
+  }
+  return true;
+}
+
+// The fields BenchKeeper compares, picked from its automation record: never spread, it carries host and account context.
+const picked = (a) => ({ id: String(a.id), name: String(a.name ?? ''), prompt: String(a.prompt ?? ''), schedule: String(a.rrule ?? ''),
+  precheck: String(a.precheck?.command ?? ''), agent: String(a.agentId ?? ''), enabled: a.enabled === true });
+// The result of a create, edit or show: { automation } on success, else { error } (removed: true when it is not found).
+export function automationResult(r) {
+  let j = null;
+  try { j = JSON.parse(r.stdout); } catch { /* not JSON: the message below */ }
+  if (r.code === 0 && j?.ok && j.result?.automation?.id) return { automation: picked(j.result.automation) };
+  const message = j?.error?.message ?? (String(r.stderr || r.stdout).trim().split('\n').at(-1) || `exit ${r.code}`);
+  return { error: `${NAME}: ${message}`, ...(/not found/i.test(message) ? { removed: true } : {}) };
+}
+export const showAutomation = (ctx, id) => automationResult(ctx.run([...AUTO, 'show', '--id', id, '--json'], { timeout: 15e3 }));
+// The runner name a registry record carries.
+export const RUNNER = 'orca';

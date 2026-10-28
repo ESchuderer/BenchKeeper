@@ -1,0 +1,11 @@
+{
+  "id": "00000000-0000-4000-8000-000000000013",
+  "ok": false,
+  "error": {
+    "code": "runtime_error",
+    "message": "Automation not found."
+  },
+  "_meta": {
+    "runtimeId": "00000000-0000-4000-8000-000000000002"
+  }
+}

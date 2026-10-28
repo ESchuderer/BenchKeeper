@@ -2,7 +2,8 @@
 //   { kind: 'write', path, after | edit | from }   after null deletes, edit maps the current text, from copies a file or
 //                                           folder; existing content goes to the backup first; mode sets the file mode
 //   { kind: 'remove', path }                moves a file or folder to the backup
-//   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists
+//   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists;
+//                                           outcome(result) gives { result, undoArgv } when they come from its output
 // Every change has id, step, title, and destructive (confirmed separately, off by default).
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
@@ -35,8 +36,9 @@ export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => 
 // (a project's .git is denied, its info/exclude list is a root of its own).
 export const allowed = (path, ctx, follow = true) => ctx.roots.some((r) => inside(path, [r], follow) && !(ctx.deny ?? []).some((d) => inside(path, [d], follow) && !inside(r, [d])));
 
-export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand, refuse } = {}) {
-  return { ...(refuse ? { refuse } : {}), home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
+// undoable: a check for undo commands of other forms than these (a scheduler's own), so this file names no such tool.
+export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand, refuse, undoable: more } = {}) {
+  return { ...(refuse ? { refuse } : {}), ...(more ? { undoable: more } : {}), home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
 }
 
 // runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last keep
@@ -143,7 +145,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
     try {
       if (c.kind === 'command') {
         // Journaled before it starts: a command cut off by a crash shows in history and can be undone.
-        Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null, status: 'running', touched: true });
+        Object.assign(entry, { argv: c.argv, cwd: c.cwd, undoArgv: c.undoArgv ?? null, ...(c.undoNote ? { undoNote: c.undoNote } : {}), status: 'running', touched: true });
         // Paths the command changes (skill folders, a lockfile) are copied first; undo puts these copies back.
         if (c.snapshot) {
           entry.snapshot = c.snapshot.map((p, i) => {
@@ -170,6 +172,8 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
         if (r.code === 0 || !entry.snapshot) delete entry.touched;
         for (const x of entry.snapshot ?? []) x.hashAfter = hashPath(x.path);
         if (r.code !== 0) throw new Error(failure(r));
+        // The id a command created is in its output: a later change of the run reads entry.result, undo the argv.
+        if (c.outcome) Object.assign(entry, c.outcome(r));
       } else {
         const path = c.kind === 'write' && !c.from ? real(c.path) : resolve(c.path);
         if (!allowed(path, ctx, c.kind !== 'remove')) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
@@ -364,8 +368,8 @@ function undoRun(id, ctx, { step } = {}) {
           entry.files[i].hashAfter = hashPath(x.path);
         });
       } else if (e.kind === 'command') {
-        if (!e.undoArgv) { entry.status = 'manual'; entry.reason = `no undo command for ${e.argv.join(' ')}`; continue; }
-        if (!undoable(e.undoArgv)) throw new Error(`the undo command is not one this app plans, so it is not run: ${mask(String(e.undoArgv).slice(0, 120))}`);
+        if (!e.undoArgv) { entry.status = 'manual'; entry.reason = e.undoNote ?? `no undo command for ${e.argv.join(' ')}`; continue; }
+        if (!undoable(e.undoArgv) && !ctx.undoable?.(e.undoArgv)) throw new Error(`the undo command is not one this app plans, so it is not run: ${mask(String(e.undoArgv).slice(0, 120))}`);
         if (e.cwd != null && !inside(e.cwd, [ctx.home, ...ctx.roots])) throw new Error(`the undo command's folder ${e.cwd} is outside ${ctx.home}`);
         Object.assign(entry, { argv: e.undoArgv, cwd: e.cwd });
         begin(entry);

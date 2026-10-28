@@ -6,10 +6,13 @@
 // its own and whose times (calls left; none: every call) is not used up. then: replies put in front once it answered, so a
 // command changes what later calls get. hang never ends; prompt asks on stderr and answers only after a line starting with y
 // on stdin. A call no reply matches exits 2 and is logged with unknown: true.
+// The automations replies are derived from the CLI's source at the observed version, not recorded (fixtures *-derived.json):
+// recording needs a throwaway automation in a real store, a step of docs/orca-checks.md.
 import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { undoableAutomation } from '../../src/orca/index.mjs';
 import { context, runCommand, runCommandAsync } from '../../src/runner.mjs';
 
 const self = fileURLToPath(import.meta.url);
@@ -31,6 +34,17 @@ export function replies({ runs = RECORDED.runList.result.runs, tasks = { [RECORD
   ];
 }
 
+// Automations: the record a create, edit or show answers with (fields override the derived one), and the removal and
+// not-found answers. A reply's argv is the adapter's without the program name.
+export const DERIVED = { automation: JSON.parse(fixture('automation-derived.json')), removed: fixture('automation-removed-derived.json'), notFound: fixture('automation-not-found-derived.json') };
+export const showAutomationArgv = (id) => ['automations', 'show', '--id', id, '--json'];
+export const automationReply = (argv, fields = {}, extra = {}) => {
+  const d = DERIVED.automation;
+  return { argv, stdout: json({ ...d, result: { automation: { ...d.result.automation, ...fields } } }), ...extra };
+};
+export const notFoundReply = (argv) => ({ argv, stdout: DERIVED.notFound, code: 1 });
+export const removedReply = (argv, id) => ({ argv, stdout: json({ ...JSON.parse(DERIVED.removed), result: { removed: true, id } }) });
+
 export function fake(state) {
   const dir = mkdtempSync(join(tmpdir(), 'bk-fake-ide-'));
   const bin = join(dir, 'bin'), file = join(dir, 'state.json'), log = join(dir, 'calls.log');
@@ -51,7 +65,7 @@ export function missing() {
 
 function world(dir, env, file, log) {
   const capped = (o) => ({ ...o, env, timeout: Math.min(o?.timeout ?? WATCHDOG_MS, WATCHDOG_MS) });
-  const ctx = context({ home: dir, run: (argv, o) => runCommand(argv, capped(o)) });
+  const ctx = context({ home: dir, run: (argv, o) => runCommand(argv, capped(o)), undoable: undoableAutomation });
   ctx.runAsync = (argv, o) => runCommandAsync(argv, { ...capped(o), grace: 200 });
   return {
     ctx,

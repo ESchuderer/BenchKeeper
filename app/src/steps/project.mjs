@@ -412,7 +412,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     add(step, `remove ${rel(from)} (copied to ${rel(to)})`, { kind: 'remove', path: from, selected: true, unit: `move:${from}` });
   };
 
-  // Library skills: own skills copied into each skill folder, community skills through the skills CLI at the pinned commit
+  // Library skills: own skills copied into each skill folder, community skills through the skills CLI from the default branch of their source
 // (undo puts back the copies of their folders and the lockfile taken before the command).
   // The state file comes with the repository: only commit ids count.
   // The install command of each community skill: the state file records its new commit only once that ran.

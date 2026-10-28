@@ -27,7 +27,7 @@ TOML front matter between two `+++` lines, then the prompt.
 | `missed_run_grace_minutes` | no | `0` | how long a missed run may still start |
 | `mode` | no | `report` | `report` or `act`; the value a run gets unless the install says otherwise |
 | `parameters` | no | none | one table per parameter with `description` (one line) and an optional `default` |
-| `helpers` | no | none | scripts the precheck or the prompt call, each as `<id>/<file>` |
+| `helpers` | no | none | scripts the precheck or the prompt call, each as `<id>/<file>`; an installed precheck and prompt name the copy in the config folder |
 
 Unknown keys are an error.
 
@@ -133,7 +133,7 @@ The generic templates, ranked by what the projects need. A row without a templat
 | `daily-digest`: Daily digest: decisions for the owner, blocked, merged, running workers and account headroom; writes nothing to GitHub | daily | a pull request or an issue changed since the last digest | one local file (`file`), an optional desktop notification (`notify`) | template, [#352](https://github.com/ESchuderer/BenchKeeper/issues/352) |
 | Issue triage: classifies, finds duplicates, drafts questions; never sets the agent label | every few hours | issues without a triage label | labels, comments | planned, [#353](https://github.com/ESchuderer/BenchKeeper/issues/353) |
 | Code-scanning and quality-gate findings to fix workers, grouped by rule | weekly | open findings | pull requests | planned, [#354](https://github.com/ESchuderer/BenchKeeper/issues/354) |
-| Release watch: the published package, the pins and an install | on release | a new release tag | one issue on failure | planned, [#355](https://github.com/ESchuderer/BenchKeeper/issues/355) |
+| `release-watch`: Release watch: the package at the version in the registry (`registry`), the version pins in the README and docs, the release notes and an install in a clean container (`install_command`, empty: an npm install); never publishes, tags or edits a release | hourly | a valid release tag without a recorded pass, or a failure older than a day | one issue per failing tag, updated by the next check and closed after a pass (act mode) | template, [#355](https://github.com/ESchuderer/BenchKeeper/issues/355) |
 | Provider changelog scan; reads no untrusted source | weekly | a new agent version | one report | planned, [#357](https://github.com/ESchuderer/BenchKeeper/issues/357) |
 | `update-all`: Update all for the registered projects; skips a project whose git config that runs code is not confirmed (`benchkeeper projects confirm-git <dir>`) | weekly | a project the dry run reports ready | setup commits, pushes and pull requests in act mode (push off by default) | template, [#358](https://github.com/ESchuderer/BenchKeeper/issues/358) |
 

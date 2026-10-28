@@ -172,7 +172,7 @@ export function check(ctx, { tiers, privateNames = [] } = {}) {
 // ---- installed automations: the registry and the runner
 
 export const registryFile = (ctx) => join(ctx.config, 'automations.json');
-// Copies of the helpers an installed precheck calls: the generic tier lies in the app's package, which moves on an update.
+// Copies of the helpers an installed precheck or prompt calls: the generic tier lies in the app's package, which moves on an update.
 const helperDir = (ctx, id) => join(ctx.config, 'automations-installed', id);
 const quote = (p) => `'${p.replaceAll("'", "'\\''")}'`;
 
@@ -199,9 +199,13 @@ function template(ctx, id) {
 function spec(ctx, t, values, dir) {
   if (t.schedule === '') throw new Error(`${t.id} has no schedule: the runner needs one`);
   const filled = fill(t, values);
-  let precheck = filled.precheck;
-  for (const h of t.helpers) precheck = precheck.split(h).join(quote(join(helperDir(ctx, t.id), h.slice(t.id.length + 1))));
-  return { values: filled.values, f: { name: t.title, schedule: t.schedule, prompt: filled.prompt, agent: t.agent, precheck, workspace: t.workspace, dir, reuseSession: t.reuse_session, grace: t.missed_run_grace_minutes } };
+  let { precheck, prompt } = filled;
+  for (const h of t.helpers) {
+    const path = quote(join(helperDir(ctx, t.id), h.slice(t.id.length + 1)));
+    precheck = precheck.split(h).join(path);
+    prompt = prompt.split(h).join(path);
+  }
+  return { values: filled.values, f: { name: t.title, schedule: t.schedule, prompt, agent: t.agent, precheck, workspace: t.workspace, dir, reuseSession: t.reuse_session, grace: t.missed_run_grace_minutes } };
 }
 const version = (f) => hashText(JSON.stringify(f)).slice(0, 16);
 const specText = (f) => `name: ${f.name}\nschedule: ${f.schedule}\nagent: ${f.agent}\nprecheck: ${f.precheck}\nprompt:\n${f.prompt}\n`;

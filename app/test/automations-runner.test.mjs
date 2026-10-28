@@ -36,6 +36,13 @@ function install(w, id = ID1) {
   return { plan, run: apply(plan, w.ctx, { select: all(plan) }), a };
 }
 
+test('install points a helper the prompt names to its copy in the config folder', () => {
+  const w = world();
+  writeFileSync(join(userDir(w.ctx), 'alpha.md'), TEMPLATE('Run `alpha/check.sh {{repository}}`.'));
+  const argv = runnerArgv(install(w).plan);
+  assert.match(argv[argv.indexOf('--prompt') + 1], /Run `'[^']*automations-installed\/alpha\/check\.sh' o\/r`\./);
+});
+
 test('install creates the automation disabled in the project folder and records the runner id, parameters and version', (t) => {
   // A token in the environment the runner gets must not reach the registry or the plan.
   const token = 'value-that-must-not-leak-7a3b';

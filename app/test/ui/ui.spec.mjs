@@ -957,6 +957,10 @@ test.describe('views', () => {
     await drawer.getByRole('button', { name: 'Continue' }).click();
     await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();
     await expect(drawer.getByRole('alert')).toContainText('committed');
+    // The result step repeats what only the user can start.
+    await expect(drawer).toContainText('After merging, start in the project');
+    await expect(drawer).toContainText('/benchkeeper:setting-up-projects stack skills');
+    await noAxe(page);
     await drawer.getByRole('button', { name: 'Next project' }).click();
     await expect(drawer).toBeHidden();
   });

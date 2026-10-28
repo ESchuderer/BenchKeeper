@@ -89,5 +89,6 @@ export function download(name, text) {
 // Decorative: the text next to an icon names the action, so screen readers skip the icon.
 export const icon = (Icon, size = 16) => <Icon size={size} stroke={1.75} aria-hidden="true" />;
 const ALERT_ICON = { red: IconAlertCircle, yellow: IconAlertTriangle, teal: IconCircleCheck };
-// An Alert with the icon of its color.
-export const Note = ({ color = 'blue', ...props }) => <Alert color={color} icon={icon(ALERT_ICON[color] ?? IconInfoCircle, 20)} {...props} />;
+// An Alert with the icon of its color. A teal title has 4.32:1 on the light teal background, so it takes the text color.
+const TITLE = { teal: { title: { color: 'var(--mantine-color-text)' } } };
+export const Note = ({ color = 'blue', ...props }) => <Alert color={color} icon={icon(ALERT_ICON[color] ?? IconInfoCircle, 20)} styles={TITLE[color]} {...props} />;

@@ -73,12 +73,16 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
 
 const description = (text) => skillDescription(text).text;
 
-// A pack whose own setup skill writes sections into AGENTS.md: BenchKeeper does not run it, so sections still missing are named.
+// A pack whose own setup skill writes files and AGENTS.md sections: BenchKeeper does not run it, so what is still missing is named.
+// The files are checked, not a recorded flag: Doctor is quiet once they exist, however they were written.
 function packSetupChecks(dir, state, lib = library()) {
   const text = ['AGENTS.md', 'CLAUDE.md'].map((f) => readText(join(dir, f)) ?? '').join('\n');
   const codex = !(state?.agents ?? []).includes('claude') && (state?.agents ?? []).includes('codex');
-  return (state?.packs ?? []).flatMap((id) => (lib.packs.find((p) => p.id === id)?.prompts ?? []).filter((x) => x.sections?.some((h) => !text.split('\n').some((l) => l.trim() === h)))
-    .map((x) => issue('info', 'packs', `pack ${id} is on, but ${x.sections.join(', ')} are not all in AGENTS.md`, `run ${codex ? x.codex : x.claude} once in this project: it ${x.why}`)));
+  return (state?.packs ?? []).flatMap((id) => (lib.packs.find((p) => p.id === id)?.prompts ?? []).flatMap((x) => {
+    const fix = `run ${codex ? x.codex : x.claude} once in this project: it ${x.why}`;
+    if (x.writes && !exists(join(dir, x.writes))) return [issue('warning', 'packs', `pack ${id} is on, but ${x.writes}/ does not exist`, fix)];
+    return x.sections?.some((h) => !text.split('\n').some((l) => l.trim() === h)) ? [issue('info', 'packs', `pack ${id} is on, but ${x.sections.join(', ')} are not all in AGENTS.md`, fix)] : [];
+  }));
 }
 
 export function projectChecks(ctx, dir, agents) {

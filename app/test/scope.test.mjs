@@ -131,19 +131,38 @@ test('a skill pack for all projects: global copies instead of the project ones, 
   assert.ok(removed.every((c) => c.selected && c.id.startsWith(`${dir}:`)));
   assert.equal(plan.at(-1).title, 'pack frontend: all projects (was selected projects)');
 
-  // Recorded: the global copies are part of the setup, the project plan copies none.
-  writeFileSync(scopeFile(ctx), JSON.stringify({ scopes: { frontend: 'global' } }));
+  // Applied: the global copies are part of the setup (the stubbed skills CLI creates no folder), the project plan copies none.
+  assert.equal(apply(plan, ctx).status, 'done');
   for (const s of skills) mkdirSync(join(home, '.claude/skills', s), { recursive: true });
   const full = globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { level: 'full' } });
   assert.ok(!full.some((c) => c.step === 'other:claude:skill' && skills.some((s) => c.path.endsWith(s))));
   assert.ok(!globalDrift(ctx, ['claude'], '0.0.0', 'full').some((i) => i.check === 'unexpected' && skills.some((s) => i.message.includes(s))));
   assert.ok(!projectPlan({ ctx, dir, answers: {} }).changes.some((c) => skills.some((s) => c.step === `skill:${s}`)));
 
-  // Back to selected projects: the global copies go to the backup, the project gets its copies again.
+  // Back to selected projects: the global copies the app installed go to the backup, preselected, the project gets its copies again.
   const back = preview(scopePlan(ctx, 'frontend', 'projects', ['claude']));
   assert.deepEqual(new Set(back.filter((c) => c.step === 'other:claude:skill').map((c) => c.path)), new Set(skills.map((s) => join(home, '.claude/skills', s))));
   assert.ok(back.filter((c) => c.step === 'other:claude:skill').every((c) => c.selected));
   assert.equal(back.at(-1).title, 'pack frontend: selected projects (was all projects)');
+});
+
+test('a scope move preselects no removal of what the user owns and keeps held project changes held', () => {
+  const { ctx, home, dir } = machine();
+  const [uninstall] = scopePlan(ctx, 'ponytail', 'projects', ['claude']);
+  assert.equal(uninstall.destructive, true);
+  assert.equal(uninstall.impact, 'removing runs claude plugin uninstall --scope user ponytail@ponytail, which deletes the plugin and its data from Claude Code; claude plugin install --scope user ponytail@ponytail brings it back');
+
+  // Global folders named like the pack's skills that the app never installed, and a project skill adopted earlier (held).
+  const skills = pack(ctx, 'frontend').skills;
+  writeFileSync(scopeFile(ctx), JSON.stringify({ scopes: { frontend: 'global' } }));
+  for (const s of skills) mkdirSync(join(home, '.claude/skills', s), { recursive: true });
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['claude'], env: 'host', packs: ['ponytail', 'frontend'], skills: skills.map((name) => ({ name, adopted: true })) }));
+  const plan = scopePlan(ctx, 'frontend', 'projects', ['claude']);
+  const removals = plan.filter((c) => c.step === 'other:claude:skill');
+  assert.equal(removals.length, skills.length);
+  assert.ok(removals.every((c) => c.selected === false));
+  const held = plan.filter((c) => c.held);
+  assert.ok(held.length && held.every((c) => c.step === 'skill:designing-technical-uis' && c.selected === false && c.project === dir));
 });
 
 test('packs scope prints the scope and each agent\'s offer, and applies a move', async () => {

@@ -57,6 +57,8 @@ test.describe('views', () => {
   test.beforeEach(async ({ context, page }) => {
     await context.addCookies([cookie]);
     await context.addInitScript((k) => localStorage.setItem('benchkeeper-key', k), key);
+    // Projects as a table unless a test picks Cards: the tests of the rows predate the cards.
+    await context.addInitScript(() => { if (localStorage.getItem('bk-projects-layout') === null) localStorage.setItem('bk-projects-layout', 'table'); });
     await page.goto('/');
     // Shortcuts and the skip link exist once the app is up, behind the starting screen.
     await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
@@ -702,6 +704,7 @@ test.describe('views', () => {
   const folder = (name) => { const d = join(mkdtempSync(join(tmpdir(), 'bk-ui-mv-')), name); mkdirSync(d); return d; };
   const addFolder = async (page, dir) => { await page.getByLabel('Project folder').fill(dir); await page.getByRole('button', { name: 'Add project' }).click(); };
   const choose = async (page, label, option) => { await page.getByRole('combobox', { name: label }).click(); await page.getByRole('option', { name: option, exact: true }).click(); };
+  const chip = (page, name) => page.getByRole('group', { name: 'Filters' }).getByText(name, { exact: true });
   const bar = (page) => page.getByRole('group', { name: 'Selected projects' });
   const unregister = async (page, names) => {
     const table = page.getByRole('table', { name: 'Projects' });
@@ -729,12 +732,12 @@ test.describe('views', () => {
     await page.getByLabel('Search projects').fill('ana');
     await expect(table.getByRole('row')).toHaveCount(2);
     await page.getByLabel('Search projects').fill('zzz');
-    await expect(page.getByText('No project matches the search and filter.')).toBeVisible();
+    await expect(page.getByText('No project matches the search and filters.')).toBeVisible();
     await page.getByLabel('Search projects').fill('');
-    await choose(page, 'Show', 'Not set up');
+    await chip(page, 'No setup').click();
     await expect(table.getByRole('row')).toHaveCount(3);
     await expect(table).not.toContainText('bk-ui-proj');
-    await choose(page, 'Show', 'All projects');
+    await chip(page, 'No setup').click();
     await choose(page, 'Sort by', 'Name');
     await expect(table.getByRole('row').nth(1)).toContainText('bk-ui-proj');
     await choose(page, 'Sort by', 'Order added');
@@ -746,10 +749,48 @@ test.describe('views', () => {
     await expect(bar(page)).toContainText('1 selected');
     await expect(bar(page).getByRole('button', { name: 'Update' })).toBeDisabled();
     await noAxe(page);
-    await table.getByRole('checkbox', { name: 'Select all shown projects' }).check();
+    await page.getByRole('checkbox', { name: 'Select all shown projects' }).check();
     await expect(bar(page)).toContainText('3 selected');
-    await table.getByRole('checkbox', { name: 'Select all shown projects' }).uncheck();
+    await page.getByRole('checkbox', { name: 'Select all shown projects' }).uncheck();
     await unregister(page, ['Marketing site']);
+  });
+
+  test('Projects cards: totals equal the cards, health with findings, setup line, the graph as text; selection by keyboard shows the bulk bar; the choice is remembered; 390 px without sideways scroll; no axe violations', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await nav(page, 'Projects').click();
+    await page.getByText('Cards', { exact: true }).click();
+    const cards = page.getByRole('list', { name: 'Projects' });
+    const n = await cards.getByRole('listitem').count();
+    expect(n).toBeGreaterThan(0);
+    await expect(page.getByRole('region', { name: 'Totals' })).toContainText(new RegExp(`^${n}projects`));
+    const card = cards.getByRole('article', { name: /^bk-ui-proj/ });
+    await expect(card).toContainText(/In sync|Outdated|Modified/);
+    await expect(card).toContainText('Claude Code');
+    await expect(card.getByRole('img', { name: /^(\d+ sessions? on \d+ days?|No sessions) from \d{4}-\d\d-\d\d to \d{4}-\d\d-\d\d/ })).toBeVisible();
+    await expect(card).toContainText(/sessions in 30 days/);
+    await expect(page.getByRole('img', { name: /^Projects by health: / })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    // The chips narrow the cards and the table shows the same projects.
+    await chip(page, 'No setup').click();
+    const fresh = await cards.getByRole('listitem').count();
+    await expect(page.getByRole('region', { name: 'Totals' })).toContainText(new RegExp(`^${fresh}projects`));
+    await page.getByText('Table', { exact: true }).click();
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row')).toHaveCount(fresh + 1);
+    await page.getByText('Cards', { exact: true }).click();
+    await chip(page, 'No setup').click();
+    await expect(bar(page)).toHaveCount(0);
+    const box = card.getByRole('checkbox', { name: /^Select bk-ui-proj/ });
+    await box.focus();
+    await page.keyboard.press('Space');
+    await expect(bar(page)).toContainText('1 selected');
+    await noAxe(page);
+    await page.keyboard.press('Space');
+    await expect(bar(page)).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole('list', { name: 'Projects' })).toBeVisible();
+    await page.getByRole('list', { name: 'Projects' }).getByRole('article', { name: /^bk-ui-proj/ }).getByRole('link', { name: /^Details of / }).click();
+    await expect(page).toHaveURL(/#\/projects\?path=/);
+    await expect(page.getByRole('region', { name: /^Project \// })).toBeVisible();
   });
 
   test('Projects: a moved folder shows Folder not found with Relocate; the notes follow it', async ({ page }) => {
@@ -764,7 +805,7 @@ test.describe('views', () => {
     const moved = join(dir, '..', 'mv-moved');
     renameSync(dir, moved);
     await page.reload();
-    await choose(page, 'Show', 'Folder not found');
+    await chip(page, 'Folder not found').click();
     await expect(table.getByRole('row')).toHaveCount(2);
     await expect(table.getByRole('row').nth(1)).toContainText('Folder not found');
     await table.getByRole('link', { name: 'Docs site', exact: true }).click();
@@ -778,7 +819,7 @@ test.describe('views', () => {
     await expect(detail.getByText(/is not a folder/)).toBeVisible();
     await detail.getByLabel('New folder').fill(moved);
     await detail.getByRole('button', { name: 'Relocate', exact: true }).last().click();
-    await choose(page, 'Show', 'All projects');
+    await chip(page, 'Folder not found').click();
     await expect(table.getByRole('link', { name: 'Docs site', exact: true })).toBeVisible();
     await expect(table).not.toContainText('Folder not found');
     await unregister(page, ['Docs site']);

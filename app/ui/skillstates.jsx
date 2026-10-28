@@ -2,7 +2,7 @@ import { Badge, Button, Group, Modal, Paper, Select, SimpleGrid, Stack, Switch, 
 import { useState } from 'react';
 import { Plan, Section, StateBadge } from './parts.jsx';
 import { Loading, Note, icon, useApi } from './shell.jsx';
-import { label } from './projects.jsx';
+import { label } from './cards.js';
 import { IconPlus, IconRefresh, IconRestore, IconTrash } from '@tabler/icons-react';
 
 const STATES = ['current', 'outdated', 'modified', 'removed', 'disabled'];

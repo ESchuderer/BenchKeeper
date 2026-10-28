@@ -118,7 +118,8 @@ function setupAnswers(src) {
     agentFiles: named(src, 'agent-file', 'agentFiles') ? list(src instanceof URLSearchParams ? 'agent-file' : 'agentFiles') : undefined,
     // An empty tier clears the saved one; no tier keeps it.
     tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined,
-    // No share keeps the saved choice.
+    // No guards or share keeps the saved choice.
+    guards: named(src, 'guards', 'guards') ? get('guards') === '1' || get('guards') === true : undefined,
     share: (src instanceof URLSearchParams ? src.has('share') : 'share' in src) ? get('share') === '1' || get('share') === true : undefined };
 }
 

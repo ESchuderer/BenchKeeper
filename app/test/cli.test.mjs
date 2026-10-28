@@ -103,5 +103,5 @@ test('sessions record runs the command after -- and records its files; sessions 
   o = await exec(['sessions', 'record', '--project', dir]);
   assert.deepEqual([o.code, /sessions record needs the agent command after --/.test(o.text)], [2, true]);
   o = await exec(['sessions']);
-  assert.deepEqual([o.code, /sessions needs board, list or record/.test(o.text)], [2, true]);
+  assert.deepEqual([o.code, /sessions needs board, list, cache or record/.test(o.text)], [2, true]);
 });

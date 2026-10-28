@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { HELP } from '../src/cli.mjs';
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
-const REASONS = ['UI internal', 'gap #319', 'gap #320'];
+const REASONS = ['UI internal', 'gap #320'];
 
 // Routes come from the server source: the api table, and the page routes the request handler answers itself.
 const source = read('../src/server.mjs');
@@ -36,8 +36,11 @@ test('each row names commands of the CLI or one reason', () => {
   }
 });
 
-// Each usage line of help as commands: `projects plan|apply` and `skills [list|update]` give one per subcommand.
+// Each usage line of help as commands: `projects plan|apply` and `skills [list|update]` give one per subcommand,
+// `sessions cache show|clear` one per verb of the noun.
 function subcommands(rest) {
+  const [noun, verbs = ''] = rest.split(' ');
+  if (/^[a-z]+$/.test(noun) && /^[a-z]+(\|[a-z]+)+$/.test(verbs)) return verbs.split('|').map((v) => `${noun} ${v}`);
   let depth = 0, end = 0;
   // The bracket group that opens the line, nested brackets included.
   if (rest.startsWith('[')) do depth += { '[': 1, ']': -1 }[rest[end++]] ?? 0; while (depth && end < rest.length);
@@ -45,7 +48,7 @@ function subcommands(rest) {
   return group.includes('|') || group === 'list' ? group.split('|').map((s) => s.trim().split(' ')[0]) : rest.split(' ')[0].split('|');
 }
 const commands = [...HELP.matchAll(/^ {2}([a-z][a-z-]*)(?: (.*?))?(?: {2,}|$)/gm)].flatMap(([, word, rest = '']) => {
-  const names = subcommands(rest).filter((s) => /^[a-z]+$/.test(s));
+  const names = subcommands(rest).filter((s) => /^[a-z]+( [a-z]+)?$/.test(s));
   return names.length ? names.map((n) => `${word} ${n}`) : [word];
 });
 

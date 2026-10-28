@@ -2,9 +2,10 @@
 // it reads its state from FAKE_STATE, appends each call to FAKE_LOG and answers from the state's replies alone, so a new
 // command needs a reply, not code here. Imported, it builds the launcher, the state and a context whose commands find this
 // fake first on the PATH, plus the replies recorded from the real CLI (app/test/fixtures/orca/, version in version.txt).
-// State: { replies: [{ argv, stdout, stderr, code, times, hang, prompt }] }. A call takes the first reply whose argv equals its
-// own and whose times (calls left; none: every call) is not used up. hang never ends; prompt asks on stderr and answers only
-// after a line starting with y on stdin. A call no reply matches exits 2 and is logged with unknown: true.
+// State: { replies: [{ argv, stdout, stderr, code, times, then, hang, prompt }] }. A call takes the first reply whose argv equals
+// its own and whose times (calls left; none: every call) is not used up. then: replies put in front once it answered, so a
+// command changes what later calls get. hang never ends; prompt asks on stderr and answers only after a line starting with y
+// on stdin. A call no reply matches exits 2 and is logged with unknown: true.
 import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -65,7 +66,9 @@ function main(argv) {
   const reply = state.replies.find((r) => JSON.stringify(r.argv) === JSON.stringify(argv) && (r.times ?? 1) > 0);
   appendFileSync(process.env.FAKE_LOG, `${JSON.stringify(reply ? argv : { argv, unknown: true })}\n`);
   if (!reply) { process.stderr.write(`fake: no reply for ${JSON.stringify(argv)}\n`); process.exitCode = 2; return; }
-  if (reply.times != null) { reply.times -= 1; writeFileSync(process.env.FAKE_STATE, JSON.stringify(state)); }
+  if (reply.times != null) reply.times -= 1;
+  if (reply.then) state.replies.unshift(...reply.then);
+  if (reply.times != null || reply.then) writeFileSync(process.env.FAKE_STATE, JSON.stringify(state));
   if (reply.hang) { setInterval(() => {}, 60e3); return; }
   const answer = () => {
     process.stdout.write(reply.stdout ?? '');

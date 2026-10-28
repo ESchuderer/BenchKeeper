@@ -62,13 +62,14 @@ test('gate: a task a pending decision blocks counts as blocked', guard, async ()
   assert.deepEqual((await runs(ctx))[0].states, { completed: 1, blocked: 1 });
 });
 
-test('resume: after the gate is resolved and the run resumed, the next read shows the task dispatched and the run updated', guard, async () => {
-  const { ctx, update, calls } = fake({ replies: oneRun(['blocked']) });
+test('resume: resolving the gate changes the fake\'s state; the next read shows the task dispatched and the run updated', guard, async () => {
+  const resolve = ['orchestration', 'gate-resolve', '--id', 'gate_1', '--resolution', 'go', '--json'];
+  const { ctx, calls } = fake({ replies: [...oneRun(['blocked']), { argv: resolve, stdout: '{"ok":true}\n', then: oneRun(['dispatched'], { ...RUN_A, updated_at: '2026-10-28T14:00:00Z' }) }] });
   assert.deepEqual((await runs(ctx))[0].states, { blocked: 1 });
-  update(() => ({ replies: oneRun(['dispatched'], { ...RUN_A, updated_at: '2026-10-28T14:00:00Z' }) }));
+  assert.equal(ctx.run(['orca', ...resolve]).code, 0);
   const [r] = await runs(ctx);
   assert.deepEqual([r.updated, r.states], ['2026-10-28T14:00:00Z', { dispatched: 1 }]);
-  assert.equal(calls().length, 4);
+  assert.deepEqual(calls(), [RUN_LIST, taskListArgv(A), resolve, RUN_LIST, taskListArgv(A)]);
 });
 
 test('a failing command: an exit code, the recorded error envelope or output that is no JSON reads as no runs', guard, async () => {

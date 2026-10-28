@@ -163,6 +163,15 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
     await test(command)
     expect(await ui.find({ type: 'Text', text: /tests: not run yet/ })).toBeDefined()
   }
+  // In a chain that failed, the failure may belong to another part: false && npm test ran no test, npm test && false passed it.
+  for (const command of ['false && npm test', 'npm test && false', 'cd app && npm test']) {
+    outcome = { text: '12 passing' }
+    await test('node --test')
+    outcome = { isError: true, text: 'Exit code 1' }
+    await test(command)
+    expect(await ui.find({ type: 'Text', text: /tests: not run yet/ })).toBeDefined()
+  }
+  outcome = { text: '12 passing' }
   await test('node --test')
   outcome = { text: 'started', backgroundTaskId: 'b1' } as never
   await test('npm test')

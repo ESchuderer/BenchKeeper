@@ -88,15 +88,15 @@ export function readLedger(ctx) {
       const key = r.length === head.length ? at(r, 'key').match(KEY) : null;
       if (!key) { bad++; continue; }
       const prev = bySession.get(key[1]);
-      const row = { id: key[1], startedMs: Number(key[2]), project: at(r, 'project') || null, costUSD: num(at(r, 'cost_usd')), turns: num(at(r, 'turns')) ?? 0, agentMinutes: num(at(r, 'agent_minutes')), tokens: num(at(r, 'tokens_total')), reusePct: num(at(r, 'reuse_pct')), reused: num(at(r, 'reused')), fresh: num(at(r, 'new')), tests: testsOf(at(r, 'tests')), level: at(r, 'level') || null, model: at(r, 'model') || null };
+      const row = { id: key[1], startedMs: Number(key[2]), lastMs: Number(key[2]), project: at(r, 'project') || null, costUSD: num(at(r, 'cost_usd')), turns: num(at(r, 'turns')) ?? 0, agentMinutes: num(at(r, 'agent_minutes')), tokens: num(at(r, 'tokens_total')), reusePct: num(at(r, 'reuse_pct')), reused: num(at(r, 'reused')), fresh: num(at(r, 'new')), tests: testsOf(at(r, 'tests')), level: at(r, 'level') || null, model: at(r, 'model') || null };
       const sum = (a, b) => (a == null && b == null ? null : (a ?? 0) + (b ?? 0));
       // The newest task (by start, not by file order) gives the fields that are not sums; a newer task without a test result keeps none.
-      const newest = !prev || row.startedMs >= prev.startedMs ? row : prev;
-      bySession.set(key[1], !prev ? row : { ...newest, startedMs: Math.min(prev.startedMs, row.startedMs), costUSD: sum(prev.costUSD, row.costUSD), turns: prev.turns + row.turns, agentMinutes: sum(prev.agentMinutes, row.agentMinutes), tokens: sum(prev.tokens, row.tokens), reused: sum(prev.reused, row.reused), fresh: sum(prev.fresh, row.fresh) });
+      const newest = !prev || row.startedMs >= prev.lastMs ? row : prev;
+      bySession.set(key[1], !prev ? row : { ...newest, startedMs: Math.min(prev.startedMs, row.startedMs), lastMs: Math.max(prev.lastMs, row.startedMs), costUSD: sum(prev.costUSD, row.costUSD), turns: prev.turns + row.turns, agentMinutes: sum(prev.agentMinutes, row.agentMinutes), tokens: sum(prev.tokens, row.tokens), reused: sum(prev.reused, row.reused), fresh: sum(prev.fresh, row.fresh) });
     }
     if (bad) notes.push(`Ponytail ledger ${f}: ${bad} malformed ${bad === 1 ? 'row' : 'rows'} skipped`);
   }
   // A session's share comes from its summed counts, as Ponytail's own (no share below 3 functions), not from one task's.
-  const rows = [...bySession.values()].map(({ reused, fresh, ...r }) => (reused == null || fresh == null ? r : { ...r, reusePct: reused + fresh < 3 ? null : Math.round((reused / (reused + fresh)) * 100) }));
+  const rows = [...bySession.values()].map(({ reused, fresh, lastMs, ...r }) => (reused == null || fresh == null ? r : { ...r, reusePct: reused + fresh < 3 ? null : Math.round((reused / (reused + fresh)) * 100) }));
   return { rows, notes };
 }

@@ -4,7 +4,7 @@
 // claudeMdExcludes (https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files, patterns match absolute
 // paths and cover rules folders), Codex has no such setting and a global file moves to a folder of the app's own.
 // The text of a file is returned only by ruleText, for a file the view lists.
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { exists, isDir, readText, real, realish } from './fsx.mjs';
@@ -446,7 +446,11 @@ function editable(ctx, { agent: id, file, dir, text }) {
   if (row.owner === 'BenchKeeper') throw new Error(`${row.shown}: BenchKeeper wrote it, apply keeps it current`);
   if (row.exists === false) throw new Error(`${row.shown} is off: turn it on to edit it`);
   if (dir && row.scope === 'global') throw new Error(`${row.shown} is a global file: edit it in the global view`);
-  if ((readText(row.path) ?? '').length > TEXT_LIMIT) throw new Error(`${row.shown} is longer than the ${TEXT_LIMIT} characters the view shows: edit it in an editor`);
+  if (isDir(row.path)) throw new Error(`${row.shown} is a folder, not a file: edit it in an editor`);
+  const disk = readText(row.path) ?? '';
+  // Save writes the decoded text: bytes that are not UTF-8 would come back as replacement characters.
+  if (disk && !Buffer.from(disk).equals(readFileSync(row.path))) throw new Error(`${row.shown} is not UTF-8 text: edit it in an editor`);
+  if (disk.length > TEXT_LIMIT) throw new Error(`${row.shown} is longer than the ${TEXT_LIMIT} characters the view shows: edit it in an editor`);
   return row;
 }
 
@@ -463,7 +467,9 @@ export function ruleDraft(ctx, { agents = RULE_AGENTS, ...opts }) {
 export function ruleEdit(ctx, opts) {
   const row = editable(ctx, opts);
   const step = `${EDIT}:${row.agent}`;
-  return [{ id: step, step, title: `edit ${row.shown} for ${agent(row.agent).name}`, kind: 'write', path: row.path, after: opts.text }];
+  // A textarea always sends LF: a CRLF file keeps its line endings.
+  const after = (readText(row.path) ?? '').includes('\r\n') && !opts.text.includes('\r') ? opts.text.replaceAll('\n', '\r\n') : opts.text;
+  return [{ id: step, step, title: `edit ${row.shown} for ${agent(row.agent).name}`, kind: 'write', path: row.path, after }];
 }
 
 // Paths and states of the rule files, for the profile: no text, no sizes.

@@ -450,6 +450,23 @@ test('an edit is refused for a file not listed, of BenchKeeper, global in a proj
   assert.equal(readFileSync(team, 'utf8'), 'changed meanwhile\n');
 });
 
+test('an edit keeps CRLF line endings, and a file that is not UTF-8 or a folder is refused', () => {
+  const ctx = machine();
+  const crlf = join(ctx.home, '.claude/rules/30-crlf.md');
+  write(crlf, '# Team\r\nold\r\n');
+  const plan = preview(ruleEdit(ctx, { agent: 'claude', file: crlf, text: '# Team\nnew\n' }));
+  assert.equal(apply(plan, ctx, { scope: 'global' }).status, 'done');
+  assert.equal(readFileSync(crlf, 'utf8'), '# Team\r\nnew\r\n');
+  const latin = join(ctx.home, '.claude/rules/40-latin.md');
+  writeFileSync(latin, Buffer.from([0x23, 0x20, 0xe4, 0x0a]));
+  assert.throws(() => ruleEdit(ctx, { agent: 'claude', file: latin, text: 'x\n' }), /is not UTF-8 text: edit it in an editor/);
+  assert.throws(() => ruleDraft(ctx, { agent: 'claude', file: latin, text: 'x\n' }), /is not UTF-8 text/);
+  const folder = join(ctx.home, '.claude/rules/50-folder.md');
+  mkdirSync(folder, { recursive: true });
+  assert.ok(row(ctx, 'claude', folder), 'the folder is listed');
+  assert.throws(() => ruleEdit(ctx, { agent: 'claude', file: folder, text: 'x\n' }), /is a folder, not a file: edit it in an editor/);
+});
+
 test('the edit routes: a check and a plan write nothing, /api/apply writes, and no rule text reaches History or the profile', async () => {
   const ctx = machine();
   const dir = project();

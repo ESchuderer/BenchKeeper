@@ -8,6 +8,7 @@ import { parse as parseToml } from 'smol-toml';
 import { agent } from './agents.mjs';
 import { exists, isDir, readText, real } from './fsx.mjs';
 import { activePlugins, display, frontMatter, markdownIn } from './instructions.mjs';
+import * as orca from './orca/index.mjs';
 import { mask } from './redact.mjs';
 import { RULE_AGENTS, writtenPaths } from './rules.mjs';
 import { readSettings } from './settings.mjs';
@@ -43,7 +44,7 @@ function hookRows(data, base) {
         const type = h.type ?? 'command';
         const detail = type === 'command' ? clip(mask(String(h.command ?? '')).trim()) : type === 'http' ? `POST ${safeUrl(h.url)}` : `${type} hook`;
         out.push({ ...base, kind: 'hook', name: event, matcher: typeof g.matcher === 'string' ? g.matcher : null, transport: type, detail, runsCode: type === 'command',
-          orca: type === 'command' && /ORCA_/.test(String(h.command ?? '')) });
+          ide: type === 'command' && orca.ownsHook(h.command) });
       }
     }
   }
@@ -81,9 +82,9 @@ const ownerOf = (scope, path, written, id, kind) => (id?.startsWith('benchkeeper
 function agentRows(ctx, id, dir, written, problems) {
   const rows = [];
   const add = (scope, path, list, pluginId) => {
-    for (const { file = path, orca, ...r } of list) {
+    for (const { file = path, ide, ...r } of list) {
       const owner = ownerOf(scope, file, written, pluginId, r.kind);
-      rows.push({ agent: id, scope, owner, path: file, shown: display(ctx, dir, file), removal: scope === 'user' && !pluginId && owner === 'yours' && !orca && (r.kind === 'mcp' || (r.kind === 'hook' && (id === 'claude' || file.endsWith('hooks.json')))), ...r, ...(pluginId ? { plugin: pluginId } : {}) });
+      rows.push({ agent: id, scope, owner, path: file, shown: display(ctx, dir, file), removal: scope === 'user' && !pluginId && owner === 'yours' && !ide && (r.kind === 'mcp' || (r.kind === 'hook' && (id === 'claude' || file.endsWith('hooks.json')))), ...r, ...(pluginId ? { plugin: pluginId } : {}) });
     }
   };
   const bad = (path) => problems.push({ path, shown: display(ctx, dir, path), message: 'cannot be read or parsed: its entries are missing here' });

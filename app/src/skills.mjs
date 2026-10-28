@@ -4,12 +4,20 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { skillDirs } from './agents.mjs';
 import { contentDir } from './content.mjs';
-import { exists, isDir } from './fsx.mjs';
+import { exists, isDir, readText } from './fsx.mjs';
 import { libraryWith } from './packs.mjs';
 import { latestCommits } from './remote.mjs';
 import { itemState } from './runner.mjs';
 import { KEEP_SKILLS } from './steps/global.mjs';
 import { editedHere, lockedSkills, ownSkillFiles, tryState } from './steps/project.mjs';
+
+// The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
+// Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
+export function skillFiles(dir) {
+  return ['.claude/skills', '.agents/skills', '.github/skills', '.gemini/skills'].map((x) => join(dir, x)).filter(exists)
+    .flatMap((d) => readdirSync(d).map((name) => ({ name, file: join(d, name, 'SKILL.md') })))
+    .flatMap((f) => { const text = readText(f.file); return text == null ? [] : [{ ...f, text }]; });
+}
 
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 const subfolders = (dir) => { try { return readdirSync(dir).filter((n) => NAME.test(n) && isDir(join(dir, n))); } catch { return []; } };

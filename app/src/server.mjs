@@ -20,6 +20,7 @@ import { evalPlan, runEval } from './eval.mjs';
 import { contentDir, appVersion } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
+import { giveConsent, hasConsent, narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { readTriage, setTriage, withTriage } from './triage.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
@@ -184,6 +185,12 @@ export function api(ctx) {
   const agentsNow = () => cached('agents', () => detect(ctx));
   const installed = () => agentsNow().filter((a) => a.installed).map((a) => a.id);
   const inventoryNow = () => cached('inventory', () => inventory(ctx, installed(), { level: levelFor(ctx, installed()) }));
+  // The findings the Insights view shows (not dismissed or snoozed) and the input a narrative over them sends.
+  const narrativeFor = async () => {
+    const found = await cached('insights', () => collectInsights(ctx, { agents: installed() }));
+    const shown = withTriage(found.findings, readTriage(ctx)).filter((f) => !f.triage);
+    return { shown, key: narrativeKey(shown), ...narrativePrompt(narrativeInput(found, shown)) };
+  };
   const registered = (dir) => listProjects(ctx).some((p) => p.path === canon(dir));
   const routes = {
     'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.setupVersion ?? null }; }) }),
@@ -480,6 +487,25 @@ export function api(ctx) {
       return { ...found, findings: withTriage(found.findings, readTriage(ctx)) };
     },
     'POST /api/insights-triage': (b) => input(() => setTriage(ctx, b.key, b.action)),
+    // The narrative over the findings shown: what it would send (the whole prompt, with its size and an id of it), the consent
+    // state and the cached text for this findings set. Nothing starts here.
+    'GET /api/insights-narrative': async () => {
+      const n = await narrativeFor();
+      return { consented: hasConsent(ctx), advisers: agentsNow().filter((a) => a.installed && ADVISERS.includes(a.id)).map((a) => ({ id: a.id, name: a.name })), count: n.shown.length, prompt: n.prompt, size: n.size, id: n.id, narrative: readNarrative(ctx, n.key) };
+    },
+    'POST /api/insights-narrative-consent': () => { giveConsent(ctx); return { consented: true }; },
+    // One session of the chosen agent, only after the consent and only for the input the page showed (id): findings that
+    // changed since are refused, so the input sent is the input reviewed.
+    'POST /api/insights-narrative': async (b) => {
+      if (process.env.CI) throw bad('the narrative starts an agent session on a subscription and does not run in CI');
+      if (!hasConsent(ctx)) throw bad('agree to the narrative first');
+      if (!ADVISERS.includes(b.agent) || !installed().includes(b.agent)) throw bad(`agent must be an installed one of ${ADVISERS.join(', ')}`);
+      const n = await narrativeFor();
+      if (!n.shown.length) throw bad('no findings to summarize');
+      if (n.id !== b.id) throw Object.assign(new Error('the findings changed: review the input again'), { status: 409 });
+      if ([...jobs.values()].some((j) => j.kind === 'narrative' && !j.done)) throw Object.assign(new Error('a narrative is already running'), { status: 409 });
+      return start(1, (job) => runNarrative(ctx, { agent: b.agent, prompt: n.prompt, key: n.key, signal: job.ctl.signal }).then((r) => { job.results = r; }), { kind: 'narrative', title: 'insights narrative', readOnly: true });
+    },
     'POST /api/pick-folder': () => pickFolder(ctx),
     // Opens a registered project in the file manager.
     'POST /api/reveal': (b) => {
@@ -632,7 +658,7 @@ export function api(ctx) {
   const guarded = { 'POST /api/projects': () => true, 'POST /api/packs': () => true, 'POST /api/profile-import': (b) => b.register };
   for (const [k, when] of Object.entries(guarded)) { const f = routes[k]; routes[k] = (b) => { if (when(b)) idle(); return f(b); }; }
   // A change drops the cached machine reads; a triage click changes none of them (GET /api/insights reads the triage file each time).
-  for (const k of Object.keys(routes)) if (k.startsWith('POST ') && k !== 'POST /api/insights-triage') { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
+  for (const k of Object.keys(routes)) if (k.startsWith('POST ') && !k.startsWith('POST /api/insights-')) { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
   return routes;
 }
 

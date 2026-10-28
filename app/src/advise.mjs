@@ -34,7 +34,7 @@ function codexHome() {
 
 // Codex: a permission profile that reads only the project, the system's minimal paths and Codex itself, writes
 // nothing, and has no network; no web search, and every MCP server the project or user config names turned off.
-function codexArgv(ctx, dir, q, out) {
+function codexArgv(ctx, dir, q, out, { usage = false } = {}) {
   // Without the list no server can be turned off, so the session does not start.
   const list = ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir, timeout: 30e3, env: agentEnv('codex') });
   let servers;
@@ -46,12 +46,12 @@ function codexArgv(ctx, dir, q, out) {
   // sandbox_mode read-only too: a Codex that ignores the profile still writes nothing. Codex 0.163 lets the profile win
   // over any sandbox_mode, also one from the user's config.
   return ['codex', 'exec', '-c', 'sandbox_mode="read-only"', '-c', 'default_permissions="benchkeeper-advice"', '-c', `permissions.benchkeeper-advice.filesystem={${read}}`, '-c', 'web_search="disabled"',
-    ...servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]), '--skip-git-repo-check', ...noTrace(ctx, 'codex'), '-o', out, q];
+    ...servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]), '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(usage ? ['--json'] : []), '-o', out, q];
 }
 
 const ARGV = {
   // --restricted ignores the project's settings (hooks) and confines the file tools, --strict-mcp-config skips its MCP servers.
-  claude: (ctx, dir, q) => ['claude', '-p', q, '--restricted', '--strict-mcp-config', '--tools', 'Read,Grep,Glob', '--output-format', 'json', ...noTrace(ctx, 'claude')],
+  claude: (ctx, dir, q, out, { tools = 'Read,Grep,Glob' } = {}) => ['claude', '-p', q, '--restricted', '--strict-mcp-config', '--tools', tools, '--output-format', 'json', ...noTrace(ctx, 'claude')],
   codex: codexArgv,
 };
 export const ADVISERS = Object.keys(ARGV);
@@ -82,17 +82,33 @@ export function parseAdvice(text, lib) {
   };
 }
 
-export async function adviseSetup(ctx, { dir, agent, lib, signal }) {
+// What the agent recorded for a session: Claude Code the API-equivalent USD, Codex the tokens of its JSONL events.
+function costOf(agent, stdout) {
+  if (agent === 'claude') { try { const usd = JSON.parse(stdout).total_cost_usd; return typeof usd === 'number' ? { usd } : null; } catch { return null; } }
+  let tokens = null;
+  for (const line of stdout.split('\n')) {
+    try { const u = JSON.parse(line); if (u.type === 'turn.completed') tokens = (tokens ?? 0) + (u.usage?.input_tokens ?? 0) + (u.usage?.output_tokens ?? 0); } catch { /* not an event */ }
+  }
+  return tokens === null ? null : { tokens };
+}
+
+// One session of the agent in dir: its answer text and the cost it recorded (null where it records none).
+// tools: the Claude Code tool list ('' for none); usage: ask Codex for the events that carry its token count.
+export async function agentAnswer(ctx, { dir, agent, prompt, signal, tools, usage }) {
   if (!ADVISERS.includes(agent)) throw new Error(`agent must be one of ${ADVISERS.join(', ')}`);
   const tmp = mkdtempSync(join(tmpdir(), 'bk-advice-'));
   const out = join(tmp, 'answer.txt');
   try {
-    const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, advicePrompt(lib), out), { cwd: dir, timeout: 5 * 60e3, signal, env: agentEnv(agent) });
+    const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, prompt, out, { tools, usage }), { cwd: dir, timeout: 5 * 60e3, signal, env: agentEnv(agent) });
     // A session that ended on its own before the cancel keeps its answer.
     if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
     if (r.code !== 0) throw new Error(`${agent} exited with ${r.code}: ${(r.stderr || r.stdout || '').trim().slice(-300)}`);
     let text;
     try { text = agent === 'claude' ? JSON.parse(r.stdout).result : readFileSync(out, 'utf8'); } catch { throw new Error(`${agent} gave no answer`); }
-    return parseAdvice(text, lib);
+    return { text, cost: costOf(agent, r.stdout ?? '') };
   } finally { rmSync(tmp, { recursive: true, force: true }); }
+}
+
+export async function adviseSetup(ctx, { dir, agent, lib, signal }) {
+  return parseAdvice((await agentAnswer(ctx, { dir, agent, prompt: advicePrompt(lib), signal })).text, lib);
 }

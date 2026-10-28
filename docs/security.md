@@ -66,7 +66,7 @@ Paths below the home folder unless marked project. Every read is of the user's o
 | `.claude/projects/<folder>/memory` (or the folder a setting names) | `rules.mjs:162` | The memory files in the Rules view | |
 | `.claude/projects/**/*.jsonl` transcripts | `sessions.mjs:177`, `session.mjs:25` | Sessions board, evals, recorded sessions | The entry format is internal to Claude Code and changes between versions: the parser keeps to the entry types it names (`sessions.mjs:46`) and a type it does not know is skipped. Transcripts can hold tokens that tools printed; the board and the caches keep names and counts |
 | `.claude/plugins/installed_plugins.json`, `known_marketplaces.json` | `instructions.mjs:92`, `steps/global.mjs:108-109` | Which plugins and marketplaces are installed | |
-| `.claude/skills` | `doctor.mjs:75`, `insights.mjs:82` | Installed skills, unused skills | |
+| `.claude/skills` | `doctor.mjs:126`, `insights.mjs:132` | Installed skills, unused skills | |
 | An account folder (`CLAUDE_CONFIG_DIR`) | `accounts.mjs`, `prerun.mjs:46` | Accounts and runs under another login | The settings editor, the Rules view, the extensions list and `doctor` read the home folder's `.claude` only, so with `CLAUDE_CONFIG_DIR` set they show the default profile (open, finding 9 of the settings research in [#379](https://github.com/ESchuderer/BenchKeeper/issues/379)) |
 
 ## What the app never does
@@ -78,7 +78,7 @@ Paths below the home folder unless marked project. Every read is of the user's o
 - Delete a local branch it did not create in the same run.
 - Edit a file that changed since the preview without telling (a whole-file write of new text is refused, an edit applies to the file as it is; a copy from a folder is not checked).
 - Start a second run while another one holds the lock.
-- Add telemetry or send file contents itself. What leaves the machine is what the tools it starts send: `git push` and `gh pr create` of Update all (a GitHub origin, not with `--no-push`), the package registries, the agents' own CLIs (an advice or eval session sends what its agent reads to the agent's provider), the update notice (an unauthenticated GET for the package version), and, through Claude Code's Remote Control when you turn it on, the transcript of each connected session.
+- Add telemetry or send file contents itself. What leaves the machine is what the tools it starts send: `git push` and `gh pr create` of Update all (a GitHub origin, not with `--no-push`), the package registries, the agents' own CLIs (an advice or eval session sends what its agent reads to the agent's provider; an Insights narrative session, started only by a click or `insights --narrative --yes`, sends only the findings' fields, a project by its folder name, no message text, prompt, file content or skill description: `narrative.test.mjs` "the input is an allowlist of finding fields"), the update notice (an unauthenticated GET for the package version), and, through Claude Code's Remote Control when you turn it on, the transcript of each connected session.
 - Apply a removal that is not selected. Removals are unselected by default, except removals of files the app identifies as its own by content (see Open, #206).
 - Open the `gh` login files: `gh` runs as a command only, and transcripts are read for names and counts.
 

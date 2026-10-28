@@ -36,3 +36,6 @@ jobs:
             chore
             revert
             style
+          # The title becomes the squash commit and the changelog line: no em dash or emoji (checks.yml, Forbidden characters).
+          subjectPattern: ^[^\u2014\u2300-\u23FF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\uD83C-\uD83E]+$
+          subjectPatternError: The title must not contain an em dash or an emoji.

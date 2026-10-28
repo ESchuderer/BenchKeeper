@@ -24,10 +24,11 @@ test('extracts URLs without markdown syntax around them', () => {
     ['https://github.com/a/b', 'https://github.com/a/c/issues/1', 'https://github.com/a/d']);
 });
 
-test('compare links: checked through the API, except the tag of the release being prepared', () => {
+test('compare links: checked through the API, except the tag of the release being prepared (its base is still checked)', () => {
   const { version } = JSON.parse(readFileSync(new URL('../../app/package.json', import.meta.url), 'utf8'));
   assert.deepEqual(target('https://github.com/a/b/compare/v1...v2'), { api: '/repos/a/b/compare/v1...v2' });
   assert.deepEqual(target('https://github.com/ESchuderer/BenchKeeper/compare/setup-v6.0.0...setup-v6.0.1'), { api: '/repos/ESchuderer/BenchKeeper/compare/setup-v6.0.0...setup-v6.0.1' });
-  assert.deepEqual(target(`https://github.com/ESchuderer/BenchKeeper/compare/setup-v1.0.0...setup-v${version}`), { local: '.' });
+  assert.deepEqual(target(`https://github.com/ESchuderer/BenchKeeper/compare/setup-v1.0.0...setup-v${version}`), { api: '/repos/ESchuderer/BenchKeeper/commits/setup-v1.0.0' });
+  assert.deepEqual(target('https://github.com/a/b/compare/ci/release-please-weekly...main'), { api: '/repos/a/b/compare/ci%2Frelease-please-weekly...main' });
   assert.deepEqual(target('https://github.com/a/b/compare/main'), { unsupported: true });
 });

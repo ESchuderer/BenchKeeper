@@ -41,11 +41,11 @@ export function target(url) {
   }
   if (kind === 'releases' && rest[0] === 'tag') return { api: `${base}/releases/tags/${encodeURIComponent(rest.slice(1).join('/'))}` };
   if (kind === 'commit') return { api: `${base}/commits/${rest[0]}` };
-  if (kind === 'compare' && rest[0]?.includes('...')) {
-    // The changelog of a release pull request links to the tag that the merge creates: this repository's tag for the version in app/package.json is not checked.
-    const head = rest.join('/').split('...')[1];
-    if (`${owner}/${repo}`.toLowerCase() === SELF && head === `setup-v${appVersion()}`) return { local: '.' };
-    return { api: `${base}/compare/${rest.join('/').split('...').map(encodeURIComponent).join('...')}` };
+  if (kind === 'compare' && rest.join('/').includes('...')) {
+    const [from, head] = rest.join('/').split('...');
+    // The changelog of a release pull request links to the tag that the merge creates: only this repository's tag for the version in app/package.json is skipped, its base is still checked.
+    if (`${owner}/${repo}`.toLowerCase() === SELF && head === `setup-v${appVersion()}`) return { api: `${base}/commits/${encodeURIComponent(from)}` };
+    return { api: `${base}/compare/${encodeURIComponent(from)}...${encodeURIComponent(head)}` };
   }
   // Unmapped kinds (wiki, actions, release assets) fail loudly instead of passing on the repository alone.
   return kind ? { unsupported: true } : { api: base };

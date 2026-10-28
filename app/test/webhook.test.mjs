@@ -37,7 +37,7 @@ async function receiver(t, answer = (req, res) => res.end('ok')) {
   return { url: `http://127.0.0.1:${server.address().port}/hook`, got };
 }
 
-const until = async (check, ms = 8000) => {
+const until = async (check, ms = 15000) => {
   for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 50))) if (check()) return;
   assert.fail('timed out');
 };

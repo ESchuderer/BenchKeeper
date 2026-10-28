@@ -65,7 +65,7 @@ const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropi
 export const PERMISSION_ASK = ['Bash(git push *)', 'Bash(gh pr create *)'];
 const CODEX_OWN_RULES = ['default.rules'];
 export const CLAUDE_KEYS = [
-  [['advisorModel'], 'opus'], [['remoteControlAtStartup'], true], [['showClearContextOnPlanAccept'], true],
+  [['advisorModel'], 'opus'], [['showClearContextOnPlanAccept'], true],
   [['cleanupPeriodDays'], 14], [['autoUpdatesChannel'], 'stable'],
   [['attribution'], { commit: '', pr: '', sessionUrl: false }],
   [['env', 'DISABLE_ERROR_REPORTING'], '1'], [['env', 'CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY'], '1'],
@@ -363,7 +363,7 @@ export function globalPlan(env) {
   // Settings
   if (agents.includes('claude')) {
     const f = at('.claude/settings.json');
-    add('settings:claude', 'Claude settings: advisor Opus, Remote Control at startup, clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off, subagents on Sonnet', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS) });
+    add('settings:claude', 'Claude settings: advisor Opus, clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off, subagents on Sonnet', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS) });
     add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]) });
     add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]) });
     // Offered, not preselected: Haiku 5.5 came after Opus 5.5 and its level is saved per model the same way (inferred from the docs wording).

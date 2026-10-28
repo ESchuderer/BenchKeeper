@@ -1,3 +1,6 @@
 - Before changing a repository, working on issues or pull requests, or researching two or more items: load the `benchkeeper:workflow` skill. It picks the workflow and the tier.
-- When goal, scope or expected result is open, ask all open questions in one message (Claude Code: `AskUserQuestion`), including risks and options the user has not named. Settle from the code, the docs or a sensible default what they answer. Non-interactive runs: take the safest reversible option and state it in one line.
+- When goal, scope or expected result is open, ask all open questions in one message per round (Claude Code: `AskUserQuestion`), including risks and options the user has not named. Settle from the code, the docs or a sensible default what they answer. Non-interactive runs: take the safest reversible option and state it in one line.
 - When a check fails, fix the cause. Skip, delete or loosen a check, or use `--no-verify`, only when the user asks.
+- Shell: quote globs and URLs (`--include='*.md'`, `'https://host/path?x=1'`), keep a multi-word command prefix in a script rather than a variable, read files with Read and edit with Edit.
+- The Skill tool refuses a user-invoked skill: read its `SKILL.md` and follow it.
+- Review a change with the built-in `/code-review`; `mattpocock-skills:code-review` (when installed) checks a branch against its issue.

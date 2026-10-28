@@ -1,0 +1,8 @@
+{
+  "name": "claude-code-ci",
+  "private": true,
+  "description": "Claude Code for the plugin-checks job, pinned by the lockfile.",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.308"
+  }
+}

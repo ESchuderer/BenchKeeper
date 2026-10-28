@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
 import { readText, writeAtomic } from './fsx.mjs';
+import { readLedger } from './ponytail.mjs';
 import * as orca from './orca/index.mjs';
 
 const SCHEMA = 1;
@@ -241,8 +242,34 @@ export async function prStates(ctx, urls, now = Date.now()) {
   return out;
 }
 
+// Ponytail's ledger beside the transcript rows (opt-in; the figures stay Ponytail's own, in `ponytail`). A Claude Code row
+// whose session id starts like a ledger key is matched and counted once; a ledger row without a transcript here becomes a row
+// of its own, named by `source`. A ledger row is its project's name, not a path, and has no tier, skills or pull requests.
+function withLedger(ctx, rows, since, onNote) {
+  const { rows: ledger, notes } = readLedger(ctx);
+  notes.forEach((n) => onNote?.(n));
+  const byId = new Map(ledger.map((l) => [l.id, l]));
+  for (const r of rows) {
+    const l = r.agent === 'claude' ? byId.get(r.id.slice(0, 8)) : undefined;
+    if (l) byId.delete(l.id);
+    r.source = l ? 'transcript and Ponytail ledger' : 'transcript';
+    if (l) r.ponytail = { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level };
+  }
+  for (const l of byId.values()) {
+    const start = new Date(l.startedMs).toISOString();
+    if (since && start < since) continue;
+    rows.push({
+      agent: 'claude', id: `${l.id}-${l.startedMs}`, project: l.project, branch: null, agentVersion: null, title: null, start, end: start, turns: l.turns, models: l.model ? [l.model] : [],
+      costUSD: l.costUSD, busyMs: l.agentMinutes == null ? null : Math.round(l.agentMinutes * 60e3), tokens: l.tokens ?? 0, tier: null, skills: [], tests: l.tests, setup: null, pattern: null, subagents: 0, run: null,
+      setupVersion: null, prs: [], source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
+    });
+  }
+  return rows.sort((a, b) => (a.start < b.start ? 1 : -1));
+}
+
 // One row per session, newest first. since: an ISO time; older sessions are left out. onFile gets { done, total } files.
-export async function scanSessions(ctx, { since, onFile } = {}) {
+// ledger: true adds Ponytail's ledger when it is there (see withLedger); onNote gets a line for each file or row it skipped.
+export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) {
   const all = await parsed(ctx, onFile);
   const entries = Object.entries(all);
   // Claude subagents add their skills to the session they belong to (<session>/subagents/agent-*.jsonl).
@@ -284,5 +311,6 @@ export async function scanSessions(ctx, { since, onFile } = {}) {
   }
   const states = await prStates(ctx, rows.flatMap((r) => r.prs));
   for (const r of rows) r.prs = r.prs.map((url) => ({ url, state: states[url] }));
-  return rows.sort((a, b) => (a.start < b.start ? 1 : -1));
+  rows.sort((a, b) => (a.start < b.start ? 1 : -1));
+  return ledger ? withLedger(ctx, rows, since, onNote) : rows;
 }

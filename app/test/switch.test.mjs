@@ -191,7 +191,7 @@ test('an untracked skill survives project apply, a pack switch and Update all; a
   for (const f of Object.keys(before).filter((x) => !x.startsWith(SKILL))) assert.equal(survivors[f], before[f], f);
   // Update all on a registered local setup behind the app.
   const state = JSON.parse(readFileSync(join(r.dir, STATE), 'utf8'));
-  writeFileSync(join(r.dir, STATE), JSON.stringify({ ...state, setupVersion: '5.0.0' }));
+  writeFileSync(join(r.dir, STATE), JSON.stringify({ ...state, appVersion: '5.0.0', contentVersion: '5.0.0' }));
   addProject(r.ctx, r.dir);
   const [u] = updateAll(r.ctx, { push: false });
   assert.notEqual(u.status, 'stopped', u.reason);
@@ -204,11 +204,11 @@ test('an untracked skill survives project apply, a pack switch and Update all; a
   assert.deepEqual(adopted.skills.added, ['mermaid-diagrams']);
   assert.ok(!adopted.changes.some((c) => c.kind === 'command' && /mermaid-diagrams/.test(c.title)), 'the folder is there: no install');
   // No commit is claimed for a folder BenchKeeper did not install; the setup version stays when only a skill changes.
-  writeFileSync(join(r.dir, STATE), JSON.stringify({ ...JSON.parse(readFileSync(join(r.dir, STATE), 'utf8')), setupVersion: '5.0.0' }));
+  writeFileSync(join(r.dir, STATE), JSON.stringify({ ...JSON.parse(readFileSync(join(r.dir, STATE), 'utf8')), appVersion: '5.0.0', contentVersion: '5.0.0' }));
   const partial = projectPlan({ ctx: r.ctx, dir: r.dir, answers: { pick: ['mermaid-diagrams'], partial: true }, plugins: {} });
   apply(preview(focusOn(partial.changes, ['mermaid-diagrams'])), r.ctx, { scope: r.dir });
   const after = readState(r.dir);
-  assert.deepEqual([after.setupVersion, after.singles, after.skills.find((x) => x.name === 'mermaid-diagrams').ref], ['5.0.0', ['mermaid-diagrams'], undefined]);
+  assert.deepEqual([after.contentVersion, after.singles, after.skills.find((x) => x.name === 'mermaid-diagrams').ref], ['5.0.0', ['mermaid-diagrams'], undefined]);
 });
 
 test('skill actions: remove takes a single pick and names the pack for the others; focus keeps one skill', () => {

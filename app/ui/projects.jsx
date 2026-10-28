@@ -12,7 +12,7 @@ export const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const FILTERS = {
   all: ['All projects', () => true],
   'not-set-up': ['Not set up', (p) => !p.missing && !p.setupVersion],
-  behind: ['Behind', (p, version) => !!p.setupVersion && p.setupVersion !== version],
+  behind: ['Behind', (p) => !!p.setupVersion && !p.current],
   local: ['Local setup', (p) => !!p.setupVersion && !p.share],
   shared: ['Shared setup', (p) => p.share === true],
   missing: ['Folder not found', (p) => p.missing === true],
@@ -20,7 +20,7 @@ const FILTERS = {
 };
 export const FILTER_OPTIONS = Object.entries(FILTERS).map(([value, [text]]) => ({ value, label: text }));
 // Missing first, then not set up, behind, current: what needs attention comes first.
-const setupRank = (p, version) => { if (p.missing) return 0; if (!p.setupVersion) return 1; return p.setupVersion === version ? 3 : 2; };
+const setupRank = (p) => { if (p.missing) return 0; if (!p.setupVersion) return 1; return p.current ? 3 : 2; };
 const SORTS = {
   added: ['Order added', () => 0],
   name: ['Name', (a, b) => label(a).localeCompare(label(b))],

@@ -27,7 +27,7 @@ function project(h) {
   const ctx = context({ home: h, roots: [h, dir] });
   apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent', share: true } }).changes), ctx, { scope: dir });
   const state = JSON.parse(readFileSync(join(dir, STATE), 'utf8'));
-  writeFileSync(join(dir, STATE), JSON.stringify({ ...state, setupVersion: '5.0.0' }));
+  writeFileSync(join(dir, STATE), JSON.stringify({ ...state, appVersion: '5.0.0', contentVersion: '5.0.0' }));
   git('add', '-A');
   git('commit', '-qm', 'init');
   const origin = mkdtempSync(join(TMP, 'bk-origin-'));
@@ -135,13 +135,13 @@ test('Update all commits the new setup on a branch in a worktree and leaves the 
   assert.equal(r.status, 'committed', r.reason);
   assert.equal(p.git('branch', '--show-current').trim(), 'main');
   assert.match(readFileSync(join(p.dir, STATE), 'utf8'), /"5\.0\.0"/);
-  assert.equal(JSON.parse(p.git('show', `${r.branch}:${STATE}`)).setupVersion, appVersion);
+  assert.equal(JSON.parse(p.git('show', `${r.branch}:${STATE}`)).contentVersion, appVersion);
   assert.equal(p.git('log', '--format=%s', '-1', r.branch).trim(), `chore: agent setup ${appVersion}`);
   assert.equal(p.git('worktree', 'list').trim().split('\n').length, 1);
   assert.equal(existsSync(join(h, '.cache/benchkeeper/worktrees')) && p.git('worktree', 'list').includes('.cache'), false);
   // Its report diffs from the commit: the worktree is gone.
   const report = api(ctx)['GET /api/run'](new URLSearchParams({ id: r.run }));
-  assert.match(report.entries.find((e) => e.path?.endsWith(STATE)).diff, new RegExp(`\\+  "setupVersion": "${appVersion}"`));
+  assert.match(report.entries.find((e) => e.path?.endsWith(STATE)).diff, new RegExp(`\\+  "contentVersion": "${appVersion}"`));
   // A second run finds the branch current; a branch with commits of its own stops that project.
   assert.equal(updateAll(ctx)[0].status, 'current');
   p.git('checkout', '-q', r.branch);
@@ -328,7 +328,7 @@ test('status and Update all read the state file on the fetched default branch wh
   const other = mkdtempSync(join(TMP, 'bk-clone-'));
   execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
-  writeFileSync(join(other, STATE), JSON.stringify({ ...state, setupVersion: appVersion }));
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion: appVersion, contentVersion: appVersion }));
   execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
   execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
   const s = status(ctx, p.dir);
@@ -340,7 +340,7 @@ test('status and Update all read the state file on the fetched default branch wh
   assert.equal(updateAll(ctx, { paths: [p.dir], push: false })[0].status, 'committed');
   // A checkout ahead of origin keeps its own setup and its pending changes.
   const ahead = project(h);
-  writeFileSync(join(ahead.dir, STATE), JSON.stringify({ ...state, setupVersion: '5.9.0' }));
+  writeFileSync(join(ahead.dir, STATE), JSON.stringify({ ...state, appVersion: '5.9.0', contentVersion: '5.9.0' }));
   const a = status(ctx, ahead.dir);
   assert.deepEqual([a.setupVersion, a.checkout, a.origin], ['5.9.0', '5.9.0', 'origin/main']);
   assert.ok(a.changes.length);
@@ -361,7 +361,7 @@ test('prefetchOrigins reads origin without blocking and fills the cache status u
   const other = mkdtempSync(join(TMP, 'bk-clone-'));
   execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
-  writeFileSync(join(other, STATE), JSON.stringify({ ...state, setupVersion: appVersion }));
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion: appVersion, contentVersion: appVersion }));
   execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
   execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
   const offline = project(h);

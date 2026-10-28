@@ -3,13 +3,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
-import { appVersion } from './content.mjs';
+import { contentVersion } from './content.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
 import { skillFiles } from './doctor.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
-import { STATE, committedSetup, localSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
+import { STATE, committedSetup, localSetup, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -222,7 +222,7 @@ const hasOrigin = (ctx, path) => isRepo(ctx, path) && git(ctx, path, ['remote', 
 function keepOrigin(ctx, path, base) {
   const ref = `origin/${base}`;
   let state = null;
-  try { state = JSON.parse(blob(ctx, path, ref, STATE).toString('utf8')); } catch { /* none, or unreadable: the checkout's counts */ }
+  try { state = parseState(blob(ctx, path, ref, STATE).toString('utf8')); } catch { /* none, or unreadable: the checkout's counts */ }
   origins.set(path, { at: Date.now(), value: { ref, state } });
   return { ref, state };
 }
@@ -231,7 +231,7 @@ function keepOrigin(ctx, path, base) {
 // fetch is kept as no origin state for the minute too.
 export async function prefetchOrigins(ctx, paths) {
   if (!ctx.runAsync) return;
-  const due = paths.filter((p) => tryState(p)?.setupVersion !== appVersion && !(Date.now() - (origins.get(p)?.at ?? 0) < 60e3) && hasOrigin(ctx, p));
+  const due = paths.filter((p) => !upToDate(tryState(p)) && !(Date.now() - (origins.get(p)?.at ?? 0) < 60e3) && hasOrigin(ctx, p));
   const net = (path, args) => ctx.runAsync(['git', '-C', path, ...args], { env: quiet(ctx, path), timeout: 20e3 });
   const one = async (path) => {
     const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
@@ -248,10 +248,10 @@ export async function prefetchOrigins(ctx, paths) {
 }
 // The setup that counts: the checkout's, unless origin's default branch has a newer one (or the checkout none).
 export function setupOf(ctx, path, checkout = tryState(path)) {
-  const origin = checkout?.setupVersion === appVersion ? null : originState(ctx, path);
-  const v = origin?.state?.setupVersion;
-  const state = typeof v === 'string' && (!checkout?.setupVersion || newer(v, checkout.setupVersion)) ? origin.state : checkout;
-  return { state, checkout: checkout?.setupVersion ?? null, origin: origin?.ref ?? null };
+  const origin = upToDate(checkout) ? null : originState(ctx, path);
+  const v = origin?.state?.contentVersion;
+  const state = typeof v === 'string' && (!checkout?.contentVersion || newer(v, checkout.contentVersion)) ? origin.state : checkout;
+  return { state, checkout: checkout?.contentVersion ?? null, origin: origin?.ref ?? null };
 }
 
 // Per project: setup version (checkout: the checked-out one, when origin's counts instead), branch, clean tree, and
@@ -277,7 +277,7 @@ export function status(ctx, path) {
   }
   // Per chosen agent, the skills in the project folder it reads.
   const skills = skillCounts(path, state?.agents ?? []);
-  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
+  return { path, setupVersion: state?.contentVersion ?? null, current: upToDate(state), checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
     share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
 }
 
@@ -321,12 +321,12 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
         return result;
       }
       viaPullRequest(ctx, path, result, {
-        branch: `chore/agent-setup-${appVersion}`, push,
+        branch: `chore/agent-setup-${contentVersion}`, push,
         // Without a state file here, the one on the start branch (a setup merged on origin) sets the project up.
         check: (start) => { if (!answers[path] && !local && git(ctx, path, ['cat-file', '-e', `${start}:${STATE}`]).code !== 0) throw new Error(`no ${STATE}: set the project up first`); },
-        work: (tree) => apply(projectChanges(ctx, tree, answers[path]), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: `chore/agent-setup-${appVersion}` } }),
-        title: `chore: agent setup ${appVersion}`,
-        body: `BenchKeeper setup ${appVersion}, applied by \`benchkeeper update-all\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`,
+        work: (tree) => apply(projectChanges(ctx, tree, answers[path]), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: `chore/agent-setup-${contentVersion}` } }),
+        title: `chore: agent setup ${contentVersion}`,
+        body: `BenchKeeper setup ${contentVersion}, applied by \`benchkeeper update-all\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`,
       });
     } catch (e) {
       result.status = 'stopped';

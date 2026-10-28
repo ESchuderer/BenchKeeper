@@ -5,7 +5,7 @@ description: "How an agent manages its own BenchKeeper setup through the benchke
 
 # Operating BenchKeeper through the CLI
 
-`npx benchkeeper@6.25.0 <command>` (below `benchkeeper <command>`). `benchkeeper help` lists every option. Every change the setup commands make is a plan with a diff and is recorded as a run that `undo` reverses. Three actions are not undone by it: `packs remove` (the file goes to `backup/packs/` in the config folder), the pull request and branch that `update-all`, `projects remove --setup` and `projects unshare` push for a shared setup (close them on GitHub), and a token removed by `accounts remove`. Say which of these a plan contains before asking for approval. A few read-only views of the web UI (dashboard figures, a run report) have no command yet; the Routes and commands table in the app README names each gap.
+`npx benchkeeper@6 <command>` (below `benchkeeper <command>`). `benchkeeper help` lists every option. Every change the setup commands make is a plan with a diff and is recorded as a run that `undo` reverses. Three actions are not undone by it: `packs remove` (the file goes to `backup/packs/` in the config folder), the pull request and branch that `update-all`, `projects remove --setup` and `projects unshare` push for a shared setup (close them on GitHub), and a token removed by `accounts remove`. Say which of these a plan contains before asking for approval. A few read-only views of the web UI (dashboard figures, a run report) have no command yet; the Routes and commands table in the app README names each gap.
 
 ## Safe order
 

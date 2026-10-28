@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
-import { contentDir } from '../content.mjs';
+import { contentDir, contentRefusal } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
@@ -109,7 +109,7 @@ function readPluginState(ctx, a) {
       const markets = JSON.parse(readText(at('.claude/plugins/known_marketplaces.json')));
       const on = parseJson(readText(at('.claude/settings.json')) ?? '{}').enabledPlugins ?? {};
       if (installed?.version === 2 && installed.plugins && markets) {
-        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, ...(p.gitCommitSha ? { commit: p.gitCommitSha } : {}), enabled: on[id] === true })));
+        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, ...(p.installPath ? { dir: p.installPath } : {}), ...(p.gitCommitSha ? { commit: p.gitCommitSha } : {}), enabled: on[id] === true })));
         return { listed, markets: Object.keys(markets), refs: Object.fromEntries(Object.entries(markets).map(([m, v]) => [m, v?.source?.ref])) };
       }
     } else {
@@ -120,8 +120,9 @@ function readPluginState(ctx, a) {
           const d = at(`.codex/plugins/cache/${market}/${name}`);
           return (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
         };
+        const dir = (id) => { const [name, market] = id.split('@'); return version(id) && at(`.codex/plugins/cache/${market}/${name}/${version(id)}`); };
         // No version folder in the cache: the entry is there, its files are not.
-        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), enabled: p?.enabled === true, missing: !version(id) }));
+        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), ...(version(id) ? { dir: dir(id) } : {}), enabled: p?.enabled === true, missing: !version(id) }));
         return { listed, markets: Object.keys(conf.marketplaces ?? {}), refs: Object.fromEntries(Object.entries(conf.marketplaces ?? {}).map(([m, v]) => [m, v?.ref])) };
       }
     }
@@ -138,6 +139,16 @@ function readPluginState(ctx, a) {
 export function benchkeeperPlugin(ctx, a) {
   const p = PLUGINS[a].find((x) => x.id === 'benchkeeper@benchkeeper');
   return { installed: pluginState(ctx, a).listed.find((x) => x.id === p.id)?.version ?? null, available: pin(p, ctx.appVersion).version };
+}
+
+// The first installed BenchKeeper plugin whose content needs a newer app than this one, as a message; null when none does.
+export function installedRefusal(ctx, agents = ['claude', 'codex']) {
+  for (const a of agents) {
+    const dir = pluginState(ctx, a).listed.find((p) => p.id === 'benchkeeper@benchkeeper')?.dir;
+    const why = dir && contentRefusal(dir, ctx.appVersion);
+    if (why) return why;
+  }
+  return null;
 }
 
 // Enabled plugin ids per agent.

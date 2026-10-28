@@ -12,7 +12,8 @@
         { "type": "json", "path": "app/package-lock.json", "jsonpath": "$.version" },
         { "type": "json", "path": "app/package-lock.json", "jsonpath": "$.packages[''].version" },
         { "type": "json", "path": "plugins/benchkeeper/.claude-plugin/plugin.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "plugins/benchkeeper/.codex-plugin/plugin.json", "jsonpath": "$.version" }
+        { "type": "json", "path": "plugins/benchkeeper/.codex-plugin/plugin.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "plugins/benchkeeper/content.json", "jsonpath": "$.contentVersion" }
       ]
     }
   }

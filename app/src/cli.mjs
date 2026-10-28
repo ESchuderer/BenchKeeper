@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util';
 import { AGENTS, NeedsConfirm, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, limitsChange, listAccounts, login, newAccount, pickAccount, registrySettings, removeChange, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer } from './accounts.mjs';
 import { WINDOWS, limitsFor, settingsOf } from './usage.mjs';
 import { detect } from './agents.mjs';
-import { appVersion } from './content.mjs';
+import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
 import { apply, context, legacyBackups, preview, restoreLegacy, undo } from './runner.mjs';
 import { addCase } from './cases.mjs';
@@ -30,7 +30,7 @@ import { scanSessions } from './sessions.mjs';
 import { collectInsights } from './insights.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
-import { PLUGINS, LEVELS, globalPlan, installedPlugins } from './steps/global.mjs';
+import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal } from './steps/global.mjs';
 import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
@@ -248,7 +248,8 @@ function report(run, out) {
 
 export function machineContext(env = process.env) {
   const home = env.BENCHKEEPER_HOME || homedir();
-  return context({ home, appVersion });
+  const ctx = context({ home, appVersion, refuse: () => contentRefusal(contentDir) ?? installedRefusal(ctx) });
+  return ctx;
 }
 
 export function selectedAgents(ctx, list) {
@@ -415,7 +416,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const pushing = o['no-push'] ? 0 : pushTargets(ctx, ready.map((p) => p.path)).length;
     if (pushing > max) { out.write(`${pushing} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
     const shared = ready.filter((p) => p.share).length;
-    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${appVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
+    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${contentVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
     let results;
     try { results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'], max }); } catch (e) { out.write(`${e.message}\n`); return 1; }

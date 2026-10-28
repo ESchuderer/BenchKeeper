@@ -329,6 +329,28 @@ test('each account folder has its own plugin cache: doctor names the one behind 
   assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts, []);
 });
 
+test('an account on another marketplace ref or sharing the default plugins folder gets no update', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-acct-ref-'));
+  const folder = (dir, ref) => {
+    mkdirSync(join(dir, 'plugins'), { recursive: true });
+    writeFileSync(join(dir, 'plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version: '6.0.0' }] } }));
+    writeFileSync(join(dir, 'plugins/known_marketplaces.json'), JSON.stringify({ benchkeeper: { source: { ref } } }));
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ enabledPlugins: { 'benchkeeper@benchkeeper': true } }));
+  };
+  folder(join(home, '.claude'), 'stable');
+  folder(join(home, 'acct/tagged'), 'v6.0.0');
+  mkdirSync(join(home, 'acct/shared'), { recursive: true });
+  symlinkSync(join(home, '.claude/plugins'), join(home, 'acct/shared/plugins'));
+  const ctx = context({ home, appVersion: '6.5.0', run: () => ({ code: 0, stdout: '', stderr: '' }) });
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: ['tagged', 'shared'].map((name) => ({ name, agent: 'claude', mode: 'host', dir: join(home, 'acct', name) })) }));
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => x.name), ['tagged']);
+  const plan = preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }));
+  assert.equal(plan.length, 1);
+  assert.match(plan[0].error, /of account tagged is at v6\.0\.0, not stable/);
+  assert.equal(plan[0].selected, false);
+});
+
 test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-gskills-'));
   const ctx = context({ home, run: () => ({ code: 1, stdout: '', stderr: '' }) });

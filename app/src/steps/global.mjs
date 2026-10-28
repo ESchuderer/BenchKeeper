@@ -150,11 +150,11 @@ function readPluginState(ctx, a, account) {
 
 // Claude Code keeps one plugin cache per config folder (CLAUDE_CONFIG_DIR), so each registered host account has its own copy of a
 // plugin, and the default-folder steps of the global plan never reach it. These are the accounts whose folder exists and is not the
-// default folder (a registered path that resolves to the default one, a link included, is that folder).
+// default folder (a registered path, or its plugins folder, that resolves to the default one, a link included, is that folder).
 export function claudeAccounts(ctx) {
   const real = (p) => { try { return realpathSync(p); } catch { return p; } };
-  const def = real(join(ctx.home, '.claude'));
-  try { return listAccounts(ctx).filter((a) => a.agent === 'claude' && a.mode === 'host' && exists(a.dir) && real(a.dir) !== def); } catch { return []; /* doctor reports an unreadable registry */ }
+  const def = real(join(ctx.home, '.claude')), defPlugins = real(join(ctx.home, '.claude/plugins'));
+  try { return listAccounts(ctx).filter((a) => a.agent === 'claude' && a.mode === 'host' && exists(a.dir) && real(a.dir) !== def && real(join(a.dir, 'plugins')) !== defPlugins); } catch { return []; /* doctor reports an unreadable registry */ }
 }
 
 // The BenchKeeper plugin of an agent: the installed version (null when not installed) and the one this app sets up.
@@ -292,11 +292,15 @@ export function globalPlan(env) {
     // default folder gets none (the agent's own update keeps it current); a plugin an account lacks is not installed there.
     const own = PLUGINS[a].find((x) => x.id === 'benchkeeper@benchkeeper');
     for (const acc of a === 'claude' ? claudeAccounts(ctx) : []) {
-      const have = pluginState(ctx, a, acc).listed.find((x) => x.id === own.id);
+      const state = pluginState(ctx, a, acc);
+      const have = state.listed.find((x) => x.id === own.id);
       const { version } = pin(own, ctx.appVersion);
       if (!have || !behind(have.version, version)) continue;
       const step = `plugin:${a}:account:${acc.name}`, title = `${name} account ${acc.name}: plugin ${own.id} ${have.version} to ${version}`;
       const env = { CLAUDE_CONFIG_DIR: acc.dir };
+      const ref = state.refs?.[own.marketplace];
+      // A marketplace on another ref does not move when refreshed, and moving it removes the plugin's data: by hand, never by the app.
+      if (ref && ref !== own.ref) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the marketplace ${own.marketplace} of account ${acc.name} is at ${ref}, not ${own.ref}, so a refresh does not move the plugin: remove it and add it again at ${own.ref} (removing deletes the plugin's options and data)` }); continue; }
       // Undo puts back the files that name the installed version and the marketplace; the old version's folder is not restored (Claude Code
       // prunes it later, and a snapshot of it would make undo refuse once it is gone), so undo can leave an entry whose files are gone.
       const file = (f) => [join(acc.dir, 'plugins', f)];

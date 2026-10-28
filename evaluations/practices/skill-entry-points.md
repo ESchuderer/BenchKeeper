@@ -1,8 +1,8 @@
 # Skill entry points: wrapper skills and who invokes each
 
-Category: practices, Checked 2026-10-26, Decision: Keep all five skills as they are, no wrapper skills
+Category: practices, Checked 2026-10-26, Decision: Keep all six skills as they are, no wrapper skills
 
-Question ([#303](https://github.com/ESchuderer/BenchKeeper/issues/303)): does the plugin gain thin entry-point skills (frontmatter plus a one-line body that calls the Skill tool with a shared skill's name), or do its five skills keep their whole bodies? Spike: nothing under `plugins/` or `app/` changed.
+Question ([#303](https://github.com/ESchuderer/BenchKeeper/issues/303)): does the plugin gain thin entry-point skills (frontmatter plus a one-line body that calls the Skill tool with a shared skill's name), or do its skills keep their whole bodies? Spike: nothing under `plugins/` or `app/` changed.
 
 ## Advertised
 
@@ -47,7 +47,7 @@ Not measured. No BenchKeeper run, arm or trigger eval covers wrapper skills; no 
 
 ## Skill authoring check
 
-Inventory of the five skills (line counts from `plugins/benchkeeper/skills/`, version 6.20.0):
+Inventory of the six skills (line counts from `plugins/benchkeeper/skills/`, version 6.20.0 for the first five; `operating-benchkeeper` added later for [#299](https://github.com/ESchuderer/BenchKeeper/issues/299)):
 
 | Skill | Started by | Model may start it | Reaches other skills | Reached by | Size |
 |---|---|---|---|---|---|
@@ -56,6 +56,7 @@ Inventory of the five skills (line counts from `plugins/benchkeeper/skills/`, ve
 | `maintaining-repos` | user | no | names `workflow` in prose | nothing | 34 + 121 |
 | `orchestrating-projects` | user, with project paths | no | none | nothing | 64 + 84 |
 | `setting-up-projects` | user (the app starts it with `/benchkeeper:setting-up-projects` or `$benchkeeper:setting-up-projects`: `app/src/steps/project.mjs:503`) | no | names `workflow` in prose | nothing | 137 |
+| `operating-benchkeeper` | model (description) or user (`/benchkeeper:operating-benchkeeper`) | yes | none | nothing | 41 |
 
 No two entry points share a body. Every link between skills runs from a user-only skill to `workflow`, and no skill calls another through the Skill tool.
 
@@ -65,12 +66,12 @@ Questions from the issue:
 - Cost per invocation: a wrapper adds one tool call and one skill load (the wrapper's own text stays in the context next to the block). Not measured. A split of `maintaining-repos`, `orchestrating-projects` or `setting-up-projects` needs a model-invoked block, which puts a skill with side effects (writes, merges, installs) back into the model's reach and spends listing budget. `user-invocable: false` hides a block from the menu but also keeps it from being typed; the wrapper is then its only user.
 - Trigger evals: `app/src/eval.mjs:40` counts a skill as triggered when a Skill call names the target or its `SKILL.md` is read. With a wrapper, a Skill call for the wrapper's name would not count for the block's case; only the later call or read of the block does. `plugins/benchkeeper/evals/skill-maintaining-repos.json` holds 6 cases, all `should: false` (the skill must not load); a model-invoked block would need positive cases and false-trigger cases of its own. `skill-workflow.json` holds 13 (7 positive, 6 negative). No results are recorded for any of them yet (see [skill authoring](skill-authoring.md)).
 - Agents: see the table above. Skill-to-skill calls are documented for no agent. Gemini CLI and Copilot CLI get the skills as copies without the plugin prefix (`app/src/agents.mjs:30`), so a wrapper's "call the Skill tool with `benchkeeper:workflow`" would need the same rewrite, and neither agent documents a user-only flag that makes the wrapper pattern's split meaningful. The repo's own note on Codex argument passing ("the word after the skill name", `tier/SKILL.md:10`) is not covered by the Codex docs read (unverified).
-- Slash menu: each wrapper is one more `/benchkeeper:` entry, and a model-invoked block is one more too unless `user-invocable: false` (Claude Code only). The five descriptions are 120 to 485 characters, under Claude Code's 1,536 per entry; Codex shortens descriptions when its 2% budget overflows.
+- Slash menu: each wrapper is one more `/benchkeeper:` entry, and a model-invoked block is one more too unless `user-invocable: false` (Claude Code only). The first five descriptions are 120 to 485 characters, under Claude Code's 1,536 per entry; Codex shortens descriptions when its 2% budget overflows.
 - Lint and library bar: `.github/scripts/skill-lint.mjs` requires `agents/openai.yaml` per skill and, for `disable-model-invocation: true`, `policy.allow_implicit_invocation: false` (lines 57 to 60), so every wrapper adds a folder, a `SKILL.md` and a YAML file; a model-invoked block needs a trigger description that passes the same authoring checks as `workflow`. Nothing in the lint blocks the pattern.
 
 ## Decision
 
-Keep all five skills as they are. No wrapper skills.
+Keep all six skills as they are. No wrapper skills. `operating-benchkeeper` is a content skill with no side effect of its own (every write it describes goes through the CLI plan and approval), so it is model-invoked and has positive trigger cases in `plugins/benchkeeper/evals/skill-operating-benchkeeper.json`; no result is recorded for them yet.
 
 | Skill | Verdict | Reason |
 |---|---|---|

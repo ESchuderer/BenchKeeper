@@ -426,6 +426,8 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
   // A relative core.hooksPath resolves in the worktree, which holds the fetched tree: the checkout's hooks run instead.
   const hooksPath = git(ctx, path, ['config', '--get', 'core.hooksPath']).stdout.trim();
   const hooks = hooksPath && !isAbsolute(hooksPath) && !hooksPath.startsWith('~') ? ['-c', `core.hooksPath=${resolve(path, hooksPath)}`] : [];
+  // Every git call in the worktree goes through this, so the pin covers add, status and the rest, not only commit and push.
+  const inTree = (args, extra) => git(ctx, tree, [...hooks, ...args], extra);
   // A worktree left by a failed run holds its partial work: it stays until the user removes it.
   if (existsSync(tree)) throw new Error(`an earlier failed run left ${tree}: look at it, then git worktree remove --force ${tree}`);
   const previous = git(ctx, path, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`]).stdout.trim();
@@ -448,23 +450,23 @@ function viaPullRequest(ctx, path, result, { branch, push = true, check = () => 
     planned = keep = true;
     result.run = run.id;
     if (run.status !== 'done') throw new Error(`${run.entries.filter((e) => e.status === 'failed').map((e) => `${e.title}: ${e.error}`).join('; ')} (the worktree stays at ${tree})`);
-    git(ctx, tree, ['add', '-A']);
+    inTree(['add', '-A']);
     // Nothing new on an unmerged branch from an earlier run: its commits still go out (that run's push or pull
     // request may have failed).
-    if (clean(ctx, tree) && !(open && push && githubRemote(ctx, path))) { result.status = 'current'; keep = false; return result; }
-    if (!clean(ctx, tree)) {
-      const commit = git(ctx, tree, [...hooks, 'commit', '-q', '-m', title, '-m', body.replace(/`/g, '')], { timeout: LOCAL });
+    if (clean(ctx, tree, hooks) && !(open && push && githubRemote(ctx, path))) { result.status = 'current'; keep = false; return result; }
+    if (!clean(ctx, tree, hooks)) {
+      const commit = inTree(['commit', '-q', '-m', title, '-m', body.replace(/`/g, '')], { timeout: LOCAL });
       if (commit.code !== 0) throw new Error(`git commit: ${commit.stderr.trim()} (the worktree stays at ${tree})`);
-      ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim() } });
+      ctx.ledger.save({ ...ctx.ledger.get(run.id), note: { updateAll: path, branch, commit: inTree(['rev-parse', 'HEAD']).stdout.trim() } });
     }
     // The commit is on the branch: the worktree is not needed for pushing.
     keep = false;
     result.status = 'committed';
     if (push && githubRemote(ctx, path)) {
-      const head = git(ctx, tree, ['rev-parse', 'HEAD']).stdout.trim();
+      const head = inTree(['rev-parse', 'HEAD']).stdout.trim();
       const remote = git(ctx, path, ['ls-remote', 'origin', `refs/heads/${branch}`], { env: quiet(ctx, path), timeout: NET }).stdout.split(/\s/)[0];
       if (remote !== head) {
-        const p = git(ctx, tree, [...hooks, 'push', '-q', '-u', 'origin', branch], { env: quiet(ctx, path), timeout: NET });
+        const p = inTree(['push', '-q', '-u', 'origin', branch], { env: quiet(ctx, path), timeout: NET });
         if (p.code !== 0) throw new Error(`git push (origin may have ${branch} with other commits: merge or close its pull request first): ${p.stderr.trim()}`);
       }
       const pr = ctx.run(['gh', 'pr', 'create', '--base', base, '--head', branch, '--title', title, '--body', body], { cwd: tree, timeout: NET });

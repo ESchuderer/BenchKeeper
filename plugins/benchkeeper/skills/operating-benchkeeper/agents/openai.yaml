@@ -1,0 +1,3 @@
+interface:
+  display_name: "Operating BenchKeeper"
+  short_description: "Plan, apply, undo and check the setup through the CLI"

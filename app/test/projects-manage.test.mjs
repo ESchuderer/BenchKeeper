@@ -156,7 +156,7 @@ test('Remove BenchKeeper setup, local: exactly the recorded files go, nothing el
   assert.ok(existsSync(join(p.dir, STATE)) && existsSync(join(p.dir, 'CLAUDE.local.md')) && existsSync(join(p.dir, 'AGENTS.override.md')));
   const plan = setupRemoval(ctx, p.dir);
   assert.equal(plan.shared, false);
-  assert.deepEqual(plan.changes.map((c) => c.step).sort(), ['exclude', 'guards', 'local-claude', 'local-codex', 'sandbox', 'skill:designing-technical-uis', 'skill:designing-technical-uis', 'state'].sort());
+  assert.deepEqual(plan.changes.map((c) => c.step).sort(), ['exclude', 'guards', 'local-claude', 'local-codex', 'offered', 'sandbox', 'skill:designing-technical-uis', 'skill:designing-technical-uis', 'state'].sort());
   const result = removeSetup(ctx, p.dir);
   assert.equal(result.status, 'removed', result.reason);
   const after = tree(p.dir);

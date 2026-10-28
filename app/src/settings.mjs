@@ -346,7 +346,8 @@ const DOCS = { claude: 'https://code.claude.com/docs/en/settings-reference', cod
 // (a file's env value wins over the shell's), or the default.
 function facts(agentId, def, vals, env) {
   const name = def.key.startsWith('env.') ? def.key.slice(4) : null;
-  const fromEnv = !vals.length && name && env?.[name] !== undefined;
+  // Only the catalog's switches are read from the environment: a key named in a request never reaches another variable.
+  const fromEnv = !vals.length && def.type === 'switch' && name && env?.[name] !== undefined;
   const docs = def.source ?? (agentId === 'claude' && referenceRow(def.key) ? `${DOCS.claude}#${def.key.toLowerCase().replaceAll('.', '-')}` : DOCS[agentId]);
   return { summary: def.summary ?? null, eli5: def.eli5 ?? null, impact: def.impact ?? null, default: def.default ?? null, docs,
     value: vals.length ? maskSecrets(vals[0].value, def.key) : fromEnv ? maskSecrets(env[name], name) : undefined, from: vals[0]?.layer ?? (fromEnv ? 'environment' : 'default') };

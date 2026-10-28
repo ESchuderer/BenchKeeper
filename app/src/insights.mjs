@@ -14,7 +14,7 @@ import { scanSessions } from './sessions.mjs';
 import { skillFiles } from './skills.mjs';
 
 export const MIN_SAMPLES = 20;
-const WINDOW_DAYS = 90;
+export const WINDOW_DAYS = 90;
 const SEVERITY = ['error', 'warning', 'info'];
 const hash = (...parts) => createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 8);
 // A doctor finding that says a pin or a version is behind belongs to freshness, not to hygiene.

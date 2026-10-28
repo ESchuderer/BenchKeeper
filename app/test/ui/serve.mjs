@@ -74,6 +74,8 @@ const run = (argv, o = {}) => {
   if (argv[0] === 'zenity') return { code: 0, stdout: `${parent}\n`, stderr: '' };
   if (argv[0] === 'claude' && argv[1] === '--version') return { code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' };
   // Setup advice: a restricted read-only session answers with one library skill.
+  // The insights narrative: the same restricted session with no tools at all.
+  if (argv[0] === 'claude' && argv[argv.indexOf('--tools') + 1] === '') return { code: 0, stdout: JSON.stringify({ result: '1. Fix the deny rule first.\n2. Then the marketplace.', total_cost_usd: 0.0214 }), stderr: '' };
   if (argv[0] === 'claude' && argv.includes('--restricted') && o.cwd?.endsWith('/broken')) return { code: 1, stdout: '', stderr: 'model overloaded' };
   if (argv[0] === 'claude' && argv.includes('--restricted')) return { code: 0, stdout: JSON.stringify({ result: JSON.stringify({ skills: [{ name: 'designing-technical-uis', reason: 'the project has a UI' }] }) }), stderr: '' };
   if (argv[0] === 'claude') return { code: 0, stdout: argv.includes('--json') ? '[]' : '', stderr: '' };

@@ -1,5 +1,5 @@
 {
- "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26, the sandbox passages 2026-10-28 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
+ "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26, the sandbox, deprecated-key, auto mode, Sonnet 4.5 and Foundry passages 2026-10-28 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
  "fetched": "2026-10-25",
  "pages": {
   "https://code.claude.com/docs/en/advisor": [
@@ -24,7 +24,12 @@
    "ore it saved levels per model, and it keeps applying where it applied before, on Opus 5, Fable 5.1, and earlier models. Opus 5.5 and models released after it ignore it and start at their own default until you save a level for them, which `/effort` writes under [`modelSettings`](#modelsettings). In project, local, and managed settings, and with `--s",
    "ll request attribution text * `false`: Claude Code omits both the commit trailer and the pull request attribution text, unless `attribution` sets `commit` or `pr`, in which case the [`attribution`](#attribution) rules apply * **Default**: `true` ```json settings.json theme={null} {",
    "e.com/docs/en/permission-modes.md#which-mode-a-session-starts-in) for your surface. * **Scope**: [`Any file`](#scopes). `auto` and `bypassPermissions` don't take effect from project or local settings, so set them in `$HOME/.claude/settings.json` instead. Before v2.1.257, `bypassPermissions` took effect from any file. For ",
-   "uns the deletion as a background sweep after a session starts, as long as it can safely determine the retention period. The sweep deletes transcripts without showing a message, so a session you haven't used for longer than the retention period no longer appears in the [`/resume`](https://code.c"
+   "uns the deletion as a background sweep after a session starts, as long as it can safely determine the retention period. The sweep deletes transcripts without showing a message, so a session you haven't used for longer than the retention period no longer appears in the [`/resume`](https://code.c",
+   "-for-cross-machine-messages) | Agents, sessions, and worktrees | Any file | | [`keybindingFlavor`](#keybindingflavor) | Deprecated and has no effect; the word-editing shortcuts always [follow readline conventions](https://code.claude.com/docs/en/interactive-mode.md#ma",
+   "tings.md) | Enterprise and managed settings | Managed | | [`permissionExplainerEnabled`](#permissionexplainerenabled) | Removed in v2.1.257, together with the `Ctrl+E` command explanation on shell permission prompts | Global config settings | Global config | ",
+   "lighting in diffs and code blocks | Interface and terminal | Any file | | [`taskOutputMaxChars`](#taskoutputmaxchars) | Removed in v2.1.277, together with the `TaskOutput` tool it sized | Memory and context | Any file | | [`teammateDefaultModel`](#teammatedef",
+   "th the `TaskOutput` tool it sized | Memory and context | Any file | | [`teammateDefaultModel`](#teammatedefaultmodel) | Removed in v2.1.234; see [Specify teammates and models](https://code.claude.com/docs/en/agent-teams.md#specify-teammates-and-models) for ho",
+   "tive-mode#quick-commands) command at once | Hooks and automation | Any file | | [`disableArtifact`](#disableartifact) | Deprecated; use `enableArtifact` to turn the [Artifact tool](https://code.claude.com/docs/en/artifacts.md) off | Remote, desktop, and notifications | An"
   ],
   "https://learn.chatgpt.com/docs/config-file/config-reference": [
    "ults to non-login shells. analytics.enabled boolean Enable or disable analytics for this machine/profile. In Codex CLI, false also disables custom OTLP metrics exporters. When unset, the client default applies. approval_policy on-request | never | { granular = { sandbox_approval = bool, r",
@@ -46,6 +51,16 @@
    "Linux and WSL2 : the sandbox relies on `bubblewrap` and `socat`, covered in Set up Linux and WSL2.",
    "Connections go through a proxy on your machine that checks each host against your allowed domains, which start empty. Domain restrictions : your allowed domains start empty.",
    "strict sandbox mode](#turn-off-the-retry-with-strict-sandbox-mode) for the sessions where typed commands run sandboxed. The sandbox doesn't run on native Windows, so with `failIfUnavailable` set, Claude Code exits at startup on those machines. If your fleet includes Windows hosts, you can: * **Deliver the configuration by operating system**: deploy it through y"
+  ],
+  "https://code.claude.com/docs/en/auto-mode-config": [
+   "tributed to all developers | | `--settings` flag or Agent SDK | Inline JSON | Per-invocation overrides for automation | The classifier doesn't read `autoMode` from project settings in `.claude/settings.json` or `.claude/settings.local.json`. Both files live in the repo directory, so a checked-in repo or a build step could otherwise inject its own allow rules."
+  ],
+  "https://platform.claude.com/docs/en/about-claude/model-deprecations": [
+   "ated model | Recommended replacement | | ----------------- | ---------------------------- | ----------------------- | | November 30, 2026 | `claude-sonnet-4-5-20250929` | `claude-sonnet-5-5` | ### 2026-06-05: Claude Opus 4.1 model <Note> This model was retired August 5, 2026. </Note> On June 5, 2026, Anthropi"
+  ],
+  "https://code.claude.com/docs/en/model-config": [
+   " 5.5 | Sonnet 4.6 | Haiku 4.5 | | Amazon Bedrock, Google Cloud's Agent Platform | Opus 5.5 | Sonnet 4.5 | Haiku 4.5 | | Microsoft Foundry | Opus 4.6 | Sonnet 4.5 | Haiku 4.5 | Unless you set `ANTHROPIC_DEFAULT_FABLE_MODEL`, the `fable` alias resolves to Fable 5.1, except in [Claude apps gatew",
+   "lts to Opus 5.5 * **Claude Platform on AWS, Amazon Bedrock, and Google Cloud's Agent Platform**: defaults to Opus 5.5 * **Microsoft Foundry**: defaults to Sonnet 4.5 Before v2.1.280, `default` resolved to Sonnet 5 on Pro and Team Standard, and to Opus 5 on Max, Team Premium, Enterpris"
   ]
  }
 }

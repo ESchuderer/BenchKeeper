@@ -10,13 +10,14 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { openPrivate, signInUrl } from './browser.mjs';
 import { childEnv } from './childenv.mjs';
 import { StoreError, credentialStore } from './credstore.mjs';
+import { agent, notAvailable, registry, supports } from './agents.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, inside, readText } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { apply, preview, runCommandAsync } from './runner.mjs';
 import { HOOK_SOURCE, STATE_DIR, assess, headroom, lowWindows, limitsFor, parseState, qualifies, readyAt, settingsOf, trackedSettings, usageFindings, validLimits, validSettings } from './usage.mjs';
 
-export const AGENTS = ['claude', 'codex'];
+export const AGENTS = registry.filter((a) => a.features.accounts).map((a) => a.id);
 const VAR = { claude: 'CLAUDE_CONFIG_DIR', codex: 'CODEX_HOME' };
 const TOKEN_VAR = 'CLAUDE_CODE_OAUTH_TOKEN';
 const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;
@@ -91,7 +92,7 @@ export const commit = (ctx, change, select) => apply(preview([change]), ctx, { s
 // The entry `accounts add` plans; opts: { name, agent, container, label, dir, mount (container accounts) }.
 export function newAccount(ctx, o) {
   if (!NAME.test(o.name ?? '')) throw new Error('the name is 1 to 32 characters: lower case letters, digits, - and _, starting with a letter or digit');
-  if (!AGENTS.includes(o.agent)) throw new Error(`the agent is one of ${AGENTS.join(', ')}`);
+  if (!AGENTS.includes(o.agent)) throw new Error(`${registry.some((a) => a.id === o.agent) ? `${notAvailable('accounts', o.agent)}: ` : ''}the agent is one of ${AGENTS.join(', ')}`);
   const base = { name: o.name, agent: o.agent, ...(o.label ? { label: String(o.label).slice(0, 80) } : {}), token: null, added: new Date().toISOString() };
   if (o.container) {
     // No default: the folder must be one the container's user can write, which depends on the image.
@@ -222,7 +223,7 @@ function* usageNowSteps(ctx, a, { dir, now }) {
 // Whether the account is signed in, how old its token is, and what to run when it is not. Reads only. loggedIn null: not checked.
 // dir: the project whose dev container a container account is checked in.
 function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
-  const out = /** @type {{ name: string, agent: string, mode: string, loggedIn: boolean | null, method: string | null, tokenAgeDays?: number, usage: object | null, findings: object[] }} */ ({ name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, usage: null, findings: [] });
+  const out = /** @type {{ name: string, agent: string, mode: string, loggedIn: boolean | null, method: string | null, tokenAgeDays?: number, usage: object | null, notAvailable?: string, findings: object[] }} */ ({ name: a.name, agent: a.agent, mode: a.mode, loggedIn: null, method: null, usage: null, findings: [] });
   const age = a.token?.created ? Math.floor((now - Date.parse(a.token.created)) / DAY) : null;
   const relogin = `benchkeeper accounts login ${a.name}`;
   let r, gone = false, engine = null;
@@ -252,7 +253,8 @@ function* statusSteps(ctx, a, { dir, now = Date.now(), token } = {}) {
     else if (age >= WARN_DAYS) out.findings.push(finding('warning', a.name, `the stored token is ${age} days old (a token lasts a year)`, `${relogin} --token`));
   }
   // Usage: Claude Code only (no documented source for Codex), and a container account only where its container was reached.
-  out.usage = a.agent === 'claude' && (a.mode === 'host' || engine) ? yield* usageSteps(ctx, a, { dir, now, engine }) : null;
+  out.usage = supports(a.agent, 'usage') && (a.mode === 'host' || engine) ? yield* usageSteps(ctx, a, { dir, now, engine }) : null;
+  if (!supports(a.agent, 'usage')) out.notAvailable = notAvailable('usage', a.agent);
   if (out.usage) out.findings.push(...usageFindings(a.name, out.usage, relogin));
   return out;
 }
@@ -332,8 +334,9 @@ const scriptOf = (a) => stateFile(a, 'usage.mjs');
 const settingsFile = (a) => (a.mode === 'host' ? join(a.dir, 'settings.json') : `${a.mount}/settings.json`);
 // A host account's change as a plan of the usual kind (diff, ledger run, undo; the folder may lie outside the home folder, so it
 // is added to the roots by the caller). One unit: when the settings cannot take the status line, the script is not written either.
+const requireUsage = (a) => { if (!supports(a.agent, 'usage')) throw new Error(`${notAvailable('usage', a.agent)}: ${agent(a.agent).name} has no documented source`); };
 export const trackChanges = (a, { remove = false } = {}) => {
-  if (a.agent !== 'claude') throw new Error('usage is read from the Claude Code status line: Codex has no documented source');
+  requireUsage(a);
   return [
     { id: 'usage-script', step: 'accounts', unit: 'usage', title: `${remove ? 'remove' : 'write'} the usage script of account ${a.name}`, kind: 'write', path: scriptOf(a), after: remove ? null : HOOK_SOURCE },
     { id: 'usage-settings', step: 'accounts', unit: 'usage', title: `${remove ? 'take the status line and hook out of' : 'add the status line and the StopFailure hook to'} the settings.json of account ${a.name}`, kind: 'write', path: settingsFile(a), edit: (t) => trackedSettings(t, scriptOf(a), { remove }) },
@@ -341,6 +344,7 @@ export const trackChanges = (a, { remove = false } = {}) => {
 };
 // A container account's change: the volume is not a host path, so it is read and written through devcontainer exec.
 function* trackContainerSteps(ctx, a, dir, { remove }) {
+  requireUsage(a);
   const engine = yield* containerSteps(ctx, a, dir);
   // Missing is what cat says about a missing file: a failed exec or a timeout is not an empty settings.json to overwrite.
   const read = function* (path) {

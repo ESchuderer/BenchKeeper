@@ -10,8 +10,8 @@ const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
 const DOT = { ok: 'teal', warn: 'yellow', low: 'red', unknown: 'gray' };
 const minimum = (l) => WINDOWS.map(([k, label]) => `${label} ${l.minimum[k]}%`).join(', ');
 // What is left per rate limit window, from the usage a Claude Code account's status line keeps; unknown says why.
-function Usage({ usage, name }) {
-  if (!usage) return null;
+function Usage({ usage, name, notAvailable }) {
+  if (!usage) return notAvailable ? <Text size="sm">Usage: {notAvailable}</Text> : null;
   if (!usage.tracked) return <Text size="sm">Usage is not tracked: <Code>benchkeeper accounts track {name}</Code></Text>;
   return (
     <Stack gap={2} aria-label={`Usage of ${name}`}>
@@ -159,7 +159,7 @@ export function Accounts({ overview, refresh }) {
                                 {c?.result && (
                                   <Stack gap={2}>
                                     <Badge variant="default" miw="max-content" leftSection={<Dot color={c.result.loggedIn ? 'teal' : c.result.loggedIn === false ? 'red' : 'gray'} />}>{c.result.loggedIn === null ? 'not checked' : c.result.loggedIn ? `signed in${c.result.method ? ` (${c.result.method})` : ''}` : 'not signed in'}</Badge>
-                                    <Usage usage={c.result.usage} name={a.name} />
+                                    <Usage usage={c.result.usage} name={a.name} notAvailable={c.result.notAvailable} />
                                     {c.result.findings.map((f) => <Text size="sm" key={f.message}>{f.message}. Fix: <Code>{f.fix}</Code></Text>)}
                                   </Stack>
                                 )}

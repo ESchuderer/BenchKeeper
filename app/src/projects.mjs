@@ -5,10 +5,10 @@ import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentVersion } from './content.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
-import { skillFiles } from './doctor.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
+import { skillFiles } from './skills.mjs';
 import { STATE, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 

@@ -1,7 +1,7 @@
 import { ActionIcon, Alert, Anchor, AppShell, Badge, Burger, Button, Code, Drawer, Group, Kbd, MantineProvider, Modal, NavLink, Loader, Stack, Text, Title, createTheme, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useHotkeys, useMediaQuery } from '@mantine/hooks';
 import { Spotlight, spotlight } from '@mantine/spotlight';
-import { IconActivity, IconAdjustmentsHorizontal, IconBooks, IconChartBar, IconFileText, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPlug, IconPower, IconRobot, IconSearch, IconSettings, IconSun, IconUsers } from '@tabler/icons-react';
+import { IconActivity, IconAdjustmentsHorizontal, IconBooks, IconChartBar, IconBulb, IconFileText, IconFolders, IconHistory, IconLayoutDashboard, IconMoon, IconPlug, IconPower, IconRobot, IconSearch, IconSettings, IconSun, IconUsers } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
@@ -15,6 +15,7 @@ import { ApplyProgress, OneRunDrawer, OneRunProvider } from './onerun.jsx';
 import { AgentSettings } from './agentsettings.jsx';
 import { Accounts } from './accounts.jsx';
 import { Extensions } from './extensions.jsx';
+import { Insights } from './insights.jsx';
 import { Rules } from './rules.jsx';
 import { Agents, Catalog, Dashboard, Evals, History, Projects, Sessions, Settings } from './views.jsx';
 
@@ -46,7 +47,7 @@ const resolver = () => Object.fromEntries(['light', 'dark'].map((s) => [s, {
 }]).concat([['variables', {}]]));
 // Dashboard and Projects first: the views used most.
 const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot],
-  ['history', 'History', History, IconHistory], ['sessions', 'Sessions', Sessions, IconActivity], ['evals', 'Evals', Evals, IconChartBar], ['agent-settings', 'Agent settings', AgentSettings, IconAdjustmentsHorizontal], ['rules', 'Rules', Rules, IconFileText], ['extensions', 'Extensions', Extensions, IconPlug], ['accounts', 'Accounts', Accounts, IconUsers], ['settings', 'Settings', Settings, IconSettings]];
+  ['history', 'History', History, IconHistory], ['sessions', 'Sessions', Sessions, IconActivity], ['insights', 'Insights', Insights, IconBulb], ['evals', 'Evals', Evals, IconChartBar], ['agent-settings', 'Agent settings', AgentSettings, IconAdjustmentsHorizontal], ['rules', 'Rules', Rules, IconFileText], ['extensions', 'Extensions', Extensions, IconPlug], ['accounts', 'Accounts', Accounts, IconUsers], ['settings', 'Settings', Settings, IconSettings]];
 
 // The "/" key opens the palette unless turned off in Settings (WCAG 2.1.4: a character-key shortcut must be switchable).
 const SLASH = 'bk-slash';

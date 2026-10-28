@@ -3,6 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { doctor } from '../../src/doctor.mjs';
+import { insights } from '../../src/insights.mjs';
 import { addProject } from '../../src/projects.mjs';
 import { apply, context, preview } from '../../src/runner.mjs';
 import { startServer } from '../../src/server.mjs';
@@ -119,6 +121,16 @@ writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00
 // Claude Code and Codex transcripts for the Sessions board.
 if (DEMO) writeSessions(home, { root: parent, title: 'Fix the cart total' });
 else writeSessions(home);
+
+// Insights: a dismissal tied to other evidence (stale) and a snooze that ran out; both findings must show. The Insights test dismisses and snoozes others.
+{
+  const found = insights({ doctorFindings: doctor(ctx, { agents: ['claude'] }) }).findings;
+  const id = (re) => found.find((f) => re.test(f.message)).id;
+  writeFileSync(join(ctx.config, 'insights-triage.json'), JSON.stringify({
+    dismissed: { [`${id(/No Read deny rule/)}@00000000`]: '2026-10-01T00:00:00.000Z' },
+    snoozed: { [`${id(/SUBPROCESS_ENV_SCRUB/)}@00000000`]: '2026-10-08T00:00:00.000Z' },
+  }));
+}
 
 // The agents are stubs, so the eval plan may show in CI too.
 delete process.env.CI;

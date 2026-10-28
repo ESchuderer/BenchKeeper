@@ -15,6 +15,7 @@ import { rulesChecks } from './rules.mjs';
 import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
+import { skillFiles } from './skills.mjs';
 import { globalPlan, installedRefusal, pluginState } from './steps/global.mjs';
 import { readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 
@@ -68,14 +69,6 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
 }
 
 const description = (text) => skillDescription(text).text;
-
-// The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
-// Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
-export function skillFiles(dir) {
-  return ['.claude/skills', '.agents/skills', '.github/skills', '.gemini/skills'].map((x) => join(dir, x)).filter(exists)
-    .flatMap((d) => readdirSync(d).map((name) => ({ name, file: join(d, name, 'SKILL.md') })))
-    .flatMap((f) => { const text = readText(f.file); return text == null ? [] : [{ ...f, text }]; });
-}
 
 export function projectChecks(ctx, dir, agents) {
   const out = [];

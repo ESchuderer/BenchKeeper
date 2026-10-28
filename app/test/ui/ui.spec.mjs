@@ -205,13 +205,13 @@ test.describe('views', () => {
     const board = page.frameLocator('iframe[title="Sessions board"]');
     await expect(board.getByRole('heading', { level: 1, name: 'Sessions board' })).toBeVisible();
     // The fixture project is registered, but no session ran in it: All stays chosen, Registered projects is offered.
-    await expect(board.getByLabel('Project').locator('option').first()).toHaveText('Registered projects');
-    await expect(board.getByLabel('Project')).toHaveValue('');
+    await expect(board.locator('#f-project').locator('option').first()).toHaveText('Registered projects');
+    await expect(board.locator('#f-project')).toHaveValue('');
     await board.getByLabel('Period').selectOption('all');
     // A changed count is announced.
     await expect(board.locator('#count-live')).toContainText(/\d+ of \d+ sessions/);
     await expect(board.getByRole('table', { name: 'Sessions, newest first' })).toContainText('Cart </script><img src=x onerror=alert(1)> fix');
-    await expect(board.getByRole('table', { name: /Sessions by tier/ })).toContainText('full');
+    await expect(board.locator('#by-tier')).toContainText('full');
     await noAxe(page);
     // The app's theme reaches the frame without a reload: the filter the user set stays.
     await page.getByRole('button', { name: 'Dark theme' }).click();
@@ -248,7 +248,7 @@ test.describe('views', () => {
     await page.keyboard.press('Escape');
     await expect(board.locator('#tip')).toBeEmpty();
     // The fixture's sessions with subagents are groups; the others are single.
-    await expect(board.getByRole('table', { name: /^Sessions by pattern/ })).toContainText('group');
+    await expect(board.locator('#by-pattern')).toContainText('group');
     await board.getByLabel('Pattern', { exact: true }).selectOption('single');
     await expect(board.locator('#count')).toContainText(/^1 of 1 sessions/);
     await board.getByLabel('Pattern', { exact: true }).selectOption('');
@@ -259,7 +259,7 @@ test.describe('views', () => {
     // Nothing selected: one sentence per section, no empty axis.
     await board.getByLabel('Agent', { exact: true }).selectOption('codex');
     await board.getByLabel('Tier', { exact: true }).selectOption('full');
-    await expect(board.getByText('No sessions match these filters.')).toHaveCount(6);
+    await expect(board.getByText('No sessions match these filters.')).toHaveCount(11);
     await expect(board.locator('#chart svg')).toHaveCount(0);
     await noAxe(page);
   });

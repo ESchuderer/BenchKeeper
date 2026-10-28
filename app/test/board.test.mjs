@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { CSP, SCRIPT_HASH, boardHtml, registeredPaths } from '../src/board.mjs';
+import { MIN_SAMPLES } from '../src/insights.mjs';
 import { context } from '../src/runner.mjs';
-import { TITLE } from './fixtures/sessions.mjs';
+import { scanSessions } from '../src/sessions.mjs';
+import { TITLE, writeSessions } from './fixtures/sessions.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -40,11 +42,39 @@ test('registered projects and their worktrees go to the board as the Project fil
 const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)).reduce((n, c, i) => n + c * [0.2126, 0.7152, 0.0722][i], 0);
 const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
 
-test('every series color holds 3:1 against its surface, in light and dark', () => {
+test('every series color holds 3:1 and every text color 4.5:1 against its surface, in light and dark', () => {
   const css = boardHtml([], '2026-10-23T00:00:00Z').match(/<style>([\s\S]*?)<\/style>/)[1];
   const dark = css.match(/:root\[data-theme="dark"\] \{([^}]*)\}/)[1], system = css.match(/:where\(:not\(\[data-theme="light"\]\)\) \{([^}]*)\}/)[1], light = css.match(/:root \{ color-scheme: light;([^}]*)\}/)[1];
   for (const [name, block] of [['light', light], ['dark', dark], ['system dark', system]]) {
     const v = (k) => block.match(new RegExp(`--${k}: (#[0-9a-f]{6})`))[1];
-    for (const k of ['s1', 's2', 's3', 's4']) assert.ok(contrast(v(k), v('surface')) >= 3, `${name} ${k} ${v(k)} on ${v('surface')}: ${contrast(v(k), v('surface')).toFixed(2)}`);
+    for (const k of ['s1', 's2', 's3', 's4', 's5', 's6', 'other']) assert.ok(contrast(v(k), v('surface')) >= 3, `${name} ${k} ${v(k)} on ${v('surface')}: ${contrast(v(k), v('surface')).toFixed(2)}`);
+    for (const k of ['ink', 'ink-2', 'accent']) for (const on of ['surface', 'page']) assert.ok(contrast(v(k), v(on)) >= 4.5, `${name} ${k} on ${on}: ${contrast(v(k), v(on)).toFixed(2)}`);
   }
+});
+
+test('the low-sample threshold is the insights one and goes to the page as data', () => {
+  const html = boardHtml([], '2026-10-23T00:00:00Z');
+  assert.equal(JSON.parse(html.match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]).minSamples, MIN_SAMPLES);
+  assert.equal(MIN_SAMPLES, 20);
+});
+
+test('no transcript text reaches the page: a marker in a prompt, a reply, a tool result and a queued prompt is not in the HTML', async () => {
+  const home = mkdtempSync(join(TMP, 'bk-board-marker-'));
+  const MARK = 'PLANTED-MARKER-7f3a';
+  writeSessions(home);
+  const common = { cwd: '/work/shop', gitBranch: 'main', version: '2.1.300', sessionId: 'm1' };
+  const line = (t, o) => JSON.stringify({ ...common, timestamp: t, ...o });
+  const dir = join(home, '.claude/projects', '-work-shop');
+  writeFileSync(join(dir, 'm1.jsonl'), [
+    line('2026-10-21T10:00:00.000Z', { type: 'user', origin: { kind: 'human' }, message: { role: 'user', content: `please ${MARK}` } }),
+    line('2026-10-21T10:00:01.000Z', { type: 'assistant', message: { id: 'a1', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: `reply ${MARK}` }, { type: 'tool_use', id: 'k1', name: 'Bash', input: { command: `echo ${MARK}` } }], usage: { input_tokens: 1, output_tokens: 1 } } }),
+    line('2026-10-21T10:00:02.000Z', { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'k1', content: `out ${MARK}`, is_error: false }] } }),
+    line('2026-10-21T10:00:03.000Z', { type: 'attachment', attachment: { type: 'queued_command', prompt: `later ${MARK}`, origin: { kind: 'human' }, humanTurn: true } }),
+  ].join('\n') + '\n');
+  // The fixture's pull request link must not reach the host's gh.
+  const run = () => ({ code: 127, stdout: '', stderr: 'not installed' });
+  const rows = await scanSessions(context({ home, run }));
+  assert.ok(rows.some((r) => r.id === 'm1'));
+  assert.ok(!JSON.stringify(rows).includes(MARK));
+  assert.ok(!boardHtml(rows, '2026-10-23T00:00:00Z').includes(MARK));
 });

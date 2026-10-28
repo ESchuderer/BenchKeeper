@@ -2,6 +2,13 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
 
+## setup-v6.25 (2026-10-28)
+
+- App, Sessions board redesigned (#406): a project rail first (newest activity, session count, sparkline, last tier; a chip row on a phone), tiles for sessions, agent time, cost, tokens, tests-pass rate and merged pull requests with a sparkline and the change against the previous period of the same length, the per-day chart stacked by project with a metric switch (cost, agent time, tokens, sessions) and legend chips that hide a series, comparison bars by tier, pattern and setup with the sample size on every bar (under 20 sessions: hatched, marked, left out of the highest and lowest line), cost per merged pull request and model mix by week, histograms of agent time and turns, a 12-week activity calendar with active days and longest streak, and branches and pull request states of the chosen project. Own design tokens (radius, shadow, glow, a six-color series palette checked at 3:1 in light and dark, monospace tabular figures, reduced motion). Same rows as before: no new field, no message text, no network request.
+- Breaking, before 7.0: the per-day chart is stacked by project, not by setup (the setup comparison moved to its own bars); the rail has no all-directories toggle (#404 adds it to the Project select).
+- Plugin `version` 6.25.0.
+- Upgrade: `npx benchkeeper@6.25.0 apply`.
+
 ## setup-v6.24 (2026-10-27)
 
 - App, skills: community skills of the library and the global skills install from the default branch of their source instead of a commit. The project's state file records the commit the install got, `benchkeeper skills list --check` (and the Catalog's "Check for updates") asks each source for its default branch and marks moved skills `outdated`, `skills update` re-adds them. The skills CLI runs as the newest release at least 7 days old (as the host tools do; the npm signature check, the dependency cooldown and `ignore_scripts` stay), never below the app's minimum `1.7.2`; `BENCHKEEPER_SKILLS_CLI=x.y.z` runs exactly that version. The doctor no longer warns about the CLI pin. `library.json` no longer holds a `ref` per community skill. `benchkeeper insights` no longer reports skills behind the library (it needs the network). A repository with many skills counts as moved when any file in it changed.

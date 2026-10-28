@@ -1,6 +1,6 @@
 # Evaluations
 
-Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Quality bar check (skill libraries only, [library quality bar](evaluations/skill-libraries/library-quality-bar.md)), Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-26 (each file names its date).
+Components considered for BenchKeeper, the evidence for each, and whether each is in BenchKeeper. One file per component under `evaluations/<category>/`, sections in this order: Advertised, Independent evidence, User reports, Benchmark (BenchKeeper's own runs, where the component ran as an arm), Skill authoring check, Quality bar check (skill libraries only, [library quality bar](evaluations/skill-libraries/library-quality-bar.md)), Decision. Cross-tool findings, sources to follow and A/B test tools: [evaluations/studies.md](evaluations/studies.md). Checked 2026-10-14 to 2026-10-28 (each file names its date).
 
 SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#external-benchmark-pilot-slopcodebench-v123) separates natural skill selection from delivery and scoring failures, and pins the current setup as AO. Reference calibration also exposed a missing MIME database in the scorer image, and an `sg` name clash that skipped scb-check's ast-grep rules. No new skill-effectiveness results.
 
@@ -93,7 +93,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Skill authoring guide (Anthropic)](evaluations/practices/skill-authoring.md) | In | 8 benchmarked collections ranked: Ponytail 3.9 first, Spec Kit 2.8 last. Only agent-skills ships evaluations |
+| [Skill authoring guide (Anthropic)](evaluations/practices/skill-authoring.md) | In | 8 benchmarked collections ranked: Ponytail 3.9 first, Spec Kit 2.8 last. Skill checks also cover checklists and defaults. Only agent-skills ships evaluations |
 | [Project summary and layout in AGENTS.md](evaluations/practices/agents-md-overviews.md) | Not in | context files raised cost over 20%, no success gain, arXiv 2602.11988 |
 | [Lite install, the workflow skill without a rule line](evaluations/practices/lite-install.md) | Lite level in, trigger rate unverified | 13 eval cases exist for `workflow`; the rate without the always-on line has not been run |
 | [Decoupled modules, split before 7.0](evaluations/practices/decoupled-modules.md) | One repository and package, boundaries by folder, content contract | the engine never imports the CLI or server but both reach about 26 modules; one import cycle; app-only releases rewrite 3 files under `plugins/` (8 of 29 releases since 2026-10-12); nothing run in a session |

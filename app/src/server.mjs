@@ -19,6 +19,8 @@ import { userEvals } from './cases.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { contentDir, appVersion } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
+import { collectInsights } from './insights.mjs';
+import { readTriage, setTriage, withTriage } from './triage.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
 import { blob } from './git.mjs';
@@ -473,6 +475,12 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       return projectChecks(ctx, dir);
     },
+    // The findings of `insights --json` with their triage (dismissed, snoozed until a date); a triage click does not scan again.
+    'GET /api/insights': async () => {
+      const found = await cached('insights', () => collectInsights(ctx, { agents: installed() }));
+      return { ...found, findings: withTriage(found.findings, readTriage(ctx)) };
+    },
+    'POST /api/insights-triage': (b) => input(() => setTriage(ctx, b.key, b.action)),
     'POST /api/pick-folder': () => pickFolder(ctx),
     // Opens a registered project in the file manager.
     'POST /api/reveal': (b) => {
@@ -624,8 +632,8 @@ export function api(ctx) {
   // Registry, pack and profile writes wait for a running apply too: they change what a plan reads or an apply writes.
   const guarded = { 'POST /api/projects': () => true, 'POST /api/packs': () => true, 'POST /api/profile-import': (b) => b.register };
   for (const [k, when] of Object.entries(guarded)) { const f = routes[k]; routes[k] = (b) => { if (when(b)) idle(); return f(b); }; }
-  // A change drops the cached machine reads.
-  for (const k of Object.keys(routes)) if (k.startsWith('POST ')) { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
+  // A change drops the cached machine reads; a triage click changes none of them (GET /api/insights reads the triage file each time).
+  for (const k of Object.keys(routes)) if (k.startsWith('POST ') && k !== 'POST /api/insights-triage') { const f = routes[k]; routes[k] = (b) => { memo.clear(); return f(b); }; }
   return routes;
 }
 

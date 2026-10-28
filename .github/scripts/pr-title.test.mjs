@@ -7,8 +7,8 @@ const pattern = new RegExp(readFileSync(new URL('../workflows/pr-title.yml', imp
 
 test('title subject: plain text passes, em dash and emoji fail', () => {
   assert.ok(pattern.test('release-please with a weekly release'));
-  assert.ok(!pattern.test('a — b'));
+  assert.ok(!pattern.test('a \u2014 b'));
   assert.ok(!pattern.test('ship it \u{1F680}'));
-  assert.ok(!pattern.test('done ✅'));
-  assert.ok(!pattern.test('heart ❤️'));
+  assert.ok(!pattern.test('done \u2705'));
+  assert.ok(!pattern.test('heart \u2764\uFE0F'));
 });

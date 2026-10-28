@@ -113,12 +113,28 @@ function check(cmd, args, bodies, depth) {
   return null;
 }
 
+// The command substitutions of a text that the shell runs: not the ones inside single quotes (literal text there).
+function substitutions(text) {
+  const found = [];
+  let quote = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote === "'") { if (c === "'") quote = null; continue; }
+    if (c === '\\') { i++; continue; }
+    if (c === '"') { quote = quote ? null : '"'; continue; }
+    if (c === "'" && !quote) { quote = "'"; continue; }
+    const m = text.slice(i).match(c === '`' ? /^`([^`]*)`/ : /^\$\(([^()]*)\)/);
+    if (m) { found.push(m[1]); i += m[0].length - 1; }
+  }
+  return found;
+}
+
 // The reason to deny a command text, or null.
 export function denyReason(text, depth = 0) {
   if (typeof text !== 'string' || depth > 5) return null;
   // Command substitution inside double quotes is not split off by the parser above.
-  for (const m of text.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {
-    const r = denyReason(m[1] ?? m[2], depth + 1);
+  for (const inner of substitutions(text)) {
+    const r = denyReason(inner, depth + 1);
     if (r) return r;
   }
   for (const { words, bodies } of split(text)) {

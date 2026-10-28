@@ -45,7 +45,7 @@ const ODD = ['git -C sub push -f', 'git -c push.default=current push --force', '
 const FINE = ['git commit -m "fix: no-verify docs"', 'git commit -m "x -n y"', "git commit -m '--no-verify'", 'git commit -am msg', 'git commit -m n', 'git push origin main', 'git push -u origin feature', 'git push --set-upstream origin x',
   'git log --grep sudo', 'echo sudo', 'grep -r "git push -f" .', 'terraform plan', 'terraform show apply.tfplan', 'kubectl get pods', 'helm list', 'git status', 'npm test && git diff -n',
   'git commit -F msg.txt', 'git push -o ci.skip origin main', 'cat <<EOF\ngit push -f\nEOF', 'git commit -m "$(cat <<\'EOF\'\nfix: it\'s fine, no --no-verify here\nEOF\n)"', 'git commit -m "it\'s" -- file', '', '# git push -f', 'cat <<< "x"\ngit status', 'env -u VAR git status', 'timeout -s KILL 10 git push origin main',
-  'cat <<< "git push -f"', 'git commit -S -m x', 'git commit -Skey -m x', 'git commit -u -m x', 'git push -- origin main'];
+  'cat <<< "git push -f"', "git commit -m 'document `sudo ls` and $(git push -f) literally'", 'git commit -S -m x', 'git commit -Skey -m x', 'git commit -u -m x', 'git push -- origin main'];
 
 test('each denied command form is denied by a rule or by the hook; nothing else is', () => {
   for (const c of USUAL) assert.ok(ruled(c) && denyReason(c), c);
@@ -116,6 +116,14 @@ test('moving the setup between local and shared takes the rules out of the setti
   assert.equal(run(r, { guards: false }).status, 'done');
   assert.ok(!existsSync(join(r.dir, '.claude/settings.json')) || !read(join(r.dir, '.claude/settings.json')).includes('sudo'));
   assert.ok(!read(join(r.dir, '.claude/settings.local.json')).includes('sudo'));
+});
+
+test('sharing moves and guards go off in one run: the rules leave the settings file the setup left', () => {
+  const r = repo();
+  run(r, {});
+  assert.equal(run(r, { share: true, guards: false }).status, 'done');
+  for (const f of ['.claude/settings.local.json', '.claude/settings.json']) assert.ok(!existsSync(join(r.dir, f)) || !read(join(r.dir, f)).includes('sudo'), f);
+  assert.equal(readState(r.dir).guards, false);
 });
 
 test('guards off: only what the run added comes out, the hook file too; the state file records it', () => {

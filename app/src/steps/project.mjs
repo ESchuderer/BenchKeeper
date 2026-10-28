@@ -414,7 +414,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   } else {
     // Preselected only when the state file shows this setup wrote them.
     const mine = prev?.guards === true, note = `${a.agents.includes('claude') ? 'guards off' : 'Claude Code is no longer chosen'}${mine ? '' : '; not written by BenchKeeper'}`;
-    if (editsJson(guardsOff, readText(at(settings)))) add('guards', `Claude Code deny rules and guard hook removed (${note})`, { kind: 'write', path: at(settings), selected: mine, edit: guardsOff });
+    // The settings file the setup left when sharing changed holds the rules too.
+    for (const f of [settings, a.share ? LOCAL_SETTINGS : '.claude/settings.json']) {
+      if (editsJson(guardsOff, readText(at(f)))) add('guards', `Claude Code deny rules and guard hook removed${f === settings ? '' : ` from ${f}`} (${note})`, { kind: 'write', path: at(f), selected: mine && (f === settings || Boolean(prev.share) !== a.share), edit: guardsOff });
+    }
     if (exists(hook)) add('guards', `remove ${GUARD_PATH} (${note})`, { kind: 'remove', path: hook, selected: mine && readText(hook) === guardScript() });
   }
 

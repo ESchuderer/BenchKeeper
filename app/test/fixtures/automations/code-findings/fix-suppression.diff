@@ -1,0 +1,11 @@
+diff --git a/src/a.js b/src/a.js
+index 1111111..2222222 100644
+--- a/src/a.js
++++ b/src/a.js
+@@ -1,4 +1,5 @@
++// eslint-disable-next-line no-unused-vars
+ const x = 1;
+ export function same(a, b) {
+-  return a == b;
++  return a == b; // NOSONAR
+ }

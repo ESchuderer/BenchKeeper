@@ -1,0 +1,3 @@
+{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "linter"}}, "results": [
+  {"ruleId": "E501", "message": {"text": "Line too long"}, "locations": [{"physicalLocation": {"artifactLocation": {"uri": "pkg/mod.py"}, "region": {"startLine": 9}}}]}
+]}]}

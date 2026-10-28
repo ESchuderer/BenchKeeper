@@ -829,6 +829,23 @@ test('runs: a run with its tasks, worktree, branch and cost, the last setup chan
   for (const text of [JSON.stringify(r), ...logged]) assert.ok(!text.includes(MARK));
 });
 
+test('project cards: per registered project its 30 days of sessions, the doctor finding count and items by state; a missing folder has no count', async () => {
+  const { ctx, routes } = fixture((argv) => realGit(argv, {}));
+  const dir = repo('cards');
+  const gone = join(mkdtempSync(join(TMP, 'bk-cards-')), 'gone');
+  mkdirSync(gone);
+  routes['POST /api/projects']({ paths: [dir, gone] });
+  rmSync(gone, { recursive: true });
+  writeRunSessions(ctx.home, join(dir, 'app'), 'mark');
+  const [live, missing] = await routes['GET /api/project-cards']();
+  assert.equal(live.path, dir);
+  assert.equal(typeof live.findings, 'number');
+  assert.deepEqual(live.owner, []);
+  assert.equal(live.activity.perDay.length, 30);
+  assert.equal(live.activity.perDay.reduce((n, x) => n + x, 0), live.activity.sessions);
+  assert.deepEqual([missing.path, missing.findings, missing.states, missing.activity.sessions], [gone, null, null, 0]);
+});
+
 test('runs: without the IDE its runs are null and it is asked nothing more; the Settings page routes run no command', async () => {
   const asked = [];
   const gone = missing();

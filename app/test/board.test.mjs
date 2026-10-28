@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFile
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { CSP, SCRIPT_HASH, boardHtml, cardSvg, changeText, keepDays, periodFacts, registeredPaths, toCsv } from '../src/board.mjs';
+import { CSP, SCRIPT_HASH, boardHtml, cardSvg, changeText, keepDays, periodFacts, projectActivity, registeredPaths, toCsv } from '../src/board.mjs';
 import { HEALTH, PRIMARY, TOKENS, cssVars } from '../src/tokens.mjs';
 import { MIN_SAMPLES } from '../src/insights.mjs';
 import { context } from '../src/runner.mjs';
@@ -60,6 +60,32 @@ test('worktrees of two repositories count as their repository, also a removed on
   });
   assert.deepEqual(data.rows, before);
   assert.deepEqual(rows, before);
+});
+
+test('project cards: sessions of both agents and of worktrees per day for 30 days, cost with the uncosted count, last session and tier, the change rule', () => {
+  const at = (day, extra = {}) => ({ ...row, start: `2026-10-${day}T10:00:00.000Z`, end: `2026-10-${day}T10:30:00.000Z`, ...extra });
+  const rows = [
+    at('29', { id: 'a', tier: { first: 'quick', last: 'standard' } }),
+    at('29', { id: 'b', agent: 'codex', costUSD: null, busyMs: 500, project: '/wt/shop-fix' }),
+    at('23', { id: 'c', costUSD: 2 }),
+    // The previous 30 days and older: only in the change.
+    at('01', { id: 'd' }),
+    { ...row, id: 'e', start: '2026-09-15T10:00:00.000Z', end: null },
+    { ...row, id: 'f', project: '/src/blog', start: '2026-10-28T10:00:00.000Z' },
+  ];
+  const cards = projectActivity(rows, [{ path: '/work/shop', worktrees: ['/wt/shop-fix'] }, { path: '/src/blog', worktrees: [] }, { path: '/src/idle', worktrees: [] }], '2026-10-29T12:00:00Z');
+  const shop = cards['/work/shop'];
+  assert.equal(shop.perDay.length, 30);
+  assert.deepEqual([shop.from, shop.to], ['2026-09-30', '2026-10-29']);
+  assert.equal(shop.perDay.at(-1), 2);
+  assert.equal(shop.perDay.at(-7), 1);
+  assert.equal(shop.perDay.reduce((n, x) => n + x, 0), shop.sessions);
+  assert.deepEqual({ sessions: shop.sessions, week: shop.week, time: shop.time, cost: shop.cost, uncosted: shop.uncosted }, { sessions: 4, week: 3, time: 3500, cost: 4, uncosted: 1 });
+  assert.equal(shop.change, '+300% vs previous 30 days');
+  assert.deepEqual(shop.last, { time: '2026-10-29T10:30:00.000Z', tier: 'standard' });
+  // No session in the previous period: no change text, never "none".
+  assert.equal(cards['/src/blog'].change, null);
+  assert.deepEqual(cards['/src/idle'], { perDay: Array(30).fill(0), from: '2026-09-30', to: '2026-10-29', sessions: 0, week: 0, time: 0, cost: null, uncosted: 0, change: null, last: null });
 });
 
 // WCAG relative luminance; a mark needs 3:1 against its surface (the dataviz palette validator's contrast check).

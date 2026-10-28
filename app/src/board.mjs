@@ -822,6 +822,29 @@ function repoKeys(rows, registered) {
   return keys;
 }
 
+// The Projects view's cards: per registered project, its sessions of the last `days` days up to now, all agents merged and
+// worktrees counted under their repository as on the board. perDay: sessions per day, oldest first; uncosted: sessions
+// without a cost; change: the sessions against the previous period, by the cards' rule.
+export function projectActivity(rows, registered, now, days = 30) {
+  const keys = repoKeys(rows, registered);
+  const today = Date.parse(now.slice(0, 10));
+  const span = (back) => Array.from({ length: days }, (_, i) => new Date(today - (back + days - 1 - i) * 864e5).toISOString().slice(0, 10));
+  const cur = span(0), prev = span(days);
+  const within = (list, s) => list.filter((r) => r.start.slice(0, 10) >= s[0] && r.start.slice(0, 10) <= s.at(-1));
+  return Object.fromEntries(registered.map(({ path }) => {
+    const mine = rows.filter((r) => r.start && keys.get(r.project) === path);
+    const now30 = within(mine, cur), before = within(mine, prev);
+    const f = periodFacts(now30, cur);
+    const last = mine.reduce((a, r) => (!a || r.start > a.start ? r : a), null);
+    return [path, {
+      perDay: cur.map((d) => now30.filter((r) => r.start.startsWith(d)).length), from: cur[0], to: cur.at(-1),
+      sessions: f.sessions, week: within(mine, cur.slice(-7)).length, time: f.time, cost: f.cost, uncosted: now30.filter((r) => r.costUSD == null).length,
+      change: changeText(f.sessions, before.length ? before.length : null, days),
+      last: last && { time: last.end ?? last.start, tier: last.tier?.last ?? null },
+    }];
+  }));
+}
+
 // rows: scanSessions output; now: an ISO time (the periods count back from it); registered: registeredPaths(), the
 // projects Registered only keeps, with their worktrees for rows cached without a repository.
 export function boardHtml(rows, now = new Date().toISOString(), registered = [], keepDays = 30) {

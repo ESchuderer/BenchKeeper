@@ -14,7 +14,7 @@ import { AGENTS as ACCOUNT_AGENTS, accountDoc, accountStatusAsync, accountsProbl
 import { limitsFor, settingsOf } from './usage.mjs';
 import { automationsView, installChanges as automationInstall, removeChanges as automationRemove, updateChanges as automationUpdate } from './automations.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
-import { CSP as BOARD_CSP, boardHtml, keepDays, registeredPaths, writeBoard } from './board.mjs';
+import { CSP as BOARD_CSP, boardHtml, keepDays, projectActivity, registeredPaths, writeBoard } from './board.mjs';
 import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { boardFile as ponytailBoard } from './ponytail.mjs';
@@ -496,6 +496,21 @@ export function api(ctx) {
         setup: registered.map(({ path }) => { const r = last.get(path); return { project: path, lastChange: r ? { kind: r.kind, time: r.time, status: r.status } : null }; }),
         ide: { name: orca.NAME, runs: orca.installed(ctx) ? await orca.runs(ctx) : null },
       };
+    },
+    // The Projects view's cards, read after the list: per registered project its sessions of the last 30 days, the count of
+    // its doctor findings, its items by state (modified comes from there) and the workflow owner packs it picked.
+    'GET /api/project-cards': async () => {
+      if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
+      const { rows, at } = scans.get(ctx);
+      const activity = projectActivity(rows, registeredPaths(ctx), new Date(at).toISOString());
+      const dash = new Map(cached('dashboard', () => dashboard(ctx, installed(), inventoryNow())).projects.map((p) => [p.path, p]));
+      const owners = libraryWith(ctx).packs.filter((p) => p.role === 'workflow owner');
+      return listProjects(ctx).map(({ path }) => {
+        let findings = null;
+        if (exists(path)) try { findings = cached(`findings:${path}`, () => projectChecks(ctx, path)).length; } catch { /* the detail's doctor shows the error */ }
+        const d = dash.get(path);
+        return { path, findings, states: d?.states ?? null, owner: owners.filter((p) => d?.packs.includes(p.id)).map((p) => p.title ?? p.id), activity: activity[path] };
+      });
     },
     'POST /api/update-all': (b) => {
       idle();

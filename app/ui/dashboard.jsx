@@ -4,7 +4,7 @@ import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
 import { DoctorTable, FixEverythingButton } from './fix.jsx';
 import { OneRunButtons } from './onerun.jsx';
-import { label, plural } from './projects.jsx';
+import { label, plural } from './cards.js';
 import { HEALTH } from '../src/tokens.mjs';
 import { Loading, RANK, STATE_COLOR, href, useApi } from './shell.jsx';
 
@@ -12,12 +12,11 @@ const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'miss
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
 const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
 
-// The health bar never relies on the hue: each segment is named with its number in the legend, and the table repeats
-// every figure. Its colors (--bk-h-*) are board tokens.
-const STYLE = `.bk-stack{display:flex;gap:2px;height:16px;border-radius:8px;overflow:hidden;background:var(--mantine-color-default-border)}.bk-stack>span{min-width:3px;background-image:linear-gradient(180deg,rgb(255 255 255/.18),transparent 60%)}
-.bk-bars{display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0}.bk-bars>li{display:grid;grid-template-columns:minmax(0,9rem) minmax(40px,1fr) 2.5rem;gap:12px;align-items:center}
+// The health bar (.bk-stack in theme.css) never relies on the hue: each segment is named with its number in the legend,
+// and the table repeats every figure. Its colors (--bk-h-*) are board tokens.
+const STYLE = `.bk-bars{display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0}.bk-bars>li{display:grid;grid-template-columns:minmax(0,9rem) minmax(40px,1fr) 2.5rem;gap:12px;align-items:center}
 .bk-bar{display:block;height:10px;border-radius:0 6px 6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--bk-s1) 75%,var(--bk-accent)),var(--bk-s1))}`;
-const Swatch = ({ state }) => <Box component="span" aria-hidden w={10} h={10} display="inline-block" style={{ borderRadius: 3, backgroundColor: `var(--bk-h-${state})` }} />;
+export const Swatch = ({ state }) => <Box component="span" aria-hidden w={10} h={10} display="inline-block" style={{ borderRadius: 3, backgroundColor: `var(--bk-h-${state})` }} />;
 
 // Where a figure leads: the scopes it counts. Items that are not current are changes the plans would make.
 function target(state, projects) {

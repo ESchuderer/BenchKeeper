@@ -1,4 +1,4 @@
-import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, Select, Stack, Switch, Table, Text, TextInput, Title, useComputedColorScheme } from '@mantine/core';
+import { Anchor, Badge, Button, Checkbox, Code, Drawer, FileButton, Group, List, Loader, Modal, NavLink, Progress, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title, VisuallyHidden, useComputedColorScheme } from '@mantine/core';
 import { IconAdjustments, IconDeviceFloppy, IconDownload, IconFolderOpen, IconFolderSearch, IconFolders, IconListCheck, IconListNumbers, IconPackage, IconPencil, IconPlus, IconRefresh, IconRoute, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Component, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -10,7 +10,8 @@ import { ProjectSetup } from './setup.jsx';
 import { PackSwitches, SkillStates } from './skillstates.jsx';
 import { SessionsHistory } from './sessionscache.jsx';
 import { Surfaces } from './runs.jsx';
-import { AddNotices, BulkBar, EditProject, MissingBadge, FILTER_OPTIONS, ProjectFilters, Relocate, RemoveFromList, RemoveSetup, SelectCheckbox, label, plural, visibleProjects } from './projects.jsx';
+import { AddNotices, BulkBar, EditProject, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, Relocate, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
+import { chipsOf, label, lags, plural, visibleProjects } from './cards.js';
 import { Dot, Loading, MOD, Note, SplitView, download, go, groupBy, href, icon, useApi } from './shell.jsx';
 
 // The charts load with the first eval view or skill with results, not with the first page.
@@ -324,8 +325,6 @@ function ProjectDetail({ project, others, onChange }) {
   );
 }
 
-// Origin's setup counts when the checkout's is older or missing: the checkout needs a pull.
-const lags = (p) => p.setupVersion && p.checkout !== p.setupVersion;
 // One status: the setup state and where it lives. committed: the repository still carries a setup kept local; Update
 // all opens the pull request that removes it.
 const SetupBadge = ({ p }) => {
@@ -374,8 +373,19 @@ function ProjectRow({ p, open, names, checked, onCheck }) {
   );
 }
 
+// Cards or table, remembered in this browser.
+const LAYOUT = 'bk-projects-layout';
+function useLayout() {
+  const [layout, set] = useState(() => { try { return localStorage.getItem(LAYOUT) === 'table' ? 'table' : 'cards'; } catch { return 'cards'; } });
+  return [layout, (v) => { set(v); try { localStorage.setItem(LAYOUT, v); } catch { /* lasts for this page */ } }];
+}
+
 export function Projects({ params, overview, refresh }) {
   const projects = useApi('/api/projects');
+  // Sessions, doctor counts and item states: a scan can take a while, so the cards show first and fill in.
+  const extra = useApi('/api/project-cards');
+  const cards = extra.data ? Object.fromEntries(extra.data.map((c) => [c.path, c])) : {};
+  const [layout, setLayout] = useLayout();
   const open = params.get('path');
   const [path, setPath] = useState('');
   const [found, setFound] = useState(null);
@@ -385,7 +395,7 @@ export function Projects({ params, overview, refresh }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null);
   const [setupPaths, setSetupPaths] = useState(null);
-  const [view, setView] = useState({ query: '', sort: 'added', filter: FILTER_OPTIONS.some((f) => f.value === params.get('show')) ? params.get('show') : 'all', pack: params.get('pack') ?? '', agent: params.get('agent') ?? '' });
+  const [view, setView] = useState({ query: '', sort: 'added', chips: chipsOf(params) });
   const [selected, setSelected] = useState([]);
   const [dialog, setDialog] = useState(null);
   const [notices, setNotices] = useState({});
@@ -393,7 +403,7 @@ export function Projects({ params, overview, refresh }) {
   const all = projects.data ?? [];
   const live = all.filter((p) => !p.missing);
   const fresh = live.filter((p) => !p.setupVersion && !p.error).map((p) => p.path);
-  const reload = () => { projects.reload(); refresh(); };
+  const reload = () => { projects.reload(); extra.reload(); refresh(); };
   const act = (name, f) => async () => { setError(null); setBusy(name); try { await f(); } catch (e) { setError(e.message); } setBusy(null); };
   // The OS dialog; when there is none or it is cancelled, the typed path stays.
   const choose = async () => {
@@ -433,7 +443,7 @@ export function Projects({ params, overview, refresh }) {
   const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
   const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
   const prs = prsOf(confirmPrs ?? []);
-  const rows = visibleProjects(all, view);
+  const rows = visibleProjects(all, view, cards);
   // Bulk actions act on the rows shown: a search or filter never leaves hidden projects selected.
   const chosen = rows.filter((p) => selected.includes(p.path));
   const setUp = (list) => list.filter((p) => !p.missing && p.setupVersion).map((p) => p.path);
@@ -467,29 +477,43 @@ export function Projects({ params, overview, refresh }) {
         </Section>
       )}
       <Loading state={projects} label="projects">{(list) => (list.length ? (
-        <SplitView empty="Choose a project for its plan, skills and doctor findings." list={
+        <SplitView span={layout === 'cards' && !open ? 8 : 5} empty="Choose a project for its plan, skills and doctor findings." list={
           <Stack gap="sm">
-            <ProjectFilters {...view} onQuery={(query) => setView({ ...view, query })} onSort={(sort) => setView({ ...view, sort })} onFilter={(filter) => setView({ ...view, filter })}
-              pack={view.pack} onPack={(pack) => setView({ ...view, pack })} packs={[...new Set(all.flatMap((p) => p.packs ?? []))]}
-              agent={view.agent} onAgent={(agent) => setView({ ...view, agent })} agents={Object.entries(names).map(([value, text]) => ({ value, label: text }))} />
+            <ProjectTotals list={rows} cards={cards} />
+            <ProjectFilters {...view} onQuery={(query) => setView({ ...view, query })} onSort={(sort) => setView({ ...view, sort })} onChips={(chips) => setView({ ...view, chips })}
+              packs={[...new Set(all.flatMap((p) => p.packs ?? []))]} agents={Object.entries(names).map(([value, text]) => ({ value, label: text }))} />
+            <Group justify="space-between">
+              <Checkbox label="Select all shown projects" checked={allShown} indeterminate={!allShown && shown.some((x) => selected.includes(x))} onChange={(e) => toggle(shown, e.currentTarget.checked)} disabled={!shown.length} />
+              <SegmentedControl size="xs" aria-label="Show projects as" data={[{ value: 'cards', label: 'Cards' }, { value: 'table', label: 'Table' }]} value={layout} onChange={setLayout} />
+            </Group>
+            {extra.error && <Note color="yellow" title="Sessions and doctor counts not read">{extra.error}</Note>}
             {!!chosen.length && <BulkBar rows={chosen} onClear={() => setSelected([])} onUpdate={() => startUpdate(setUp(chosen))} onSetup={() => setSetupPaths({ paths: chosen.filter((p) => !p.missing && !p.setupVersion).map((p) => p.path) })}
               onRemoveList={() => setDialog({ kind: 'list', paths: chosen.map((p) => p.path) })} onRemoveSetup={() => setDialog({ kind: 'setup', paths: setUp(chosen) })} />}
-            {rows.length ? (
+            {!rows.length ? <Text size="sm" role="status">No project matches the search and filters.</Text> : layout === 'cards' ? (
+              <SimpleGrid cols={{ base: 1, lg: open ? 1 : 2 }} spacing="md" role="list" aria-label="Projects">
+                {rows.map((p) => (
+                  <div role="listitem" key={p.path}>
+                    <ProjectCard p={p} card={extra.data ? cards[p.path] ?? null : extra.error ? null : undefined} names={names} checked={selected.includes(p.path)} onCheck={(on) => toggle([p.path], on)}
+                      onApply={() => (p.setupVersion ? go('projects', { path: p.path }) : setSetupPaths({ paths: [p.path] }))} onUpdate={() => startUpdate([p.path])} onRemoveSetup={() => setDialog({ kind: 'setup', paths: [p.path] })} />
+                  </div>
+                ))}
+              </SimpleGrid>
+            ) : (
               <Table.ScrollContainer minWidth={420}>
                 <Table aria-label="Projects" horizontalSpacing="xs">
                   <Table.Thead><Table.Tr>
-                    <Table.Th w={32}><Checkbox aria-label="Select all shown projects" checked={allShown} indeterminate={!allShown && shown.some((x) => selected.includes(x))} onChange={(e) => toggle(shown, e.currentTarget.checked)} /></Table.Th>
+                    <Table.Th w={32}><VisuallyHidden>Select</VisuallyHidden></Table.Th>
                     <Table.Th>Project</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Changes</Table.Th>
                   </Table.Tr></Table.Thead>
                   <Table.Tbody>{rows.map((p) => <ProjectRow key={p.path} p={p} open={open} names={names} checked={selected.includes(p.path)} onCheck={(on) => toggle([p.path], on)} />)}</Table.Tbody>
                 </Table>
               </Table.ScrollContainer>
-            ) : <Text size="sm" role="status">No project matches the search and filter.</Text>}
+            )}
           </Stack>
         } detail={open && list.some((p) => p.path === open) ? (
           <ProjectDetail key={open} project={list.find((p) => p.path === open)} others={list} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: withOpen('list'), removeSetup: withOpen('setup') }} />
         ) : null} />
-      ) : <Text>No projects. Add a folder set up with benchkeeper projects apply, or scan a parent folder.</Text>)}</Loading>
+      ) : <Text>No projects yet. Next step: add a project folder above, or scan a parent folder for projects.</Text>)}</Loading>
       <Section title="Update all">
         <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>

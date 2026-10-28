@@ -10,6 +10,7 @@ import { recordSession } from '../src/session.mjs';
 import { appVersion, contentDir, library } from '../src/content.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { harnessTest } from '../src/harness.mjs';
+import { SKILLS_SPEC } from '../src/steps/global.mjs';
 import { ENVS, STATE, projectCtx, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
@@ -33,6 +34,9 @@ const plan = (r, answers, plugins = { claude: [], codex: [] }) => projectPlan({ 
 test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, community skills, state file', () => {
   const r = repo();
   writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nmy notes\n');
+  // No registry answer: the skills CLI is the app's minimum, whatever the live registry has published.
+  const real = r.ctx.run;
+  r.ctx.run = (argv, o) => (argv[0] === 'npm' && argv[1] === 'view' ? { code: 1, stdout: '', stderr: 'offline' } : real(argv, o));
   const { changes, prompts } = plan(r, { agents: ['claude', 'codex'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true });
   const run = apply(preview(changes), r.ctx, { scope: r.dir, select: changes.filter((c) => c.kind !== 'command').map((c) => c.id) });
   assert.equal(run.status, 'done');
@@ -43,7 +47,7 @@ test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, community ski
   for (const d of ['.claude/skills', '.agents/skills']) assert.ok(existsSync(join(r.dir, d, 'designing-technical-uis/SKILL.md')), d);
   const cmd = changes.find((c) => c.title.startsWith('skill frontend-design'));
   // An alias spec: npx never takes a skills package from the project's node_modules.
-  assert.deepEqual(cmd.argv.slice(0, 3), ['npx', '-y', 'skills@npm:skills@1.7.2']);
+  assert.deepEqual(cmd.argv.slice(0, 3), ['npx', '-y', SKILLS_SPEC]);
   assert.deepEqual(cmd.argv.slice(3, 9), ['add', 'https://github.com/anthropics/skills', '-s', 'frontend-design', '-a', 'claude-code']);
   assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.env.npm_config_registry === 'https://registry.npmjs.org/' && Math.abs(Date.parse(cmd.env.npm_config_before) - (Date.now() - 7 * 864e5)) < 60e3 && cmd.snapshot.includes(join(r.dir, 'skills-lock.json')));
   const state = readState(r.dir);

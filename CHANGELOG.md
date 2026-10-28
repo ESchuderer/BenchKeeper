@@ -2,6 +2,37 @@
 
 Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>.<patch>` and a GitHub Release, created by the release pull request that release-please keeps open from the Conventional Commit titles on `main`; the pull request is merged once a week (Monday). Benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions. Patch: fixes. Entries with a two-part version (up to 6.24) are the earlier hand-written ones, tagged `setup-v<major>.<minor>`; release-please writes the entries above them.
 
+## [6.26.0](https://github.com/ESchuderer/BenchKeeper/compare/setup-v6.25.0...setup-v6.26.0) (2026-10-28)
+
+
+### Features
+
+* **app:** agent registry fields and a support matrix derived from them ([#512](https://github.com/ESchuderer/BenchKeeper/issues/512)) ([cd917ba](https://github.com/ESchuderer/BenchKeeper/commit/cd917baec83c2bafc11d3e887b9dc9a81a1df112))
+* **app:** automation template format, loader and lint ([#500](https://github.com/ESchuderer/BenchKeeper/issues/500)) ([c0d5390](https://github.com/ESchuderer/BenchKeeper/commit/c0d539043964d5ba4b40c2608f4ff96f95ce5653))
+* **app:** confine the skill install preview in an OS sandbox ([#492](https://github.com/ESchuderer/BenchKeeper/issues/492)) ([2127724](https://github.com/ESchuderer/BenchKeeper/commit/2127724571fba6f69dda4449ffcf6bd2589ada7d))
+* **app:** content contract and state version 2 ([#506](https://github.com/ESchuderer/BenchKeeper/issues/506)) ([9e08505](https://github.com/ESchuderer/BenchKeeper/commit/9e08505364bd14b25ceb406982823ee61ee44409))
+* **app:** deny rules and a guard hook written by project setup ([#508](https://github.com/ESchuderer/BenchKeeper/issues/508)) ([88207c6](https://github.com/ESchuderer/BenchKeeper/commit/88207c60e89cc2ddc7ed137efc3cc4f5379c8614))
+* **app:** friction signal in insights ([#497](https://github.com/ESchuderer/BenchKeeper/issues/497)) ([d8c26ff](https://github.com/ESchuderer/BenchKeeper/commit/d8c26ffda715fb032f8d536b179ba6b8c285868a))
+* **app:** insights adviser narrative over the findings ([#514](https://github.com/ESchuderer/BenchKeeper/issues/514)) ([c24f92f](https://github.com/ESchuderer/BenchKeeper/commit/c24f92fa33e7bba001349e54c63810cd219c6352))
+* **app:** insights view with apply, dismiss and snooze ([#503](https://github.com/ESchuderer/BenchKeeper/issues/503)) ([cc2b63b](https://github.com/ESchuderer/BenchKeeper/commit/cc2b63b5b3c67533d1b0ffccb0eb214ec986dc26))
+* **app:** own Mantine theme from the board's design tokens ([#494](https://github.com/ESchuderer/BenchKeeper/issues/494)) ([f277d68](https://github.com/ESchuderer/BenchKeeper/commit/f277d68de7127bfcc9613dbd532b771e01f0e722))
+* **app:** presets, pins and the orchestrator policy as validated JSON ([#513](https://github.com/ESchuderer/BenchKeeper/issues/513)) ([94b8d62](https://github.com/ESchuderer/BenchKeeper/commit/94b8d62c89bd10a924f06542c1cb887b6f265756))
+* **app:** projects audit for CI and test bloat ([#499](https://github.com/ESchuderer/BenchKeeper/issues/499)) ([c2fada8](https://github.com/ESchuderer/BenchKeeper/commit/c2fada84ee10447e0a5134283ac4b533e01502cb))
+* **app:** rename the commands to the noun-first scheme ([#502](https://github.com/ESchuderer/BenchKeeper/issues/502)) ([a32f37c](https://github.com/ESchuderer/BenchKeeper/commit/a32f37c27016e35b1e64860d3ba90808b3529cf0))
+* **app:** sandbox hardening settings in the catalog and a doctor check ([#496](https://github.com/ESchuderer/BenchKeeper/issues/496)) ([9897715](https://github.com/ESchuderer/BenchKeeper/commit/9897715fb2e7de88fe934d8599576ab8589bb50f))
+* **app:** settings catalog coverage and Claude Code state read correctly ([#509](https://github.com/ESchuderer/BenchKeeper/issues/509)) ([41e5ec1](https://github.com/ESchuderer/BenchKeeper/commit/41e5ec171df06befaa1bfc6b58e6e1d77ea9e354))
+* **app:** stop updating an installed BenchKeeper plugin, document what stays pinned ([#507](https://github.com/ESchuderer/BenchKeeper/issues/507)) ([da1f4a1](https://github.com/ESchuderer/BenchKeeper/commit/da1f4a18db67f7d0b6ca543f35cf779e7055a531))
+* **app:** update the BenchKeeper plugin per account folder, doctor names the account behind ([#515](https://github.com/ESchuderer/BenchKeeper/issues/515)) ([91d3b8e](https://github.com/ESchuderer/BenchKeeper/commit/91d3b8ee7a9f3cec3a427b3b37168884d9c5371d))
+* **plugin:** skill for operating BenchKeeper through the CLI ([#495](https://github.com/ESchuderer/BenchKeeper/issues/495)) ([2710e51](https://github.com/ESchuderer/BenchKeeper/commit/2710e5162f907ccf403a72081c9675da14012385))
+* **plugin:** status band content, two-band doctor check and Ponytail ledger on the board ([#505](https://github.com/ESchuderer/BenchKeeper/issues/505)) ([197ca23](https://github.com/ESchuderer/BenchKeeper/commit/197ca235400f829a301c9f925cc6286edb40da61))
+* **plugin:** validate the plugin in CI and correct plugin text ([#510](https://github.com/ESchuderer/BenchKeeper/issues/510)) ([f5a4504](https://github.com/ESchuderer/BenchKeeper/commit/f5a4504a4a1621949b14310b841d2b37b228b3e5))
+* **plugin:** workflow checklists, change types, review rounds and rule lines ([#511](https://github.com/ESchuderer/BenchKeeper/issues/511)) ([bd961b2](https://github.com/ESchuderer/BenchKeeper/commit/bd961b23046b16f400dd191ba03de1c2281ca7e4))
+
+
+### Bug Fixes
+
+* **app:** pin the repository hooks for every git call in the Update all worktree ([#498](https://github.com/ESchuderer/BenchKeeper/issues/498)) ([644f594](https://github.com/ESchuderer/BenchKeeper/commit/644f594b90d5a0aaf5c71526deb77be52c0b976d))
+
 ## 6.25 (2026-10-28)
 
 - App, Sessions board redesigned (#406): a project rail first (newest activity, session count, sparkline, last tier; a chip row on a phone), tiles for sessions, agent time, cost, tokens, tests-pass rate and merged pull requests with a sparkline and the change against the previous period of the same length, the per-day chart stacked by project with a metric switch (cost, agent time, tokens, sessions) and legend chips that hide a series, comparison bars by tier, pattern and setup with the sample size on every bar (under 20 sessions: hatched, marked, left out of the highest and lowest line), cost per merged pull request and model mix by week, histograms of agent time and turns, a 12-week activity calendar with active days and longest streak, and branches and pull request states of the chosen project. Own design tokens (radius, shadow, glow, a six-color series palette checked at 3:1 in light and dark, monospace tabular figures, reduced motion). Same rows as before: no new field, no message text, no network request.

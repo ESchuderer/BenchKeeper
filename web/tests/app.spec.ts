@@ -10,7 +10,7 @@ for (const scheme of ['light', 'dark']) {
     await page.goto('./app/');
     await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
     const shots = page.locator(`img.shot-${scheme}`);
-    expect(await shots.count()).toBe(7);
+    expect(await shots.count()).toBe(12);
     for (const img of await shots.all()) {
       await img.scrollIntoViewIfNeeded();
       await expect(img).toBeVisible();

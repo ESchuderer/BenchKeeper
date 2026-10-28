@@ -9,7 +9,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { exists, isDir, readText, real, realish } from './fsx.mjs';
 import { git } from './git.mjs';
-import { display, frontMatter, markdownIn, pluginSkills, skillDescription, walkInstructions } from './instructions.mjs';
+import { display, frontMatter, markdownIn, pluginSkills, skillDescription, textOf, walkInstructions } from './instructions.mjs';
 import { allowed } from './runner.mjs';
 import { readSettings, settingsChanges } from './settings.mjs';
 import { projectCtx } from './steps/project.mjs';
@@ -27,6 +27,7 @@ const CODEX_BYTES = 32 * 1024;
 const TEXT_LIMIT = 200_000;
 const GLOB_CHARS = /[*?[\]{}!]/;
 const SWITCH = 'rule-switch';
+const EDIT = 'rule-edit';
 // autoMemoryDirectory is an absolute path or one that starts with this and a slash.
 const TILDE = '~';
 const MARKER = /benchkeeper:[\w.-]+ start/;
@@ -66,8 +67,8 @@ function excludesOf(ctx, dir) {
 const parkedPath = (ctx, file) => join(ctx.config, 'disabled-rules', relative(ctx.home, file));
 
 // Paths BenchKeeper wrote and has not undone, from the ledger.
-// The moves of a switch are not BenchKeeper writing the file: the file stays the user's.
-export const writtenPaths = (ctx) => new Set(ctx.ledger.list().flatMap((r) => r.entries.filter((e) => e.path && e.status === 'done' && !e.undone && !e.step.startsWith(SWITCH)).map((e) => e.path)));
+// The moves of a switch and the user's own edits are not BenchKeeper writing the file: the file stays the user's.
+export const writtenPaths = (ctx) => new Set(ctx.ledger.list().flatMap((r) => r.entries.filter((e) => e.path && e.status === 'done' && !e.undone && ![SWITCH, EDIT].some((s) => e.step.startsWith(s))).map((e) => e.path)));
 
 // The files an agent reads as instructions, in the order it loads them, that exist; dir adds that project's.
 function candidates(ctx, id, dir) {
@@ -199,7 +200,7 @@ function budgetOf(ctx, id, rows, dir) {
 }
 
 function agentView(ctx, id, dir, written, excludes, budget = true) {
-  const found = candidates(ctx, id, dir).map((c) => ({ c, text: readText(c.path) ?? '' }));
+  const found = candidates(ctx, id, dir).map((c) => ({ c, text: textOf(ctx, c.path) ?? '' }));
   const empty = new Set(found.filter((f) => !f.text.trim()).map((f) => f.c.path));
   const rows = found.map(({ c, text }, i) => {
     const row = { agent: id, scope: c.scope, path: c.path, shown: display(ctx, dir, c.path), exists: true, bytes: sizeOf(text), lines: text ? text.replace(/\n$/, '').split('\n').length : 0, tokens: tokensOf(sizeOf(text)), order: i + 1 };
@@ -303,7 +304,7 @@ function findingsOf(ctx, views, dir, limit) {
     const seen = new Map();
     for (const f of loaded) {
       const where = (line) => ({ file: f.shown, line, scope: f.scope });
-      const text = readText(f.path);
+      const text = textOf(ctx, f.path);
       const off = f.row?.switch.by ? { action: { agent: a.id, file: f.path } } : {};
       // A BenchKeeper file that is gone, empty or a dangling link is the global setup's finding: apply restores it.
       if (f.owner === 'BenchKeeper' && !text?.trim()) continue;
@@ -428,6 +429,35 @@ export function ruleChanges(ctx, { agent: id, file, dir, on }) {
     { id: `${step}:copy`, step, title: `${title(row, on, dir)}: copy to ${on ? row.shown : 'the disabled folder'}`, kind: 'write', path: to, from, unit },
     { id: `${step}:remove`, step, title: `${title(row, on, dir)}: remove ${on ? 'the disabled copy' : row.shown} (copied)`, kind: 'remove', path: from, selected: true, unit },
   ];
+}
+
+// A listed file of the user's that the view may edit; text is the new text. A file of BenchKeeper's is kept current by
+// apply, a parked file is off, a global file belongs to the global view, and a file longer than the view shows would lose
+// its end.
+function editable(ctx, { agent: id, file, dir, text }) {
+  if (typeof text !== 'string') throw new Error('text must be a string');
+  const row = find(ctx, { agent: id, file, dir });
+  if (row.owner === 'BenchKeeper') throw new Error(`${row.shown}: BenchKeeper wrote it, apply keeps it current`);
+  if (row.exists === false) throw new Error(`${row.shown} is off: turn it on to edit it`);
+  if (dir && row.scope === 'global') throw new Error(`${row.shown} is a global file: edit it in the global view`);
+  if ((readText(row.path) ?? '').length > TEXT_LIMIT) throw new Error(`${row.shown} is longer than the ${TEXT_LIMIT} characters the view shows: edit it in an editor`);
+  return row;
+}
+
+// The size and the findings of a file with text in place of what is on disk, for the editor while it types: nothing is written.
+export function ruleDraft(ctx, { agents = RULE_AGENTS, ...opts }) {
+  const row = editable(ctx, opts);
+  const view = rulesView({ ...ctx, draft: { path: row.path, text: opts.text } }, { agents, dir: opts.dir });
+  const { tokens, lines } = view.agents.find((a) => a.id === row.agent).rows.find((r) => r.path === row.path);
+  return { tokens, lines, findings: view.findings.filter((f) => f.file === row.shown) };
+}
+
+// The change that writes text into a file of the user's: the plan shows the diff, the run keeps the old text as its
+// backup, History undoes it. The text is in the change only, never in its title or the run record.
+export function ruleEdit(ctx, opts) {
+  const row = editable(ctx, opts);
+  const step = `${EDIT}:${row.agent}`;
+  return [{ id: step, step, title: `edit ${row.shown} for ${agent(row.agent).name}`, kind: 'write', path: row.path, after: opts.text }];
 }
 
 // Paths and states of the rule files, for the profile: no text, no sizes.

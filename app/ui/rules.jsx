@@ -1,6 +1,6 @@
-import { Badge, Button, Code, Drawer, Group, Progress, Select, Stack, Switch, Table, Text, Title } from '@mantine/core';
-import { IconEye, IconPlayerStop } from '@tabler/icons-react';
-import { useRef, useState } from 'react';
+import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Switch, Table, Text, Textarea, Title } from '@mantine/core';
+import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, Section } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
@@ -62,18 +62,65 @@ const Loads = ({ row }) => {
   return <Badge variant="default" miw="max-content" leftSection={<Dot color={color} />}>{text}</Badge>;
 };
 
-// The text of one listed file, on this machine only.
-function Preview({ agent, file, dir, onClose }) {
-  const state = useApi(file ? `/api/rule-text?${new URLSearchParams({ agent, file, ...(dir ? { dir } : {}) })}` : null);
+// The text of a file being edited: size and findings from the server 300 ms after the last keystroke (an answer for an
+// older text is dropped), Save as a plan with the diff.
+function RuleEditor({ row, dir, start, onDone, onClose }) {
+  const [text, setText] = useState(start);
+  const [check, setCheck] = useState({ tokens: row.tokens, lines: row.lines, findings: null });
+  const [plan, setPlan] = useState(null);
+  const [failed, setFailed] = useState(null);
+  const body = { agent: row.agent, file: row.path, ...(dir ? { dir } : {}) };
+  const latest = useRef(text);
+  useEffect(() => {
+    latest.current = text;
+    const timer = setTimeout(() => {
+      api('/api/rule-check', { ...body, text }).then((r) => { if (latest.current === text) setCheck(r); }, (e) => setFailed(e.message));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [text]);
+  const save = async () => {
+    setFailed(null);
+    try { setPlan(await api('/api/rule-edit-plan', { ...body, text })); } catch (e) { setFailed(e.message); }
+  };
   return (
-    <Drawer opened={!!file} onClose={onClose} position="right" size="lg" withCloseButton={false} attributes={{ content: { 'aria-label': 'Rule file text' } }}>
+    <Stack gap="sm">
+      <Textarea label={`Text of ${row.shown}`} value={text} onChange={(e) => { setText(e.currentTarget.value); setPlan(null); }} autosize minRows={10} maxRows={30} spellCheck={false} styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }} />
+      <Text size="sm" aria-live="polite">About {number(check.tokens)} tokens, {number(check.lines)} lines</Text>
+      {check.findings && (check.findings.length
+        ? <List size="sm" aria-label={`Findings in ${row.shown}`}>{check.findings.map((f) => <List.Item key={f.message}>{f.level}: {f.message}. Fix: {f.fix}.</List.Item>)}</List>
+        : <Text size="sm">The checks find nothing in this file.</Text>)}
+      {failed && <Note color="red" title="Not planned">{failed}</Note>}
+      {plan
+        ? <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={onDone} /><Group><Button variant="default" onClick={onClose}>Close editor</Button></Group></Section>
+        : <Group><Button onClick={save} disabled={text === start}>Save</Button><Button variant="default" onClick={onClose}>Discard</Button></Group>}
+    </Stack>
+  );
+}
+
+// A row the editor may write: the user's own or the project's file, listed in the view it belongs to.
+const editable = (row, dir) => row.owner !== 'BenchKeeper' && row.exists !== false && !(dir && row.scope === 'global');
+
+// The text of one listed file, on this machine only; Edit turns it into the editor.
+function Preview({ row, dir, onClose, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const state = useApi(row ? `/api/rule-text?${new URLSearchParams({ agent: row.agent, file: row.path, ...(dir ? { dir } : {}) })}` : null);
+  const close = () => { setEditing(false); onClose(); };
+  return (
+    <Drawer opened={!!row} onClose={close} closeOnEscape={!editing} closeOnClickOutside={!editing} position="right" size="lg" withCloseButton={false} attributes={{ content: { 'aria-label': 'Rule file text' } }}>
       <Stack gap="md">
-        <Group justify="space-between" wrap="nowrap"><Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{file}</Title><Button variant="default" onClick={onClose}>Close</Button></Group>
+        <Group justify="space-between" wrap="nowrap"><Title order={2} size="h3" style={{ overflowWrap: 'anywhere' }}>{row?.path}</Title><Button variant="default" onClick={close}>Close</Button></Group>
         <Loading state={state} label="the file">
           {(d) => (
             <>
               <Text size="sm">Shown here only: it is not written to History, logs or the exported profile.{d.truncated ? ' The first 200,000 characters.' : ''}</Text>
-              <Code block tabIndex={0} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{d.text}</Code>
+              {editing
+                ? <RuleEditor row={row} dir={dir} start={d.text} onDone={() => { state.reload(); onSaved(); }} onClose={() => setEditing(false)} />
+                : (
+                  <>
+                    {editable(row, dir) && !d.truncated && <Group><Button leftSection={icon(IconPencil)} onClick={() => setEditing(true)}>Edit</Button></Group>}
+                    <Code block tabIndex={0} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{d.text}</Code>
+                  </>
+                )}
             </>
           )}
         </Loading>
@@ -129,7 +176,7 @@ function Files({ agent, dir, limit, onPlan, onPreview }) {
                     {r.switch.by
                       ? <Switch aria-label={`Load ${r.shown} in ${agent.name}`} label={r.load === 'off' ? 'Turn on' : 'On'} checked={r.load !== 'off'} disabled={busy === r.path} onChange={(e) => toggle(agent.id, r, e.currentTarget.checked)} />
                       : <Text size="sm">No switch: {r.switch.why}.</Text>}
-                    <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r.path)}>Text</Button>
+                    <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button>
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -167,7 +214,7 @@ export function Rules({ overview, params, refresh }) {
                 <Title order={2} size="h3">{a.name}</Title>
                 <Section title={`${a.name} context budget`}><Budget budget={a.budget} /></Section>
                 <Section title={`${a.name} files${chosen ? ' for this project' : ''}`}>
-                  <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={(file) => setPreview({ agent: a.id, file })} />
+                  <Files agent={a} dir={chosen} limit={data.limit} onPlan={onPlan} onPreview={setPreview} />
                 </Section>
               </Stack>
             ))}
@@ -180,7 +227,7 @@ export function Rules({ overview, params, refresh }) {
           <Group><Button variant="default" onClick={() => setPending(null)}>Close</Button></Group>
         </Section>
       )}
-      <Preview agent={preview?.agent} file={preview?.file} dir={chosen} onClose={() => setPreview(null)} />
+      <Preview key={preview?.path} row={preview} dir={chosen} onClose={() => setPreview(null)} onSaved={() => { state.reload(); refresh(); }} />
       <Cli>{'benchkeeper rules list [--agent claude|codex] [--project <dir>]\nbenchkeeper rules check [--project <dir>] [--limit <tokens>]\nbenchkeeper rules disable <file> [--project <dir>]\nbenchkeeper rules enable <file> [--project <dir>]'}</Cli>
     </Stack>
   );

@@ -31,7 +31,7 @@ import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
-import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
+import { RULE_AGENTS, ruleChanges, ruleDraft, ruleEdit, ruleText, rulesView } from './rules.mjs';
 import { checkText, paramsChange, paramsView } from './params.mjs';
 import { dismissNote, readPreferences, setPreference } from './preferences.mjs';
 import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
@@ -633,6 +633,21 @@ export function api(ctx) {
       if (dir && !registered(dir)) throw bad('register the project first');
       const rctx = dir ? projectCtx(ctx, dir) : ctx;
       const changes = preview(input(() => ruleChanges(ctx, { agent: b.agent, file: b.file, dir, on: b.on })));
+      return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
+    },
+    // The size and findings of a rule file with the text being edited; nothing is written.
+    'POST /api/rule-check': (b) => {
+      const dir = b.dir ? resolve(String(b.dir)) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const agents = installed().filter((a) => RULE_AGENTS.includes(a));
+      return input(() => ruleDraft(ctx, { agents: agents.length ? agents : RULE_AGENTS, agent: b.agent, file: b.file, dir, text: b.text }));
+    },
+    // A plan that writes the edited text of one listed file of the user's; applied through /api/apply, undone in History.
+    'POST /api/rule-edit-plan': (b) => {
+      const dir = b.dir ? resolve(String(b.dir)) : undefined;
+      if (dir && !registered(dir)) throw bad('register the project first');
+      const rctx = dir ? projectCtx(ctx, dir) : ctx;
+      const changes = preview(input(() => ruleEdit(ctx, { agent: b.agent, file: b.file, dir, text: b.text })));
       return { planId: keep(changes, rctx, dir ?? 'global'), changes: serialize(changes, rctx) };
     },
     // Accounts: the registry as `accounts list` shows it, the status of one account (reads only), plans for add, use and

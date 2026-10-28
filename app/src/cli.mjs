@@ -131,7 +131,8 @@ Usage: benchkeeper <command> [options]
                                     --dry-run stops after the plan; pushes go to at most 25 repositories per run (--max N);
                                     --baseline also reports each project's GitHub settings drift, changing none
   board [--no-open]                 sessions board of the Claude Code and Codex transcripts on this machine:
-                                    tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
+                                    tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html);
+                                    Ponytail's ledger, when present, is read beside them (read only)
   record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
   accounts [list]                   the accounts per agent (Claude Code, Codex): name, agent, host or dev container, default
@@ -425,7 +426,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'insights') { out.write('insights works with --json\n'); return 2; }
   if (cmd === 'board') {
     out.write('Reading the transcripts; the first run reads all of them, later runs only new or changed ones.\n');
-    const rows = await scanSessions(ctx);
+    const rows = await scanSessions(ctx, { ledger: true, onNote: (n) => out.write(`${n}\n`) });
     const file = writeBoard(ctx, rows);
     out.write(`${rows.length} sessions: ${file}\n`);
     // A file URL carries no token: opened directly, as the CLI exits before a redirect file would be read.
@@ -704,8 +705,9 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   if (cmd === 'board') {
     const extra = surplus(1); if (extra !== undefined) return extra;
     // Nothing is written or opened; the title is left out because it quotes the first message of a session.
-    const sessions = (await scanSessions(ctx)).map(({ title, ...s }) => s);
-    return emit({ sessions });
+    const notes = [];
+    const sessions = (await scanSessions(ctx, { ledger: true, onNote: (n) => notes.push(n) })).map(({ title, ...s }) => s);
+    return emit({ sessions, ...(notes.length ? { notes } : {}) });
   }
   if (cmd === 'insights') {
     const extra = surplus(1); if (extra !== undefined) return extra;

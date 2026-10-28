@@ -408,9 +408,10 @@ export function api(ctx) {
       const running = [...jobs.values()].find((j) => j.kind === 'scan' && !j.done);
       if (running) return { job: running.id, total: 0 };
       return start(0, async (job) => {
-        const rows = await scanSessions(ctx, { onFile: (p) => { job.progress = p; } });
+        const notes = [];
+        const rows = await scanSessions(ctx, { onFile: (p) => { job.progress = p; }, ledger: true, onNote: (n) => notes.push(n) });
         keepScan(ctx, rows);
-        job.results = { sessions: rows.length };
+        job.results = { sessions: rows.length, ...(notes.length ? { notes } : {}) };
       }, { kind: 'scan', title: 'sessions', readOnly: true });
     },
     // The sessions cache keeps a summary after the agent deletes its transcript: how long, and a way to clear it. Refused
@@ -675,7 +676,7 @@ export function startServer(ctx, { port = 0, token = randomBytes(32).toString('b
       if (!issued || Date.now() - issued > FRESH_SCAN_MS) return send(403, { error: 'open the board from the app' });
       try {
         // The last scan, or one now; the page says when it was read.
-        if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx));
+        if (!scans.has(ctx)) keepScan(ctx, await scanSessions(ctx, { ledger: true }));
         const { rows, at } = scans.get(ctx);
         return send(200, boardHtml(rows, new Date(at).toISOString(), registeredPaths(ctx)), 'text/html; charset=utf-8', { 'content-security-policy': `${BOARD_CSP}; frame-ancestors 'self'` }); } catch (e) { return send(500, { error: e.message }); }
     }

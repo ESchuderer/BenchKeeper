@@ -15,6 +15,6 @@ Tier asked for: $ARGUMENTS (Codex: the word after the skill name).
 
 The override yields twice. A tier the user names for one task wins for that task. A risky change (as `workflow` defines it) still gets the full tier named and the user asked.
 
-The override is part of this conversation, so a compaction or a resumed session can drop it; the tier band (Claude Code plugin option `tierBand`) keeps it in the system prompt. After a compaction without the band, run the command again.
+The override is part of this conversation, so a compaction or a resumed session can drop it; the status band (Claude Code plugin option `tierBand`) keeps it in the system prompt. After a compaction without the band, run the command again.
 
 Answer with one line: the tier now in force for this session.

@@ -126,3 +126,56 @@ test('on: the board button opens the board the app wrote, or says how to get one
   expect(ran).toEqual([['uname'], ['xdg-open', '/home/u/.config/benchkeeper/board.html']])
   await ui.unmount()
 })
+
+test('on: the band names the project, branch, last test run and Ponytail level; no Ponytail file, no Ponytail text', ON, async ($, on) => {
+  engine(on)
+  let level = 'full\n'
+  let outcome: { isError?: true; text: string } = { text: '12 passing' }
+  on('session.cwd', () => ({ value: '/work/shop/' }))
+  on('env.get', (_, e) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'feat/cart\n', stderr: '' } }) as never)
+  on('fs.read', (_, e) => {
+    if (e.path !== '/home/u/.claude/.ponytail-active' || level === '') throw new Error('no such file')
+    return { value: level } as never
+  })
+  on('tool.call', () => ({ result: {}, ...outcome }) as never)
+  const test = (command: string) => $.tool.call({ tool: 'Bash', command } as never)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await step($)
+  expect(await ui.find({ type: 'Text', text: /^shop \(feat\/cart\)  tests: not run yet  Ponytail: full$/ })).toBeDefined()
+  await test('cd app && npm test')
+  expect(await ui.find({ type: 'Text', text: /tests: passed/ })).toBeDefined()
+  // A command that is no test run, and a failed command that is not a test failure, leave the result.
+  outcome = { isError: true, text: 'Exit code 1\nnot ok' }
+  await test('ls')
+  expect(await ui.find({ type: 'Text', text: /tests: passed/ })).toBeDefined()
+  await test('node --test')
+  expect(await ui.find({ type: 'Text', text: /tests: failed/ })).toBeDefined()
+  outcome = { isError: true, text: 'interrupted' }
+  await test('node --test')
+  expect(await ui.find({ type: 'Text', text: /tests: failed/ })).toBeDefined()
+  level = ''
+  await step($)
+  expect(await ui.find({ type: 'Text', text: /Ponytail/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('on: doctor asks the agent to run the doctor, ? explains the band and how to turn it off', ON, async ($, on) => {
+  engine(on)
+  const sent: string[] = []
+  const toasts: string[] = []
+  on('command.run', (_, e) => {
+    sent.push(`/${e.command} ${e.args}`)
+    return { text: '' }
+  })
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined } as never
+  })
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'doctor' })
+  expect(sent).toEqual(['/benchkeeper:operating-benchkeeper run benchkeeper doctor for this project and list the findings'])
+  await ui.press({ key: 'help' })
+  expect(toasts[0]).toMatch(/Nothing leaves this machine\. Turn off: set Tier band to false/)
+  await ui.unmount()
+})

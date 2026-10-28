@@ -45,7 +45,7 @@ function project(h, sub = '') {
   const ctx = context({ home: h, roots: [h, dir] });
   apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent', share: true } }).changes), ctx, { scope: dir });
   const state = JSON.parse(readFileSync(join(dir, STATE), 'utf8'));
-  writeFileSync(join(dir, STATE), JSON.stringify({ ...state, setupVersion: '5.0.0' }));
+  writeFileSync(join(dir, STATE), JSON.stringify({ ...state, appVersion: '5.0.0', contentVersion: '5.0.0' }));
   git(root, 'add', '-A');
   git(root, 'commit', '-qm', 'setup');
   const origin = home();

@@ -7,7 +7,7 @@ import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { projectChecks } from '../src/doctor.mjs';
-import { appVersion } from '../src/content.mjs';
+import { appVersion, contentVersion } from '../src/content.mjs';
 import { addProject, canon, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
@@ -27,7 +27,7 @@ function project(h) {
   const ctx = context({ home: h, roots: [h, dir] });
   apply(preview(projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host-agent', share: true } }).changes), ctx, { scope: dir });
   const state = JSON.parse(readFileSync(join(dir, STATE), 'utf8'));
-  writeFileSync(join(dir, STATE), JSON.stringify({ ...state, setupVersion: '5.0.0' }));
+  writeFileSync(join(dir, STATE), JSON.stringify({ ...state, appVersion: '5.0.0', contentVersion: '5.0.0' }));
   git('add', '-A');
   git('commit', '-qm', 'init');
   const origin = mkdtempSync(join(TMP, 'bk-origin-'));
@@ -135,13 +135,13 @@ test('Update all commits the new setup on a branch in a worktree and leaves the 
   assert.equal(r.status, 'committed', r.reason);
   assert.equal(p.git('branch', '--show-current').trim(), 'main');
   assert.match(readFileSync(join(p.dir, STATE), 'utf8'), /"5\.0\.0"/);
-  assert.equal(JSON.parse(p.git('show', `${r.branch}:${STATE}`)).setupVersion, appVersion);
+  assert.equal(JSON.parse(p.git('show', `${r.branch}:${STATE}`)).contentVersion, appVersion);
   assert.equal(p.git('log', '--format=%s', '-1', r.branch).trim(), `chore: agent setup ${appVersion}`);
   assert.equal(p.git('worktree', 'list').trim().split('\n').length, 1);
   assert.equal(existsSync(join(h, '.cache/benchkeeper/worktrees')) && p.git('worktree', 'list').includes('.cache'), false);
   // Its report diffs from the commit: the worktree is gone.
   const report = api(ctx)['GET /api/run'](new URLSearchParams({ id: r.run }));
-  assert.match(report.entries.find((e) => e.path?.endsWith(STATE)).diff, new RegExp(`\\+  "setupVersion": "${appVersion}"`));
+  assert.match(report.entries.find((e) => e.path?.endsWith(STATE)).diff, new RegExp(`\\+  "contentVersion": "${appVersion}"`));
   // A second run finds the branch current; a branch with commits of its own stops that project.
   assert.equal(updateAll(ctx)[0].status, 'current');
   p.git('checkout', '-q', r.branch);
@@ -328,7 +328,7 @@ test('status and Update all read the state file on the fetched default branch wh
   const other = mkdtempSync(join(TMP, 'bk-clone-'));
   execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
-  writeFileSync(join(other, STATE), JSON.stringify({ ...state, setupVersion: appVersion }));
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion: appVersion, contentVersion: appVersion }));
   execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
   execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
   const s = status(ctx, p.dir);
@@ -340,7 +340,7 @@ test('status and Update all read the state file on the fetched default branch wh
   assert.equal(updateAll(ctx, { paths: [p.dir], push: false })[0].status, 'committed');
   // A checkout ahead of origin keeps its own setup and its pending changes.
   const ahead = project(h);
-  writeFileSync(join(ahead.dir, STATE), JSON.stringify({ ...state, setupVersion: '5.9.0' }));
+  writeFileSync(join(ahead.dir, STATE), JSON.stringify({ ...state, appVersion: '5.9.0', contentVersion: '5.9.0' }));
   const a = status(ctx, ahead.dir);
   assert.deepEqual([a.setupVersion, a.checkout, a.origin], ['5.9.0', '5.9.0', 'origin/main']);
   assert.ok(a.changes.length);
@@ -354,6 +354,23 @@ test('status and Update all read the state file on the fetched default branch wh
   assert.deepEqual([status(ctx, offline.dir).origin, status(ctx, offline.dir).checkout], [null, '5.0.0']);
 });
 
+test('status takes origin\'s state when only its app version is newer (same content version)', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const state = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
+  writeFileSync(join(p.dir, STATE), JSON.stringify({ ...state, appVersion: '5.0.0', contentVersion }));
+  p.git('commit', '-qam', 'content current');
+  p.git('push', '-q', 'origin', 'main');
+  const other = mkdtempSync(join(TMP, 'bk-clone-'));
+  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion, contentVersion }));
+  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'app-only setup']);
+  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  const s = status(ctx, p.dir);
+  assert.deepEqual([s.current, s.origin, s.changes], [true, 'origin/main', null]);
+});
+
 test('prefetchOrigins reads origin without blocking and fills the cache status uses; a failed fetch counts as no origin', async () => {
   const h = home();
   const ctx = context({ home: h });
@@ -361,7 +378,7 @@ test('prefetchOrigins reads origin without blocking and fills the cache status u
   const other = mkdtempSync(join(TMP, 'bk-clone-'));
   execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
   const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
-  writeFileSync(join(other, STATE), JSON.stringify({ ...state, setupVersion: appVersion }));
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion: appVersion, contentVersion: appVersion }));
   execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
   execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
   const offline = project(h);
@@ -376,6 +393,37 @@ test('prefetchOrigins reads origin without blocking and fills the cache status u
   p.git('remote', 'set-url', 'origin', join(h, 'gone.git'));
   assert.deepEqual([status(ctx, p.dir).setupVersion, status(ctx, p.dir).origin], [appVersion, 'origin/main']);
   assert.deepEqual([status(ctx, offline.dir).origin, status(ctx, offline.dir).checkout], [null, '5.0.0']);
+});
+
+test('status: a version 1 state kept in the registry is read as version 2 and beats an older setup on origin', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  // Origin has the 5.0.0 setup; the checkout lost its state file and the registry kept a newer one, written by an earlier app.
+  const { appVersion: _a, contentVersion: _c, schemaVersion: _s, ...v1 } = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
+  p.git('rm', '-q', STATE);
+  p.git('commit', '-qm', 'drop state');
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ schemaVersion: 1, projects: [{ path: canon(p.dir), added: '2026-01-01T00:00:00.000Z', state: { ...v1, setupVersion: '5.9.0' } }] }));
+  const s = status(ctx, p.dir);
+  assert.deepEqual([s.setupVersion, s.checkout, s.origin], ['5.9.0', '5.9.0', 'origin/main']);
+});
+
+test('a state kept in the registry above schema 2 stops the project in Update all and shows in status; it does not fall back to origin', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const other = project(h);
+  p.git('rm', '-q', STATE);
+  p.git('commit', '-qm', 'drop state');
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ schemaVersion: 1, projects: [{ path: canon(p.dir), added: '2026-01-01T00:00:00.000Z', state: { schemaVersion: 3, appVersion: '9.0.0', contentVersion: '9.0.0', agents: ['claude'] } }, { path: canon(other.dir), added: '2026-01-01T00:00:00.000Z' }] }));
+  assert.match(status(ctx, p.dir).error, /schemaVersion 3, this benchkeeper reads up to 2/);
+  const [bad, good] = updateAll(ctx, { paths: [p.dir, other.dir], push: false });
+  assert.equal(bad.status, 'stopped');
+  assert.match(bad.reason, /schemaVersion 3/);
+  assert.notEqual(good.status, 'stopped', good.reason);
+  assert.ok(!existsSync(join(p.dir, STATE)));
 });
 
 test('projects unshare: a pull request without the committed setup; the checkout stays as it is until the pull, then Update all writes the local setup from the kept answers', async () => {

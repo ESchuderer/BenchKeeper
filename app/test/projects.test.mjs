@@ -512,3 +512,32 @@ test('unshare keeps the answers first; after a failed push, the next run pushes 
   assert.equal(second.pr, 'https://github.com/o/r/pull/2');
   assert.deepEqual(calls, ['gh']);
 });
+
+test('projects update --json: --dry-run lists the pending changes per project, --yes prints the result document, without it exit 2', async () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const quiet = new Writable({ write(_c, _e, done) { done(); } });
+  const json = async (args) => {
+    let text = '';
+    const code = await main([...args, '--json'], { out: new Writable({ write(c, _, done) { text += c; done(); } }), err: quiet, ctx, input: Readable.from(['']) });
+    return { code, doc: JSON.parse(text) };
+  };
+  assert.equal(await main(['projects', 'add', p.dir], { out: quiet, ctx }), 0);
+  const dry = await json(['projects', 'update', '--dry-run']);
+  assert.deepEqual([dry.code, dry.doc.command, Object.keys(dry.doc).slice(2)], [0, 'projects update', ['runs', 'projects']]);
+  const [row] = dry.doc.projects;
+  assert.deepEqual([row.path, row.setupVersion, row.ready], [p.dir, '5.0.0', true]);
+  assert.match(row.reason, /\d+ changes/);
+  assert.ok(row.changes.length > 0 && row.changes.every((c) => c.title && !('diff' in c)));
+  const asked = await json(['projects', 'update', '--no-push']);
+  assert.deepEqual([asked.code, Object.keys(asked.doc).slice(2)], [2, ['error']]);
+  assert.match(asked.doc.error, /add --yes/);
+  assert.equal(p.git('branch', '--list', 'chore/*').trim(), '', 'the dry run and the refusal change nothing');
+  const done = await json(['projects', 'update', '--yes', '--no-push']);
+  assert.deepEqual([done.code, Object.keys(done.doc).slice(2)], [0, ['runs', 'projects']]);
+  const [result] = done.doc.projects;
+  assert.deepEqual([result.path, result.status], [p.dir, 'committed']);
+  assert.deepEqual(done.doc.runs.map((r) => r.id), [result.run]);
+  assert.ok(done.doc.runs[0].entries.every((e) => e.title && e.status && !('diff' in e)));
+});

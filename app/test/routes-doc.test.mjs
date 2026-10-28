@@ -35,3 +35,23 @@ test('each row names commands of the CLI or one reason', () => {
     else for (const c of items) assert.ok(known(c), `${route}: "${c}" is not a command in help`);
   }
 });
+
+// Each usage line of help as commands: `projects plan|apply` and `skills [list|update]` give one per subcommand.
+function subcommands(rest) {
+  let depth = 0, end = 0;
+  // The bracket group that opens the line, nested brackets included.
+  if (rest.startsWith('[')) do depth += { '[': 1, ']': -1 }[rest[end++]] ?? 0; while (depth && end < rest.length);
+  const group = end ? rest.slice(1, end - 1) : '';
+  return group.includes('|') || group === 'list' ? group.split('|').map((s) => s.trim().split(' ')[0]) : rest.split(' ')[0].split('|');
+}
+const commands = [...HELP.matchAll(/^ {2}([a-z][a-z-]*)(?: (.*?))?(?: {2,}|$)/gm)].flatMap(([, word, rest = '']) => {
+  const names = subcommands(rest).filter((s) => /^[a-z]+$/.test(s));
+  return names.length ? names.map((n) => `${word} ${n}`) : [word];
+});
+
+test('the --json table lists every command of help', () => {
+  assert.ok(commands.length > 50, `found ${commands.length} commands: the pattern no longer matches help`);
+  const table = read('../README.md').split(/^\| Command \| --json \|$/m)[1]?.split(/\n\n/)[0] ?? '';
+  const listed = [...table.matchAll(/^\| ([^|]+) \|/gm)].flatMap((m) => [...m[1].matchAll(/`([^`]+)`/g)].map((c) => c[1]));
+  assert.deepEqual(commands.filter((c) => !listed.includes(c)), [], 'commands missing from the --json table in app/README.md');
+});

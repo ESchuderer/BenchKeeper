@@ -406,6 +406,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const hook = at(GUARD_PATH), guarded = a.guards && a.agents.includes('claude');
   if (guarded) {
     add('guards', 'Claude Code deny rules (--no-verify, force push, sudo, terraform apply, kubectl apply, helm upgrade) and the guard hook', { kind: 'write', path: at(settings), edit: guardsOn });
+    // Sharing moved the setup to the other settings file: the rules this setup wrote there come out.
+    const was = a.share ? LOCAL_SETTINGS : '.claude/settings.json';
+    if (prev?.guards === true && Boolean(prev.share) !== a.share && editsJson(guardsOff, readText(at(was)))) add('guards', `Claude Code deny rules and guard hook removed from ${was} (setup moved to ${settings})`, { kind: 'write', path: at(was), edit: guardsOff });
     const have = readText(hook), ours = guardScript();
     add('guards', `${GUARD_PATH}: the PreToolUse hook script${have != null && have !== ours ? ' (replaces your own file)' : ''}`, { kind: 'write', path: hook, after: ours, selected: have == null || have === ours });
   } else {

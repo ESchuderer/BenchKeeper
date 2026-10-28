@@ -41,11 +41,11 @@ const ODD = ['git -C sub push -f', 'git -c push.default=current push --force', '
   'nice -n 5 sudo ls', 'cd x && git push origin main -f', 'git status; kubectl -n prod apply -f x', 'terraform -chdir=infra apply', 'helm --kube-context prod upgrade app .',
   'if true; then git push -f; fi', 'cat <<EOF | bash\ngit push --force\nEOF', 'bash <<EOF\nsudo ls\nEOF', 'xargs git push -f', 'FOO=1 sudo -u root ls', 'git\\\n push -f', 'git commit -m x -- a && git commit -n',
   'cat <<< "x"\ngit push -f', 'env -u VAR git push -f', 'timeout -s KILL 10 git push -f', 'xargs -I X git push -f', 'env -C dir git push -f',
-  'git commit -S -n', 'git -C x commit -S --no-verify', 'git commit -u -n', 'git push -- origin +main'];
+  "bash <<< 'git push -f'", 'sh <<< "sudo ls"', 'git commit -S -n', 'git -C x commit -S --no-verify', 'git commit -u -n', 'git push -- origin +main'];
 const FINE = ['git commit -m "fix: no-verify docs"', 'git commit -m "x -n y"', "git commit -m '--no-verify'", 'git commit -am msg', 'git commit -m n', 'git push origin main', 'git push -u origin feature', 'git push --set-upstream origin x',
   'git log --grep sudo', 'echo sudo', 'grep -r "git push -f" .', 'terraform plan', 'terraform show apply.tfplan', 'kubectl get pods', 'helm list', 'git status', 'npm test && git diff -n',
   'git commit -F msg.txt', 'git push -o ci.skip origin main', 'cat <<EOF\ngit push -f\nEOF', 'git commit -m "$(cat <<\'EOF\'\nfix: it\'s fine, no --no-verify here\nEOF\n)"', 'git commit -m "it\'s" -- file', '', '# git push -f', 'cat <<< "x"\ngit status', 'env -u VAR git status', 'timeout -s KILL 10 git push origin main',
-  'git commit -S -m x', 'git commit -Skey -m x', 'git commit -u -m x', 'git push -- origin main'];
+  'cat <<< "git push -f"', 'git commit -S -m x', 'git commit -Skey -m x', 'git commit -u -m x', 'git push -- origin main'];
 
 test('each denied command form is denied by a rule or by the hook; nothing else is', () => {
   for (const c of USUAL) assert.ok(ruled(c) && denyReason(c), c);
@@ -103,6 +103,19 @@ test('shared setup: rules and the hook go to the committed settings file; a seco
   assert.ok(!existsSync(join(r.dir, '.claude/settings.local.json')));
   assert.ok(existsSync(join(r.dir, GUARD_PATH)));
   assert.ok(preview(plan(r, { share: true }).changes).filter((c) => c.step === 'guards').every((c) => c.noop));
+});
+
+test('moving the setup between local and shared takes the rules out of the settings file it left, and your own entries stay', () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.claude'));
+  writeFileSync(join(r.dir, '.claude/settings.local.json'), '{ "permissions": { "deny": ["Read(./.env)"] } }\n');
+  run(r, {});
+  assert.equal(run(r, { share: true }).status, 'done');
+  assert.deepEqual(JSON.parse(read(join(r.dir, '.claude/settings.local.json'))), { permissions: { deny: ['Read(./.env)'] } });
+  assert.deepEqual(JSON.parse(read(join(r.dir, '.claude/settings.json'))).permissions.deny, DENY);
+  assert.equal(run(r, { guards: false }).status, 'done');
+  assert.ok(!existsSync(join(r.dir, '.claude/settings.json')) || !read(join(r.dir, '.claude/settings.json')).includes('sudo'));
+  assert.ok(!read(join(r.dir, '.claude/settings.local.json')).includes('sudo'));
 });
 
 test('guards off: only what the run added comes out, the hook file too; the state file records it', () => {

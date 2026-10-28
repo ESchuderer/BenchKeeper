@@ -87,7 +87,7 @@ Usage: benchkeeper <command> [options]
   history                           runs, newest first
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
-  projects plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--no-guards] [--pack p] [--skill s] [--tier t] [--yes]
+  projects plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--pack p] [--skill s] [--tier t] [--yes]
                     [--framework f|none] [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup; answers default to the project's .benchkeeper/state.json;

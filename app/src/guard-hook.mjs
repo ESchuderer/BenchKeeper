@@ -17,9 +17,9 @@ const base = (w) => w.split('/').pop();
 // Splits a command text into simple commands: { words, bodies } with quotes removed and the heredoc bodies that follow.
 function split(text) {
   const segs = [];
-  let words = [], word = null, quote = null;
-  const flush = () => { if (word !== null) words.push(word); word = null; };
-  const end = () => { flush(); if (words.length) segs.push({ words, bodies: [] }); words = []; };
+  let words = [], word = null, quote = null, here = false, hereWords = [];
+  const flush = () => { if (word !== null) { (here ? hereWords : words).push(word); here = false; } word = null; };
+  const end = () => { flush(); if (words.length) segs.push({ words, bodies: hereWords }); words = []; hereWords = []; here = false; };
   const heredocs = [];
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -33,8 +33,8 @@ function split(text) {
     if (c === "'" || c === '"') { quote = c; word ??= ''; continue; }
     if (c === '\\') { if (text[i + 1] !== '\n') word = (word ?? '') + (text[i + 1] ?? ''); i++; continue; }
     if (c === '#' && word === null) { while (i < text.length && text[i] !== '\n') i++; i--; continue; }
-    // `<<<` is a here-string: its word is an argument, not a heredoc delimiter.
-    if (c === '<' && text.startsWith('<<<', i)) { flush(); i += 2; continue; }
+    // `<<<` is a here-string: its word is a script body for a shell, not an argument or a heredoc delimiter.
+    if (c === '<' && text.startsWith('<<<', i)) { flush(); here = true; i += 2; continue; }
     if (c === '<' && text.startsWith('<<', i)) {
       const m = text.slice(i).match(/^<<-?[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|()<>]+))/);
       if (m) { heredocs.push(m[1] ?? m[2] ?? m[3]); i += m[0].length - 1; continue; }

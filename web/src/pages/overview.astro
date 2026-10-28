@@ -1,0 +1,26 @@
+---
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import BenchLayout from '../layouts/BenchLayout.astro';
+import '@mantine/core/styles/Badge.css';
+import '@mantine/core/styles/Code.css';
+import '@mantine/core/styles/Paper.css';
+import '@mantine/core/styles/SimpleGrid.css';
+import '@mantine/core/styles/Timeline.css';
+import OverviewPage from '../components/OverviewPage';
+import facts from '../data/facts.json';
+
+// Every claim names its source: a repository file and, after #, a heading in it (GitHub's anchor of the heading).
+const slug = (h: string) => h.trim().toLowerCase().replace(/[^a-z0-9 _-]/g, '').replace(/ /g, '-');
+for (const { title, evidence } of [...facts.overview.parts, ...facts.overview.defaults]) {
+  const [file, anchor] = String(evidence ?? '').split('#');
+  const path = join(process.cwd(), '..', file);
+  if (!file || !existsSync(path)) throw new Error(`facts.overview "${title}": evidence file not found: ${evidence}`);
+  const heads = readFileSync(path, 'utf8').split('\n').filter((l) => /^#{1,6} /.test(l)).map((l) => slug(l.replace(/^#+ /, '')));
+  if (anchor && !heads.includes(anchor)) throw new Error(`facts.overview "${title}": no heading for #${anchor} in ${file}`);
+}
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+<BenchLayout title={`${facts.overview.title}, BenchKeeper`} description={facts.overview.audience}>
+  <OverviewPage base={base} />
+</BenchLayout>

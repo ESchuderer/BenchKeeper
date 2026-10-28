@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { test } from 'node:test';
 import { appVersion } from '../src/content.mjs';
 import { newer, updateNotice } from '../src/update.mjs';
@@ -30,4 +30,17 @@ test('update check: shown when newer, silent when off, offline or older', async 
   let asked = false;
   assert.equal(await updateNotice('6.0.0', { BENCHKEEPER_NO_UPDATE_CHECK: '1' }, async () => { asked = true; }), null);
   assert.equal(asked, false);
+});
+
+test('content.json: content version is the plugin version, minApp is not above the app, skill text names the major', () => {
+  const c = json('../../plugins/benchkeeper/content.json');
+  assert.equal(c.schemaVersion, 1);
+  assert.equal(c.contentVersion, json('../../plugins/benchkeeper/.claude-plugin/plugin.json').version);
+  assert.equal(newer(c.minApp, appVersion), false);
+  const root = new URL('../../plugins/benchkeeper/', import.meta.url);
+  for (const dir of ['skills', 'library']) {
+    for (const f of readdirSync(new URL(`${dir}/`, root), { recursive: true }).filter((x) => x.endsWith('.md'))) {
+      for (const [, pin] of readFileSync(new URL(`${dir}/${f}`, root), 'utf8').matchAll(/npx benchkeeper@(\S+?)[\s`)]/g)) assert.equal(pin, appVersion.split('.')[0], `${dir}/${f}`);
+    }
+  }
 });

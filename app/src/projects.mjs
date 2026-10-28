@@ -3,13 +3,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
-import { appVersion } from './content.mjs';
+import { contentVersion } from './content.mjs';
 import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
 import { skillFiles } from './skills.mjs';
-import { STATE, committedSetup, localSetup, projectCtx, projectPlan, readState, tracksState, tryState } from './steps/project.mjs';
+import { STATE, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -55,7 +55,14 @@ function save(ctx, projects) {
 }
 // The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the
 // project has its own again (local, untracked).
-const kept = (ctx, path) => listProjects(ctx).find((p) => p.path === canon(path))?.state ?? null;
+// Normalized like a state file: an earlier app kept version 1.
+// Throws for a state this app cannot read (schemaVersion above 2), so a batch stops that project instead of using an older setup from origin.
+const keptStrict = (ctx, path) => {
+  const s = listProjects(ctx).find((p) => p.path === canon(path))?.state;
+  try { return s ? normalizeState(s) : null; } catch (e) { throw new Error(`the setup kept for ${canon(path)}: ${e.message}`); }
+};
+// For listings: an unreadable kept state counts as none.
+const kept = (ctx, path) => { try { return keptStrict(ctx, path); } catch { return null; } };
 // A registered project's answers: its state file, or the one kept after a removal pull request.
 export const projectState = (ctx, path) => tryState(path) ?? kept(ctx, path);
 function keepState(ctx, dir, state) {
@@ -222,7 +229,7 @@ const hasOrigin = (ctx, path) => isRepo(ctx, path) && git(ctx, path, ['remote', 
 function keepOrigin(ctx, path, base) {
   const ref = `origin/${base}`;
   let state = null;
-  try { state = JSON.parse(blob(ctx, path, ref, STATE).toString('utf8')); } catch { /* none, or unreadable: the checkout's counts */ }
+  try { state = parseState(blob(ctx, path, ref, STATE).toString('utf8')); } catch { /* none, or unreadable: the checkout's counts */ }
   origins.set(path, { at: Date.now(), value: { ref, state } });
   return { ref, state };
 }
@@ -231,7 +238,7 @@ function keepOrigin(ctx, path, base) {
 // fetch is kept as no origin state for the minute too.
 export async function prefetchOrigins(ctx, paths) {
   if (!ctx.runAsync) return;
-  const due = paths.filter((p) => tryState(p)?.setupVersion !== appVersion && !(Date.now() - (origins.get(p)?.at ?? 0) < 60e3) && hasOrigin(ctx, p));
+  const due = paths.filter((p) => !upToDate(tryState(p)) && !(Date.now() - (origins.get(p)?.at ?? 0) < 60e3) && hasOrigin(ctx, p));
   const net = (path, args) => ctx.runAsync(['git', '-C', path, ...args], { env: quiet(ctx, path), timeout: 20e3 });
   const one = async (path) => {
     const head = git(ctx, path, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).stdout.trim();
@@ -248,10 +255,13 @@ export async function prefetchOrigins(ctx, paths) {
 }
 // The setup that counts: the checkout's, unless origin's default branch has a newer one (or the checkout none).
 export function setupOf(ctx, path, checkout = tryState(path)) {
-  const origin = checkout?.setupVersion === appVersion ? null : originState(ctx, path);
-  const v = origin?.state?.setupVersion;
-  const state = typeof v === 'string' && (!checkout?.setupVersion || newer(v, checkout.setupVersion)) ? origin.state : checkout;
-  return { state, checkout: checkout?.setupVersion ?? null, origin: origin?.ref ?? null };
+  const origin = upToDate(checkout) ? null : originState(ctx, path);
+  const o = origin?.state;
+  // An app-only setup update on origin keeps the content version and raises the app version.
+  const ahead = typeof o?.contentVersion === 'string' && (!checkout?.contentVersion || newer(o.contentVersion, checkout.contentVersion)
+    || (o.contentVersion === checkout.contentVersion && typeof o.appVersion === 'string' && (!checkout.appVersion || newer(o.appVersion, checkout.appVersion))));
+  const state = ahead ? o : checkout;
+  return { state, checkout: checkout?.contentVersion ?? null, origin: origin?.ref ?? null };
 }
 
 // Per project: setup version (checkout: the checked-out one, when origin's counts instead), branch, clean tree, and
@@ -262,7 +272,7 @@ export function status(ctx, path) {
   let local = null, error = null;
   try { local = readState(path); } catch (e) { error = e.message; }
   const own = local;
-  local ??= kept(ctx, path);
+  if (!local) try { local = keptStrict(ctx, path); } catch (e) { error ??= e.message; }
   const { state, checkout, origin } = setupOf(ctx, path, local);
   const repo = isRepo(ctx, path);
   const branch = repo ? git(ctx, path, ['branch', '--show-current']).stdout.trim() : null;
@@ -277,7 +287,7 @@ export function status(ctx, path) {
   }
   // Per chosen agent, the skills in the project folder it reads.
   const skills = skillCounts(path, state?.agents ?? []);
-  return { path, setupVersion: state?.setupVersion ?? null, current: state?.setupVersion === appVersion, checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
+  return { path, setupVersion: state?.contentVersion ?? null, current: upToDate(state), checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
     share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
 }
 
@@ -289,7 +299,7 @@ export const MAX_PROJECTS = 25;
 // checkout; a shared one lands on branch chore/agent-setup-<version> with one commit and a pull request.
 // The setup that counts for a project says whether it is shared: the checkout's, the one kept from a removal pull request,
 // or origin's.
-const setupFor = (ctx, path, local = readState(path)) => local ?? kept(ctx, path) ?? (isRepo(ctx, path) ? setupOf(ctx, path, local).state : null);
+const setupFor = (ctx, path, local = readState(path)) => local ?? keptStrict(ctx, path) ?? (isRepo(ctx, path) ? setupOf(ctx, path, local).state : null);
 // The paths a pushed run would push: a GitHub origin and a pull request (a shared setup, or a committed one that goes local).
 // A local setup is applied in the checkout and pushes nothing.
 export const pushTargets = (ctx, paths, answers = {}) => paths.filter((p) => {
@@ -321,12 +331,12 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
         return result;
       }
       viaPullRequest(ctx, path, result, {
-        branch: `chore/agent-setup-${appVersion}`, push,
+        branch: `chore/agent-setup-${contentVersion}`, push,
         // Without a state file here, the one on the start branch (a setup merged on origin) sets the project up.
         check: (start) => { if (!answers[path] && !local && git(ctx, path, ['cat-file', '-e', `${start}:${STATE}`]).code !== 0) throw new Error(`no ${STATE}: set the project up first`); },
-        work: (tree) => apply(projectChanges(ctx, tree, answers[path]), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: `chore/agent-setup-${appVersion}` } }),
-        title: `chore: agent setup ${appVersion}`,
-        body: `BenchKeeper setup ${appVersion}, applied by \`benchkeeper projects update\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`,
+        work: (tree) => apply(projectChanges(ctx, tree, answers[path]), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: `chore/agent-setup-${contentVersion}` } }),
+        title: `chore: agent setup ${contentVersion}`,
+        body: `BenchKeeper setup ${contentVersion}, applied by \`benchkeeper projects update\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`,
       });
     } catch (e) {
       result.status = 'stopped';

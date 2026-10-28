@@ -46,6 +46,7 @@ import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.m
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 import { automationDiff, automationStatus, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
 import { undoableAutomation } from './orca/index.mjs';
+import { ENTRY, TIMEOUT, UsageError, logFile, removeWebhook, sendWebhook, setWebhook, webhookStatus } from './webhook.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -238,6 +239,14 @@ Usage: benchkeeper <command> [options]
   automations diff <id>             the installed automation as the runner holds it against the template now
   automations status                each installed one: current, outdated (template changed), modified (changed on
                                     the runner), removed (gone from the runner) or unknown; nothing is written
+  webhook set|remove|status         the webhook a run calls when it finishes or needs a person, off until set: set reads
+                                    the URL (https, or http to this machine) from the first line of stdin and an optional
+                                    bearer token from the second into the OS credential store; remove [--yes] deletes it;
+                                    status shows whether one is set and the last failed send, never the URL or token
+  webhook send --state finished|failed|needs-person [--run id] [--automation id] [--task id]
+                                    one POST of these ids and the state, started detached with a 5 second limit and no
+                                    retry; without a webhook nothing happens; a failure is one line in
+                                    ~/.cache/benchkeeper/webhook.log, without the URL
   pins list [dir]                   each phase (research, implement, review, verify) with the agent, model and effort
                                     to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
@@ -266,7 +275,7 @@ const OPTIONS = {
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
   origins: { type: 'boolean' }, 'clone-into': { type: 'string' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
-  param: { type: 'string', multiple: true },
+  param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
@@ -729,6 +738,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'webhook') return webhookCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'extensions') {
     if (arg && arg !== 'list') { out.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
@@ -1308,6 +1318,44 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
     if (!d.automations.length) out.write('no automation installed\n');
   }
   return r.code ?? 0;
+}
+
+// ---- webhook: the run notification (webhook.mjs)
+
+async function webhookCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub] = positionals;
+  if (!['set', 'remove', 'status', 'send'].includes(sub)) { out.write('webhook needs set, remove, status or send\n'); return 2; }
+  if (positionals.length > 2) { out.write(`unexpected argument ${positionals[2]}\n`); return 2; }
+  if (sub !== 'send' && [o.state, o.run, o.automation, o.task].some((v) => v !== undefined)) { out.write('--state, --run, --automation and --task belong to webhook send\n'); return 2; }
+  try {
+    if (sub === 'send') {
+      // A run calls this last: only bad arguments fail it, a missing webhook or store does not.
+      const r = sendWebhook(ctx, { state: o.state, run: o.run, automation: o.automation, task: o.task });
+      out.write(r.sent ? `sending, at most ${TIMEOUT / 1000} seconds; a failure goes to ${logFile(ctx)}\n` : 'no webhook set: nothing sent\n');
+      return 0;
+    }
+    if (sub === 'status') {
+      const s = webhookStatus(ctx);
+      out.write(`configured: ${s.configured ? 'yes' : 'no'}${s.store ? ` (${s.store}, entry ${ENTRY})` : `: ${s.note}`}\nlast failure: ${s.lastFailure ?? 'none'}\n`);
+      return 0;
+    }
+    if (sub === 'set') {
+      // Never an argument and never typed with an echo: the URL can hold a secret of its own.
+      if (ask.tty) { out.write('pipe the URL, and a token on a second line, on stdin: printenv HOOK | benchkeeper webhook set\n'); return 2; }
+      const url = ((await ask.line('')) ?? '').trim(), token = ((await ask.line('')) ?? '').trim() || undefined;
+      const r = setWebhook(ctx, url, token);
+      out.write(`${r.replaced ? 'replaced the webhook' : 'webhook kept'} in the OS credential store (${r.store}, entry ${ENTRY}); webhook remove deletes it\n`);
+      return 0;
+    }
+    if (!webhookStatus(ctx).configured) { out.write('no webhook set\n'); return 0; }
+    if (!o.yes && !(await ask('Delete the webhook from the OS credential store? Runs then send nothing.'))) return 1;
+    removeWebhook(ctx);
+    out.write('deleted the webhook\n');
+    return 0;
+  } catch (e) {
+    out.write(`${e.message}\n`);
+    return e instanceof UsageError ? 2 : 1;
+  }
 }
 
 // ---- accounts: the registry, the guided sign-in and the launcher (accounts.mjs)

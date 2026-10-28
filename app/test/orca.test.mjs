@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { doctor } from '../src/doctor.mjs';
-import { bin, createArgv, installed, notInstalled, OBSERVED, runs, unobserved } from '../src/orca/index.mjs';
+import { automationResult, automationRuns, bin, createArgv, editArgv, installed, notInstalled, OBSERVED, runs, undoableAutomation, unobserved } from '../src/orca/index.mjs';
 import { fake, missing, RECORDED, replies, RUN_LIST, taskListArgv, WATCHDOG_MS } from './fakes/orca.mjs';
 
 const MARK = 'RECORDED-TEXT-NOT-FOR-VIEWS';
@@ -126,4 +126,43 @@ test('doctor reports the unobserved major version as a tools warning', guard, ()
   const { ctx } = fake({ replies: replace(replies(), ['--version'], { stdout: '2.0.0\n' }) });
   const found = doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => /not checked with/.test(i.message));
   assert.deepEqual(found.map((i) => [i.level, i.check]), [['warning', 'tools']]);
+});
+
+test('runs: a run without times or a task list that is no list reads as null for those fields', async () => {
+  const reply = (argv) => (argv[2] === 'run-list' ? { ok: true, result: { runs: [{ id: 7 }] } } : { ok: true, result: { tasks: 'none' } });
+  const ctx = { home: '/h', run: (argv) => ({ code: 0, stdout: argv[1] === '--version' ? '1.4.243\n' : JSON.stringify(reply(argv)), stderr: '' }) };
+  assert.deepEqual(await runs(ctx), [{ id: '7', created: null, updated: null, tasks: null, states: {} }]);
+});
+
+test('the automation commands: precheck, grace and session flags only when set; a worktree automation targets the repository', () => {
+  const ctx = { home: '/h', run: () => ({ code: 0, stdout: '1.4.243\n', stderr: '' }) };
+  const f = { name: 'n', schedule: 'hourly', prompt: 'p', agent: 'claude', dir: '/p' };
+  const base = ['--name', 'n', '--trigger', 'hourly', '--prompt', 'p', '--provider', 'claude'];
+  assert.deepEqual(createArgv(ctx, { ...f, workspace: 'worktree', grace: 0 }).slice(1),
+    ['automations', 'create', ...base, '--repo', 'path:/p', '--workspace-mode', 'new-per-run', '--disabled', '--json']);
+  assert.deepEqual(editArgv(ctx, 'a1', { ...f, workspace: 'project', precheck: 'true', grace: 5, reuseSession: true }).slice(1),
+    ['automations', 'edit', '--id', 'a1', ...base, '--precheck', 'true', '--missed-run-grace-minutes', '5', '--reuse-session', '--json']);
+  assert.ok(editArgv(ctx, 'a1', { ...f, workspace: 'project' }).includes('--fresh-session'));
+  assert.equal(undoableAutomation(['orca', 'automations', 'remove', '--id']), false, 'no id');
+});
+
+test('an automation result: picked fields with defaults, else the error from the envelope, the output or the exit code', () => {
+  const ok = (automation) => ({ code: 0, stdout: JSON.stringify({ ok: true, result: { automation } }), stderr: '' });
+  assert.deepEqual(automationResult(ok({ id: 1 })), { automation: { id: '1', name: '', prompt: '', schedule: '', precheck: '', agent: '', enabled: false } });
+  assert.deepEqual(automationResult(ok({ id: 'a', name: 'n', prompt: 'p', rrule: 'r', precheck: { command: 'c' }, agentId: 'claude', enabled: true, host: 'x' })),
+    { automation: { id: 'a', name: 'n', prompt: 'p', schedule: 'r', precheck: 'c', agent: 'claude', enabled: true } });
+  assert.deepEqual(automationResult({ code: 1, stdout: JSON.stringify({ ok: false, error: { message: 'Automation not found' } }), stderr: '' }), { error: 'Orca: Automation not found', removed: true });
+  assert.deepEqual(automationResult({ code: 1, stdout: 'not json', stderr: 'first\nlast\n' }), { error: 'Orca: last' });
+  assert.deepEqual(automationResult({ code: 1, stdout: 'only stdout', stderr: '' }), { error: 'Orca: only stdout' });
+  assert.deepEqual(automationResult({ code: 9, stdout: '', stderr: '' }), { error: 'Orca: exit 9' });
+});
+
+test('automation runs: status, trigger and due time picked with defaults; a failure reads as its message', () => {
+  const at = (r) => ({ home: '/h', run: (argv) => (argv[1] === '--version' ? { code: 0, stdout: '1.4.243\n', stderr: '' } : r) });
+  const runsOf = (list) => at({ code: 0, stdout: JSON.stringify({ ok: true, result: { runs: list } }), stderr: '' });
+  assert.deepEqual(automationRuns(runsOf([{ status: 'completed', trigger: 'manual', startedAt: 0 }, {}]), 'a1'),
+    { runs: [{ status: 'completed', trigger: 'manual', at: '1970-01-01T00:00:00.000Z' }, { status: '', trigger: '', at: null }] });
+  assert.deepEqual(automationRuns(at({ code: 1, stdout: 'not json', stderr: 'boom\n' }), 'a1'), { error: 'Orca: boom' });
+  assert.deepEqual(automationRuns(at({ code: 1, stdout: JSON.stringify({ ok: false, error: { message: 'gone' } }), stderr: '' }), 'a1'), { error: 'Orca: gone' });
+  assert.deepEqual(automationRuns(at({ code: 2, stdout: '', stderr: '' }), 'a1'), { error: 'Orca: exit 2' });
 });

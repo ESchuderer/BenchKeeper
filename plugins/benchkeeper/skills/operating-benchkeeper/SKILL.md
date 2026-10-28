@@ -1,6 +1,7 @@
 ---
 name: operating-benchkeeper
 description: "How an agent manages its own BenchKeeper setup through the benchkeeper CLI alone, without the web UI: plan, review the diff, apply with --yes, read the JSON, undo a run, run doctor and verify, update one project. Use when asked to install, update, check, change or undo the BenchKeeper setup of this machine or a repository, or to read its state (projects, skills, packs, history, settings, rules) from the command line."
+writes: "What the `benchkeeper` commands you approve write: rules, skills, settings and project setup files, each run recorded for `benchkeeper undo`."
 ---
 
 # Operating BenchKeeper through the CLI

@@ -2,6 +2,7 @@
 name: setting-up-projects
 description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration and where the agent runs, AGENTS.md, domain skills from the BenchKeeper library, stack-specific skills, the default task tier, other project configuration to remove. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 disable-model-invocation: true
+writes: "After you approve its plan: the dev container configuration, the commands and conventions in `AGENTS.md`, `CLAUDE.md` with `@AGENTS.md` in a shared setup, stack and library skills with `skills-lock.json`. The BenchKeeper block and `.benchkeeper/state.json` come from `benchkeeper projects apply`."
 ---
 
 # Setting up projects

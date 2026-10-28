@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFile
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { CSP, SCRIPT_HASH, boardHtml, registeredPaths } from '../src/board.mjs';
+import { CSP, SCRIPT_HASH, boardHtml, cardSvg, changeText, keepDays, periodFacts, registeredPaths, toCsv } from '../src/board.mjs';
 import { HEALTH, PRIMARY, TOKENS, cssVars } from '../src/tokens.mjs';
 import { MIN_SAMPLES } from '../src/insights.mjs';
 import { context } from '../src/runner.mjs';
@@ -154,4 +154,86 @@ test('a session keeps the repository found when it entered the cache, also after
   appendFileSync(join(home, '.claude/projects', b.replaceAll('/', '-'), 'w2.jsonl'), '\n');
   assert.equal((await repos()).w2, repo);
   assert.deepEqual(asked, []);
+});
+
+// Days counted back from 2026-10-28: the current 7 days are 10-22 to 10-28, the previous 7 days 10-15 to 10-21.
+const span = (from, n) => Array.from({ length: n }, (_, i) => new Date(Date.parse(from) + i * 864e5).toISOString().slice(0, 10));
+const CUR = span('2026-10-22', 7), PREV = span('2026-10-15', 7);
+const s = (agent, project, d, costUSD, o = {}) => ({ agent, project, start: `${d}T10:00:00.000Z`, busyMs: 60e3, costUSD, tokens: 100, ...o });
+// The card numbers of one filter, as the page computes them: the facts of both windows, then the change line.
+const cards = (rows, keep) => {
+  const cur = rows.filter(keep).filter((r) => r.start >= CUR[0]), prev = rows.filter(keep).filter((r) => r.start < CUR[0] && r.start >= PREV[0]);
+  const a = periodFacts(cur, CUR), b = prev.length ? periodFacts(prev, PREV) : null;
+  return { facts: a, sessions: changeText(a.sessions, b?.sessions ?? null, 7), cost: changeText(a.cost, b?.cost ?? null, 7) };
+};
+const FILTERS = { all: () => true, 'one agent': (r) => r.agent === 'claude', 'a project': (r) => r.project === '/work/shop' };
+
+test('the quick facts match the numbers of the period computed from the rows', () => {
+  const rows = [s('claude', '/a', '2026-10-22', 1.5), s('claude', '/a', '2026-10-23', 2), s('codex', '/b', '2026-10-23', null, { tokens: 50 }), s('claude', '/b', '2026-10-25', 0.5, { busyMs: null }), s('codex', '/b', '2026-10-26', null)];
+  assert.deepEqual(periodFacts(rows, CUR), {
+    sessions: 5, time: 4 * 60e3, cost: 4, tokens: 450, uncosted: [['codex', 2]], agent: ['claude', 3], busiest: ['2026-10-23', 2], active: 4, streak: 2,
+  });
+  // Nothing in the period: zeros, no agent or busiest day, no cost rather than $0.
+  assert.deepEqual(periodFacts([], CUR), { sessions: 0, time: 0, cost: null, tokens: 0, uncosted: [], agent: null, busiest: null, active: 0, streak: 0 });
+});
+
+test('two agents, one with an empty previous window: All gives the merged numbers, each agent its own', () => {
+  const rows = [s('claude', '/work/shop', '2026-10-22', 1), s('claude', '/work/shop', '2026-10-23', 1), s('codex', '/work/shop', '2026-10-24', null), s('claude', '/work/shop', '2026-10-16', 1)];
+  const all = cards(rows, FILTERS.all), claude = cards(rows, FILTERS['one agent']), codex = cards(rows, (r) => r.agent === 'codex');
+  assert.deepEqual([all.facts.sessions, all.facts.cost, all.facts.uncosted], [3, 2, [['codex', 1]]]);
+  assert.equal(all.sessions, '+200% vs previous 7 days');
+  assert.deepEqual([claude.facts.sessions, claude.sessions], [2, '+100% vs previous 7 days']);
+  assert.deepEqual([codex.facts.sessions, codex.facts.cost, codex.sessions], [1, null, null]);
+});
+
+for (const [name, keep] of Object.entries(FILTERS)) {
+  test(`change line, ${name}: an empty previous period gives no change text, not "none"`, () => {
+    const c = cards([s('claude', '/work/shop', '2026-10-22', 1), s('codex', '/work/shop', '2026-10-23', 2)], keep);
+    assert.deepEqual([c.sessions, c.cost], [null, null]);
+  });
+  test(`change line, ${name}: a previous period with data gives the change up, down or none, the same for the same data`, () => {
+    const rows = [s('claude', '/work/shop', '2026-10-22', 3), s('claude', '/work/shop', '2026-10-16', 1), s('claude', '/work/shop', '2026-10-17', 1)];
+    assert.deepEqual([cards(rows, keep).sessions, cards(rows, keep).cost], ['-50% vs previous 7 days', '+50% vs previous 7 days']);
+    const even = [s('claude', '/work/shop', '2026-10-22', 1), s('claude', '/work/shop', '2026-10-16', 1)];
+    assert.equal(cards(even, keep).sessions, 'no change vs previous 7 days');
+  });
+  test(`change line, ${name}: a metric unknown in the previous period gives no change text`, () => {
+    const c = cards([s('claude', '/work/shop', '2026-10-22', 2), s('claude', '/work/shop', '2026-10-16', null)], keep);
+    assert.deepEqual([c.sessions, c.cost], ['no change vs previous 7 days', null]);
+  });
+}
+
+test('the change line: All time has none, points for a rate, a known zero before gives the new value', () => {
+  assert.equal(changeText(5, 3, null), null);
+  assert.equal(changeText(80, 75.4, 30, { points: true }), '+5 points vs previous 30 days');
+  assert.equal(changeText(3, 0, 30), '+3 vs previous 30 days');
+  assert.equal(changeText(0, 0, 30), 'no change vs previous 30 days');
+  assert.equal(changeText(1000, 1001, 30), 'no change vs previous 30 days');
+});
+
+test('the CSV quotes what needs it and keeps a formula from running', () => {
+  assert.equal(toCsv(['Day', 'a,b'], [['2026-10-22', 'say "hi"'], ['=1+1', null]]), 'Day,"a,b"\r\n2026-10-22,"say ""hi"""\r\n\'=1+1,\r\n');
+});
+
+test('the export card holds no project name, path or account unless names are on, and then only the project names', () => {
+  const series = [{ name: 'shop', project: true, color: 's1' }, { name: 'blog <x>', project: true, color: 's2' }, { name: 'Other (3 more projects)', project: false, color: 'other' }];
+  const input = { title: 'Sessions, last 30 days', sub: 'Cost per day, read 2026-10-28', facts: [['Sessions', '40'], ['Most used agent', 'Claude Code']], series, stacks: [{ d: '2026-10-27', parts: [2, 1, 0] }, { d: '2026-10-28', parts: [0, 0, 4] }], heat: [0, 1, 4, null], colors: TOKENS.dark };
+  const off = cardSvg({ ...input, names: false });
+  assert.match(off, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" width="1200" height="630"/);
+  assert.ok(off.includes('Project A') && off.includes('Project B') && off.includes('Other (3 more projects)'));
+  assert.doesNotMatch(off, /shop|blog|\/work|\/home/);
+  assert.ok(off.includes(TOKENS.dark.page) && off.includes(TOKENS.dark.s1));
+  const on = cardSvg({ ...input, names: true });
+  assert.ok(on.includes('>shop<') && on.includes('blog &#60;x&#62;') && !on.includes('Project A'));
+});
+
+test('the board history is cleanupPeriodDays from the user settings, 30 when it is missing or not a whole number of days', () => {
+  const home = mkdtempSync(join(TMP, 'bk-board-keep-'));
+  assert.equal(keepDays({ home }), 30);
+  mkdirSync(join(home, '.claude'));
+  for (const [text, days] of [['{"cleanupPeriodDays": 14}', 14], ['{"cleanupPeriodDays": "9"}', 30], ['{"cleanupPeriodDays": 0}', 30], ['not json', 30]]) {
+    writeFileSync(join(home, '.claude/settings.json'), text);
+    assert.equal(keepDays({ home }), days, text);
+  }
+  assert.match(boardHtml([], '2026-10-23T00:00:00Z', [], 14), /keeps transcripts for 14 days/);
 });

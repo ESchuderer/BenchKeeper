@@ -55,6 +55,9 @@ jobs:
       # library/README.md tables are generated from library.json.
       - name: Library catalog
         run: node --test .github/scripts/library-readme.test.mjs && node .github/scripts/library-readme.mjs --check
+      # docs/skills.md tables are generated from the skills' front matter and library.json.
+      - name: Skills page
+        run: node --test .github/scripts/skills-doc.test.mjs && node .github/scripts/skills-doc.mjs --check
       # Install commands in the docs name the app version (npx benchkeeper@<version>, the clone tag).
       - name: Version pins
         run: node --test .github/scripts/version-pins.test.mjs && node .github/scripts/version-pins.mjs --check

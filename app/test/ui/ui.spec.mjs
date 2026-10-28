@@ -447,6 +447,15 @@ test.describe('views', () => {
     expect(await page.evaluate(() => getComputedStyle(document.activeElement).getPropertyValue('--segmented-control-outline').trim())).toBe('2px solid #86b6ef');
   });
 
+  test('the Switch focus ring is the accent in dark mode', async ({ page }) => {
+    await page.evaluate(() => document.documentElement.setAttribute('data-mantine-color-scheme', 'dark'));
+    await nav(page, 'Agent settings').click();
+    const toggle = page.getByRole('switch', { name: 'Changed from default' });
+    await page.keyboard.press('Shift');
+    await toggle.focus();
+    expect(await toggle.evaluate((el) => getComputedStyle(el.nextElementSibling).outlineColor)).toBe('rgb(134, 182, 239)');
+  });
+
   test('theme toggle switches between light and dark', async ({ page }) => {
     const html = page.locator('html');
     await page.getByRole('button', { name: /theme$/ }).click();

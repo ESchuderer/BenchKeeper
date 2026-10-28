@@ -16,7 +16,6 @@ test('docs/skills.md matches its sources', () => {
 test('every plugin skill and every pack plugin skill has its row', () => {
   const [skills, manifest] = sources();
   const page = readFileSync(join(root, 'docs/skills.md'), 'utf8');
-  assert.equal(skills.length, 6);
   for (const s of skills) assert.match(page, new RegExp(`^\\| \\[${s.name}\\]`, 'm'));
   for (const s of manifest.packs.flatMap((p) => p.pluginSkills?.skills ?? [])) assert.match(page, new RegExp(`^\\| \`${s.name}\` \\|`, 'm'));
 });

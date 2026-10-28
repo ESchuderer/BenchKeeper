@@ -209,7 +209,7 @@
       {
         "id": "accounts",
         "title": "Accounts",
-        "text": "Several logins per agent, such as work and personal, each in its own folder on the host or a named volume in a dev container, signed in through a private browser window. `run --account` starts the agent as one of them with a filtered environment. Usage readings show what is left of the 5-hour and 7-day window (Claude Code through a status line script that `accounts track` adds, Codex from its app-server) and warn below a minimum. Auto-pick starts a new run under the pool account with the most headroom; it never acts inside a running session.",
+        "text": "Several logins per agent, such as work and personal, each in its own folder on the host or a named volume in a dev container, signed in through a private browser window. `run --account` starts the agent as one of them with a filtered environment. Usage readings show what is left of the 5-hour and 7-day window (Claude Code through a status line script that `accounts track` adds, Codex from its app-server) and warn below a minimum. Auto-pick (Claude Code) and handover rotation (Claude Code and Codex) are opt-in and off by default: auto-pick starts a new run under the pool account with the most headroom, handover rotation asks, then starts the agent under that account with a handover text of the task; neither acts inside a running session.",
         "evidence": "docs/setup.md#accounts"
       }
     ],

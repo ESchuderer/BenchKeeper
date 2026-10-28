@@ -38,9 +38,18 @@ const DC_PATH = 'scripts/dc';
 const DC = `#!/bin/sh
 # Runs one command in the dev container from any folder of the checkout: scripts/dc npm test
 # The arguments pass on as they are; a compound command goes through a shell: scripts/dc sh -lc 'npm ci && npm test'
-exec devcontainer exec --workspace-folder "$(cd "$(dirname "$0")/.." && pwd)" "$@"
+# scripts/dc up starts the container.
+dir="$(cd "$(dirname "$0")/.." && pwd)"
+# Compose names a project after the folder, so two checkouts with the same folder name would share containers. A name set
+# in the environment or in a .env file is kept. The checksum first: a name starts with a letter or digit.
+if [ -z "$COMPOSE_PROJECT_NAME" ] && ! grep -qs '^COMPOSE_PROJECT_NAME=' "$dir/.env" "$dir/.devcontainer/.env"; then
+  COMPOSE_PROJECT_NAME="$(printf %s "$dir" | cksum | cut -d ' ' -f 1)-$(basename "$dir" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9_-')"
+  export COMPOSE_PROJECT_NAME
+fi
+[ "$1" = up ] && shift && exec devcontainer up --workspace-folder "$dir" "$@"
+exec devcontainer exec --workspace-folder "$dir" "$@"
 `;
-const DC_LINE = `\`${DC_PATH} <command>\` runs a command in the dev container (\`devcontainer exec --workspace-folder .\`, the arguments as given): \`${DC_PATH} npm test\`, compound commands as \`${DC_PATH} sh -lc '...'\`.`;
+const DC_LINE = `\`${DC_PATH} <command>\` runs a command in the dev container (\`devcontainer exec --workspace-folder .\`, the arguments as given): \`${DC_PATH} npm test\`, compound commands as \`${DC_PATH} sh -lc '...'\`; \`${DC_PATH} up\` starts the container.`;
 // The install command of the one lockfile at the project root, strict so a stale lockfile fails instead of changing:
 // { file, command }, or null with none or several (a line to fill in then). Yarn 2 and later have .yarnrc.yml.
 const INSTALLS = { 'package-lock.json': 'npm ci', 'pnpm-lock.yaml': 'pnpm install --frozen-lockfile', 'yarn.lock': null, 'uv.lock': 'uv sync --locked' };
@@ -554,7 +563,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const install = installCommand(dir);
     // A new worktree has no container running: the line starts it. Plan steps have no dependencies, so without scripts/dc
     // the line fails in the setup terminal (the setup script stops there) and changes nothing.
-    const line = install && (devcontainer ? `devcontainer up --workspace-folder . && ${DC_PATH} ${install.command}` : install.command);
+    const line = install && (devcontainer ? `${DC_PATH} up && ${DC_PATH} ${install.command}` : install.command);
     const hook = install ? `setup hook: ${install.command} (${install.file})${devcontainer ? `, through ${DC_PATH} in the dev container it starts (fails without ${DC_PATH})` : ''}` : 'setup hook: none found, fill in the comment line';
     const [yaml, inc] = orca.worktreeFiles(line, include);
     offer('worktrees', `${orca.NAME} worktree setup, ${hook}`, yaml.path, yaml.text, { off: true });

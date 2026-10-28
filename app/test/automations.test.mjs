@@ -51,6 +51,11 @@ test('every template shipped in this repository lints clean', () => {
   assert.deepEqual(check(machine(), { tiers: [['generic', genericDir]], privateNames: [] }), []);
 });
 
+test('the catalogue in docs/automations.md names each generic template in a row', () => {
+  const doc = readFileSync(new URL('../../docs/automations.md', import.meta.url), 'utf8');
+  for (const t of load(machine(), [['generic', genericDir]]).templates) assert.match(doc, new RegExp(`^\\|.*\`${t.id}\``, 'm'), `${t.id} has no catalogue row`);
+});
+
 test('lint rule precheck: missing fails, present passes', () => {
   assert.deepEqual(problems(tier(template({ precheck: '""', helpers: '[]' }), null)), ['precheck', 'session']);
   assert.deepEqual(problems(tier()), []);

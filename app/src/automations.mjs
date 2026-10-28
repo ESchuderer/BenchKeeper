@@ -309,13 +309,59 @@ export function automationStatus(ctx) {
   });
 }
 
-// Doctor's findings: one warning per installed automation that is not current. The runner is asked only when one is installed.
+// The runner's last run of an installed automation that was not skipped, and how many runs it skipped since (of its newest
+// 20): { last: { status, trigger, at } | null, skipped, note }. A runner that keeps no history or cannot be read gives a note.
+export function automationRuns(ctx, rec) {
+  if (!orca.installed(ctx)) return { last: null, skipped: 0, note: `${orca.NAME} is not installed` };
+  const r = orca.automationRuns(ctx, rec.runnerId);
+  if (r.error) return { last: null, skipped: 0, note: r.error };
+  const at = r.runs.findIndex((x) => !x.status.startsWith('skipped'));
+  return { last: r.runs[at] ?? null, skipped: at < 0 ? r.runs.length : at, note: null };
+}
+
+// Two installed automations that start at the same time in the same project checkout: [[id, id..], dir, schedule].
+// shortcut: equal schedule text, so a preset and the cron it stands for slip through; compare the runner's RRULE when it reports one for both.
+function sameSchedule(installed) {
+  const groups = new Map();
+  for (const [id, rec] of Object.entries(installed)) {
+    if (rec.spec?.workspace !== 'project') continue;
+    const key = JSON.stringify([rec.dir, rec.spec.schedule]);
+    groups.set(key, [...(groups.get(key) ?? []), id]);
+  }
+  return [...groups].filter(([, ids]) => ids.length > 1).map(([key, ids]) => [ids, ...JSON.parse(key)]);
+}
+
+// Doctor's findings: one warning per installed automation that is not current, per template without a precheck, and per
+// group of installed automations on one schedule in one checkout. The runner is asked only when one is installed.
 const FIX = { outdated: (id) => `benchkeeper automations update ${id}`, modified: (id) => `benchkeeper automations diff ${id}, then update ${id} to restore the template`,
   removed: (id) => `benchkeeper automations install ${id}`, unknown: () => 'benchkeeper automations status' };
 export function automationChecks(ctx) {
-  let rows;
-  try { rows = automationStatus(ctx); } catch (e) { return [{ level: 'warning', check: 'automations', message: e.message, fix: `fix or move ${registryFile(ctx)}` }]; }
-  return rows.filter((r) => r.state !== 'current').map((r) => ({ level: 'warning', check: 'automations',
-    message: `automation ${r.id} is ${r.state}${r.changed.length ? ` (${r.changed.join(', ')} changed outside BenchKeeper)` : ''}${r.note ? `: ${r.note}` : ''}`,
-    fix: FIX[r.state](r.id) }));
+  const warn = (message, fix) => ({ level: 'warning', check: 'automations', message, fix });
+  const templates = check(ctx).filter((p) => p.rule === 'precheck').map((p) => warn(`automation template ${p.file} has ${p.message}`, 'add a precheck that exits 0 only when there is work'));
+  let rows, installed;
+  try { installed = readRegistry(ctx); rows = automationStatus(ctx); } catch (e) { return [...templates, warn(e.message, `fix or move ${registryFile(ctx)}`)]; }
+  return [
+    ...templates,
+    ...rows.filter((r) => r.state !== 'current').map((r) => warn(`automation ${r.id} is ${r.state}${r.changed.length ? ` (${r.changed.join(', ')} changed outside BenchKeeper)` : ''}${r.note ? `: ${r.note}` : ''}`, FIX[r.state](r.id))),
+    ...sameSchedule(installed).map(([ids, dir, schedule]) => warn(`automations ${ids.join(', ')} start on the same schedule (${schedule}) in ${dir}, so their sessions run side by side in one checkout`, `benchkeeper automations remove ${ids.at(-1)}, then install it in another project or on another schedule`)),
+  ];
+}
+
+// The Automations page: every template with its parameters, and per installed automation its state, parameter values,
+// project folder and runs. A record whose template is gone is listed with template null. Runs are asked only while the
+// runner is installed.
+export function automationsView(ctx) {
+  const { templates, errors } = load(ctx), registry = readRegistry(ctx), runner = orca.installed(ctx);
+  const status = Object.fromEntries(automationStatus(ctx).map((r) => [r.id, r]));
+  const keys = ['tier', 'title', 'agent', 'schedule', 'workspace', 'precheck', 'mode', 'parameters', 'prompt'];
+  const ids = [...new Set([...templates.map((t) => t.id), ...Object.keys(registry)])];
+  return {
+    runner: { name: orca.NAME, installed: runner },
+    errors,
+    automations: ids.map((id) => {
+      const t = templates.find((x) => x.id === id), rec = registry[id];
+      return { id, template: t ? Object.fromEntries(keys.map((k) => [k, t[k]])) : null,
+        installed: rec ? { ...status[id], values: rec.values, dir: rec.dir, runs: runner ? automationRuns(ctx, rec) : null } : null };
+    }),
+  };
 }

@@ -1,6 +1,6 @@
 # Automation templates
 
-An automation template describes one scheduled agent run in a single Markdown file, so the run can be reviewed, versioned and carried to a second machine. The format does not name the scheduler that runs it. Installing a template on a scheduler is not part of the format.
+An automation template describes one scheduled agent run in a single Markdown file, so the run can be reviewed, versioned and carried to a second machine. The format does not name the scheduler that runs it. Installing a template on a scheduler is not part of the format: the app does it ([Install and keep current](#install-and-keep-current)).
 
 ## Where templates live
 
@@ -97,3 +97,44 @@ Write the list as your answer. Change nothing.
 if pgrep -f "automation-[o]pen-pr-report" >/dev/null; then exit 1; fi
 [ "$(gh pr list --repo "$1" --state open --json number --jq length)" -gt 0 ]
 ````
+
+## Install and keep current
+
+The runner is Orca, through its CLI. Without it the app lists the templates and refuses install, update and remove.
+
+1. Open the Automations view of the app (`benchkeeper ui`), or run `benchkeeper automations list`.
+2. Install a template: in the view, Install, then a registered project and the parameter values (an empty field keeps the default); in a terminal, `benchkeeper automations install <id> --param name=value --project <dir>`. The plan shows the runner command and the record; nothing runs before Apply.
+3. The automation is created disabled and in mode `report`. Start it once with the runner's Run now and read the report, then enable it in the runner. Switching to `act` is a reinstall with `--param mode=act`: remove, then install.
+4. When a template changes, the view and `benchkeeper automations status` show it as outdated. Update shows the diff of the runner's automation against the template, then sets the runner's fields back to the template; the enabled state stays.
+5. Remove deletes the automation on the runner with its run history and drops the record. Undo in History restores the record only; install creates the automation again.
+
+The view shows per installed automation its state, whether it is enabled, its mode and project folder, the last run that was not skipped and how many runs the precheck or a missed time skipped since (from the runner's newest 20 runs). Every change is a plan with a diff and an undo in History, as in the other views.
+
+`benchkeeper doctor` reports, as warnings:
+
+| Finding | Fix |
+|---|---|
+| an installed automation whose template changed (`outdated`), that was changed in the runner (`modified`, with the fields), that the runner no longer has (`removed`), or that cannot be compared (`unknown`: no runner, no template) | `automations update <id>`, `diff <id>` then `update <id>`, `install <id>`, `status` |
+| a template of either tier without a precheck | add a precheck that exits 0 only when there is work |
+| two installed automations with the same schedule in one project checkout (workspace `project`): their sessions would run side by side in one folder | remove one of them, then install it in another project, or from a private copy of its template with another schedule. The schedules are compared as text, so `hourly` and `0 * * * *` are not matched |
+
+## Catalogue
+
+The generic templates, ranked by what the projects need. A row without a template file is planned; its issue holds the details. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).
+
+| Template | Schedule | Precheck reads | May change | Status |
+|---|---|---|---|---|
+| PR watcher: merges your own green pull requests and bot release pull requests, starts a fix worker for a failing one, lists external code without touching it, writes a short report | hourly | open pull requests that are not held | merges, branch deletion, workers | planned, [#411](https://github.com/ESchuderer/BenchKeeper/issues/411) |
+| Issue pickup: takes one issue labelled for agent work by the trusted person, claims it, starts a worker, stops at a pull request | every 20 minutes | an approved unclaimed issue, no claim in progress, memory floor, account headroom | labels, a branch, a pull request | planned, [#411](https://github.com/ESchuderer/BenchKeeper/issues/411) |
+| Maintenance sweep, with docs drift: dead code, test audit, dependency and documentation drift; reports first | monthly | merged pull requests since the last run | a pull request per finding group | planned, [#348](https://github.com/ESchuderer/BenchKeeper/issues/348) |
+| Dependency and advisory triage | weekly | open dependency pull requests or alerts | pull requests, closes bot pull requests | planned, [#349](https://github.com/ESchuderer/BenchKeeper/issues/349) |
+| CI health: rerun once, then one issue with the evidence | daily | a failed default-branch or scheduled run in the last day | one issue per failure | planned, [#350](https://github.com/ESchuderer/BenchKeeper/issues/350) |
+| Worktree and container cleanup; lists before it deletes, never deletes what it did not create | daily | disk or temp space above a limit, or merged work | only items of its own runs | planned, [#351](https://github.com/ESchuderer/BenchKeeper/issues/351) |
+| Daily digest: merged, blocked, needs a decision | daily | changes since the last digest | one local file | planned, [#352](https://github.com/ESchuderer/BenchKeeper/issues/352) |
+| Issue triage: classifies, finds duplicates, drafts questions; never sets the agent label | every few hours | issues without a triage label | labels, comments | planned, [#353](https://github.com/ESchuderer/BenchKeeper/issues/353) |
+| Code-scanning and quality-gate findings to fix workers, grouped by rule | weekly | open findings | pull requests | planned, [#354](https://github.com/ESchuderer/BenchKeeper/issues/354) |
+| Release watch: the published package, the pins and an install | on release | a new release tag | one issue on failure | planned, [#355](https://github.com/ESchuderer/BenchKeeper/issues/355) |
+| Provider changelog scan; reads no untrusted source | weekly | a new agent version | one report | planned, [#357](https://github.com/ESchuderer/BenchKeeper/issues/357) |
+| Update all for the registered projects | weekly | outdated projects | commits, pushes | planned, [#358](https://github.com/ESchuderer/BenchKeeper/issues/358) |
+
+Not offered: merging external pull requests, applying the agent label, changing settings or rulesets, switching accounts automatically.

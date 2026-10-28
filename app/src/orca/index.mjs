@@ -109,3 +109,14 @@ export function automationResult(r) {
 export const showAutomation = (ctx, id) => automationResult(ctx.run([...AUTO, 'show', '--id', id, '--json'], { timeout: 15e3 }));
 // The runner name a registry record carries.
 export const RUNNER = 'orca';
+// Its run history of one automation, newest first: { runs: [{ status, trigger, at }] } or { error }. Status, trigger and the
+// due time are picked; a run's title, output and error text stay out.
+export const runsArgv = (id, limit = 20) => [...AUTO, 'runs', '--id', id, '--limit', String(limit), '--json'];
+export function automationRuns(ctx, id) {
+  const r = ctx.run(runsArgv(id), { timeout: 15e3 });
+  let j = null;
+  try { j = JSON.parse(r.stdout); } catch { /* not JSON: the message below */ }
+  if (r.code !== 0 || !j?.ok || !Array.isArray(j.result?.runs)) return { error: `${NAME}: ${j?.error?.message ?? (String(r.stderr || r.stdout).trim().split('\n').at(-1) || `exit ${r.code}`)}` };
+  const at = (ms) => (Number.isFinite(ms) ? new Date(ms).toISOString() : null);
+  return { runs: j.result.runs.map((x) => ({ status: String(x.status ?? ''), trigger: String(x.trigger ?? ''), at: at(x.scheduledFor ?? x.startedAt) })) };
+}

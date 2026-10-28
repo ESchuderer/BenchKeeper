@@ -26,43 +26,52 @@ test('the rail lists projects newest first with count and last tier; a click fil
   await load(page, data());
   const cards = page.locator('#rail button.card:not(.all)');
   await expect(cards).toHaveCount(3);
-  await expect(cards.first()).toContainText('work/api');
+  await expect(cards.first()).toContainText('api');
   await expect(cards.nth(1)).toContainText('20 sessions, last tier standard');
-  await cards.filter({ hasText: 'work/blog' }).click();
-  await expect(page.locator('#f-project')).toHaveValue('/work/blog');
+  await cards.filter({ hasText: 'blog' }).click();
+  await expect(cards.filter({ hasText: 'blog' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#count')).toHaveText('19 of 19 sessions');
   await expect(page.locator('#tiles .tile').first()).toContainText('19');
   // The project page: branches and pull request states.
-  await expect(page.getByRole('heading', { level: 2, name: 'Project work/blog' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Project blog' })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Branches, newest first' })).toContainText('feat/x');
   await expect(page.locator('#project-body')).toContainText('1 pull requests: 1 merged');
-  await cards.filter({ hasText: 'work/blog' }).click();
+  await cards.filter({ hasText: 'blog' }).click();
   await expect(page.locator('#count')).toHaveText('40 of 40 sessions');
   await expect(page.locator('#project-page')).toBeHidden();
   expect(e).toEqual([]);
 });
 
-test('the Project list folds worktrees into their project; with no project registered it says so and the toggle lists every directory', async ({ page }) => {
+test('one entry per repository: worktrees fold in, also a removed one, the same folder name adds its parent, a plain folder stays; Registered only keeps the registered one', async ({ page }) => {
   const e = errors(page);
-  await load(page, [...data(), row({ project: '/wt/shop-a' }), row({ project: '/wt/shop-b/app' }), row({ project: '/home/u' })], [{ path: '/work/shop', worktrees: ['/wt/shop-a', '/wt/shop-b'] }]);
-  const options = page.locator('#f-project option');
-  await expect(options).toHaveText(['Registered projects', 'All', '/work/shop (2 worktrees)']);
-  await expect(page.locator('#filters')).not.toContainText('null');
-  await expect(page.locator('#rail button.card:not(.all)')).toHaveText([/work\/shop22 sessions/]);
-  await page.getByLabel('Show all directories').check();
-  await expect(options).toHaveText(['Registered projects', 'All', '/home/u', '/work/api', '/work/blog', '/work/shop (2 worktrees)']);
-  await page.locator('#f-project').selectOption('/home/u');
-  await expect(page.locator('#count')).toHaveText('1 of 1 sessions');
-  // Unchecked again: a directory outside the registered projects is no longer a choice.
-  await page.getByLabel('Show all directories').uncheck();
-  await expect(page.locator('#f-project')).toHaveValue(' registered');
-  await load(page, data(), []);
-  await expect(page.locator('#filters')).toContainText('No project is registered in the app.');
-  await expect(options).toHaveText(['All']);
-  await expect(page.locator('#rail button.card:not(.all)')).toHaveCount(0);
-  await page.getByLabel('Show all directories').check();
-  await expect(options).toHaveCount(4);
-  await expect(page.locator('#rail button.card:not(.all)')).toHaveCount(3);
+  // /wt/shop-b was removed after its session: its repository came from the cache. A row cached without one folds in by the registered worktree list.
+  const rows = [
+    row({ project: '/home/u', repo: null, start: ago(0) }),
+    row({ project: '/wt/shop-a', repo: '/src/shop', start: ago(1) }),
+    row({ project: '/old/shop', repo: '/old/shop', start: ago(2) }),
+    row({ project: '/wt/shop-b', repo: '/src/shop', start: ago(3) }),
+    row({ project: '/wt/shop-a', start: ago(4) }),
+  ];
+  await load(page, rows, [{ path: '/src/shop', worktrees: ['/wt/shop-a'] }]);
+  const cards = page.locator('#rail button.card:not(.all)');
+  const sessions = page.locator('#tiles .tile').first().locator('.value');
+  await expect(page.locator('#f-project')).toHaveCount(0);
+  await expect(cards).toHaveText([/^u1 session, last tier/, /^src\/shop3 sessions, 2 worktrees, last tier/, /^old\/shop1 session, last tier/]);
+  // A choice the switch hides falls back to All.
+  await cards.filter({ hasText: 'old/shop' }).click();
+  await page.getByLabel('Registered only').check();
+  await expect(cards).toHaveText([/^src\/shop3 sessions, 2 worktrees/]);
+  await expect(page.locator('#rail button.all')).toHaveText('All registered projects');
+  await expect(page.locator('#rail button.all')).toHaveAttribute('aria-pressed', 'true');
+  await expect(sessions).toHaveText('3');
+  await expect(page.locator('#count')).toHaveText('3 of 3 sessions');
+  await page.getByLabel('Registered only').uncheck();
+  await expect(sessions).toHaveText('5');
+  // Nothing registered: the switch is off and disabled, with the reason beside it.
+  await load(page, rows, []);
+  await expect(page.getByLabel('Registered only')).toBeDisabled();
+  await expect(page.getByLabel('Registered only')).toHaveAccessibleDescription('No project is registered in the app.');
+  await expect(cards).toHaveCount(4);
   expect(e).toEqual([]);
 });
 
@@ -86,13 +95,13 @@ test('a metric switch redraws the stream; a legend chip hides its series and say
   const chips = page.locator('#legend button.chip');
   await expect(chips).toHaveCount(3);
   await page.locator('#chart-table').locator('xpath=..').locator('summary').click();
-  await expect(page.locator('#chart-table th[scope=col]')).toContainText(['Day', 'work/shop', 'work/blog', 'work/api', 'Total']);
-  await chips.filter({ hasText: 'work/shop' }).click();
-  await expect(chips.filter({ hasText: 'work/shop' })).toHaveAttribute('aria-pressed', 'false');
-  await expect(chips.filter({ hasText: 'work/shop' })).toBeFocused();
-  await expect(page.locator('#chart-table th[scope=col]')).not.toContainText(['work/shop']);
-  await chips.filter({ hasText: 'work/shop' }).click();
-  await expect(chips.filter({ hasText: 'work/shop' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#chart-table th[scope=col]')).toContainText(['Day', 'shop', 'blog', 'api', 'Total']);
+  await chips.filter({ hasText: 'shop' }).click();
+  await expect(chips.filter({ hasText: 'shop' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(chips.filter({ hasText: 'shop' })).toBeFocused();
+  await expect(page.locator('#chart-table th[scope=col]')).not.toContainText(['shop']);
+  await chips.filter({ hasText: 'shop' }).click();
+  await expect(chips.filter({ hasText: 'shop' })).toHaveAttribute('aria-pressed', 'true');
   // Tap or keyboard reads a day.
   await page.locator('#chart').focus();
   await page.keyboard.press('End');

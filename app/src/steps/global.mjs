@@ -1,12 +1,12 @@
 // Machine setup per detected agent: rules, command rules, plugins, settings, host tools, and everything else
 // installed globally, offered for removal (destructive, off by default).
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { accountEnv, listAccounts } from '../accounts.mjs';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
-import { contentDir } from '../content.mjs';
+import { contentDir, contentRefusal } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
@@ -104,6 +104,13 @@ export function pluginState(ctx, a, account) {
   const state = readPluginState(ctx, a, account);
   return { ...state, listed: state.listed.filter((p) => SAFE_NAME.test(p.id ?? '')), markets: state.markets.filter((m) => SAFE_NAME.test(m ?? '')) };
 }
+// The newest version folder of a plugin in Codex's cache, and its path; both undefined without one.
+function codexCache(ctx, id) {
+  const [name, market] = id.split('@');
+  const d = join(ctx.home, `.codex/plugins/cache/${market}/${name}`);
+  const version = (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
+  return { version, dir: version && join(d, version) };
+}
 function readPluginState(ctx, a, account) {
   const at = (p) => join(ctx.home, p);
   const root = account?.dir ?? at('.claude');
@@ -113,36 +120,40 @@ function readPluginState(ctx, a, account) {
       const markets = JSON.parse(readText(join(root, 'plugins/known_marketplaces.json')));
       const on = parseJson(readText(join(root, 'settings.json')) ?? '{}').enabledPlugins ?? {};
       if (installed?.version === 2 && installed.plugins && markets) {
-        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, ...(p.gitCommitSha ? { commit: p.gitCommitSha } : {}), enabled: on[id] === true })));
+        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, ...(p.installPath ? { dir: p.installPath } : {}), ...(p.gitCommitSha ? { commit: p.gitCommitSha } : {}), enabled: on[id] === true })));
         return { listed, markets: Object.keys(markets), refs: Object.fromEntries(Object.entries(markets).map(([m, v]) => [m, v?.source?.ref])) };
       }
     } else {
       const conf = parseToml(readText(at('.codex/config.toml')) ?? '');
       if (conf.plugins || conf.marketplaces) {
-        const version = (id) => {
-          const [name, market] = id.split('@');
-          const d = at(`.codex/plugins/cache/${market}/${name}`);
-          return (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
-        };
-        // No version folder in the cache: the entry is there, its files are not.
-        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), enabled: p?.enabled === true, missing: !version(id) }));
+        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => {
+          const { version, dir } = codexCache(ctx, id);
+          // No version folder in the cache: the entry is there, its files are not.
+          return { id, version, ...(dir ? { dir } : {}), enabled: p?.enabled === true, missing: !version };
+        });
         return { listed, markets: Object.keys(conf.marketplaces ?? {}), refs: Object.fromEntries(Object.entries(conf.marketplaces ?? {}).map(([m, v]) => [m, v?.ref])) };
       }
     }
   } catch { /* the CLI below */ }
   if (a === 'claude') {
     const opts = account ? { env: accountEnv(ctx, account) } : undefined;
-    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json'], opts).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, enabled: p.enabled })),
+    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json'], opts).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, ...(p.installPath ? { dir: p.installPath } : {}), enabled: p.enabled })),
       ...marketRefs(json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json'], opts).stdout, [])) };
   }
-  return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => ({ id: p.pluginId, version: p.version, enabled: p.enabled })),
+  return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => {
+    const { dir } = codexCache(ctx, String(p.pluginId));
+    return { id: p.pluginId, version: p.version, ...(dir ? { dir } : {}), enabled: p.enabled };
+  }),
     ...marketRefs(json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []) };
 }
 
 // Claude Code keeps one plugin cache per config folder (CLAUDE_CONFIG_DIR), so each registered host account has its own copy of a
-// plugin, and the default-folder steps of the global plan never reach it. These are the accounts whose folder exists.
+// plugin, and the default-folder steps of the global plan never reach it. These are the accounts whose folder exists and is not the
+// default folder (a registered path that resolves to ~/.claude, a link included, is the default one).
 export function claudeAccounts(ctx) {
-  try { return listAccounts(ctx).filter((a) => a.agent === 'claude' && a.mode === 'host' && exists(a.dir)); } catch { return []; /* doctor reports an unreadable registry */ }
+  const real = (p) => { try { return realpathSync(p); } catch { return p; } };
+  const def = real(join(ctx.home, '.claude'));
+  try { return listAccounts(ctx).filter((a) => a.agent === 'claude' && a.mode === 'host' && exists(a.dir) && real(a.dir) !== def); } catch { return []; /* doctor reports an unreadable registry */ }
 }
 
 // The BenchKeeper plugin of an agent: the installed version (null when not installed) and the one this app sets up.
@@ -152,6 +163,16 @@ export function benchkeeperPlugin(ctx, a) {
   const available = pin(p, ctx.appVersion).version;
   const installedIn = (account) => pluginState(ctx, a, account).listed.find((x) => x.id === p.id)?.version ?? null;
   return { installed: installedIn(), available, ...(a === 'claude' ? { accounts: claudeAccounts(ctx).map((x) => ({ name: x.name, installed: installedIn(x), behind: behind(installedIn(x), available) })) } : {}) };
+}
+
+// The first installed BenchKeeper plugin whose content needs a newer app than this one, as a message; null when none does.
+export function installedRefusal(ctx, agents = ['claude', 'codex']) {
+  for (const a of agents.filter((x) => PLUGINS[x])) {
+    const dir = pluginState(ctx, a).listed.find((p) => p.id === 'benchkeeper@benchkeeper')?.dir;
+    const why = dir && contentRefusal(dir, ctx.appVersion);
+    if (why) return why;
+  }
+  return null;
 }
 
 // Enabled plugin ids per agent.
@@ -275,10 +296,11 @@ export function globalPlan(env) {
       if (!have || !behind(have.version, version)) continue;
       const step = `plugin:${a}:account:${acc.name}`, title = `${name} account ${acc.name}: plugin ${own.id} ${have.version} to ${version}`;
       const env = { CLAUDE_CONFIG_DIR: acc.dir };
-      // Undo puts back the files that name the installed version and the marketplace; the old version's folder stays in the cache.
+      // Undo puts back the files that name the installed version and the marketplace; the old version's folder is not restored (Claude Code
+      // prunes it later, and a snapshot of it would make undo refuse once it is gone), so undo can leave an entry whose files are gone.
       const file = (f) => [join(acc.dir, 'plugins', f)];
       add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'update', own.marketplace], env, snapshot: file('known_marketplaces.json'), outdated: true, unit: step });
-      add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', own.id], env, snapshot: file('installed_plugins.json'), outdated: true, unit: step });
+      add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, snapshot: file('installed_plugins.json'), outdated: true, unit: step });
     }
     for (const { id } of full ? listed : []) {
       if (!keepPlugin(id, a)) add(`other:${a}:plugin`, `remove the ${agent(a).name} plugin ${id}`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', id] : ['codex', 'plugin', 'remove', id], destructive: true });

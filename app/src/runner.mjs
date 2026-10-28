@@ -35,8 +35,8 @@ export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => 
 // (a project's .git is denied, its info/exclude list is a root of its own).
 export const allowed = (path, ctx, follow = true) => ctx.roots.some((r) => inside(path, [r], follow) && !(ctx.deny ?? []).some((d) => inside(path, [d], follow) && !inside(r, [d])));
 
-export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand } = {}) {
-  return { home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
+export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand, refuse } = {}) {
+  return { ...(refuse ? { refuse } : {}), home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
 }
 
 // runCommand without blocking; onOutput gets stdout and stderr as they come, interleaved. Each keeps its last keep
@@ -214,7 +214,11 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
   return run;
 }
 
+// ctx.refuse() names why content cannot be applied by this app (content.json minApp); undo is not refused.
+const refused = (ctx) => { const why = ctx.refuse?.(); if (why) throw new Error(why); };
+
 export function apply(changes, ctx, opts) {
+  refused(ctx);
   const release = ctx.ledger.lock();
   try {
     ctx.ledger.prune();
@@ -229,6 +233,7 @@ export function apply(changes, ctx, opts) {
 // The same apply without blocking: commands run through ctx.runAsync (stub contexts fall back to ctx.run).
 // onEvent gets { run } once, { entry, output } while a command prints, and { saved } after each change.
 export async function applyAsync(changes, ctx, opts, onEvent = () => {}) {
+  refused(ctx);
   const release = ctx.ledger.lock();
   try {
     ctx.ledger.prune();

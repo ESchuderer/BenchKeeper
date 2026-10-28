@@ -174,7 +174,7 @@ test('plugin state comes from the agents\' files; the CLI answers only when they
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'off@x': false } }));
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.3.2"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n');
   assert.deepEqual(pluginState(ctx, 'claude'), { listed: [{ id: 'ponytail@ponytail', version: '5.2.0', enabled: true }, { id: 'off@x', version: '1.0.0', enabled: false }], markets: ['ponytail', 'benchkeeper'], refs: { ponytail: 'v5.2.0', benchkeeper: undefined } });
-  assert.deepEqual(pluginState(ctx, 'codex'), { listed: [{ id: 'ponytail@ponytail', version: '5.10.0', enabled: true, missing: false }], markets: ['ponytail'], refs: { ponytail: 'v5.3.2' } });
+  assert.deepEqual(pluginState(ctx, 'codex'), { listed: [{ id: 'ponytail@ponytail', version: '5.10.0', dir: join(home, '.codex/plugins/cache/ponytail/ponytail/5.10.0'), enabled: true, missing: false }], markets: ['ponytail'], refs: { ponytail: 'v5.3.2' } });
   assert.deepEqual(calls, []);
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), '{broken');
   writeFileSync(join(home, '.codex/config.toml'), 'model = "x"\n');
@@ -275,17 +275,19 @@ test('each account folder has its own plugin cache: doctor names the one behind 
   folder(dirs.work, '6.0.0');
   folder(dirs.private, '6.5.0');
   mkdirSync(dirs.codex, { recursive: true });
+  symlinkSync(dirs.def, join(home, 'acct/alias'));
   const calls = [];
   const run = (argv, o) => {
     calls.push({ cmd: argv.join(' '), dir: o?.env?.CLAUDE_CONFIG_DIR });
-    if (argv.join(' ') === 'claude plugin update benchkeeper@benchkeeper') {
+    if (argv.join(' ') === 'claude plugin update --scope user benchkeeper@benchkeeper') {
       writeFileSync(join(o.env.CLAUDE_CONFIG_DIR, 'plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version: '6.5.0' }] } }));
     }
     return { code: 0, stdout: '', stderr: '' };
   };
   const ctx = context({ home, appVersion: '6.5.0', run });
   mkdirSync(ctx.config, { recursive: true });
-  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [entry('work', dirs.work), entry('private', dirs.private), entry('gone', dirs.gone), { ...entry('codex', dirs.codex), agent: 'codex' }] }));
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [entry('work', dirs.work), entry('private', dirs.private), entry('gone', dirs.gone), entry('default', dirs.def), entry('alias', join(home, 'acct/alias')), { ...entry('codex', dirs.codex), agent: 'codex' }] }));
+  // The default folder, also through a link, is not an account folder: the agent's own update keeps it current.
   // Verified first: a plugin sits in each folder on its own, the default state never shows an account's.
   folder(dirs.def, null);
   assert.equal(pluginState(ctx, 'claude').listed.length, 0);
@@ -303,7 +305,7 @@ test('each account folder has its own plugin cache: doctor names the one behind 
   calls.length = 0;
   const done = apply(plan, ctx, { scope: 'global' });
   assert.deepEqual(calls.filter((c) => /plugin (marketplace )?update/.test(c.cmd)), [
-    { cmd: 'claude plugin marketplace update benchkeeper', dir: dirs.work }, { cmd: 'claude plugin update benchkeeper@benchkeeper', dir: dirs.work }]);
+    { cmd: 'claude plugin marketplace update benchkeeper', dir: dirs.work }, { cmd: 'claude plugin update --scope user benchkeeper@benchkeeper', dir: dirs.work }]);
   assert.equal(readFileSync(join(dirs.def, 'plugins/installed_plugins.json'), 'utf8'), defaultBefore);
   assert.equal(readFileSync(join(dirs.private, 'plugins/installed_plugins.json'), 'utf8'), privateBefore);
   assert.equal(JSON.parse(readFileSync(join(dirs.work, 'plugins/installed_plugins.json'), 'utf8')).plugins['benchkeeper@benchkeeper'][0].version, '6.5.0');

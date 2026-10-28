@@ -210,7 +210,7 @@ export function Dashboard({ overview, doctor, history, params }) {
   const names = Object.fromEntries((o?.agents ?? []).map((a) => [a.id, a.name]));
   const attention = items.filter((i) => ATTENTION.includes(i.state));
   const errors = doctor.data?.filter((i) => i.level === 'error').length ?? 0, warnings = (doctor.data?.length ?? 0) - errors;
-  const behind = o?.projects.filter((p) => p.setupVersion !== o.version).length ?? 0;
+  const behind = o?.projects.filter((p) => !p.current).length ?? 0;
   const nodes = [
     { label: 'Agents detected', value: `${agents.length} installed`, status: agents.length ? 'ok' : 'problem', href: href('agents') },
     { label: 'Global setup', value: inv.data ? `${attention.length} need attention` : inv.error ? 'check failed' : 'checking', status: inv.error ? 'problem' : attention.length ? 'attention' : 'ok', href: href('agents', { plan: '1' }) },

@@ -43,7 +43,17 @@ test('imports: an import across a forbidden boundary, a cycle and the IDE name o
     'a URL': "export const u = 'https://github.com/stablyai/orca';\n",
     'a template': "export const t = `${'x'.length} stablyai/orca`;\n",
     'a CommonJS file': "module.exports = 'Orca';\n",
+    'import-like text in a string': "export const hint = 'Run import(\"https://github.com/stablyai/orca\")';\n",
+    'a multiline template': "export const t = `one\nhttps://github.com/stablyai/orca\ntwo`;\n",
   };
+  const paths = {
+    'an import path': "import n from './orca/index.mjs';\nimport h from './OrcaHelper.mjs';\nexport default [n, h];\n",
+    'a require path': "const n = require('./orca/index.mjs');\nmodule.exports = n;\n",
+  };
+  for (const [what, text] of Object.entries(paths)) {
+    const r = check({ ...CLEAN, 'src/OrcaHelper.mjs': 'export default 1;\n', [what === 'a require path' ? 'src/board.cjs' : 'src/board.mjs']: text });
+    assert.equal(r.code, 0, `${what}: ${r.out}`);
+  }
   const ok = check({ ...CLEAN, 'src/board.mjs': "export const t = `non-${name.orca} ${1}`;\n" });
   assert.equal(ok.code, 0, ok.out);
   for (const [what, text] of Object.entries(names)) {

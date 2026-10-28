@@ -19,6 +19,9 @@ body { background: var(--bk-page); font-feature-settings: 'cv11'; }
 /* Code on the page, not in a panel, keeps its contrast to the page. */
 .mantine-Code-root { background-color: var(--bk-surface); }
 .mantine-Code-root[data-block] { border: 1px solid var(--mantine-color-default-border); }
+/* Focus rings and the focused input border in dark mode: the filled step is 2.2:1 on the dark surface, the accent step is above 6:1. */
+[data-mantine-color-scheme='dark'] :is(.mantine-focus-auto:focus-visible, .mantine-focus-always:focus, svg:focus-visible) { outline-color: var(--bk-accent); }
+[data-mantine-color-scheme='dark'] .mantine-Input-input[data-variant] { --input-bd-focus: var(--bk-accent); }
 /* Skip link: off screen until it has the focus. */
 .bk-skip { position: absolute; left: 8px; top: -100px; z-index: 1000; padding: 8px 12px; border-radius: var(--mantine-radius-md); background: var(--bk-surface); color: var(--mantine-color-text); border: 2px solid var(--mantine-primary-color-filled); }
 .bk-skip:focus { top: 8px; }

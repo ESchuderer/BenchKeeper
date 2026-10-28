@@ -93,7 +93,11 @@ test.describe('views', () => {
       expect(await read('--bk-s2')).toBe(TOKENS[scheme].s2);
       expect(await read('--mantine-color-text')).toBe(TOKENS[scheme].ink);
     }
+    // The focus ring is the accent in dark mode (the filled step is below 3:1 on the dark surface).
     const button = page.getByRole('button', { name: 'Fix everything' });
+    await page.keyboard.press('Shift');
+    await button.focus();
+    expect(await button.evaluate((el) => getComputedStyle(el).outlineColor)).toBe('rgb(134, 182, 239)');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     expect(await button.evaluate((el) => getComputedStyle(el).transitionDuration)).not.toBe('0s');
     await page.emulateMedia({ reducedMotion: 'reduce' });

@@ -111,7 +111,7 @@ test('issue pickup: the same picks as the skill sample on its rule', async () =>
   assert.deepEqual(r.work, pickable(POLICY, issues, ['fix/6-crash']).map((n) => `pick #${n}`));
 });
 
-test('pr watcher: merges only green own pull requests, and never release, fork, foreign or held ones', async () => {
+test('pr watcher: merges only green own pull requests, and never release, fork, foreign, trusted authors\' or held ones', async () => {
   const nodes = [
     pr(1),
     pr(2, { headRefName: 'release-please--branches--main', author: { login: 'app/github-actions' } }),
@@ -129,11 +129,11 @@ test('pr watcher: merges only green own pull requests, and never release, fork, 
     pr(14, { author: { login: 'helper' }, commits: { nodes: [{ commit: { author: { user: { login: 'helper' } } } }] } }),
   ];
   const r = await watch({ nodes, workers: [worker('/w8')], trees: { '/w8': 'feat/8-busy' } });
-  assert.deepEqual(r.work, [`merge #1 ${HEAD} closes #5`, `merge #14 ${HEAD} closes #5`], 'text after the reviewer marker closes nothing');
+  assert.deepEqual(r.work, [`merge #1 ${HEAD} closes #5`], 'text after the reviewer marker closes nothing');
   assert.deepEqual(r.skipped, [
     'skip #2 release pull request', 'skip #3 release pull request', 'skip #4 from a fork', 'skip #5 external, by stranger', 'skip #6 holds a commit by someone else',
     'skip #7 label hold', 'skip #8 a worker is on it', 'skip #9 draft', 'skip #10 mergeable is CONFLICTING', 'skip #11 changes requested',
-    'skip #12 required checks not green: ci', 'skip #13 checks pending',
+    'skip #12 required checks not green: ci', 'skip #13 checks pending', 'skip #14 external, by helper',
   ]);
   assert.deepEqual((await watch({ nodes: [pr(1)], policy: { ...POLICY, merge: undefined } })).skipped, ['skip #1 the policy allows no merge']);
 });
@@ -144,7 +144,7 @@ test('pr watcher: one fix worker per failing head and per set of unresolved thre
   const r = await watch({ nodes: [pr(1, failing), pr(2, threads), pr(3, { ...failing, author: { login: 'helper' }, commits: { nodes: [] } })] });
   assert.equal(r.work[0], `fix-checks #1 ${HEAD}`);
   const [, key] = r.work[1].match(/^fix-threads #2 ([0-9a-f]{12})$/);
-  assert.deepEqual(r.skipped, ['skip #3 checks fail, not your pull request']);
+  assert.deepEqual(r.skipped, ['skip #3 external, by helper'], 'a trusted author is not this account');
   const said = (body, login = 'me') => ({ comments: { nodes: [{ author: { login }, body }] } });
   const again = await watch({ nodes: [pr(1, { ...failing, ...said(`started\npr-watcher fix checks ${HEAD}`) }), pr(2, { ...threads, ...said(`pr-watcher fix threads ${key}`) }), pr(4, { ...threads, ...said(`pr-watcher fix threads ${key}`, 'stranger') })] });
   assert.deepEqual(again.work, [`fix-threads #4 ${key}`], 'only a comment of this account counts');

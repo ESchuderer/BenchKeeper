@@ -100,14 +100,13 @@ const QUERY = `query($owner: String!, $name: String!) { repository(owner: $owner
     __typename ... on CheckRun { name status conclusion } ... on StatusContext { context state } } } } } } }
 } } } }`;
 
-// Per open pull request: merge it, start a fix worker for its failing checks or its unresolved review threads, or skip it.
+// Per open pull request of this account: merge it, start a fix worker for its failing checks or its unresolved review threads, or skip it.
 // With pr and head: only whether that pull request is merge-ready at that head commit.
 async function prWatcher(ctx, dir, v) {
   const { slug, policy, workers } = await project(ctx, dir);
   const me = who(gh(ctx, dir, ['api', 'user', '--jq', '.login']).trim());
   const [owner, name] = slug.split('/');
   const nodes = JSON.parse(gh(ctx, dir, ['api', 'graphql', '-f', `query=${QUERY}`, '-f', `owner=${owner}`, '-f', `name=${name}`])).data.repository.pullRequests.nodes;
-  const allowed = new Set([me, ...(policy.trustedAuthors ?? []).map(who)]);
   const decide = (p) => {
     const author = who(p.author?.login), labels = p.labels.nodes.map((l) => l.name);
     const checks = (p.head.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []).map((c) => ({ name: c.name ?? c.context, result: result(c) }));
@@ -116,19 +115,17 @@ async function prWatcher(ctx, dir, v) {
     const started = (kind, key) => p.comments.nodes.some((c) => who(c.author?.login) === me && c.body.split('\n').includes(`pr-watcher fix ${kind} ${key}`));
     if (p.headRefName.startsWith('release-please--') || labels.includes('autorelease: pending')) return { skip: 'release pull request' };
     if (p.isCrossRepository) return { skip: 'from a fork' };
-    if (!allowed.has(author)) return { skip: `external, by ${author}` };
+    if (author !== me) return { skip: `external, by ${author}` };
     // The git author: a co-author trailer, such as an agent's attribution, does not make a commit someone else's.
     if (p.commits.nodes.some((c) => who(c.commit.author?.user?.login) !== author)) return { skip: 'holds a commit by someone else' };
     if (labels.includes(v.hold_label)) return { skip: `label ${v.hold_label}` };
     if (workers.some((w) => w.working && w.branch === p.headRefName)) return { skip: 'a worker is on it' };
     if (v.head && p.headRefOid !== v.head) return { skip: `head is ${p.headRefOid}, not ${v.head}` };
     if (checks.some((c) => c.result === 'fail')) {
-      if (author !== me) return { skip: 'checks fail, not your pull request' };
       return started('checks', p.headRefOid) ? { skip: 'a fix worker was started for this head' } : { fix: `fix-checks #${p.number} ${p.headRefOid}` };
     }
     if (threads.length) {
       const key = hashText(threads.join(' ')).slice(0, 12);
-      if (author !== me) return { skip: 'unresolved review threads, not your pull request' };
       return started('threads', key) ? { skip: 'a fix worker was started for these threads' } : { fix: `fix-threads #${p.number} ${key}` };
     }
     const missing = (policy.merge?.requiredChecks ?? []).filter((n) => !checks.some((c) => c.name === n && c.result === 'pass'));

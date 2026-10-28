@@ -37,7 +37,7 @@ Questions for the owner go to this terminal, not into an issue or a pull request
 2. Read each item: for a pull request its title, the version change, the check state and the changelog or release notes of the new version (`gh pr view`, `gh pr checks`); for an alert the package, the severity, the vulnerable range and the first patched version (`gh api repos/<repo>/dependabot/alerts/<number>`).
 3. Sort each item:
    - `foreign`: listed with the logins of the other commits; no action.
-   - A minor or patch update: left to the pull request watcher; listed with its check state.
+   - A minor or patch update: listed with its check state for the owner to merge; the pull request watcher merges only your own pull requests.
    - A major update: one worker fixes the build on the pull request branch, or closes the pull request with a comment that gives the reason. The commit or the comment names the changelog entry it read for the bump.
    - An alert: one worker opens a fix pull request from the default branch that raises the package to a patched version; an open bot pull request that already does this counts as the fix.
    - `noaccess`: name the repository once as not checked for advisories; this is not an error.

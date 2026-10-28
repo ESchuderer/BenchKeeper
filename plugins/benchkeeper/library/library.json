@@ -457,6 +457,30 @@
   ],
   "packs": [
     {
+      "id": "ponytail",
+      "title": "Ponytail",
+      "pickWhen": "The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full",
+      "plugins": {
+        "claude": {
+          "id": "ponytail@ponytail",
+          "marketplace": "DietrichGebert/ponytail"
+        },
+        "codex": {
+          "id": "ponytail@ponytail",
+          "marketplace": "DietrichGebert/ponytail"
+        }
+      },
+      "settings": [
+        {
+          "title": "Ponytail level full",
+          "path": ".config/ponytail/config.json",
+          "set": {
+            "defaultMode": "full"
+          }
+        }
+      ]
+    },
+    {
       "id": "matt-pocock",
       "title": "Matt Pocock's skills",
       "pickWhen": "The project uses his grilling, spec, tickets, test-first and review skills",
@@ -473,9 +497,15 @@
         {
           "claude": "/mattpocock-skills:setup-matt-pocock-skills",
           "codex": "$mattpocock-skills:setup-matt-pocock-skills",
-          "why": "writes `docs/agents/` (issue tracker, triage labels, domain docs) and the `## Agent skills` block"
+          "why": "writes `docs/agents/` (issue tracker, triage labels, domain docs) and the `## Agent skills` block",
+          "sections": [
+            "### Issue tracker",
+            "### Triage labels",
+            "### Domain docs"
+          ]
         }
-      ]
+      ],
+      "pointer": "Matt Pocock's skills (`mattpocock-skills:<name>`) are installed: grilling, spec and tickets, tests first, code review against the issue, pull request text."
     },
     {
       "id": "frontend",
@@ -588,42 +618,12 @@
         ]
       },
       "limits": "Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project."
-    },
-    {
-      "id": "matt-pocock",
-      "title": "Matt Pocock's skills",
-      "role": "parts",
-      "repo": "mattpocock/skills",
-      "license": "MIT",
-      "pin": "v1.3.1",
-      "evaluation": "evaluations/skill-libraries/mattpocock-skills.md",
-      "verdict": "Optional pack: no controlled evidence, no hooks.",
-      "hooks": "None.",
-      "install": {
-        "kind": "pack",
-        "pack": "matt-pocock"
-      },
-      "limits": "The plugin installs for the user (the pack's plugin step), the project gets its docs from the setup skill."
-    },
-    {
-      "id": "ecc",
-      "title": "ECC",
-      "role": "parts",
-      "repo": "affaan-m/ECC",
-      "license": "MIT",
-      "pin": "v2.2.3 (c05b2d6614f6)",
-      "evaluation": "EVALUATIONS.md",
-      "verdict": "Not in as a plugin: no outcome measurement, hook overhead. Offered as three single skills.",
-      "hooks": "None (skills only).",
-      "install": {
-        "kind": "pack",
-        "pack": "ecc"
-      }
-    },
+    }
+  ],
+  "sources": [
     {
       "id": "agency-agents",
       "title": "agency-agents",
-      "role": "parts",
       "repo": "msitarzewski/agency-agents",
       "license": "MIT",
       "pin": "b37b5bb33b78 (no release)",

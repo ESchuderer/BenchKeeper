@@ -1,6 +1,6 @@
 # Ponytail
 
-[Repository](https://github.com/DietrichGebert/ponytail), Category: behavior modes, Checked 2026-10-16, Decision: In, evidence mixed
+[Repository](https://github.com/DietrichGebert/ponytail), Category: behavior modes, Checked 2026-10-16, Decision: Optional pack, evidence mixed
 
 ## Advertised
 
@@ -28,6 +28,6 @@ Rank 1 of 8, review 3.9, static checks 97% (5.2.0), conciseness 4, structure 4. 
 
 ## Decision
 
-In, evidence mixed: line reductions are consistent across sources, and the cost direction depends on the setup. BenchKeeper's own run: Benchmark above (k = 3).
+Optional pack (`ponytail`), evidence mixed: line reductions are consistent across sources, and the cost direction depends on the setup. BenchKeeper's own run: Benchmark above (k = 3).
 
 [All evaluations](../../EVALUATIONS.md)

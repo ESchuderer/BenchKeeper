@@ -25,7 +25,7 @@ SCB preparation updated on 2026-10-21: [protocol 1.23](bench/PROTOCOL.md#externa
 
 | Component | Decision | Summary |
 |---|---|---|
-| [Ponytail](evaluations/behavior-modes/ponytail.md) | In, evidence mixed (arm B, k=3) | lines down in every source that measured them, cost -10.3% (JetBrains) to +55% elsewhere, 0.58 times plain Claude Code in mistreevous (k=3) |
+| [Ponytail](evaluations/behavior-modes/ponytail.md) | Optional pack, evidence mixed (arm B, k=3) | lines down in every source that measured them, cost -10.3% (JetBrains) to +55% elsewhere, 0.58 times plain Claude Code in mistreevous (k=3) |
 | [caveman](evaluations/behavior-modes/caveman.md) | Not in, never part of BenchKeeper | advertised -65%, measured -8.5% output tokens, score p=0.82 (JetBrains). Cost not reduced in 3 sources |
 
 ### Skill libraries

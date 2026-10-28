@@ -33,7 +33,7 @@ test('Claude Code sessions: cost, time and tokens from the last cost-state, tier
   // Skill calls (subagents too), slash commands and the skill a turn was attributed to.
   assert.deepEqual(s1.skills, ['designing-technical-uis', 'diagnosing-bugs', 'ponytail-review', 'tdd']);
   assert.equal(s1.tests, 'pass');
-  assert.deepEqual(s1.setup, ['BenchKeeper', 'Matt Pocock', 'Ponytail', 'frontend']);
+  assert.deepEqual(s1.setup, ['BenchKeeper', 'ponytail', 'matt-pocock', 'frontend']);
   assert.equal(s1.setupVersion, '6.0.0');
   assert.deepEqual(s1.prs, [{ url: 'https://github.com/acme/shop/pull/7', state: 'unknown' }]);
   // No cost-state yet: no cost, tokens from each message once.
@@ -48,7 +48,7 @@ test('Codex sessions: tokens and skills of subagent rollouts go to the parent; c
   const { c1 } = byId(rows);
   assert.deepEqual(
     [c1.agent, c1.project, c1.branch, c1.agentVersion, c1.models, c1.turns, c1.costUSD, c1.busyMs, c1.tokens, c1.tests, c1.setup, c1.setupVersion],
-    ['codex', '/work/shop', 'main', '0.162.1', ['gpt-6-astra'], 1, null, 7000, 1300, 'pass', ['Ponytail'], '6.1.0'],
+    ['codex', '/work/shop', 'main', '0.162.1', ['gpt-6-astra'], 1, null, 7000, 1300, 'pass', ['ponytail'], '6.1.0'],
   );
   assert.deepEqual(c1.tier, { first: 'quick', last: 'quick', changeType: null, movedUp: false });
   assert.deepEqual(c1.skills, ['diagnosing-bugs', 'grilling', 'tdd']);

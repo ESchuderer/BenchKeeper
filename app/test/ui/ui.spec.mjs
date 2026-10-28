@@ -909,16 +909,20 @@ test.describe('views', () => {
     // Community skills need npx, which the fixture lacks: no pack here.
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).not.toBeChecked();
     await noAxe(page);
-    // Frameworks are listed with their evidence and chosen explicitly; none is preselected, and agency-agents asks for a pick of files.
+    // Frameworks are workflow owners, listed with their evidence and chosen explicitly; none is preselected. Agent files are a pick of their own.
     const fw = drawer.getByRole('region', { name: 'Frameworks' });
-    await expect(fw.getByRole('radio', { name: /^BenchKeeper's workflow skill/ })).toBeChecked();
-    await fw.getByRole('radio', { name: /^Superpowers/ }).check();
+    // Each one is listed once, as a checkbox; no owner checked keeps BenchKeeper's workflow skill.
+    await expect(fw.getByRole('radio')).toHaveCount(0);
+    await expect(fw.getByRole('checkbox')).toHaveCount(1);
+    await expect(drawer.getByRole('checkbox', { name: /^Superpowers/ })).toHaveCount(1);
+    await expect(fw.getByRole('checkbox', { name: /^Superpowers/ })).not.toBeChecked();
+    await expect(fw).not.toContainText('give way in this project');
+    await fw.getByRole('checkbox', { name: /^Superpowers/ }).check();
     await expect(fw).toContainText('cost higher in every with/without test but one');
-    await fw.getByRole('checkbox', { name: /^agency-agents/ }).check();
-    await expect(fw.getByRole('checkbox', { name: 'engineering-frontend-developer' })).not.toBeChecked();
+    await expect(fw).toContainText("BenchKeeper's workflow skill and the issue-tracker specs give way in this project.");
+    await expect(drawer.getByRole('checkbox', { name: 'engineering-frontend-developer' })).not.toBeChecked();
     await noAxe(page);
-    await fw.getByRole('checkbox', { name: /^agency-agents/ }).uncheck();
-    await fw.getByRole('radio', { name: /^BenchKeeper's workflow skill/ }).check();
+    await fw.getByRole('checkbox', { name: /^Superpowers/ }).uncheck();
     // An agent suggests skills only after the user agrees to its session.
     await drawer.getByRole('button', { name: 'Suggest with an agent' }).click();
     const ask = page.getByRole('dialog', { name: 'Start an agent session?' });
@@ -958,6 +962,13 @@ test.describe('views', () => {
   });
 
   test('Projects: Change setup starts from the state file', async ({ page }) => {
+    // A saved owner and a saved pack load checked; a second owner row (not in the library today) is off while the first is checked.
+    await page.route(/\/api\/project-setup\?/, async (route) => {
+      const body = await (await route.fetch()).json();
+      body.state = { ...body.state, frameworks: ['superpowers'], packs: [...body.state.packs, 'matt-pocock'] };
+      body.frameworks = [...body.frameworks, { ...body.frameworks[0], id: 'other-owner', title: 'Other owner' }];
+      await route.fulfill({ json: body });
+    });
     await nav(page, 'Projects').click();
     await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: /bk-ui-proj$/ }).click();
     await page.getByRole('button', { name: 'Change setup' }).click();
@@ -967,6 +978,15 @@ test.describe('views', () => {
     await expect(drawer.getByRole('radio', { name: /^Agent on the host/ })).toBeChecked();
     await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).toBeChecked();
+    await expect(drawer.getByRole('checkbox', { name: /^Matt Pocock's skills/ })).toBeChecked();
+    const fw = drawer.getByRole('region', { name: 'Frameworks' });
+    await expect(fw.getByRole('checkbox', { name: /^Superpowers/ })).toBeChecked();
+    await expect(fw.getByRole('checkbox', { name: /^Other owner/ })).toBeDisabled();
+    await expect(fw).toContainText('Off while Superpowers owns the workflow: a project has at most one owner.');
+    await noAxe(page);
+    await fw.getByRole('checkbox', { name: /^Superpowers/ }).uncheck();
+    await expect(fw.getByRole('checkbox', { name: /^Other owner/ })).toBeEnabled();
+    await expect(fw).not.toContainText('Off while');
     await drawer.getByRole('button', { name: 'Close' }).click();
   });
 
@@ -1022,7 +1042,7 @@ test.describe('views', () => {
     await noAxe(page);
     await run.getByText('Unified', { exact: true }).click();
     // A step whose file no later step changed (settings.json gets later edits, so its step alone is refused).
-    await run.getByRole('button', { name: 'Undo step settings:ponytail', exact: true }).click();
+    await run.getByRole('button', { name: 'Undo step plugin:claude:ponytail@ponytail', exact: true }).click();
     await expect(page.getByRole('alert').filter({ hasText: 'Undone' })).toContainText(/1 of 1 changes undone/);
     await expect(run).toContainText('undone by');
     await run.getByRole('button', { name: 'Undo run' }).click();

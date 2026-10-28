@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { library } from '../src/content.mjs';
 import { doctor } from '../src/doctor.mjs';
-import { catalog, checkOwners, frameworkChecks, frameworkRemovals, frameworkRows } from '../src/frameworks.mjs';
+import { catalog, checkOwners, frameworkChecks, frameworkRemovals, sourceRows, sources } from '../src/frameworks.mjs';
 import { apply, context, preview, runCommand, undo, undoable } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { committedSetup, localSetup, projectPlan, readState, resolveAnswers } from '../src/steps/project.mjs';
@@ -58,13 +58,12 @@ const frameworkSteps = (p) => p.changes.filter((c) => c.step.startsWith('framewo
 const base = { agents: ['claude'], env: 'host' };
 const sink = () => { let text = ''; return { out: new Writable({ write(c, _, done) { text += c; done(); } }), text: () => text }; };
 
-test('the catalog: every framework has an evaluation file, a pack or pinned source, and at most one owner', () => {
+test('the catalog: frameworks are workflow owners, agent files a source; each has an evaluation file and a pinned source', () => {
   const lib = library();
-  assert.deepEqual(catalog(lib).map((f) => f.id), ['superpowers', 'matt-pocock', 'ecc', 'agency-agents']);
-  assert.deepEqual(catalog(lib).filter((f) => f.role === 'owner').map((f) => f.id), ['superpowers']);
-  for (const f of catalog(lib)) {
+  assert.deepEqual(catalog(lib).map((f) => [f.id, f.role, f.install.kind]), [['superpowers', 'owner', 'plugin']]);
+  assert.deepEqual(sources(lib).map((f) => f.id), ['agency-agents']);
+  for (const f of [...catalog(lib), ...sources(lib)]) {
     assert.ok(existsSync(new URL(`../../${f.evaluation}`, import.meta.url)), f.evaluation);
-    if (f.install.kind === 'pack') assert.ok(lib.packs.some((p) => p.id === f.install.pack), f.id);
     if (f.install.kind === 'agents') {
       assert.match(f.install.ref, /^[0-9a-f]{40}$/);
       for (const { path } of f.install.files) assert.match(path, /^[a-z0-9-]+\/[a-z0-9-]+\.md$/);
@@ -72,7 +71,7 @@ test('the catalog: every framework has an evaluation file, a pack or pinned sour
   }
   // ECC comes as single skills at a commit, not as its plugin.
   assert.ok(lib.skills.filter((s) => s.source === 'affaan-m/ECC').every((s) => s.ref === undefined));
-  assert.equal(frameworkRows().find((f) => f.id === 'agency-agents').files.length, 6);
+  assert.equal(sourceRows().find((f) => f.id === 'agency-agents').files.length, 6);
 });
 
 test('Superpowers, local: a plugin enabled for this project only, the project block gives way, a second plan is empty, undo takes it out', () => {
@@ -115,7 +114,7 @@ test('Superpowers, shared: scope project, in the settings file the repository ke
 
 test('removing a committed or local setup takes the framework out too', () => {
   const r = repo();
-  run(r, { ...base, frameworks: ['superpowers', 'agency-agents'], agentFiles: [FILE] });
+  run(r, { ...base, frameworks: ['superpowers'], agentFiles: [FILE] });
   const local = localSetup(r.ctx, r.dir);
   assert.ok(local.some((c) => c.step === 'framework' && c.kind === 'write' && c.path.endsWith('settings.local.json')));
   assert.ok(local.some((c) => c.step === 'framework' && c.kind === 'remove' && c.path.endsWith(AGENT)));
@@ -142,12 +141,12 @@ test('a state file from a clone: ids and paths the catalog lacks are ignored, ne
   assert.deepEqual([resolveAnswers(r.dir).frameworks, resolveAnswers(r.dir).agentFiles], [[], []]);
   assert.deepEqual(frameworkSteps(plan(r, {})), []);
   state({ frameworks: [], agentFiles: [FILE], agentOwned: [FILE] });
-  assert.deepEqual(resolveAnswers(r.dir).agentFiles, [], 'a file of a framework that is not chosen');
+  assert.deepEqual(resolveAnswers(r.dir).agentFiles, [FILE], 'a picked file of a source');
   assert.throws(() => plan(r, { ...base, frameworks: ['../x'] }), /unknown framework/);
-  assert.throws(() => plan(r, { ...base, frameworks: ['agency-agents'], agentFiles: ['../../etc/passwd'] }), /not an agent file of the catalog/);
-  assert.throws(() => plan(r, { ...base, frameworks: ['agency-agents'], agentFiles: ['engineering/../../x.md'] }), /not an agent file/);
+  assert.throws(() => plan(r, { ...base, agentFiles: ['../../etc/passwd'] }), /not an agent file of the catalog/);
+  assert.throws(() => plan(r, { ...base, agentFiles: ['engineering/../../x.md'] }), /not an agent file/);
   // The owned list never reaches a removal: only catalog paths do.
-  state({ frameworks: ['agency-agents'], agentFiles: [FILE], agentOwned: ['../../etc/passwd'] });
+  state({ agentFiles: [FILE], agentOwned: ['../../etc/passwd'] });
   assert.deepEqual(frameworkRemovals(r.dir, readState(r.dir), 'local'), []);
 });
 
@@ -156,7 +155,7 @@ test('an agent file that was there before is the project\'s: kept, not fetched, 
   mkdirSync(join(r.dir, '.claude/agents'), { recursive: true });
   writeFileSync(join(r.dir, AGENT), 'mine\n');
   const other = 'testing/testing-reality-checker.md';
-  run(r, { ...base, frameworks: ['agency-agents'], agentFiles: [FILE, other] });
+  run(r, { ...base, agentFiles: [FILE, other] });
   assert.equal(r.calls.filter((c) => c.argv[0] === 'curl').length, 1, 'only the missing file is fetched');
   assert.deepEqual(readState(r.dir).agentOwned, [other]);
   run(r, { agentFiles: [other] });
@@ -166,31 +165,32 @@ test('an agent file that was there before is the project\'s: kept, not fetched, 
 test('an install that did not run is not recorded: a failed plugin install, a failed fetch', () => {
   const r = repo();
   const failing = { ...r.ctx, run: (argv, o) => (['claude', 'curl'].includes(argv[0]) ? { code: 1, stdout: '', stderr: 'no network' } : r.ctx.run(argv, o)) };
-  const p = projectPlan({ ctx: failing, dir: r.dir, answers: { ...base, frameworks: ['superpowers', 'agency-agents'], agentFiles: [FILE] }, plugins: {} });
+  const p = projectPlan({ ctx: failing, dir: r.dir, answers: { ...base, frameworks: ['superpowers'], agentFiles: [FILE] }, plugins: {} });
   const changes = preview(p.changes);
   const result = apply(changes, failing, { scope: r.dir, select: changes.filter((c) => c.selected).map((c) => c.id) });
   assert.equal(result.status, 'failed');
   const state = readState(r.dir);
-  assert.deepEqual([state.frameworks, state.agentOwned, state.frameworkRefs], [['agency-agents'], [], undefined]);
+  assert.deepEqual([state.frameworks, state.agentFiles, state.agentOwned, state.frameworkRefs], [undefined, [FILE], [], undefined]);
   // Applied again, it plans both once more.
-  assert.equal(frameworkSteps(plan(r, { frameworks: ['superpowers', 'agency-agents'] })).length, 2);
+  assert.equal(frameworkSteps(plan(r, { frameworks: ['superpowers'] })).length, 2);
 });
 
-test('--framework without --agent-file keeps the picks of the frameworks still chosen', () => {
+test('--framework without --agent-file keeps the agent files picked; an empty pick drops them', () => {
   const r = repo();
-  run(r, { ...base, frameworks: ['agency-agents'], agentFiles: [FILE] });
-  assert.deepEqual(resolveAnswers(r.dir, { frameworks: ['agency-agents', 'superpowers'] }).agentFiles, [FILE]);
-  assert.deepEqual(resolveAnswers(r.dir, { frameworks: [] }).agentFiles, []);
+  run(r, { ...base, agentFiles: [FILE] });
+  assert.deepEqual(resolveAnswers(r.dir, { frameworks: ['superpowers'] }).agentFiles, [FILE]);
+  assert.deepEqual(resolveAnswers(r.dir, { frameworks: [] }).agentFiles, [FILE]);
+  assert.deepEqual(resolveAnswers(r.dir, { agentFiles: [] }).agentFiles, []);
 });
 
 test('agency-agents: a pick of agent files fetched at the pinned commit, second plan empty, a dropped pick removed, undo restores', () => {
   const r = repo();
-  assert.throws(() => plan(r, { ...base, frameworks: ['agency-agents'] }), /pick the agent files/);
-  assert.throws(() => plan(r, { ...base, agentFiles: [FILE] }), /need their framework chosen/);
-  const p = run(r, { ...base, frameworks: ['agency-agents'], agentFiles: [FILE] });
+  assert.throws(() => plan(r, { ...base, frameworks: ['agency-agents'] }), /unknown framework agency-agents/);
+  assert.throws(() => plan(r, { ...base, agents: ['codex'], agentFiles: [FILE] }), /installs for Claude Code only/);
+  const p = run(r, { ...base, agentFiles: [FILE] });
   assert.equal(p.run.status, 'done');
   const curl = r.calls.find((c) => c.argv[0] === 'curl');
-  const ref = catalog().find((f) => f.id === 'agency-agents').install.ref;
+  const ref = sources().find((f) => f.id === 'agency-agents').install.ref;
   assert.deepEqual(curl.argv.slice(1, 8), ['-fsSL', '--remove-on-error', '--proto', '=https', '--proto-redir', '=https', '--create-dirs']);
   assert.equal(curl.argv.at(-1), `https://raw.githubusercontent.com/msitarzewski/agency-agents/${ref}/${FILE}`);
   assert.equal(curl.argv.at(-2), join(r.dir, AGENT));
@@ -203,17 +203,17 @@ test('agency-agents: a pick of agent files fetched at the pinned commit, second 
   assert.ok(!existsSync(join(r.dir, AGENT)), 'undo took the file out again');
   // Applied again with a second file, then one pick dropped: its file goes to the backup, the other stays.
   const other = 'testing/testing-reality-checker.md';
-  run(r, { ...base, frameworks: ['agency-agents'], agentFiles: [FILE, other] });
+  run(r, { ...base, agentFiles: [FILE, other] });
   const drop = run(r, { agentFiles: [other] });
   assert.equal(drop.run.status, 'done');
   assert.deepEqual([existsSync(join(r.dir, AGENT)), existsSync(join(r.dir, '.claude/agents/testing-reality-checker.md'))], [false, true]);
   assert.deepEqual(readState(r.dir).agentFiles, [other]);
 });
 
-test('ECC is a pack of single skills from its default branch: no plugin, no hooks, nothing outside the project', () => {
+test('ECC is a pack of single skills from its default branch, not a framework: no plugin, no hooks, nothing outside the project', () => {
   const r = repo();
-  const p = plan(r, { ...base, frameworks: ['ecc'] });
-  assert.deepEqual(p.answers.packs, ['ecc']);
+  assert.throws(() => plan(r, { ...base, frameworks: ['ecc'] }), /unknown framework ecc/);
+  const p = plan(r, { ...base, packs: ['ecc'] });
   assert.deepEqual(p.answers.frameworks, []);
   const installs = p.changes.filter((c) => c.kind === 'command');
   assert.deepEqual(installs.map((c) => c.argv[c.argv.indexOf('-s') + 1]).sort(), ['architecture-decision-records', 'error-handling', 'verification-loop']);
@@ -268,23 +268,42 @@ test('CLI and server: the list shows the evidence, --framework and --agent-file 
   const r = repo();
   const s = sink();
   assert.equal(await main(['frameworks'], { out: s.out, ctx: r.ctx, input: Readable.from(['']) }), 0);
-  assert.match(s.text(), /superpowers\s+owner\s+plugin\s+Superpowers[^\n]*cost higher in every with\/without test but one[^\n]*evaluations\/workflow-frameworks\/superpowers\.md/);
-  assert.match(s.text(), /--agent-file engineering\/engineering-frontend-developer\.md: A web UI is built or changed/);
+  assert.match(s.text(), /superpowers\s+plugin\s+Superpowers[^\n]*cost higher in every with\/without test but one[^\n]*evaluations\/workflow-frameworks\/superpowers\.md/);
+  assert.ok(!/agency-agents|--agent-file/.test(s.text()), 'a source is not a framework');
+  for (const argv of [['skills', 'sources'], ['skills', 'sources', 'list']]) {
+    const x = sink();
+    assert.equal(await main(argv, { out: x.out, ctx: r.ctx, input: Readable.from(['']) }), 0);
+    assert.match(x.text(), /agency-agents\s+agents[^\n]*\n\s+--agent-file engineering\/engineering-frontend-developer\.md: A web UI is built or changed/);
+  }
   const t = sink();
-  const code = await main(['projects', 'apply', r.dir, '--agents', 'claude', '--env', 'host', '--framework', 'agency-agents', '--agent-file', FILE, '--yes'], { out: t.out, ctx: r.ctx, input: Readable.from(['']) });
+  const code = await main(['projects', 'apply', r.dir, '--agents', 'claude', '--env', 'host', '--framework', 'superpowers', '--agent-file', FILE, '--yes'], { out: t.out, ctx: r.ctx, input: Readable.from(['']) });
   assert.equal(code, 0, t.text());
-  assert.deepEqual(readState(r.dir).frameworks, ['agency-agents']);
+  assert.deepEqual([readState(r.dir).frameworks, readState(r.dir).agentFiles], [['superpowers'], [FILE]]);
   const u = sink();
-  assert.equal(await main(['projects', 'apply', r.dir, '--framework', 'none', '--yes'], { out: u.out, ctx: r.ctx, input: Readable.from(['']) }), 0, u.text());
-  assert.equal(readState(r.dir).frameworks, undefined);
+  assert.equal(await main(['projects', 'apply', r.dir, '--framework', 'none', '--agent-file', 'none', '--yes'], { out: u.out, ctx: r.ctx, input: Readable.from(['']) }), 0, u.text());
+  assert.deepEqual([readState(r.dir).frameworks, readState(r.dir).agentFiles], [undefined, undefined]);
   assert.ok(!existsSync(join(r.dir, AGENT)));
   const routes = api({ ...r.ctx, run: (argv, o) => (argv.join(' ') === 'claude --version' ? { code: 0, stdout: '2.1.0 (Claude Code)', stderr: '' } : r.ctx.run(argv, o)) });
   routes['POST /api/projects']({ action: 'add', path: r.dir });
   const setup = routes['GET /api/project-setup'](new URLSearchParams([['dir', r.dir]]));
-  assert.deepEqual(setup.frameworks.map((f) => f.id), ['superpowers', 'matt-pocock', 'ecc', 'agency-agents']);
+  assert.deepEqual([setup.frameworks.map((f) => f.id), setup.sources.map((f) => f.id)], [['superpowers'], ['agency-agents']]);
   const q = (extra) => new URLSearchParams([['dir', r.dir], ['setup', '1'], ['agents', 'claude'], ...extra]);
   const planned = routes['GET /api/project-plan'](q([['framework', 'superpowers'], ['agent-file', '']]));
   assert.ok(planned.changes.some((c) => c.step === 'framework:superpowers'));
   assert.ok(planned.warnings.some((w) => /owns the workflow/.test(w)));
   assert.throws(() => routes['GET /api/project-plan'](q([['framework', 'superpowers,nope']])), (e) => e.status === 400);
+});
+
+test('a state file that lists a pack or a source under frameworks: read, planned and written with them where they belong', () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.benchkeeper'), { recursive: true });
+  writeFileSync(join(r.dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, appVersion: '6.0.0', contentVersion: '6.0.0', agents: ['claude'], env: 'host', packs: ['ecc'], frameworks: ['matt-pocock', 'agency-agents'], agentFiles: [FILE] }));
+  const read = readState(r.dir);
+  assert.deepEqual([read.frameworks, read.packs, read.agentFiles], [undefined, ['ecc', 'matt-pocock'], [FILE]]);
+  assert.deepEqual(frameworkChecks({ dir: r.dir, state: read, userPlugins: [] }), [], 'no unknown framework');
+  const p = run(r, {});
+  assert.equal(p.run.status, 'done');
+  const written = JSON.parse(readFileSync(join(r.dir, '.benchkeeper/state.json'), 'utf8'));
+  assert.deepEqual([written.frameworks, written.packs, written.agentFiles], [undefined, ['ecc', 'matt-pocock'], [FILE]]);
+  assert.ok(existsSync(join(r.dir, AGENT)));
 });

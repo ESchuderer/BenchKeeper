@@ -115,6 +115,7 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 
 | Pack | Contents | Pick when |
 | --- | --- | --- |
+| `ponytail` | plugins `ponytail@ponytail`, `ponytail@ponytail` | The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full |
 | `matt-pocock` | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, test-first and review skills |
 | `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
 | `testing` | `playwright-best-practices` | The repository has or adds browser tests |
@@ -128,12 +129,17 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 
 ## Frameworks
 
-The frameworks project setup offers (`--framework <id>`). A workflow owner is a singleton: at most one per project, and BenchKeeper's own workflow skill gives way in it. A pack framework switches that pack; the others install as shown. Evidence per framework: its evaluation file.
+The frameworks project setup offers (`--framework <id>`): workflow systems that own how work is planned and run. At most one per project, and BenchKeeper's own workflow skill gives way in it. Evidence per framework: its evaluation file.
 
-| Framework | Role | Installs | Evaluation |
-| --- | --- | --- | --- |
-| `superpowers` | owner | plugin `superpowers@claude-plugins-official` for the project only. Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project. | [superpowers.md](../../../evaluations/workflow-frameworks/superpowers.md) |
-| `matt-pocock` | parts | pack `matt-pocock`. The plugin installs for the user (the pack's plugin step), the project gets its docs from the setup skill. | [mattpocock-skills.md](../../../evaluations/skill-libraries/mattpocock-skills.md) |
-| `ecc` | parts | pack `ecc` | [EVALUATIONS.md](../../../EVALUATIONS.md) |
-| `agency-agents` | parts | agent files of `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run. | [agency-agents.md](../../../evaluations/workflow-frameworks/agency-agents.md) |
+| Framework | Installs | Evaluation |
+| --- | --- | --- |
+| `superpowers` | plugin `superpowers@claude-plugins-official` for the project only. Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project. | [superpowers.md](../../../evaluations/workflow-frameworks/superpowers.md) |
+
+## Sources
+
+Agent files a project picks one by one (`--agent-file <path>`), fetched at a pinned commit.
+
+| Source | Agent files | Evaluation |
+| --- | --- | --- |
+| `agency-agents` | `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code only: the Codex and Gemini agent files need the project's converter, which this setup does not run. | [agency-agents.md](../../../evaluations/workflow-frameworks/agency-agents.md) |
 <!-- /generated:catalog -->

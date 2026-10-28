@@ -65,7 +65,7 @@ function machine({ failCodexInstall = false } = {}) {
   writeFileSync(join(home, '.codex/config.toml'), '[analytics]\nenabled = false\n');
   writeFileSync(join(home, '.codex/AGENTS.md'), 'my codex rules\n');
   const ctx = context({ home, run, appVersion: '6.0.0' });
-  return { home, ctx, s, plan: (packs = ['matt-pocock']) => preview(globalPlan({ ctx, agents: ['claude', 'codex'], options: { packs } })) };
+  return { home, ctx, s, plan: (packs = ['matt-pocock', 'ponytail']) => preview(globalPlan({ ctx, agents: ['claude', 'codex'], options: { packs } })) };
 }
 const all = (plan) => plan.map((c) => c.id);
 const settings = (home) => JSON.parse(readFileSync(join(home, '.claude/settings.json'), 'utf8'));
@@ -145,6 +145,16 @@ test('Matt Pocock pack is optional', () => {
   assert.ok(m.plan(['matt-pocock']).some((c) => c.title.includes('mattpocock')));
 });
 
+test('Ponytail pack is optional: off, no install and no level write; on, both under its plugin step, the level once', () => {
+  const m = machine();
+  assert.ok(!m.plan([]).some((c) => /ponytail/i.test(`${c.title} ${c.path ?? ''}`)));
+  const on = m.plan(['ponytail']);
+  assert.deepEqual(on.filter((c) => /ponytail/i.test(`${c.title} ${c.path ?? ''}`)).map((c) => [c.step, c.title]), [
+    ['plugin:claude:ponytail@ponytail', 'Ponytail level full'], ['plugin:claude:ponytail@ponytail', 'Claude Code plugin ponytail@ponytail (optional pack)'],
+    ['plugin:codex:ponytail@ponytail', 'Codex plugin ponytail@ponytail (optional pack)'],
+  ]);
+});
+
 test('agents without plugins get the rules as a block and skill copies with bare names', () => {
   const m = machine();
   const plan = preview(globalPlan({ ctx: m.ctx, agents: ['gemini'], options: {} , devcontainerCli: null }));
@@ -202,7 +212,7 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { repo: 'DietrichGebert/ponytail' } }, benchkeeper: { source: { ref: 'stable' } } }));
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'benchkeeper@benchkeeper': true, 'mattpocock-skills@claude-plugins-official': true } }));
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.3.2"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
-  const steps = (id) => globalPlan({ ctx, agents: ['claude', 'codex'] }).filter((c) => c.step === id);
+  const steps = (id, packs) => globalPlan({ ctx, agents: ['claude', 'codex'], options: { packs } }).filter((c) => c.step === id);
   const argv = (id) => steps(id).map((c) => c.argv.join(' '));
   // 5.4.0 against an app at 6.0.0: the agent's own update decides, so no refresh, update or removal step.
   assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), []);
@@ -231,10 +241,10 @@ test('an installed plugin gets no update step from the app, BenchKeeper\'s own a
   assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), []);
   // Turned off in Claude Code: a settings write turns it on; in Codex a step by hand. Codex files gone: install again.
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': false, 'benchkeeper@benchkeeper': true } }));
-  const [on] = steps('plugin:claude:ponytail@ponytail');
+  const [on] = steps('plugin:claude:ponytail@ponytail', ['ponytail']).filter((c) => c.title.endsWith('turn on'));
   assert.ok(on.kind === 'write' && on.title.endsWith('turn on') && JSON.parse(on.edit('{}')).enabledPlugins['ponytail@ponytail'] === true);
   writeFileSync(join(home, '.codex/config.toml'), '[plugins."ponytail@ponytail"]\nenabled = false\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
-  assert.match(steps('plugin:codex:ponytail@ponytail')[0].error, /turned off/);
+  assert.match(steps('plugin:codex:ponytail@ponytail', ['ponytail']).find((c) => c.error).error, /turned off/);
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
   rmSync(join(home, '.codex/plugins/cache/benchkeeper'), { recursive: true });
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), ['codex plugin add benchkeeper@benchkeeper']);
@@ -352,11 +362,8 @@ test('an account on another marketplace ref or sharing the default plugins folde
   assert.match(away[0].error, /account outside lies outside/);
   assert.equal(away[0].selected, false);
   writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: ['tagged', 'shared'].map((name) => ({ name, agent: 'claude', mode: 'host', dir: join(home, 'acct', name) })) }));
-  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => x.name), ['tagged']);
-  const plan = preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }));
-  assert.equal(plan.length, 1);
-  assert.match(plan[0].error, /of account tagged is at v6\.0\.0, not stable/);
-  assert.equal(plan[0].selected, false);
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => [x.name, x.ref]), [['tagged', 'v6.0.0']]);
+  assert.deepEqual(preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } })), []);
 });
 
 test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {
@@ -375,9 +382,9 @@ test('globalSkills: the global skill folder plus turned-on plugins, turned-off o
 test('third-party plugins are not pinned: the marketplace is added as the agent adds it, an installed one is left to the agent', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-unpinned-'));
   const ctx = context({ home, appVersion: '6.0.0', run: () => ({ code: 1, stdout: '', stderr: '' }) });
-  const add = (a, id, options) => globalPlan({ ctx, agents: [a], options }).find((c) => c.step === `plugin:${a}:${id}` && c.argv[3] === 'add')?.argv[4];
-  assert.equal(add('claude', 'ponytail@ponytail'), 'DietrichGebert/ponytail');
-  assert.equal(add('codex', 'ponytail@ponytail'), 'DietrichGebert/ponytail');
+  const add = (a, id, options) => globalPlan({ ctx, agents: [a], options }).find((c) => c.step === `plugin:${a}:${id}` && c.argv?.[3] === 'add')?.argv[4];
+  assert.equal(add('claude', 'ponytail@ponytail', { packs: ['ponytail'] }), 'DietrichGebert/ponytail');
+  assert.equal(add('codex', 'ponytail@ponytail', { packs: ['ponytail'] }), 'DietrichGebert/ponytail');
   assert.equal(add('codex', 'mattpocock-skills@mattpocock', { packs: ['matt-pocock'] }), 'mattpocock/skills');
   assert.equal(add('claude', 'benchkeeper@benchkeeper'), 'ESchuderer/BenchKeeper#stable');
   assert.equal(add('codex', 'benchkeeper@benchkeeper'), 'ESchuderer/BenchKeeper@stable');

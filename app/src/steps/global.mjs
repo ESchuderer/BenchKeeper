@@ -6,7 +6,7 @@ import { parse as parseToml } from 'smol-toml';
 import { accountEnv, listAccounts } from '../accounts.mjs';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
-import { contentDir, contentRefusal } from '../content.mjs';
+import { contentDir, contentRefusal, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
@@ -38,20 +38,15 @@ export const PIN_DATES = {
 };
 // ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
 // BenchKeeper's marketplace follows the branch stable, which each release moves; moving a marketplace to another ref removes it
-// and the plugin's data, so the app never does. Third-party plugins (Ponytail, Matt Pocock) have no ref and no version. For every
-// plugin the marketplace is added once and the agent's own update keeps an installed plugin current; the app does not update it.
-export const PLUGINS = {
-  claude: [
-    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
-    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail' },
-    { id: 'mattpocock-skills@claude-plugins-official', marketplace: 'claude-plugins-official', pack: 'matt-pocock' },
-  ],
-  codex: [
-    { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
-    { id: 'ponytail@ponytail', marketplace: 'ponytail', source: 'DietrichGebert/ponytail' },
-    { id: 'mattpocock-skills@mattpocock', marketplace: 'mattpocock', source: 'mattpocock/skills', pack: 'matt-pocock' },
-  ],
-};
+// and the plugin's data, so the app never does. Third-party plugins have no ref and no version. For every plugin the marketplace
+// is added once and the agent's own update keeps an installed plugin current; the app does not update it.
+// The plugins of a library pack (library.json, packs[].plugins), with the pack's id: installed only when the pack is chosen.
+const packPlugins = (a) => library().packs.filter((p) => p.plugins?.[a]).map((p) => {
+  const x = p.plugins[a];
+  return { id: x.id, marketplace: x.id.split('@')[1], ...(x.marketplace ? { source: x.marketplace } : {}), pack: p.id };
+});
+const OWN = { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] };
+export const PLUGINS = Object.fromEntries(['claude', 'codex'].map((a) => [a, [OWN, ...packPlugins(a)]]));
 // The ref and version a plugin is pinned to, for this app version.
 export function pin(p, appVersion) {
   return { ref: p.ref, version: p.version === 'app' ? appVersion : p.version };
@@ -61,7 +56,7 @@ export const marketSource = (p, a) => `${p.source}${p.ref ? `${a === 'claude' ? 
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 export const KEEP_SKILLS = ['find-skills', ...orca.SKILLS, 'synced'];
-const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
+const KEEP_MARKETPLACES = Object.fromEntries(Object.entries({ claude: ['claude-plugins-official', 'anthropic-plugin-directory'], codex: [] }).map(([a, own]) => [a, [...new Set([...PLUGINS[a].map((p) => p.marketplace), ...own])]]));
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
 
 // BenchKeeper adds no permission rules: Claude Code's auto mode (its defaults) decides what needs a prompt. Whatever else sits in
@@ -158,12 +153,16 @@ export function claudeAccounts(ctx) {
 }
 
 // The BenchKeeper plugin of an agent: the installed version (null when not installed) and the one this app sets up.
-// claude also lists the registered accounts with their own installed version.
+// claude also lists the registered accounts with their own installed version, and the marketplace ref when it is not stable.
 export function benchkeeperPlugin(ctx, a) {
   const p = PLUGINS[a].find((x) => x.id === 'benchkeeper@benchkeeper');
   const available = pin(p, ctx.appVersion).version;
   const installedIn = (account) => pluginState(ctx, a, account).listed.find((x) => x.id === p.id)?.version ?? null;
-  return { installed: installedIn(), available, ...(a === 'claude' ? { accounts: claudeAccounts(ctx).map((x) => ({ name: x.name, installed: installedIn(x), behind: behind(installedIn(x), available) })) } : {}) };
+  const account = (x) => {
+    const ref = pluginState(ctx, a, x).refs?.[p.marketplace];
+    return { name: x.name, installed: installedIn(x), behind: behind(installedIn(x), available), ...(ref && ref !== p.ref ? { ref } : {}) };
+  };
+  return { installed: installedIn(), available, ...(a === 'claude' ? { accounts: claudeAccounts(ctx).map(account) } : {}) };
 }
 
 // The first installed BenchKeeper plugin whose content needs a newer app than this one, as a message; null when none does.
@@ -258,6 +257,7 @@ export function globalPlan(env) {
   }
 
   // Plugins (Claude Code, Codex) or skill copies (agents without plugins).
+  const packSettings = new Set();
   for (const a of ['claude', 'codex'].filter((x) => agents.includes(x))) {
     const { listed, markets } = pluginState(ctx, a);
     const name = agent(a).name;
@@ -267,6 +267,13 @@ export function globalPlan(env) {
       // An installed pack plugin is kept current without its pack being chosen again.
       if (p.pack && !options.packs?.includes(p.pack) && !have) continue;
       const step = `plugin:${a}:${p.id}`;
+      // A chosen pack's settings files (library.json, packs[].settings), once for all agents, under its plugin step.
+      if (p.pack && options.packs?.includes(p.pack)) {
+        for (const x of library().packs.find((y) => y.id === p.pack)?.settings ?? []) {
+          if (!packSettings.has(x.path)) add(step, x.title, { kind: 'write', path: at(x.path), edit: sets(Object.entries(x.set).map(([k, v]) => [[k], v])) });
+          packSettings.add(x.path);
+        }
+      }
       // Offered, not preselected: uninstalling deletes the plugin's data, and unregistered projects may still use it.
       if (have && p.pack && !options.packs?.includes(p.pack) && options.packsInUse && !options.packsInUse.includes(p.pack)) {
         add(step, `remove ${name} plugin ${p.id}: no registered project uses the ${p.pack} pack`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], undoArgv: a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id], destructive: true });
@@ -301,8 +308,8 @@ export function globalPlan(env) {
       // The runner changes only what lies under its roots (the home folder): a folder elsewhere is updated by hand.
       if (!inside(acc.dir, ctx.roots)) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the folder of account ${acc.name} lies outside ${ctx.roots.join(', ')}, which the app does not change: run claude plugin update --scope user ${own.id} with CLAUDE_CONFIG_DIR set to it` }); continue; }
       const ref = state.refs?.[own.marketplace];
-      // A marketplace on another ref does not move when refreshed, and moving it removes the plugin's data: by hand, never by the app.
-      if (ref && ref !== own.ref) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the marketplace ${own.marketplace} of account ${acc.name} is at ${ref}, not ${own.ref}, so a refresh does not move the plugin: remove it, add it again at ${own.ref} and install the plugin again (removing deletes the plugin's options and data)` }); continue; }
+      // A marketplace on another ref does not move when refreshed, and moving it removes the plugin's data: left to its own update.
+      if (ref && ref !== own.ref) continue;
       // Undo puts back the files that name the installed version and the marketplace; the old version's folder is not restored (Claude Code
       // prunes it later, and a snapshot of it would make undo refuse once it is gone), so undo can leave an entry whose files are gone.
       const file = (f) => [join(acc.dir, 'plugins', f)];
@@ -376,7 +383,6 @@ export function globalPlan(env) {
     const f = at('.codex/config.toml');
     add('settings:codex', 'Codex effort high, analytics and feedback off', { kind: 'write', path: f, edit: (t) => [['', 'model_reasoning_effort', 'high'], ['analytics', 'enabled', false], ['feedback', 'enabled', false]].reduce((x, [tbl, k, v]) => setToml(x, tbl, k, v), t ?? '') });
   }
-  if (agents.some((a) => agent(a).plugins)) add('settings:ponytail', 'Ponytail level full', { kind: 'write', path: at('.config/ponytail/config.json'), edit: sets([[['defaultMode'], 'full']]) });
 
   // Host tools
   const want = env.devcontainerCli ?? newest(ctx, '@devcontainers/cli');

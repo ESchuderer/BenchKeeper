@@ -98,7 +98,7 @@ const reasons: [string, string][] = [
   ['One install', 'one machine setup covers every repository. Each repository adds only its tracker, docs and stack.'],
 ];
 
-const host = ['Rules and the plugins: BenchKeeper, Ponytail, optionally Matt Pocock\'s skills', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker or Podman', 'The agent, with --env host-agent'];
+const host = ['Rules and the plugins: BenchKeeper, optionally Ponytail and Matt Pocock\'s skills', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker or Podman', 'The agent, with --env host-agent'];
 const container = ['The agent (default), started with devcontainer exec', 'Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser', 'Non-root user, project mount only'];
 
 function Side({ label, color, items }: { label: string; color: string; items: string[] }) {
@@ -124,7 +124,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <Badge variant="light" size="lg">Setup for Claude Code and Codex</Badge>
                 <Title order={1} fz={{ base: 44, md: 68 }} lh={1.02}><span className="grad">BenchKeeper</span></Title>
                 <Text size="xl" maw={560}>
-                  Short rules, a workflow skill that sizes each change, and Ponytail for Claude Code and Codex, installed by an app that shows each change first and can undo the run.
+                  Short rules and a workflow skill that sizes each change for Claude Code and Codex, installed by an app that shows each change first and can undo the run.
                   Each repository adds its dev container, AGENTS.md and stack skills.
                 </Text>
                 <Group mt="sm">
@@ -161,7 +161,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             <Part icon={<IconSchool size={20} />} title="Matt Pocock's skills" href="https://github.com/mattpocock/skills" scope="Optional, his plugin, global in both agents">
               Grilling, spec and tickets, TDD, bug diagnosis, code review, pull request text. They read the issue tracker and domain docs in <Code>docs/agents/</Code>.
             </Part>
-            <Part icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Global, level full">
+            <Part icon={<IconFeather size={20} />} title="Ponytail" href="https://github.com/DietrichGebert/ponytail" scope="Optional pack, global, level full">
               The smallest complete change: reuse before new code, no unrequested options, a test for new logic, <Code>shortcut:</Code> comments for known limits.
             </Part>
             <Part icon={<IconRoute size={20} />} title="The app and the setup skills" href={`${REPO}/tree/main/app`} scope="On request">

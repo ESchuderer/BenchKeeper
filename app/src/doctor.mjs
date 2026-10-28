@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { accountChecks } from './accounts.mjs';
 import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
-import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
+import { appVersion, contentDir, contentRefusal, contentVersion, library } from './content.mjs';
 import { frameworkChecks } from './frameworks.mjs';
 import { guardChecks } from './guards.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
@@ -73,6 +73,14 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
 
 const description = (text) => skillDescription(text).text;
 
+// A pack whose own setup skill writes sections into AGENTS.md: BenchKeeper does not run it, so sections still missing are named.
+function packSetupChecks(dir, state, lib = library()) {
+  const text = ['AGENTS.md', 'CLAUDE.md'].map((f) => readText(join(dir, f)) ?? '').join('\n');
+  const codex = !(state?.agents ?? []).includes('claude') && (state?.agents ?? []).includes('codex');
+  return (state?.packs ?? []).flatMap((id) => (lib.packs.find((p) => p.id === id)?.prompts ?? []).filter((x) => x.sections?.some((h) => !text.split('\n').some((l) => l.trim() === h)))
+    .map((x) => issue('info', 'packs', `pack ${id} is on, but ${x.sections.join(', ')} are not all in AGENTS.md`, `run ${codex ? x.codex : x.claude} once in this project: it ${x.why}`)));
+}
+
 export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
@@ -93,7 +101,7 @@ export function projectChecks(ctx, dir, agents) {
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   let userPlugins = [];
   try { userPlugins = !agents || agents.includes('claude') ? pluginState(ctx, 'claude').listed.filter((p) => p.enabled) : []; } catch { /* the global plan reports unreadable plugin files */ }
-  out.push(...frameworkChecks({ dir, state, userPlugins }), ...guardChecks(dir, state));
+  out.push(...frameworkChecks({ dir, state, userPlugins }), ...packSetupChecks(dir, state), ...guardChecks(dir, state));
   out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }), ...paramChecks(ctx, dir));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
   const scoped = (scope, own, list) => list.map((f) => ({ ...f, scope, own }));

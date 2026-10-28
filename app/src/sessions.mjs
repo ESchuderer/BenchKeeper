@@ -214,11 +214,13 @@ async function withRepos(ctx, entries) {
   }
 }
 
-// Labels of the installed skills (null when the transcript lists none): the plugins BenchKeeper sets up and the library packs whose skills are all there.
+// Labels of the installed skills (null when the transcript lists none): the plugins BenchKeeper sets up, and the library packs
+// whose skills are all there or whose plugin is (its skills carry the plugin's name).
 function setupLabels(names = []) {
   const has = new Set(names.map(bare));
-  const labels = [['benchkeeper:', 'BenchKeeper'], ['mattpocock-skills:', 'Matt Pocock'], ['ponytail:', 'Ponytail']].filter(([p]) => names.some((n) => n.startsWith(p))).map(([, l]) => l);
-  for (const p of library().packs) if (p.skills?.length && p.skills.every((s) => has.has(s))) labels.push(p.id);
+  const labels = [['benchkeeper:', 'BenchKeeper']].filter(([p]) => names.some((n) => n.startsWith(p))).map(([, l]) => l);
+  const viaPlugin = (p) => Object.values(p.plugins ?? {}).some((x) => names.some((n) => n.startsWith(`${x.id.split('@')[0]}:`)));
+  for (const p of library().packs) if ((p.skills?.length && p.skills.every((s) => has.has(s))) || viaPlugin(p)) labels.push(p.id);
   return labels;
 }
 

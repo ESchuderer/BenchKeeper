@@ -93,7 +93,7 @@ ctx.runAsync = async (argv, o) => {
   if (argv.includes('--restricted') && /[\\/](duo|quatro)$/.test(o.cwd ?? '')) for (let i = 0; i < 400 && existsSync(GATE); i++) await new Promise((r) => setTimeout(r, 50));
   return wrapped(argv, o);
 };
-const first = preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
+const first = preview(globalPlan({ ctx, agents: ['claude'], options: { packs: ['ponytail'] }, devcontainerCli: '1.0.0' })).filter((c) => c.kind === 'write');
 apply(first, ctx);
 appendFileSync(join(home, '.claude/rules/00-global.md'), 'a local line\n');
 // A rule file of the user's own: the Rules view lists it as yours, Doctor says nothing about it.

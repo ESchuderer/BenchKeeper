@@ -34,7 +34,7 @@ Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional (Gemini 
 
 ## Setup details
 
-The examples write `benchkeeper` for `npx benchkeeper@6.25.0`. Until the first npm release, run the app from a clone: `git clone --depth 1 --branch setup-v6.25 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The browser UI from a clone needs a build first ([app/README.md](../app/README.md#setup)).
+The examples write `benchkeeper` for `npx benchkeeper@6.25.0`. Until the first npm release, run the app from a clone: `git clone --depth 1 --branch setup-v6.25.0 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The browser UI from a clone needs a build first ([app/README.md](../app/README.md#setup)).
 
 `plan` lists each change, file changes with their diff and commands as the command line. `apply` asks per change: `--yes` applies the default selection without questions, `--all` applies every change including the removals, `--pack matt-pocock` adds Matt Pocock's skills. In the browser, the Dashboard shows the doctor findings, and Fix everything walks through the global plan, the projects you pick and the steps left by hand. Each skills CLI install in a plan runs first in a scratch folder, so the plan lists the files it would write.
 

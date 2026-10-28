@@ -20,6 +20,13 @@ export const templates = (ctx) => FILES.map((f) => ({
   change: { kind: 'write', path: join(ctx.config, 'orca', f), after: readFileSync(new URL(f, import.meta.url), 'utf8') },
 }));
 
+// The per-worktree setup files project setup offers when workers ran in the project's worktrees: the setup script runs
+// install (null: a line to fill in) before the agent starts, and the local files listed are copied into each new worktree.
+export const worktreeFiles = (install, include) => [
+  { path: 'orca.yaml', text: `# ${NAME} runs the setup script in each new worktree when its setup run policy allows it, then starts the agent.\nscripts:\n  setup: |\n    cd "$ORCA_WORKTREE_PATH"\n    ${install ?? '# the install command from AGENTS.md, for example: npm ci'}\nsetupAgentStartupPolicy: wait-for-setup\n` },
+  { path: '.worktreeinclude', text: `# Local files ${NAME} copies into each new worktree when they exist and Git ignores them.\n${include.join('\n')}\n` },
+];
+
 // The text in a dispatched worker's first prompt: two lines, both needed, so a prompt that quotes one is no worker. A user's
 // own words can come before it. Observed in transcripts, not documented: a changed wording reads as no worker.
 const PREAMBLE = [/^You are working inside Orca, a multi-agent IDE\./m, /^Your task ID is: \S+/m];

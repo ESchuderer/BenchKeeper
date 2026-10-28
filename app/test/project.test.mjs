@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
@@ -77,6 +77,78 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   assert.ok(!existsSync(join(r.dir, 'AGENTS.override.md')));
   assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
   assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
+});
+
+test('the dev container wrapper and the worktree files: offered by what the project has, named once written, undone', () => {
+  const r = repo();
+  const opts = { agents: ['claude'], env: 'host-agent' };
+  const steps = (answers) => plan(r, answers).changes.map((c) => c.step);
+  assert.ok(!steps(opts).includes('dc') && !steps(opts).includes('worktrees'));
+  mkdirSync(join(r.dir, '.devcontainer'));
+  writeFileSync(join(r.dir, 'package-lock.json'), '{}\n');
+  // A dispatched worker session the board scan cached for this repository.
+  mkdirSync(join(r.ctx.home, '.cache/benchkeeper'), { recursive: true });
+  writeFileSync(join(r.ctx.home, '.cache/benchkeeper/sessions.json'), JSON.stringify({ schema: 1, files: { '/w.jsonl': { key: 'k', kind: 'claude', d: { orca: true, repo: r.dir } } } }));
+  const { changes } = plan(r, opts);
+  const shown = preview(changes);
+  const dc = shown.find((c) => c.step === 'dc'), files = shown.filter((c) => c.step === 'worktrees');
+  assert.ok(dc.selected && dc.title.startsWith('scripts/dc:'));
+  assert.deepEqual(files.map((c) => [basename(c.path), c.selected]), [['orca.yaml', false], ['.worktreeinclude', false]]);
+  assert.match(files[0].after, /\n {4}devcontainer up --workspace-folder \. && scripts\/dc npm ci\n/);
+  assert.match(files[0].title, /setup hook: npm ci \(package-lock\.json\), through scripts\/dc/);
+  for (const p of ['CLAUDE.local.md', '.benchkeeper', 'scripts/dc', 'orca.yaml']) assert.ok(files[1].after.split('\n').includes(p), p);
+  assert.match(shown.find((c) => c.step === 'local-claude').diff, /scripts\/dc <command>/);
+
+  const run = apply(shown, r.ctx, { scope: r.dir, select: shown.map((c) => c.id) });
+  assert.equal(run.status, 'done');
+  assert.ok(statSync(join(r.dir, 'scripts/dc')).mode & 0o100);
+  assert.match(read(join(r.dir, 'CLAUDE.local.md')), /`scripts\/dc <command>`/);
+  for (const p of ['/scripts/dc', '/orca.yaml', '/.worktreeinclude']) assert.ok(read(join(r.dir, '.git/info/exclude')).split('\n').includes(p), p);
+  assert.equal(r.git('status', '--porcelain').toString(), '?? package-lock.json\n');
+  assert.equal(undo(run.id, r.ctx).status, 'done');
+  for (const p of ['scripts/dc', 'orca.yaml', '.worktreeinclude']) assert.ok(!existsSync(join(r.dir, p)), p);
+
+  // Not chosen: the block and the exclude list leave it out.
+  const again = preview(plan(r, opts).changes);
+  apply(again, r.ctx, { scope: r.dir, select: again.filter((c) => c.step !== 'dc').map((c) => c.id) });
+  assert.ok(!existsSync(join(r.dir, 'scripts/dc')));
+  assert.ok(!read(join(r.dir, 'CLAUDE.local.md')).includes('scripts/dc') && !read(join(r.dir, '.git/info/exclude')).includes('scripts/dc'));
+});
+
+test('the worktree setup hook: the install command of the one lockfile at the root, else a line to fill in', () => {
+  const cases = [
+    [['package-lock.json'], 'npm ci'], [['pnpm-lock.yaml'], 'pnpm install --frozen-lockfile'], [['uv.lock'], 'uv sync --locked'],
+    [['yarn.lock'], 'yarn install --frozen-lockfile'], [['yarn.lock', '.yarnrc.yml'], 'yarn install --immutable'],
+    [[], null], [['package-lock.json', 'yarn.lock'], null], [['app/package-lock.json'], null],
+  ];
+  for (const [files, command] of cases) {
+    const r = repo();
+    mkdirSync(join(r.ctx.home, '.cache/benchkeeper'), { recursive: true });
+    writeFileSync(join(r.ctx.home, '.cache/benchkeeper/sessions.json'), JSON.stringify({ schema: 1, files: { '/w.jsonl': { key: 'k', kind: 'claude', d: { orca: true, repo: r.dir } } } }));
+    for (const f of files) { mkdirSync(dirname(join(r.dir, f)), { recursive: true }); writeFileSync(join(r.dir, f), ''); }
+    const yaml = plan(r, { agents: ['claude'], env: 'host-agent' }).changes.find((c) => basename(c.path ?? '') === 'orca.yaml');
+    if (command) {
+      assert.ok(yaml.after.includes(`\n    ${command}\n`), files.join());
+      assert.ok(yaml.title.endsWith(`setup hook: ${command} (${files[0]})`), yaml.title);
+    } else {
+      assert.match(yaml.after, /# the install command from AGENTS\.md/, files.join());
+      assert.ok(yaml.title.endsWith('setup hook: none found, fill in the comment line'), yaml.title);
+    }
+  }
+});
+
+test('scripts/dc runs the command in the dev container of its checkout with each argument as given', { skip: process.platform === 'win32' }, () => {
+  const r = repo();
+  mkdirSync(join(r.dir, '.devcontainer'));
+  const shown = preview(plan(r, { agents: ['claude'], env: 'host-agent' }).changes);
+  apply(shown, r.ctx, { scope: r.dir, select: shown.filter((c) => c.step === 'dc').map((c) => c.id) });
+  // A devcontainer stub that prints each argument on a line of its own.
+  const bin = mkdtempSync(join(TMP, 'bk-bin-'));
+  writeFileSync(join(bin, 'devcontainer'), '#!/bin/sh\nfor a in "$@"; do printf \'%s\\n\' "$a"; done\n');
+  chmodSync(join(bin, 'devcontainer'), 0o755);
+  mkdirSync(join(r.dir, 'web'));
+  const out = execFileSync(join(r.dir, 'scripts/dc'), ['sh', '-lc', "cd web && echo 'a  b' *"], { cwd: join(r.dir, 'web'), env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } }).toString();
+  assert.equal(out, `exec\n--workspace-folder\n${r.dir}\nsh\n-lc\ncd web && echo 'a  b' *\n`);
 });
 
 test('local: two projects in one repository keep their own exclude blocks; a dropped agent loses its local file; a committed setup is refused', () => {

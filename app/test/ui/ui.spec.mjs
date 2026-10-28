@@ -298,6 +298,7 @@ test.describe('views', () => {
     await page.keyboard.press('Enter');
     await expect(link).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('table', { name: 'Agents' })).toBeVisible();
+    await expect(page.getByRole('row', { name: /^Codex/ })).toContainText('the usage feed is not available for Codex');
     await page.keyboard.press('ControlOrMeta+2');
     await expect(nav(page, 'Projects')).toHaveAttribute('aria-current', 'page');
     await expect(page).toHaveURL(/#\/projects$/);

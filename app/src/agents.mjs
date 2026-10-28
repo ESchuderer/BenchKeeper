@@ -7,6 +7,13 @@ import { mergeJson, setBlock } from './merge.mjs';
 export const registry = JSON.parse(readFileSync(new URL('./agents.json', import.meta.url), 'utf8')).agents;
 export const agent = (id) => registry.find((a) => a.id === id) ?? (() => { throw new Error(`unknown agent ${id}`); })();
 
+// Features that exist for some agents only; a missing one is reported, never skipped silently. `plugins` is a top-level registry field, the others live in `features`.
+export const FEATURES = { plugins: 'plugin install', usage: 'the usage feed', accounts: 'accounts', tier: 'the tier strip' };
+const has = (a, feature) => (feature === 'plugins' ? a.plugins : a.features[feature]);
+export const notAvailable = (feature, id) => `${FEATURES[feature]} is not available for ${agent(id).name}`;
+export const unavailable = (id) => Object.keys(FEATURES).filter((f) => !has(agent(id), f)).map((f) => notAvailable(f, id));
+export const supports = (id, feature) => has(agent(id), feature);
+
 // Installed agents with their versions. The app never installs an agent.
 export function detect(ctx) {
   return registry.map((a) => {

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { AGENTS, NeedsConfirm, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, limitsChange, listAccounts, login, newAccount, pickAccount, registrySettings, removeChange, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer } from './accounts.mjs';
 import { WINDOWS, limitsFor, settingsOf } from './usage.mjs';
-import { detect } from './agents.mjs';
+import { detect, unavailable } from './agents.mjs';
 import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
 import { GROUPS, audit, auditMarkdown } from './audit.mjs';
@@ -334,6 +334,7 @@ async function command(argv, { out, err, ask, ctx }) {
     const found = detectLevel(ctx, agents, process.cwd());
     const level = o.level ?? found.level ?? 'full';
     if (!o.level && level !== 'full') out.write(`level ${level} (found on this machine): ${found.adds}\n`);
+    for (const id of agents) for (const m of unavailable(id)) out.write(`${m}\n`);
     const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
     if (!plan.length) { out.write(`nothing to change for ${agents.join(', ')}\n`); return 0; }
     if (cmd === 'plan') {
@@ -996,6 +997,7 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
         const s = accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined });
         out.write(`${a.name.padEnd(16)} ${a.agent.padEnd(7)} ${s.loggedIn === null ? 'not checked' : s.loggedIn ? `signed in${s.method ? ` (${s.method})` : ''}` : 'not signed in'}${s.tokenAgeDays !== undefined ? `  token ${s.tokenAgeDays} days old` : ''}\n`);
         if (s.usage) out.write(`${usageText(s.usage, a.name)}\n`);
+        else if (s.notAvailable) out.write(`  usage    ${s.notAvailable}\n`);
         for (const f of s.findings) { out.write(`  ${f.level.padEnd(8)} ${f.message}\n           fix: ${f.fix}\n`); if (f.level === 'error') code = 1; }
       }
       return code;

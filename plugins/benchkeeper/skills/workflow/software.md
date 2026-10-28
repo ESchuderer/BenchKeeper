@@ -1,18 +1,14 @@
 # Software change
 
-## Flow
+## Steps
 
-| Tier | Steps |
-|---|---|
-| quick | branch, edit, verify, commit, draft pull request |
-| standard | issue, branch, run the existing tests of the touched code, test first at the seams named in the plan (refactor: the suite passes before and after with tests unchanged), verify, review, draft pull request |
-| full | [full-tier.md](full-tier.md) |
+The order per tier is the checklist in [SKILL.md](SKILL.md); full tier also [full-tier.md](full-tier.md). Standard: for a refactor the suite passes before and after with tests unchanged. Detail:
 
 - **Issue**: title, goal, acceptance criteria, tasks. Creating or editing one needs the user's approval of that plan; declined, continue without. Orca and other runners pick work up from the issue, so its tasks stay current.
 - **Branch**: on the default branch, create `<type>/<issue>-<slug>` (or `<type>/<slug>`) before the first edit.
 - **Commits**: Conventional Commits, `Refs #<issue>` in the footer.
-- **Review before pushing** standard, full or risky work: Claude Code `/code-review` with no target, risky changes also `/security-review`. Codex, or no `origin`: a correctness pass and, for risky changes, a security pass by subagents over authentication, permissions, secrets and input handling. Docs-only changes skip this unless risky.
-- **Pull request**: `gh pr create --draft`, body with `Closes #<issue>` and the key decisions (structure, storage, deployment, rejected options). After pushing, `gh pr checks --watch`, then `gh pr ready` when they pass. Review comments and failing checks: new commits on the same branch.
+- **Review before pushing** standard, full or risky work. First a scope line: the branch or diff range and the issue it implements. Depth: standard one correctness pass, fixes made once; full the rounds in [full-tier.md](full-tier.md), plus a security pass when risky; quick none. Claude Code: the built-in `/code-review` with no target, risky changes also `/security-review`. Codex, or no `origin`: a correctness pass and, for risky changes, a security pass by subagents over authentication, permissions, secrets and input handling. Docs-only changes skip this unless risky.
+- **Pull request**: `gh pr create --draft`, body with `Closes #<issue>`, the key decisions (structure, storage, deployment, rejected options) and the sections Testing (commands and results), Risk (what could break, who is affected) and How to revert. After pushing, wait for the checks (step 5 of [SKILL.md](SKILL.md)), then `gh pr ready` when they pass. Review comments and failing checks: new commits on the same branch.
 - No GitHub remote or `gh auth status` fails: local branch only, review before reporting done, say so in one line.
 
 ## Matt Pocock's skills, when installed
@@ -51,7 +47,13 @@ Sets the tier when the user named none, and the check before done. Never run a c
 | Schema migration | full | expand and contract, migrate a throwaway database |
 | Production data fix | full | dry run on a copy, the user runs it |
 | Auth, permissions, secrets, input validation | full | tests for denied paths |
+| Review-thread follow-up on an open pull request | standard, no issue or branch step | the fix verified, each thread answered |
+| CI fix | quick | the failing check rerun |
+| Merge conflict | quick | resolved the way the repository's conventions say, checks rerun |
+| Live-system change or incident | full when secrets, data or production configuration are touched, else by the table | backup first, verify live, record in the repository docs |
+
+A follow-up commit on an open pull request keeps its tier and needs no workflow reload or new tier line.
 
 ## Verify
 
-The project's own build, types, lint and tests, run where `AGENTS.md` says. UI changes also in a browser (Playwright MCP) next to the UI tests. Browser and build output (`.playwright-mcp/`, `test-results/`, screenshots) is git-ignored or deleted.
+The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also in a browser (Playwright MCP) next to the UI tests. A failing test is fixed in the code; edit a test only when the requirement changed, and say so in the pull request. Browser and build output (`.playwright-mcp/`, `test-results/`, screenshots) is git-ignored or deleted.

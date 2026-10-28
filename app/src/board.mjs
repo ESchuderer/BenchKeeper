@@ -417,12 +417,16 @@ function draw() {
     // Read out when typing settles, not on every key.
     clearTimeout(announced);
     announced = setTimeout(() => { $('count-live').textContent = text; }, 500);
-    $('sessions').replaceChildren(!shown.length ? el('p', { class: 'muted' }, 'No sessions match.') : table('Sessions, newest first', ['Started', 'Project', 'Title', 'Agent', 'Tier', 'Pattern', 'Setup', 'Cost', 'Time', 'Tests', 'Pull requests'], shown.map((r) => [
+    // Ponytail's own figures (its ledger, read only) in a column of their own, shown when a row has them.
+    const pony = list.some((r) => r.ponytail);
+    const ledgerCell = (p) => (p ? [p.costUSD == null ? null : money(p.costUSD), `${p.turns} turns`, p.agentMinutes == null ? null : `${p.agentMinutes}m`, p.reusePct == null ? null : `reuse ${p.reusePct}%`, p.tests, p.level].filter((x) => x != null).join(', ') : '-');
+    $('sessions').replaceChildren(!shown.length ? el('p', { class: 'muted' }, 'No sessions match.') : table('Sessions, newest first', ['Started', 'Project', 'Title', 'Agent', 'Tier', 'Pattern', 'Setup', 'Cost', 'Time', 'Tests', 'Pull requests', ...(pony ? ['Source', 'Ponytail ledger'] : [])], shown.map((r) => [
       r.start.slice(0, 16).replace('T', ' '), short(r.project ?? ''), r.title ?? '-', r.agent,
       r.tier ? `${r.tier.first}${r.tier.movedUp || r.tier.last !== r.tier.first ? ` to ${r.tier.last}` : ''}${r.tier.changeType ? ` (${r.tier.changeType})` : ''}` : '-',
       `${patternKey(r)}${r.subagents ? `, ${r.subagents} subagent${r.subagents > 1 ? 's' : ''}` : ''}${r.run ? `, run ${r.run}` : ''}`,
       `${setupKey(r)}${r.setupVersion ? `, ${r.setupVersion}` : ''}`, money(r.costUSD), dur(r.busyMs), r.tests ?? '-',
       r.prs.length ? r.prs.map((p) => `#${p.url.split('/').pop()} ${p.state}`).join(', ') : '-',
+      ...(pony ? [r.source ?? 'transcript', ledgerCell(r.ponytail)] : []),
     ])));
     scrollStops();
   }

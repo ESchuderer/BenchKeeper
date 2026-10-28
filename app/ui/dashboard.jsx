@@ -237,6 +237,9 @@ export function Dashboard({ overview, doctor, history, params }) {
           {agents.filter((a) => a.plugin).map((a) => (
             <Text key={a.id} size="sm">{a.name}: {a.plugin.installed ? `installed ${a.plugin.installed}` : 'not installed'}, available {a.plugin.available}</Text>
           ))}
+          {agents.flatMap((a) => (a.plugin?.accounts ?? []).map((x) => (
+            <Text key={`${a.id}:${x.name}`} size="sm">{a.name} account {x.name}: {x.installed ? `installed ${x.installed}` : 'not installed'}{x.behind ? `, behind ${a.plugin.available}: benchkeeper apply updates it` : ''}</Text>
+          )))}
         </Section>
       )}
       <Section title="Installed"><Loading state={dash} label="dashboard">{(d) => <Installed data={d} names={names} />}</Loading></Section>

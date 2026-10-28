@@ -154,3 +154,18 @@ test('5000 sessions: the page is ready quickly and its weight is stated', async 
   console.log(`5000 sessions: ${html.length} bytes, ready in ${ms} ms`);
   expect(ms).toBeLessThan(4000);
 });
+
+test('Ponytail ledger: the source is named per row and its figures sit in their own column, only when a row has them', async ({ page }) => {
+  const e = errors(page);
+  await load(page, data().slice(0, 3));
+  await expect(page.locator('#sessions th')).not.toContainText(['Ponytail ledger']);
+  const ledger = { costUSD: 2.32, turns: 4, agentMinutes: 8.7, reusePct: 8, tests: 'pass', level: 'full' };
+  await load(page, [row({ title: 'Both', source: 'transcript and Ponytail ledger', ponytail: ledger }), row({ title: null, agent: 'claude', source: 'Ponytail ledger only', ponytail: { ...ledger, costUSD: null, reusePct: null, agentMinutes: null, tests: null, level: null } }), row({ title: 'Plain', source: 'transcript' })]);
+  await expect(page.locator('#sessions th')).toContainText(['Source', 'Ponytail ledger']);
+  const rows = page.locator('#sessions tbody tr');
+  await expect(rows.filter({ hasText: 'Both' })).toContainText('transcript and Ponytail ledger');
+  await expect(rows.filter({ hasText: 'Both' })).toContainText('$2.32, 4 turns, 8.7m, reuse 8%, pass, full');
+  await expect(rows.filter({ hasText: 'Ponytail ledger only' })).toContainText('4 turns');
+  await expect(rows.filter({ hasText: 'Plain' })).toContainText('transcript');
+  expect(e).toEqual([]);
+});

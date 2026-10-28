@@ -39,7 +39,7 @@ After either path, restart the agents. `npx benchkeeper@6.25.0 history` lists wh
 Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
 
 - From npm: `npx benchkeeper@6.25.0 <command>`. Until the first npm release, run it from a clone.
-- From a clone: `git clone --depth 1 --branch setup-v6.25.0 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
+- From a clone: `git clone --depth 1 --branch app-v6.25.0 https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
 Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML), [yaml](https://github.com/eemeli/yaml) 2.9.1 (workflow files for `projects audit`). The web UI (React, Mantine) is built into `dist/` and ships in the package.
 

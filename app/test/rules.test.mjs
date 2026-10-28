@@ -11,7 +11,7 @@ import { doctor } from '../src/doctor.mjs';
 import { hashPath } from '../src/fsx.mjs';
 import { exportProfile } from '../src/profile.mjs';
 import { addProject } from '../src/projects.mjs';
-import { BUDGET_TOKENS, globRegex, ruleChanges, rulesChecks, ruleStates, ruleText, rulesView, tokensOf } from '../src/rules.mjs';
+import { BUDGET_TOKENS, globRegex, ruleChanges, ruleDraft, ruleEdit, rulesChecks, ruleStates, ruleText, rulesView, tokensOf } from '../src/rules.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
@@ -382,4 +382,77 @@ test('rules check exits 1 on an error finding and prints --json; Doctor lists th
   assert.deepEqual(rules.map((f) => f.kind).sort(), ['command', 'duplicate', 'empty', 'glob', 'link', 'memory', 'unloaded', 'unreadable']);
   assert.equal(found.filter((f) => /imports docs\/gone\.md/.test(f.message)).length, 1, 'a missing import is reported once');
   for (const out of [text.text, json.text, JSON.stringify(found), JSON.stringify(rulesView(ctx, { dir })), JSON.stringify(ctx.ledger.list()), exportProfile(ctx, { agents: ['claude', 'codex'], packs: [] })]) assert.ok(!out.includes(SECRET));
+});
+
+test('a draft re-runs the checks of its file and counts its tokens and lines; nothing is written', () => {
+  const { ctx, dir } = broken();
+  const file = join(dir, 'CLAUDE.md');
+  const before = readFileSync(file, 'utf8');
+  const draft = (text) => ruleDraft(ctx, { agent: 'claude', file, dir, text });
+  const now = draft(before);
+  assert.deepEqual(now.findings.map((f) => f.kind).sort(), ['command', 'duplicate', 'import', 'link']);
+  const added = draft(`${before}@docs/also-gone.md\n`);
+  assert.deepEqual(added.findings.filter((f) => f.kind === 'import').map((f) => f.line), [3, 7]);
+  assert.equal(added.lines, now.lines + 1);
+  const clean = draft('# Project\n\nRun `npm run build` first.\n');
+  assert.deepEqual([clean.findings, clean.tokens, clean.lines], [[], tokensOf(Buffer.byteLength('# Project\n\nRun `npm run build` first.\n')), 3]);
+  assert.equal(readFileSync(file, 'utf8'), before);
+  assert.throws(() => draft(undefined), /text must be a string/);
+});
+
+test('an edit is a plan with the diff: the run backs the file up, undo restores it, the file stays yours', () => {
+  const ctx = machine();
+  const team = join(ctx.home, '.claude/rules/20-team.md');
+  write(team, `# Team\n${SECRET}\n`);
+  const plan = preview(ruleEdit(ctx, { agent: 'claude', file: team, text: '# Team\nshorter\n' }));
+  assert.deepEqual(plan.map((c) => c.title), [`edit ${SHOWN} for Claude Code`]);
+  assert.match(plan[0].diff, /\+shorter/);
+  const run = apply(plan, ctx, { scope: 'global' });
+  assert.equal(run.status, 'done');
+  assert.equal(readFileSync(team, 'utf8'), '# Team\nshorter\n');
+  assert.equal(readFileSync(run.entries[0].backup, 'utf8'), `# Team\n${SECRET}\n`);
+  assert.deepEqual([row(ctx, 'claude', team).owner, row(ctx, 'claude', team).switch.by], ['yours', 'settings'], 'an edit of yours is not BenchKeeper writing the file');
+  assert.equal(undo(run.id, ctx).status, 'done');
+  assert.equal(readFileSync(team, 'utf8'), `# Team\n${SECRET}\n`);
+});
+
+test('an edit is refused for a file not listed, of BenchKeeper, global in a project view, or changed since the plan', () => {
+  const ctx = machine();
+  apply(preview(globalPlan({ ctx, agents: ['codex'], devcontainerCli: '1.0.0' })), ctx);
+  const team = join(ctx.home, '.claude/rules/20-team.md');
+  write(team, 'team\n');
+  write(join(ctx.home, 'notes.txt'), 'not a rule file\n');
+  const dir = project();
+  const edit = (file, opts = {}) => ruleEdit(ctx, { agent: 'claude', file, text: 'x\n', ...opts });
+  assert.throws(() => edit(join(ctx.home, 'notes.txt')), /is not an instruction file/);
+  assert.throws(() => edit('/etc/passwd'), /is not an instruction file/);
+  assert.throws(() => edit(join(ctx.home, '.codex/AGENTS.md'), { agent: 'codex' }), /BenchKeeper wrote it/);
+  assert.throws(() => edit(team, { dir }), /is a global file: edit it in the global view/);
+  const plan = preview(edit(team));
+  write(team, 'changed meanwhile\n');
+  assert.equal(apply(plan, ctx, { scope: 'global' }).status, 'failed');
+  assert.equal(readFileSync(team, 'utf8'), 'changed meanwhile\n');
+});
+
+test('the edit routes: a check and a plan write nothing, /api/apply writes, and no rule text reaches History or the profile', async () => {
+  const ctx = machine();
+  const dir = project();
+  addProject(ctx, dir);
+  const local = join(dir, 'CLAUDE.local.md');
+  write(local, `${SECRET} old\n`);
+  const routes = api(ctx);
+  const q = (o) => new URLSearchParams(o);
+  assert.deepEqual(routes['POST /api/rule-check']({ agent: 'claude', file: local, dir, text: `${SECRET} new\n` }).findings, []);
+  assert.throws(() => routes['POST /api/rule-edit-plan']({ agent: 'claude', file: join(dir, 'README.md'), dir, text: 'x' }), (e) => e.status === 400);
+  const plan = routes['POST /api/rule-edit-plan']({ agent: 'claude', file: local, dir, text: `${SECRET} new\n` });
+  assert.equal(readFileSync(local, 'utf8'), `${SECRET} old\n`, 'a plan writes nothing');
+  assert.ok(!plan.changes.some((c) => c.title.includes(SECRET)));
+  const job = routes['POST /api/apply']({ planId: plan.planId });
+  for (let i = 0; i < 50 && !routes['GET /api/job'](q({ id: job.job })).done; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(readFileSync(local, 'utf8'), `${SECRET} new\n`);
+  const [last] = ctx.ledger.list();
+  assert.equal(undo(last.id, projectCtx(ctx, dir)).status, 'done');
+  assert.equal(readFileSync(local, 'utf8'), `${SECRET} old\n`);
+  const records = JSON.stringify([ctx.ledger.list(), routes['GET /api/history'](), routes['GET /api/run'](q({ id: last.id })), routes['GET /api/job'](q({ id: job.job })), exportProfile(ctx, { agents: ['claude'], packs: [] })]);
+  assert.ok(!records.includes(SECRET));
 });

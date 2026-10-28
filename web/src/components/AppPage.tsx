@@ -98,6 +98,15 @@ export const VIEWS: { id: string; title: string; shot: string; alt: string; text
     cli: [`${V} settings list --agent claude`, `${V} settings set <key> <value>`],
   },
   {
+    id: 'accounts', title: 'Accounts', shot: 'accounts',
+    alt: 'The Accounts view: one card per account with its agent, address and plan, whether it is signed in and which one new sessions use, the 5-hour and 7-day usage windows as bars with the percent left and the reset time, and the buttons to add a Claude Code or Codex account.',
+    text: [
+      'Add Claude Code account and Add Codex account open a private browser window to sign in; the account is named after the signed-in address. Each card shows whether the account is signed in and what is left of its usage windows.',
+      'Use for new sessions makes an account the default in one click. The list keeps names and folders, never a credential.',
+    ],
+    cli: [`${V} accounts list`, `${V} accounts login <name>`],
+  },
+  {
     id: 'history', title: 'History and undo', shot: 'history',
     alt: 'The History view: a list of runs, and the report of the global setup run with the number of changes done and a diff per changed file, unified or split, each with an Undo step button.',
     text: [

@@ -4,7 +4,8 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from '
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { library } from './content.mjs';
-import { move, writeAtomic } from './fsx.mjs';
+import { move, readText, writeAtomic } from './fsx.mjs';
+import { mergeJson } from './merge.mjs';
 
 const PACK_SCHEMA = 1;
 const dir = (ctx) => join(ctx.config, 'packs');
@@ -31,6 +32,32 @@ export const invalidPacks = (ctx) => scan(ctx).invalid;
 export function libraryWith(ctx) {
   const lib = library();
   return { ...lib, packs: [...lib.packs, ...ownPacks(ctx)] };
+}
+
+// Install scope per pack: global (installed once on the machine, for every project) or projects (in each project whose setup
+// selects the pack). Only a scope the user chose is stored; a pack without one keeps the scope its installs have: plugin packs
+// global, skill packs per project. ctx.packScopes (pack id to scope) stands in for the file in the preview of a scope change.
+export const PACK_SCOPES = ['global', 'projects'];
+export const scopeFile = (ctx) => join(ctx.config, 'pack-scopes.json');
+export function packScope(ctx, pack) {
+  let stored = ctx.packScopes?.[pack.id];
+  if (!stored) try { stored = JSON.parse(readText(scopeFile(ctx)) ?? '{}').scopes?.[pack.id]; } catch { /* a damaged file reads as the defaults */ }
+  return PACK_SCOPES.includes(stored) ? stored : pack.plugins ? 'global' : 'projects';
+}
+export const scopeText = (scope) => (scope === 'global' ? 'all projects' : 'selected projects');
+// The plan change that records a scope: a write, so undo puts the previous file back.
+export const scopeWrite = (ctx, id, scope) => ({ kind: 'write', path: scopeFile(ctx), edit: (t) => mergeJson(t, [{ path: ['schemaVersion'], value: 1 }, { path: ['scopes', id], value: scope }]) });
+
+// The scopes an agent offers a pack: { scopes, fixed } where fixed names why only one is offered; null when the pack has nothing
+// for the agent. A skill pack is skill folders, global or in the project, for Claude Code and Codex (Codex: repository and user;
+// its admin scope is not offered, developers.openai.com/codex/skills); the global copies are made for those two only. Claude Code installs plugins at user, project or local scope
+// (code.claude.com/docs/en/discover-plugins): global is user, selected projects is local (this machine only). Codex plugins:
+// `codex plugin add` has no scope option and the docs state none (developers.openai.com/codex/plugins), so user only, unverified.
+export function packScopes(pack, a) {
+  if (!pack.plugins) return ['claude', 'codex'].includes(a) ? { scopes: PACK_SCOPES, fixed: null } : { scopes: ['projects'], fixed: 'BenchKeeper copies skills into the global folders of Claude Code and Codex only' };
+  if (!pack.plugins[a]) return null;
+  if (a === 'codex') return { scopes: ['global'], fixed: 'Codex installs plugins for the user only (codex plugin add has no scope option; other scopes unverified)' };
+  return { scopes: PACK_SCOPES, fixed: null };
 }
 
 function validate(pack, lib) {

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { AGENTS, NeedsConfirm, ROTATE_WARNING, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, handover, limitsChange, listAccounts, login, loginVars, newAccount, pickAccount, registrySettings, removeChange, rotationFor, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer, writeHandover } from './accounts.mjs';
 import { ROTATE, WINDOWS, limitsFor, settingsOf } from './usage.mjs';
-import { detect, unavailable } from './agents.mjs';
+import { agent, detect, unavailable } from './agents.mjs';
 import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
 import { GROUPS, audit, auditMarkdown } from './audit.mjs';
@@ -23,8 +23,8 @@ import { cloneMissing } from './bootstrap.mjs';
 import { projectOrigins } from './origin.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
-import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
-import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
+import { exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, warnings } from './packs.mjs';
+import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
 import { BUDGET_TOKENS, RULE_AGENTS, ruleChanges, ruleText, rulesChecks, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
@@ -128,6 +128,11 @@ Usage: benchkeeper <command> [options]
                                     pack with the registered projects that use it; remove refuses a pack a registered
                                     project still names
   packs warnings <id>               the pairs of the pack's skills whose descriptions overlap, so an agent may load the wrong one
+  packs scope <id> [global|projects] [--yes]
+                                    a pack's install scope: global (once on the machine, for every project) or projects
+                                    (in each project that selects it; Claude Code plugins at local scope). Without a
+                                    scope: the current one and the scopes each agent offers. With one: a plan that
+                                    moves the installs, with a diff (undo restores it)
   packs enable|disable <id>.. [--project dir | --global] [--yes]
                                     switches packs on top of the current state, as a plan with a diff (undo restores it):
                                     a project's packs (default: the current folder), or the plugins of a pack that
@@ -537,6 +542,7 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (textRead(cmd, arg)) return printRead(ctx, { cmd, o, positionals, out, err });
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
+  if (cmd === 'packs' && arg === 'scope') return packScopeCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'skills' && o.library && [undefined, 'list'].includes(arg)) {
     for (const s of catalog(ctx).skills) out.write(`${s.name.padEnd(30)} ${String(s.projects).padStart(3)} project${s.projects === 1 ? ' ' : 's'}  ${s.source}\n`);
     return 0;
@@ -555,7 +561,7 @@ async function command(argv, { out, err, ask, ctx }) {
     else if (arg === 'remove') { removePack(ctx, positionals[2], { usedBy: projectsUsing(ctx, positionals[2]) }); out.write(`removed ${positionals[2]}\n`); }
     else if (arg && arg !== 'list') { out.write(`unknown packs command ${arg}\n`); return 2; }
     else {
-      for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
+      for (const p of libraryWith(ctx).packs) out.write(`${p.id.padEnd(16)} ${p.own ? 'own    ' : 'library'} ${packScope(ctx, p).padEnd(8)} ${p.skills?.join(', ') ?? `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\n`);
       for (const x of invalidPacks(ctx)) out.write(`${x.file.padEnd(16)} invalid: ${x.reason} (benchkeeper packs remove ${x.file})\n`);
     }
     return 0;
@@ -913,9 +919,24 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   const steps = new Set(Object.entries(PLUGINS).flatMap(([a, list]) => list.filter((p) => ids.includes(p.pack)).map((p) => `plugin:${a}:${p.id}`)));
   // The other installed packs stay as they are; the pack asked for is the only one on or off.
   const packs = on ? [...new Set([...have, ...ids])] : have.filter((p) => !ids.includes(p));
-  const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true, foreign: false }));
+  const plan = preview(globalPlan({ ctx, agents, options: { packs, packsInUse: [], drop: on ? [] : ids, level: 'full' } })).filter((c) => steps.has(c.step)).map((c) => ({ ...c, selected: true, foreign: false }));
   for (const id of on ? [] : ids) { const users = projectsUsing(ctx, id); if (users.length) out.write(`note: ${users.join(', ')} still name${users.length === 1 ? 's' : ''} ${id}\n`); }
   return applyChosen(plan, ctx, { o, ask, out });
+}
+
+// packs scope <id> [global|projects]: the pack's scope and what each agent offers, or a plan that moves its installs.
+async function packScopeCommand(ctx, { o, positionals, out, ask }) {
+  const [, , id, scope] = positionals;
+  const pack = libraryWith(ctx).packs.find((p) => p.id === id);
+  if (!pack) { out.write(`unknown pack ${id ?? ''}, see benchkeeper packs list\n`); return id ? 1 : 2; }
+  const agents = selectedAgents(ctx, o.agents);
+  if (!scope) out.write(`${id}: ${packScope(ctx, pack)} (${scopeText(packScope(ctx, pack))})\n`);
+  for (const a of agents) {
+    const offer = packScopes(pack, a);
+    if (offer && (!scope || offer.fixed)) out.write(`  ${agent(a).name}: ${offer.fixed ? `${offer.scopes[0]} only: ${offer.fixed}` : offer.scopes.join(', ')}\n`);
+  }
+  if (!scope) return 0;
+  return applyChosen(preview(scopePlan(ctx, id, scope, agents)), ctx, { o, ask, out });
 }
 
 // A global plan: nothing to change, or the changes chosen applied as one run.
@@ -966,7 +987,7 @@ const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
 const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'confirm-git', 'remove', 'rename', 'relocate', 'update'].includes(arg))
-  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'skills' && arg === 'update')
+  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'packs' && arg === 'scope') || (cmd === 'skills' && arg === 'update')
   || (cmd === 'automations' && ['install', 'update', 'remove'].includes(arg));
 const entryDoc = (e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.installUnit ? { unit: e.installUnit } : {}), ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) });
 const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map(entryDoc) });
@@ -1059,7 +1080,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     return pack ? emit({ pack }) : fail(`unknown pack ${positionals[2] ?? ''}, see benchkeeper packs list`);
   }
   if (cmd === 'skills' && o.library && (!arg || arg === 'list')) return surplus(2) ?? emit({ skills: catalog(ctx).skills });
-  if (cmd === 'packs' && (!arg || arg === 'list')) return surplus(2) ?? emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
+  if (cmd === 'packs' && (!arg || arg === 'list')) return surplus(2) ?? emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, scope: packScope(ctx, p), skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
   if (cmd === 'skills' && (!arg || arg === 'list')) {
     const extra = surplus(2); if (extra !== undefined) return extra;
     const dir = resolve(o.project ?? '.'), rows = projectSkills(ctx, dir, { check: o.check });

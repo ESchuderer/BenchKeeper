@@ -2,8 +2,8 @@
 // Decisions (#273): Insights is a view of its own, not a Dashboard section. A signal that needs sessions needs at least
 // MIN_SAMPLES of them and reports nothing below that, so a thin history never produces a ranked finding.
 // Four signals: unused skills (sessions against the installed skills), friction (a project whose sessions ended on a failed
-// test run without a pull request), hygiene (the doctor's findings) and freshness (pins behind the newest release and the
-// doctor's outdated items). Skills behind their source need the network: `skills list --check`.
+// test run without a pull request), hygiene (the doctor's findings) and freshness (the doctor's outdated
+// items). Skills behind their source need the network: `skills list --check`.
 // insights() is pure: the state in, the findings out. collectInsights() reads the state from the machine.
 import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
@@ -17,8 +17,8 @@ export const MIN_SAMPLES = 20;
 export const WINDOW_DAYS = 90;
 const SEVERITY = ['error', 'warning', 'info'];
 const hash = (...parts) => createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 8);
-// A doctor finding that says a pin or a version is behind belongs to freshness, not to hygiene.
-const isFreshness = (f) => f.check === 'pins' || f.tag === 'outdated';
+// A doctor finding that says a version is behind belongs to freshness, not to hygiene.
+const isFreshness = (f) => f.tag === 'outdated';
 const KEYS = ['check', 'message', 'dir', 'file', 'line', 'scope', 'rule', 'repos'];
 // A skill's front matter (name and description, also a block scalar) is what every turn carries; about 4 characters a token.
 const tokensOf = (text) => Math.ceil(frontMatter(text.replaceAll('\r\n', '\n')).length / 4);

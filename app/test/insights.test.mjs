@@ -68,15 +68,15 @@ test('hygiene and freshness: the doctor findings are split, each fact appears on
   const doctorFindings = [
     { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in the environment', fix: 'unset it' },
     { level: 'error', check: 'instructions', message: 'x imports gone.md', fix: 'fix the import', file: 'CLAUDE.md', line: 2 },
-    { level: 'warning', check: 'pins', message: 'skills CLI 1.8.0 is out for 7 days, the app pins 1.7.2', fix: 'a newer app release updates the pin' },
+    { level: 'warning', check: 'pins', message: '.benchkeeper/pins.local.json is not ignored by git', fix: 'add it to .gitignore' },
     { level: 'warning', check: 'plugin', tag: 'outdated', message: 'plugin x 1 -> 2', fix: 'benchkeeper apply' },
   ];
   const r = insights({ doctorFindings });
   assert.equal(r.findings[0].severity, 'error');
-  assert.deepEqual(r.findings.map((f) => `${f.signal} ${f.fix}`).sort(), ['freshness a newer app release updates the pin', 'freshness benchkeeper apply', 'hygiene fix the import', 'hygiene unset it']);
+  assert.deepEqual(r.findings.map((f) => `${f.signal} ${f.fix}`).sort(), ['freshness benchkeeper apply', 'hygiene add it to .gitignore', 'hygiene fix the import', 'hygiene unset it']);
   assert.deepEqual(r.summary, { error: 1, warning: 3, info: 0 });
   assert.deepEqual(r.findings.find((f) => f.severity === 'error').evidence, { check: 'instructions', message: 'x imports gone.md', file: 'CLAUDE.md', line: 2 });
-  assert.equal(r.findings.filter((f) => f.signal === 'freshness').length, 2);
+  assert.equal(r.findings.filter((f) => f.signal === 'freshness').length, 1, 'a phase pin finding is hygiene');
   assert.equal(new Set(ids(r)).size, 4);
   assert.deepEqual(ids(insights({ doctorFindings })), ids(r), 'the same input gives the same ids');
   assert.deepEqual(insights({ doctorFindings: [] }).findings, []);

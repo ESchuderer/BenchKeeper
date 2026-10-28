@@ -8,6 +8,8 @@ import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
 import { appVersion, contentDir } from '../src/content.mjs';
+import { projectChecks } from '../src/doctor.mjs';
+import { harnessTest } from '../src/harness.mjs';
 import { ENVS, STATE, projectCtx, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
@@ -155,6 +157,24 @@ test('a community skill is added again from the default branch only when an upda
   state.skills.find((s) => s.name === 'frontend-design').ref = '../../x';
   writeFileSync(f, JSON.stringify(state));
   assert.deepEqual(titles({ update: ['frontend-design'] }), ['skill frontend-design from anthropics/skills'], 'a ref that is not a commit id is not shown');
+});
+
+test('a community skill without a recorded commit or behind its source is no drift for doctor or verify', () => {
+  const r = repo();
+  const first = plan(r, { agents: ['claude'], packs: ['frontend'] }).changes;
+  apply(preview(first), r.ctx, { scope: r.dir, select: first.filter((c) => c.kind !== 'command').map((c) => c.id) });
+  const f = join(r.dir, STATE);
+  const state = JSON.parse(read(f));
+  const community = state.skills.filter((s) => s.source !== 'own');
+  assert.ok(community.length >= 2);
+  community[0].ref = 'a'.repeat(40);
+  delete community[1].ref;
+  writeFileSync(f, JSON.stringify(state));
+  writeFileSync(join(r.dir, 'skills-lock.json'), JSON.stringify({ skills: Object.fromEntries(community.map((s) => [s.name, { source: s.source }])) }));
+  const ctx = { ...r.ctx, run: () => ({ code: 0, stdout: `${'b'.repeat(40)}\tHEAD\n`, stderr: '' }) };
+  const names = community.map((s) => s.name);
+  assert.deepEqual(projectChecks(ctx, r.dir, ['claude']).filter((i) => names.some((n) => i.message.includes(n))), []);
+  assert.deepEqual(harnessTest(ctx, { agents: ['claude'], dir: r.dir }).at(-1).problems, []);
 });
 
 test('the state file records a community skill\'s commit only when its install ran', () => {

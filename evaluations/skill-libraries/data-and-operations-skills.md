@@ -2,7 +2,7 @@
 
 Category: skill libraries, Checked 2026-10-22 and 2026-10-24, Decision: Per project. `validate-data` in the data pack, `incident-response`, `compliance-check` and `gdpr-compliant` in the operations pack, `synthesize-research` as a single skill. `gdpr-compliant` ships with two broken reference paths (see its check).
 
-Five skills from two sources. Pinned commits are the `ref` fields in `plugins/benchkeeper/library/library.json`.
+Five skills from two sources. The links name the commit each check read; the library installs each skill from its source's default branch.
 
 | Skill | Source and pin | License | Pack |
 |---|---|---|---|

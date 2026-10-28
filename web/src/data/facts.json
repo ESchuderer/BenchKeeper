@@ -1,5 +1,5 @@
 {
-  "description": "BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills at pinned versions per repository. Its app shows every change before it applies it and records each run so you can undo it.",
+  "description": "BenchKeeper sets up Claude Code and Codex the same way on your machine and in each repository: short global rules and a workflow skill that sizes each task, plus a dev container, `AGENTS.md` and skills per repository. Its app shows every change before it applies it and records each run so you can undo it.",
   "tagline": "Short rules, a workflow skill and a per-repository setup for Claude Code and Codex, installed by an app that shows each change first and can undo it.",
   "levels": [
     {

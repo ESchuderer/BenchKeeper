@@ -87,7 +87,7 @@ Usage: benchkeeper <command> [options]
                                     only targets changed since their last result unless --all; plan lists the targets and
                                     sessions and starts none, run asks first (--yes answers it)
   verify [dir] [--agents a,b]       deterministic checks: files match the ledger, expected plugins and skills,
-                                    nothing unexpected installed, project skills at the library pins; exit 1 on a failure
+                                    nothing unexpected installed, project skills present; exit 1 on a failure
   history                           runs, newest first
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
@@ -183,7 +183,7 @@ Usage: benchkeeper <command> [options]
                                     kept token, Claude Code only). Dev container accounts run through devcontainer exec
   insights --json [--project dir] [--agents a,b] [--narrative --agent claude|codex [--yes]]
                                     findings with id, severity, evidence and a fix: installed skills no session used,
-                                    doctor findings, pins behind the newest release; the session signal needs 20 sessions
+                                    doctor findings, versions behind; the session signal needs 20 sessions
                                     of the last 90 days and reports nothing below that; nothing is written, except with --narrative --yes: the
                                     findings go to the agent in one session and its answer is cached on this machine
   knowledge show [dir]              what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,

@@ -20,7 +20,10 @@ body { background: var(--bk-page); font-feature-settings: 'cv11'; }
 .mantine-Code-root { background-color: var(--bk-surface); }
 .mantine-Code-root[data-block] { border: 1px solid var(--mantine-color-default-border); }
 /* Skip link: off screen until it has the focus. */
-.bk-skip { position: absolute; left: 8px; top: -100px; z-index: 1000; padding: 8px 12px; border-radius: var(--mantine-radius-md); background: var(--bk-surface); color: var(--mantine-color-text); border: 2px solid var(--mantine-primary-color-filled); }
+.bk-skip { position: absolute; left: 8px; top: -100px; z-index: 1000; padding: 8px 12px; border-radius: var(--mantine-radius-md); background: var(--bk-surface); color: var(--mantine-color-text); border: 2px solid var(--bk-accent); }
 .bk-skip:focus { top: 8px; }
+/* Focus rings: Mantine draws them in primary step 9, which is 2.3:1 on the dark surface; dark mode takes the accent (step 4). */
+html[data-mantine-color-scheme='dark'] :focus-visible { outline-color: var(--bk-accent); }
+html[data-mantine-color-scheme='dark'] input[data-focus-ring]:focus:focus-visible { --segmented-control-outline: 2px solid var(--bk-accent); }
 /* No motion for those who ask for none. */
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; } }

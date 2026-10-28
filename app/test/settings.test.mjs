@@ -44,6 +44,9 @@ test('pins: every catalog key is in a pinned schema or the reference, every coup
     assert.ok(page, `${r.id}: no pinned page for ${r.source}`);
     for (const q of [r.quote].flat()) assert.ok(page.includes(norm(q)), `${r.id}: the pinned page no longer holds: ${q}`);
     assert.ok(/^https:\/\//.test(r.source), r.id);
+    // The kind picks the title; the plain words say what the default is, what it risks and what the fix changes.
+    assert.ok(['conflict', 'hardening', 'ignored', 'note'].includes(r.kind), `${r.id}: kind must be conflict, hardening, ignored or note`);
+    for (const f of ['default', 'risk', 'fixChanges']) assert.ok(typeof r[f] === 'string' && /^\S.*\.$/.test(r[f]), `${r.id}: ${f} must be one sentence`);
   }
   // Every catalog entry has a sentence, a default and a source.
   for (const id of settingsAgents) for (const s of agentSettings(id).settings) assert.ok(s.sentence && s.default && /^https:\/\//.test(s.source), s.key);
@@ -186,7 +189,9 @@ test('Doctor: the other pairs, no-op keys, retention, switches that are not bool
   assert.match(messages({ advisorModel: 'claude-sonnet-5-5', model: 'claude-opus-5-5' })[0], /ranks below the main model/);
   assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5', model: 'claude-sonnet-5-5' }), []);
   assert.deepEqual(messages({ advisorModel: 'sonnet', model: 'claude-opus-5-5' }), [], 'an alias resolves to the current default: not checked');
-  assert.match(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } })[0], /likely a no-op/);
+  assert.match(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } })[0], /effortLevel \(high\) in the user file differs from the level medium saved under modelSettings for claude-opus-5-5:/);
+  assert.match(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' }, 'claude-fable-5-1': { effortLevel: 'medium' }, 'claude-sonnet-5-5': { maxEffortLevel: 'xhigh' } } })[0], /for claude-opus-5-5, claude-fable-5-1:/, 'names every model that differs');
+  assert.deepEqual(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' }, 'claude-fable-5-1': { effortLevel: 'xhigh' } } }), [], 'different levels per model are on purpose');
   assert.deepEqual(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'high' } } }), [], 'the same level on both is what the setup writes');
   assert.deepEqual(messages({ effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { maxEffortLevel: 'xhigh' } } }), []);
   assert.deepEqual(messages({ effortLevel: 'high' }), []);
@@ -243,15 +248,17 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
   const keys = (list) => list.map((i) => i.message.match(/sandbox\.\w+(\.\w+)?|bubblewrap|socat/)?.[0] ?? 'unsupported').sort();
   const on = { sandbox: { enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false, network: { allowedDomains: ['registry.npmjs.org'] } } };
   for (const platform of ['linux', 'darwin']) {
-    // Nothing set: the sandbox is off, and the retry key is not false. The off rule and the retry rule are warnings; no more.
+    // Nothing set: the sandbox is off, a warning; the retry key matters only while the sandbox is on, so no more.
     const none = found({}, platform);
-    assert.deepEqual(keys(none), ['sandbox.allowUnsandboxedCommands', 'sandbox.enabled'], platform);
+    assert.deepEqual(keys(none), ['sandbox.enabled'], platform);
     assert.ok(none.every((i) => i.level === 'warning' && /benchkeeper settings set sandbox\./.test(i.fix) && /code\.claude\.com\/docs\/en\/sandboxing/.test(i.fix)));
     assert.deepEqual(found(on, platform), [], `${platform}: everything set`);
     assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, enabled: false } }, platform)), ['sandbox.enabled'], 'explicitly off');
     assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, failIfUnavailable: undefined } }, platform)), ['sandbox.failIfUnavailable']);
     assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, failIfUnavailable: false } }, platform)), ['sandbox.failIfUnavailable']);
     assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, allowUnsandboxedCommands: true } }, platform)), ['sandbox.allowUnsandboxedCommands']);
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, allowUnsandboxedCommands: undefined } }, platform)), ['sandbox.allowUnsandboxedCommands'], 'unset is true while the sandbox is on');
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, enabled: false, allowUnsandboxedCommands: true } }, platform)), ['sandbox.enabled'], 'the retry is no note while the sandbox is off');
     // The empty allowlist is advice (info) while the sandbox is on, and never a warning.
     const empty = found({ sandbox: { ...on.sandbox, network: { allowedDomains: [] } } }, platform);
     assert.deepEqual(keys(empty), ['sandbox.network.allowedDomains']);
@@ -289,7 +296,7 @@ test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', ()
   assert.deepEqual(found(on, 'darwin', have()).map((i) => i.level), ['warning'], 'macOS left out');
   assert.deepEqual(found(on, 'linux', have('bwrap', 'socat')), []);
   write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, '{}');
-  assert.deepEqual(keys(found({}, 'linux', have())), ['sandbox.allowUnsandboxedCommands', 'sandbox.enabled'], 'a missing program matters only while the sandbox is on');
+  assert.deepEqual(keys(found({}, 'linux', have())), ['sandbox.enabled'], 'a missing program matters only while the sandbox is on');
   assert.deepEqual(found(on, 'darwin', have()), [], 'macOS needs neither');
   // Native Windows: unsupported, information, never a warning, whatever the settings say.
   for (const settings of [{}, on]) {
@@ -557,6 +564,37 @@ test('routes: the list masks secrets, the plan is a plan the apply route takes, 
   assert.ok(!JSON.stringify(plan).includes(SECRET), 'the diff context is masked');
   assert.equal(plan.changes[0].selected, true);
   assert.deepEqual((await routes['POST /api/settings-plan']({ agent: 'claude', edits: { 'env.DISABLE_TELEMETRY': null } })).changes, [], 'nothing to change');
+});
+
+test('kinds and dismiss: only a real conflict is titled as one; a dismissed note leaves the list and Doctor, across restarts, until shown again', async () => {
+  const ctx = machine();
+  ctx.sandbox = { platform: 'linux', has: () => true };
+  const off = { effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } };
+  write(claudeUser(ctx), JSON.stringify(off));
+  const kinds = (c = ctx) => Object.fromEntries(listSettings(c, 'claude', { env: {} }).notes.map((n) => [n.id, n.kind]));
+  assert.deepEqual(kinds(), { 'effort-user-noop': 'conflict', 'env-scrub-off': 'hardening', 'read-deny-credentials': 'hardening', 'sandbox-off': 'hardening' });
+  assert.equal(listSettings(ctx, 'claude', { env: {} }).notes.find((n) => n.id === 'effort-user-noop').default, 'The top-level effortLevel is high; claude-opus-5-5 have medium saved under modelSettings and use that.');
+  write(claudeUser(ctx), JSON.stringify({ ...off, sandbox: { enabled: true, failIfUnavailable: true, network: { allowedDomains: ['registry.npmjs.org'] } } }));
+  assert.equal(kinds()['sandbox-unsandboxed-retry'], 'hardening', 'the retry is raised while the sandbox is on');
+  const note = listSettings(ctx, 'claude', { env: {} }).notes.find((n) => n.id === 'env-scrub-off');
+  assert.ok(note.default && note.risk && note.fixChanges, 'the plain words travel with the note');
+  // Dismiss through the route; a new context on the same home is a restart.
+  const routes = api(ctx);
+  const doctorIds = (c) => doctor(c, { agents: ['claude'], env: {} }).filter((i) => /SUBPROCESS_ENV_SCRUB/.test(i.message));
+  assert.equal(doctorIds(ctx).length, 1);
+  assert.deepEqual((await routes['POST /api/settings-dismiss']({ id: 'env-scrub-off' })).dismissed, ['env-scrub-off']);
+  const again = Object.assign(context({ home: ctx.home, run }), { managedRoot: ctx.managedRoot, sandbox: ctx.sandbox });
+  const list = listSettings(again, 'claude', { env: {} });
+  assert.ok(!list.notes.some((n) => n.id === 'env-scrub-off'));
+  assert.deepEqual(list.dismissed.map((n) => n.id), ['env-scrub-off']);
+  assert.ok(!list.settings.find((s) => s.key === 'env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB').notes.some((n) => n.id === 'env-scrub-off'), 'not on its row either');
+  assert.deepEqual(doctorIds(again), [], 'Doctor leaves it out');
+  assert.ok('read-deny-credentials' in kinds(again), 'other notes stay');
+  await routes['POST /api/settings-dismiss']({ id: 'env-scrub-off', dismissed: false });
+  assert.equal(kinds(again)['env-scrub-off'], 'hardening');
+  assert.deepEqual(listSettings(again, 'claude', { env: {} }).dismissed, []);
+  assert.equal(doctorIds(again).length, 1);
+  await assert.rejects(async () => routes['POST /api/settings-dismiss']({ id: 3 }), (e) => e.status === 400);
 });
 
 test('masking: whole words of the name, tokens inside values, no false hits', () => {

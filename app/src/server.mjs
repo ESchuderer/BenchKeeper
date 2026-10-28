@@ -33,7 +33,7 @@ import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins,
 import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { checkText, paramsChange, paramsView } from './params.mjs';
-import { readPreferences, setPreference } from './preferences.mjs';
+import { dismissNote, readPreferences, setPreference } from './preferences.mjs';
 import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
 import { catalog, evalResults, overview, runReport } from './reads.mjs';
@@ -198,6 +198,8 @@ export function api(ctx) {
   const routes = {
     'GET /api/overview': async () => ({ ...(await overview(ctx, agentsNow(), cached)), editors: editorsOn() }),
     'POST /api/preferences': (b) => ({ editors: input(() => setPreference(ctx, 'editors', b.editors)).editors }),
+    // Dismiss an Agent settings note by id ({ id, dismissed: false } shows it again): hidden there and in Doctor.
+    'POST /api/settings-dismiss': (b) => ({ dismissed: input(() => dismissNote(ctx, b.id, b.dismissed !== false)).dismissed }),
     // The editor view (preference editors): presets, pins and the orchestrator policy of a registered project, checked by
     // the same loader as doctor and CI; a save is a plan applied through /api/apply and undone in History.
     'GET /api/params': (q) => paramsView(editorsDir(q.get('dir'))),

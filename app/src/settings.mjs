@@ -7,6 +7,7 @@ import { isAbsolute, join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { MergeError, mergeJson, removeTable, removeToml, setToml } from './merge.mjs';
 import { exists, readText } from './fsx.mjs';
+import { dismissedNotes } from './preferences.mjs';
 import { onPath } from './sandbox.mjs';
 import { CLAUDE_KEYS } from './steps/global.mjs';
 
@@ -228,6 +229,15 @@ function lookup(state, agentId, key, layers) {
 const isExecutable = (p) => {
   try { if (!isAbsolute(p)) return false; accessSync(p, constants.X_OK); return statSync(p).isFile(); } catch { return false; }
 };
+// The user file's top-level effortLevel against the one level saved under modelSettings: { top, saved, models } when they
+// differ, else null. Different saved levels per model are on purpose: null.
+function effortGap(state, agentId) {
+  const top = lookup(state, agentId, 'effortLevel', ['user'])[0], saved = lookup(state, agentId, 'modelSettings', ['user'])[0];
+  const levels = Object.entries(saved ?? {}).filter(([, m]) => m?.effortLevel !== undefined);
+  const distinct = new Set(levels.map(([, m]) => m.effortLevel));
+  if (top === undefined || distinct.size !== 1 || distinct.has(top)) return null;
+  return { top, saved: levels[0][1].effortLevel, models: levels.map(([model]) => model).join(', ') };
+}
 function holds(c, state, agentId) {
   if (c.all) return c.all.every((x) => holds(x, state, agentId));
   if (c.any) return c.any.some((x) => holds(x, state, agentId));
@@ -253,10 +263,7 @@ function holds(c, state, agentId) {
   }
   // shortcut: the lists of all layers, not the managed-only switch; add it if allowManagedDomainsOnly matters.
   if (c.op === 'allowlistEmpty') return lookup(state, agentId, 'sandbox.network.allowedDomains').flat().length === 0;
-  if (c.op === 'effortDiffers') {
-    const top = lookup(state, agentId, 'effortLevel', ['user'])[0], saved = lookup(state, agentId, 'modelSettings', ['user'])[0];
-    return top !== undefined && Object.values(saved ?? {}).some((m) => m?.effortLevel !== undefined && m.effortLevel !== top);
-  }
+  if (c.op === 'effortDiffers') return effortGap(state, agentId) !== null;
   if (c.keyPrefix) return state.layers.filter((l) => !c.layer || c.layer.includes(l.layer)).some((l) => Object.keys(dig(l.data, pathOf(c.keyPrefix.replace(/\.[^.]*$/, ''))) ?? {}).some((k) => `env.${k}`.startsWith(c.keyPrefix)));
   // effective: only the value Claude Code uses, the highest layer, else the process environment (a settings env value overrides the shell's).
   const values = c.effective ? lookup(state, agentId, c.key, c.layer).slice(0, 1) : lookup(state, agentId, c.key, c.layer);
@@ -273,7 +280,7 @@ function holds(c, state, agentId) {
   });
 }
 
-// Findings for the rules of one agent over the given layers: [{ id, level, message, fix, source, keys, key? }].
+// Findings for the rules of one agent over the given layers: [{ id, rule, level, kind, message, fix, default, risk, fixChanges, source, keys, static }].
 // facts: { platform, has(bin) }, as for sandbox.pick; a rule with platforms applies on those only (WSL2 reports linux).
 export function notes(agentId, layers, { env, onlyDoctor = false, partial = false, facts: { platform = process.platform, has = onPath } = {} } = {}) {
   const state = { layers, env, has, platform };
@@ -281,12 +288,12 @@ export function notes(agentId, layers, { env, onlyDoctor = false, partial = fals
   for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor) && !(partial && x.needsAll) && (!x.platforms || x.platforms.includes(platform)))) {
     const expand = r.forEach === 'zeroIsSet' ? SWITCHES(agentId).filter((s) => s.zeroIsSet).map((s) => s.key) : r.forEach === 'deprecated' ? DEPRECATED.map((d) => d.key) : [null];
     for (const key of expand) {
-      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s);
+      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s.replace(/\{(top|saved|models)\}/g, (m, k) => String(effortGap(state, agentId)?.[k] ?? m)));
       const when = key ? JSON.parse(JSON.stringify(r.when).replaceAll('{key}', key)) : r.when;
       if (when && !holds(when, state, agentId)) continue;
       // A value the setup itself writes is on purpose: no finding while every such key still has the setup's value.
       if (r.unlessSetup && r.keys.filter((k) => setupValue(k) !== undefined).every((k) => same(lookup(state, agentId, k)[0], setupValue(k)))) continue;
-      out.push({ id: key ? `${r.id}:${key}` : r.id, rule: r.id, level: r.level, message: fill(r.message), fix: r.fix && fill(r.fix), source: r.source, keys: key ? [key] : r.keys, static: !r.when });
+      out.push({ id: key ? `${r.id}:${key}` : r.id, rule: r.id, level: r.level, kind: r.kind, message: fill(r.message), fix: r.fix && fill(r.fix), default: fill(r.default), risk: fill(r.risk), fixChanges: fill(r.fixChanges), source: r.source, keys: key ? [key] : r.keys, static: !r.when });
     }
   }
   return out;
@@ -334,16 +341,18 @@ function unknownKeys(agentId, layers, known) {
 export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) {
   const a = agentSettings(agentId);
   const layers = readSettings(ctx, agentId, { dir });
-  const found = notes(agentId, layers, { env, facts: ctx.sandbox, partial: layers.some((l) => l.error) });
+  const all = notes(agentId, layers, { env, facts: ctx.sandbox, partial: layers.some((l) => l.error) });
+  // A note the user dismissed is listed apart, so it can be shown again.
+  const off = dismissedNotes(ctx), found = all.filter((n) => !off.has(n.id));
   const row = (def) => {
     const vals = valuesOf(layers, agentId, def.key);
     const eff = vals[0];
     const dflt = setupValue(def.key);
     return { ...def, basic: def.basic !== false, values: def.values, value: eff ? maskSecrets(eff.value, def.key) : undefined, layer: eff?.layer ?? null, file: eff?.path ?? null, sets: vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, def.key) })),
-      changed: vals.length > 0, setByApp: !!def.setup, ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, message, source, static: s }) => ({ id, level, message, source, static: s })) };
+      changed: vals.length > 0, setByApp: !!def.setup, ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
   };
   const settings = a.settings.filter((s) => advanced || s.basic !== false).map(row);
-  const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), settings, bundles: a.bundles, notes: found.filter((n) => !n.static) };
+  const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), settings, bundles: a.bundles, notes: found.filter((n) => !n.static), dismissed: all.filter((n) => !n.static && off.has(n.id)) };
   if (agentId === 'codex') result.trust = trustList(layers);
   if (!advanced) return result;
   // Advanced: every key of the pinned schemas and the reference, the app's own rows first.
@@ -462,8 +471,8 @@ export function bundleEdits(agentId, id) {
 const issue = (level, message, fix, dir) => ({ level, check: 'agent-settings', message, fix, ...(dir ? { dir } : {}) });
 
 // Doctor findings for the agents' settings: files Claude Code would skip, the rules marked doctor, Codex trust entries of
-// folders that are gone. With dir, only what the project and local layers add to the global findings. Names and places,
-// never values.
+// folders that are gone; a note the user dismissed in Agent settings is left out. With dir, only what the project and
+// local layers add to the global findings. Names and places, never values.
 export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) {
   const out = [];
   for (const id of agents.filter((a) => settingsAgents.includes(a))) {
@@ -475,8 +484,9 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
     const readable = all.filter((l) => !l.error);
     // A file that cannot be read may hold what a rule about a missing setting looks for.
     const partial = readable.length < all.length;
+    const off = dismissedNotes(ctx);
     const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, facts: ctx.sandbox, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
+    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !off.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
     if (id === 'codex' && !dir) {
       for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }

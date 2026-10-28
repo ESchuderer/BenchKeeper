@@ -11,6 +11,14 @@ const UNSET = '(unset)';
 // A color fade between schemes would be caught half way by the contrast check, and is not worth a transition here.
 const NOFADE = { label: { transition: 'none' } };
 const text = (v) => (v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v));
+const KIND = { conflict: 'Conflicting settings', hardening: 'Hardening', ignored: 'Ignored setting', note: 'Note' };
+
+// A note on the settings: what it found, the default, the risk and what the fix changes, then a button.
+const SettingNote = ({ n, children }) => (
+  <Note color={n.level === 'warning' ? 'yellow' : 'blue'}>
+    <Text span fw={600}>{KIND[n.kind]}. </Text>{n.message} {n.default} {n.risk} {n.fixChanges} <Anchor size="sm" c="inherit" underline="always" href={n.source} target="_blank" rel="noreferrer">Source</Anchor> {children}
+  </Note>
+);
 
 // One control for one key; edit is undefined (untouched), null (remove the key) or the new value.
 function ValueControl({ row, own, edit, setEdit }) {
@@ -107,6 +115,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showDismissed, setShowDismissed] = useState(false);
   const count = Object.keys(edits).length;
   const q = search.trim().toLowerCase();
   const match = (r) => (!q || `${r.key} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed);
@@ -118,6 +127,8 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
     try { setPlan(await api('/api/settings-plan', { agent, layer, dir, ...body })); } catch (e) { setError(e.message); }
     setBusy(false);
   };
+  const dismiss = (id, dismissed) => { setError(null); api('/api/settings-dismiss', { id, dismissed }).then(onApplied, (e) => setError(e.message)); };
+  const dismissed = data.dismissed ?? [];
   return (
     <Stack gap="lg">
       <Table.ScrollContainer minWidth={560} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': 'Settings files, scrollable' } }}>
@@ -135,9 +146,11 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
         </Table>
       </Table.ScrollContainer>
       {data.layers.filter((l) => l.error && !l.readOnly).map((l) => <Note key={l.path} color="red"><Text span fw={600}>This file is not edited. </Text>{l.path} cannot be read ({l.error}). {agent === 'claude' ? 'Claude Code reads strict JSON and skips the whole file on one error.' : ''} Fix it by hand first.</Note>)}
-      {data.notes.length > 0 && (
-        <Stack gap="xs" role="region" aria-label="Notes on conflicting settings">
-          {data.notes.map((n) => <Note key={n.id} color={n.level === 'warning' ? 'yellow' : 'blue'}><Text span fw={600}>Conflicting settings. </Text>{n.message} <Anchor size="sm" c="inherit" underline="always" href={n.source} target="_blank" rel="noreferrer">Source</Anchor></Note>)}
+      {(data.notes.length > 0 || dismissed.length > 0) && (
+        <Stack gap="xs" role="region" aria-label="Notes on the settings">
+          {data.notes.map((n) => <SettingNote key={n.id} n={n}><Button size="compact-xs" variant="default" aria-label={`Dismiss, I accept this: ${n.id}`} onClick={() => dismiss(n.id, true)}>Dismiss, I accept this</Button></SettingNote>)}
+          {dismissed.length > 0 && <Group><Button size="compact-sm" variant="subtle" aria-expanded={showDismissed} onClick={() => setShowDismissed(!showDismissed)}>Dismissed ({dismissed.length})</Button></Group>}
+          {showDismissed && dismissed.map((n) => <SettingNote key={n.id} n={n}><Button size="compact-xs" variant="default" aria-label={`Show again: ${n.id}`} onClick={() => dismiss(n.id, false)}>Show again</Button></SettingNote>)}
         </Stack>
       )}
       <Group align="flex-end">

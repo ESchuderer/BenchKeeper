@@ -185,7 +185,7 @@ test('editor routes: absent while the preference editors is off; on, the files w
   for (const f of [() => routes['GET /api/params'](q), () => routes['POST /api/params-check']({ dir, file: FILES.pins[0], text: '{}' }), () => routes['POST /api/params-plan']({ dir, file: FILES.pins[0], text: '{}' })]) assert.equal(status(f), 404);
   assert.throws(() => routes['POST /api/preferences']({ editors: 'yes' }), /true or false/);
   routes['POST /api/preferences']({ editors: true });
-  assert.deepEqual(JSON.parse(readFileSync(join(ctx.config, 'preferences.json'), 'utf8')), { editors: true, schemaVersion: 1 });
+  assert.deepEqual(JSON.parse(readFileSync(join(ctx.config, 'preferences.json'), 'utf8')), { editors: true, dismissed: [], schemaVersion: 1 });
   const files = routes['GET /api/params'](q);
   assert.deepEqual(files.map((f) => f.file), Object.values(FILES).flat());
   assert.equal(files[0].text, team);

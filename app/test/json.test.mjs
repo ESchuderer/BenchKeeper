@@ -95,7 +95,7 @@ test('--json: a clean doctor exits 0; usage failures exit 2 with an error docume
     assert.match(r.doc.error, /has no projects list/);
   }
   assert.match(bad.doc.error, /nope/);
-  for (const [args, message] of [[['plan', '--agents', 'claude', '--level', 'nope'], /--level must be one of/], [['doctor', '--baseline', 'x'], /--baseline must be/], [['plan'], /no agent found/], [['projects', 'apply'], /--json works with/], [['apply'], /--json works with/], [['packs', 'save'], /--json works with/]]) {
+  for (const [args, message] of [[['plan', '--agents', 'claude', '--level', 'nope'], /--level must be one of/], [['doctor', '--baseline', 'x'], /--baseline must be/], [['plan'], /no agent found/], [['packs', 'save'], /--json works with/]]) {
     const r = await run(ctx, [...args, '--json']);
     assert.equal(r.code, 2, args.join(' '));
     assert.match(r.doc.error, message);
@@ -185,8 +185,8 @@ test('--json: an invalid argument to a list command exits 2 with an error docume
     [['projects', 'list', 'extra'], 'projects list', /unexpected argument extra/],
     [['packs', 'list', 'extra'], 'packs list', /unexpected argument extra/],
     [['frameworks', 'nope'], 'frameworks nope', /--json works with/],
-    [['skills', 'update'], 'skills update', /--json works with/],
-    [['settings', 'set', 'model', 'x'], 'settings set', /--json works with/],
+    [['skills', 'reset'], 'skills reset', /--json works with/],
+    [['profile', 'import', 'p.json'], 'profile import', /--json works with/],
   ]) {
     const r = await run(ctx, [...args, '--json']);
     assert.equal(r.code, 2, args.join(' '));
@@ -202,4 +202,66 @@ test('--json: an invalid argument to a list command exits 2 with an error docume
   const text = async (args) => { let t = ''; await main(args, { out: new Writable({ write(c, _, d) { t += c; d(); } }), err: new Writable({ write(_c, _e, d) { d(); } }), ctx }); return t; };
   assert.match(await text(['frameworks']), /^\S+\s+\w+\s+\w+\s+/);
   assert.match(await text(['rules', 'list', '--agent', 'codex']), /^Codex/);
+});
+
+test('--json: the changing commands print their runs and entries, refuse a question without --yes and leak no value', async () => {
+  const { ctx, dir } = setup();
+  const before = process.env.DO_NOT_TRACK;
+  process.env.DO_NOT_TRACK = SECRET;
+  try {
+    const doc = async (args, code, command, keys) => {
+      const r = await run(ctx, [...args, '--json']);
+      assert.equal(r.code, code, `${args.join(' ')}: ${r.err}`);
+      assert.deepEqual([r.doc.schemaVersion, r.doc.command], [1, command]);
+      assert.deepEqual(Object.keys(r.doc).slice(2), keys, args.join(' '));
+      assert.ok(!r.text.includes(SECRET), `${args.join(' ')} leaks a secret`);
+      return r.doc;
+    };
+    const rule = join(dir, 'CLAUDE.md');
+    const asking = [
+      [['apply', '--agents', 'claude'], 'apply'],
+      [['projects', 'apply', dir, '--agents', 'claude'], 'projects apply'],
+      [['settings', 'set', 'model', 'opus'], 'settings set'],
+      [['rules', 'disable', rule, '--agent', 'claude', '--project', dir], 'rules disable'],
+    ];
+    // Without --yes a command that would ask exits 2 with the error and leaves the ledger as it was.
+    for (const [args, command] of asking) {
+      const runs = ctx.ledger.list().length;
+      assert.match((await doc(args, 2, command, ['error'])).error, /add --yes/);
+      assert.equal(ctx.ledger.list().length, runs, command);
+    }
+    const done = async (args, command) => {
+      const d = await doc([...args, '--yes'], 0, command, ['runs']);
+      assert.ok(d.runs.length === 1 && d.runs[0].id && d.runs[0].status === 'done', command);
+      assert.ok(d.runs[0].entries.length > 0 && d.runs[0].entries.every((e) => e.title && e.status && !('diff' in e)), command);
+      return d.runs[0];
+    };
+    await done(['apply', '--agents', 'claude'], 'apply');
+    await done(['projects', 'apply', dir, '--agents', 'claude', '--skill', 'frontend-design'], 'projects apply');
+    const set = await done(['settings', 'set', 'model', 'opus'], 'settings set');
+    await done(['rules', 'disable', rule, '--agent', 'claude', '--project', dir], 'rules disable');
+    await done(['rules', 'enable', rule, '--agent', 'claude', '--project', dir], 'rules enable');
+    assert.match((await doc(['packs', 'enable', 'testing', '--project', dir], 2, 'packs enable', ['error'])).error, /add --yes/);
+    await done(['packs', 'enable', 'testing', '--project', dir], 'packs enable');
+    await done(['packs', 'disable', 'testing', '--project', dir], 'packs disable');
+    assert.match((await doc(['skills', 'update', 'frontend-design', '--project', dir], 2, 'skills update', ['error'])).error, /add --yes/);
+    assert.ok(Array.isArray((await doc(['skills', 'update', 'frontend-design', '--project', dir, '--yes'], 0, 'skills update', ['runs'])).runs));
+    const undo = await doc(['undo', set.id], 0, 'undo', ['runs']);
+    assert.ok(undo.runs[0].kind === 'undo' && undo.runs[0].entries.every((e) => e.status === 'done'));
+
+    const other = mkdtempSync(join(TMP, 'bk-json-other-')), moved = mkdtempSync(join(TMP, 'bk-json-moved-'));
+    assert.deepEqual((await doc(['projects', 'add', other], 0, 'projects add', ['runs', 'projects'])).projects, [{ path: other, status: 'added' }]);
+    assert.deepEqual((await doc(['projects', 'rename', other, 'Other'], 0, 'projects rename', ['runs', 'projects'])).projects, [{ path: other, status: 'renamed' }]);
+    assert.deepEqual((await doc(['projects', 'relocate', other, moved], 0, 'projects relocate', ['runs', 'projects'])).projects, [{ path: moved, from: other, status: 'relocated' }]);
+    assert.deepEqual((await doc(['projects', 'remove', moved], 0, 'projects remove', ['runs', 'projects'])).projects, [{ path: moved, status: 'removed' }]);
+    // Usage and read failures: exit 2, the message as the error, nothing else.
+    for (const [args, command, message] of [
+      [['undo'], 'undo', /needs a name/],
+      [['projects', 'relocate', dir], 'projects relocate', /needs the old and the new directory/],
+      [['projects', 'rename', join(TMP, 'bk-json-never-added'), 'x'], 'projects rename', /is not a registered project/],
+      [['settings', 'set'], 'settings set', /needs a key/],
+    ]) assert.match((await doc(args, 2, command, ['error'])).error, message);
+  } finally {
+    if (before === undefined) delete process.env.DO_NOT_TRACK; else process.env.DO_NOT_TRACK = before;
+  }
 });

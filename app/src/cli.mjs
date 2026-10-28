@@ -198,9 +198,11 @@ Usage: benchkeeper <command> [options]
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
 --json (doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list,
-        settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status)
+        settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status;
+        apply, projects apply, add, remove, rename and relocate, settings set, rules and packs enable|disable, skills update, undo)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
-                                    level error, 2 usage or read failure; keys in app/README.md
+                                    level error, 2 usage or read failure; keys in app/README.md. A changing command
+                                    that would ask needs --yes: without it exit 2 and nothing changes
 
 Agents: claude, codex, gemini, copilot (default: the installed ones). Packs: see plugins/benchkeeper/library/README.md.
 Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
@@ -261,6 +263,7 @@ async function choose(plan, o, ask, out) {
 }
 
 function report(run, out) {
+  out.runs?.push(run);
   for (const e of run.entries) out.write(`${e.status.padEnd(7)} ${e.title}${e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}\n`);
   if (run.kind !== 'undo') out.write(`run ${run.id}: undo with benchkeeper undo ${run.id}\n`);
   return run.status === 'done' ? 0 : 1;
@@ -309,6 +312,7 @@ async function removeSetups(ctx, dirs, { o, out, ask }) {
   }
   if (!o.yes && !(await ask(`Remove the BenchKeeper setup of ${plans.length} ${plans.length === 1 ? 'project' : 'projects'} (they stay registered)?`))) return 1;
   const results = plans.map((p) => removeSetup(ctx, p.path, { push: !o['no-push'] }));
+  out.projects?.push(...results);
   for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.run ? `  undo: benchkeeper undo ${r.run}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
   return results.some((r) => r.status === 'stopped') ? 1 : 0;
 }
@@ -328,6 +332,7 @@ async function command(argv, { out, err, ask, ctx }) {
   const [cmd = 'ui', arg] = positionals;
   if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
   if (o.only !== undefined && !(cmd === 'projects' && arg === 'audit')) { out.write('--only belongs to projects audit\n'); return 2; }
+  if (o.json && changing(cmd, arg)) return changeJson(argv, { cmd, arg, out, err, ctx });
   if (o.json && cmd !== 'verify') return jsonCommand({ cmd, arg, o, positionals, out, err, ctx });
   if (cmd === 'ui') {
     const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });
@@ -425,7 +430,7 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'projects') {
     const dirs = positionals.slice(2);
-    if (arg === 'add') dirs.forEach((d) => out.write(`added ${addProject(ctx, d, { worktree: o.worktree })}\n`));
+    if (arg === 'add') dirs.forEach((d) => { const path = addProject(ctx, d, { worktree: o.worktree }); out.projects?.push({ path, status: 'added' }); out.write(`added ${path}\n`); });
     else if (arg === 'scan') for (const d of scan(ctx, dirs[0] ?? '.')) out.write(`found ${d}${listProjects(ctx).some((p) => p.path === canon(d)) ? ' (registered)' : `: benchkeeper projects add ${d}`}\n`);
     else if (arg === 'audit') {
       const t = auditTarget(o, positionals);
@@ -437,14 +442,17 @@ async function command(argv, { out, err, ask, ctx }) {
     else if (arg === 'rename') {
       if (!dirs[0]) { out.write('projects rename needs a directory\n'); return 2; }
       renameProject(ctx, dirs[0], { name: dirs[1] ?? (o.notes === undefined ? '' : undefined), notes: o.notes });
+      out.projects?.push({ path: canon(dirs[0]), status: 'renamed' });
       out.write(`renamed ${canon(dirs[0])}\n`);
     }
     else if (arg === 'relocate') {
       if (dirs.length !== 2) { out.write('projects relocate needs the old and the new directory\n'); return 2; }
-      out.write(`relocated ${canon(dirs[0])} to ${relocateProject(ctx, dirs[0], dirs[1])}\n`);
+      const path = relocateProject(ctx, dirs[0], dirs[1]);
+      out.projects?.push({ path, from: canon(dirs[0]), status: 'relocated' });
+      out.write(`relocated ${canon(dirs[0])} to ${path}\n`);
     }
     else if (arg === 'remove' && o.setup) return removeSetups(ctx, dirs, { o, out, ask });
-    else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.write(`removed ${resolve(d)}\n`); });
+    else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.projects?.push({ path: resolve(d), status: 'removed' }); out.write(`removed ${resolve(d)}\n`); });
     else if (arg === 'unshare') {
       const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
       if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
@@ -686,6 +694,29 @@ function testJson(checks, out) {
 const commandName = (cmd, arg) => (['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts', 'knowledge', 'sessions', 'evals'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
+// The commands that change the machine or a repository: under --json they print what they did, not what they read.
+const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'remove', 'rename', 'relocate'].includes(arg))
+  || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'skills' && arg === 'update');
+const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map((e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) })) });
+const projectDoc = ({ reason, ...p }) => ({ ...p, ...(reason ? { reason: redact(reason) } : {}) });
+
+// A changing command runs as in the terminal with its lines on stderr; a question it would ask is refused before
+// anything changes, so a script never waits: --yes answers it. stdout gets one document with the runs it made.
+async function changeJson(argv, { cmd, arg, out, err, ctx }) {
+  const name = commandName(cmd, arg), lines = [];
+  const log = { write: (s) => { lines.push(s); err.write(s); }, runs: [], ...(cmd === 'projects' && arg !== 'apply' ? { projects: [] } : {}) };
+  const refuse = () => { throw new Error(`${name} asks before it changes anything: add --yes to run it with --json`); };
+  refuse.line = refuse;
+  let code, error;
+  try { code = await command(argv.filter((a) => a !== '--json'), { out: log, err, ask: refuse, ctx }); } catch (e) { code = 2; error = e.message; err.write(`${redact(e.message)}\n`); }
+  const made = log.runs.length || log.projects?.length;
+  // A command that stops before a change prints why as its last line.
+  if (code && !made) error ??= lines.at(-1)?.trim();
+  const doc = { runs: log.runs.map(runDoc), ...(log.projects ? { projects: log.projects.map(projectDoc) } : {}) };
+  out.write(jsonDoc(name, error && !made ? { error: redact(error) } : { ...doc, ...(error ? { error: redact(error) } : {}) }));
+  return code;
+}
+
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
   const name = commandName(cmd, arg);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
@@ -823,7 +854,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show and accounts list and status');
+  return fail('--json works with doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status, and the changing commands apply, projects apply, add, remove, rename and relocate, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

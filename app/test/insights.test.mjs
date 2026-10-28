@@ -35,6 +35,35 @@ test('unused skills: nothing below the threshold, for another agent or when ever
   assert.deepEqual(insights({ sessions: sessions(3), skills: [skill('old')] }, { minSamples: 3 }).findings.map((f) => f.id), ['unused-skills']);
 });
 
+// n sessions of one project folder; `over` sets the fields of each by index.
+const project = (n, over = () => ({}), cwd = '/work/shop') => Array.from({ length: n }, (_, i) => ({ agent: i % 2 ? 'codex' : 'claude', id: `p${i}`, skills: [], project: cwd, tests: 'pass', prs: [], pattern: 'single', tier: { last: 'standard' }, title: SECRET, ...over(i) }));
+
+test('friction: a project from the sample threshold, with the failed sessions without a pull request, counts and folder name only', () => {
+  const failing = (i) => (i < 3 ? { tests: 'fail' } : i === 3 ? { tests: 'fail', prs: [{ url: 'u', state: 'merged' }] } : {});
+  const r = insights({ sessions: project(MIN_SAMPLES, failing) });
+  assert.deepEqual(ids(r), [r.findings[0].id]);
+  const [f] = r.findings;
+  assert.match(f.id, /^friction:[0-9a-f]{8}$/);
+  assert.equal(f.signal, 'friction');
+  assert.deepEqual(f.evidence, { project: 'shop', sessions: 20, failed: 3, rate: 15, sessionIds: ['p0', 'p1', 'p2'] });
+  assert.match(f.message, /^3 of 20 sessions in shop \(15%\)/);
+  assert.equal(insights({ sessions: project(MIN_SAMPLES, failing, 'C:\\work\\shop') }).findings[0].id, f.id, 'the folder name decides, not the path');
+  assert.ok(!JSON.stringify(r).includes(SECRET));
+  assert.ok(!JSON.stringify(r).includes('/work'));
+});
+
+test('friction: nothing below the threshold, without a failed last run, for Orca workers and research sessions, one finding per project', () => {
+  const failing = () => ({ tests: 'fail' });
+  assert.deepEqual(insights({ sessions: project(MIN_SAMPLES - 1, failing) }).findings, []);
+  assert.deepEqual(insights({ sessions: project(MIN_SAMPLES) }).findings, []);
+  // 19 eligible sessions plus an Orca worker and a research session that would make 21.
+  const mixed = [...project(MIN_SAMPLES - 1, failing), ...project(1, () => ({ tests: 'fail', pattern: 'Orca worker' })), ...project(1, () => ({ tests: 'fail', tier: { last: 'research' } }))];
+  assert.deepEqual(insights({ sessions: mixed }).findings, []);
+  assert.equal(insights({ sessions: [...mixed, ...project(1, failing)] }).findings[0].evidence.sessions, 20);
+  const two = insights({ sessions: [...project(MIN_SAMPLES, failing), ...project(MIN_SAMPLES, failing, '/work/blog'), { id: 'x', project: null, tests: 'fail', prs: [] }] });
+  assert.deepEqual(two.findings.map((f) => f.evidence.project).sort(), ['blog', 'shop']);
+});
+
 test('hygiene and freshness: the doctor findings are split, each fact appears once', () => {
   const doctorFindings = [
     { level: 'warning', check: 'env', message: 'DO_NOT_TRACK is set in the environment', fix: 'unset it' },
@@ -136,6 +165,23 @@ test('collectInsights: 20 sessions in the window report the installed skill none
   assert.equal(r.samples.sessions, 22);
   assert.deepEqual(f.evidence.skills, [{ name: 'crlf', scope: 'global', tokens: 7 }, { name: 'old-skill', scope: 'global', tokens: 108 }]);
   assert.ok(!JSON.stringify(r).includes(SECRET));
+});
+
+test('collectInsights lists friction from the transcripts: the folder name, counts and no message text', async () => {
+  const { home, ctx } = machine();
+  const dir = join(home, '.claude/projects/-work-friction');
+  mkdirSync(dir, { recursive: true });
+  const line = (t, extra) => JSON.stringify({ cwd: '/work/friction', sessionId: 'x', timestamp: t, ...extra });
+  for (let i = 0; i < 20; i++) {
+    const t = `2026-10-${String(1 + i).padStart(2, '0')}T10:00:00.000Z`;
+    const bash = { type: 'assistant', message: { id: `m${i}`, content: [{ type: 'tool_use', id: 'k', name: 'Bash', input: { command: 'npm test' } }] } };
+    const res = { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'k', content: `Exit code 1 ${SECRET}`, is_error: true }] } };
+    writeFileSync(join(dir, `f${i}.jsonl`), [line(t, { type: 'user', origin: { kind: 'human' }, message: { role: 'user', content: SECRET } }), line(t, bash), line(t, res)].join('\n') + '\n');
+  }
+  const r = await collectInsights(ctx, { agents: ['claude'], now: Date.parse('2026-10-26T00:00:00Z') });
+  const f = r.findings.find((x) => x.signal === 'friction');
+  assert.deepEqual({ ...f.evidence, sessionIds: f.evidence.sessionIds.length }, { project: 'friction', sessions: 20, failed: 20, rate: 100, sessionIds: 20 });
+  assert.ok(!JSON.stringify(r).includes(SECRET) && !JSON.stringify(r).includes('/work/friction'));
 });
 
 test('collectInsights: --project adds the skills of a plugin installed for that project', async () => {

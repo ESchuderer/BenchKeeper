@@ -1,8 +1,9 @@
 // Insights: findings about this machine's agent setup, each with a stable id, a severity, the evidence and a fix. Read only.
 // Decisions (#273): Insights is a view of its own, not a Dashboard section. A signal that needs sessions needs at least
 // MIN_SAMPLES of them and reports nothing below that, so a thin history never produces a ranked finding.
-// Three signals: unused skills (sessions against the installed skills), hygiene (the doctor's findings) and freshness
-// (pins behind the newest release and the doctor's outdated items). Skills behind their source need the network: `skills list --check`.
+// Four signals: unused skills (sessions against the installed skills), friction (a project whose sessions ended on a failed
+// test run without a pull request), hygiene (the doctor's findings) and freshness (pins behind the newest release and the
+// doctor's outdated items). Skills behind their source need the network: `skills list --check`.
 // insights() is pure: the state in, the findings out. collectInsights() reads the state from the machine.
 import { createHash } from 'node:crypto';
 import { join, sep } from 'node:path';
@@ -19,6 +20,8 @@ const isFreshness = (f) => f.check === 'pins' || f.tag === 'outdated';
 const KEYS = ['check', 'message', 'dir', 'file', 'line', 'scope', 'rule', 'repos'];
 // A skill's front matter (name and description, also a block scalar) is what every turn carries; about 4 characters a token.
 const tokensOf = (text) => Math.ceil(frontMatter(text.replaceAll('\r\n', '\n')).length / 4);
+// The project's folder name; the full path never leaves the scan.
+const folderOf = (path) => path.split(/[\\/]/).filter(Boolean).at(-1);
 const evidenceOf = (f) => Object.fromEntries(KEYS.filter((k) => f[k] !== undefined).map((k) => [k, f[k]]));
 
 // state: { sessions: rows of scanSessions, skills: [{ name, scope, tokens }] installed, doctorFindings }. Only Claude Code sessions count: the installed skills are Claude Code's.
@@ -39,6 +42,25 @@ export function insights({ sessions = [], skills = [], doctorFindings = [] }, { 
         fix: 'turn them off: move the folder of a global skill out of the skills folder, or disable the plugin that ships a plugin skill',
       });
     }
+  }
+  // Friction (#322): one proxy, a session whose last test run failed and that opened no pull request. Per project, among its
+  // sessions without Orca workers and research tier; Claude Code and Codex both count. Nothing below minSamples of them.
+  const byFolder = new Map();
+  for (const s of sessions) {
+    if (!s.project || s.pattern === 'Orca worker' || s.tier?.last === 'research') continue;
+    const folder = folderOf(s.project);
+    if (folder) byFolder.set(folder, [...(byFolder.get(folder) ?? []), s]);
+  }
+  for (const [folder, list] of byFolder) {
+    const failed = list.filter((s) => s.tests === 'fail' && !s.prs?.length);
+    if (list.length < minSamples || !failed.length) continue;
+    const rate = Math.round((failed.length / list.length) * 100);
+    found.push({
+      id: `friction:${hash(folder)}`, signal: 'friction', severity: 'info',
+      message: `${failed.length} of ${list.length} sessions in ${folder} (${rate}%) ended on a failed test run and opened no pull request`,
+      evidence: { project: folder, sessions: list.length, failed: failed.length, rate, sessionIds: failed.map((s) => s.id).sort() },
+      fix: 'open the listed sessions in the sessions board and look at why the tests failed: a missing check in the project, a rule the agent skipped or a task too large for one session',
+    });
   }
   for (const f of doctorFindings) {
     const signal = isFreshness(f) ? 'freshness' : 'hygiene';

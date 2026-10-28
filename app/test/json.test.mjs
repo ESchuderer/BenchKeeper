@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Writable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { addProject } from '../src/projects.mjs';
@@ -264,6 +264,92 @@ test('--json: the changing commands print their runs and entries, refuse a quest
       [['packs', 'enable', 'nope', '--project', dir, '--yes'], 'packs enable', /unknown pack nope/],
       [['undo', 'nosuchrun'], 'undo', /nosuchrun/],
     ]) assert.match((await doc(args, 2, command, ['error'])).error, message);
+  } finally {
+    if (before === undefined) delete process.env.DO_NOT_TRACK; else process.env.DO_NOT_TRACK = before;
+  }
+});
+
+test('--json: the read commands of the web UI print their documented keys, refuse a cache change without --yes and leak no value', async () => {
+  const { ctx, dir, home } = setup();
+  writeSessions(home);
+  put(join(ctx.config, 'evals/results.jsonl'), `${JSON.stringify({ time: '2026-10-20T10:00:00.000Z', target: 'skill:x', agent: 'claude', agentVersion: '1.0.0', missRate: 0.5, falseTriggerRate: 0, details: [{ expected: SECRET }] })}\nnot json\n`);
+  const before = process.env.DO_NOT_TRACK;
+  process.env.DO_NOT_TRACK = SECRET;
+  const text = async (args) => { let t = ''; const code = await main(args, { out: new Writable({ write(c, _, d) { t += c; d(); } }), err: new Writable({ write(_c, _e, d) { d(); } }), input: Readable.from([]), ctx }); return { code, t }; };
+  try {
+    const shape = async (args, code, command, keys) => {
+      const r = await run(ctx, [...args, '--json']);
+      assert.equal(r.code, code, `${args.join(' ')}: ${r.err}`);
+      assert.deepEqual([r.doc.schemaVersion, r.doc.command], [1, command]);
+      assert.deepEqual(Object.keys(r.doc).slice(2), keys, args.join(' '));
+      assert.ok(!r.text.includes(SECRET) && !r.err.includes(SECRET), `${args.join(' ')} leaks a secret`);
+      return r.doc;
+    };
+    // A shared setup edits CLAUDE.md, whose first line is the secret: the text diff shows it, the document must not.
+    const applied = await shape(['projects', 'apply', dir, '--agents', 'claude', '--pack', 'testing', '--share', '--yes'], 0, 'projects apply', ['runs']);
+    const id = applied.runs[0].id;
+    assert.match((await text(['history', 'show', id])).t, new RegExp(SECRET));
+    const shown = await shape(['history', 'show', id], 0, 'history show', ['run']);
+    assert.ok(shown.run.id === id && shown.run.entries.some((e) => e.path === join(dir, 'CLAUDE.md')) && shown.run.entries.every((e) => !('diff' in e)));
+
+    const status = await shape(['projects', 'status'], 0, 'projects status', ['version', 'level', 'adds', 'agents', 'projects']);
+    assert.deepEqual(status.projects.map((p) => [p.path, p.share]), [[dir, true]]);
+    assert.ok(status.agents.some((a) => a.id === 'claude' && a.installed) && status.projects[0].changes.every((c) => !('diff' in c)));
+    const one = await shape(['projects', 'status', home], 0, 'projects status', ['version', 'level', 'adds', 'agents', 'projects']);
+    assert.deepEqual(one.projects.map((p) => [p.path, p.setupVersion]), [[home, null]]);
+
+    const library = await shape(['skills', 'list', '--library'], 0, 'skills list', ['skills']);
+    assert.ok(library.skills.length > 0 && library.skills.every((s) => s.name && Number.isInteger(s.projects)));
+    const pack = await shape(['packs', 'show', 'testing'], 0, 'packs show', ['pack']);
+    assert.deepEqual([pack.pack.id, pack.pack.usedBy], ['testing', [dir]]);
+
+    assert.deepEqual((await shape(['evals', 'results'], 0, 'evals results', ['results'])).results.map((r) => [r.target, 'details' in r]), [['skill:x', false]]);
+    const items = await shape(['inventory', '--agents', 'claude'], 0, 'inventory', ['items']);
+    assert.ok(items.items.length > 0 && items.items.every((i) => i.step && i.title && i.state));
+    const board = await shape(['dashboard', '--agents', 'claude'], 0, 'dashboard', ['global', 'projects', 'coverage', 'catalog']);
+    assert.deepEqual(board.projects.map((p) => [p.path, p.setup]), [[dir, true]]);
+
+    assert.ok(Array.isArray((await shape(['sessions', 'list'], 0, 'sessions list', ['runs'])).runs));
+    const cache = await shape(['sessions', 'cache', 'show'], 0, 'sessions cache show', ['keepDays', 'sessions']);
+    assert.ok(cache.keepDays === null && cache.sessions > 0);
+    // Without --yes a change exits 2 and the cache file stays as it was.
+    const file = join(home, '.cache/benchkeeper/sessions.json'), bytes = readFileSync(file, 'utf8');
+    assert.match((await shape(['sessions', 'cache', 'set', '--keep-days', '30'], 2, 'sessions cache set', ['error'])).error, /add --yes/);
+    assert.match((await shape(['sessions', 'cache', 'clear'], 2, 'sessions cache clear', ['error'])).error, /add --yes/);
+    assert.equal(readFileSync(file, 'utf8'), bytes);
+    assert.deepEqual(await shape(['sessions', 'cache', 'set', '--keep-days', '30', '--yes'], 0, 'sessions cache set', ['keepDays', 'sessions']), { schemaVersion: 1, command: 'sessions cache set', keepDays: 30, sessions: cache.sessions });
+    assert.equal((await shape(['sessions', 'cache', 'set', '--keep-days', 'none', '--yes'], 0, 'sessions cache set', ['keepDays', 'sessions'])).keepDays, null);
+    assert.deepEqual((await text(['sessions', 'cache', 'set', '--keep-days', '7'])), { code: 1, t: 'keep session summaries 7 days instead of for good: the next scan drops those older than 7 days\nChange the retention? [y/N] ' });
+    assert.equal((await text(['sessions', 'cache', 'set', '--keep-days', '7', '--yes'])).t.split('\n').at(-2), `${cache.sessions} session summaries, kept 7 days`);
+    assert.deepEqual((await shape(['sessions', 'cache', 'clear', '--yes'], 0, 'sessions cache clear', ['keepDays', 'sessions'])), { schemaVersion: 1, command: 'sessions cache clear', keepDays: 7, sessions: 0 });
+
+    for (const [args, command, message] of [
+      [['history', 'show'], 'history show', /needs a run/],
+      [['history', 'show', 'nosuchrun'], 'history show', /no run nosuchrun/],
+      [['packs', 'show', 'nope'], 'packs show', /unknown pack nope/],
+      [['projects', 'status', join(TMP, 'bk-json-never')], 'projects status', /is not a folder/],
+      [['sessions', 'list', '--run', 'nope'], 'sessions list', /no sessions of run nope/],
+      [['sessions', 'cache', 'set'], 'sessions cache set', /--keep-days N\|none/],
+      [['sessions', 'cache', 'set', '--keep-days', '0', '--yes'], 'sessions cache set', /--keep-days N\|none/],
+      [['sessions', 'cache', 'set', '--keep-days', '3651', '--yes'], 'sessions cache set', /--keep-days N\|none/],
+      [['sessions', 'cache', 'clear', '--keep-days', '3'], 'sessions cache clear', /belongs to sessions cache set/],
+      [['sessions', 'cache', 'nope'], 'sessions cache nope', /needs show, set or clear/],
+      [['inventory', 'extra'], 'inventory', /unexpected argument extra/],
+      [['evals', 'results', 'extra'], 'evals results', /unexpected argument extra/],
+    ]) assert.match((await shape(args, 2, command, ['error'])).error, message);
+
+    // The text output of each read.
+    assert.match((await text(['projects', 'status'])).t, new RegExp(`^benchkeeper \\S+, level \\w+\\n[^]*${dir}  setup `));
+    assert.match((await text(['skills', 'list', '--library'])).t, /^\S+\s+\d+ projects?\s+\S+/);
+    assert.match((await text(['packs', 'show', 'testing'])).t, new RegExp(`^testing  library  .*\\nskills: .*\\nused by: ${dir}\\n$`));
+    assert.equal((await text(['evals', 'results'])).t, '2026-10-20 10:00  skill:x  claude 1.0.0  miss 50%  false trigger 0%\n');
+    assert.match((await text(['inventory', '--agents', 'claude'])).t, /^\w+\s+\w+\s+\S/);
+    assert.match((await text(['dashboard', '--agents', 'claude'])).t, new RegExp(`^machine  .*\\n${dir}  .*packs `));
+    // sessions list --run above scanned again: the summaries are back.
+    assert.equal((await text(['sessions', 'cache', 'show'])).t, `${cache.sessions} session summaries, kept 7 days\n`);
+    for (const args of [['history', 'show'], ['sessions', 'cache'], ['inventory', 'x'], ['evals', 'results', 'x'], ['packs', 'show'], ['projects', 'status', join(TMP, 'bk-json-never')]]) assert.equal((await text(args)).code, 2, args.join(' '));
+    assert.equal((await text(['history', 'show', 'nosuchrun'])).code, 1);
+    assert.equal((await text(['packs', 'show', 'nope'])).code, 1);
   } finally {
     if (before === undefined) delete process.env.DO_NOT_TRACK; else process.env.DO_NOT_TRACK = before;
   }

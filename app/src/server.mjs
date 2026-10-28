@@ -8,42 +8,40 @@ import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, useChange } from './accounts.mjs';
 import { limitsFor, settingsOf } from './usage.mjs';
 import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
-import { agent, detect, unavailable } from './agents.mjs';
-import { userEvals } from './cases.mjs';
+import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
-import { contentDir, appVersion } from './content.mjs';
+import { contentDir } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
 import { giveConsent, hasConsent, narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { readTriage, setTriage, shownFindings, withTriage } from './triage.mjs';
-import { diffLines } from './diff.mjs';
-import { exists, hashPath, inside, isDir, readText, realish } from './fsx.mjs';
-import { blob } from './git.mjs';
+import { exists, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
 import { frameworkRows, sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupOf, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { checkText, paramsChange, paramsView } from './params.mjs';
 import { readPreferences, setPreference } from './preferences.mjs';
 import { applyAsync, itemState, preview, runCommand, undo, windowsTool } from './runner.mjs';
 import { dashboard } from './dashboard.mjs';
+import { catalog, evalResults, overview, runReport } from './reads.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
 import { bundleEdits, isSettingsFile, listSettings, readSettings, redact, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
-import { detectLevel, levelFor } from './level.mjs';
-import { LEVELS, benchkeeperPlugin, globalPlan, globalSkills } from './steps/global.mjs';
-import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, upToDate } from './steps/project.mjs';
+import { levelFor } from './level.mjs';
+import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
+import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
 
 export const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
@@ -85,23 +83,6 @@ export function pickFolder(ctx, platform = process.platform, env = process.env) 
     if (r.code === 0 || r.code === 1) return { path: null };
   }
   return { path: null, unavailable: true };
-}
-
-// A file of a recorded session between its snapshots; null for binary or large files and a lost snapshot.
-function sessionDiff(ctx, e, f) {
-  const side = (tree, absent) => (absent ? '' : blob(ctx, e.cwd, tree, f.path));
-  try {
-    const [a, b] = [side(e.before, f.status === 'A'), side(e.after, f.status === 'D')];
-    if (a.length + b.length > 1e6 || a.includes(0) || b.includes(0)) return null;
-    return diffLines(f.status === 'A' ? null : a.toString('utf8'), f.status === 'D' ? null : b.toString('utf8'), f.path);
-  } catch { return null; }
-}
-
-// An Update all change as its commit holds it: the run's worktree is gone. null for a folder or an older run.
-function committed(ctx, run, e) {
-  const { updateAll, commit } = run.note ?? {};
-  if (!updateAll || !commit || !inside(e.path, [run.scope])) return null;
-  try { return blob(ctx, updateAll, commit, relative(realish(run.scope), realish(e.path)).split(sep).join('/')).toString('utf8'); } catch { return null; }
 }
 
 // Changes without their edit functions, with the item state the Dashboard groups by.
@@ -213,7 +194,7 @@ export function api(ctx) {
     return last;
   };
   const routes = {
-    'GET /api/overview': async () => (await originsOfProjects(), { version: appVersion, level: cached('level', () => detectLevel(ctx, installed())), agents: agentsNow().map((a) => ({ ...a, ...(a.installed && agent(a.id).plugins ? { plugin: cached(`plugin:${a.id}`, () => { try { return benchkeeperPlugin(ctx, a.id); } catch { return null; } }) } : {}), rules: agent(a.id).global.rules.path, skills: agent(a.id).global.skills, unavailable: unavailable(a.id) })), projects: listProjects(ctx).map((p) => { const s = setupOf(ctx, p.path, projectState(ctx, p.path)).state; return { path: p.path, agents: s?.agents ?? [], setupVersion: s?.contentVersion ?? null, current: upToDate(s) }; }), editors: editorsOn() }),
+    'GET /api/overview': async () => ({ ...(await overview(ctx, agentsNow(), cached)), editors: editorsOn() }),
     'POST /api/preferences': (b) => ({ editors: input(() => setPreference(ctx, 'editors', b.editors)).editors }),
     // The editor view (preference editors): presets, pins and the orchestrator policy of a registered project, checked by
     // the same loader as doctor and CI; a save is a plan applied through /api/apply and undone in History.
@@ -497,34 +478,13 @@ export function api(ctx) {
       return input(() => updateAll(ctx, { paths, push: b.push !== false, answers, max: Number.isInteger(b.max) && b.max > 0 ? b.max : undefined }));
     },
     'GET /api/history': () => ctx.ledger.list().map(({ entries, ...r }) => ({ ...r, changes: entries.length })),
-    // One run with the diff of each file it wrote: its backup (or nothing) against the file as the change left it,
-    // which is the backup a later change of the run took, or the file while nothing changed it since.
-    // A session's files diff between its git snapshots.
-    'GET /api/run': (q) => {
-      const run = ctx.ledger.get(q.get('id') ?? '');
-      return { ...run, entries: run.entries.map((e, i) => {
-        // shortcut: git runs twice per file and blocks the server, so only the first 50 files get a diff; stream them when sessions get larger.
-        if (e.kind === 'session' && e.files) return { ...e, files: e.files.map((f, n) => ({ ...f, diff: n < 50 ? sessionDiff(ctx, e, f) : null })) };
-        if (!e.path || e.kind !== 'write' || e.status !== 'done') return e;
-        // Deleted, for example the undo of a file the run created: the backup against nothing.
-        if (e.hashAfter === null && !exists(e.path)) return { ...e, removed: true, diff: e.backup && !isDir(e.backup) ? diffLines(readText(e.backup), null, e.path) : null };
-        if (isDir(e.path)) return { ...e, folder: true };
-        const next = run.entries.slice(i + 1).find((x) => x.path === e.path && x.backup && x.hashBefore === e.hashAfter);
-        const now = next ? readText(next.backup) : hashPath(e.path) === e.hashAfter ? readText(e.path) : committed(ctx, run, e);
-        const d = now == null ? null : diffLines(e.backup ? readText(e.backup) : null, now, e.path);
-        return { ...e, diff: isSettingsFile(e.path) ? redact(d) : d };
-      }) };
-    },
+    'GET /api/run': (q) => runReport(ctx, q.get('id') ?? ''),
     'POST /api/undo': (b) => {
       idle();
       const scope = ctx.ledger.get(b.run).scope;
       return undo(b.run, input(() => scopeCtx(ctx, scope)), { step: b.step || undefined });
     },
-    'GET /api/catalog': () => {
-      const lib = libraryWith(ctx), users = usersByPack(ctx);
-      const projects = listProjects(ctx).map((p) => projectState(ctx, p.path)).filter(Boolean);
-      return { ...lib, packs: lib.packs.map((x) => ({ ...x, usedBy: users.get(x.id) ?? [] })), invalidPacks: invalidPacks(ctx), skills: lib.skills.map((s) => ({ ...s, projects: projects.filter((st) => st.skills?.some((x) => x.name === s.name)).length })) };
-    },
+    'GET /api/catalog': () => catalog(ctx),
     'GET /api/skill': (q) => {
       const name = q.get('name');
       if (!libraryWith(ctx).skills.some((s) => s.name === name)) throw Object.assign(new Error('unknown skill'), { status: 404 });
@@ -570,10 +530,7 @@ export function api(ctx) {
       (ctx.open ?? openFolder)(dir);
       return { opened: dir };
     },
-    // Eval results without the per-case details; lines that do not parse are left out.
-    'GET /api/evals': () => (readText(join(userEvals(ctx), 'results.jsonl')) ?? '').split('\n').filter(Boolean).flatMap((l) => {
-      try { const { details, ...r } = JSON.parse(l); return [r]; } catch { return []; }
-    }),
+    'GET /api/evals': () => evalResults(ctx),
     'GET /api/pack-warnings': (q) => warnings((q.get('skills') ?? '').split(',').filter(Boolean)),
     'GET /api/pack-export': (q) => input(() => ({ name: `${q.get('id')}.json`, text: exportPack(ctx, q.get('id')) })),
     'POST /api/packs': (b) => input(() => {

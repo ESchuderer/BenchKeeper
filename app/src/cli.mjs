@@ -27,13 +27,16 @@ import { extensionLines, extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
-import { byRun, scanSessions } from './sessions.mjs';
+import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
+import { catalog, evalResults, overview, runReport } from './reads.mjs';
+import { inventory } from './inventory.mjs';
+import { dashboard } from './dashboard.mjs';
 import { ADVISERS } from './advise.mjs';
 import { collectInsights } from './insights.mjs';
 import { shownFindings } from './triage.mjs';
 import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
 import { writeBoard } from './board.mjs';
-import { detectLevel } from './level.mjs';
+import { detectLevel, levelFor } from './level.mjs';
 import { resolvePins } from './params.mjs';
 import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal } from './steps/global.mjs';
 import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
@@ -86,9 +89,12 @@ Usage: benchkeeper <command> [options]
                                     skill trigger evals with real agent sessions (subscription use, never in CI);
                                     only targets changed since their last result unless --all; plan lists the targets and
                                     sessions and starts none, run asks first (--yes answers it)
+  evals results                     the stored eval results: per target and agent the miss and false trigger rates
   verify [dir] [--agents a,b]       deterministic checks: files match the ledger, expected plugins and skills,
                                     nothing unexpected installed, project skills present; exit 1 on a failure
   history                           runs, newest first
+  history show <run>                one run: each change with its status and the diff of each file it wrote (settings
+                                    values masked; a recorded session's files between its snapshots, the first 50)
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   projects plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--pack p] [--skill s] [--tier t] [--yes]
@@ -101,9 +107,10 @@ Usage: benchkeeper <command> [options]
                                     --framework names the workflow owner of this project (at most one; none clears it),
                                     --agent-file picks agent files of a source (skills sources lists them; none clears)
   frameworks [list]                 the frameworks (workflow owners) a project can add, with the evidence and what the install writes
-  packs [list|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
-                                    library packs and own packs (own ones in packs/ of the config folder); remove
-                                    refuses a pack a registered project still names
+  packs [list|show <id>|save <id> --skill s..|export <id>|import <file> [--id i]|remove <id>]
+                                    library packs and own packs (own ones in packs/ of the config folder); show: one
+                                    pack with the registered projects that use it; remove refuses a pack a registered
+                                    project still names
   packs enable|disable <id>.. [--project dir | --global] [--yes]
                                     switches packs on top of the current state, as a plan with a diff (undo restores it):
                                     a project's packs (default: the current folder), or the plugins of a pack that
@@ -116,7 +123,11 @@ Usage: benchkeeper <command> [options]
                                     remove: a single pick leaves the project; adopt: an untracked library skill becomes a pick;
                                     add: a library skill the project lacks becomes a pick (names required);
                                     disable moves a skill to .benchkeeper/disabled/, enable moves it back (names required)
+  skills list --library             the library's skills with the number of registered projects that have each
   skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
+  projects status [dir]             app version, install level, agents with the BenchKeeper plugin, and the setup state of
+                                    each registered project (dir: that folder only): setup version, origin, checkout,
+                                    branch, clean, the pending changes; nothing is written
   projects [list|add <dir>..|scan <root>|remove <dir>..]
                                     projects Update all covers (projects.json in the config folder); add refuses another worktree
                                     of a registered repository unless --worktree; remove only unregisters
@@ -148,6 +159,11 @@ Usage: benchkeeper <command> [options]
                                     Ponytail's ledger, when present, is read beside them (read only)
   sessions list [--run id]          orchestrated runs with cost (Claude Code, API-equivalent USD) and tokens (Codex: tokens
                                     only) from the sessions scan; --run: that run per task
+  sessions cache show|clear|set [--keep-days N|none] [--yes]
+                                    the summaries the scan keeps after an agent deletes a transcript: show counts them with
+                                    the retention; set --keep-days (1 to 3650, none: for good) changes it, the next scan
+                                    drops older ones; clear removes them all, the history of deleted transcripts for good
+                                    (run it while no scan runs in the web UI: that scan writes them back). Both ask first
   sessions record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
   accounts [list]                   the accounts per agent (Claude Code, Codex): name, agent, host or dev container, default
@@ -193,13 +209,16 @@ Usage: benchkeeper <command> [options]
                                     ignored by git): entries per file; a file that does not parse is listed as ignored
   knowledge clear [dir] [--yes]
                                     removes that folder after a question and nothing else of the project
+  inventory [--agents a,b]          the global setup items with their state, as the Dashboard counts them
+  dashboard [--agents a,b]          the machine's and each registered project's item states, packs per agent, catalog
   pins list [dir]                   each phase (research, implement, review, verify) with the agent, model and effort
                                     to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
---json (doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list,
-        settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status,
-        evals plan and run; apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs
+--json (doctor, verify, plan, projects plan, history and history show, projects list, status, scan and audit, packs list and show,
+        skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, list and
+        cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory,
+        dashboard; apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs
         enable|disable, skills update, undo)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md. A changing command
@@ -219,7 +238,7 @@ const OPTIONS = {
   only: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
-  account: { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
+  account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
 // One line reader per command, so several questions share the input. Lines, not rl.question: piped answers that
@@ -296,8 +315,8 @@ export async function main(argv, { out = process.stdout, err = process.stderr, i
     // With --json a failure is a document too: an unknown option, an unreadable file.
     if (!argv.includes('--json')) throw e;
     err.write(`${redact(e.message)}\n`);
-    const [cmd = 'ui', arg] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
-    out.write(jsonDoc(commandName(cmd, arg), { error: redact(e.message) }));
+    const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    out.write(jsonDoc(commandName(cmd, arg, sub), { error: redact(e.message) }));
     return 2;
   } finally { ask.close(); }
 }
@@ -327,6 +346,34 @@ function auditTarget(o, positionals) {
   if (bad !== undefined) return { error: `--only takes ${GROUPS.join(', ')}, not "${bad}"` };
   return isDir(dir) ? { dir, only } : { error: `${dir} is not a folder` };
 }
+
+// projects status: the overview and the setup state of each registered project, or of the folder named.
+async function projectsStatus(ctx, positionals) {
+  if (positionals.length > 3) return { error: `unexpected argument ${positionals[3]}` };
+  const dir = positionals[2] && resolve(positionals[2]);
+  if (dir && !isDir(dir)) return { error: `${dir} is not a folder` };
+  const { projects, ...rest } = await overview(ctx, detect(ctx));
+  return { ...rest, projects: (dir ? [dir] : projects.map((p) => p.path)).map((p) => status(ctx, p)) };
+}
+
+const kept = (days) => (days === null ? 'for good' : `${days} days`);
+// sessions cache: the subcommand and, for set and clear, the lines that show the change and the change itself; or a usage error.
+function cacheCommand(ctx, o, positionals) {
+  const sub = positionals[2];
+  if (!['show', 'set', 'clear'].includes(sub)) return { error: 'sessions cache needs show, set or clear' };
+  if (positionals.length > 3) return { error: `unexpected argument ${positionals[3]}` };
+  if (sub !== 'set' && o['keep-days'] !== undefined) return { error: '--keep-days belongs to sessions cache set' };
+  if (sub === 'show') return { sub };
+  const now = sessionCache(ctx);
+  if (sub === 'clear') return { sub, lines: [`remove the ${now.sessions} session summaries: those of transcripts the agent already deleted are gone for good, the next scan reads the others again; the retention stays ${kept(now.keepDays)}`], change: () => clearSessionCache(ctx) };
+  const v = o['keep-days'], days = v === 'none' ? null : /^\d+$/.test(v ?? '') ? Number(v) : NaN;
+  if (Number.isNaN(days) || (days !== null && (days < 1 || days > 3650))) return { error: 'usage: sessions cache set --keep-days N|none (N: a whole number from 1 to 3650)' };
+  return { sub, lines: [`keep session summaries ${kept(days)} instead of ${kept(now.keepDays)}${days === null ? '' : `: the next scan drops those older than ${days} days`}`], change: () => keepSessionsFor(ctx, days) };
+}
+
+const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
+const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
+const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
 
 async function command(argv, { out, err, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
@@ -361,6 +408,10 @@ async function command(argv, { out, err, ask, ctx }) {
     return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
   }
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
+  if (cmd === 'skills' && o.library && [undefined, 'list'].includes(arg)) {
+    for (const s of catalog(ctx).skills) out.write(`${s.name.padEnd(30)} ${String(s.projects).padStart(3)} project${s.projects === 1 ? ' ' : 's'}  ${s.source}\n`);
+    return 0;
+  }
   if (cmd === 'skills' && arg === 'sources' && [undefined, 'list'].includes(positionals[2])) { out.write(sourceRows().map(rowText).join('')); return 0; }
   if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'frameworks') { out.write(frameworkRows().map(rowText).join('')); return 0; }
@@ -368,6 +419,11 @@ async function command(argv, { out, err, ask, ctx }) {
     if (arg === 'save') out.write(`saved ${savePack(ctx, { id: positionals[2], skills: o.skill ?? [] }).id}\n`);
     else if (arg === 'export') out.write(exportPack(ctx, positionals[2]));
     else if (arg === 'import') out.write(`imported ${importPack(ctx, readFileSync(positionals[2], 'utf8'), o.id).id}\n`);
+    else if (arg === 'show') {
+      const p = catalog(ctx).packs.find((x) => x.id === positionals[2]);
+      if (!p) { out.write(`unknown pack ${positionals[2] ?? ''}, see benchkeeper packs list\n`); return positionals[2] ? 1 : 2; }
+      out.write(`${p.id}  ${p.own ? 'own' : 'library'}  ${p.title ?? p.id}\n${p.skills ? `skills: ${p.skills.join(', ')}` : `plugin: ${Object.values(p.plugins ?? {}).map((x) => x.id).join(', ')}`}\nused by: ${p.usedBy.join(', ') || 'no registered project'}\n`);
+    }
     else if (arg === 'remove') { removePack(ctx, positionals[2], { usedBy: projectsUsing(ctx, positionals[2]) }); out.write(`removed ${positionals[2]}\n`); }
     else if (arg && arg !== 'list') { out.write(`unknown packs command ${arg}\n`); return 2; }
     else {
@@ -391,6 +447,19 @@ async function command(argv, { out, err, ask, ctx }) {
     }
     out.write('Then, in an agent session the app records:\n');
     for (const p of prompts) out.write(`  benchkeeper sessions record --project ${dir} -- ${p.agent} '${p.prompt}'   (${p.why})\n`);
+    return 0;
+  }
+  if (cmd === 'projects' && arg === 'status') {
+    const r = await projectsStatus(ctx, positionals);
+    if (r.error) { out.write(`${r.error}\n`); return 2; }
+    out.write(`benchkeeper ${r.version}, level ${r.level.level ?? 'none'}\n`);
+    for (const a of r.agents) out.write(`${a.id.padEnd(8)} ${a.installed ? a.version : 'not installed'}${a.plugin ? `  plugin ${a.plugin.installed ?? 'not installed'} (this app sets up ${a.plugin.available})` : ''}\n`);
+    for (const p of r.projects) {
+      const where = p.missing ? 'folder missing' : `origin ${p.origin ?? '-'}, checkout ${p.checkout ?? '-'}${p.branch ? `, branch ${p.branch}` : ''}${p.clean === false ? ', working tree has changes' : ''}`;
+      out.write(`${p.path}  setup ${p.setupVersion ?? '-'}${p.current ? ' (current)' : ''}  ${where}${p.error ? `: ${p.error}` : ''}\n`);
+      for (const c of p.changes ?? []) out.write(`  ${c.title}\n`);
+    }
+    if (!r.projects.length) out.write('no projects: benchkeeper projects add <dir>\n');
     return 0;
   }
   if (cmd === 'projects' && arg === 'update') {
@@ -477,7 +546,19 @@ async function command(argv, { out, err, ask, ctx }) {
     return 0;
   }
   if (cmd === 'insights') { out.write('insights works with --json\n'); return 2; }
-  if (cmd === 'sessions' && !['board', 'list', 'record'].includes(arg)) { out.write('sessions needs board, list or record\n'); return 2; }
+  if (cmd === 'sessions' && !['board', 'list', 'cache', 'record'].includes(arg)) { out.write('sessions needs board, list, cache or record\n'); return 2; }
+  if (cmd === 'sessions' && arg === 'cache') {
+    const c = cacheCommand(ctx, o, positionals);
+    if (c.error) { out.write(`${c.error}\n`); return 2; }
+    if (c.change) {
+      c.lines.forEach((l) => out.write(`${l}\n`));
+      if (!o.yes && !(await ask(c.sub === 'clear' ? 'Clear the sessions cache?' : 'Change the retention?'))) return 1;
+      c.change();
+    }
+    const now = sessionCache(ctx);
+    out.write(`${now.sessions} session summaries, kept ${kept(now.keepDays)}\n`);
+    return 0;
+  }
   if (cmd === 'sessions' && arg === 'list') {
     const runs = byRun(await scanSessions(ctx)).filter((x) => o.run === undefined || x.run === o.run);
     if (o.run !== undefined && !runs.length) { out.write(`no sessions of run ${o.run}\n`); return 1; }
@@ -575,8 +656,15 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const c of checks) out.write(`${c.ok ? 'ok  ' : 'fail'}  ${c.name}${c.problems.map((p) => `\n      ${p}`).join('')}\n`);
     return checks.every((c) => c.ok) ? 0 : 1;
   }
+  if (cmd === 'evals' && arg === 'results') {
+    if (positionals.length > 2) { out.write(`unexpected argument ${positionals[2]}\n`); return 2; }
+    const results = evalResults(ctx);
+    for (const r of results) out.write(`${r.time?.slice(0, 16).replace('T', ' ') ?? '-'}  ${resultLine(r)}\n`);
+    if (!results.length) out.write('no eval results: benchkeeper evals run\n');
+    return 0;
+  }
   if (cmd === 'evals') {
-    if (arg !== 'plan' && arg !== 'run') { out.write('evals needs plan, run or cases add\n'); return 2; }
+    if (arg !== 'plan' && arg !== 'run') { out.write('evals needs plan, run, results or cases add\n'); return 2; }
     if (arg === 'run' && process.env.CI) { out.write('evals run starts agent sessions on a subscription and does not run in CI\n'); return 2; }
     const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
     const sessions = plan.reduce((n, p) => n + p.cases.length, 0);
@@ -585,9 +673,20 @@ async function command(argv, { out, err, ask, ctx }) {
     if (arg === 'plan') return 0;
     if (!o.yes && !(await ask(`Start ${sessions} agent sessions?`))) return 1;
     for (const r of await runEval(ctx, plan)) {
-      const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
       const review = r.details.find((d) => d.review)?.review;
-      out.write(`${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}${review ? `  review: ${review.slice(0, review.lastIndexOf('/') + 1)}` : ''}\n`);
+      out.write(`${resultLine(r)}${review ? `  review: ${review.slice(0, review.lastIndexOf('/') + 1)}` : ''}\n`);
+    }
+    return 0;
+  }
+  if (cmd === 'history' && arg === 'show') {
+    if (!positionals[2] || positionals.length > 3) { out.write(positionals[2] ? `unexpected argument ${positionals[3]}\n` : 'history show needs a run, see benchkeeper history\n'); return 2; }
+    let run;
+    try { run = runReport(ctx, positionals[2]); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    out.write(`${run.id}  ${run.kind} ${run.status ?? 'interrupted'}  ${run.scope}${run.of ? ` (undo of ${run.of})` : ''}\n`);
+    for (const e of run.entries) {
+      out.write(`${(e.status ?? '').padEnd(7)} ${e.title}${e.removed ? ' (removed)' : ''}${e.folder ? ' (folder)' : ''}${e.error || e.reason ? `: ${e.error ?? e.reason}` : ''}\n`);
+      for (const f of e.files ?? []) out.write(`  ${f.status} ${f.path}\n${indent(f.diff)}`);
+      out.write(indent(e.diff));
     }
     return 0;
   }
@@ -613,8 +712,23 @@ async function command(argv, { out, err, ask, ctx }) {
     try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return 1; }
     return report(undo(arg, uctx, { step: o.step }), out);
   }
+  if (cmd === 'inventory' || cmd === 'dashboard') {
+    if (positionals.length > 1) { out.write(`unexpected argument ${positionals[1]}\n`); return 2; }
+    const { items, board } = machineItems(ctx, o, cmd);
+    if (cmd === 'inventory') { for (const i of items) out.write(`${i.state.padEnd(9)} ${i.agent.padEnd(8)} ${i.title}\n`); return 0; }
+    const states = (c) => Object.entries(c).filter(([, n]) => n).map(([st, n]) => `${st} ${n}`).join(', ') || 'no items';
+    out.write(`machine  ${states(board.global.states)}\n`);
+    for (const p of board.projects) out.write(`${p.path}  ${p.error ? `error: ${p.error}` : !p.setup ? 'no setup' : `${states(p.states)}${p.untracked ? `, untracked ${p.untracked}` : ''}  packs ${p.packs.join(', ') || 'none'}`}\n`);
+    return 0;
+  }
   out.write(`unknown command ${cmd}\n\n${HELP}\n`);
   return 2;
+}
+
+// The global items with their state and, for dashboard, the Dashboard built on them.
+function machineItems(ctx, o, cmd) {
+  const agents = selectedAgents(ctx, o.agents), items = inventory(ctx, agents, { level: levelFor(ctx, agents) });
+  return { items, ...(cmd === 'dashboard' ? { board: dashboard(ctx, agents, items) } : {}) };
 }
 
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
@@ -696,13 +810,16 @@ function testJson(checks, out) {
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg) => (['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts', 'knowledge', 'sessions', 'evals'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? `sessions cache ${sub ?? 'show'}` : cmd === 'history' && arg === 'show' ? 'history show' : ['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts', 'knowledge', 'sessions', 'evals'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
 const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'remove', 'rename', 'relocate', 'update'].includes(arg))
   || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'skills' && arg === 'update');
-const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map((e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) })) });
+const entryDoc = (e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) });
+const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map(entryDoc) });
+// A project's setup state as projects status prints it: the pending changes without their diffs.
+const statusDoc = ({ changes, error, ...p }) => ({ ...p, changes: changes?.map(changeDoc) ?? null, error: error ? redact(error) : null });
 const projectDoc = ({ reason, ...p }) => ({ ...p, ...(reason ? { reason: redact(reason) } : {}) });
 
 // A changing command runs as in the terminal with its lines on stderr; a question it would ask is refused before
@@ -723,7 +840,7 @@ async function changeJson(argv, { cmd, arg, out, err, ctx }) {
 }
 
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
-  const name = commandName(cmd, arg);
+  const name = commandName(cmd, arg, positionals[2]);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
   const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
   // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
@@ -755,11 +872,33 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const { plan, skills, warnings } = planProject(ctx, o, dir);
     return emit({ dir, changes: plan.map(changeDoc), skills, warnings }, plan.some((c) => c.error) ? 1 : 0);
   }
+  if (cmd === 'history' && arg === 'show') {
+    if (!positionals[2]) return fail('history show needs a run, see benchkeeper history');
+    const extra = surplus(3); if (extra !== undefined) return extra;
+    let run;
+    try { run = runReport(ctx, positionals[2]); } catch (e) { return fail(e.message); }
+    // The diffs are file contents: a document lists each file, not its diff.
+    const entries = run.entries.map((e) => ({ ...entryDoc(e), ...(e.path ? { path: e.path } : {}), ...(e.removed ? { removed: true } : {}), ...(e.folder ? { folder: true } : {}), ...(e.files ? { files: e.files.map((f) => ({ status: f.status, path: f.path })) } : {}) }));
+    return emit({ run: { id: run.id, kind: run.kind, status: run.status ?? 'interrupted', scope: run.scope, time: run.time, ...(run.of ? { of: run.of } : {}), entries } });
+  }
   if (cmd === 'history') {
     const runs = ctx.ledger.list().map((r) => ({ id: r.id, kind: r.kind, status: r.status ?? 'interrupted', scope: r.scope, time: r.time, changes: r.entries.length, ...(r.of ? { of: r.of } : {}), ...(r.note?.case ? { evalCase: r.note.case, target: r.note.target } : {}) }));
     return emit({ runs, backups: legacyBackups(ctx) });
   }
+  if (cmd === 'projects' && arg === 'status') {
+    const broken = registryFail();
+    if (broken !== undefined) return broken;
+    const r = await projectsStatus(ctx, positionals);
+    if (r.error) return fail(r.error);
+    return emit({ version: r.version, level: r.level.level ?? null, adds: r.level.adds ?? null, agents: r.agents, projects: r.projects.map(statusDoc) });
+  }
   if (cmd === 'projects' && (!arg || arg === 'list')) return surplus(2) ?? registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
+  if (cmd === 'packs' && arg === 'show') {
+    const extra = surplus(3); if (extra !== undefined) return extra;
+    const pack = catalog(ctx).packs.find((x) => x.id === positionals[2]);
+    return pack ? emit({ pack }) : fail(`unknown pack ${positionals[2] ?? ''}, see benchkeeper packs list`);
+  }
+  if (cmd === 'skills' && o.library && (!arg || arg === 'list')) return surplus(2) ?? emit({ skills: catalog(ctx).skills });
   if (cmd === 'packs' && (!arg || arg === 'list')) return surplus(2) ?? emit({ packs: libraryWith(ctx).packs.map((p) => ({ id: p.id, own: !!p.own, skills: p.skills ?? [], plugins: Object.values(p.plugins ?? {}).map((x) => x.id) })) });
   if (cmd === 'skills' && (!arg || arg === 'list')) {
     const extra = surplus(2); if (extra !== undefined) return extra;
@@ -802,6 +941,21 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     const registered = listProjects(ctx).map((p) => p.path);
     return emit({ root: canon(positionals[2] ?? '.'), found: scan(ctx, positionals[2] ?? '.').map((path) => ({ path, registered: registered.includes(canon(path)) })) });
+  }
+  if (cmd === 'sessions' && arg === 'list') {
+    const extra = surplus(2); if (extra !== undefined) return extra;
+    const runs = byRun(await scanSessions(ctx)).filter((x) => o.run === undefined || x.run === o.run);
+    return o.run !== undefined && !runs.length ? fail(`no sessions of run ${o.run}`) : emit({ runs });
+  }
+  if (cmd === 'sessions' && arg === 'cache') {
+    const c = cacheCommand(ctx, o, positionals);
+    if (c.error) return fail(c.error);
+    if (c.change) {
+      c.lines.forEach((l) => err.write(`${l}\n`));
+      if (!o.yes) return fail(`sessions cache ${c.sub} asks before it changes anything: add --yes to run it with --json`);
+      c.change();
+    }
+    return emit(sessionCache(ctx));
   }
   if (cmd === 'sessions' && arg === 'board') {
     const extra = surplus(2); if (extra !== undefined) return extra;
@@ -866,13 +1020,19 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const resultDoc = ({ details, ...r }) => ({ ...r, details: details.map(({ expected, ...d }) => d) });
     return emit({ ...doc, results: results.map(resultDoc), ...(error ? { error } : {}) }, error ? 1 : 0);
   }
+  if (cmd === 'evals' && arg === 'results') return surplus(2) ?? emit({ results: evalResults(ctx) });
+  if (cmd === 'inventory' || cmd === 'dashboard') {
+    const extra = surplus(1); if (extra !== undefined) return extra;
+    const { items, board } = machineItems(ctx, o, cmd);
+    return emit(cmd === 'inventory' ? { items } : { ...board, projects: board.projects.map((p) => ({ ...p, error: p.error ? redact(p.error) : null })) });
+  }
   if (cmd === 'profile' && arg === 'export') {
     if (positionals[2]) return fail('profile export --json prints the document: redirect stdout and take `.profile` before profile import');
     const broken = registryFail();
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status, evals plan and run, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
+  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan and audit, packs list and show, skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

@@ -47,7 +47,7 @@ test('the input is an allowlist of finding fields: a planted marker, a full path
   const friction = found.findings.find((f) => f.signal === 'friction');
   assert.ok(friction);
   // A doctor finding names files by path in its message, fix and evidence.
-  const doctorFindings = [{ check: 'rules', level: 'warning', message: `rules differ in ${home}/.claude/rules/00-global.md (see "${home}/x/y.md")`, fix: `edit ~/.claude/rules/00-global.md`, dir: `${home}/.claude`, file: `${home}/.claude/rules/00-global.md`, line: 7, rule: `Bash(${SECRET} *)`, repos: 3 }];
+  const doctorFindings = [{ check: 'rules', level: 'warning', message: `rules differ in ${home}/.claude/rules/00-global.md (see "${home}/x/y.md")`, fix: `edit ${'~'}/.claude/rules/00-global.md`, dir: `${home}/.claude`, file: `${home}/.claude/rules/00-global.md`, line: 7, rule: `Bash(${SECRET} *)`, repos: 3 }];
   const mixed = { ...found, findings: [...found.findings, ...insights({ doctorFindings }).findings] };
   const input = narrativeInput(mixed, mixed.findings);
   const { prompt } = narrativePrompt(input);
@@ -58,6 +58,7 @@ test('the input is an allowlist of finding fields: a planted marker, a full path
   const h = input.findings.find((x) => x.message.startsWith('rules differ'));
   assert.match(h.message, /rules differ in 00-global\.md \(see "y\.md"\)/);
   assert.deepEqual(h.evidence, { check: 'rules', repos: 3 });
+  assert.equal(h.proposal, 'edit 00-global.md');
   assert.deepEqual(input.window, { days: 90 });
   assert.deepEqual(input.samples, found.samples);
 });

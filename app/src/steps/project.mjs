@@ -10,6 +10,7 @@ import { cooldownEnv } from '../cooldown.mjs';
 import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
 import { agentFilesOf, frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, ownerOf, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
+import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { libraryWith, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
@@ -37,9 +38,13 @@ export const isEnv = (id) => typeof id === 'string' && Object.hasOwn(ENVS, id);
 const npxEnv = () => ({ DO_NOT_TRACK: '1', npm_config_registry: 'https://registry.npmjs.org/', npm_config_ignore_scripts: 'true', ...cooldownEnv() });
 
 const tryJson = (t) => { try { return t == null ? null : parseJson(t); } catch { return null; } };
+// Whether edit changes the settings text (a file that does not parse is left alone).
+const editsJson = (edit, text) => { try { return text != null && JSON.stringify(tryJson(edit(text))) !== JSON.stringify(tryJson(text)); } catch { return false; } };
 const SANDBOX_OUT = ['devcontainer exec *', 'podman *'];
 // Takes out what the sandbox step set, and the sandbox object when nothing else is left in it.
 const sandboxOff = (t) => mergeJson(t, [{ path: ['sandbox', 'enabled'], remove: true }, { path: ['sandbox', 'excludedCommands'], pull: SANDBOX_OUT }, { path: ['sandbox'], prune: true }]);
+// Takes out what the setup recorded in state wrote into a settings file: the sandbox keys and the guard rules and hook.
+const ownOff = (state) => (t) => [state?.sandbox && sandboxOff, state?.guards && guardsOff].filter(Boolean).reduce((o, f) => f(o), t);
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]*$/;
 // Skills the skills CLI installed in the project, by its lockfile.
 export const lockedSkills = (dir) => Object.keys(tryJson(readText(join(dir, LOCK)))?.skills ?? {}).filter((n) => SKILL_NAME.test(n));
@@ -70,10 +75,13 @@ export function committedSetup(dir) {
     else add('agents-md', 'remove AGENTS.md (only the BenchKeeper block)', { kind: 'remove', path: at('AGENTS.md') });
   }
   if (readText(at('CLAUDE.md'))?.trim() === '@AGENTS.md') add('claude-md', 'remove CLAUDE.md (only the AGENTS.md import; Claude Code reads AGENTS.md)', { kind: 'remove', path: at('CLAUDE.md') });
-  if (state?.sandbox && tryJson(readText(at('.claude/settings.json')))?.sandbox) {
-    add('sandbox', '.claude/settings.json without the sandbox keys BenchKeeper set', { kind: 'write', path: at('.claude/settings.json'),
-      edit: sandboxOff });
+  const shared = readText(at('.claude/settings.json'));
+  if ((state?.sandbox || state?.guards) && editsJson(ownOff(state), shared)) {
+    // A settings file that held only the keys BenchKeeper set was BenchKeeper's.
+    if (Object.keys(tryJson(ownOff(state)(shared)) ?? {}).length) add('sandbox', '.claude/settings.json without the sandbox keys and guards BenchKeeper set', { kind: 'write', path: at('.claude/settings.json'), edit: ownOff(state) });
+    else add('sandbox', 'remove .claude/settings.json (only the keys BenchKeeper set)', { kind: 'remove', path: at('.claude/settings.json') });
   }
+  if (state?.guards && exists(at(GUARD_PATH))) add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH) });
   for (const c of frameworkRemovals(dir, state, 'project')) add(c.step, c.title, c);
   installedFiles(dir, state, add);
   return changes;
@@ -98,11 +106,12 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   }
   if (getBlock(readText(at(OVERRIDE)), 'project') != null) add('local-codex', `remove ${OVERRIDE} (BenchKeeper's)`, { kind: 'remove', path: at(OVERRIDE) });
   const settings = readText(at(LOCAL_SETTINGS));
-  if (state?.sandbox && tryJson(settings)?.sandbox) {
-    // A settings file that held only the sandbox keys was BenchKeeper's.
-    if (Object.keys(tryJson(sandboxOff(settings)) ?? {}).length) add('sandbox', `${LOCAL_SETTINGS} without the sandbox keys BenchKeeper set`, { kind: 'write', path: at(LOCAL_SETTINGS), edit: sandboxOff });
-    else add('sandbox', `remove ${LOCAL_SETTINGS} (only the sandbox keys BenchKeeper set)`, { kind: 'remove', path: at(LOCAL_SETTINGS) });
+  if ((state?.sandbox || state?.guards) && editsJson(ownOff(state), settings)) {
+    // A settings file that held only the keys BenchKeeper set was BenchKeeper's.
+    if (Object.keys(tryJson(ownOff(state)(settings)) ?? {}).length) add('sandbox', `${LOCAL_SETTINGS} without the sandbox keys and guards BenchKeeper set`, { kind: 'write', path: at(LOCAL_SETTINGS), edit: ownOff(state) });
+    else add('sandbox', `remove ${LOCAL_SETTINGS} (only the keys BenchKeeper set)`, { kind: 'remove', path: at(LOCAL_SETTINGS) });
   }
+  if (state?.guards && exists(at(GUARD_PATH)) && git(ctx, dir, ['ls-files', '--', GUARD_PATH]).stdout.trim() === '') add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH) });
   if (state?.agents?.includes('gemini')) {
     const g = agent('gemini').project.rules.setting;
     const v = g.key.reduce((o, k) => o?.[k], tryJson(readText(at(g.path))));
@@ -129,11 +138,11 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), update (community skills added again from
 // the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
-// paths: { skill: 'glob, glob' }, share, callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
+// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), callers (repo-baseline caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
 export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
   const prev = readState(dir) ?? {};
-  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
+  const a = { agents: prev.agents ?? [], env: prev.env ?? suggest(dir).env?.id ?? 'container', sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, ...keptFrom(prev), callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
   // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
@@ -143,6 +152,7 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.pick = pick;
   a.partial = partial;
   a.share = a.share === true;
+  a.guards = a.guards !== false;
   a.frameworks = [a.frameworks].flat();
   // Naming the frameworks without naming agent files keeps the saved picks of the frameworks still chosen.
   a.agentFiles = answers.frameworks !== undefined && answers.agentFiles === undefined ? agentFilesOf(a.frameworks, prev.agentFiles ?? []) : [a.agentFiles].flat();
@@ -380,6 +390,20 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Whether a framework install or fetch ran in the run that writes the state file (null: none planned).
   const ranFw = (run) => (key) => (!fwIds.has(key) ? null : !run || run.entries.some((e) => e.id === fwIds.get(key) && e.status === 'done'));
 
+  // Guards: deny rules and the PreToolUse hook for the rules without exceptions, in the settings file of the sandbox step. After the frameworks: a plugin install for this project edits the same file, and undo
+  // needs this write to be the last one to it.
+  const hook = at(GUARD_PATH), guarded = a.guards && a.agents.includes('claude');
+  if (guarded) {
+    add('guards', 'Claude Code deny rules (--no-verify, force push, sudo, terraform apply, kubectl apply, helm upgrade) and the guard hook', { kind: 'write', path: at(settings), edit: guardsOn });
+    const have = readText(hook), ours = guardScript();
+    add('guards', `${GUARD_PATH}: the PreToolUse hook script${have != null && have !== ours ? ' (replaces your own file)' : ''}`, { kind: 'write', path: hook, after: ours, selected: have == null || have === ours });
+  } else {
+    // Preselected only when the state file shows this setup wrote them.
+    const mine = prev?.guards === true, note = `${a.agents.includes('claude') ? 'guards off' : 'Claude Code is no longer chosen'}${mine ? '' : '; not written by BenchKeeper'}`;
+    if (editsJson(guardsOff, readText(at(settings)))) add('guards', `Claude Code deny rules and guard hook removed (${note})`, { kind: 'write', path: at(settings), selected: mine, edit: guardsOff });
+    if (exists(hook)) add('guards', `remove ${GUARD_PATH} (${note})`, { kind: 'remove', path: hook, selected: mine && readText(hook) === guardScript() });
+  }
+
   // A skill turned off moves to .benchkeeper/disabled/<skill folder>/<name>; turned on, it moves back.
   const rel = (p) => relative(dir, p);
   const parked = (d, name) => join(dir, '.benchkeeper/disabled', rel(d), name);
@@ -475,7 +499,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  const state = (run, runCtx) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, prev, ran: ranFw(run) }),
+  const state = (run, runCtx) => ({ schemaVersion: 1, setupVersion: a.partial && prev?.setupVersion ? prev.setupVersion : appVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, packs: a.packs, singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled, ...frameworkState({ a, prev, ran: ranFw(run) }),
     skills: skills.map((s) => ({ name: s.name, source: s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${appVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
@@ -486,7 +510,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const exclude = excludeFile(ctx, dir);
   if (exclude) {
     const prefix = git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim();
-    const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox ? [LOCAL_SETTINGS] : []),
+    const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
       ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)), ...frameworkPaths(a, dir),
       // Stack skills the setup session installed with the skills CLI (its lockfile names them).
       ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])].map((p) => `/${prefix}${p}`);

@@ -6,6 +6,7 @@ import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
 import { appVersion } from './content.mjs';
 import { frameworkChecks } from './frameworks.mjs';
+import { guardChecks } from './guards.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
 import { integrity } from './integrity.mjs';
 import { levelFor } from './level.mjs';
@@ -97,7 +98,7 @@ export function projectChecks(ctx, dir, agents) {
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   let userPlugins = [];
   try { userPlugins = !agents || agents.includes('claude') ? pluginState(ctx, 'claude').listed.filter((p) => p.enabled) : []; } catch { /* the global plan reports unreadable plugin files */ }
-  out.push(...frameworkChecks({ dir, state, userPlugins }));
+  out.push(...frameworkChecks({ dir, state, userPlugins }), ...guardChecks(dir, state));
   out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
   // Pairs inside the project are reported above; these are the project's skills against the global and plugin ones.
   const scoped = (scope, own, list) => list.map((f) => ({ ...f, scope, own }));

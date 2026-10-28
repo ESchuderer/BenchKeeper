@@ -1,5 +1,6 @@
 import { Container, MantineProvider, createTheme } from '@mantine/core';
 import type { ReactNode } from 'react';
+import SiteFooter from './SiteFooter';
 import SiteHeader from './SiteHeader';
 
 const theme = createTheme({
@@ -11,7 +12,6 @@ const theme = createTheme({
   defaultRadius: 'md',
 });
 
-
 export function BenchShell({ base, bench, children }: { base: string; bench?: boolean; children: ReactNode }) {
   return (
     <MantineProvider theme={theme} defaultColorScheme="auto">
@@ -21,6 +21,7 @@ export function BenchShell({ base, bench, children }: { base: string; bench?: bo
       <main id="main" tabIndex={-1}>
         <Container size="xl" py={{ base: 40, md: 64 }}>{children}</Container>
       </main>
+      <SiteFooter size="xl" />
     </MantineProvider>
   );
 }

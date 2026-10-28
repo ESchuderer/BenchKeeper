@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from 'react';
 import { sdlcSvg } from '../lib/sdlc';
 import facts from '../data/facts.json';
+import SiteFooter from './SiteFooter';
 import SiteHeader from './SiteHeader';
 
 const theme = createTheme({
@@ -254,17 +255,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         </Section>
       </main>
 
-      <Box component="footer" className="band" py="xl">
-        <Container size="lg">
-          <Group justify="space-between">
-            <Text size="sm" c="dimmed">
-              BenchKeeper, MIT License
-              {updated && commit && <>, updated {updated} (<Anchor href={`${REPO}/commit/${commit}`} size="sm">{commit.slice(0, 7)}</Anchor>)</>}
-            </Text>
-            <Anchor href={REPO} size="sm">github.com/ESchuderer/BenchKeeper</Anchor>
-          </Group>
-        </Container>
-      </Box>
+      <SiteFooter updated={updated} commit={commit} />
     </MantineProvider>
   );
 }

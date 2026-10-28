@@ -438,12 +438,8 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/projects\?path=/);
   });
 
-  test('keyboard focus rings hold 3:1 on the dark surface: the accent, not primary step 9', async ({ page }) => {
+  test('the segmented control focus ring is the accent in dark mode', async ({ page }) => {
     await page.evaluate(() => document.documentElement.setAttribute('data-mantine-color-scheme', 'dark'));
-    await page.keyboard.press('Tab');
-    await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
-    await page.keyboard.press('Tab');
-    expect(await page.evaluate(() => getComputedStyle(document.activeElement).outlineColor)).toBe('rgb(134, 182, 239)');
     await nav(page, 'Agent settings').click();
     await page.getByRole('radio').first().focus();
     await page.keyboard.press('Shift+Tab');

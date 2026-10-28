@@ -2,6 +2,8 @@
 
 What BenchKeeper installs, where it writes and how to update or undo it. The short version is the [README](../README.md).
 
+Terms: a **tier** is how much process the `workflow` skill gives a software change (quick, standard or full). A **pack** is a named set of skills and plugins you choose per machine or project ([packs](../plugins/benchkeeper/library/README.md#packs)). The **doctor** is the app's read-only check of the machine against the setup: rules that differ, missing plugins and tools, settings that turn features off (`benchkeeper doctor`). The **ledger** is the app's record of each run, which `history` lists and `undo` reverses.
+
 ## Prerequisites
 
 Not installed by BenchKeeper.
@@ -9,8 +11,8 @@ Not installed by BenchKeeper.
 <!-- generated:prerequisites -->
 | Tool | Needed for |
 |---|---|
-| [Claude Code](https://code.claude.com/docs/en/setup) | agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested) |
-| [Codex CLI](https://developers.openai.com/codex/cli) | agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested) |
+| [Claude Code](https://code.claude.com/docs/en/setup) | agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only |
+| [Codex CLI](https://developers.openai.com/codex/cli) | agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only |
 | [Git](https://git-scm.com/downloads) | clone, branches, commits |
 | [GitHub CLI](https://cli.github.com/) | issues and pull requests (optional, local branches without it) |
 | [Node.js and npm](https://nodejs.org/en/download) | the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `$HOME/.local` |

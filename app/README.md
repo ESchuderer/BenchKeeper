@@ -13,7 +13,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](../docs/set
 npx benchkeeper@6.25.0
 ```
 
-Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.
+Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.
 
 ### CLI
 

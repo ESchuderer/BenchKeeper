@@ -3,6 +3,8 @@ name: tier
 description: "Sets the tier for the rest of this session: quick, standard, full or research, or auto to let the workflow pick again."
 disable-model-invocation: true
 argument-hint: "quick|standard|full|research|auto"
+when: "On request, or from the tier buttons of the optional status band, for the rest of the session."
+writes: "Nothing on disk: one line with the tier now in force. The override lives in the conversation."
 ---
 
 # Tier override

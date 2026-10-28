@@ -125,6 +125,14 @@ test('doctor: a model the agent does not list is a warning, only for agents that
 
 test('doctor: the personal pins file must be ignored by git', () => {
   const dir = project({ '.benchkeeper/pins.local.json': pins({ review: { agent: 'claude' } }) });
+
+test('doctor: an invalid personal pins file that git does not ignore reports both', () => {
+  const dir = project({ '.benchkeeper/pins.local.json': '{"schemaVersion":1,"phases":{"review":5}}' });
+  execFileSync('git', ['init', '-q', dir]);
+  const real = context({ home: tmp() });
+  const found = paramChecks({ ...real, run: (argv) => (argv[0] === 'git' ? real.run(argv) : { code: 0, stdout: '' }) }, dir);
+  assert.ok(found.some((i) => i.check === 'params') && found.some((i) => /pins\.local\.json is not ignored by git/.test(i.message)));
+});
   execFileSync('git', ['init', '-q', dir]);
   const real = context({ home: tmp() });
   assert.match(paramChecks({ ...real, run: (argv) => (argv[0] === 'git' ? real.run(argv) : { code: 0, stdout: '' }) }, dir)[0].message, /pins\.local\.json is not ignored by git/);

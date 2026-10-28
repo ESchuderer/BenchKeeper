@@ -122,9 +122,9 @@ export function paramChecks(ctx, dir, reg = registry) {
     for (const f of loadFiles(dir, family)) for (const e of f.errors) out.push(issue('error', 'params', `${f.file}: ${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`, `edit ${f.file} (schema: plugins/benchkeeper/schemas)`));
   }
   const { pins, errors } = resolvePins(dir);
-  if (errors.length) return out;
   const local = FILES.pins[1];
   if (exists(join(dir, local)) && ctx.run(['git', '-C', dir, 'check-ignore', '-q', local]).code === 1) out.push(issue('warning', 'pins', `${local} is not ignored by git`, `add ${local} to .gitignore or .git/info/exclude`));
+  if (errors.length) return out;
   for (const id of new Set(pins.map((p) => p.agent).filter(Boolean))) {
     const a = reg.find((x) => x.id === id);
     if (ctx.run([a.bin, '--version']).code !== 0) { out.push(issue('warning', 'pins', `a pin names ${id}, which is not installed`, `install ${a.name} or change the pin`)); continue; }

@@ -202,7 +202,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onAp
   );
 }
 
-// The agents' own settings files. Distinct from Settings, which holds the app's preferences.
+// The agents' own settings files. Distinct from Preferences, the app's own.
 export function AgentSettings({ overview, params, refresh }) {
   const [agent, setAgent] = useState(params.get('agent') === 'codex' ? 'codex' : 'claude');
   const [layer, setLayer] = useState(params.get('layer') === 'project' ? 'project' : 'user');
@@ -218,7 +218,7 @@ export function AgentSettings({ overview, params, refresh }) {
   const layers = agent === 'claude' ? Object.keys(LAYERS) : ['user', 'project'];
   return (
     <Stack gap="lg">
-      <Note>These are the agents' own settings files. The app's own preferences (shortcuts, profile) are in <Anchor c="inherit" underline="always" href={href('settings')}>Settings</Anchor>. Every change is a plan with a diff, and History undoes it.</Note>
+      <Note>Every change is a plan with a diff, and History undoes it.</Note>
       <Group align="flex-end">
         <SegmentedControl styles={NOFADE} aria-label="Agent" data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} value={agent} onChange={reset((v) => { setAgent(v); if (v === 'codex' && layer === 'local') setLayer('user'); })} />
         <Select label="Write to" data={layers.map((l) => ({ value: l, label: LAYERS[l] }))} value={layer} onChange={reset((v) => setLayer(v ?? 'user'))} allowDeselect={false} comboboxProps={{ withinPortal: false }} />

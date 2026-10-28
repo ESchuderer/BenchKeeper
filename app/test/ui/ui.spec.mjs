@@ -15,7 +15,9 @@ const ONE = join(tmpdir(), 'bk-ui-one-4410');
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
 // While this file exists, the stubbed automations runner answers (serve.mjs).
 const RUNNER = join(tmpdir(), 'bk-ui-runner-4410');
-const VIEWS = ['Dashboard', 'Catalog', 'Agents', 'Projects', 'History', 'Sessions', 'Runs', 'Insights', 'Evals', 'Agent settings', 'Rules', 'Extensions', 'Accounts', 'Automations', 'Settings'];
+// Sidebar label and route of every view, in sidebar order.
+const VIEWS = [['Dashboard', 'dashboard'], ['History', 'history'], ['Projects', 'projects'], ['Catalog', 'catalog'], ['Sessions', 'sessions'], ['Runs', 'runs'], ['Insights', 'insights'], ['Evals', 'evals'],
+  ['Global setup', 'agents'], ['Agent settings', 'agent-settings'], ['Rules', 'rules'], ['Extensions', 'extensions'], ['Accounts', 'accounts'], ['Automations', 'automations'], ['Preferences', 'settings']];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -30,8 +32,7 @@ async function noAxe(page) {
     expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
   }
 }
-// Settings is also a part of another link's name.
-const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view === 'Settings' ? /^Settings$/ : view });
+const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 
 test.describe.configure({ mode: 'serial' });
 let cookie, key;
@@ -61,7 +62,7 @@ test.describe('views', () => {
     await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
   });
 
-  for (const view of VIEWS) {
+  for (const [view] of VIEWS) {
     for (const scheme of ['light', 'dark']) {
       test(`no axe violations in ${view}, ${scheme} mode`, async ({ page }) => {
         await nav(page, view).click();
@@ -74,11 +75,11 @@ test.describe('views', () => {
   }
 
   // The same pass at 390 px, where the sidebar is a menu: reflow and link styling differ there.
-  for (const view of VIEWS) {
+  for (const [view, route] of VIEWS) {
     for (const scheme of ['light', 'dark']) {
       test(`no axe violations in ${view}, ${scheme} mode, phone width`, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.goto(`/#/${view.toLowerCase().replace(' ', '-')}`);
+        await page.goto(`/#/${route}`);
         await expect(page.getByText('CLI', { exact: true })).toBeVisible();
         await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
         const { violations } = await new AxeBuilder({ page }).analyze();
@@ -151,12 +152,12 @@ test.describe('views', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeFocused();
   });
 
-  test('Settings: the / key can be turned off', async ({ page }) => {
-    await nav(page, 'Settings').click();
+  test('Preferences: the / key can be turned off', async ({ page }) => {
+    await nav(page, 'Preferences').click();
     const slash = page.getByRole('switch', { name: 'Open the command palette with the / key' });
     const palette = page.getByRole('dialog', { name: 'Command palette' });
     // Hotkeys ignore a focused input, so the focus leaves the switch before each key.
-    const press = async (key) => { await page.getByRole('heading', { level: 2, name: 'Settings' }).click(); await page.keyboard.press(key); };
+    const press = async (key) => { await page.getByRole('heading', { level: 2, name: 'Preferences' }).click(); await page.keyboard.press(key); };
     await slash.click();
     await press('/');
     await expect(palette).toBeHidden();
@@ -226,6 +227,9 @@ test.describe('views', () => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');
     await expect(board.getByRole('heading', { level: 1, name: 'Sessions board' })).toBeVisible();
+    // Controls first: no intro on transcripts, cache or retention, in the view or in the frame.
+    await expect(page.getByRole('main')).not.toContainText(/transcript|cache/i);
+    await expect(board.locator('main')).not.toContainText(/cleanup period|cache of summaries/i);
     await board.getByLabel('Period').selectOption('all');
     // A changed count is announced.
     await expect(board.locator('#count-live')).toContainText(/\d+ of \d+ sessions/);
@@ -305,8 +309,8 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('keyboard: Tab to a sidebar link and Enter opens its view; mod+2 opens Projects', async ({ page }) => {
-    const link = nav(page, 'Agents');
+  test('keyboard: Tab to a sidebar link and Enter opens its view; mod+2 opens History, mod+3 Projects', async ({ page }) => {
+    const link = nav(page, 'Global setup');
     for (let i = 0; i < 30 && !(await link.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');
     await expect(link).toBeFocused();
     await page.keyboard.press('Enter');
@@ -314,8 +318,19 @@ test.describe('views', () => {
     await expect(page.getByRole('table', { name: 'Agents' })).toBeVisible();
     await expect(page.getByRole('row', { name: /^Codex/ })).toContainText('the usage feed is not available for Codex');
     await page.keyboard.press('ControlOrMeta+2');
+    await expect(page).toHaveURL(/#\/history$/);
+    await page.keyboard.press('ControlOrMeta+3');
     await expect(nav(page, 'Projects')).toHaveAttribute('aria-current', 'page');
     await expect(page).toHaveURL(/#\/projects$/);
+  });
+
+  test('sidebar: five groups in order, and Preferences lists the nine view keys by name', async ({ page }) => {
+    const sidebar = page.getByRole('navigation', { name: 'Views' });
+    await expect(sidebar.getByRole('group')).toHaveText([/^Overview/, /^Projects/, /^Analysis/, /^Agent configuration/, /^Machine/]);
+    await expect(sidebar.getByRole('group', { name: 'Machine' }).getByRole('link')).toHaveText([/^Automations/, /^Preferences/]);
+    await nav(page, 'Preferences').click();
+    const keys = page.getByRole('table', { name: 'Keyboard shortcuts' });
+    for (const [n, view] of [[1, 'Dashboard'], [3, 'Projects'], [9, 'Global setup']]) await expect(keys.getByRole('row', { name: new RegExp(`^(Ctrl|Cmd)\\+${n} ${view}$`) })).toBeVisible();
   });
 
   test('Dashboard shows the edited rules file as modified in the setup by part', async ({ page }) => {
@@ -346,8 +361,8 @@ test.describe('views', () => {
 
   test('a failed refresh keeps the shell and the open view', async ({ page }) => {
     await expect(page.getByText('CLI', { exact: true })).toBeVisible();
-    await nav(page, 'Settings').click();
-    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible();
+    await nav(page, 'Preferences').click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Preferences' })).toBeVisible();
     let hits = 0;
     await page.route(/\/api\/overview(\?|$)/, (r) => { hits++; return r.abort('connectionreset'); });
     // Closing the one-run drawer calls refresh().
@@ -361,7 +376,7 @@ test.describe('views', () => {
     // The read is asked twice (a lost connection is retried once), then the overview clears.
     await expect.poll(() => hits).toBeGreaterThanOrEqual(2);
     await page.waitForTimeout(300);
-    await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Preferences' })).toBeVisible();
     await expect(page.getByText('Starting')).toHaveCount(0);
   });
 
@@ -383,6 +398,12 @@ test.describe('views', () => {
     await expect(health.getByRole('list', { name: 'Items by state, all scopes' }).getByRole('link', { name: /modified/ })).toBeVisible();
     await health.getByText('Table of values').click();
     await expect(health.getByRole('link', { name: /^Global: 1 modified$/ })).toHaveAttribute('href', '#/agents?plan=1');
+    // Coverage rows are the packs a project chose; the others are one line of links under the table.
+    const coverage = page.getByRole('region', { name: 'Coverage' });
+    const packRows = coverage.getByRole('table', { name: 'Pack coverage' }).locator('tbody tr');
+    await expect(packRows.first()).toBeVisible();
+    await expect(packRows.filter({ has: page.getByRole('link', { name: / for .*: \d+ projects?$/ }) })).toHaveCount(await packRows.count());
+    await expect(coverage.getByText(/^In no project: /).getByRole('link', { name: 'Testing' })).toHaveAttribute('href', '#/catalog?pack=testing');
     // A cell of the coverage matrix: reached with Tab-order focus and opened with Enter, the projects with that pack and agent.
     const cell = page.getByRole('table', { name: 'Pack coverage' }).getByRole('link', { name: 'Frontend for Claude Code: 1 project' });
     await cell.focus();
@@ -408,6 +429,17 @@ test.describe('views', () => {
     await doctor.getByRole('row', { name: /Claude Code rules/ }).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
+  });
+
+  test('Dashboard: a doctor cell shows the action, a source URL sits behind a link, a run id opens History', async ({ page }) => {
+    const table = page.getByRole('region', { name: 'Doctor' }).getByRole('table', { name: 'Doctor findings' });
+    await expect(table.getByRole('row', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('link', { name: 'Open settings' })).toBeVisible();
+    await expect(table.getByRole('row', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', /^https:\/\//);
+    await expect(table).not.toContainText('https://');
+    const run = table.getByRole('row', { name: /00-global\.md changed since run/ }).getByRole('link', { name: /^\d{8}T\d{6}Z-[0-9a-f]{6}$/ });
+    await run.click();
+    await expect(page).toHaveURL(/#\/history\?run=\d{8}T/);
+    await expect(page.getByRole('region', { name: /^Run / })).toBeVisible();
   });
 
   test('Insights: Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
@@ -608,7 +640,7 @@ test.describe('views', () => {
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);
-    await expect(row).toContainText(/\d+\.\d+\.\d+ current/);
+    await expect(row).toContainText('current, shared');
     await expect(row).toContainText(/\d+ pending/);
     await expect(row).toContainText('dirty');
     await row.getByRole('link').click();
@@ -643,12 +675,22 @@ test.describe('views', () => {
     await expect(found.getByRole('checkbox', { name: /\/other$/ })).toBeChecked();
     await found.getByRole('button', { name: 'Add selected (1)' }).click();
     await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row')).toHaveCount(3);
-    await expect(page.getByRole('table', { name: 'Projects' })).toContainText('no state file');
+    await expect(page.getByRole('table', { name: 'Projects' })).toContainText('not set up');
   });
 
-  test('Projects: skills per agent, in the project and in all', async ({ page }) => {
+  test('Projects: one line for name and tree state, one for path and branch; one status per column; no mid-word break at phone width', async ({ page }) => {
     await nav(page, 'Projects').click();
-    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1)).toContainText(/\d+ here, \d+ in all/);
+    const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);
+    await expect(row).toContainText(/\d+ loaded/);
+    await expect(row.getByRole('cell').nth(2).locator('.mantine-Badge-root')).toHaveCount(1);
+    for (const width of [1280, 375]) {
+      await page.setViewportSize({ width, height: 800 });
+      // The path line keeps one line: cut at its start, never wrapped.
+      const path = row.getByRole('cell').nth(1).locator('p').last();
+      await expect(path).toHaveCSS('white-space', 'nowrap');
+      expect((await path.boundingBox()).height).toBeLessThan(24);
+      await noAxe(page);
+    }
   });
 
   // Folders for the list tests: made here, registered in the page and unregistered again, so the other tests see the
@@ -782,7 +824,7 @@ test.describe('views', () => {
     expect(existsSync(join(dir, 'CLAUDE.local.md'))).toBe(false);
     expect(existsSync(join(dir, 'AGENTS.md'))).toBe(true);
     await ask.getByRole('button', { name: 'Close' }).click();
-    await expect(table.getByRole('row').filter({ hasText: 'mv-local' })).toContainText('no state file');
+    await expect(table.getByRole('row').filter({ hasText: 'mv-local' })).toContainText('not set up');
     // A shared setup is listed too, and becomes a pull request.
     await table.getByRole('checkbox', { name: 'Select mv-local' }).uncheck();
     await table.getByRole('checkbox', { name: /^Select bk-ui-proj/ }).check();
@@ -1060,6 +1102,10 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'Fix everything' }).click();
     const fix = page.getByRole('dialog', { name: 'Fix everything' });
     await expect(fix.getByRole('checkbox', { name: /^global skill find-skills/ })).toBeChecked();
+    // A marketplace and its plugin go together: one note for the pair, none per change.
+    const pair = fix.getByRole('group', { name: '2 changes that go together' }).first();
+    await expect(pair.getByRole('checkbox')).toHaveCount(2);
+    await expect(pair.getByText(/go together/)).toHaveCount(1);
     // The skill install is rehearsed in a scratch folder only after a click: its file then shows as a diff before anything runs.
     await expect(fix.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toHaveCount(0);
     await fix.getByRole('button', { name: /^Preview the files/ }).click();
@@ -1080,7 +1126,7 @@ test.describe('views', () => {
     await noAxe(page);
     await fix.getByRole('button', { name: 'Apply', exact: true }).click();
     // The wizard sits above the views: a view shortcut leaves it open, so the run goes on.
-    await page.keyboard.press('ControlOrMeta+2');
+    await page.keyboard.press('ControlOrMeta+3');
     await expect(nav(page, 'Projects')).toHaveAttribute('aria-current', 'page');
     await expect(fix.getByRole('status').filter({ hasText: /^Run / })).toContainText(/done|failed/);
     await expect(fix.getByRole('heading', { name: 'Still open' })).toBeVisible();
@@ -1088,12 +1134,12 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('an apply in Agents shows up in History and the header without a reload', async ({ page }) => {
+  test('an apply in Global setup shows up in History and the header without a reload', async ({ page }) => {
     await nav(page, 'History').click();
     const runs = page.getByRole('navigation', { name: 'Runs' }).getByRole('link');
     await expect(runs.first()).toBeVisible();
     const before = await runs.count();
-    await nav(page, 'Agents').click();
+    await nav(page, 'Global setup').click();
     await page.getByRole('button', { name: /^Plan setup for/ }).click();
     const changes = page.getByRole('region', { name: 'Changes' });
     await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
@@ -1131,8 +1177,8 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
-  test('Settings: the sessions cache has a retention and Clear', async ({ page }) => {
-    await nav(page, 'Settings').click();
+  test('Preferences: the sessions cache has a retention and Clear', async ({ page }) => {
+    await nav(page, 'Preferences').click();
     const history = page.getByRole('region', { name: 'Sessions history' });
     await expect(history).toContainText('sessions in the cache');
     await history.getByRole('switch', { name: 'Drop summaries after a number of days' }).click({ force: true });
@@ -1145,8 +1191,8 @@ test.describe('views', () => {
     await expect(history).toContainText('0 sessions in the cache');
   });
 
-  test('Settings: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {
-    await nav(page, 'Settings').click();
+  test('Preferences: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {
+    await nav(page, 'Preferences').click();
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export profile' }).click();
     const file = await download;
@@ -1164,8 +1210,6 @@ test.describe('views', () => {
   test('Agent settings: the list with its notes, a change as plan and diff, undo; advanced lists every key; no axe violations', async ({ page }) => {
     await nav(page, 'Agent settings').click();
     await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeVisible();
-    // The app's own preferences stay in Settings.
-    await expect(page.getByRole('link', { name: 'Settings', exact: true }).first()).toBeVisible();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.claude/settings.json');
     // The fixture home holds the setup's advisor model: its row says what it is, and BenchKeeper's setup writes it too.
     const advisor = page.getByRole('row', { name: /advisorModel/ }).first();
@@ -1248,7 +1292,7 @@ test.describe('views', () => {
     await page.goto('/#/editors');
     await expect(page.getByRole('heading', { level: 2, name: 'Dashboard' })).toBeVisible();
     expect(await page.evaluate(async () => (await fetch('/api/params?dir=x', { headers: { 'x-benchkeeper': localStorage.getItem('benchkeeper-key') } })).status)).toBe(404);
-    await nav(page, 'Settings').click();
+    await nav(page, 'Preferences').click();
     const editors = page.getByRole('switch', { name: 'Editors' });
     await editors.click();
     await expect(page.getByRole('group', { name: 'Advanced' })).toBeVisible();

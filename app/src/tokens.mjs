@@ -14,11 +14,12 @@ const DARK = {
 export const TOKENS = { light: LIGHT, dark: DARK };
 
 // The Dashboard's health bar: the status green for current, then categorical slots in their validated order (adjacent
-// pairs pass the lightness, chroma and color-vision checks in both schemes). "modified" is the board's first series.
+// pairs pass the lightness, chroma and color-vision checks in both schemes). "modified" is the board's first series;
+// "missing" is a wine outside the series, as the series aqua read as a second green next to current.
 export const HEALTH = ['current', 'modified', 'outdated', 'missing', 'foreign', 'untracked', 'removed', 'error', 'absent'];
 const HEALTH_COLORS = {
-  light: ['#0ca30c', LIGHT.s1, '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#6250d6', '#e34948', '#8b8a85'],
-  dark: ['#0ca30c', DARK.s1, '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9', '#e66767', '#8b8a85'],
+  light: ['#0ca30c', LIGHT.s1, '#eb6834', '#882255', '#eda100', '#e87ba4', '#6250d6', '#e34948', '#8b8a85'],
+  dark: ['#0ca30c', DARK.s1, '#d95926', '#cc00aa', '#c98500', '#d55181', '#9085e9', '#e66767', '#8b8a85'],
 };
 
 // Shape, type and motion every panel shares.

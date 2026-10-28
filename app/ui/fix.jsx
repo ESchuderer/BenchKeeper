@@ -15,6 +15,12 @@ export function fixAction(i) {
   return null;
 }
 
+// A fix names its source as "(https://...)" and a finding its run by id: the cell shows the action, the source becomes
+// a link, and a run id opens the run in History.
+const SOURCE = /\s*\((https:\/\/[^\s)]+)\)/;
+const RUN = /(\d{8}T\d{6}Z-[0-9a-f]{6})/;
+const withRuns = (text) => text.split(RUN).map((part, n) => (n % 2 ? <Anchor key={n} href={href('history', { run: part })}>{part}</Anchor> : part));
+
 export function DoctorTable({ found, onAction }) {
   if (!found.length) return <Text>No problems found.</Text>;
   return (
@@ -23,12 +29,17 @@ export function DoctorTable({ found, onAction }) {
         <Table.Thead><Table.Tr><Table.Th w={140}>Level</Table.Th><Table.Th>Problem</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>
           {found.map((i, n) => {
-            const action = fixAction(i);
+            const action = fixAction(i), source = i.fix.match(SOURCE)?.[1];
             return (
               <Table.Tr key={n}>
                 <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.tag ?? i.level}</Badge></Table.Td>
-                <Table.Td>{i.message}</Table.Td>
-                <Table.Td><Stack gap={4} align="flex-start">{!(action && i.fix.startsWith('benchkeeper ')) && <Text size="sm">{i.fix}</Text>}{action && <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button>}</Stack></Table.Td>
+                <Table.Td>{withRuns(i.message)}</Table.Td>
+                <Table.Td>
+                  <Stack gap={4} align="flex-start">
+                    {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(i.fix.replace(SOURCE, ''))}</Text>}
+                    {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
+                  </Stack>
+                </Table.Td>
               </Table.Tr>
             );
           })}

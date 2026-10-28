@@ -64,6 +64,23 @@ test('the app shares the board tokens: the primary scale holds its contrast, the
   assert.match(cssVars('dark', 'bk-'), /--bk-page: #17181c;/);
 });
 
+// OKLab difference times 100, the palette validator's measure; under 15 two colors read alike with full color vision.
+const oklab = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const [l, m, s] = [[0.4122214708, 0.5363325363, 0.0514459929], [0.2119034982, 0.6806995451, 0.1073969566], [0.0883024619, 0.2817188376, 0.6299787005]].map((w) => Math.cbrt(w[0] * r + w[1] * g + w[2] * b));
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+};
+const deltaE = (a, b) => Math.hypot(...oklab(a).map((x, i) => x - oklab(b)[i])) * 100;
+
+test('the health bar tells current from every other state, and missing from its neighbors, in light and dark', () => {
+  for (const s of ['light', 'dark']) {
+    const h = Object.fromEntries([...cssVars(s, 'bk-', true).matchAll(/--bk-h-([a-z]+): (#[0-9a-f]{6})/g)].map((m) => [m[1], m[2]]));
+    for (const k of HEALTH.slice(1)) assert.ok(deltaE(h.current, h[k]) >= 15, `${s} current ${h.current} and ${k} ${h[k]}: ${deltaE(h.current, h[k]).toFixed(1)}`);
+    for (const k of ['outdated', 'foreign']) assert.ok(deltaE(h.missing, h[k]) >= 15, `${s} missing and ${k}`);
+    assert.ok(contrast(h.missing, TOKENS[s].surface) >= 3, `${s} missing on the surface`);
+  }
+});
+
 test('the low-sample threshold is the insights one and goes to the page as data', () => {
   const html = boardHtml([], '2026-10-23T00:00:00Z');
   assert.equal(JSON.parse(html.match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]).minSamples, MIN_SAMPLES);

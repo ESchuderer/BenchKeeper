@@ -75,7 +75,7 @@ export function Runs() {
   );
 }
 
-// Settings: each surface with its default and what it costs while on; the tier strip is the one that runs without being opened.
+// Preferences: each surface with its default and what it costs while on; the tier strip is the one that runs without being opened.
 export function Surfaces() {
   const band = useApi('/api/tier-band');
   const [plan, setPlan] = useState(null);

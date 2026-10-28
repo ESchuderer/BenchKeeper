@@ -321,33 +321,26 @@ function ProjectDetail({ project, others, onChange }) {
 
 // Origin's setup counts when the checkout's is older or missing: the checkout needs a pull.
 const lags = (p) => p.setupVersion && p.checkout !== p.setupVersion;
-// committed: the repository still carries a setup kept local; Update all opens the pull request that removes it.
-const SetupBadge = ({ p, version }) => (p.missing ? <MissingBadge /> : (
-  <Group gap={4} wrap="nowrap">
-    <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.current ? 'teal' : 'yellow'} />}>
-      {p.setupVersion ? `${p.setupVersion} ${p.current ? 'current' : 'behind'}${lags(p) ? ` on ${p.origin}` : ''}` : 'no state file'}
-    </Badge>
-    {p.setupVersion && <Badge variant="default" miw="max-content">{p.share ? 'shared' : p.committed ? 'local, still committed' : 'local'}</Badge>}
-  </Group>
-));
+// One status: the setup state and where it lives. committed: the repository still carries a setup kept local; Update
+// all opens the pull request that removes it.
+const SetupBadge = ({ p }) => {
+  if (p.missing) return <MissingBadge />;
+  const where = p.share ? 'shared' : p.committed ? 'local, still committed' : 'local';
+  const text = !p.setupVersion ? 'not set up' : lags(p) ? `set up on ${p.origin} only` : p.current ? `current, ${where}` : `behind (${p.setupVersion}), ${where}`;
+  return <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.current && !lags(p) ? 'teal' : 'yellow'} />}>{text}</Badge>;
+};
 
-// Skills per chosen agent: in this project, and in all, its global and plugin skills included. Every one costs
-// its description in each session, and similar descriptions make the agent pick the wrong one.
+// Skills each session of a chosen agent loads here: the project's own plus its global and plugin skills. Every one
+// costs its description in each session, and similar descriptions make the agent pick the wrong one.
 function SkillCount({ p, names }) {
   const agents = Object.keys(p.seen ?? {});
   if (!agents.length) return '-';
   return (
     <Stack gap={0}>
-      {agents.map((a) => <Text key={a} size="sm" style={{ whiteSpace: 'nowrap' }}>{agents.length > 1 ? `${names[a] ?? a}: ` : ''}{p.skills[a]} here, {p.seen[a]} in all</Text>)}
+      {agents.map((a) => <Text key={a} size="sm" style={{ whiteSpace: 'nowrap' }} title={`${p.skills[a]} from this project`}>{agents.length > 1 ? `${names[a] ?? a}: ` : ''}{p.seen[a]} loaded</Text>)}
     </Stack>
   );
 }
-
-// What the row says about the setup's defaults: the agents, packs and tier (local or shared is a badge of its own).
-const Defaults = ({ p, names }) => {
-  const parts = [p.agents?.map((a) => names[a] ?? a).join(', '), p.packs?.length ? `packs ${p.packs.join(', ')}` : null, p.tier ? `tier ${p.tier}` : null].filter(Boolean);
-  return parts.length ? <Text size="xs">{parts.join('; ')}</Text> : null;
-};
 
 function ChangesCell({ p }) {
   if (p.missing) return <Text size="sm" c="red" style={{ whiteSpace: 'nowrap' }}>Folder not found</Text>;
@@ -355,17 +348,21 @@ function ChangesCell({ p }) {
   return p.changes ? <Text size="sm" style={{ whiteSpace: 'nowrap' }}>{p.changes.length} pending</Text> : '-';
 }
 
-function ProjectRow({ p, open, version, names, checked, onCheck }) {
+function ProjectRow({ p, open, names, checked, onCheck }) {
   const here = p.path === open;
-  const facts = [p.path, p.branch, p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository'].filter(Boolean).join(', ');
+  const tree = p.missing ? null : p.repo ? (p.clean ? 'clean' : 'dirty') : 'no repository';
   return (
     <Table.Tr>
       <Table.Td><SelectCheckbox p={p} checked={checked} onChange={onCheck} /></Table.Td>
       <Table.Td>
-        <Anchor href={href('projects', { path: p.path })} aria-current={here ? 'true' : undefined} fw={here ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{label(p)}</Anchor>
-        <Text size="xs" style={{ overflowWrap: 'anywhere' }}>{p.missing ? p.path : facts}</Text>
+        <Group gap="xs" wrap="nowrap">
+          <Anchor href={href('projects', { path: p.path })} aria-current={here ? 'true' : undefined} fw={here ? 700 : undefined} style={{ whiteSpace: 'nowrap' }}>{label(p)}</Anchor>
+          {tree && <Text size="xs">{tree}</Text>}
+        </Group>
+        {/* Cut at the start, the end names the folder; bdi keeps the slashes in order inside the right-to-left cut. */}
+        <Text size="xs" truncate="start" maw={240} title={p.path}><bdi>{[p.path, p.branch].filter(Boolean).join(', ')}</bdi></Text>
       </Table.Td>
-      <Table.Td><Stack gap={2} align="flex-start"><SetupBadge p={p} version={version} /><Defaults p={p} names={names} /></Stack></Table.Td>
+      <Table.Td><SetupBadge p={p} /></Table.Td>
       <Table.Td><SkillCount p={p} names={names} /></Table.Td>
       <Table.Td><ChangesCell p={p} /></Table.Td>
     </Table.Tr>
@@ -387,7 +384,6 @@ export function Projects({ params, overview, refresh }) {
   const [selected, setSelected] = useState([]);
   const [dialog, setDialog] = useState(null);
   const [notices, setNotices] = useState({});
-  const version = overview.data?.version;
   const names = Object.fromEntries((overview.data?.agents ?? []).map((a) => [a.id, a.name]));
   const all = projects.data ?? [];
   const live = all.filter((p) => !p.missing);
@@ -480,7 +476,7 @@ export function Projects({ params, overview, refresh }) {
                     <Table.Th w={32}><Checkbox aria-label="Select all shown projects" checked={allShown} indeterminate={!allShown && shown.some((x) => selected.includes(x))} onChange={(e) => toggle(shown, e.currentTarget.checked)} /></Table.Th>
                     <Table.Th>Project</Table.Th><Table.Th>Setup</Table.Th><Table.Th>Skills</Table.Th><Table.Th>Changes</Table.Th>
                   </Table.Tr></Table.Thead>
-                  <Table.Tbody>{rows.map((p) => <ProjectRow key={p.path} p={p} open={open} version={version} names={names} checked={selected.includes(p.path)} onCheck={(on) => toggle([p.path], on)} />)}</Table.Tbody>
+                  <Table.Tbody>{rows.map((p) => <ProjectRow key={p.path} p={p} open={open} names={names} checked={selected.includes(p.path)} onCheck={(on) => toggle([p.path], on)} />)}</Table.Tbody>
                 </Table>
               </Table.ScrollContainer>
             ) : <Text size="sm" role="status">No project matches the search and filter.</Text>}
@@ -552,7 +548,8 @@ export function History({ history, params, refresh }) {
   );
 }
 
-const SHORTCUTS = [[`${MOD}+K, /`, 'command palette'], [`${MOD}+1 to ${MOD}+9`, 'views in sidebar order'], [`${MOD}+J`, 'light or dark theme']];
+// The view keys come from the sidebar: the first nine views in its order.
+const shortcuts = (views) => [[`${MOD}+K, /`, 'command palette'], ...views.map((v, i) => [`${MOD}+${i + 1}`, v]), [`${MOD}+J`, 'light or dark theme']];
 
 function Profile({ overview, refresh }) {
   const [file, setFile] = useState(null);
@@ -610,7 +607,7 @@ export function Settings({ overview, refresh, keys }) {
       <Section title="Keyboard shortcuts">
         <Table aria-label="Keyboard shortcuts" maw={520}>
           <Table.Thead><Table.Tr><Table.Th>Keys</Table.Th><Table.Th>Action</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>{SHORTCUTS.map(([k, a]) => <Table.Tr key={k}><Table.Td><Code>{k}</Code></Table.Td><Table.Td>{a}</Table.Td></Table.Tr>)}</Table.Tbody>
+          <Table.Tbody>{shortcuts(keys.views).map(([k, a]) => <Table.Tr key={k}><Table.Td><Code>{k}</Code></Table.Td><Table.Td>{a}</Table.Td></Table.Tr>)}</Table.Tbody>
         </Table>
         <Switch label="Open the command palette with the / key" description="Turn it off if a single-key shortcut gets in the way of speech input or screen reader keys." checked={keys.slash} onChange={(e) => keys.setSlash(e.currentTarget.checked)} />
       </Section>
@@ -670,10 +667,7 @@ export function Sessions() {
   const p = state?.progress;
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <Text maw={720}>Claude Code and Codex sessions on this machine, read from their transcripts: tier, setup, skills used, tests, cost and pull requests. History older than the agent's cleanup period comes from the app's cache of summaries (never the messages) and starts when the app first scanned; Settings has its retention and Clear. Nothing leaves this machine except the pull request lookups through gh.</Text>
-        <Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
-      </Group>
+      <Group><Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button></Group>
       {error && <Note color="red">{error}</Note>}
       {job && <Stack gap={4}><Text size="sm">Reading transcripts{p ? `: ${p.done} of ${p.total} files` : ''}</Text><Progress value={p?.total ? (p.done / p.total) * 100 : 0} aria-label="Transcripts read" /></Stack>}
       {src && <iframe ref={frame} key={shown} src={src} title="Sessions board" onLoad={() => frame.current?.contentWindow?.postMessage({ bkTheme: theme.current }, window.location.origin)} style={{ display: 'block', width: '100%', height, border: 0 }} />}

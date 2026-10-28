@@ -599,7 +599,6 @@ export function boardHtml(rows, now = new Date().toISOString(), registered = [])
 <body>
 <main aria-label="Sessions board">
 <div class="head"><h1>Sessions board</h1><span class="muted"><span class="lead">Claude Code and Codex sessions on this machine, read </span><span class="framed-only">Read </span>${now.slice(0, 16).replace('T', ' ')} UTC</span><button id="theme" type="button">Light or dark</button></div>
-<p class="muted">Sessions older than the agent's transcript cleanup period come from the app's cache of summaries, which starts when the app first scanned.</p>
 <div id="filters" role="group" aria-label="Filters"></div>
 <div class="layout">
 <nav id="rail" aria-label="Projects"></nav>

@@ -89,28 +89,34 @@ function Health({ data }) {
   );
 }
 
+// Packs no project chose are one line under the table, not rows of zeros.
 function PackCoverage({ data, names }) {
-  const { agents, packs } = data.coverage;
+  const { agents } = data.coverage;
+  const used = (p) => agents.some((a) => p.cells[a.id]);
+  const packs = data.coverage.packs.filter(used), unused = data.coverage.packs.filter((p) => !used(p));
   return (
-    <Table.ScrollContainer minWidth={420}>
-      <Table aria-label="Pack coverage" withTableBorder>
-        <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th>{agents.map((a) => <Table.Th key={a.id}>{a.name}</Table.Th>)}</Table.Tr></Table.Thead>
-        <Table.Tbody>
-          {packs.map((p) => (
-            <Table.Tr key={p.id}>
-              <Table.Th scope="row">
-                <Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor>
-                {!!p.codexOnly.length && <Text size="xs" fw={400}>{plural(p.codexOnly.length, 'skill')} for Codex only: {p.codexOnly.join(', ')}</Text>}
-                {!!p.plugin.length && <Text size="xs" fw={400}>plugin for {p.plugin.map((a) => names[a] ?? a).join(', ')}</Text>}
-              </Table.Th>
-              {agents.map((a) => (
-                <Table.Td key={a.id}>{p.cells[a.id] ? <Anchor href={href('projects', { pack: p.id, agent: a.id })} aria-label={`${p.title} for ${a.name}: ${plural(p.cells[a.id], 'project')}`}>{p.cells[a.id]}</Anchor> : 0}</Table.Td>
-              ))}
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Table.ScrollContainer>
+    <Stack gap="xs">
+      {!!packs.length && <Table.ScrollContainer minWidth={420}>
+        <Table aria-label="Pack coverage" withTableBorder>
+          <Table.Thead><Table.Tr><Table.Th>Pack</Table.Th>{agents.map((a) => <Table.Th key={a.id}>{a.name}</Table.Th>)}</Table.Tr></Table.Thead>
+          <Table.Tbody>
+            {packs.map((p) => (
+              <Table.Tr key={p.id}>
+                <Table.Th scope="row">
+                  <Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor>
+                  {!!p.codexOnly.length && <Text size="xs" fw={400}>{plural(p.codexOnly.length, 'skill')} for Codex only: {p.codexOnly.join(', ')}</Text>}
+                  {!!p.plugin.length && <Text size="xs" fw={400}>plugin for {p.plugin.map((a) => names[a] ?? a).join(', ')}</Text>}
+                </Table.Th>
+                {agents.map((a) => (
+                  <Table.Td key={a.id}>{p.cells[a.id] ? <Anchor href={href('projects', { pack: p.id, agent: a.id })} aria-label={`${p.title} for ${a.name}: ${plural(p.cells[a.id], 'project')}`}>{p.cells[a.id]}</Anchor> : 0}</Table.Td>
+                ))}
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>}
+      {!!unused.length && <Text size="sm">In no project: {unused.map((p, n) => <span key={p.id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor></span>)}</Text>}
+    </Stack>
   );
 }
 

@@ -9,7 +9,7 @@ import { skillFiles } from './doctor.mjs';
 import { blob, clean, defaultBranch, git, githubRemote, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
-import { STATE, committedSetup, localSetup, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { STATE, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -55,7 +55,11 @@ function save(ctx, projects) {
 }
 // The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the
 // project has its own again (local, untracked).
-const kept = (ctx, path) => listProjects(ctx).find((p) => p.path === canon(path))?.state ?? null;
+// Normalized like a state file: an earlier app kept version 1.
+const kept = (ctx, path) => {
+  const s = listProjects(ctx).find((p) => p.path === canon(path))?.state;
+  try { return s ? normalizeState(s) : null; } catch { return null; }
+};
 // A registered project's answers: its state file, or the one kept after a removal pull request.
 export const projectState = (ctx, path) => tryState(path) ?? kept(ctx, path);
 function keepState(ctx, dir, state) {

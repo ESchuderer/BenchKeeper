@@ -47,6 +47,16 @@ test('an installed plugin whose content needs a newer app is an error in doctor 
   assert.equal(installedRefusal(ctx, ['gemini']), null);
 });
 
+test('an installed plugin is refused when the agent state files are unreadable and the CLI lists it', () => {
+  const home = tmp('bk-cli-');
+  const dir = contentAt(join(home, 'cache/benchkeeper'), '99.0.0');
+  contentAt(join(home, '.codex/plugins/cache/benchkeeper/benchkeeper/99.0.0'), '99.0.0');
+  const out = { 'claude plugin list --json': JSON.stringify([{ id: 'benchkeeper@benchkeeper', version: '99.0.0', enabled: true, scope: 'user', installPath: dir }]),
+    'codex plugin list --json': JSON.stringify({ installed: [{ pluginId: 'benchkeeper@benchkeeper', version: '99.0.0', enabled: true }] }) };
+  const ctx = context({ home, appVersion: '6.25.0', run: (argv) => ({ code: 0, stdout: out[argv.join(' ')] ?? '[]', stderr: '' }) });
+  for (const a of ['claude', 'codex']) assert.match(installedRefusal(ctx, [a]), /needs benchkeeper 99\.0\.0 or newer/, a);
+});
+
 test('state version 1 is read as version 2 with its setup version as both values; a schemaVersion above 2 is refused', () => {
   const v1 = stateAt({ schemaVersion: 1, setupVersion: '6.20.0', agents: ['claude'] });
   const s = readState(v1);

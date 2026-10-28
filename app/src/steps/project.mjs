@@ -119,8 +119,9 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
 
 // State schema 2 holds appVersion and contentVersion. A version 1 file (setupVersion) is read with that value as both; the next apply writes version 2.
 export const STATE_SCHEMA = 2;
-export function parseState(text) {
-  const s = JSON.parse(text);
+export const parseState = (text) => normalizeState(JSON.parse(text));
+// Also for a state the registry kept as an object.
+export function normalizeState(s) {
   if (s?.schemaVersion > STATE_SCHEMA) throw new Error(`schemaVersion ${s.schemaVersion}, this benchkeeper reads up to ${STATE_SCHEMA}: update it with npx benchkeeper@${appVersion.split('.')[0]}`);
   if (s && s.schemaVersion !== STATE_SCHEMA) { const { setupVersion, ...rest } = s; return { ...rest, schemaVersion: STATE_SCHEMA, appVersion: rest.appVersion ?? setupVersion, contentVersion: rest.contentVersion ?? setupVersion }; }
   return s;

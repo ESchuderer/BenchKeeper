@@ -101,6 +101,13 @@ export function pluginState(ctx, a) {
   const state = readPluginState(ctx, a);
   return { ...state, listed: state.listed.filter((p) => SAFE_NAME.test(p.id ?? '')), markets: state.markets.filter((m) => SAFE_NAME.test(m ?? '')) };
 }
+// The newest version folder of a plugin in Codex's cache, and its path; both undefined without one.
+function codexCache(ctx, id) {
+  const [name, market] = id.split('@');
+  const d = join(ctx.home, `.codex/plugins/cache/${market}/${name}`);
+  const version = (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
+  return { version, dir: version && join(d, version) };
+}
 function readPluginState(ctx, a) {
   const at = (p) => join(ctx.home, p);
   try {
@@ -115,23 +122,23 @@ function readPluginState(ctx, a) {
     } else {
       const conf = parseToml(readText(at('.codex/config.toml')) ?? '');
       if (conf.plugins || conf.marketplaces) {
-        const version = (id) => {
-          const [name, market] = id.split('@');
-          const d = at(`.codex/plugins/cache/${market}/${name}`);
-          return (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
-        };
-        const dir = (id) => { const [name, market] = id.split('@'); return version(id) && at(`.codex/plugins/cache/${market}/${name}/${version(id)}`); };
-        // No version folder in the cache: the entry is there, its files are not.
-        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), ...(version(id) ? { dir: dir(id) } : {}), enabled: p?.enabled === true, missing: !version(id) }));
+        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => {
+          const { version, dir } = codexCache(ctx, id);
+          // No version folder in the cache: the entry is there, its files are not.
+          return { id, version, ...(dir ? { dir } : {}), enabled: p?.enabled === true, missing: !version };
+        });
         return { listed, markets: Object.keys(conf.marketplaces ?? {}), refs: Object.fromEntries(Object.entries(conf.marketplaces ?? {}).map(([m, v]) => [m, v?.ref])) };
       }
     }
   } catch { /* the CLI below */ }
   if (a === 'claude') {
-    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, enabled: p.enabled })),
+    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, ...(p.installPath ? { dir: p.installPath } : {}), enabled: p.enabled })),
       ...marketRefs(json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, [])) };
   }
-  return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => ({ id: p.pluginId, version: p.version, enabled: p.enabled })),
+  return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => {
+    const { dir } = codexCache(ctx, String(p.pluginId));
+    return { id: p.pluginId, version: p.version, ...(dir ? { dir } : {}), enabled: p.enabled };
+  }),
     ...marketRefs(json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []) };
 }
 

@@ -395,6 +395,20 @@ test('prefetchOrigins reads origin without blocking and fills the cache status u
   assert.deepEqual([status(ctx, offline.dir).origin, status(ctx, offline.dir).checkout], [null, '5.0.0']);
 });
 
+test('status: a version 1 state kept in the registry is read as version 2 and beats an older setup on origin', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  // Origin has the 5.0.0 setup; the checkout lost its state file and the registry kept a newer one, written by an earlier app.
+  const { appVersion: _a, contentVersion: _c, schemaVersion: _s, ...v1 } = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
+  p.git('rm', '-q', STATE);
+  p.git('commit', '-qm', 'drop state');
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ schemaVersion: 1, projects: [{ path: canon(p.dir), added: '2026-01-01T00:00:00.000Z', state: { ...v1, setupVersion: '5.9.0' } }] }));
+  const s = status(ctx, p.dir);
+  assert.deepEqual([s.setupVersion, s.checkout, s.origin], ['5.9.0', '5.9.0', 'origin/main']);
+});
+
 test('projects unshare: a pull request without the committed setup; the checkout stays as it is until the pull, then Update all writes the local setup from the kept answers', async () => {
   const h = home();
   const p = project(h);

@@ -59,6 +59,10 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `sessions cache show\|clear\|set [--keep-days N\|none] [--yes]` | the summaries the sessions scan keeps after an agent deletes a transcript: `show` counts them with the retention; `set --keep-days` (1 to 3650, `none`: for good) changes the retention, the next scan drops older ones; `clear` removes every summary, those of deleted transcripts for good. Both show the change and ask. The command cannot see a scan the web UI runs, which writes the old summaries back: clear while none runs |
 | `sessions record [--project dir] -- <agent> [args]` | runs an agent session in a Git repository and records the files it changed (tracked and untracked, not ignored ones) and its Claude Code or Codex transcript when found, so `undo` restores them |
 | `frameworks [list]` | the frameworks project setup offers: workflow systems that own how work is planned and run, each with what the install writes, the evidence line and its evaluation file. A project has at most one: `projects apply` refuses a second, and choosing it takes BenchKeeper's workflow skill and the issue-tracker specs out of that project's block (the `workflow` skill defers to its `Workflow owner:` line). `superpowers` is a Claude Code plugin enabled for the project only (`claude plugin install --scope project` for a shared setup, `--scope local` for a local one, run in the project; undo uninstalls it at that scope; the plugin files stay in the user's plugin cache). Packs are not frameworks (`packs list`). The doctor reports two workflow owners, and an owner installed for the user or the project that the setup did not record. Codex gets none: its plugins have no project scope |
+| `rules show <file> [--agent a] [--project dir]` | the text of one file `rules list` shows |
+| `skills show <name>` | the SKILL.md of a library skill BenchKeeper ships; for any other skill its source |
+| `packs warnings <id>` | the pairs of the pack's skills whose descriptions overlap, so an agent may pick the wrong one |
+| `projects advise [dir] [--agent claude\|codex]` | the env, packs and skills an agent suggests for a registered project, each with a reason: one read-only session on your login (default: the first installed of Claude Code, Codex), refused in CI |
 | `skills sources [list]` | agent-file sources: each file a pick (`--agent-file engineering/engineering-frontend-developer.md`), fetched with `curl` from `raw.githubusercontent.com` at a pinned commit into `.claude/agents/`; the file goes to the backup when the pick is dropped. Ids and paths come from the catalog, never from a project's state file. A state file that lists a source or a pack under `frameworks` is read with the source dropped (its files stay picked) and the pack under `packs` |
 | `packs list\|show\|save\|export\|import\|remove` | library packs and own packs; `show <id>` adds the registered projects that use it; a pack file names library skills only; `remove` refuses an own pack a registered project's setup still names and lists those projects |
 | `packs enable\|disable <id>.. [--project dir \| --global] [--yes]` | switches packs without a new setup: a plan on top of the saved answers, with a diff and an undo like any run. `--project` (default: the current folder) changes the project's packs, and disabling removes exactly the skills no other enabled pack and no single pick still needs; `--global` installs or removes the plugin of a pack that has one. Enabling and then disabling the same pack returns the project's files to what they were. `packs enable` and `disable` take `--json` (see [Machine-readable output](#machine-readable-output)) |
@@ -87,11 +91,11 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 
 ## Machine-readable output
 
-The commands marked in the first table take `--json`. One JSON document on stdout, logs and error messages on stderr. Every document is an envelope: `schemaVersion` (1), `command` and the keys below, no prose; a failure has `error` instead of the other keys. Values of environment variables and file contents never appear (`knowledge show` prints the entries the maintenance skill stored, with token shapes masked, and no file contents): a change lists its title and path, not its diff, a settings document lists the names of an `env` block without values, and a file that does not parse is reported as such without the parser message. `skills` and `frameworks` also work without the word `list`; a command marked no is refused with exit 2. A changing command never prompts under `--json`: one that would ask a question refuses with exit 2 and changes nothing, and `--yes` answers the question as it does in the terminal.
+The commands marked in the first table take `--json`. One JSON document on stdout, logs and error messages on stderr. Every document is an envelope: `schemaVersion` (1), `command` and the keys below, no prose; a failure has `error` instead of the other keys. Values of environment variables and file contents never appear (`knowledge show` prints the entries the maintenance skill stored, with token shapes masked, and no file contents; `rules show` and `skills show` print the text of the one file they name): a change lists its title and path, not its diff, a settings document lists the names of an `env` block without values, and a file that does not parse is reported as such without the parser message. `skills` and `frameworks` also work without the word `list`; a command marked no is refused with exit 2. A changing command never prompts under `--json`: one that would ask a question refuses with exit 2 and changes nothing, and `--yes` answers the question as it does in the terminal.
 
 | Command | --json |
 |---|---|
-| `doctor`, `verify`, `plan`, `projects plan`, `history`, `history show`, `projects list`, `projects status`, `projects scan`, `projects audit`, `packs list`, `packs show`, `skills list`, `skills sources`, `rules list`, `extensions list`, `settings list`, `settings get`, `frameworks list`, `sessions board`, `sessions list`, `sessions cache show`, `insights`, `profile export`, `knowledge show`, `accounts list`, `accounts status`, `evals plan`, `evals results`, `inventory`, `dashboard` | yes: what it reads, nothing written (`insights` works only with `--json`) |
+| `doctor`, `verify`, `plan`, `projects plan`, `history`, `history show`, `projects list`, `projects status`, `projects scan`, `projects audit`, `projects advise`, `packs list`, `packs show`, `packs warnings`, `skills list`, `skills show`, `skills sources`, `rules list`, `rules show`, `extensions list`, `settings list`, `settings get`, `frameworks list`, `sessions board`, `sessions list`, `sessions cache show`, `insights`, `profile export`, `knowledge show`, `accounts list`, `accounts status`, `evals plan`, `evals results`, `inventory`, `dashboard` | yes: what it reads, nothing written (`insights` works only with `--json`) |
 | `apply`, `projects apply`, `projects add`, `projects remove`, `projects rename`, `projects relocate`, `projects update`, `settings set`, `rules disable`, `rules enable`, `packs enable`, `packs disable`, `skills update`, `undo` | yes: what it changed; a question needs `--yes`. `projects update --dry-run` changes nothing and needs none |
 | `evals run` | yes: the plan and, with `--yes`, the results of the sessions it started |
 | `sessions cache set`, `sessions cache clear` | yes: the cache after the change; a question needs `--yes` |
@@ -131,6 +135,10 @@ The commands marked in the first table take `--json`. One JSON document on stdou
 | `evals results` | `results` (each stored result as `evals run` adds it, without the per-case `details`) |
 | `inventory` | `items` (`step`, `agent`, `title`, `state`) |
 | `dashboard` | `global` (`skills`, `packs`, `states`), `projects` (`path`, `name`, `setup`, `agents`, `packs`, `skills`, `states`, `untracked`, `error`), `coverage`, `catalog`, as the Dashboard |
+| `rules show <file>` | `path`, `text` (the first 200000 characters), `truncated` |
+| `skills show <name>` | `name`, `source`, `text` (the SKILL.md, null for a skill the app does not ship) |
+| `packs warnings <id>` | `pack`, `warnings` (one sentence per pair of the pack's skills whose descriptions overlap) |
+| `projects advise [dir]` | `dir`, `agent`, `env` (`id`, `reason`, or null), `packs` (`id`, `reason`), `skills` (`name`, `reason`) |
 | `knowledge show` | `dir`, `path`, `present` (the folder exists), `files` (`name`, `entries`: the stored objects, token shapes in text masked), `ignored` (`name`, `reason`) |
 
 | Exit code | Meaning |
@@ -180,7 +188,6 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | Reason | Meaning |
 |---|---|
 | `UI internal` | only the page needs it (job control, tokens, dialogs, form options, previews); no command planned |
-| `gap #320` | a text or advice command is missing: `rules show`, `skills show`, `advise`, pack warnings |
 
 | Route | Command or reason | Note |
 |---|---|---|
@@ -205,7 +212,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `GET /api/skills` | `skills list` | per project |
 | `GET /api/project-setup` | `UI internal` | fills the setup form; `packs list`, `frameworks list`, `skills sources` and `help` show its lists |
 | `GET /api/one-run` | `UI internal` | start state of the one-run dialog |
-| `POST /api/setup-advice` | `gap #320` | `advise` |
+| `POST /api/setup-advice` | `projects advise` | |
 | `POST /api/board-ticket` | `UI internal` | |
 | `POST /api/shutdown` | `UI internal` | |
 | `POST /api/sessions-scan` | `sessions list`, `sessions board` | both scan; `sessions board --json` prints the rows |
@@ -223,12 +230,12 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `GET /api/run` | `history show` | one run with the diff of each file; under `--json` the files without their diffs |
 | `POST /api/undo` | `undo` | |
 | `GET /api/catalog` | `skills list --library`, `packs show` | library skills and packs with their users |
-| `GET /api/skill` | `gap #320` | `skills show` |
+| `GET /api/skill` | `skills show` | |
 | `GET /api/doctor` | `doctor` | |
 | `POST /api/pick-folder` | `UI internal` | |
 | `POST /api/reveal` | `UI internal` | |
 | `GET /api/evals` | `evals results` | |
-| `GET /api/pack-warnings` | `gap #320` | overlapping skill descriptions in a pack |
+| `GET /api/pack-warnings` | `packs warnings` | the page sends a skill list, the command takes a pack |
 | `GET /api/pack-export` | `packs export` | |
 | `POST /api/packs` | `packs save`, `packs import`, `packs remove` | |
 | `GET /api/profile-export` | `profile export` | |
@@ -243,7 +250,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `POST /api/accounts-code` | `UI internal` | the code the browser shows, handed to the agent and kept nowhere |
 | `GET /api/rules` | `rules list` | |
 | `GET /api/extensions` | `extensions list` | |
-| `GET /api/rule-text` | `gap #320` | `rules show` |
+| `GET /api/rule-text` | `rules show` | |
 | `POST /api/rules-plan` | `rules disable`, `rules enable` | |
 | `POST /api/preferences` | `UI internal` | the app's own preferences (`editors`) |
 | `GET /api/params` | `pins list` | presets, pins and policy files with their errors; 404 while `editors` is off |

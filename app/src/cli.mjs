@@ -17,21 +17,21 @@ import { doctor } from './doctor.mjs';
 import { evalPlan, runEval } from './eval.mjs';
 import { harnessTest } from './harness.mjs';
 import { launch, openBrowser, startServer } from './server.mjs';
-import { isDir, listFiles, writeAtomic } from './fsx.mjs';
+import { isDir, listFiles, readText, writeAtomic } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { frameworkRows, sourceRows } from './frameworks.mjs';
-import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack } from './packs.mjs';
+import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
-import { RULE_AGENTS, ruleChanges, rulesView } from './rules.mjs';
+import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
 import { bundleEdits, describeKey, isSettingsFile, listSettings, parseInput, redact, settingsAgents, settingsChanges } from './settings.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import { catalog, evalResults, overview, runReport } from './reads.mjs';
 import { inventory } from './inventory.mjs';
 import { dashboard } from './dashboard.mjs';
-import { ADVISERS } from './advise.mjs';
+import { ADVISERS, adviseSetup } from './advise.mjs';
 import { collectInsights } from './insights.mjs';
 import { shownFindings } from './triage.mjs';
 import { narrativeInput, narrativeKey, narrativePrompt, readNarrative, runNarrative } from './narrative.mjs';
@@ -77,6 +77,8 @@ Usage: benchkeeper <command> [options]
                                     one file out (Claude Code: claudeMdExcludes in the user settings, or in the
                                     project's local settings with --project; a global Codex file moves to a folder of
                                     the app's own); nothing is deleted, the plan has a diff and undo restores it
+  rules show <file> [--agent a] [--project dir]
+                                    the text of one file rules list shows (the first 200000 characters)
   extensions list [--agent claude|codex] [--project dir]
                                     MCP servers, hooks, subagents, commands and output styles each agent loads,
                                     read from files only (no agent starts), with owner and a runs-code mark; env
@@ -111,6 +113,7 @@ Usage: benchkeeper <command> [options]
                                     library packs and own packs (own ones in packs/ of the config folder); show: one
                                     pack with the registered projects that use it; remove refuses a pack a registered
                                     project still names
+  packs warnings <id>               the pairs of the pack's skills whose descriptions overlap, so an agent may load the wrong one
   packs enable|disable <id>.. [--project dir | --global] [--yes]
                                     switches packs on top of the current state, as a plan with a diff (undo restores it):
                                     a project's packs (default: the current folder), or the plugins of a pack that
@@ -124,10 +127,15 @@ Usage: benchkeeper <command> [options]
                                     add: a library skill the project lacks becomes a pick (names required);
                                     disable moves a skill to .benchkeeper/disabled/, enable moves it back (names required)
   skills list --library             the library's skills with the number of registered projects that have each
+  skills show <name>                the SKILL.md of a library skill BenchKeeper ships; any other names its source
   skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
   projects status [dir]             app version, install level, agents with the BenchKeeper plugin, and the setup state of
                                     each registered project (dir: that folder only): setup version, origin, checkout,
                                     branch, clean, the pending changes; nothing is written
+  projects advise [dir] [--agent claude|codex]
+                                    the env, packs and skills an agent suggests for a registered project, each with a
+                                    reason: one session on your login (default: the first installed of claude, codex) that
+                                    reads the project and writes nothing; refused in CI
   projects [list|add <dir>..|scan <root>|remove <dir>..]
                                     projects Update all covers (projects.json in the config folder); add refuses another worktree
                                     of a registered repository unless --worktree; remove only unregisters
@@ -215,11 +223,11 @@ Usage: benchkeeper <command> [options]
                                     to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
---json (doctor, verify, plan, projects plan, history and history show, projects list, status, scan and audit, packs list and show,
-        skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, list and
-        cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory,
-        dashboard; apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs
-        enable|disable, skills update, undo)
+--json (doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list,
+        show and warnings, skills list, show and sources, rules list and show, extensions list, settings list and get,
+        frameworks list, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status,
+        evals plan, run and results, inventory, dashboard; apply, projects apply, add, remove, rename, relocate and
+        update, settings set, rules and packs enable|disable, skills update, undo)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md. A changing command
                                     that would ask needs --yes: without it exit 2 and nothing changes
@@ -371,6 +379,59 @@ function cacheCommand(ctx, o, positionals) {
   return { sub, lines: [`keep session summaries ${kept(days)} instead of ${kept(now.keepDays)}${days === null ? '' : `: the next scan drops those older than ${days} days`}`], change: () => keepSessionsFor(ctx, days) };
 }
 
+// rules show, skills show, packs warnings and projects advise: reads the terminal and --json print the same way.
+const TEXT_READS = { rules: 'show', skills: 'show', packs: 'warnings', projects: 'advise' };
+const textRead = (cmd, arg) => !!arg && TEXT_READS[cmd] === arg;
+// The document of one of them, or the error with its exit code (2: usage).
+async function readDoc(ctx, { cmd, o, positionals, err }) {
+  const [, , target, extra] = positionals;
+  if (extra !== undefined) return { error: `unexpected argument ${extra}`, code: 2 };
+  if (cmd === 'rules') {
+    if (!target) return { error: 'rules show needs a file, see benchkeeper rules list', code: 2 };
+    if (o.agent && !RULE_AGENTS.includes(o.agent)) return { error: `agent must be one of ${RULE_AGENTS.join(', ')}`, code: 2 };
+    try { return { doc: ruleText(ctx, { agent: o.agent, file: resolve(target), dir: o.project ? resolve(o.project) : undefined }) }; } catch (e) { return { error: e.message, code: 1 }; }
+  }
+  if (cmd === 'skills') {
+    if (!target) return { error: 'skills show needs a skill name, see benchkeeper skills list --library', code: 2 };
+    const skill = libraryWith(ctx).skills.find((s) => s.name === target);
+    if (!skill) return { error: `unknown skill ${target}, see benchkeeper skills list --library`, code: 1 };
+    // Only the skills BenchKeeper ships have their text in the app; the others live at their source.
+    return { doc: { name: skill.name, source: skill.source, text: skill.source === 'own' ? readText(join(contentDir, 'library', skill.name, 'SKILL.md')) : null } };
+  }
+  if (cmd === 'packs') {
+    if (!target) return { error: 'packs warnings needs a pack, see benchkeeper packs list', code: 2 };
+    const pack = libraryWith(ctx).packs.find((p) => p.id === target);
+    if (!pack) return { error: `unknown pack ${target}, see benchkeeper packs list`, code: 1 };
+    return { doc: { pack: pack.id, warnings: warnings(pack.skills ?? []) } };
+  }
+  const dir = canon(target ?? '.');
+  if (!listProjects(ctx).some((p) => p.path === dir)) return { error: `${dir} is not a registered project: benchkeeper projects add ${dir}`, code: 1 };
+  const installed = selectedAgents(ctx);
+  const agent = o.agent ?? ADVISERS.find((a) => installed.includes(a));
+  if (!ADVISERS.includes(agent) || !installed.includes(agent)) return { error: `--agent must be an installed one of ${ADVISERS.join(', ')}`, code: 2 };
+  if (process.env.CI) return { error: 'projects advise starts an agent session on a subscription and does not run in CI', code: 2 };
+  err.write(`${agent} reads ${dir} in one session (up to 5 minutes)\n`);
+  try { return { doc: { dir, agent, ...(await adviseSetup(ctx, { dir, agent, lib: libraryWith(ctx) })) } }; } catch (e) { return { error: e.message, code: 1 }; }
+}
+
+async function printRead(ctx, { cmd, o, positionals, out, err }) {
+  const r = await readDoc(ctx, { cmd, o, positionals, err });
+  if (r.error) { out.write(`${r.error}\n`); return r.code; }
+  const d = r.doc;
+  if (cmd === 'rules') {
+    out.write(d.text && !d.text.endsWith('\n') ? `${d.text}\n` : d.text);
+    if (d.truncated) err.write(`${d.path} is longer: the first 200000 characters are shown\n`);
+  } else if (cmd === 'skills') out.write(d.text ?? `${d.name} comes from ${d.source}: its text is not in the app\n`);
+  else if (cmd === 'packs') out.write(d.warnings.length ? d.warnings.map((w) => `${w}\n`).join('') : `no overlapping skill descriptions in ${d.pack}\n`);
+  else {
+    if (d.env) out.write(`env    ${d.env.id}: ${d.env.reason}\n`);
+    for (const p of d.packs) out.write(`pack   ${p.id}: ${p.reason}\n`);
+    for (const s of d.skills) out.write(`skill  ${s.name}: ${s.reason}\n`);
+    if (!d.env && !d.packs.length && !d.skills.length) out.write(`${d.agent} suggested nothing for ${d.dir}\n`);
+  }
+  return 0;
+}
+
 const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
@@ -407,6 +468,7 @@ async function command(argv, { out, err, ask, ctx }) {
     }
     return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
   }
+  if (textRead(cmd, arg)) return printRead(ctx, { cmd, o, positionals, out, err });
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
   if (cmd === 'skills' && o.library && [undefined, 'list'].includes(arg)) {
     for (const s of catalog(ctx).skills) out.write(`${s.name.padEnd(30)} ${String(s.projects).padStart(3)} project${s.projects === 1 ? ' ' : 's'}  ${s.source}\n`);
@@ -778,7 +840,7 @@ const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'd
 async function skillsCommand(ctx, { o, positionals, out, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');
-  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { out.write(`skills needs list, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
+  if (sub !== 'list' && !SKILL_ACTIONS.includes(sub)) { out.write(`skills needs list, show, ${SKILL_ACTIONS.join(', ')}\n`); return 2; }
   // list --check and update without names ask each source's default branch; update with names re-adds those skills.
   const rows = projectSkills(ctx, dir, { check: o.check || (sub === 'update' && !names.length) });
   if (sub === 'list') {
@@ -893,6 +955,10 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     return emit({ version: r.version, level: r.level.level ?? null, adds: r.level.adds ?? null, agents: r.agents, projects: r.projects.map(statusDoc) });
   }
   if (cmd === 'projects' && (!arg || arg === 'list')) return surplus(2) ?? registryFail() ?? emit({ projects: listProjects(ctx).map((p) => ({ path: p.path, added: p.added })) });
+  if (textRead(cmd, arg)) {
+    const r = await readDoc(ctx, { cmd, o, positionals, err });
+    return r.error ? fail(r.error) : emit(r.doc);
+  }
   if (cmd === 'packs' && arg === 'show') {
     const extra = surplus(3); if (extra !== undefined) return extra;
     const pack = catalog(ctx).packs.find((x) => x.id === positionals[2]);
@@ -1032,7 +1098,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan and audit, packs list and show, skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
+  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list and show, extensions list, settings list and get, frameworks list, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
@@ -1118,7 +1184,7 @@ async function knowledgeCommand({ o, positionals, out, ask }) {
 // rules list|disable|enable: the Rules view on the command line, through the same plan, diff and undo.
 async function rulesCommand({ o, positionals, out, ask, ctx }) {
   const [, sub, file] = positionals;
-  if (!['list', 'disable', 'enable'].includes(sub)) { out.write('rules needs list, disable or enable\n'); return 2; }
+  if (!['list', 'disable', 'enable'].includes(sub)) { out.write('rules needs list, show, disable or enable\n'); return 2; }
   if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
   const dir = o.project ? resolve(o.project) : undefined;
   if (sub === 'list') {

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { HELP } from '../src/cli.mjs';
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
-const REASONS = ['UI internal', 'gap #320'];
+const REASONS = ['UI internal'];
 
 // Routes come from the server source: the api table, and the page routes the request handler answers itself.
 const source = read('../src/server.mjs');

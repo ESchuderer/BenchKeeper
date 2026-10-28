@@ -354,3 +354,63 @@ test('--json: the read commands of the web UI print their documented keys, refus
     if (before === undefined) delete process.env.DO_NOT_TRACK; else process.env.DO_NOT_TRACK = before;
   }
 });
+
+test('rules show, skills show, packs warnings and projects advise print the text or one document, change nothing and leak no value', async () => {
+  const { ctx, dir, home } = setup();
+  const rule = join(home, '.claude/CLAUDE.md');
+  put(rule, 'global rule\n');
+  // The advice session: claude -p answers with the result the agent would give.
+  const stub = ctx.run;
+  ctx.run = (argv, opts) => (argv[1] === '-p' ? { code: 0, stdout: JSON.stringify({ result: '{"env": {"id": "container", "reason": "has .devcontainer/"}, "packs": [{"id": "testing", "reason": "has tests"}], "skills": []}' }), stderr: '' } : stub(argv, opts));
+  const env = { DO_NOT_TRACK: process.env.DO_NOT_TRACK, CI: process.env.CI };
+  process.env.DO_NOT_TRACK = SECRET;
+  delete process.env.CI;
+  const text = async (args) => { let t = '', e = ''; const code = await main(args, { out: new Writable({ write(c, _, d) { t += c; d(); } }), err: new Writable({ write(c, _, d) { e += c; d(); } }), ctx }); assert.ok(!t.includes(SECRET) && !e.includes(SECRET), `${args.join(' ')} leaks a secret`); return { code, t }; };
+  try {
+    const ledger = ctx.ledger.list().length;
+    const shape = async (args, code, command, keys) => {
+      const r = await run(ctx, [...args, '--json']);
+      assert.equal(r.code, code, `${args.join(' ')}: ${r.err}`);
+      assert.deepEqual([r.doc.schemaVersion, r.doc.command], [1, command]);
+      assert.deepEqual(Object.keys(r.doc).slice(2), keys, args.join(' '));
+      assert.ok(!r.text.includes(SECRET) && !r.err.includes(SECRET), `${args.join(' ')} leaks a secret`);
+      return r.doc;
+    };
+    assert.deepEqual(await shape(['rules', 'show', rule], 0, 'rules show', ['path', 'text', 'truncated']), { schemaVersion: 1, command: 'rules show', path: rule, text: 'global rule\n', truncated: false });
+    assert.deepEqual(await text(['rules', 'show', rule]), { code: 0, t: 'global rule\n' });
+    const own = await shape(['skills', 'show', 'designing-technical-uis'], 0, 'skills show', ['name', 'source', 'text']);
+    assert.match(own.text, /^---\nname: designing-technical-uis/);
+    assert.equal((await text(['skills', 'show', 'designing-technical-uis'])).t, own.text);
+    const other = (await shape(['skills', 'list', '--library'], 0, 'skills list', ['skills'])).skills.find((s) => s.source !== 'own');
+    assert.equal((await shape(['skills', 'show', other.name], 0, 'skills show', ['name', 'source', 'text'])).text, null);
+    assert.deepEqual(await text(['skills', 'show', other.name]), { code: 0, t: `${other.name} comes from ${other.source}: its text is not in the app\n` });
+    assert.deepEqual(await shape(['packs', 'warnings', 'testing'], 0, 'packs warnings', ['pack', 'warnings']), { schemaVersion: 1, command: 'packs warnings', pack: 'testing', warnings: [] });
+    assert.deepEqual(await text(['packs', 'warnings', 'testing']), { code: 0, t: 'no overlapping skill descriptions in testing\n' });
+    const advice = { dir, agent: 'claude', env: { id: 'container', reason: 'has .devcontainer/' }, packs: [{ id: 'testing', reason: 'has tests' }], skills: [] };
+    assert.deepEqual(await shape(['projects', 'advise', dir], 0, 'projects advise', ['dir', 'agent', 'env', 'packs', 'skills']), { schemaVersion: 1, command: 'projects advise', ...advice });
+    assert.deepEqual(await text(['projects', 'advise', dir, '--agent', 'claude']), { code: 0, t: 'env    container: has .devcontainer/\npack   testing: has tests\n' });
+    assert.equal(ctx.ledger.list().length, ledger, 'a read made a run');
+
+    for (const [args, command, message, code] of [
+      [['rules', 'show'], 'rules show', /needs a file/, 2],
+      [['rules', 'show', join(home, 'nope.md')], 'rules show', /is not an instruction file/, 1],
+      [['rules', 'show', rule, '--agent', 'gemini'], 'rules show', /agent must be one of/, 2],
+      [['skills', 'show'], 'skills show', /needs a skill name/, 2],
+      [['skills', 'show', 'nope'], 'skills show', /unknown skill nope/, 1],
+      [['packs', 'warnings'], 'packs warnings', /needs a pack/, 2],
+      [['packs', 'warnings', 'nope'], 'packs warnings', /unknown pack nope/, 1],
+      [['packs', 'warnings', 'testing', 'extra'], 'packs warnings', /unexpected argument extra/, 2],
+      [['projects', 'advise', home], 'projects advise', /is not a registered project/, 1],
+      [['projects', 'advise', dir, '--agent', 'gemini'], 'projects advise', /--agent must be an installed one of claude, codex/, 2],
+    ]) {
+      assert.match((await shape(args, 2, command, ['error'])).error, message);
+      assert.equal((await text(args)).code, code, args.join(' '));
+    }
+    ctx.run = (argv, opts) => (argv[1] === '-p' ? { code: 1, stdout: '', stderr: 'not logged in' } : stub(argv, opts));
+    assert.equal((await text(['projects', 'advise', dir])).code, 1);
+    process.env.CI = 'true';
+    assert.match((await shape(['projects', 'advise', dir], 2, 'projects advise', ['error'])).error, /does not run in CI/);
+  } finally {
+    for (const [k, v] of Object.entries(env)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});

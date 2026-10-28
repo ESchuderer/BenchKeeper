@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "command": "projects update",
+  "runs": [],
+  "projects": [
+    {
+      "path": "/projects/current",
+      "setupVersion": "6.0.0",
+      "ready": false,
+      "reason": "0 changes",
+      "changes": []
+    },
+    {
+      "path": "/projects/behind",
+      "setupVersion": "5.0.0",
+      "ready": true,
+      "reason": "3 changes",
+      "changes": [
+        { "id": "project:state", "step": "project", "title": "write .benchkeeper/state.json", "kind": "write" }
+      ]
+    }
+  ]
+}

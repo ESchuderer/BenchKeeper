@@ -197,7 +197,8 @@ test('load: both tiers, an id that differs from the file name, a duplicate id an
   assert.match(errors.find((e) => e.file.endsWith('alpha.md')).message, /already used by the generic template/);
   assert.match(errors.find((e) => e.file.endsWith('beta.md')).message, /differs from the file name/);
   assert.equal(load(ctx).errors.length, 2, 'default tiers: the user folder of the context');
-  assert.deepEqual(load(machine()), { templates: [], errors: [] }, 'no folder, no templates');
+  const empty = machine();
+  assert.deepEqual(load(empty, [['user', userDir(empty)]]), { templates: [], errors: [] }, 'no folder, no templates');
   const file = join(user, 'notes.txt');
   assert.match(load(ctx, [['user', file]]).errors[0].message, /cannot read the folder: ENOTDIR/, 'a tier path that is a file');
   assert.deepEqual(check(ctx, { tiers: [['generic', generic], ['user', user]] }).map((p) => p.rule), ['format', 'format', 'format']);

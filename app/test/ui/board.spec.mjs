@@ -44,7 +44,7 @@ test('the rail lists projects newest first with count and last tier; a click fil
   expect(e).toEqual([]);
 });
 
-test('one entry per repository: worktrees fold in, also a removed one, the same folder name adds its parent, a plain folder stays; the registered one comes first; Registered only keeps it', async ({ page }) => {
+test('one entry per repository: worktrees fold in, also a removed one, the same folder name adds its parent, a plain folder goes under Other; the registered one comes first; Registered only keeps it', async ({ page }) => {
   const e = errors(page);
   // /wt/shop-b was removed after its session: its repository came from the cache. A row cached without one folds in by the registered worktree list.
   const rows = [
@@ -58,7 +58,7 @@ test('one entry per repository: worktrees fold in, also a removed one, the same 
   const cards = page.locator('#rail button.card:not(.all)');
   const sessions = page.locator('#tiles .tile').first().locator('.value');
   await expect(page.locator('#f-project')).toHaveCount(0);
-  await expect(cards).toHaveText([/^src\/shop3 sessions, 2 worktrees, last tier/, /^u1 session, last tier/, /^old\/shop1 session, last tier/]);
+  await expect(cards).toHaveText([/^src\/shop3 sessions, 2 worktrees, last tier/, /^old\/shop1 session, last tier/, /^Other1 session, 1 folder, last tier/]);
   await expect(page.locator('#rail-list > *').nth(1)).toHaveClass('card all');
   // A choice the switch hides falls back to All.
   await cards.filter({ hasText: 'old/shop' }).click();
@@ -74,7 +74,7 @@ test('one entry per repository: worktrees fold in, also a removed one, the same 
   await load(page, rows, []);
   await expect(page.getByLabel('Registered only')).toBeDisabled();
   await expect(page.getByLabel('Registered only')).toHaveAccessibleDescription('No project is registered in the app.');
-  await expect(cards).toHaveCount(4);
+  await expect(cards).toHaveCount(3);
   expect(e).toEqual([]);
 });
 
@@ -117,6 +117,38 @@ test('300 folders over 12 repositories: registered first, All, one entry per rep
   await expect(page.getByLabel('Find a project')).toHaveValue('');
   await expect(cards.filter({ visible: true })).toHaveCount(12);
   expect(e).toEqual([]);
+});
+
+test('no side scroll with 300 folders over 12 repositories, folders of no repository and a long name, at desktop and phone width', async ({ page }) => {
+  const rows = [...fleet(), ...Array.from({ length: 6 }, (_, i) => row({ repo: null, project: `/home/u/scratch-${i}` })), row({ repo: '/src/r0', project: `/wt/r0/${'very-long-worktree-name-'.repeat(8)}` })];
+  const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
+  await load(page, rows, reg('/src/r3', '/src/r7'));
+  await page.getByLabel('Period').selectOption('all');
+  await expect(page.locator('#rail button.card:not(.all)').last()).toHaveText(/^Other6 sessions, 6 folders/);
+  await page.getByRole('button', { name: 'Folders of r0' }).click();
+  await page.getByRole('button', { name: 'Folders of Other' }).click();
+  expect(await fits()).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#rail-toggle').click();
+  await expect(page.locator('#rail-toggle')).toHaveText(/^All projects, 12 projects/);
+  expect(await fits()).toBe(true);
+});
+
+test('the last choice is remembered, chosen with the keyboard, and named on the project page after a reload', async ({ page }) => {
+  const html = boardHtml(fleet(), NOW, reg('/src/r3'));
+  await page.route('http://board.test/', (r) => r.fulfill({ body: html, contentType: 'text/html' }));
+  await page.goto('http://board.test/');
+  const r5 = page.locator('.card[title="/src/r5"]');
+  await r5.focus();
+  await page.keyboard.press('Enter');
+  await expect(r5).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(r5).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { level: 2, name: 'Project r5' })).toBeVisible();
+  await expect(page.locator('#count')).toHaveText('25 of 25 sessions');
+  await page.locator('#rail button.all').press('Enter');
+  await page.reload();
+  await expect(page.locator('#rail button.all')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('a repository with one folder has no count of worktrees and nothing to expand; the keyboard moves through the list and opens a repository', async ({ page }) => {

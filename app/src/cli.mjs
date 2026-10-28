@@ -347,7 +347,7 @@ export function machineContext(env = process.env) {
   return ctx;
 }
 
-export function selectedAgents(ctx, list) {
+function selectedAgents(ctx, list) {
   if (list) return list.split(',').map((s) => s.trim()).filter(Boolean);
   return detect(ctx).filter((a) => a.installed).map((a) => a.id);
 }
@@ -928,7 +928,7 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
 // ---- --json: one document on stdout, logs on stderr. Exit 0 clean, 1 findings of level error, 2 usage or read failure.
 // A document never holds file contents or values of environment variables: changes list title, kind and path, not the diff.
 
-export const JSON_SCHEMA_VERSION = 1;
+const JSON_SCHEMA_VERSION = 1;
 const FINDING_KEYS = ['level', 'tag', 'check', 'message', 'fix', 'dir', 'file', 'line', 'scope', 'rule', 'repos'];
 const finding = (i) => Object.fromEntries(FINDING_KEYS.filter((k) => i[k] !== undefined).map((k) => [k, i[k]]));
 const changeDoc = (c) => ({ id: c.id, step: c.step, title: c.title, kind: c.kind, destructive: !!c.destructive, optional: !!c.optional, selected: !!c.selected, ...(c.path ? { path: c.path } : {}), ...(c.argv ? { argv: c.argv } : {}), ...(c.error ? { error: redact(c.error) } : {}) });

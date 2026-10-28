@@ -24,7 +24,7 @@ import { skillFiles } from './skills.mjs';
 import { globalPlan, installedRefusal, pluginState } from './steps/global.mjs';
 import { readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 
-export const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
+const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
 const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zshenv', '.config/fish/config.fish'];
 const SUMMARY = /^#{1,6}\s*(overview|summary|about( this)?( project| repository)?|project (structure|layout|overview)|(repository|directory|folder|code) (structure|layout|map)|layout|structure|architecture)\s*$/im;
 

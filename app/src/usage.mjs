@@ -7,7 +7,7 @@ import { FAILURES, LEGACY_MATCHER } from './usage-hook.mjs';
 
 export const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
 // The minimum headroom (percent) to start a task; the notice level before it defaults to twice that. Defaults, not claims about what a task needs.
-export const DEFAULTS = { minimum: { fiveHour: 8, sevenDay: 3 }, autoPick: false, whenNone: 'stop', continueBelow: false };
+const DEFAULTS = { minimum: { fiveHour: 8, sevenDay: 3 }, autoPick: false, whenNone: 'stop', continueBelow: false };
 export const STATE_DIR = 'benchkeeper';
 export const HOOK_SOURCE = readFileSync(new URL('./usage-hook.mjs', import.meta.url), 'utf8');
 const FAILURE_HOURS = 24;

@@ -46,7 +46,7 @@ function initialAnswers(setup, advice) {
 const projectPlanOf = (dir, a) => api(`/api/project-plan?${planQuery(dir, { ...a, share: false })}`);
 
 const OneRunContext = createContext(() => {});
-export const useOneRun = () => useContext(OneRunContext);
+const useOneRun = () => useContext(OneRunContext);
 export const OneRunProvider = OneRunContext.Provider;
 
 export function OneRunButtons() {

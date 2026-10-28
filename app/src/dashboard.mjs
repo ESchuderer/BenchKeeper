@@ -15,7 +15,7 @@ import { lockedSkills } from './steps/project.mjs';
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]*$/;
 
 // Item states in the order the bar draws them; untracked is a skill folder BenchKeeper did not install.
-export const STATES = [...RANK, 'untracked'];
+const STATES = [...RANK, 'untracked'];
 const count = (items) => Object.fromEntries(STATES.map((s) => [s, items.filter((i) => i.state === s).length]));
 
 // A project's items: the plan's, plus each community skill that is in place and needs no change (the plan holds no step for it).

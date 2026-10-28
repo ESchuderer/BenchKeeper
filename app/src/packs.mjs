@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { library } from './content.mjs';
 import { move, writeAtomic } from './fsx.mjs';
 
-export const PACK_SCHEMA = 1;
+const PACK_SCHEMA = 1;
 const dir = (ctx) => join(ctx.config, 'packs');
 
 // A file that is not a pack with a plain id named like its file is left out of the packs (the id becomes a file name) and

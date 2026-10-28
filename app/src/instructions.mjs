@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { exists, readText } from './fsx.mjs';
 import { overlap } from './packs.mjs';
 
-export const MEMORY_DOC = 'https://code.claude.com/docs/en/memory';
+const MEMORY_DOC = 'https://code.claude.com/docs/en/memory';
 const MAX_LINES = 200;
 const MAX_HOPS = 4;
 const issue = (level, check, message, fix, where) => ({ level, check, message, fix, ...where });
@@ -43,7 +43,7 @@ export function importsOf(text) {
 
 // A path as the report shows it: relative to the project, or from the home folder.
 export const display = (ctx, dir, p) => (dir && p.startsWith(`${dir}${sep}`) ? relative(dir, p) : p.startsWith(`${ctx.home}${sep}`) ? join('~', relative(ctx.home, p)) : p);
-export const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
+const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 export const markdownIn = (d) => (existsSync(d) ? readdirSync(d, { recursive: true }).filter((f) => f.endsWith('.md')).sort().map((f) => join(d, f)) : []);
 
 // Files and the files they @import (four hops, inside the project or the home folder), each once.

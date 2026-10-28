@@ -1,6 +1,6 @@
 // Eval cases: an observed miss becomes a regression case for a skill or rule. The app's sets ship in
 // <content>/evals/, the user's own go to ~/.config/benchkeeper/evals/; benchkeeper evals reads both.
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { registry, skillDirs } from './agents.mjs';
@@ -9,14 +9,14 @@ import { exists, readText } from './fsx.mjs';
 import { mask } from './redact.mjs';
 import { apply, preview } from './runner.mjs';
 
-export const CASE_SCHEMA = 1;
+const CASE_SCHEMA = 1;
 // A skill that is not in the library is addressed by its scope: skill:<name>@user, or skill:<name>@project-<id of the project folder>.
 const NAME = '[a-z0-9][a-z0-9-]*';
 const PLAIN = new RegExp(`^(skill|rule):${NAME}$`);
 const TARGET = new RegExp(`^(rule:${NAME}|skill:${NAME}(@user|@project-[0-9a-f]{8})?)$`);
 const fileName = (target) => `${target.replace(':', '-')}.json`;
 export const userEvals = (ctx) => join(ctx.config, 'evals');
-export const shippedEvals = join(contentDir, 'evals');
+const shippedEvals = join(contentDir, 'evals');
 
 const projectId = (dir) => createHash('sha256').update(dir).digest('hex').slice(0, 8);
 export const scopeOf = (target) => ({ user: 'user', project: 'project' })[target.split('@')[1]?.split('-')[0]] ?? 'library';
@@ -103,7 +103,7 @@ export function addCase(ctx, { target: asked, scope, expected, should = true, pr
   if (text.startsWith('-')) throw new Error('the query starts with a dash: an agent CLI would read it as an option; reword it');
   // A prompt copied from a transcript may hold a pasted token.
   const q = mask(text, { keys: false });
-  const c = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, time: new Date().toISOString(), query: q, should, expected,
+  const c = { id: `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`, time: new Date().toISOString(), query: q, should, expected,
     source: Object.fromEntries(Object.entries({ project, transcript, description: description && mask(description, { keys: false }), run }).filter(([, v]) => v)) };
   const path = join(userEvals(ctx), fileName(target));
   const change = { id: 'case:0', step: 'case', title: `eval case for ${target}: ${should ? 'should' : 'should not'} ${expected}`, kind: 'write', path,

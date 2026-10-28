@@ -12,7 +12,7 @@ import { preview } from './runner.mjs';
 import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, readState, tryState } from './steps/project.mjs';
 
-export const PROFILE_SCHEMA = 1;
+const PROFILE_SCHEMA = 1;
 const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled'];
 
 // The optional packs whose plugin is installed: the profile's global packs.

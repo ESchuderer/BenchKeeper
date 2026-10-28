@@ -56,7 +56,7 @@ const ARGV = {
 };
 export const ADVISERS = Object.keys(ARGV);
 
-export function advicePrompt(lib) {
+function advicePrompt(lib) {
   return [
     'Suggest the agent setup for the repository in the current directory. Read its files (package manifests, CI workflows, docs, .devcontainer/, AGENTS.md); change nothing.',
     'Answer with one JSON object and nothing else: {"env": {"id": "...", "reason": "..."}, "packs": [{"id": "...", "reason": "..."}], "skills": [{"name": "...", "reason": "..."}]}.',

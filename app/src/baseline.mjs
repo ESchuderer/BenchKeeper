@@ -58,7 +58,7 @@ const REPO_KEYS = ['allow_merge_commit', 'allow_squash_merge', 'allow_rebase_mer
 const pick = (o, keys) => Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
 
 // The repository's settings in the shape of a profile; a part gh cannot read (plan, rights, offline) is named in unreadable.
-export function readLive(ctx, slug) {
+function readLive(ctx, slug) {
   const unreadable = {};
   const run = (path) => ctx.run(['gh', 'api', '--hostname', 'github.com', `repos/${slug}${path}`], { env: GH_ENV, timeout: 20e3 });
   const get = (key, path) => {
@@ -108,7 +108,7 @@ const findRuleset = (list, want) => list.find((r) => same(refs(r), refs(want))) 
 const contexts = (rs) => rs?.rules?.find((r) => r.type === 'required_status_checks')?.parameters?.required_status_checks?.map((c) => c.context) ?? [];
 
 // What differs, as sentences. Only what the profile names counts; a setting the repository does not report is skipped.
-export function compare(profile, live) {
+function compare(profile, live) {
   const out = [];
   const keys = (label, want = {}, have) => {
     // GitHub answers 404 for alerts that are off and for a token without admin read.
@@ -154,7 +154,7 @@ function callerUses(dir, m) {
 const callerPattern = (m) => `${BASELINE_REPO}/.github/workflows/${m}.yml@*`;
 
 // Caller workflows and files of the checkout against the profile.
-export function filesDrift(profile, dir) {
+function filesDrift(profile, dir) {
   const out = [];
   for (const m of profile.callers ?? []) {
     const uses = callerUses(dir, m);
@@ -166,7 +166,7 @@ export function filesDrift(profile, dir) {
 }
 
 // A caller the checkout uses beyond the profile's (lint, sonar) needs its pattern in the Actions allowlist.
-export function allowlistDrift(profile, live, dir) {
+function allowlistDrift(profile, live, dir) {
   const have = live.state.selected?.patterns_allowed;
   if (!have) return [];
   return CALLERS.filter((m) => !profile.selected?.patterns_allowed?.includes(callerPattern(m)) && callerUses(dir, m).length && !have.includes(callerPattern(m)))

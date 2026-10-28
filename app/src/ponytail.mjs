@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { exists, readText } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
 
-export const PLUGIN = 'ponytail@ponytail';
+const PLUGIN = 'ponytail@ponytail';
 const BAND_FLAG = '.claude/.ponytail-band';
 const CONFIG = '.config/ponytail/config.json';
 const LEDGER = '.config/ponytail/band';

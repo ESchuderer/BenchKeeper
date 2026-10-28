@@ -440,6 +440,8 @@ test('Doctor: the advisor rank sees a [1m] model id, and a pinned Sonnet 4.5 or 
   assert.match(messages({ model: 'default', env: FOUNDRY }).join(), /Microsoft Foundry/);
   assert.deepEqual(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the default is pinned by the user');
   assert.deepEqual(messages({ model: 'claude-opus-4-6', env: FOUNDRY }), [], 'a named model replaces the default');
+  for (const v of ['inherit', 'haiku', 'default']) assert.match(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: v } }).join(), /Microsoft Foundry/, `ANTHROPIC_DEFAULT_MODEL=${v} is ignored by Claude Code`);
+  assert.deepEqual(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'claude-opus-4-6' } }), [], 'a named default model replaces it');
   assert.deepEqual(messages({}), [], 'no Foundry, no model selector');
   assert.deepEqual(messages({ model: 'sonnet' }), [], 'not on Foundry');
   assert.deepEqual(messages({ model: 'claude-sonnet-5-5', env: FOUNDRY }), []);

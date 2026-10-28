@@ -6,26 +6,36 @@
       "name": "Lite",
       "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects` and `operating-benchkeeper` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
-      "command": "npx benchkeeper@6.25.0 apply --level lite"
+      "command": "npx benchkeeper@6.25.0 apply --level lite",
+      "evidence": "app/test/level.test.mjs"
     },
     {
       "name": "Standard",
       "contains": "lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list",
       "writes": "local files in each project you run `projects apply` in",
-      "command": "npx benchkeeper@6.25.0 apply --level standard && npx benchkeeper@6.25.0 projects apply"
+      "command": "npx benchkeeper@6.25.0 apply --level standard && npx benchkeeper@6.25.0 projects apply",
+      "evidence": [
+        "app/test/level.test.mjs",
+        "docs/setup.md#per-repo"
+      ]
     },
     {
       "name": "Full",
       "contains": "standard plus the global rules, Claude Code and Codex settings, packs and the app",
       "writes": "global rule files, settings and packs",
-      "command": "npx benchkeeper@6.25.0 apply --level full"
+      "command": "npx benchkeeper@6.25.0 apply --level full",
+      "evidence": [
+        "app/test/level.test.mjs",
+        "docs/setup.md#setup-details"
+      ]
     }
   ],
   "core": {
     "name": "mattpocock/skills",
     "by": "Matt Pocock",
     "url": "https://github.com/mattpocock/skills",
-    "role": "his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)"
+    "role": "his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request)",
+    "evidence": "plugins/benchkeeper/skills/workflow/software.md#matt-pococks-skills-when-installed"
   },
   "quickstart": {
     "needs": "Node.js 22 and at least one agent, Claude Code or Codex.",
@@ -36,7 +46,11 @@
         "steps": [
           {
             "command": "npx benchkeeper@6.25.0",
-            "text": "Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before."
+            "text": "Opens the browser on the Dashboard with the doctor findings. Select Fix everything, review the changes and press Apply; nothing is written before.",
+            "evidence": [
+              "app/README.md#web-ui",
+              "app/test/server.test.mjs"
+            ]
           }
         ]
       },
@@ -45,11 +59,13 @@
         "steps": [
           {
             "command": "npx benchkeeper@6.25.0 plan",
-            "text": "Lists each change and writes nothing."
+            "text": "Lists each change and writes nothing.",
+            "evidence": "app/test/cli.test.mjs"
           },
           {
             "command": "npx benchkeeper@6.25.0 apply",
-            "text": "Asks per change. `--yes` applies the default selection without questions."
+            "text": "Asks per change. `--yes` applies the default selection without questions.",
+            "evidence": "app/test/cli.test.mjs"
           }
         ]
       }
@@ -65,37 +81,56 @@
     {
       "name": "Claude Code",
       "url": "https://code.claude.com/docs/en/setup",
-      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)"
+      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)",
+      "evidence": "docs/setup.md#agent-and-os-support"
     },
     {
       "name": "Codex CLI",
       "url": "https://developers.openai.com/codex/cli",
-      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)"
+      "for": "agent, at least one (Gemini CLI and GitHub Copilot CLI also work, untested)",
+      "evidence": "docs/setup.md#agent-and-os-support"
     },
     {
       "name": "Git",
       "url": "https://git-scm.com/downloads",
-      "for": "clone, branches, commits"
+      "for": "clone, branches, commits",
+      "evidence": [
+        "https://git-scm.com/downloads",
+        "plugins/benchkeeper/skills/workflow/software.md#steps"
+      ]
     },
     {
       "name": "GitHub CLI",
       "url": "https://cli.github.com/",
-      "for": "issues and pull requests (optional, local branches without it)"
+      "for": "issues and pull requests (optional, local branches without it)",
+      "evidence": [
+        "https://cli.github.com/",
+        "plugins/benchkeeper/skills/workflow/software.md#steps"
+      ]
     },
     {
       "name": "Node.js and npm",
       "url": "https://nodejs.org/en/download",
-      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `$HOME/.local`"
+      "for": "the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `$HOME/.local`",
+      "evidence": [
+        "app/package.json",
+        "docs/setup.md#setup-details"
+      ]
     },
     {
       "name": "Docker Engine",
       "url": "https://docs.docker.com/engine/install/",
-      "for": "dev containers (`container` and `host-agent` modes; Podman works too)"
+      "for": "dev containers (`container` and `host-agent` modes; Podman works too)",
+      "evidence": "docs/setup.md#per-repo"
     },
     {
       "name": "VS Code",
       "url": "https://code.visualstudio.com/download",
-      "for": "optional, attach to the devcontainer"
+      "for": "optional, attach to the devcontainer",
+      "evidence": [
+        "https://code.visualstudio.com/download",
+        "docs/setup.md#per-repo"
+      ]
     }
   ],
   "parallelTools": [
@@ -109,7 +144,11 @@
         "terminal splits, SSH remote worktrees, mobile app",
         "the app offers its `orca-cli` and `orchestration` skills"
       ],
-      "when": "you want terminal-based parallel agents with worktrees, remote machines or mobile access"
+      "when": "you want terminal-based parallel agents with worktrees, remote machines or mobile access",
+      "evidence": [
+        "https://github.com/stablyai/orca",
+        "docs/stack.md#recommended-tools-optional"
+      ]
     },
     {
       "name": "Nimbalyst",
@@ -121,7 +160,11 @@
         "every agent edit arrives as a diff you approve or reject",
         "visual editors (Markdown, CSV, mockups, diagrams), task tracking, iOS app"
       ],
-      "when": "you review changes visually and work on docs, mockups and tasks next to the agents"
+      "when": "you review changes visually and work on docs, mockups and tasks next to the agents",
+      "evidence": [
+        "https://github.com/Nimbalyst/nimbalyst",
+        "docs/stack.md#recommended-tools-optional"
+      ]
     },
     {
       "name": "cmux",
@@ -133,7 +176,11 @@
         "notifications when an agent needs input and a sidebar with branch, PR status and ports",
         "browser pane inside the terminal"
       ],
-      "when": "you are on macOS and want a terminal without a separate app"
+      "when": "you are on macOS and want a terminal without a separate app",
+      "evidence": [
+        "https://github.com/manaflow-ai/cmux",
+        "docs/stack.md#recommended-tools-optional"
+      ]
     }
   ],
   "openhands": {
@@ -146,6 +193,10 @@
       "Automations on a schedule or on webhook events (GitHub, Slack, Linear), for example splitting GitHub issues into tasks.",
       "Without a sandbox, the local agent has full access to your filesystem.",
       "Unverified: whether agents inside its containers load the BenchKeeper rules and skills, which are installed on the host."
+    ],
+    "evidence": [
+      "https://github.com/OpenHands/OpenHands",
+      "docs/setup.md#per-repo"
     ]
   },
   "overview": {
@@ -283,7 +334,11 @@
         "sub": "request, issue, on-ramps",
         "human": "approve issue",
         "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: questions in rounds, plan mode, then a GitHub issue you approve.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, explores in plan mode, then drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval."
+        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, explores in plan mode, then drafts the issue (title, goal, acceptance criteria, tasks) and creates it after your approval.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
+          "plugins/benchkeeper/skills/workflow/software.md#steps"
+        ]
       },
       {
         "name": "Specify",
@@ -291,21 +346,32 @@
         "sub": "plan, spec, tickets",
         "human": "approve the plan",
         "tip": "Standard: a plan of a few lines that names the test seams. Full: the spec in the issue, terms and decisions recorded. Several sessions: one ticket per testable slice.",
-        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec in the issue (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them."
+        "text": "Standard tier: a plan of a few lines that names the test seams. Full tier: the spec in the issue (deployment target, data storage, module boundaries, core types), with terms and decisions recorded (`domain-modeling` with Matt Pocock's skills). Work for several sessions: one ticket per independently testable slice; with his skills the agent suggests `/to-spec` and `/to-tickets` and waits for you to run them.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/SKILL.md",
+          "plugins/benchkeeper/skills/workflow/full-tier.md"
+        ]
       },
       {
         "name": "Build",
         "phase": "build",
         "sub": "branch, tests first",
         "tip": "Every tier: a branch off the default branch. Standard and full: the existing tests of the touched code, then tests first at the agreed seams.",
-        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. Ponytail `full` for the smallest complete change. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts."
+        "text": "Every tier: a branch `<type>/<issue>-<slug>`, or `<type>/<slug>` without an issue, never the default branch unless you say so. Standard and full tiers: the existing tests that cover the touched code run first, then tests first at the agreed seams (`tdd` with Matt Pocock's skills), ticket by ticket. With the Ponytail pack, Ponytail runs at its level `full`. Full tier: when the build drifts from the plan, the agent stops and asks before it discards the branch and restarts.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/software.md#steps",
+          "docs/stack.md#components"
+        ]
       },
       {
         "name": "Verify",
         "phase": "build",
         "sub": "tests, browser, spec review",
         "tip": "Every tier: build, types, lint and tests where AGENTS.md says, each with its command and result. UI changes also in a browser. Full: the branch reviewed against the spec.",
-        "text": "Every tier: the project's build, types, lint and tests, run where `AGENTS.md` says (the dev container by default), each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them. Long checks run once, after the last edit. Full tier: the branch is reviewed against the spec (`code-review` with Matt Pocock's skills)."
+        "text": "Every tier: the project's build, types, lint and tests, run where `AGENTS.md` says (the dev container by default), each reported with its command and result. UI changes also in a browser through Playwright MCP, in addition to the UI tests, never instead of them. Long checks run once, after the last edit. Full tier: the branch is reviewed against the spec (`code-review` with Matt Pocock's skills).",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/software.md#verify"
+        ]
       },
       {
         "name": "Ship",
@@ -313,14 +379,20 @@
         "sub": "pr, /code-review, checks",
         "human": "you merge",
         "tip": "Standard, full and risky: /code-review before push. Risky: /security-review. Draft pull request, checks, ready. You merge.",
-        "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. Draft pull request with `Closes #<issue>` and the key decisions, checks, ready. Merge only on your instruction. Several tasks on one branch get one review and one pull request at the end."
+        "text": "Standard, full and risky work: `/code-review` before `git push` (correctness), risky changes also `/security-review`. Draft pull request with `Closes #<issue>` and the key decisions, checks, ready. Merge only on your instruction. Several tasks on one branch get one review and one pull request at the end.",
+        "evidence": [
+          "plugins/benchkeeper/skills/workflow/software.md#steps"
+        ]
       },
       {
         "name": "Maintain",
         "phase": "maintain",
         "sub": "retro, architecture, audit",
         "tip": "After a session that went sideways: retro. On request: /maintaining-repos (audit, cleanup, architecture, test audit, debt, dependencies, pins, docs drift, unused skills). benchkeeper doctor for setup drift. Findings become new requests.",
-        "text": "After a session that went sideways: `/retro` (Matt Pocock's skills). On request (`/maintaining-repos`): Ponytail's audit and debt, cleanup tools (unused code, duplicates), architecture checks (cycles, forwarding modules), a test audit by mutation testing, dependency audit, version pins, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene, and with Matt Pocock's skills `/improve-codebase-architecture` and `/triage`. `benchkeeper doctor` reports setup drift on the machine and in the project. Findings become new requests."
+        "text": "After a session that went sideways: `/retro` (Matt Pocock's skills). On request (`/maintaining-repos`): Ponytail's audit and debt, cleanup tools (unused code, duplicates), architecture checks (cycles, forwarding modules), a test audit by mutation testing, dependency audit, version pins, docs drift, `/doctor prompt-audit`, `/skill-doctor`, repository hygiene, and with Matt Pocock's skills `/improve-codebase-architecture` and `/triage`. `benchkeeper doctor` reports setup drift on the machine and in the project. Findings become new requests.",
+        "evidence": [
+          "plugins/benchkeeper/skills/maintaining-repos/SKILL.md"
+        ]
       }
     ]
   },
@@ -332,8 +404,66 @@
         "url": "https://github.com/obra/superpowers",
         "role": "workflow owner",
         "installs": "a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache",
-        "evaluation": "evaluations/workflow-frameworks/superpowers.md"
+        "evidence": "evaluations/workflow-frameworks/superpowers.md"
       }
     ]
+  },
+  "stack": {
+    "reasons": [
+      {
+        "name": "Quality",
+        "text": "in BenchKeeper's mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock's skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3).",
+        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+      },
+      {
+        "name": "Time",
+        "text": "it depends on the version: setup-v4.0 with Matt Pocock's skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9. setup-v6.0 is not measured yet.",
+        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+      },
+      {
+        "name": "Cost",
+        "text": "Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3).",
+        "evidence": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md"
+      },
+      {
+        "name": "Skills by level",
+        "text": "the full flow runs only for full-tier work. Small changes load one targeted skill.",
+        "evidence": "plugins/benchkeeper/skills/workflow/SKILL.md"
+      },
+      {
+        "name": "One install",
+        "text": "one machine setup covers every repository. Each repository adds only its tracker, docs and stack.",
+        "evidence": [
+          "docs/setup.md#setup-details",
+          "docs/setup.md#per-repo"
+        ]
+      }
+    ]
+  },
+  "evidence": {
+    "description": [
+      "docs/setup.md#setup-details",
+      "docs/setup.md#per-repo"
+    ],
+    "tagline": [
+      "docs/setup.md#setup-details",
+      "docs/setup.md#per-repo"
+    ],
+    "overview.audience": [
+      "docs/setup.md#per-repo",
+      "docs/setup.md#update"
+    ],
+    "sdlc.requirements": "docs/automations.md#catalogue",
+    "frameworks.rule": [
+      "docs/setup.md#frameworks",
+      "app/test/frameworks.test.mjs"
+    ],
+    "quickstart.needs": "app/package.json",
+    "quickstart.choose": [
+      "app/README.md#web-ui",
+      "app/README.md#commands"
+    ],
+    "quickstart.next": "docs/setup.md#update",
+    "quickstart.changes": "docs/setup.md#setup-details"
   }
 }

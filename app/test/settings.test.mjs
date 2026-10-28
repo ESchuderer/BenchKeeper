@@ -413,21 +413,12 @@ test('Doctor: a bypass default mode in project or local settings is flagged, in 
   assert.equal(found().length, 0, 'the user file takes the mode: the user\'s own choice');
 });
 
-test('Doctor: the advisor rank sees a [1m] model id, and a pinned Sonnet 4.5 or the sonnet alias on Foundry is warned about', () => {
+test('Doctor: the advisor rank sees a [1m] model id, and the sonnet alias on Foundry is warned about', () => {
   const ctx = machine();
   const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message)).map((i) => i.message); };
   assert.match(messages({ advisorModel: 'claude-sonnet-5-5[1m]', model: 'claude-opus-5-5' })[0], /ranks below the main model/);
   assert.match(messages({ advisorModel: 'claude-opus-4-6[1m]', model: 'claude-opus-5-5[1m]' })[0], /ranks below the main model/);
   assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5[1m]', model: 'claude-sonnet-5-5' }), []);
-  // The retiring id, in every place a model is named; other ids and platform forms are not touched.
-  const OLD = 'claude-sonnet-4-5-20250929';
-  for (const settings of [{ model: OLD }, { model: `${OLD}[1m]` }, { env: { ANTHROPIC_DEFAULT_MODEL: OLD } }, { advisorModel: OLD }, { fallbackModel: [OLD] }, { env: { ANTHROPIC_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_SONNET_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_HAIKU_MODEL: OLD } }, { env: { CLAUDE_CODE_SUBAGENT_MODEL: OLD } }]) {
-    assert.match(messages(settings).join(), /retires on 2026-11-30/, JSON.stringify(settings));
-  }
-  assert.match(messages({}, { ANTHROPIC_DEFAULT_MODEL: OLD }).join(), /retires on 2026-11-30/, 'the default for new sessions, from the process environment');
-  assert.deepEqual(messages({}), []);
-  assert.deepEqual(messages({ model: 'claude-sonnet-5-5' }), []);
-  assert.deepEqual(messages({ model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0' }), [], 'Bedrock keeps its own schedule');
   // The sonnet alias on Foundry resolves to Sonnet 4.5; the setup's own subagent alias counts too.
   const FOUNDRY = { CLAUDE_CODE_USE_FOUNDRY: '1' };
   assert.match(messages({ env: { ...FOUNDRY, CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/);

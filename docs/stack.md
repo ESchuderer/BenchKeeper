@@ -48,7 +48,7 @@ With the `ponytail` pack, another Ponytail level for the current session: `/pony
 
 - Quality: in BenchKeeper's mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock's skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3, [report](https://github.com/ESchuderer/BenchKeeper-research/blob/main/bench/results/2026-10-18-mistreevous.md)).
 - Time: it depends on the version. setup-v4.0 with Matt Pocock's skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9 (same report). setup-v6.0 is not measured yet ([#132](https://github.com/ESchuderer/BenchKeeper/issues/132)).
-- Cost: Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3, same report); external results range from 10% less to 55% more ([evaluation](../evaluations/behavior-modes/ponytail.md)).
+- Cost: Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3, same report).
 - Skills by level: small composable skills. The full flow runs only for full-tier work, small tiers load targeted skills.
 - Same setup everywhere: one machine install covers every repository. Each repository adds only its tracker, docs and stack.
 

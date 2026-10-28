@@ -52,7 +52,7 @@ const blocks = {
     '',
     '| Framework | Role | Installs | Evaluation |',
     '|---|---|---|---|',
-    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} | [${cell(f.evaluation.split('/').pop())}](../${f.evaluation}) |`),
+    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} | [${cell(f.evidence.split('/').pop())}](../${f.evidence}) |`),
   ],
   openhands: [
     `**Unattended or isolated runs: [${facts.openhands.name}](${facts.openhands.url}).** ${facts.openhands.summary}`,

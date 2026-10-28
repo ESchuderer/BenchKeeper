@@ -31,7 +31,7 @@ What the `benchkeeper` app (`app/`) may change on a machine, what it never chang
 1. CLI: `benchkeeper plan | apply | undo | projects update | sessions record | evals run | profile | ...` (`app/src/cli.mjs`).
 2. Local web server: `benchkeeper ui` (`app/src/server.mjs`), one-time URL token, then cookie plus API key.
 3. Files read: agent configuration, repositories (`AGENTS.md`, `.claude`, `package.json`, git state), session transcripts, Ponytail's task ledger when it exists (never its task names), imported profile and pack files, eval sets, the ledger.
-4. Commands run: `git`, `gh`, `npm`, `npx`, the agents' own CLIs, browser and folder-dialog launchers, and the argv of `benchkeeper sessions record`.
+4. Commands run: `git`, `gh`, `npm`, `npx`, the agents' own CLIs, browser and folder-dialog launchers, and the argv of `benchkeeper sessions record`. The app starts no agent session for the steps only the user can start: it shows their `sessions record` line to copy into the user's own terminal.
 5. Network: package registry and GitHub through those tools, the update notice (`app/src/update.mjs`).
 
 ## Trust boundaries

@@ -840,6 +840,25 @@ test.describe('views', () => {
     await unregister(page, ['mv-local']);
   });
 
+  test('Projects: the project doctor shows the record command of a pack setup with Copy, and Check again clears it once the files exist', async ({ page }) => {
+    const dir = folder('pd-pack');
+    mkdirSync(join(dir, '.benchkeeper'));
+    writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 1, setupVersion: '6.0.0', agents: ['claude'], share: false, packs: ['matt-pocock'], skills: [] }));
+    await nav(page, 'Projects').click();
+    await addFolder(page, dir);
+    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'pd-pack', exact: true }).click();
+    const doctor = page.getByRole('region', { name: 'Project doctor' });
+    await expect(doctor).toContainText('pack matt-pocock is on, but docs/agents/ does not exist');
+    await expect(doctor).toContainText(`benchkeeper sessions record --project '${dir}' -- claude '/mattpocock-skills:setup-matt-pocock-skills'`);
+    await expect(doctor.getByRole('button', { name: 'Copy the command for /mattpocock-skills:setup-matt-pocock-skills' })).toBeVisible();
+    await noAxe(page);
+    // The app runs nothing: the user's session writes the folder, Check again reads the doctor again.
+    mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+    await doctor.getByRole('button', { name: 'Check again' }).click();
+    await expect(doctor).not.toContainText('docs/agents/ does not exist');
+    await unregister(page, ['pd-pack']);
+  });
+
   test('Projects: pack switches preview the removal of a pack and Copy packs from project sets them; no axe violations', async ({ page }) => {
     await nav(page, 'Projects').click();
     const table = page.getByRole('table', { name: 'Projects' });
@@ -982,8 +1001,14 @@ test.describe('views', () => {
     await expect(drawer.getByRole('alert')).toContainText('Skill designing-technical-uis: the project has a UI');
     await drawer.getByRole('button', { name: 'Next' }).click();
     await drawer.getByRole('radio', { name: /^Standard/ }).check();
+    const planned = page.waitForResponse(/\/api\/project-plan\?/);
     await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer).toContainText(/\d+ changes in this checkout, in files git ignores/);
+    // The plan shows the line to start in a terminal, as the server built it, with Copy.
+    const { prompts } = await (await planned).json();
+    expect(prompts[0].command).toMatch(/^benchkeeper sessions record --project '.+' -- claude '\/benchkeeper:setting-up-projects'$/);
+    await expect(drawer.getByText(prompts[0].command)).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'Copy the command for /benchkeeper:setting-up-projects' })).toBeVisible();
     await expect(drawer).toContainText('CLAUDE.local.md');
     // The summary shows every answer next to its step; Change goes back to that step and one click returns.
     const answers = drawer.getByRole('list', { name: 'Your answers' });
@@ -1009,7 +1034,8 @@ test.describe('views', () => {
     await expect(drawer.getByRole('alert')).toContainText('committed');
     // The result step repeats what only the user can start.
     await expect(drawer).toContainText('After merging, start in the project');
-    await expect(drawer).toContainText('/benchkeeper:setting-up-projects stack skills');
+    await expect(drawer.getByText(prompts[0].command)).toBeVisible();
+    await expect(drawer).toContainText('stack skills, AGENTS.md commands, the dev container');
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Next project' }).click();
     await expect(drawer).toBeHidden();

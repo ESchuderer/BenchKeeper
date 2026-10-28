@@ -314,7 +314,12 @@ function ProjectDetail({ project, others, onChange }) {
           </>
         )}</Loading>
       )}
-      {live && <Section title="Project doctor"><Loading state={found} label="doctor">{(f) => <DoctorTable found={f.map((i) => ({ ...i, dir: project.path }))} />}</Loading></Section>}
+      {live && (
+        <Section title="Project doctor">
+          <Group><Button size="xs" variant="default" onClick={found.reload} loading={found.loading}>Check again</Button></Group>
+          <Loading state={found} label="doctor">{(f) => <DoctorTable found={f.map((i) => ({ ...i, dir: project.path }))} />}</Loading>
+        </Section>
+      )}
     </Stack>
   );
 }

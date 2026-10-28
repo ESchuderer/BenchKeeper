@@ -45,7 +45,7 @@ Usage: benchkeeper <command> [options]
   apply [--agents a,b] [--pack p] [--level l] [--yes] [--all]
                                     global setup: asks per change; --yes takes the default selection,
                                     --all also the removals. --level lite|standard: the BenchKeeper plugin
-                                    alone, nothing else on the machine (standard: then project apply writes
+                                    alone, nothing else on the machine (standard: then projects apply writes
                                     the local block per repository); full: rules, settings, plugins, tools.
                                     Default: the level found (doctor shows it), full on a machine without BenchKeeper
   profile export [file] [--agents a,b]
@@ -73,25 +73,25 @@ Usage: benchkeeper <command> [options]
                                     MCP servers, hooks, subagents, commands and output styles each agent loads,
                                     read from files only (no agent starts), with owner and a runs-code mark; env
                                     values, headers and secrets never appear; nothing is written
-  case add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
+  evals cases add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--scope project|user] [--transcript file] [--description text] [--query text]
                                     records an observed miss as an eval case (~/.config/benchkeeper/evals/); a skill with
                                     no library counterpart is read from --project's or your skill folders (--scope picks one)
-  test [dir] [--agents a,b]         deterministic checks: files match the ledger, expected plugins and skills,
-                                    nothing unexpected installed, project skills at the library pins; exit 1 on a failure
-  eval [--agents a,b] [--model m] [--target t] [--all] [--yes]
+  evals plan|run [--agents a,b] [--model m] [--target t] [--all] [--yes]
                                     skill trigger evals with real agent sessions (subscription use, never in CI);
-                                    only targets changed since their last result unless --all
+                                    only targets changed since their last result unless --all; plan lists the targets and
+                                    sessions and starts none, run asks first (--yes answers it)
+  verify [dir] [--agents a,b]       deterministic checks: files match the ledger, expected plugins and skills,
+                                    nothing unexpected installed, project skills at the library pins; exit 1 on a failure
   history                           runs, newest first
   undo <run> [--step <step>]        restores the files of a run or one of its steps
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
-  project plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
+  projects plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--pack p] [--skill s] [--tier t] [--yes]
                     [--framework f|none] [--agent-file path]
-                    [--disable s] [--enable s] [--share|--local] [--caller lint-js|lint-python|sonar]
+                    [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup; answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
-                                    --disable moves a skill to .benchkeeper/disabled/, --enable moves it back;
                                     --caller writes that repo-baseline workflow file (never GitHub settings);
                                     --framework names the frameworks of this project (one workflow owner at most,
                                     none clears the plugin and agent ones; a pack
@@ -104,12 +104,13 @@ Usage: benchkeeper <command> [options]
                                     switches packs on top of the current state, as a plan with a diff (undo restores it):
                                     a project's packs (default: the current folder), or the plugins of a pack that
                                     installs one (--global). Disabling removes the skills no other pack or single pick needs
-  skills [list|update|reset|remove|adopt] [name..] [--project dir] [--yes]
+  skills [list|update|reset|remove|adopt|enable|disable] [name..] [--project dir] [--yes]
                                     skills of a project: state (current, outdated, modified, removed, disabled), the commit
                                     installed and the one the library offers, and folders no setup installed (untracked,
                                     never touched). update: to the library's copy (no name: every outdated one); reset: a
                                     skill edited here goes back to the library's (the edit is backed up, the diff shown);
-                                    remove: a single pick leaves the project; adopt: an untracked library skill becomes a pick
+                                    remove: a single pick leaves the project; adopt: an untracked library skill becomes a pick;
+                                    disable moves a skill to .benchkeeper/disabled/, enable moves it back (names required)
   projects [list|add <dir>..|scan <root>|remove <dir>..]
                                     projects Update all covers (projects.json in the config folder); add refuses another worktree
                                     of a registered repository unless --worktree; remove only unregisters
@@ -123,16 +124,16 @@ Usage: benchkeeper <command> [options]
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
-  update-all [dir..] [--yes] [--no-push] [--dry-run] [--max N] [--baseline auto|oss|private-advisory]
+  projects update [dir..] [--yes] [--no-push] [--dry-run] [--max N] [--baseline auto|oss|private-advisory]
                                     dir..: only these registered projects (default: all); per project: local setup (the
                                     default) applied in the checkout; shared setup
-                                    (project apply --share) on branch chore/agent-setup-<version> in a worktree,
+                                    (projects apply --share) on branch chore/agent-setup-<version> in a worktree,
                                     one commit, push and pull request when origin is on GitHub;
                                     --dry-run stops after the plan; pushes go to at most 25 repositories per run (--max N);
                                     --baseline also reports each project's GitHub settings drift, changing none
-  board [--no-open]                 sessions board of the Claude Code and Codex transcripts on this machine:
+  sessions board [--no-open]        sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html)
-  record [--project dir] -- <agent> [args]
+  sessions record [--project dir] -- <agent> [args]
                                     runs an agent session and records the files it changes (undo restores them)
   accounts [list]                   the accounts per agent (Claude Code, Codex): name, agent, host or dev container, default
   accounts add [name] [--agent claude|codex] [--container --mount path] [--label text] [--dir path] [--yes]
@@ -172,13 +173,13 @@ Usage: benchkeeper <command> [options]
                                     findings with id, severity, evidence and a fix: installed skills no session used,
                                     doctor findings, pins behind the newest release; the session signal needs 20 sessions
                                     of the last 90 days and reports nothing below that; nothing is written
-  maintain knowledge show [dir]     what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
+  knowledge show [dir]              what the maintaining-repos skill stored for the project (.benchkeeper/knowledge/,
                                     ignored by git): entries per file; a file that does not parse is listed as ignored
-  maintain knowledge clear [dir] [--yes]
+  knowledge clear [dir] [--yes]
                                     removes that folder after a question and nothing else of the project
 
---json (doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list,
-        settings list and get, frameworks list, board, insights, profile export, maintain knowledge show, accounts list and status)
+--json (doctor, verify, plan, projects plan, history, projects list and scan, packs list, skills list, rules list, extensions list,
+        settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md
 
@@ -189,7 +190,7 @@ const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, framework: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
-  'no-push': { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, disable: { type: 'string', multiple: true }, enable: { type: 'string', multiple: true }, id: { type: 'string' },
+  'no-push': { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
@@ -269,8 +270,8 @@ export async function main(argv, { out = process.stdout, err = process.stderr, i
     // With --json a failure is a document too: an unknown option, an unreadable file.
     if (!argv.includes('--json')) throw e;
     err.write(`${redact(e.message)}\n`);
-    const [cmd = 'ui', arg, sub] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
-    out.write(jsonDoc(commandName(cmd, arg, sub), { error: redact(e.message) }));
+    const [cmd = 'ui', arg] = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+    out.write(jsonDoc(commandName(cmd, arg), { error: redact(e.message) }));
     return 2;
   } finally { ask.close(); }
 }
@@ -294,7 +295,7 @@ async function command(argv, { out, err, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   const [cmd = 'ui', arg] = positionals;
   if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
-  if (o.json && cmd !== 'test') return jsonCommand({ cmd, arg, o, positionals, out, err, ctx });
+  if (o.json && cmd !== 'verify') return jsonCommand({ cmd, arg, o, positionals, out, err, ctx });
   if (cmd === 'ui') {
     const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });
     out.write(`BenchKeeper UI: ${url}\nThe link works once and for 10 minutes. Ctrl+C stops the server.\n`);
@@ -319,23 +320,6 @@ async function command(argv, { out, err, ask, ctx }) {
     }
     return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
   }
-  if (cmd === 'project') {
-    const dir = resolve(positionals[2] ?? '.');
-    if (o.share && o.local) { out.write('--share and --local exclude each other\n'); return 2; }
-    const { pctx, plan, prompts, skills, warnings } = planProject(ctx, o, dir);
-    if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
-    for (const w of warnings) out.write(`warning: ${w}\n`);
-    if (arg === 'plan') {
-      plan.forEach((c) => show(c, out));
-      out.write(`${plan.length} changes.\n`);
-    } else if (arg === 'apply') {
-      const code = plan.length ? report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out) : 0;
-      if (code) return code;
-    } else { out.write('project needs plan or apply\n'); return 2; }
-    out.write('Then, in an agent session the app records:\n');
-    for (const p of prompts) out.write(`  benchkeeper record --project ${dir} -- ${p.agent} '${p.prompt}'   (${p.why})\n`);
-    return 0;
-  }
   if (cmd === 'packs' && ['enable', 'disable'].includes(arg)) return switchPacks(ctx, { o, positionals, out, ask });
   if (cmd === 'skills') return skillsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'frameworks') {
@@ -353,6 +337,59 @@ async function command(argv, { out, err, ask, ctx }) {
       for (const x of invalidPacks(ctx)) out.write(`${x.file.padEnd(16)} invalid: ${x.reason} (benchkeeper packs remove ${x.file})\n`);
     }
     return 0;
+  }
+  if (cmd === 'projects' && (arg === 'plan' || arg === 'apply')) {
+    const dir = resolve(positionals[2] ?? '.');
+    if (o.share && o.local) { out.write('--share and --local exclude each other\n'); return 2; }
+    const { pctx, plan, prompts, skills, warnings } = planProject(ctx, o, dir);
+    if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
+    for (const w of warnings) out.write(`warning: ${w}\n`);
+    if (arg === 'plan') {
+      plan.forEach((c) => show(c, out));
+      out.write(`${plan.length} changes.\n`);
+    } else {
+      const code = plan.length ? report(apply(plan, pctx, { scope: dir, select: await choose(plan, o, ask, out) }), out) : 0;
+      if (code) return code;
+    }
+    out.write('Then, in an agent session the app records:\n');
+    for (const p of prompts) out.write(`  benchkeeper sessions record --project ${dir} -- ${p.agent} '${p.prompt}'   (${p.why})\n`);
+    return 0;
+  }
+  if (cmd === 'projects' && arg === 'update') {
+    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
+    const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
+    if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
+    const asked = positionals.slice(2).map(canon), registered = listProjects(ctx);
+    const unknown = positionals.slice(2).filter((_, i) => !registered.some((p) => p.path === asked[i]));
+    if (unknown.length) { out.write(`${unknown.join(', ')}: not a registered project (benchkeeper projects add <dir>)\n`); return 2; }
+    const projects = registered.filter((p) => !asked.length || asked.includes(p.path)).map((p) => status(ctx, p.path));
+    if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
+    for (const p of projects) {
+      const commits = p.share || p.committed;
+      const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean && commits ? 'working tree has changes, skipped'
+        : p.changes ? `${p.changes.length} changes` : `setup ${p.setupVersion} on ${p.origin}, checkout ${p.checkout ?? 'without one'}${p.current ? ': pull it' : ''}`);
+      out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
+      if ((p.clean || !commits) && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
+    }
+    if (o.baseline) {
+      for (const p of projects) {
+        out.write(`${p.path}  GitHub settings against profile ${o.baseline} (report only)\n`);
+        for (const i of baselineIssues(ctx, p.path, { profile: o.baseline, ref: o['baseline-ref'] })) out.write(`  ${(i.tag ?? i.level).padEnd(8)} ${i.message}\n`);
+      }
+    }
+    // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
+    const ready = projects.filter((p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
+    if (!ready.length) { out.write('nothing to update\n'); return 0; }
+    if (o['dry-run']) { out.write(`dry run: ${ready.length} projects would be updated, nothing changed\n`); return 0; }
+    const pushing = o['no-push'] ? 0 : pushTargets(ctx, ready.map((p) => p.path)).length;
+    if (pushing > max) { out.write(`${pushing} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
+    const shared = ready.filter((p) => p.share).length;
+    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${contentVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
+    if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
+    let results;
+    try { results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'], max }); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
+    return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
   if (cmd === 'projects') {
     const dirs = positionals.slice(2);
@@ -387,44 +424,9 @@ async function command(argv, { out, err, ask, ctx }) {
     if (!arg || arg === 'list') for (const p of listProjects(ctx)) out.write(`${p.path}\n`);
     return 0;
   }
-  if (cmd === 'update-all') {
-    if (o.baseline && !['auto', ...PROFILES].includes(o.baseline)) { out.write(`--baseline must be auto, ${PROFILES.join(' or ')}\n`); return 2; }
-    const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
-    if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
-    const asked = positionals.slice(1).map(canon), registered = listProjects(ctx);
-    const unknown = positionals.slice(1).filter((_, i) => !registered.some((p) => p.path === asked[i]));
-    if (unknown.length) { out.write(`${unknown.join(', ')}: not a registered project (benchkeeper projects add <dir>)\n`); return 2; }
-    const projects = registered.filter((p) => !asked.length || asked.includes(p.path)).map((p) => status(ctx, p.path));
-    if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
-    for (const p of projects) {
-      const commits = p.share || p.committed;
-      const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean && commits ? 'working tree has changes, skipped'
-        : p.changes ? `${p.changes.length} changes` : `setup ${p.setupVersion} on ${p.origin}, checkout ${p.checkout ?? 'without one'}${p.current ? ': pull it' : ''}`);
-      out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
-      if ((p.clean || !commits) && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
-    }
-    if (o.baseline) {
-      for (const p of projects) {
-        out.write(`${p.path}  GitHub settings against profile ${o.baseline} (report only)\n`);
-        for (const i of baselineIssues(ctx, p.path, { profile: o.baseline, ref: o['baseline-ref'] })) out.write(`  ${(i.tag ?? i.level).padEnd(8)} ${i.message}\n`);
-      }
-    }
-    // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
-    const ready = projects.filter((p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
-    if (!ready.length) { out.write('nothing to update\n'); return 0; }
-    if (o['dry-run']) { out.write(`dry run: ${ready.length} projects would be updated, nothing changed\n`); return 0; }
-    const pushing = o['no-push'] ? 0 : pushTargets(ctx, ready.map((p) => p.path)).length;
-    if (pushing > max) { out.write(`${pushing} repositories to push to: Update all pushes to at most ${max} per run (--max N raises it, --no-push stays local)\n`); return 1; }
-    const shared = ready.filter((p) => p.share).length;
-    const what = `${ready.length} projects: ${ready.length - shared} local in the checkout${shared ? `, ${shared} shared on branch chore/agent-setup-${contentVersion}, one commit${o['no-push'] ? '' : ', git push and gh pr create where origin is on GitHub'}` : ''}`;
-    if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
-    let results;
-    try { results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'], max }); } catch (e) { out.write(`${e.message}\n`); return 1; }
-    for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
-    return results.some((r) => r.status === 'stopped') ? 1 : 0;
-  }
   if (cmd === 'insights') { out.write('insights works with --json\n'); return 2; }
-  if (cmd === 'board') {
+  if (cmd === 'sessions' && !['board', 'record'].includes(arg)) { out.write('sessions needs board or record\n'); return 2; }
+  if (cmd === 'sessions' && arg === 'board') {
     out.write('Reading the transcripts; the first run reads all of them, later runs only new or changed ones.\n');
     const rows = await scanSessions(ctx);
     const file = writeBoard(ctx, rows);
@@ -433,9 +435,9 @@ async function command(argv, { out, err, ask, ctx }) {
     if (!o['no-open']) launch(pathToFileURL(file).href);
     return 0;
   }
-  if (cmd === 'record') {
-    const argv = positionals.slice(1);
-    if (!argv.length) { out.write('record needs the agent command after --\n'); return 2; }
+  if (cmd === 'sessions') {
+    const argv = positionals.slice(2);
+    if (!argv.length) { out.write('sessions record needs the agent command after --\n'); return 2; }
     const dir = resolve(o.project ?? '.');
     const run = recordSession({ ...ctx, roots: [dir] }, dir, argv);
     const e = run.entries[0];
@@ -475,7 +477,7 @@ async function command(argv, { out, err, ask, ctx }) {
     return found.some((i) => i.level === 'error') ? 1 : 0;
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
-  if (cmd === 'maintain') return maintainCommand({ o, positionals, out, ask });
+  if (cmd === 'knowledge') return knowledgeCommand({ o, positionals, out, ask });
   if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
@@ -485,8 +487,8 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`${extensionLines(extensionsView(ctx, { agents: o.agent ? [o.agent] : RULE_AGENTS, dir: o.project ? resolve(o.project) : undefined })).join('\n')}\n`);
     return 0;
   }
-  if (cmd === 'case') {
-    if (arg !== 'add') { out.write('case needs add\n'); return 2; }
+  if (cmd === 'evals' && arg === 'cases') {
+    if (positionals[2] !== 'add') { out.write('evals cases needs add\n'); return 2; }
     // A session run gives the project and transcript.
     const session = o.run ? ctx.ledger.get(o.run) : null;
     const r = addCase(ctx, { target: o.target?.[0], scope: o.scope, expected: o.expected, should: !o['should-not'], run: o.run, query: o.query, description: o.description,
@@ -494,18 +496,20 @@ async function command(argv, { out, err, ask, ctx }) {
     out.write(`case ${r.case.id} for ${r.target} in ${r.path}\nquery: ${r.case.query.split('\n')[0].slice(0, 120)}\nrun ${r.run}: undo with benchkeeper undo ${r.run}\n`);
     return 0;
   }
-  if (cmd === 'test') {
+  if (cmd === 'verify') {
     const checks = harnessTest(ctx, { agents: selectedAgents(ctx, o.agents), dir: arg ? resolve(arg) : undefined });
     if (o.json) return testJson(checks, out);
     for (const c of checks) out.write(`${c.ok ? 'ok  ' : 'fail'}  ${c.name}${c.problems.map((p) => `\n      ${p}`).join('')}\n`);
     return checks.every((c) => c.ok) ? 0 : 1;
   }
-  if (cmd === 'eval') {
-    if (process.env.CI) { out.write('eval starts agent sessions on a subscription and does not run in CI\n'); return 2; }
+  if (cmd === 'evals') {
+    if (arg !== 'plan' && arg !== 'run') { out.write('evals needs plan, run or cases add\n'); return 2; }
+    if (arg === 'run' && process.env.CI) { out.write('evals run starts agent sessions on a subscription and does not run in CI\n'); return 2; }
     const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
     const sessions = plan.reduce((n, p) => n + p.cases.length, 0);
     if (!plan.length) { out.write('every target is unchanged since its last result (--all runs them again)\n'); return 0; }
     for (const p of plan) out.write(`${p.target}  ${p.agent}${p.model ? ` ${p.model}` : ''}  ${p.cases.length} cases${p.project ? `  (project ${p.project})` : ''}\n`);
+    if (arg === 'plan') return 0;
     if (!o.yes && !(await ask(`Start ${sessions} agent sessions?`))) return 1;
     for (const r of await runEval(ctx, plan)) {
       const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
@@ -516,7 +520,7 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'history') {
     for (const r of ctx.ledger.list()) {
-      const note = r.note?.case ? ` (eval case ${r.note.case} for ${r.note.target}${r.note.run ? `, from ${r.note.run}` : ''})` : r.kind === 'session' ? ` (a miss: benchkeeper case add --run ${r.id} --target ... --expected ...)` : '';
+      const note = r.note?.case ? ` (eval case ${r.note.case} for ${r.note.target}${r.note.run ? `, from ${r.note.run}` : ''})` : r.kind === 'session' ? ` (a miss: benchkeeper evals cases add --run ${r.id} --target ... --expected ...)` : '';
       out.write(`${r.id}  ${r.kind.padEnd(7)} ${(r.status ?? 'interrupted').padEnd(11)} ${r.scope}  ${r.entries.length} changes${r.of ? ` (undo of ${r.of})` : ''}${note}\n`);
     }
     for (const b of legacyBackups(ctx)) out.write(`${b}  setup.sh backup: benchkeeper restore ${b}\n`);
@@ -543,12 +547,12 @@ async function command(argv, { out, err, ask, ctx }) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, disable: o.disable, enable: o.enable, callers: o.caller, frameworks: o.framework?.filter((f) => f !== 'none'), agentFiles: o['agent-file'], ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, frameworks: o.framework?.filter((f) => f !== 'none'), agentFiles: o['agent-file'], ...extra };
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };
 }
 
-// The plan of one folder, shown and applied the way project apply does; the plugin installs of a pack stay with the global plan.
+// The plan of one folder, shown and applied the way projects apply does; the plugin installs of a pack stay with the global plan.
 async function runProjectPlan(ctx, dir, { o, out, ask }, planned) {
   const { pctx, plan, skills, warnings } = planned;
   if (skills.added.length || skills.removed.length) out.write(`skills: ${[...skills.added.map((n) => `+${n}`), ...skills.removed.map((n) => `-${n}`)].join(' ')}\n`);
@@ -567,7 +571,7 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   if (unknown.length) { out.write(`unknown pack ${unknown.join(', ')}, see benchkeeper packs list\n`); return 1; }
   if (!o.global) {
     const dir = resolve(o.project ?? '.');
-    if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper project apply --agents a,b --pack ${ids[0]}\n`); return 1; }
+    if (!tryState(dir)) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b --pack ${ids[0]}\n`); return 1; }
     return runProjectPlan(ctx, dir, { o, out, ask }, planProject(ctx, o, dir, on ? { packOn: ids } : { packOff: ids }));
   }
   const skillsOnly = ids.filter((id) => !known.find((p) => p.id === id).plugins);
@@ -582,8 +586,8 @@ async function switchPacks(ctx, { o, positionals, out, ask }) {
   return report(apply(plan, ctx, { scope: 'global', select: await choose(plan, o, ask, out) }), out);
 }
 
-const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt'];
-// skills list|update|reset|remove|adopt: the Catalog's skill management, through the same plan, diff and undo.
+const SKILL_ACTIONS = ['update', 'reset', 'remove', 'adopt', 'enable', 'disable'];
+// skills list|update|reset|remove|adopt|enable|disable: the Catalog's skill management, through the same plan, diff and undo.
 async function skillsCommand(ctx, { o, positionals, out, ask }) {
   const [, sub = 'list', ...names] = positionals;
   const dir = resolve(o.project ?? '.');
@@ -597,7 +601,8 @@ async function skillsCommand(ctx, { o, positionals, out, ask }) {
     if (!rows) out.write(`${dir} has no setup yet\n`);
     return 0;
   }
-  if (!rows) { out.write(`${dir} has no setup yet: benchkeeper project apply --agents a,b\n`); return 1; }
+  if (!rows) { out.write(`${dir} has no setup yet: benchkeeper projects apply --agents a,b\n`); return 1; }
+  if (['enable', 'disable'].includes(sub) && !names.length) { out.write(`skills ${sub} needs a skill name\n`); return 2; }
   let action;
   try { action = skillAction(rows, sub, names); } catch (e) { out.write(`${e.message}\n`); return 1; }
   if (!action.names.length) { out.write('nothing to change\n'); return 0; }
@@ -614,15 +619,15 @@ const changeDoc = (c) => ({ id: c.id, step: c.step, title: c.title, kind: c.kind
 const jsonDoc = (command, doc) => `${JSON.stringify({ schemaVersion: JSON_SCHEMA_VERSION, command, ...doc }, null, 2)}\n`;
 function testJson(checks, out) {
   const ok = checks.every((c) => c.ok);
-  out.write(jsonDoc('test', { ok, checks: checks.map((c) => ({ name: c.name, ok: c.ok, problems: c.problems })) }));
+  out.write(jsonDoc('verify', { ok, checks: checks.map((c) => ({ name: c.name, ok: c.ok, problems: c.problems })) }));
   return ok ? 0 : 1;
 }
 // The name a document carries: the command, with its subcommand where the table lists one.
-const commandName = (cmd, arg, sub) => (cmd === 'maintain' ? ['maintain', arg, sub].filter(Boolean).join(' ') : ['project', 'projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
+const commandName = (cmd, arg) => (['projects', 'packs', 'skills', 'rules', 'extensions', 'settings', 'frameworks', 'profile', 'accounts', 'knowledge', 'sessions', 'evals'].includes(cmd) ? `${cmd} ${arg ?? 'list'}` : cmd);
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
-  const name = commandName(cmd, arg, positionals[2]);
+  const name = commandName(cmd, arg);
   const emit = (doc, code = 0) => { out.write(jsonDoc(name, doc)); return code; };
   const fail = (message) => { err.write(`${redact(message)}\n`); return emit({ error: redact(message) }, 2); };
   // listProjects reads a broken registry as empty, so a document built from it would pass for a real result.
@@ -648,8 +653,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const plan = preview(globalPlan({ ctx, agents, options: { packs: o.pack ?? [], packsInUse: packsInUse(ctx), level } }));
     return emit({ agents, level, changes: plan.map(changeDoc) }, plan.some((c) => c.error) ? 1 : 0);
   }
-  if (cmd === 'project') {
-    if (arg !== 'plan') return fail('--json works with project plan');
+  if (cmd === 'projects' && arg === 'plan') {
     if (o.share && o.local) return fail('--share and --local exclude each other');
     const dir = resolve(positionals[2] ?? '.');
     const { plan, skills, warnings } = planProject(ctx, o, dir);
@@ -702,8 +706,8 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const registered = listProjects(ctx).map((p) => p.path);
     return emit({ root: canon(positionals[2] ?? '.'), found: scan(ctx, positionals[2] ?? '.').map((path) => ({ path, registered: registered.includes(canon(path)) })) });
   }
-  if (cmd === 'board') {
-    const extra = surplus(1); if (extra !== undefined) return extra;
+  if (cmd === 'sessions' && arg === 'board') {
+    const extra = surplus(2); if (extra !== undefined) return extra;
     // Nothing is written or opened; the title is left out because it quotes the first message of a session.
     const sessions = (await scanSessions(ctx)).map(({ title, ...s }) => s);
     return emit({ sessions });
@@ -715,10 +719,10 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const found = await collectInsights(ctx, { agents: selectedAgents(ctx, o.agents), dir: o.project && resolve(o.project) });
     return emit(found, found.summary.error ? 1 : 0);
   }
-  if (cmd === 'maintain') {
-    if (arg !== 'knowledge' || positionals[2] !== 'show') return fail('maintain --json works with knowledge show');
-    const extra = surplus(4); if (extra !== undefined) return extra;
-    const dir = resolve(positionals[3] ?? '.');
+  if (cmd === 'knowledge') {
+    if (arg !== 'show') return fail('knowledge --json works with show');
+    const extra = surplus(3); if (extra !== undefined) return extra;
+    const dir = resolve(positionals[2] ?? '.');
     return emit({ dir, ...readKnowledge(dir) });
   }
   if (cmd === 'accounts' && (!arg || ['list', 'status'].includes(arg))) {
@@ -737,7 +741,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, test, plan, project plan, history, projects list and scan, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, board, insights, profile export, maintain knowledge show and accounts list and status');
+  return fail('--json works with doctor, verify, plan, projects plan, history, projects list and scan, packs list, skills list, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show and accounts list and status');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));
@@ -796,11 +800,11 @@ async function settingsCommand({ o, positionals, out, ask, ctx }) {
   return report(apply(plan, sctx, { scope: layer === 'user' ? 'global' : dir, select: await choose(plan, o, ask, out) }), out);
 }
 
-// maintain knowledge show|clear: the knowledge base of the maintaining-repos skill, per project folder.
-async function maintainCommand({ o, positionals, out, ask }) {
-  const [, topic, sub, where] = positionals;
-  if (topic !== 'knowledge' || !['show', 'clear'].includes(sub)) { out.write('maintain needs knowledge show or knowledge clear\n'); return 2; }
-  if (positionals.length > 4) { out.write(`unexpected argument ${positionals[4]}\n`); return 2; }
+// knowledge show|clear: the knowledge base of the maintaining-repos skill, per project folder.
+async function knowledgeCommand({ o, positionals, out, ask }) {
+  const [, sub, where] = positionals;
+  if (!['show', 'clear'].includes(sub)) { out.write('knowledge needs show or clear\n'); return 2; }
+  if (positionals.length > 3) { out.write(`unexpected argument ${positionals[3]}\n`); return 2; }
   const dir = resolve(where ?? '.');
   if (sub === 'clear' && linkedParent(dir)) { out.write(`${join(dir, '.benchkeeper')} is a link: nothing removed\n`); return 1; }
   let found;

@@ -179,7 +179,7 @@ export function Catalog({ catalog, params, refresh }) {
           <Packs packs={c.packs} onChange={refresh} />
           {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} />}
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
-          <Cli>{`benchkeeper packs list\nbenchkeeper project apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}\nbenchkeeper skills list --project <dir>\nbenchkeeper skills update|reset|remove|adopt <name> --project <dir>`}</Cli>
+          <Cli>{`benchkeeper packs list\nbenchkeeper projects apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}\nbenchkeeper skills list --project <dir>\nbenchkeeper skills update|reset|remove|adopt|enable|disable <name> --project <dir>`}</Cli>
         </Stack>
       );
     }}</Loading>
@@ -486,7 +486,7 @@ export function Projects({ params, overview, refresh }) {
         } detail={open && list.some((p) => p.path === open) ? (
           <ProjectDetail key={open} project={list.find((p) => p.path === open)} others={list} onChange={{ done: reload, setup: () => setSetupPaths({ paths: [open], change: !!list.find((p) => p.path === open)?.setupVersion }), remove: withOpen('list'), removeSetup: withOpen('setup') }} />
         ) : null} />
-      ) : <Text>No projects. Add a folder set up with benchkeeper project apply, or scan a parent folder.</Text>)}</Loading>
+      ) : <Text>No projects. Add a folder set up with benchkeeper projects apply, or scan a parent folder.</Text>)}</Loading>
       <Section title="Update all">
         <Text size="sm">A local setup is written in the checkout. A shared one gets branch chore/agent-setup-&lt;version&gt; per project in a worktree, one commit. Projects with uncommitted changes are skipped. A project without a state file is set up step by step first.</Text>
         <Group>
@@ -509,7 +509,7 @@ export function Projects({ params, overview, refresh }) {
       {dialog?.kind === 'list' && <RemoveFromList paths={dialog.paths} onClose={() => setDialog(null)} onDone={() => closeDialog(true)} />}
       {dialog?.kind === 'setup' && <RemoveSetup paths={dialog.paths} push={push} onClose={() => setDialog(null)} onDone={() => closeDialog(false)} />}
       {setupPaths && <ProjectSetup paths={setupPaths.paths} change={setupPaths.change} push={push} onClose={() => { setSetupPaths(null); reload(); }} />}
-      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename ${open ?? '<dir>'} <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove ${open ?? '<dir>'} [--setup]\nbenchkeeper project plan ${open ?? '<dir>'}\nbenchkeeper packs enable|disable <id> --project ${open ?? '<dir>'}\nbenchkeeper update-all${push ? '' : ' --no-push'}\nbenchkeeper record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
+      <Cli>{`benchkeeper projects add ${path || '<dir>'}\nbenchkeeper projects scan ${path || '<root>'}\nbenchkeeper projects rename ${open ?? '<dir>'} <name> --notes <text>\nbenchkeeper projects relocate <old> <new>\nbenchkeeper projects remove ${open ?? '<dir>'} [--setup]\nbenchkeeper projects plan ${open ?? '<dir>'}\nbenchkeeper packs enable|disable <id> --project ${open ?? '<dir>'}\nbenchkeeper projects update${push ? '' : ' --no-push'}\nbenchkeeper sessions record --project <dir> -- claude '/benchkeeper:setting-up-projects'`}</Cli>
     </Stack>
   );
 }
@@ -545,7 +545,7 @@ export function History({ history, params, refresh }) {
           } detail={open ? <RunPanel key={open} id={open} order={3} onChanged={refresh} /> : null} />
         ) : <Text>No runs yet.</Text>;
       }}</Loading>
-      <Cli>{`benchkeeper history\nbenchkeeper undo ${open ?? '<run>'}\nbenchkeeper undo ${open ?? '<run>'} --step <step>\nbenchkeeper case add --run <session run> --target skill:<name> --expected <text>`}</Cli>
+      <Cli>{`benchkeeper history\nbenchkeeper undo ${open ?? '<run>'}\nbenchkeeper undo ${open ?? '<run>'} --step <step>\nbenchkeeper evals cases add --run <session run> --target skill:<name> --expected <text>`}</Cli>
     </Stack>
   );
 }
@@ -659,7 +659,7 @@ export function Sessions() {
       {error && <Note color="red">{error}</Note>}
       {job && <Stack gap={4}><Text size="sm">Reading transcripts{p ? `: ${p.done} of ${p.total} files` : ''}</Text><Progress value={p?.total ? (p.done / p.total) * 100 : 0} aria-label="Transcripts read" /></Stack>}
       {src && <iframe ref={frame} key={shown} src={src} title="Sessions board" onLoad={() => frame.current?.contentWindow?.postMessage({ bkTheme: theme.current }, window.location.origin)} style={{ display: 'block', width: '100%', height, border: 0 }} />}
-      <Cli>benchkeeper board</Cli>
+      <Cli>benchkeeper sessions board</Cli>
     </Stack>
   );
 }

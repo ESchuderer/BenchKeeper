@@ -159,7 +159,7 @@ export function Evals({ params }) {
         );
       }}</Loading>
       <RunEvals onDone={evals.reload} />
-      <Cli>{`benchkeeper eval${open ? ` --target ${open}` : ''}\nbenchkeeper eval --all`}</Cli>
+      <Cli>{`benchkeeper evals run${open ? ` --target ${open}` : ''}\nbenchkeeper evals run --all`}</Cli>
     </Stack>
   );
 }

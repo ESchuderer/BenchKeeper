@@ -326,7 +326,7 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), p
         check: (start) => { if (!answers[path] && !local && git(ctx, path, ['cat-file', '-e', `${start}:${STATE}`]).code !== 0) throw new Error(`no ${STATE}: set the project up first`); },
         work: (tree) => apply(projectChanges(ctx, tree, answers[path]), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: `chore/agent-setup-${contentVersion}` } }),
         title: `chore: agent setup ${contentVersion}`,
-        body: `BenchKeeper setup ${contentVersion}, applied by \`benchkeeper update-all\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`,
+        body: `BenchKeeper setup ${contentVersion}, applied by \`benchkeeper projects update\` from \`${STATE}\`. Steps that need an agent session are not part of this change.`,
       });
     } catch (e) {
       result.status = 'stopped';
@@ -349,7 +349,7 @@ export function unshare(ctx, path, { push = true } = {}) {
       branch: 'chore/agent-setup-local', push,
       work: (tree) => apply(preview(committedSetup(tree)), projectCtx(ctx, tree), { scope: tree, note: { updateAll: path, branch: 'chore/agent-setup-local' } }),
       title: 'chore: keep the agent setup local',
-      body: 'BenchKeeper now keeps the per-project agent setup on each machine, in files git ignores (`.git/info/exclude`): `CLAUDE.local.md`, `AGENTS.override.md`, `.claude/settings.local.json`, the installed skills and `.benchkeeper/`. This removes the committed copies: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.\n\nAfter merging, pull, then run Update all in BenchKeeper (`npx benchkeeper update-all`): it writes the local setup from the answers it kept. Other machines: `npx benchkeeper project apply --agents ...` once.',
+      body: 'BenchKeeper now keeps the per-project agent setup on each machine, in files git ignores (`.git/info/exclude`): `CLAUDE.local.md`, `AGENTS.override.md`, `.claude/settings.local.json`, the installed skills and `.benchkeeper/`. This removes the committed copies: the BenchKeeper block in `AGENTS.md`, a `CLAUDE.md` that only imported `AGENTS.md`, the sandbox keys BenchKeeper set, the skills BenchKeeper or the skills CLI installed with `skills-lock.json`, and `.benchkeeper/`. The project\'s own `AGENTS.md` text, its own skills, `docs/agents/` and the dev container stay.\n\nAfter merging, pull, then run Update all in BenchKeeper (`npx benchkeeper projects update`): it writes the local setup from the answers it kept. Other machines: `npx benchkeeper projects apply --agents ...` once.',
     });
   } catch (e) {
     result.status = 'stopped';

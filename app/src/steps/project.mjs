@@ -500,7 +500,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
       ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)), ...frameworkPaths(a, dir),
       // Stack skills the setup session installed with the skills CLI (its lockfile names them).
       ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])].map((p) => `/${prefix}${p}`);
-    const list = a.share ? null : `# BenchKeeper's local agent setup (benchkeeper project apply)\n${local.join('\n')}`;
+    const list = a.share ? null : `# BenchKeeper's local agent setup (benchkeeper projects apply)\n${local.join('\n')}`;
     // One block per project folder: several projects in one repository keep their own lists.
     const id = `local:/${prefix}`;
     if (a.share ? getBlock(readText(exclude), id, '#') != null : true) add('exclude', a.share ? 'git ignores the setup no longer (it is committed)' : 'git ignores the local setup (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t) => setBlock(t, id, list, '#') });

@@ -5,16 +5,16 @@ description: "How an agent manages its own BenchKeeper setup through the benchke
 
 # Operating BenchKeeper through the CLI
 
-`npx benchkeeper@6.25.0 <command>` (below `benchkeeper <command>`). `benchkeeper help` lists every option. Every change the CLI makes is a plan with a diff, is recorded as a run and can be undone. A few read-only views of the web UI (dashboard figures, a run report) have no command yet; the Routes and commands table in the app README names each gap.
+`npx benchkeeper@6.25.0 <command>` (below `benchkeeper <command>`). `benchkeeper help` lists every option. Every change the setup commands make is a plan with a diff and is recorded as a run that `undo` reverses. Three actions are not undone by it: `packs remove` (the file goes to `backup/packs/` in the config folder), the pull request and branch that `update-all`, `projects remove --setup` and `projects unshare` push for a shared setup (close them on GitHub), and a token removed by `accounts remove`. Say which of these a plan contains before asking for approval. A few read-only views of the web UI (dashboard figures, a run report) have no command yet; the Routes and commands table in the app README names each gap.
 
 ## Safe order
 
-1. Read the state: `benchkeeper doctor --json` (add the project folder as `dir`), `benchkeeper test --json`, `benchkeeper projects list --json`. A finding of level `error` is exit 1.
+1. Read the state: `benchkeeper doctor [dir] --json`, `benchkeeper test [dir] --json`, `benchkeeper projects list --json`. Pass the project folder to `doctor` and `test` every time: without it `test` skips the project's skill checks. A finding of level `error` is exit 1.
 2. Plan, write nothing: `benchkeeper plan --json` (global) or `benchkeeper project plan [dir] --json` with the options you mean to apply. Show the user each change's `title` and `path`; the plan lists titles and paths, not diffs. Read a diff with the text form (no `--json`), which prints it.
 3. Ask before any change with `destructive: true`, and before anything that removes, disables or overwrites: `--all`, `projects remove --setup`, `packs remove`, `skills remove`, `rules disable`, `accounts remove`, `settings set --unset`. Do not pass `--all` on your own.
-4. Apply: `benchkeeper apply --yes` or `benchkeeper project apply [dir] <the same options> --yes`. `--yes` applies the default selection: no removals, no optional change. Without `--yes` and without a terminal, the command asks and takes the end of input as no.
-5. Keep the undo id. The last line of `apply` is `run <id>: undo with benchkeeper undo <id>`; `benchkeeper history --json` lists runs newest first. Tell the user the id.
-6. Check again: `benchkeeper doctor --json` and `benchkeeper test --json`. To go back: `benchkeeper undo <id>` (`--step <step>` for one step). Undo puts a file back only while it is as the run left it; otherwise it fails for that change and names the file. A removed plugin, a deleted token or a command without a recorded reverse is reported as manual.
+4. Apply: `benchkeeper apply <the options of the plan> --yes` (`plan` and `apply` take the same `--level`, `--agents` and `--pack`; the default level on a fresh machine is `full`) or `benchkeeper project apply [dir] <the same options> --yes`. `--yes` applies the default selection: no removals, no optional change. Without `--yes` and without a terminal, the command asks and takes the end of input as no.
+5. Keep the undo id. `apply` prints `run <id>: undo with benchkeeper undo <id>`; it is not the last line of `project apply`, which ends with record instructions. A plan with no changes creates no run: say so. `benchkeeper history --json` lists runs newest first. Tell the user the id.
+6. Check again: `benchkeeper doctor [dir] --json` and `benchkeeper test [dir] --json` with the same `dir`. To go back: `benchkeeper undo <id>` (`--step <step>` for one step). Undo puts a file back only while it is as the run left it; otherwise it fails for that change and names the file. A removed plugin, a deleted token or a command without a recorded reverse is reported as manual.
 
 Never run `apply`, `undo`, `restore` or `update-all` against a home folder or repository you were not asked to change. Credentials never go into a command line or output; `accounts login --token` and `run` are for the user.
 
@@ -25,7 +25,7 @@ Never run `apply`, `undo`, `restore` or `update-all` against a home folder or re
 | Need | Command |
 |---|---|
 | Install level, drift, fixes | `doctor [dir] --json` |
-| Files match the ledger | `test [dir] --json` |
+| Files match the ledger, project skills at their pins | `test [dir] --json` |
 | Global setup | `plan --json`, then `apply --yes` (`--agents a,b`, `--pack p`, `--level lite\|standard\|full`) |
 | One project's setup | `project plan [dir] --json`, then `project apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--framework`) |
 | Answers of a project | `.benchkeeper/state.json`; a changed answer is a new `project plan` |

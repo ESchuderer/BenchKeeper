@@ -49,8 +49,9 @@ test('issue-triage: parameters repos, labels and trusted_authors, report only by
 test('issue-triage: the approving label is never named as a label to set, no close, no write in report mode', sh, () => {
   const t = template();
   const helpers = ['precheck.sh', 'list.sh'].map((f) => readFileSync(join(genericDir, 'issue-triage', f), 'utf8'));
-  for (const text of [t.prompt, t.precheck, t.parameters.labels.default, ...helpers]) assert.ok(!text.includes(APPROVE), text);
-  assert.match(t.prompt, /^Never set a label that approves agent work/m);
+  assert.ok(!t.parameters.labels.default.includes(APPROVE));
+  const named = t.prompt.split('\n').filter((l) => l.includes(APPROVE));
+  assert.deepEqual(named, [`Never set the label that approves agent work (\`${APPROVE}\`), even when the list above holds it. Set no other label outside that list.`], 'named only in the prohibition');
   const [report, act] = t.prompt.split(/^5\. Mode act:/m);
   assert.ok(act, 'act mode follows report mode');
   assert.match(report, /Write nothing to GitHub\./);
@@ -68,6 +69,8 @@ test('issue-triage precheck: runs for an open issue without a triage label, skip
   assert.equal(fake({}).precheck({ repos: 'o/a', labels }).code, 1, 'no open issue');
   const here = fake({ 'o/here': [issue(3, 'me', 'needs-triage')] }).precheck({});
   assert.deepEqual([here.code, here.log[0]], [0, 'repo view --json nameWithOwner --jq .nameWithOwner'], 'empty: the checkout repository');
+  const approve = fake({ 'o/a': [issue(1, 'me')] }).precheck({ repos: 'o/a', labels: `bug,${APPROVE}` });
+  assert.deepEqual([approve.code, approve.log], [2, []], 'labels with the approving label: the run never starts');
 });
 
 test('issue-triage list: an issue is trusted only when its author is on the list, labels with spaces count', sh, () => {

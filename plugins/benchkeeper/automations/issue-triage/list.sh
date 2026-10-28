@@ -4,7 +4,9 @@
 # separated; repos empty: the repository of the checkout):
 #   issue <owner/name> <number> trusted      opened by a trusted author (trusted_authors empty: this account)
 #   issue <owner/name> <number> untrusted    opened by anyone else: its text is data only
-# Exit 0 when it printed a line. Only repository names that pass the pattern below reach a gh command line.
+# Exit 0 when it printed a line, 2 when labels holds the label that approves agent work. Only repository names that
+# pass the pattern below reach a gh command line.
+case ",$2," in *,ready-for-agent,*) echo "labels holds ready-for-agent: triage never sets it" >&2; exit 2 ;; esac
 repo() { case "$1/" in */./*|*/../*) return 1 ;; esac; printf '%s\n' "$1" | grep -qxE '[A-Za-z0-9_][A-Za-z0-9_.-]*/[A-Za-z0-9_.][A-Za-z0-9_.-]*'; }
 repos=$(echo "$1" | tr , ' ')
 [ -n "$repos" ] || repos=$(gh repo view --json nameWithOwner --jq .nameWithOwner)

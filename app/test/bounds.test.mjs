@@ -289,7 +289,7 @@ test('Update all clears only its own stale worktree record, never the records of
   assert.match(git(p.dir, 'worktree', 'list', '--porcelain'), new RegExp(`worktree ${other}[\\s\\S]*prunable`));
 });
 
-test('update-all --dry-run stops after the plan, --max must be a number, a cap stops the run', async () => {
+test('projects update --dry-run stops after the plan, --max must be a number, a cap stops the run', async () => {
   const h = home();
   const base = context({ home: h });
   const ctx = context({ home: h, run: (argv, o) => (argv.includes('get-url') ? { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' } : base.run(argv, o)) });
@@ -298,12 +298,12 @@ test('update-all --dry-run stops after the plan, --max must be a number, a cap s
   const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
   const exec = (args, answers = '') => main(args, { out, ctx, input: Readable.from([answers]) });
   assert.equal(await exec(['projects', 'add', a.dir, b.dir]), 0);
-  assert.equal(await exec(['update-all', '--dry-run']), 0);
+  assert.equal(await exec(['projects', 'update', '--dry-run']), 0);
   assert.match(text, /dry run: 2 projects would be updated, nothing changed/);
   assert.equal(git(a.dir, 'branch', '--list', 'chore/*').trim(), '');
-  assert.equal(await exec(['update-all', '--max', 'x']), 2);
+  assert.equal(await exec(['projects', 'update', '--max', 'x']), 2);
   assert.equal(await exec(['projects', 'unshare', '--max', '0']), 2);
-  assert.equal(await exec(['update-all', '--yes', '--max', '1']), 1);
+  assert.equal(await exec(['projects', 'update', '--yes', '--max', '1']), 1);
   assert.match(text, /2 repositories to push to: Update all pushes to at most 1 per run/);
   assert.equal(git(a.dir, 'branch', '--list', 'chore/*').trim(), '');
 });

@@ -47,7 +47,7 @@ Layers as the imports show them (a module imports only from layers above it in t
 | Base | `childenv` (8), `ledger`, `diff`, `roots`, `packs` (9), `agents` (14), `verify`, `update` | `agents.mjs` is the registry (`agents.json`) plus format renderers; it imports only `merge`. |
 | Run core | `runner` (12): context, apply, undo, history | Imports `childenv`, `diff`, `fsx`, `git`, `ledger`, `redact`. Writes `appVersion` into every ledger run (`runner.mjs:123,275`). |
 | Plan builders | `steps/global` (12), `steps/project` (11), `frameworks`, `baseline` | Build the change lists. `steps/global.mjs` holds the plugin pins, the marketplace commands and the skill copies for agents without plugins; `steps/project.mjs` writes the project state. |
-| Features | `rules`, `settings`, `skills`, `projects`, `doctor`, `level`, `allow`, `instructions`, `integrity`, `inventory`, `profile`, `knowledge`, `dashboard`, `eval`, `cases`, `advise`, `prerun`, `accounts`, `credstore`, `sessions`, `session`, `board`, and the module behind `benchkeeper test` | Each answers a CLI command and usually a UI route. |
+| Features | `rules`, `settings`, `skills`, `projects`, `doctor`, `level`, `allow`, `instructions`, `integrity`, `inventory`, `profile`, `knowledge`, `dashboard`, `eval`, `cases`, `advise`, `prerun`, `accounts`, `credstore`, `sessions`, `session`, `board`, and the module behind `benchkeeper verify` | Each answers a CLI command and usually a UI route. |
 | Entries | `cli` (913 lines, 26 direct imports, nothing imports it), `server` (744 lines, 26 direct imports, imported only by `cli`) | `cli` reaches 45 of the 46 modules, `server` 41. |
 
 <details>
@@ -124,7 +124,7 @@ Every place the version appears or is derived:
 | `plugins/benchkeeper/.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` | setup (content) version, must be equal | release-please |
 | `app/test/package.test.mjs:9-11` | asserts app version equals both plugin versions | test |
 | `app/src/steps/global.mjs:50,55` | `version: 'app'`: the pinned plugin version is the app version, so `doctor` and `plan` report any other plugin version as drift | code |
-| `.benchkeeper/state.json` `setupVersion` | the app version a project was set up with (`steps/project.mjs:474`); `doctor.mjs:93`, the due check of `update-all` (`projects.mjs:234,251`) and the branch `chore/agent-setup-<version>` compare against it | code |
+| `.benchkeeper/state.json` `setupVersion` | the app version a project was set up with (`steps/project.mjs:474`); `doctor.mjs:93`, the due check of `projects update` (`projects.mjs:234,251`) and the branch `chore/agent-setup-<version>` compare against it | code |
 | Ledger runs `appVersion` | history record only (`runner.mjs:123,275`) | code |
 | `CHANGELOG.md`, tag `setup-v<major>.<minor>.<patch>`, branch `stable`, GitHub Release | one entry and one tag per setup version; `stable` is the ref the marketplace follows | release-please, `release.yml` |
 | `npx benchkeeper@<x.y.z>` and `--branch setup-v<x.y>` | 44 lines in 11 tracked files outside the recorded history: `README.md` 4, `app/README.md` 6, `docs/setup.md` 9, `docs/stack.md` 2, `AGENTS.md` 1, `web/src/data/facts.json` 7, `web/src/components/Page.tsx` 6, `AppPage.tsx` 1, **`plugins/benchkeeper/skills/setting-up-projects/SKILL.md` 6, `skills/maintaining-repos/SKILL.md` 1, `library/README.md` 1** | `version-pins.mjs` rewrites them, CI checks it |
@@ -142,7 +142,7 @@ Content reaches users on three paths, which decides what a content-only release 
 
 1. The plugin, from the marketplace at `stable`: git only, no npm publish.
 2. The npm package: `scripts/content.mjs` copies `rules`, `skills`, `library` and `evals` into `content/` at pack time (`app/scripts/content.mjs`, `PARTS`). The global rules, the library packs, the eval sets and the skill copies for Gemini CLI and Copilot CLI (agents without plugins, `steps/global.mjs:268-276`) reach users only this way.
-3. The per-project copies written by `project apply`, from the packed content.
+3. The per-project copies written by `projects apply`, from the packed content.
 
 A content-only release therefore still needs an npm publish of the same package, and because `app/package.json` supplies the npm version it also bumps the app version; `release.yml` already starts `npm.yml` for a version npm does not have yet, so no new trigger is needed. The independent content version removes the reverse direction (an app-only release no longer touches `plugins/`), not the forward one. Fetching content at run time instead would need network access and a pin of its own, and `apply` and `plan` run offline today.
 
@@ -189,11 +189,11 @@ Since this note was written, `release.sh` (the check and the self-test) was repl
 - The app declares the content range it supports (`minContent`); `PLUGINS` pins `version: 'app'` becomes the content version.
 - Pins in skill text: the skills and the library README keep a literal `npx benchkeeper@<x.y.z>`, as today, so they work with no installed CLI and no state file. `version-pins.mjs` keeps writing them, and `release.sh check` ignores a diff under `plugins/` that changes only those pins and the version lines, so an app-only release no longer needs a content bump, a tag or a move of `stable`. The pin on `stable` then lags the newest app until the next content release; the pinned older app still runs, and the `minApp` check tells the user when a newer one is needed. This keeps the rule in `AGENTS.md` that install commands pin an exact version. The alternative, skills without a version, would need a state file or an installed CLI to resolve one; not chosen.
 - `release.sh check` keeps its rule for `plugins/` (apart from the pin-only diffs above): a change there raises the content version, the changelog entry, the tag `setup-v<major>.<minor>` and the move of `stable`. A matching check for the app: a change under `app/` other than `app/test` and the READMEs (`src`, `ui`, `bin`, `scripts`, the dependency list) raises the app version, because `app/scripts/content.mjs` decides what enters the package. Every release of either kind raises the app version, since content reaches npm users only inside the package; `npm.yml` already publishes on the app version, not on the tag.
-- Project state: `.benchkeeper/state.json` goes to `schemaVersion: 2` with `appVersion` and `contentVersion`. A project is stale when either differs, as today with the app version, so the behavior of `doctor` and `update-all` does not change; version 1 files are read with `setupVersion` as both values. The branch and title of `update-all` use the content version.
+- Project state: `.benchkeeper/state.json` goes to `schemaVersion: 2` with `appVersion` and `contentVersion`. A project is stale when either differs, as today with the app version, so the behavior of `doctor` and `projects update` does not change; version 1 files are read with `setupVersion` as both values. The branch and title of `projects update` use the content version.
 
 ### What existing users see on upgrade to 7.0
 
-An upgrade note is required. State files migrate on the next `project apply` or `update-all` (a version 1 file is read, never rejected). The marketplace ref `stable` and the plugin id `benchkeeper@benchkeeper` do not change, so no marketplace is removed. The tag `setup-v<major>.<minor>` keeps meaning a content release. Every app release (content releases included) also gets a tag `app-v<x.y.z>`; the clone install in the docs names that tag, `version-pins.mjs` rewrites it from `app/package.json`, and `release.yml` creates it.
+An upgrade note is required. State files migrate on the next `projects apply` or `projects update` (a version 1 file is read, never rejected). The marketplace ref `stable` and the plugin id `benchkeeper@benchkeeper` do not change, so no marketplace is removed. The tag `setup-v<major>.<minor>` keeps meaning a content release. Every app release (content releases included) also gets a tag `app-v<x.y.z>`; the clone install in the docs names that tag, `version-pins.mjs` rewrites it from `app/package.json`, and `release.yml` creates it.
 
 ### Tests and CI
 

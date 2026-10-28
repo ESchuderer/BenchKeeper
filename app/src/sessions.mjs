@@ -154,6 +154,8 @@ export const sessionCache = (ctx) => {
   const codex = new Set(all.filter((x) => x.kind === 'codex').map((x) => x.d?.id));
   return { keepDays, sessions: all.filter((x) => x.kind !== 'sub' && x.d?.start && !(x.d?.parent && codex.has(x.d.parent))).length };
 };
+// The repositories (main worktrees) dispatched workers ran in, by the summaries the last scan cached.
+export const workerRepos = (ctx) => new Set(Object.values(readCache(ctx).files).filter((x) => x.d?.orca && typeof x.d.repo === 'string').map((x) => x.d.repo));
 // days: a whole number from 1 to 3650, or null to keep summaries for good. The next scan drops what is older.
 export function keepSessionsFor(ctx, days) {
   if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= MAX_DAYS)) throw new Error(`days must be a whole number from 1 to ${MAX_DAYS}, or none`);

@@ -17,6 +17,8 @@ import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
 import { PLUGINS, marketSource, skillsSpec, skillsVerify } from './global.mjs';
 import { headCommit } from '../remote.mjs';
+import { workerRepos } from '../sessions.mjs';
+import * as orca from '../orca/index.mjs';
 
 export const STATE = '.benchkeeper/state.json';
 // A local setup's files: Claude Code's personal instructions and settings, and Codex's override of AGENTS.md.
@@ -29,6 +31,26 @@ export const ENVS = {
   sandbox: 'The agent runs in a Docker Sandboxes microVM (`sbx`) with its own container engine. Installs, builds and tests run inside it.',
   host: null,
 };
+// The dev container command in one word, offered when the project has .devcontainer/. It finds the checkout from its own path.
+const DC_PATH = 'scripts/dc';
+const DC = `#!/bin/sh
+# Runs one command in the dev container from any folder of the checkout: scripts/dc npm test
+# The arguments pass on as they are; a compound command goes through a shell: scripts/dc sh -lc 'npm ci && npm test'
+exec devcontainer exec --workspace-folder "$(cd "$(dirname "$0")/.." && pwd)" "$@"
+`;
+const DC_LINE = `\`${DC_PATH} <command>\` runs a command in the dev container (\`devcontainer exec --workspace-folder .\`, the arguments as given): \`${DC_PATH} npm test\`, compound commands as \`${DC_PATH} sh -lc '...'\`.`;
+// The install command of the one lockfile at the project root, strict so a stale lockfile fails instead of changing:
+// { file, command }, or null with none or several (a line to fill in then). Yarn 2 and later have .yarnrc.yml.
+const INSTALLS = { 'package-lock.json': 'npm ci', 'pnpm-lock.yaml': 'pnpm install --frozen-lockfile', 'yarn.lock': null, 'uv.lock': 'uv sync --locked' };
+const installCommand = (dir) => {
+  const found = Object.keys(INSTALLS).filter((f) => exists(join(dir, f)));
+  if (found.length !== 1) return null;
+  const [file] = found;
+  return { file, command: INSTALLS[file] ?? `yarn install ${exists(join(dir, '.yarnrc.yml')) ? '--immutable' : '--frozen-lockfile'}` };
+};
+// The offered files the setup wrote, known by their first two lines (a worktree file's list and install command vary).
+const offeredFiles = (dir) => [{ path: DC_PATH, text: DC }, ...orca.worktreeFiles(null, [])]
+  .filter((f) => readText(join(dir, f.path))?.startsWith(f.text.split('\n').slice(0, 2).join('\n'))).map((f) => f.path);
 const SKILLS_FLAG = { claude: 'claude-code', codex: 'codex', gemini: 'gemini-cli', copilot: 'github-copilot' };
 export const TIERS = ['quick', 'standard', 'full', 'research'];
 // Own keys only: "constructor" or ["container"] must not pass as an environment.
@@ -62,7 +84,7 @@ function installedFiles(dir, state, add, skip = () => false) {
 
 // The committed setup of a repository (dir: a checkout of it), as changes that take it out: the BenchKeeper block in
 // AGENTS.md, a CLAUDE.md that only imports AGENTS.md, the sandbox keys BenchKeeper set in .claude/settings.json, the
-// state folder, and the skills BenchKeeper or the skills CLI installed, with the lockfile. What the project wrote itself
+// state folder, the offered files it wrote, and the skills BenchKeeper or the skills CLI installed, with the lockfile. What the project wrote itself
 // (its own AGENTS.md text, own skills, docs/agents/, the dev container) stays.
 export function committedSetup(dir) {
   const at = (p) => join(dir, p);
@@ -83,13 +105,14 @@ export function committedSetup(dir) {
   }
   if (state?.guards && exists(at(GUARD_PATH))) add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH), selected: readText(at(GUARD_PATH)) === guardScript() });
   for (const c of frameworkRemovals(dir, state, 'project')) add(c.step, c.title, c);
+  for (const p of offeredFiles(dir)) add('offered', `remove ${p}`, { kind: 'remove', path: at(p) });
   installedFiles(dir, state, add);
   return changes;
 }
 
 // A local setup as changes that take it out, for "Remove BenchKeeper setup": the BenchKeeper block in CLAUDE.local.md
 // (the file when nothing else is in it), AGENTS.override.md when it is BenchKeeper's, the sandbox keys in
-// .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, and the
+// .claude/settings.local.json, Gemini's AGENTS.md setting, this project's block in the git exclude list, the offered files, and the
 // installed files, except what git tracks (the project's own commits). Everything else of the project stays, its own
 // AGENTS.md text, docs/agents/ and .devcontainer/ included. keepExclude: another registered folder of the repository
 // shares the exclude list, so its block stays for it.
@@ -119,6 +142,7 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
   }
   const tracked = (p) => git(ctx, dir, ['ls-files', '--', p]).stdout.trim() !== '';
   for (const c of frameworkRemovals(dir, state, 'local').filter((x) => !tracked(x.path))) add(c.step, c.title, c);
+  for (const p of offeredFiles(dir).filter((x) => !tracked(x))) add('offered', `remove ${p}`, { kind: 'remove', path: at(p) });
   installedFiles(dir, state, add, tracked);
   const exclude = keepExclude ? null : excludeFile(ctx, dir);
   const id = `local:/${git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim()}`;
@@ -284,6 +308,20 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const changes = [];
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, ...c });
   const skills = chosenSkills(a, lib);
+  const rel = (p) => relative(dir, p);
+
+  // Files offered beside the setup. One is named in the block and the exclude list only once it is written: in this run, or as
+  // an earlier run left it; the preview, which has no run, counts the preselected ones.
+  const offered = [];
+  const offer = (step, title, path, text, { off = false, mode } = {}) => {
+    const have = readText(at(path)), selected = !off && (have == null || have === text);
+    add(step, `${path}: ${title}${have != null && have !== text ? ' (replaces your own file)' : ''}`, { kind: 'write', path: at(path), after: text, selected, ...(mode ? { mode } : {}) });
+    offered.push({ id: changes.at(-1).id, path, text, selected });
+  };
+  const written = (f, run) => (run ? run.entries.some((e) => e.id === f.id && e.status === 'done') : f.selected) || readText(at(f.path)) === f.text;
+  const devcontainer = exists(at('.devcontainer'));
+  if (devcontainer) offer('dc', 'the dev container command in one word', DC_PATH, DC, { mode: 0o755 });
+  const dc = offered[0];
 
   // One block with the repository rules (rules/project.md), where commands run, the default tier, and the pointer lines of own skills. Shared: in AGENTS.md, with
   // a CLAUDE.md that imports it. Local: CLAUDE.local.md for Claude Code (it imports AGENTS.md, since a CLAUDE.local.md
@@ -295,11 +333,11 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const ruleLines = rules.split('\n').map((l) => l.replace(/^- /, '')).filter((l) => !owner || !/`(?:benchkeeper:)?workflow` skill/.test(l));
   const ownerLine = owner && forAgent(`Workflow owner: ${owner.title}. Its skills plan and run the work here: do not load the \`benchkeeper:workflow\` skill or write BenchKeeper issue-tracker specs.`, a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
   const packLines = a.packs.map((id) => lib.packs.find((p) => p.id === id)?.pointer).filter(Boolean);
-  const lines = [...ruleLines, ownerLine, ENVS[a.env], a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
-  const blockText = lines.length ? lines.map((l) => `- ${l}`).join('\n') : null;
+  const lines = (run) => [...ruleLines, ownerLine, ENVS[a.env], dc && written(dc, run) && DC_LINE, a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
+  const blockText = (run) => { const l = lines(run); return l.length ? l.map((x) => `- ${x}`).join('\n') : null; };
   const overrideOurs = (t) => t == null || getBlock(t, 'project') != null;
   if (a.share) {
-    add('agents-md', 'AGENTS.md: rules, where commands run, default tier, skill pointers', { kind: 'write', path: at('AGENTS.md'), edit: (t) => setBlock(t, 'project', blockText) });
+    add('agents-md', 'AGENTS.md: rules, where commands run, default tier, skill pointers', { kind: 'write', path: at('AGENTS.md'), edit: (t, run) => setBlock(t, 'project', blockText(run)) });
     if (a.agents.includes('claude')) add('claude-md', 'CLAUDE.md imports AGENTS.md', { kind: 'write', path: at('CLAUDE.md'), edit: (t) => (t?.includes('@AGENTS.md') ? t : t?.trim() ? `@AGENTS.md\n\n${t}` : '@AGENTS.md\n') });
   } else {
     // A committed setup stays until a pull request removes it (projects unshare): a local one beside it would load
@@ -309,13 +347,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (a.agents.includes('claude')) {
       const imports = /^@AGENTS\.md$/m.test(readText(at('CLAUDE.md')) ?? '') || !agentsMd.trim();
       add('local-claude', `${LOCAL_CLAUDE}: rules, where commands run, default tier, skill pointers`, { kind: 'write', path: at(LOCAL_CLAUDE),
-        edit: (t) => { const s = setBlock(t, 'project', blockText); return imports || /^@AGENTS\.md$/m.test(s) ? s : `@AGENTS.md\n\n${s}`; } });
+        edit: (t, run) => { const s = setBlock(t, 'project', blockText(run)); return imports || /^@AGENTS\.md$/m.test(s) ? s : `@AGENTS.md\n\n${s}`; } });
     }
     if (a.agents.includes('codex')) {
       // A hand-written override is the user's: replacing it is offered, not preselected.
       const ours = overrideOurs(readText(at(OVERRIDE)));
       add('local-codex', `${OVERRIDE}: AGENTS.md plus rules, where commands run, default tier, skill pointers${ours ? '' : ' (replaces your own file)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours,
-        edit: () => setBlock(agentsMd, 'project', blockText) });
+        edit: (_, run) => setBlock(agentsMd, 'project', blockText(run)) });
     }
   }
   // What a local setup wrote for an agent no longer chosen, or before the setup was shared.
@@ -397,7 +435,6 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   }
 
   // A skill turned off moves to .benchkeeper/disabled/<skill folder>/<name>; turned on, it moves back.
-  const rel = (p) => relative(dir, p);
   const parked = (d, name) => join(dir, '.benchkeeper/disabled', rel(d), name);
   const moveDir = (step, from, to) => {
     add(step, `copy ${rel(from)} to ${rel(to)}`, { kind: 'write', path: to, from, unit: `move:${from}` });
@@ -496,20 +533,36 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
+  // What a local setup leaves in the project, relative to it.
+  const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
+    ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)), ...frameworkPaths(a, dir),
+    // Stack skills the setup session installed with the skills CLI (its lockfile names them).
+    ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])];
+
+  // Workers ran in worktrees of this repository: the per-worktree setup files, at its root, off by default. A new worktree
+  // gets the local files listed (local: the whole local setup with the offered files; shared: the personal files only).
+  if (workerRepos(ctx).has(resolve(dir))) {
+    const include = a.share ? [LOCAL_CLAUDE, OVERRIDE] : [...local.map((p) => p.replace(/\/$/, '')), ...offered.map((f) => f.path), ...orca.worktreeFiles(null, []).map((f) => f.path)];
+    const install = installCommand(dir);
+    // A new worktree has no container running: the line starts it. Plan steps have no dependencies, so without scripts/dc
+    // the line fails in the setup terminal (the setup script stops there) and changes nothing.
+    const line = install && (devcontainer ? `devcontainer up --workspace-folder . && ${DC_PATH} ${install.command}` : install.command);
+    const hook = install ? `setup hook: ${install.command} (${install.file})${devcontainer ? `, through ${DC_PATH} in the dev container it starts (fails without ${DC_PATH})` : ''}` : 'setup hook: none found, fill in the comment line';
+    const [yaml, inc] = orca.worktreeFiles(line, include);
+    offer('worktrees', `${orca.NAME} worktree setup, ${hook}`, yaml.path, yaml.text, { off: true });
+    offer('worktrees', `${orca.NAME} worktree setup, the local files each new worktree gets`, inc.path, inc.text, { off: true });
+  }
+
   // Local: everything above goes to the repository's exclude list ($GIT_COMMON_DIR/info/exclude, shared by its
   // worktrees), so git status stays clean. Files git already tracks stay tracked until a pull request removes them
   // (projects unshare). Shared: the list comes out again.
   const exclude = excludeFile(ctx, dir);
   if (exclude) {
     const prefix = git(ctx, dir, ['rev-parse', '--show-prefix']).stdout.trim();
-    const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
-      ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)), ...frameworkPaths(a, dir),
-      // Stack skills the setup session installed with the skills CLI (its lockfile names them).
-      ...lockedSkills(dir).flatMap((n) => skillDirs(a.agents, 'project', dir).map(({ dir: d }) => `${rel(join(d, n))}/`))])].map((p) => `/${prefix}${p}`);
-    const list = a.share ? null : `# BenchKeeper's local agent setup (benchkeeper projects apply)\n${local.join('\n')}`;
+    const list = (run) => (a.share ? null : `# BenchKeeper's local agent setup (benchkeeper projects apply)\n${[...local, ...offered.filter((f) => written(f, run)).map((f) => f.path)].map((p) => `/${prefix}${p}`).join('\n')}`);
     // One block per project folder: several projects in one repository keep their own lists.
     const id = `local:/${prefix}`;
-    if (a.share ? getBlock(readText(exclude), id, '#') != null : true) add('exclude', a.share ? 'git ignores the setup no longer (it is committed)' : 'git ignores the local setup (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t) => setBlock(t, id, list, '#') });
+    if (a.share ? getBlock(readText(exclude), id, '#') != null : true) add('exclude', a.share ? 'git ignores the setup no longer (it is committed)' : 'git ignores the local setup (.git/info/exclude)', { kind: 'write', path: exclude, edit: (t, run) => setBlock(t, id, list(run), '#') });
   }
   const names = skills.map((s) => s.name);
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.

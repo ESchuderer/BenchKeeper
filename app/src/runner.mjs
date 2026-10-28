@@ -1,6 +1,6 @@
 // Plans, applies and undoes changes. A change is one of:
 //   { kind: 'write', path, after | edit | from }   after null deletes, edit maps the current text, from copies a file or
-//                                           folder; existing content goes to the backup first
+//                                           folder; existing content goes to the backup first; mode sets the file mode
 //   { kind: 'remove', path }                moves a file or folder to the backup
 //   { kind: 'command', argv, cwd, undoArgv } runs an agent's own command; undoArgv reverses it when one exists
 // Every change has id, step, title, and destructive (confirmed separately, off by default).
@@ -194,7 +194,7 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
         if (c.kind === 'write') {
           if (entry.existed && (c.from || isDir(path) || after == null)) rmSync(path, { recursive: true, force: true });
           if (c.from) copy(c.from, path);
-          else if (after != null) writeAtomic(path, after, !entry.existed && PRIVATE_NEW.test(path) ? 0o600 : undefined);
+          else if (after != null) writeAtomic(path, after, c.mode ?? (!entry.existed && PRIVATE_NEW.test(path) ? 0o600 : undefined));
         }
         entry.hashAfter = hashPath(path);
         const expected = c.from ? hashPath(c.from) : hashText(after);

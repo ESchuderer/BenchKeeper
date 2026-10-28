@@ -237,21 +237,22 @@ export function api(ctx) {
       }, { kind: 'apply-all', title: 'one-run setup' });
     },
     // Each skills CLI command of a plan, rehearsed in a scratch folder: the files it would write, per change id. Three
-    // run at a time; a result is kept 10 minutes or until files change through the app.
+    // run at a time; a result is kept 10 minutes or until files change through the app. They run in an OS sandbox; where
+    // none starts the result is `unavailable`, and only `unconfined: true` (the user's click) runs them without one.
     'POST /api/prerun': (b) => {
       const p = plans.get(b.planId);
       if (!p) throw Object.assign(new Error('plan expired: load it again'), { status: 409 });
-      const list = p.changes.filter(rehearsable);
+      const list = p.changes.filter(rehearsable), unconfined = b.unconfined === true;
       if (!list.length) return { job: null, total: 0 };
       return start(list.length, async (job) => {
         job.results = {};
         const queue = [...list];
         const worker = async () => {
           for (let c; (c = queue.shift()) && !job.ctl.signal.aborted;) {
-            const key = JSON.stringify([c.argv, c.cwd ?? null, c.snapshot ?? null]), hit = rehearsals.get(key);
+            const key = JSON.stringify([c.argv, c.cwd ?? null, c.snapshot ?? null, unconfined]), hit = rehearsals.get(key);
             if (hit && Date.now() - hit.at < 10 * 60e3) { job.results[c.id] = hit.result; continue; }
             let result;
-            try { result = await rehearse(p.ctx, c, { signal: job.ctl.signal }); } catch (e) { result = { files: [], error: e.message }; }
+            try { result = await rehearse(p.ctx, c, { signal: job.ctl.signal, unconfined }); } catch (e) { result = { files: [], error: e.message }; }
             job.results[c.id] = result;
             if (!result.error) rehearsals.set(key, { at: Date.now(), result });
           }

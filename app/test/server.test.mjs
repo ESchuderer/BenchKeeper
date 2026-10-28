@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
 import { CSP as BOARD_CSP } from '../src/board.mjs';
+import { SANDBOX, viaSrt } from './fixtures/srt.mjs';
 import { writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
@@ -161,7 +162,8 @@ function fixture(extra = () => null) {
     if (argv[0] === 'claude') return ok('[]');
     return { code: 127, stdout: '', stderr: 'not installed' };
   };
-  const ctx = context({ home, run });
+  const ctx = context({ home, run: viaSrt(run) });
+  ctx.sandbox = SANDBOX;
   return { ctx, routes: api(ctx) };
 }
 const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
@@ -211,7 +213,8 @@ test('prerun: the global skill install is rehearsed in a job, its file diff per 
   assert.ok(!existsSync(join(ctx.home, '.claude/skills/find-skills')));
   assert.equal(status(() => routes['POST /api/prerun']({ planId: 'gone' })), 409);
   // A result is kept: the same command again needs no second run.
-  ctx.runAsync = (argv, o) => new Promise((r) => o.signal.addEventListener('abort', () => r({ code: 130, stdout: '', stderr: 'cancelled' })));
+  // The preview reaches its command after a few awaits (checks, sandbox start): a stop that came first must still end it.
+  ctx.runAsync = (argv, o) => new Promise((r) => { const stop = () => r({ code: 130, stdout: '', stderr: 'cancelled' }); if (o.signal.aborted) stop(); else o.signal.addEventListener('abort', stop); });
   const again = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
   assert.deepEqual((await finished(routes, routes['POST /api/prerun']({ planId: again.planId }).job)).results[skill.id], s.results[skill.id]);
   // An apply drops kept results and stops a running rehearsal, whose files it changes; a rehearsal is not a running job.
@@ -225,6 +228,33 @@ test('prerun: the global skill install is rehearsed in a job, its file diff per 
   assert.equal(stopped.cancelled, true);
   assert.match(stopped.results[skill.id].error, /cancelled/);
   await finished(routes, applied);
+});
+
+test('prerun: with no sandbox the route answers "unavailable" and runs nothing; only unconfined: true runs the command, and its result is kept apart', async () => {
+  let installs = 0;
+  const { ctx, routes } = fixture((argv, o) => {
+    if (argv[2] !== SKILLS_SPEC) return null;
+    installs++;
+    mkdirSync(join(o.env.HOME, '.claude/skills/find-skills'), { recursive: true });
+    writeFileSync(join(o.env.HOME, '.claude/skills/find-skills/SKILL.md'), '# find-skills\n');
+    return { code: 0, stdout: '', stderr: '' };
+  });
+  ctx.sandbox = { platform: 'win32' };
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const skill = plan.changes.find((c) => c.step === 'tools:skill:find-skills');
+  const refused = (await finished(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: 'yes' }).job)).results[skill.id];
+  assert.deepEqual(refused, { files: [], unavailable: true, error: 'Windows has no sandbox the app can use (unsupported)' }, 'only the boolean true counts');
+  assert.equal(installs, 0);
+  const anyway = (await finished(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: true }).job)).results[skill.id];
+  assert.equal(anyway.sandbox, 'none');
+  assert.deepEqual(anyway.files.map((f) => f.path), [join(ctx.home, '.claude/skills/find-skills/SKILL.md')]);
+  assert.equal(installs, 1);
+  // The kept unconfined result is not served for a request that did not ask for it.
+  const again = (await finished(routes, routes['POST /api/prerun']({ planId: plan.planId }).job)).results[skill.id];
+  assert.equal(again.unavailable, true);
+  assert.equal(installs, 1);
+  assert.equal((await finished(routes, routes['POST /api/prerun']({ planId: plan.planId, unconfined: true }).job)).results[skill.id].sandbox, 'none');
+  assert.equal(installs, 1, 'the unconfined result is kept for the next click');
 });
 
 test('apply: answers at once with a job; the job shows the running command and its output, then the run; one at a time', async () => {

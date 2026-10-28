@@ -25,12 +25,14 @@ export const StateBadge = ({ state }) => (state ? <Badge variant="default" style
 
 // Skill installs of a plan, rehearsed on the server in a scratch folder when the user asks (the rehearsal runs third-party
 // code): start() begins it, the job state holds results per change id. Leaving the plan stops a rehearsal still running.
+// The server runs it in an OS sandbox; where none starts, a result is `unavailable` and anyway() asks for one without.
 export function usePrerun(plan) {
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
   // The plan the user asked for: another plan is not asked for, in the same render that shows it.
   const [askedFor, setAskedFor] = useState(null);
-  const asked = plan?.planId != null && askedFor === plan.planId;
+  const asked = plan?.planId != null && askedFor?.planId === plan.planId;
+  const unconfined = asked && askedFor.unconfined === true;
   const want = plan?.changes.some((c) => c.prerun);
   useEffect(() => {
     setJob(null); setError(null);
@@ -38,13 +40,21 @@ export function usePrerun(plan) {
   useEffect(() => {
     if (!want || !asked) return undefined;
     let live = true, id = null;
+    setJob(null);
     const cancel = () => id && api('/api/job-cancel', { id }).catch(() => {});
-    api('/api/prerun', { planId: plan.planId }).then((r) => { id = r.job; if (live) setJob(r.job); else cancel(); }, (e) => live && setError(e.message));
+    api('/api/prerun', { planId: plan.planId, ...(unconfined ? { unconfined: true } : {}) }).then((r) => { id = r.job; if (live) setJob(r.job); else cancel(); }, (e) => live && setError(e.message));
     return () => { live = false; cancel(); };
-  }, [plan?.planId, want, asked]);
+  }, [plan?.planId, want, asked, unconfined]);
   const state = useJob(job);
-  return want ? { job, asked, start: () => setAskedFor(plan.planId), state: error ? { done: true, error } : state } : null;
+  return want ? { job, asked, unconfined, start: () => setAskedFor({ planId: plan.planId }), anyway: () => setAskedFor({ planId: plan.planId, unconfined: true }), state: error ? { done: true, error } : state } : null;
 }
+
+const WHERE = {
+  srt: 'in a sandbox (writes only in a scratch folder, network limited to the registry and GitHub)',
+  bwrap: 'in a sandbox that confines writes to a scratch folder',
+  'sandbox-exec': 'in a sandbox that confines writes to a scratch folder',
+  none: 'in a scratch folder without a sandbox',
+};
 
 function Rehearsal({ c, prerun }) {
   const r = prerun.state?.results?.[c.id];
@@ -53,11 +63,13 @@ function Rehearsal({ c, prerun }) {
     if (!prerun.state?.done) return <Group gap="xs" role="status"><Loader size="xs" /><Text size="sm">Rehearsing in a scratch folder for the files it writes</Text></Group>;
     return <Text size="sm">{prerun.state.cancelled ? 'Preview cancelled.' : `No preview${prerun.state.error ? `: ${prerun.state.error}` : ''}.`}</Text>;
   }
+  if (r.unavailable) return <Text size="sm">Preview unavailable: {r.error}.</Text>;
   if (r.error) return <Text size="sm" c="red">Preview failed: {r.error}</Text>;
   if (!r.files.length) return <Text size="sm">Changes no files.</Text>;
   return (
     <Stack gap={4}>
-      <Text size="sm">Rehearsed in a scratch folder, it changes:</Text>
+      <Text size="sm">Rehearsed {WHERE[r.sandbox] ?? WHERE.none}, it changes:</Text>
+      {r.note && <Text size="sm">Not fully confined: {r.note}.</Text>}
       {r.files.map((f) => <DiffView key={f.path} diff={f.diff} path={f.path} />)}
       {r.more > 0 && <Text size="sm">and {r.more} more files</Text>}
     </Stack>
@@ -87,7 +99,13 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
       {prerun && !prerun.asked && (
         <Group gap="xs">
           <Button size="xs" variant="default" onClick={prerun.start}>Preview the files the skill installs write</Button>
-          <Text size="sm">Runs the install in a scratch folder: it downloads and runs third-party code.</Text>
+          <Text size="sm">Runs the install in a scratch folder, in an OS sandbox where one starts: it downloads and runs third-party code.</Text>
+        </Group>
+      )}
+      {prerun?.asked && !prerun.unconfined && Object.values(prerun.state?.results ?? {}).some((r) => r.unavailable) && (
+        <Group gap="xs">
+          <Button size="xs" variant="default" onClick={prerun.anyway}>Rehearse anyway without a sandbox</Button>
+          <Text size="sm">Only HOME and the folder variables point to the scratch folder then; the command can write elsewhere and reach any host.</Text>
         </Group>
       )}
       {prerun && <CancelJob job={prerun.job} state={prerun.state} what="the preview" />}

@@ -926,6 +926,7 @@ test.describe('views', () => {
     await expect(fix.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toHaveCount(0);
     await fix.getByRole('button', { name: /^Preview the files/ }).click();
     await expect(fix.getByRole('group', { name: /^Diff of .*\.claude\/skills\/find-skills\/SKILL\.md$/ })).toBeVisible();
+    await expect(fix).toContainText('Rehearsed in a sandbox');
     await noAxe(page);
     await fix.getByRole('button', { name: 'Next' }).click();
     // Update all skips a project with uncommitted changes, so it is not offered.

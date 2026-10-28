@@ -1,6 +1,8 @@
 // Rehearses a skills CLI command in a scratch folder before it runs for real, so a plan shows the files it would write.
 // A project command runs in a scratch copy of its snapshot paths, a global one in an empty scratch home; both get a
-// scratch HOME and every variable the skills CLI reads its folders from, so nothing outside the scratch folder changes.
+// scratch HOME and every variable the skills CLI reads its folders from, and run inside an OS sandbox (sandbox.mjs) that
+// stops a write outside the scratch folder. Where no sandbox starts there is no preview, unless the caller asks for one
+// without (`unconfined`, the user's click): the command is never run unconfined otherwise, and never again after a failed start.
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
@@ -8,6 +10,7 @@ import { registry } from './agents.mjs';
 import { childEnv } from './childenv.mjs';
 import { diffLines } from './diff.mjs';
 import { mask } from './redact.mjs';
+import { pick, registryHosts, srtVerify, starts, wrap } from './sandbox.mjs';
 import { exists, isDir, listFiles, readText } from './fsx.mjs';
 
 export const rehearsable = (c) => c.kind === 'command' && c.argv?.[2]?.startsWith('skills@npm:skills@') === true;
@@ -53,7 +56,9 @@ function homePath(home, rel) {
 
 const checked = new Map();
 
-export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3 } = {}) {
+export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3, unconfined = false } = {}) {
+  const sb = unconfined ? { tool: null } : pick(ctx.sandbox);
+  if (!sb.tool && !unconfined) return { files: [], unavailable: true, error: sb.why };
   const t = mkdtempSync(join(tmpdir(), 'bk-prerun-'));
   try {
     const h = join(t, 'h'), p = join(t, 'p'), root = c.cwd ? p : h;
@@ -69,35 +74,48 @@ export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3 } = {}) {
     // git gets an empty config: the user's holds credential helpers, extra headers and ssh commands, and the rehearsed code is not theirs to read.
     const gitconfig = join(t, 'gitconfig');
     writeFileSync(gitconfig, '', { mode: 0o600 });
-    const npmrc = join(t, 'npmrc');
-    writeFileSync(npmrc, safeNpmrc(readText(process.env.npm_config_userconfig ?? process.env.NPM_CONFIG_USERCONFIG ?? join(ctx.home, '.npmrc'))), { mode: 0o600 });
+    const npmrc = join(t, 'npmrc'), npmrcText = safeNpmrc(readText(process.env.npm_config_userconfig ?? process.env.NPM_CONFIG_USERCONFIG ?? join(ctx.home, '.npmrc')));
+    writeFileSync(npmrc, npmrcText, { mode: 0o600 });
     // Unset, the folder variables fall back to folders below the scratch HOME (spawn leaves out undefined values).
     const env = {
       ...childEnv(c.env), HOME: h, USERPROFILE: h, ...Object.fromEntries(MOVED.map((k) => [k, undefined])),
       // npm keeps the user's cache and, without credentials, its settings.
       // The home is the machine's context home, so BENCHKEEPER_HOME isolates the rehearsal too.
-      npm_config_cache: process.env.npm_config_cache ?? (process.platform === 'win32' ? join(process.env.LOCALAPPDATA ?? join(ctx.home, 'AppData/Local'), 'npm-cache') : join(ctx.home, '.npm')),
+      // In a sandbox the cache is below the scratch folder: a cache the command can write is one the real run would read.
+      npm_config_cache: sb.tool ? join(t, 'npm-cache') : process.env.npm_config_cache ?? (process.platform === 'win32' ? join(process.env.LOCALAPPDATA ?? join(ctx.home, 'AppData/Local'), 'npm-cache') : join(ctx.home, '.npm')),
       npm_config_userconfig: npmrc,
       GIT_CONFIG_GLOBAL: gitconfig, GIT_CONFIG_NOSYSTEM: '1',
     };
     // npm reads these names in either case: the user's own upper-case ones must not win over the scratch ones.
     for (const k of Object.keys(env)) if (/^npm_config_(userconfig|cache)$/i.test(k) && k !== k.toLowerCase()) delete env[k];
     const runAsync = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
-    // The same signature check as the run: unsigned code is not downloaded for a preview either.
-    // A passed check counts for 10 minutes, so a list of previews checks the skills CLI once.
-    const key = c.verify?.join(' ');
-    if (c.verify && !(checked.get(key) > Date.now())) {
-      const v = await runAsync(c.verify, { cwd: t, env: childEnv(c.env), signal, timeout });
-      if (v.code === 0) checked.set(key, Date.now() + 10 * 60e3);
-      if (v.code !== 0) return { files: [], error: `signature check failed: ${mask((v.stderr || v.stdout).trim().split('\n').slice(-3).join(' ')) || `exit ${v.code}`}` };
+    // The same signature check as the run: unsigned code is not downloaded for a preview either (srt too, which runs outside
+    // the sandbox). A passed check counts for 10 minutes, so a list of previews checks each package once.
+    const failed = async (argv) => {
+      const key = `${ctx.home}\0${argv.join(' ')}`;
+      if (checked.get(key) > Date.now()) return null;
+      const v = await runAsync(argv, { cwd: t, env: childEnv(c.env), signal, timeout });
+      if (v.code === 0) { checked.set(key, Date.now() + 10 * 60e3); return null; }
+      return `signature check failed: ${mask((v.stderr || v.stdout).trim().split('\n').slice(-3).join(' ')) || `exit ${v.code}`}`;
+    };
+    for (const argv of [c.verify, sb.tool === 'srt' && srtVerify()]) {
+      const error = argv && await failed(argv);
+      if (error) return { files: [], error };
     }
-    const r = await runAsync(c.argv, { cwd: root, env, signal, timeout });
+    let cmd = { argv: c.argv, env };
+    if (sb.tool) {
+      const hosts = registryHosts(npmrcText, env);
+      const error = await starts(sb.tool, runAsync, { t, home: ctx.home, hosts, env, signal });
+      if (error) return { files: [], unavailable: true, error };
+      cmd = wrap(sb.tool, { argv: c.argv, t, home: ctx.home, hosts, env });
+    }
+    const r = await runAsync(cmd.argv, { cwd: root, env: cmd.env, signal, timeout });
     if (r.code !== 0) return { files: [], error: mask((r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ')) || `exit ${r.code}` };
     // What the command left in the scratch folder, and the seeded paths it may have removed.
     const skip = (f) => !c.cwd && SKIP.some((s) => f === s || f.startsWith(`${s}${sep}`));
     const rels = [...new Set([...listFiles(root), ...seeds.flatMap((s) => filesBelow(realOf(s)).map((f) => join(s, f)))])].filter((f) => !skip(f)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     const changed = rels.filter((f) => readText(realOf(f)) !== readText(join(root, f)));
     const files = changed.slice(0, MAX_FILES).map((f) => ({ path: realOf(f), diff: diffLines(readText(realOf(f)), readText(join(root, f)), realOf(f)) }));
-    return { files, more: Math.max(changed.length - MAX_FILES, 0), error: null };
+    return { files, more: Math.max(changed.length - MAX_FILES, 0), error: null, sandbox: sb.tool ?? 'none', ...(sb.note ? { note: sb.note } : {}) };
   } finally { rmSync(t, { recursive: true, force: true }); }
 }

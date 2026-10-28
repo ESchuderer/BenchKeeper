@@ -13,6 +13,7 @@ import { keyed, mask, redactArgv } from '../src/redact.mjs';
 import { runEval } from '../src/eval.mjs';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { recordSession } from '../src/session.mjs';
+import { SRT_VERSION } from '../src/sandbox.mjs';
 import { PIN_DATES, SKILLS_CLI, SKILL_SOURCES, globalPlan, skillsCli, skillsSpec } from '../src/steps/global.mjs';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'bk-secrets-'));
@@ -68,8 +69,8 @@ test('cooled: published for 7 days, still installable, a plain release, a string
   assert.deepEqual(cooled(null, undefined, now), []);
 });
 
-test('the skills CLI pin has its publish date recorded, and is not younger than 7 days', () => {
-  assert.deepEqual(Object.keys(PIN_DATES), [`skills@${SKILLS_CLI}`], 'a pin changed without its date');
+test('the skills CLI minimum and the srt pin have their publish date recorded, and are not younger than 7 days', () => {
+  assert.deepEqual(Object.keys(PIN_DATES), [`skills@${SKILLS_CLI}`, `@anthropic-ai/sandbox-runtime@${SRT_VERSION}`], 'a pin changed without its date');
   for (const [pin, date] of Object.entries(PIN_DATES)) assert.ok(Date.parse(date) < Date.now() - 7 * 864e5, `${pin} was published ${date}`);
 });
 

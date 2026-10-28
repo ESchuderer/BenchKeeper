@@ -15,6 +15,7 @@ import { copy, exists, hashPath, hashText, inside, isDir, listFiles, move, readT
 import { blob, fileMode, git, hasTree } from './git.mjs';
 import { Ledger, SCHEMA, runId } from './ledger.mjs';
 import { mask } from './redact.mjs';
+import { unitsOf } from './units.mjs';
 
 // New files that agents fill with tokens later are created for their user alone.
 const PRIVATE_NEW = /[\\/]\.(claude|codex|gemini|copilot)[\\/](settings(\.local)?\.json|config\.(toml|json)|hooks\.json)$|[\\/]\.claude\.json$/;
@@ -133,11 +134,14 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
     const unit = c.unit && changes.filter((x) => x.unit === c.unit);
     if (unit && unit.some(picked) && !unit.every(picked)) throw new Error(`${unit.map((x) => x.title).join(' and ')} go together: choose all of them or none`);
   }
+  // The units the run installs, as the plan described them; each entry names its unit.
+  const units = unitsOf(changes.filter(picked));
+  if (units.length) run.units = units;
   yield { run };
   const failedSteps = new Set(), startedUnits = new Set(), verified = new Set();
   for (const c of changes) {
     if (!picked(c)) continue;
-    const entry = { id: c.id, step: c.step, title: c.title, kind: c.kind };
+    const entry = { id: c.id, step: c.step, title: c.title, kind: c.kind, ...(c.installUnit ? { installUnit: c.installUnit.id } : {}) };
     run.entries.push(entry);
     // A cancel finishes the unit it lands in: half a unit is worse than all of it.
     if (stop?.() && !startedUnits.has(c.unit)) { entry.status = 'skipped'; entry.reason = 'cancelled'; continue; }
@@ -285,14 +289,14 @@ function restoreFromTree(ctx, root, tree, rel, path) {
 
 const doneOrTouched = (e) => e.status === 'done' || ((e.status === 'failed' || e.status === 'running') && e.touched);
 
-// Undoes a run, or one step of it, newest change first. Undo is a run of its own, so it can be undone too.
+// Undoes a run, or one step or one unit of it, newest change first. Undo is a run of its own, so it can be undone too.
 // Each entry is checked before it changes anything, journaled before the first change, and saved when it ends.
 export function undo(id, ctx, opts) {
   const release = ctx.ledger.lock();
   try { return undoRun(id, ctx, opts); } finally { release(); }
 }
 
-function undoRun(id, ctx, { step } = {}) {
+function undoRun(id, ctx, { step, unit } = {}) {
   const source = ctx.ledger.get(id);
   // Update all on a branch worked in a worktree that is gone; its result is a branch and a pull request. A local run
   // changed the checkout and undoes like any other.
@@ -316,8 +320,8 @@ function undoRun(id, ctx, { step } = {}) {
     if (copyOnly) { copy(path, rec.backup); if (hashPath(rec.backup) !== rec.hashBackup) throw new Error(`backup of ${path} differs from the original`); } else move(path, rec.backup);
   };
   for (const e of [...source.entries].reverse()) {
-    if (!doneOrTouched(e) || e.undone || (step && e.step !== step)) continue;
-    const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind };
+    if (!doneOrTouched(e) || e.undone || (step && e.step !== step) || (unit && e.installUnit !== unit)) continue;
+    const entry = { id: e.id, step: e.step, title: `undo: ${e.title}`, kind: e.kind, ...(e.installUnit ? { installUnit: e.installUnit } : {}) };
     run.entries.push(entry);
     try {
       if (e.kind === 'session') {

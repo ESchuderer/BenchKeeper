@@ -91,7 +91,6 @@
       "exports src/steps/global.mjs PERMISSION_ASK",
       "exports src/steps/global.mjs SKILLS_VERIFY",
       "exports src/steps/global.mjs claudeAccounts",
-      "exports src/steps/project.mjs LOCAL_CLAUDE",
       "exports src/steps/project.mjs LOCAL_SETTINGS",
       "exports src/steps/project.mjs OVERRIDE",
       "exports src/steps/project.mjs STATE_SCHEMA",

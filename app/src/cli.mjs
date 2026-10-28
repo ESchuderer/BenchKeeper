@@ -105,7 +105,8 @@ Usage: benchkeeper <command> [options]
   history                           runs, newest first
   history show <run>                one run: each change with its status and the diff of each file it wrote (settings
                                     values masked; a recorded session's files between its snapshots, the first 50)
-  undo <run> [--step <step>]        restores the files of a run or one of its steps
+  undo <run> [--step <step>] [--unit <unit>]
+                                    restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   projects plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--pack p] [--skill s] [--tier t] [--yes]
                     [--framework f|none] [--agent-file path]
@@ -271,7 +272,7 @@ Env (where the agent runs): container (default; host-agent or host when AGENTS.m
 
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
-  step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
+  step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, framework: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
@@ -833,7 +834,7 @@ async function command(argv, { out, err, ask, ctx }) {
     }
     let uctx;
     try { uctx = scopeCtx(ctx, ctx.ledger.get(arg).scope); } catch (e) { out.write(`${e.message}\n`); return 1; }
-    return report(undo(arg, uctx, { step: o.step }), out);
+    return report(undo(arg, uctx, { step: o.step, unit: o.unit }), out);
   }
   if (cmd === 'inventory' || cmd === 'dashboard') {
     if (positionals.length > 1) { out.write(`unexpected argument ${positionals[1]}\n`); return 2; }
@@ -945,7 +946,7 @@ const count = (list, level) => list.filter((i) => i.level === level).length;
 const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'confirm-git', 'remove', 'rename', 'relocate', 'update'].includes(arg))
   || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'skills' && arg === 'update')
   || (cmd === 'automations' && ['install', 'update', 'remove'].includes(arg));
-const entryDoc = (e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) });
+const entryDoc = (e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.installUnit ? { unit: e.installUnit } : {}), ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) });
 const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map(entryDoc) });
 // A project's setup state as projects status prints it: the pending changes without their diffs.
 const statusDoc = ({ changes, error, ...p }) => ({ ...p, changes: changes?.map(changeDoc) ?? null, error: error ? redact(error) : null });

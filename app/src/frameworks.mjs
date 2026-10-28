@@ -7,6 +7,7 @@ import { agent } from './agents.mjs';
 import { library } from './content.mjs';
 import { exists, readText } from './fsx.mjs';
 import { mergeJson, parseJson } from './merge.mjs';
+import { unit } from './units.mjs';
 
 export const catalog = (lib = library()) => lib.frameworks ?? [];
 export const sources = (lib = library()) => lib.sources ?? [];
@@ -73,6 +74,11 @@ export function keptFrom(prev, lib = library()) {
 // Where an agent file lands for the first agent that reads agent files in the project.
 const agentDir = (dir, f) => join(dir, agent(f.install.agents[0]).project[f.install.dest].path);
 const rawUrl = (f, path) => `https://raw.githubusercontent.com/${f.install.source}/${f.install.ref}/${path}`;
+// A framework is a plugin for this project; an agent-file source is its files, fetched from the repository at the pinned ref.
+const unitOf = (dir, f) => (f.install.kind === 'plugin'
+  ? unit({ id: `plugin:${f.install.plugin}`, kind: 'plugin', source: { type: 'marketplace', id: f.install.plugin }, agents: f.install.agents, scope: 'project', removal: 'plugin' })
+  : unit({ id: `agent-files:${f.id}`, kind: 'agent-files', source: { type: 'git', repo: f.install.source, ref: f.install.ref }, agents: f.install.agents, scope: 'project',
+    files: f.install.files.map(({ path }) => join(agentDir(dir, f), `${stemOf(path)}.md`)), removal: 'files' }));
 
 // The changes for the frameworks chosen and for those the state records but the answers no longer name.
 // prev: the state file. Each change is { step, title, kind, ... } for the project plan to number.
@@ -80,15 +86,15 @@ export function frameworkChanges({ a, dir, prev, lib = library() }) {
   const out = [];
   const was = new Set(prev?.frameworks ?? []);
   for (const f of installs(lib)) {
-    const on = isOn(a, f);
+    const on = isOn(a, f), installUnit = unitOf(dir, f);
     if (f.install.kind === 'plugin' && a.agents.includes('claude')) {
       const id = f.install.plugin;
       for (const scope of Object.keys(SETTINGS)) {
         const present = enabledIn(dir, scope, id), wanted = on && scope === scopeOf(a);
         const argv = (verb) => ['claude', 'plugin', verb, id, '--scope', scope];
         // Only an install this setup recorded is taken out again: another scope's copy may be the project's own.
-        if (wanted && !present) out.push({ key: `plugin:${f.id}`, step: `framework:${f.id}`, title: `Claude Code plugin ${id} for this project only (scope ${scope})`, kind: 'command', cwd: dir, argv: argv('install'), undoArgv: argv('uninstall') });
-        else if (!wanted && present && was.has(f.id)) out.push({ step: `framework:${f.id}`, title: `remove Claude Code plugin ${id} (scope ${scope})`, kind: 'command', cwd: dir, argv: argv('uninstall'), undoArgv: argv('install'), selected: true });
+        if (wanted && !present) out.push({ key: `plugin:${f.id}`, step: `framework:${f.id}`, title: `Claude Code plugin ${id} for this project only (scope ${scope})`, kind: 'command', cwd: dir, argv: argv('install'), undoArgv: argv('uninstall'), installUnit });
+        else if (!wanted && present && was.has(f.id)) out.push({ step: `framework:${f.id}`, title: `remove Claude Code plugin ${id} (scope ${scope})`, kind: 'command', cwd: dir, argv: argv('uninstall'), undoArgv: argv('install'), selected: true, installUnit });
       }
     }
     if (f.install.kind === 'agents') {
@@ -98,9 +104,9 @@ export function frameworkChanges({ a, dir, prev, lib = library() }) {
         // Only a file this setup fetched (agentOwned) is refreshed or taken out again: one that was there before is the project's.
         const picked = a.agentFiles.includes(path), mine = owned.has(path);
         if (picked && (!exists(target) || (mine && have.get(f.id) !== f.install.ref))) {
-          out.push({ key: `file:${path}`, step: `framework:${f.id}`, title: `agent ${stemOf(path)} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`, kind: 'command', cwd: dir, snapshot: [target],
+          out.push({ key: `file:${path}`, step: `framework:${f.id}`, title: `agent ${stemOf(path)} from ${f.install.source} at ${f.install.ref.slice(0, 12)}`, kind: 'command', cwd: dir, snapshot: [target], installUnit,
             argv: ['curl', '-fsSL', '--remove-on-error', '--proto', '=https', '--proto-redir', '=https', '--create-dirs', '-o', target, rawUrl(f, path)] });
-        } else if (!picked && mine && exists(target)) out.push({ step: `framework:${f.id}`, title: `remove agent ${stemOf(path)} (not picked)`, kind: 'remove', path: target, selected: true });
+        } else if (!picked && mine && exists(target)) out.push({ step: `framework:${f.id}`, title: `remove agent ${stemOf(path)} (not picked)`, kind: 'remove', path: target, selected: true, installUnit });
       }
     }
   }

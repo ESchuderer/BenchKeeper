@@ -434,6 +434,22 @@ test('names from agent files that start with a dash or hold a path are skipped',
   assert.deepEqual(argvs.sort(), ['claude mcp remove --scope user good', 'claude plugin marketplace remove fine', 'claude plugin uninstall ok@x']);
 });
 
+test('install units: each install step of the global plan maps to one unit, and npm-fetched steps pass the source gate', () => {
+  const plan = machine().plan();
+  const map = Object.fromEntries(plan.filter((c) => c.installUnit).map((c) => [c.step, `${c.installUnit.id} ${c.installUnit.kind} ${c.installUnit.source.type}`]));
+  assert.deepEqual(map, {
+    'rules:claude': 'rules:claude rules library', 'rules:codex': 'rules:codex rules library',
+    'plugin:claude:benchkeeper@benchkeeper': 'plugin:benchkeeper@benchkeeper plugin marketplace', 'plugin:codex:benchkeeper@benchkeeper': 'plugin:benchkeeper@benchkeeper plugin marketplace',
+    'plugin:claude:mattpocock-skills@claude-plugins-official': 'pack:matt-pocock pack marketplace', 'plugin:codex:mattpocock-skills@mattpocock': 'pack:matt-pocock pack marketplace',
+    'plugin:claude:ponytail@ponytail': 'pack:ponytail pack marketplace', 'plugin:codex:ponytail@ponytail': 'pack:ponytail pack marketplace',
+    ...Object.fromEntries(plan.filter((c) => c.step.startsWith('tools:skill:')).map((c) => [c.step, `skill:${c.step.slice('tools:skill:'.length)} skill git`])),
+  });
+  assert.ok(map['tools:skill:find-skills']);
+  const fetched = plan.filter((c) => c.argv?.[0] === 'npx' || (c.argv?.[0] === 'npm' && c.argv[1] === 'i'));
+  assert.ok(fetched.length >= 2);
+  for (const c of fetched) assert.ok(c.verify && c.env.npm_config_before, c.title);
+});
+
 test('signature check: the host tool and the skills CLI run only after npm audit signatures passed, once per run', () => {
   const m = machine();
   const tools = () => m.plan().filter((c) => c.step.startsWith('tools:'));

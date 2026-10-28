@@ -494,7 +494,7 @@ export function api(ctx) {
     'POST /api/undo': (b) => {
       idle();
       const scope = ctx.ledger.get(b.run).scope;
-      return undo(b.run, input(() => scopeCtx(ctx, scope)), { step: b.step || undefined });
+      return undo(b.run, input(() => scopeCtx(ctx, scope)), { step: b.step || undefined, unit: b.unit || undefined });
     },
     'GET /api/catalog': () => catalog(ctx),
     'GET /api/skill': (q) => {

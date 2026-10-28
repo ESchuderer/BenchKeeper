@@ -13,6 +13,7 @@ import { mergeJson, parseJson, setToml } from '../merge.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
 import * as orca from '../orca/index.mjs';
 import { SRT_VERSION } from '../sandbox.mjs';
+import { checkPlan, unit } from '../units.mjs';
 import { verifyArgv } from '../verify.mjs';
 
 // lite: the BenchKeeper plugin alone (nothing outside the plugin install). standard: the same on the machine, plus the local block
@@ -53,6 +54,12 @@ export function pin(p, appVersion) {
 }
 // What a marketplace add names: the source, at the ref when the plugin has one (Claude Code `source#ref`, Codex `source@ref`).
 export const marketSource = (p, a) => `${p.source}${p.ref ? `${a === 'claude' ? '#' : '@'}${p.ref}` : ''}`;
+// The unit of a plugin of PLUGINS: a pack's plugin is the pack's (its settings files go with it), any other plugin its own.
+export const pluginUnit = (p) => unit({
+  id: p.pack ? `pack:${p.pack}` : `plugin:${p.id}`, kind: p.pack ? 'pack' : 'plugin', removal: 'plugin', scope: 'global',
+  source: { type: 'marketplace', id: p.id, ...(p.source ? { marketplace: p.source } : {}), ...(p.ref ? { ref: p.ref } : {}) },
+  agents: Object.keys(PLUGINS).filter((a) => PLUGINS[a].some((x) => x.id === p.id)),
+});
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 export const KEEP_SKILLS = ['find-skills', ...orca.SKILLS, 'synced'];
@@ -237,7 +244,8 @@ export function globalPlan(env) {
     try { edited = cur != null && cur !== renderRules(r.format, cur, forAgent(rules, id)); } catch { /* shown by the rules change */ }
     // A kept edit holds for this file content and this setup version: a new version offers its rules again.
     const keeps = edited && kept[file]?.hash === hashText(cur) && kept[file]?.version === ctx.appVersion;
-    if (!keeps) add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: file, edit: (c) => renderRules(r.format, c, forAgent(rules, id)) });
+    if (!keeps) add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: file, edit: (c) => renderRules(r.format, c, forAgent(rules, id)),
+      installUnit: unit({ id: `rules:${id}`, kind: 'rules', source: { type: 'library' }, agents: [id], scope: 'global', removal: 'block' }) });
     const write = !keeps && changes.at(-1).id;
     // Offered, not preselected: the edits are the user's, this only stops the finding.
     if (edited && !keeps) add(`rulesKeep:${id}`, `keep your edits to ${r.path}: no warning until the file or BenchKeeper's rules change`, { kind: 'write', path: keptFile, replaces: write, edit: (t) => mergeJson(t, [{ path: [file], value: { hash: hashText(cur), version: ctx.appVersion } }]) }, { selected: false, optional: true });
@@ -267,16 +275,17 @@ export function globalPlan(env) {
       // An installed pack plugin is kept current without its pack being chosen again.
       if (p.pack && !options.packs?.includes(p.pack) && !have) continue;
       const step = `plugin:${a}:${p.id}`;
+      const installUnit = pluginUnit(p);
       // A chosen pack's settings files (library.json, packs[].settings), once for all agents, under its plugin step.
       if (p.pack && options.packs?.includes(p.pack)) {
         for (const x of library().packs.find((y) => y.id === p.pack)?.settings ?? []) {
-          if (!packSettings.has(x.path)) add(step, x.title, { kind: 'write', path: at(x.path), edit: sets(Object.entries(x.set).map(([k, v]) => [[k], v])) });
+          if (!packSettings.has(x.path)) add(step, x.title, { kind: 'write', path: at(x.path), edit: sets(Object.entries(x.set).map(([k, v]) => [[k], v])), installUnit });
           packSettings.add(x.path);
         }
       }
       // Offered, not preselected: uninstalling deletes the plugin's data, and unregistered projects may still use it.
       if (have && p.pack && !options.packs?.includes(p.pack) && options.packsInUse && !options.packsInUse.includes(p.pack)) {
-        add(step, `remove ${name} plugin ${p.id}: no registered project uses the ${p.pack} pack`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], undoArgv: a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id], destructive: true });
+        add(step, `remove ${name} plugin ${p.id}: no registered project uses the ${p.pack} pack`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], undoArgv: a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id], destructive: true, installUnit });
         continue;
       }
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
@@ -284,16 +293,16 @@ export function globalPlan(env) {
       const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
       // Installed but turned off: Claude Code turns it on in settings (undone by the file's backup); Codex by hand.
       if (off) {
-        if (a === 'claude') add(step, `${name} plugin ${p.id}: turn on`, { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['enabledPlugins', p.id], value: true }]) });
-        else add(step, `${name} plugin ${p.id}: turn on by hand`, { kind: 'command', argv: install, error: `${p.id} is installed but turned off: set enabled = true under [plugins."${p.id}"] in ~/.codex/config.toml` });
+        if (a === 'claude') add(step, `${name} plugin ${p.id}: turn on`, { kind: 'write', path: at('.claude/settings.json'), edit: (t) => mergeJson(t, [{ path: ['enabledPlugins', p.id], value: true }]), installUnit });
+        else add(step, `${name} plugin ${p.id}: turn on by hand`, { kind: 'command', argv: install, error: `${p.id} is installed but turned off: set enabled = true under [plugins."${p.id}"] in ~/.codex/config.toml`, installUnit });
         continue;
       }
       // The entry is there, its files are not: install again.
-      if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
+      if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install, installUnit }); continue; }
       // Installed: the agent's own update keeps it current (BenchKeeper's marketplace follows the branch stable).
       if (have) continue;
-      if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step });
-      add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step });
+      if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step, installUnit });
+      add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step, installUnit });
     }
     // An account folder with the plugin behind the app: the marketplace refresh and the update run with that folder only. The
     // default folder gets none (the agent's own update keeps it current); a plugin an account lacks is not installed there.
@@ -306,26 +315,28 @@ export function globalPlan(env) {
       const step = `plugin:${a}:account:${acc.name}`, title = `${name} account ${acc.name}: plugin ${own.id} ${have.version} to ${version}`;
       const env = { CLAUDE_CONFIG_DIR: acc.dir };
       // The runner changes only what lies under its roots (the home folder): a folder elsewhere is updated by hand.
-      if (!inside(acc.dir, ctx.roots)) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the folder of account ${acc.name} lies outside ${ctx.roots.join(', ')}, which the app does not change: run claude plugin update --scope user ${own.id} with CLAUDE_CONFIG_DIR set to it` }); continue; }
+      if (!inside(acc.dir, ctx.roots)) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, installUnit: pluginUnit(own), error: `the folder of account ${acc.name} lies outside ${ctx.roots.join(', ')}, which the app does not change: run claude plugin update --scope user ${own.id} with CLAUDE_CONFIG_DIR set to it` }); continue; }
       const ref = state.refs?.[own.marketplace];
       // A marketplace on another ref does not move when refreshed, and moving it removes the plugin's data: left to its own update.
       if (ref && ref !== own.ref) continue;
       // Undo puts back the files that name the installed version and the marketplace; the old version's folder is not restored (Claude Code
       // prunes it later, and a snapshot of it would make undo refuse once it is gone), so undo can leave an entry whose files are gone.
       const file = (f) => [join(acc.dir, 'plugins', f)];
-      add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'update', own.marketplace], env, snapshot: file('known_marketplaces.json'), outdated: true, unit: step });
-      add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, snapshot: file('installed_plugins.json'), outdated: true, unit: step });
+      add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'update', own.marketplace], env, snapshot: file('known_marketplaces.json'), outdated: true, unit: step, installUnit: pluginUnit(own) });
+      add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, snapshot: file('installed_plugins.json'), outdated: true, unit: step, installUnit: pluginUnit(own) });
     }
     for (const { id } of full ? listed : []) {
       if (!keepPlugin(id, a)) add(`other:${a}:plugin`, `remove the ${agent(a).name} plugin ${id}`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', id] : ['codex', 'plugin', 'remove', id], destructive: true });
     }
     for (const m of full ? markets : []) if (!KEEP_MARKETPLACES[a].includes(m) && !/^openai-curated/.test(m)) add(`other:${a}:marketplace`, `remove the ${agent(a).name} marketplace ${m}`, { kind: 'command', argv: [a, 'plugin', 'marketplace', 'remove', m], destructive: true });
   }
-  for (const id of agents.filter((x) => !agent(x).plugins)) {
+  const copies = agents.filter((x) => !agent(x).plugins);
+  for (const id of copies) {
     for (const name of readdirSync(join(contentDir, 'skills'))) {
       const src = join(contentDir, 'skills', name);
+      const installUnit = unit({ id: `skill:${name}`, kind: 'skill', source: { type: 'library' }, agents: copies, scope: 'global', files: [...new Set(copies.map((x) => join(at(agent(x).global.skills), name)))], removal: 'files' });
       for (const f of listFiles(src)) {
-        add(`skills:${id}`, `${agent(id).name} skill ${name}`, { kind: 'write', path: join(at(agent(id).global.skills), name, f), after: forAgent(readFileSync(join(src, f), 'utf8'), id) });
+        add(`skills:${id}`, `${agent(id).name} skill ${name}`, { kind: 'write', path: join(at(agent(id).global.skills), name, f), after: forAgent(readFileSync(join(src, f), 'utf8'), id), installUnit });
       }
     }
   }
@@ -333,7 +344,7 @@ export function globalPlan(env) {
   // Offered, not preselected, at every level: Ponytail's band next to BenchKeeper's tier band. Both writes go together.
   if (agents.includes('claude') && bandStacks(ctx)) for (const c of hideBandChanges(ctx)) add('settings:ponytail:band', c.title, c, { selected: false, optional: true, unit: 'settings:ponytail:band' });
 
-  if (!full) return changes;
+  if (!full) return checkPlan(changes);
 
   // Global skills and MCP servers not part of the setup.
   const skillDirs = { claude: '.claude/skills', codex: '.agents/skills' };
@@ -393,13 +404,14 @@ export function globalPlan(env) {
   const skill = (repo, name, flags) => add(`tools:skill:${name}`, `global skill ${name} from ${repo}`, {
     kind: 'command', argv: ['npx', '-y', skillsSpec(ctx), 'add', SKILL_SOURCES[repo], '-s', name, '-g', ...flags, '--copy', '-y'], env: { DO_NOT_TRACK: '1', npm_config_ignore_scripts: 'true', ...cooldownEnv() }, verify: skillsVerify(ctx),
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
+    installUnit: unit({ id: `skill:${name}`, kind: 'skill', source: { type: 'git', repo: SKILL_SOURCES[repo] }, agents: ['claude', 'codex'], scope: 'global', files: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`)], removal: 'skills-cli' }),
   });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
   const hasIde = orca.installed(ctx);
   const wanted = [['vercel-labs/skills', 'find-skills'], ...(hasIde ? orca.SKILLS.map((n) => [orca.SKILL_SOURCE, n]) : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(repo, name, f); }
   if (hasIde) for (const t of orca.templates(ctx)) add(t.step, t.title, t.change, { selected: false, optional: true });
-  return changes;
+  return checkPlan(changes);
 }
 
 function parseJsonSafe(text) { try { return parseJson(text ?? '{}'); } catch { return {}; } }

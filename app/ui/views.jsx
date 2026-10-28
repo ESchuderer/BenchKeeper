@@ -642,6 +642,7 @@ export function Sessions() {
   const [src, setSrc] = useState(null);
   const [height, setHeight] = useState(480);
   const [ponytail, setPonytail] = useState(false);
+  const [notes, setNotes] = useState([]);
   const frame = useRef(null);
   const theme = useRef(scheme);
   useEffect(() => {
@@ -664,13 +665,15 @@ export function Sessions() {
     try { const r = await api('/api/sessions-scan', force ? { force: true } : {}); if (r.fresh) await show(); else setJob(r.job); } catch (e) { setError(e.message); }
   };
   useEffect(() => { scan().catch(console.error); }, []);
-  const state = useJob(job, (s) => { if (s.error) setError(s.error); else show().catch(console.error); setJob(null); });
+  // notes: Ponytail ledger files and rows the scan skipped.
+  const state = useJob(job, (s) => { setNotes(s.results?.notes ?? []); if (s.error) setError(s.error); else show().catch(console.error); setJob(null); });
   const p = state?.progress;
   return (
     <Stack gap="lg">
       <Group><Button leftSection={icon(IconRefresh)} variant="default" loading={!!job} onClick={() => scan(true)}>Rescan</Button>
         {ponytail && <Button variant="default" onClick={() => api('/api/ponytail-board', {}).catch((e) => setError(e.message))}>Open Ponytail's board</Button>}</Group>
       {error && <Note color="red">{error}</Note>}
+      {notes.map((n) => <Note key={n} color="yellow">{n}</Note>)}
       {job && <Stack gap={4}><Text size="sm">Reading transcripts{p ? `: ${p.done} of ${p.total} files` : ''}</Text><Progress value={p?.total ? (p.done / p.total) * 100 : 0} aria-label="Transcripts read" /></Stack>}
       {src && <iframe ref={frame} key={shown} src={src} title="Sessions board" onLoad={() => frame.current?.contentWindow?.postMessage({ bkTheme: theme.current }, window.location.origin)} style={{ display: 'block', width: '100%', height, border: 0 }} />}
       <Cli>benchkeeper sessions board</Cli>

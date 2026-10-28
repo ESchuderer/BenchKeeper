@@ -230,6 +230,10 @@ test.describe('views', () => {
     // Controls first: no intro on transcripts, cache or retention, in the view or in the frame.
     await expect(page.getByRole('main')).not.toContainText(/transcript|cache/i);
     await expect(board.locator('main')).not.toContainText(/cleanup period|cache of summaries/i);
+    // A skipped Ponytail ledger file is named after a scan.
+    await page.getByRole('button', { name: 'Rescan' }).click();
+    await expect(page.getByRole('main')).toContainText('Ponytail ledger broken.csv skipped: not a Ponytail ledger');
+    await expect(board.getByRole('heading', { level: 1, name: 'Sessions board' })).toBeVisible();
     await board.getByLabel('Period').selectOption('all');
     // A changed count is announced.
     await expect(board.locator('#count-live')).toContainText(/\d+ of \d+ sessions/);

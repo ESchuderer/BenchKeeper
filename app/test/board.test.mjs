@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -9,7 +9,7 @@ import { HEALTH, PRIMARY, TOKENS, cssVars } from '../src/tokens.mjs';
 import { MIN_SAMPLES } from '../src/insights.mjs';
 import { context } from '../src/runner.mjs';
 import { scanSessions } from '../src/sessions.mjs';
-import { TITLE, writeSessions } from './fixtures/sessions.mjs';
+import { TITLE, writeSessions, writeTreeSessions } from './fixtures/sessions.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -89,4 +89,29 @@ test('no transcript text reaches the page: a marker in a prompt, a reply, a tool
   assert.ok(rows.some((r) => r.id === 'm1'));
   assert.ok(!JSON.stringify(rows).includes(MARK));
   assert.ok(!boardHtml(rows, '2026-10-23T00:00:00Z').includes(MARK));
+});
+
+test('a session keeps the repository found when it entered the cache, also after its worktree is removed; git is asked once per folder', async () => {
+  const home = mkdtempSync(join(TMP, 'bk-board-repo-'));
+  const repo = join(home, 'src/shop'), a = join(home, 'wt/shop-a'), b = join(home, 'wt/shop-b'), plain = join(home, 'notes');
+  for (const d of [repo, a, b, plain]) mkdirSync(d, { recursive: true });
+  const asked = [];
+  const run = (argv) => {
+    if (argv[0] !== 'git' || argv.slice(3).join(' ') !== 'worktree list --porcelain') return { code: 127, stdout: '', stderr: 'not installed' };
+    asked.push(argv[2]);
+    return argv[2] === plain ? { code: 128, stdout: '', stderr: 'not a git repository' } : { code: 0, stdout: [repo, a, b].map((w) => `worktree ${w}\nHEAD 0\n`).join('\n'), stderr: '' };
+  };
+  writeTreeSessions(home, [a, a, b, plain]);
+  const ctx = context({ home, run });
+  const repos = async () => Object.fromEntries((await scanSessions(ctx)).map((r) => [r.id, r.repo]));
+  assert.deepEqual(await repos(), { w0: repo, w1: repo, w2: repo, w3: null });
+  assert.deepEqual(asked.sort(), [a, b, plain].sort());
+  asked.length = 0;
+  await repos();
+  assert.deepEqual(asked, []);
+  // The worktree goes and its transcript grows, so it is read again: the row keeps its repository.
+  rmSync(b, { recursive: true });
+  appendFileSync(join(home, '.claude/projects', b.replaceAll('/', '-'), 'w2.jsonl'), '\n');
+  assert.equal((await repos()).w2, repo);
+  assert.deepEqual(asked, []);
 });

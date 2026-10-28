@@ -1,7 +1,7 @@
 // Agent sessions on this machine, read from the Claude Code and Codex transcripts: tier, setup, skills, tests, cost
 // and pull requests per session, for the board. Reads only the transcripts, the ledger and gh; writes only its caches.
-import { createReadStream, readdirSync, statSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
 import { readText, writeAtomic } from './fsx.mjs';
@@ -183,13 +183,35 @@ async function parsed(ctx, onFile) {
     const key = `${st.size}:${st.mtimeMs}:${PARSE}`;
     if (cache[file]?.key === key) { next[file] = cache[file]; continue; }
     // A file removed or unreadable since the walk is left out; the others still count and are cached.
-    try { next[file] = { key, kind, d: plain(kind === 'codex' ? await codexFile(file) : await claudeFile(file)) }; } catch { /* skipped */ }
+    // A transcript read again keeps the repository found before: its worktree may be gone by now.
+    try { next[file] = { key, kind, d: { ...plain(kind === 'codex' ? await codexFile(file) : await claudeFile(file)), repo: cache[file]?.d?.repo } }; } catch { /* skipped */ }
   }
   // The retention is read again here: a change made during the scan stays.
   const { keepDays } = readCache(ctx);
   const kept = expire(Object.fromEntries(Object.entries(cache).filter(([f]) => !(f in next))), keepDays);
-  writeCache(ctx, { ...kept, ...next }, keepDays);
-  return { ...kept, ...next };
+  const all = { ...kept, ...next };
+  await withRepos(ctx, Object.values(all));
+  writeCache(ctx, all, keepDays);
+  return all;
+}
+
+// The repository a session's folder is a worktree of (its main worktree), found once per folder and kept in the cache,
+// as a worktree removed later cannot be asked. null: not in a repository, or the folder was gone at the first scan.
+// undefined only on a summary cached before this was read.
+async function withRepos(ctx, entries) {
+  const run = ctx.runAsync ?? (async (argv, o) => ctx.run(argv, o));
+  const found = new Map();
+  const repoOf = async (dir) => {
+    if (!existsSync(dir)) return null;
+    const r = await run(['git', '-C', dir, 'worktree', 'list', '--porcelain'], { timeout: 15e3 });
+    const main = r.code === 0 ? r.stdout.split('\n').find((l) => l.startsWith('worktree '))?.slice(9) : null;
+    return main ? resolve(main) : null;
+  };
+  for (const x of entries) {
+    if (x.kind === 'sub' || x.d?.repo !== undefined || typeof x.d?.cwd !== 'string') continue;
+    if (!found.has(x.d.cwd)) found.set(x.d.cwd, repoOf(x.d.cwd));
+    x.d.repo = await found.get(x.d.cwd);
+  }
 }
 
 // Labels of the installed skills (null when the transcript lists none): the plugins BenchKeeper sets up and the library packs whose skills are all there.
@@ -261,7 +283,7 @@ function withLedger(ctx, rows, since, onNote) {
     rows.push({
       agent: 'claude', id: `${l.id}-${l.startedMs}`, project: l.project, branch: null, agentVersion: null, title: null, start, end: start, turns: l.turns, models: l.model ? [l.model] : [],
       costUSD: l.costUSD, busyMs: l.agentMinutes == null ? null : Math.round(l.agentMinutes * 60e3), tokens: l.tokens ?? 0, tier: null, skills: [], tests: l.tests, setup: null, pattern: null, subagents: 0, run: null,
-      setupVersion: null, prs: [], source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
+      setupVersion: null, prs: [], repo: null, source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
     });
   }
   return rows.sort((a, b) => (a.start < b.start ? 1 : -1));
@@ -306,7 +328,7 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
       costUSD: d.cost?.usd ?? null, busyMs: kind === 'codex' ? d.busy : d.cost?.busy ?? null, tokens,
       tier: tierOf(d.tiers), skills: [...new Set(skills.map(bare))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), tests: d.tests, setup: d.installed ? setupLabels(d.installed) : null,
       pattern: patternOf(d, subagents), subagents, run: d.run ?? null,
-      setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs,
+      setupVersion: applies.find((r) => r.time < d.start)?.appVersion ?? null, prs: d.prs, repo: d.repo ?? null,
     });
   }
   const states = await prStates(ctx, rows.flatMap((r) => r.prs));

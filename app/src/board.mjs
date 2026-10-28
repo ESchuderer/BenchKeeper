@@ -23,16 +23,25 @@ function draw() {
   const $ = (id) => document.getElementById(id);
   const patternKey = (r) => r.pattern ?? 'not recorded';
   const setupKey = (r) => (!r.setup ? 'not recorded' : r.setup.length ? r.setup.join(' + ') : 'none');
-  // A session in a registered project or one of its worktrees counts as that project.
-  const REG = new Set(D.registered.map((x) => x.path));
+  // A session counts as the repository the scan found for its folder, else as the registered project whose worktree it
+  // ran in (a summary cached before the scan looked), else as its folder.
   const under = (dir, p) => p === dir || p.startsWith(`${dir}/`) || p.startsWith(`${dir}\\`);
   const owners = new Map();
   const owner = (p) => {
     if (!owners.has(p)) owners.set(p, (p && D.registered.find((x) => [x.path, ...x.worktrees].some((d) => under(d, p)))?.path) || null);
     return owners.get(p);
   };
-  const projectKey = (r) => owner(r.project) ?? r.project ?? 'unknown';
+  const projectKey = (r) => r.repo ?? owner(r.project) ?? r.project ?? 'unknown';
+  const listed = (r) => owner(projectKey(r)) != null;
   const short = (p) => p.split(/[\\/]/).slice(-2).join('/');
+  // A project by its folder name; two of the same name each add their parent folder.
+  const folder = (p) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
+  const names = new Map();
+  for (const k of new Set(rows.map(projectKey))) names.set(folder(k), (names.get(folder(k)) ?? 0) + 1);
+  const name = (k) => (k === 'Other' ? k : names.get(folder(k)) > 1 ? short(k) : folder(k));
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  // Its sessions and the worktrees (folders other than the repository's own) they ran in.
+  const counts = (k, rs) => { const w = new Set(rs.map((r) => r.project).filter((p) => p && p !== k)).size; return `${plural(rs.length, 'session')}${w ? `, ${plural(w, 'worktree')}` : ''}`; };
   const day = (iso) => iso.slice(0, 10);
   const median = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
   const pct = (part, all) => (all ? `${Math.round((part / all) * 100)}%` : '-');
@@ -78,39 +87,35 @@ function draw() {
     ['pattern', 'Pattern', patternKey],
     ['setup', 'Setup', setupKey],
   ];
-  // Projects registered in the app and their worktrees; a leading space keeps the option apart from any path.
-  const REGISTERED = ' registered';
-  const listed = (r) => owner(r.project) != null;
-  const FIRST = rows.some(listed) ? REGISTERED : '';
-  // all: the Project list and the rail show every directory a session ran in, not only the registered projects.
-  const state = { period: '30', q: '', project: FIRST, all: false, hidden: new Set() };
-  const matches = (key, f, r) => (key === 'project' && state.project === REGISTERED ? listed(r) : f(r) === state[key]);
-  const worktrees = (k) => { const n = D.registered.find((x) => x.path === k).worktrees.length; return n ? ` (${n} worktree${n === 1 ? '' : 's'})` : ''; };
-  const options = (key, f) => {
-    const values = [...new Set(rows.map(f))].filter((v) => key !== 'project' || state.all || REG.has(v)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    const own = key === 'project' && D.registered.length ? [el('option', { value: REGISTERED }, 'Registered projects')] : [];
-    return [...own, el('option', { value: '' }, 'All'), ...values.map((v) => el('option', { value: v }, key === 'project' && REG.has(v) ? `${v}${worktrees(v)}` : v))];
+  // reg: Registered only, remembered like the theme; it leaves out every session outside a registered project.
+  let reg = false;
+  try { reg = localStorage.getItem('bk-board-registered') === 'true'; } catch { /* storage blocked */ }
+  const state = { period: '30', q: '', project: '', reg: reg && D.registered.length > 0, hidden: new Set() };
+  const pool = () => (state.reg ? rows.filter(listed) : rows);
+  const options = (f) => {
+    const values = [...new Set(rows.map(f))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    return [el('option', { value: '' }, 'All'), ...values.map((v) => el('option', { value: v }, v))];
   };
   const bar = $('filters');
-  for (const [key, label, f] of FILTERS) {
-    const s = el('select', { id: `f-${key}` }, options(key, f));
+  // The project is chosen on the rail, the only list of projects.
+  for (const [key, label, f] of FILTERS.slice(1)) {
+    const s = el('select', { id: `f-${key}` }, options(f));
     s.value = state[key] ?? '';
     s.addEventListener('change', () => { state[key] = s.value; render(); });
     bar.append(el('span', { class: 'f' }, el('label', { for: `f-${key}` }, label), s));
-    if (key !== 'project') continue;
-    const all = el('input', { type: 'checkbox', id: 'f-all' });
-    all.addEventListener('change', () => {
-      state.all = all.checked;
-      if (!state.all && state.project && state.project !== REGISTERED && !REG.has(state.project)) state.project = FIRST;
-      s.replaceChildren(...options(key, f));
-      s.value = state.project;
-      render();
-    });
-    bar.append(el('span', { class: 'f' }, all, el('label', { for: 'f-all' }, 'Show all directories'), D.registered.length ? null : el('span', { class: 'muted' }, 'No project is registered in the app.')));
   }
   const period = el('select', { id: 'f-period' }, [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['all', 'All time']].map(([v, t]) => el('option', { value: v, selected: v === state.period }, t)));
   period.addEventListener('change', () => { state.period = period.value; render(); });
   bar.append(el('span', { class: 'f' }, el('label', { for: 'f-period' }, 'Period'), period));
+  const none = !D.registered.length;
+  const regBox = el('input', { type: 'checkbox', id: 'f-reg', checked: state.reg, disabled: none, 'aria-describedby': none ? 'f-reg-hint' : null });
+  regBox.addEventListener('change', () => {
+    state.reg = regBox.checked;
+    try { localStorage.setItem('bk-board-registered', String(state.reg)); } catch { /* storage blocked */ }
+    if (state.reg && state.project && !listed({ repo: state.project })) state.project = '';
+    render();
+  });
+  bar.append(el('span', { class: 'f' }, regBox, el('label', { for: 'f-reg' }, 'Registered only'), none ? el('span', { class: 'muted', id: 'f-reg-hint' }, 'No project is registered in the app.') : null));
   const metric = $('metric');
   metric.addEventListener('change', () => render());
   $('search').addEventListener('input', (e) => { state.q = e.target.value.toLowerCase(); renderTable(current); });
@@ -136,7 +141,6 @@ function draw() {
   let named = TOP, extra = new Map();
   const slot = (r) => (named.includes(projectKey(r)) ? projectKey(r) : 'Other');
   const color = (k) => (k === 'Other' || (!TOP.includes(k) && !extra.has(k)) ? 'var(--other)' : `var(--s${(TOP.includes(k) ? TOP.indexOf(k) : extra.get(k)) + 1})`);
-  const name = (k) => (k === 'Other' ? k : short(k));
   const assign = (list) => {
     const distinct = [...new Set(list.map(projectKey))];
     named = distinct.length <= SERIES ? distinct : TOP;
@@ -190,24 +194,23 @@ function draw() {
 
   // The project rail: newest activity first; a click filters everything below, a second click clears it.
   function rail(list) {
-    const regOnly = state.project === REGISTERED || (state.project && listed({ project: state.project }));
-    const by = group(list.filter((r) => (state.all && !regOnly) || listed(r)), projectKey);
+    const by = group(list, projectKey);
     const span = [...Array(14).keys()].map((i) => iso(now - (13 - i) * DAY));
     const cards = [...by].map(([k, rs]) => ({ k, rs, newest: rs.reduce((a, r) => (r.start > a ? r.start : a), '') })).sort((a, b) => (a.newest < b.newest ? 1 : a.newest > b.newest ? -1 : b.rs.length - a.rs.length));
-    const choose = (v) => { state.project = state.project === v ? FIRST : v; $('f-project').value = state.project; render(); };
+    const choose = (v) => { state.project = state.project === v ? '' : v; render(); };
     $('rail').replaceChildren(
-      el('button', { type: 'button', class: 'card all', 'aria-pressed': String(state.project === FIRST) }, FIRST ? 'Registered projects' : 'All projects'),
+      el('button', { type: 'button', class: 'card all', 'aria-pressed': String(!state.project) }, state.reg ? 'All registered projects' : 'All projects'),
       ...cards.map(({ k, rs }) => {
         const days14 = group(rs, (r) => day(r.start));
         const tier = rs.find((r) => r.tier)?.tier.last;
         const b = el('button', { type: 'button', class: 'card', 'aria-pressed': String(state.project === k) },
           el('span', { class: 'dot', style: `background:${color(k)}` }), el('span', { class: 'pname' }, name(k)),
-          el('span', { class: 'psub num' }, `${rs.length} session${rs.length === 1 ? '' : 's'}${tier ? `, last tier ${tier}` : ''}`),
+          el('span', { class: 'psub num' }, `${counts(k, rs)}${tier ? `, last tier ${tier}` : ''}`),
           sparkline(span.map((d) => days14.get(d)?.length ?? 0), 80, 22));
         b.addEventListener('click', () => choose(k));
         return b;
       }));
-    $('rail').firstChild.addEventListener('click', () => { state.project = FIRST; $('f-project').value = FIRST; render(); });
+    $('rail').firstChild.addEventListener('click', () => { state.project = ''; render(); });
   }
 
   // The drawn chart, for the keyboard and the readout.
@@ -401,12 +404,12 @@ function draw() {
   // One project: its branches and the states of its pull requests (every period).
   function projectPage(list) {
     const s = $('project-page'), k = state.project;
-    s.hidden = !k || k === REGISTERED;
+    s.hidden = !k;
     if (s.hidden) return;
     const prs = new Map();
     for (const r of list) for (const p of r.prs) prs.set(p.url, p.state);
     const states = [...group([...prs].map(([url, st]) => ({ st })), (x) => x.st)].map(([st, xs]) => `${xs.length} ${st}`).join(', ');
-    $('project-title').textContent = `Project ${short(k)}`;
+    $('project-title').textContent = `Project ${name(k)}`;
     $('project-body').replaceChildren(el('p', { class: 'note num' }, `${list.length} sessions, ${prs.size} pull requests${states ? `: ${states}` : ''}`),
       list.length ? table('Branches, newest first', ['Branch', 'Sessions', 'Last session', 'Pull requests'], [...group(list, (r) => r.branch ?? '-')].map(([b, rs]) => {
         const ps = new Map(); for (const r of rs) for (const p of r.prs) ps.set(p.url, p.state);
@@ -461,13 +464,14 @@ function draw() {
     const len = state.period === 'all' ? null : Number(state.period);
     const since = len ? iso(now - (len - 1) * DAY) : '';
     const before = len ? iso(now - (2 * len - 1) * DAY) : '';
-    const others = (r) => FILTERS.every(([key, , f]) => !state[key] || matches(key, f, r));
-    const base = rows.filter(others);
+    const all = pool();
+    const others = (r) => FILTERS.every(([key, , f]) => !state[key] || f(r) === state[key]);
+    const base = all.filter(others);
     const list = base.filter((r) => r.start >= since);
     const prev = len ? base.filter((r) => day(r.start) >= before && day(r.start) < since) : null;
     assign(list);
     // The rail leaves the project filter out, so every project of the period stays a choice.
-    rail(rows.filter((r) => r.start >= since && FILTERS.every(([key, , f]) => key === 'project' || !state[key] || matches(key, f, r))));
+    rail(all.filter((r) => r.start >= since && FILTERS.every(([key, , f]) => key === 'project' || !state[key] || f(r) === state[key])));
     const span = days(list);
     current = list;
     tiles(list, prev, span);
@@ -573,7 +577,7 @@ details summary { cursor: pointer; color: var(--ink-2); margin-top: 8px; }
 `;
 
 // rows: scanSessions output; now: an ISO time (the periods count back from it); registered: registeredPaths(), the
-// projects the Project filter lists (with their worktrees folded in) and offers as one choice, preselected when a session ran in one.
+// projects Registered only keeps, with their worktrees for rows cached without a repository.
 export function boardHtml(rows, now = new Date().toISOString(), registered = []) {
   // JSON in a script element: < as <, so no value can close the element.
   const data = JSON.stringify({ rows, now, registered, minSamples: MIN_SAMPLES }).replace(/</g, '\\u003c');

@@ -1,0 +1,43 @@
+{
+  "kind": "benchkeeper-evals",
+  "schemaVersion": 1,
+  "target": "skill:operating-benchkeeper",
+  "cases": [
+    {
+      "id": "s1",
+      "query": "Update the BenchKeeper setup of this repository from the command line and tell me the undo id.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s2",
+      "query": "Run benchkeeper doctor and plan the fixes without changing anything.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "s3",
+      "query": "Undo the last BenchKeeper run on this machine.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
+      "id": "n1",
+      "query": "Add a --verbose flag to the CLI in src/cli.js that prints each step.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n2",
+      "query": "Which tests in this project protect nothing? List them.",
+      "should": false,
+      "expected": "the skill does not load"
+    },
+    {
+      "id": "n3",
+      "query": "Open the BenchKeeper web UI and take a screenshot of the Dashboard.",
+      "should": false,
+      "expected": "the skill does not load"
+    }
+  ]
+}

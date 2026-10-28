@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { openBrowser } from '../../src/server.mjs';
+import { TOKENS } from '../../src/tokens.mjs';
 
 const TOKEN = 'ui-test-token-0123456789';
 const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
@@ -83,6 +84,25 @@ test.describe('views', () => {
       });
     }
   }
+
+  test('the board tokens are the app variables in both schemes; reduced motion removes the transitions', async ({ page }) => {
+    for (const scheme of ['light', 'dark']) {
+      await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
+      const read = (name) => page.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
+      expect(await read('--bk-accent')).toBe(TOKENS[scheme].accent);
+      expect(await read('--bk-s2')).toBe(TOKENS[scheme].s2);
+      expect(await read('--mantine-color-text')).toBe(TOKENS[scheme].ink);
+    }
+    // The focus ring is the accent in dark mode (the filled step is below 3:1 on the dark surface).
+    const button = page.getByRole('button', { name: 'Fix everything' });
+    await page.keyboard.press('Shift');
+    await button.focus();
+    expect(await button.evaluate((el) => getComputedStyle(el).outlineColor)).toBe('rgb(134, 182, 239)');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    expect(await button.evaluate((el) => getComputedStyle(el).transitionDuration)).not.toBe('0s');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await button.evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s');
+  });
 
   test('phone width: the header fits at 320 px; the menu holds theme and Stop, and says whether it is open', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
@@ -452,6 +472,24 @@ test.describe('views', () => {
     }).toPass();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#\/projects\?path=/);
+  });
+
+  test('the segmented control focus ring is the accent in dark mode', async ({ page }) => {
+    await page.evaluate(() => document.documentElement.setAttribute('data-mantine-color-scheme', 'dark'));
+    await nav(page, 'Agent settings').click();
+    await page.getByRole('radio').first().focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => getComputedStyle(document.activeElement).getPropertyValue('--segmented-control-outline').trim())).toBe('2px solid #86b6ef');
+  });
+
+  test('the Switch focus ring is the accent in dark mode', async ({ page }) => {
+    await page.evaluate(() => document.documentElement.setAttribute('data-mantine-color-scheme', 'dark'));
+    await nav(page, 'Agent settings').click();
+    const toggle = page.getByRole('switch', { name: 'Changed from default' });
+    await page.keyboard.press('Shift');
+    await toggle.focus();
+    expect(await toggle.evaluate((el) => getComputedStyle(el.nextElementSibling).outlineColor)).toBe('rgb(134, 182, 239)');
   });
 
   test('theme toggle switches between light and dark', async ({ page }) => {

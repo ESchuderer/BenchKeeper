@@ -25,7 +25,7 @@ Three levels, from the smallest: a plugin cannot ship always-on instructions, so
 <!-- generated:levels -->
 | Level | Contains | Writes | Command |
 |---|---|---|---|
-| Lite | the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos` and `orchestrating-projects` skills | nothing outside the plugin install, besides the app's run record for undo | `npx benchkeeper@6.25.0 apply --level lite` |
+| Lite | the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects` and `operating-benchkeeper` skills | nothing outside the plugin install, besides the app's run record for undo | `npx benchkeeper@6.25.0 apply --level lite` |
 | Standard | lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list | local files in each project you run `project apply` in | `npx benchkeeper@6.25.0 apply --level standard && npx benchkeeper@6.25.0 project apply` |
 | Full | standard plus the global rules, Ponytail, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.25.0 apply --level full` |
 <!-- /generated:levels -->

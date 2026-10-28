@@ -103,6 +103,26 @@ test('Update all runs the hooks of the checkout, not those of the fetched tree',
   assert.equal(readFileSync(`${mark}-post-checkout`, 'utf8'), 'local\n');
 });
 
+test('Update all runs no hook of the fetched tree for add and status in the worktree', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const mark = join(h, 'index-hook-ran');
+  // A global core.hooksPath of .githooks would run the hook during the fixture's own add and commit.
+  p.git('config', 'core.hooksPath', join(h, 'no-hooks'));
+  mkdirSync(join(p.dir, '.githooks'), { recursive: true });
+  writeFileSync(join(p.dir, '.githooks', 'post-index-change'), `#!/bin/sh\necho fetched > '${mark}'\n`, { mode: 0o755 });
+  p.git('add', '-A');
+  p.git('commit', '-qm', 'hooks');
+  p.git('push', '-q', 'origin', 'main');
+  p.git('reset', '-q', '--hard', 'HEAD~1');
+  p.git('config', 'core.hooksPath', '.githooks');
+  addProject(ctx, p.dir);
+  const [r] = updateAll(ctx, { push: false });
+  assert.equal(r.status, 'committed', r.reason);
+  assert.equal(existsSync(mark), false);
+});
+
 test('Update all commits the new setup on a branch in a worktree and leaves the checkout alone', () => {
   const h = home();
   const ctx = context({ home: h });
@@ -255,6 +275,10 @@ test('update-all shows the plan, asks once, and --yes --no-push commits without 
   assert.equal(await exec(['projects', 'add', p.dir]), 0);
   assert.equal(await exec(['update-all'], 'n\n'), 1);
   assert.match(text, new RegExp(`${p.dir}  setup 5\\.0\\.0  \\d+ changes`));
+  assert.match(text, /Update 1 projects: .*git push and gh pr create/);
+  assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
+  text = '';
+  assert.equal(await exec(['update-all']), 1, 'end of input is no');
   assert.match(text, /Update 1 projects: .*git push and gh pr create/);
   assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
   assert.equal(await exec(['update-all', '--yes', '--no-push']), 0);

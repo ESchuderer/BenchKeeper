@@ -5,6 +5,7 @@ import { IconActivity, IconAdjustmentsHorizontal, IconBooks, IconChartBar, IconB
 import { useEffect, useRef, useState } from 'react';
 // The repository's logo, as on the site; black on white, inverted in dark mode like there.
 import logo from '../../assets/logo.svg';
+import { PRIMARY, SHAPE, varsOf } from '../src/tokens.mjs';
 import { api } from './api.js';
 import { EvalJob, RunProgress } from './parts.jsx';
 import { Dot, MOD, go, href, icon, useApi, useRoute } from './shell.jsx';
@@ -22,18 +23,28 @@ import { Agents, Catalog, Dashboard, Evals, History, Projects, Sessions, Setting
 const described = { styles: { description: { color: 'var(--mantine-color-text)' } } };
 const theme = createTheme({
   respectReducedMotion: true,
-  primaryColor: 'teal', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md',
+  colors: { bench: PRIMARY }, primaryColor: 'bench', primaryShade: { light: 9, dark: 9 }, defaultRadius: 'md',
+  // The board's card radius and shadow; the shadow differs per scheme, so it is the variable.
+  radius: { md: SHAPE['radius-sm'], lg: SHAPE.radius },
+  shadows: { xs: 'var(--bk-shadow)', sm: 'var(--bk-shadow)' },
   fontFamily: "'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
-  fontFamilyMonospace: "ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
+  fontFamilyMonospace: SHAPE.mono,
   headings: {
     fontWeight: '650',
     sizes: { h1: { fontSize: '1.375rem', lineHeight: '1.3' }, h2: { fontSize: '1.25rem', lineHeight: '1.35' }, h3: { fontSize: '1.0625rem', lineHeight: '1.4' },
       h4: { fontSize: '1rem', lineHeight: '1.45' }, h5: { fontSize: '0.9375rem', lineHeight: '1.5' }, h6: { fontSize: '0.75rem', lineHeight: '1.5' } },
   },
-  components: { Checkbox: described, Radio: described, Switch: described, InputWrapper: described, Paper: { defaultProps: { shadow: 'xs' } } },
+  components: {
+    Checkbox: described, Radio: described, Switch: described, InputWrapper: described,
+    Paper: { defaultProps: { shadow: 'xs', radius: 'lg' } }, Card: { defaultProps: { shadow: 'xs', radius: 'lg', withBorder: true } },
+    Badge: { defaultProps: { radius: 'xl' } }, NavLink: { defaultProps: { variant: 'light' } }, Progress: { defaultProps: { radius: 'xl' } },
+  },
 });
-// Chart colors per scheme, checked with the dataviz palette validator: shade 9 is too dark on the dark surface.
-const chartColors = (t) => ({ variables: {}, light: { '--bk-miss': t.colors.teal[9], '--bk-false-trigger': t.colors.indigo[9] }, dark: { '--bk-miss': t.colors.teal[7], '--bk-false-trigger': t.colors.indigo[6] } });
+// The board's tokens as variables per scheme (--bk-page, --bk-s1, ...); text, dimmed text and the chart grid come from
+// them and hold 4.5:1 on page and surface (tested in board.test.mjs).
+const resolver = () => Object.fromEntries(['light', 'dark'].map((s) => [s, {
+  ...varsOf(s, 'bk-', true), '--mantine-color-text': 'var(--bk-ink)', '--mantine-color-dimmed': 'var(--bk-ink-2)', '--mantine-color-body': 'var(--bk-surface)',
+}]).concat([['variables', {}]]));
 // Dashboard and Projects first: the views used most.
 const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot],
   ['history', 'History', History, IconHistory], ['sessions', 'Sessions', Sessions, IconActivity], ['insights', 'Insights', Insights, IconBulb], ['evals', 'Evals', Evals, IconChartBar], ['agent-settings', 'Agent settings', AgentSettings, IconAdjustmentsHorizontal], ['rules', 'Rules', Rules, IconFileText], ['extensions', 'Extensions', Extensions, IconPlug], ['accounts', 'Accounts', Accounts, IconUsers], ['settings', 'Settings', Settings, IconSettings]];
@@ -193,8 +204,8 @@ function Shell() {
         </AppShell.Header>
         <AppShell.Navbar id="app-nav" p="xs" aria-label="Views" inert={phone && !nav ? true : undefined}>
           {VIEWS.map(([id, label, , Icon]) => (
-            <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} variant="filled" color="dark" aria-current={view === id ? 'page' : undefined}
-              rightSection={counts[id] ? <Badge variant="default" size="sm">{counts[id]}</Badge> : null} />
+            <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} aria-current={view === id ? 'page' : undefined}
+              rightSection={counts[id] ? <Badge variant="default" size="sm" className="bk-num">{counts[id]}</Badge> : null} />
           ))}
           {/* The header has no room for the doctor count below md, nor for theme and Stop below sm: they live here. */}
           <Stack gap="xs" mt="auto" p="xs">
@@ -247,5 +258,5 @@ function StopApp({ version, opened, close }) {
 }
 
 export default function App() {
-  return <MantineProvider theme={theme} defaultColorScheme="auto" cssVariablesResolver={chartColors}><Shell /></MantineProvider>;
+  return <MantineProvider theme={theme} defaultColorScheme="auto" cssVariablesResolver={resolver}><Shell /></MantineProvider>;
 }

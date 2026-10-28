@@ -8,8 +8,8 @@ import { CLAUDE_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
 import { NeedsConfirm, accountChecks, accountStatus, findAccount, listAccounts, runAs } from '../src/accounts.mjs';
 import { main } from '../src/cli.mjs';
 import { runCommand } from '../src/runner.mjs';
-import { HOOK_SOURCE, assess, limitsFor, parseState, trackedSettings } from '../src/usage.mjs';
-import { failureLine, run as hook, usageRecord } from '../src/usage-hook.mjs';
+import { HOOK_SOURCE, assess, limitsFor, parseState, trackedSettings, usageFindings } from '../src/usage.mjs';
+import { FAILURES, LEGACY_MATCHER, failureLine, run as hook, usageRecord } from '../src/usage-hook.mjs';
 
 function cli(m, answers = []) {
   let text = '';
@@ -50,8 +50,9 @@ test('the hook keeps only the two windows and the error type: no token, path, me
   assert.equal(statSync(join(dir, 'usage.json')).mode & 0o777, 0o600);
   hook('failure', JSON.stringify({ hook_event_name: 'StopFailure', error: 'authentication_failed', error_details: `Bearer ${CLAUDE_TOKEN}`, last_assistant_message: `API Error ${CLAUDE_TOKEN}`, cwd: '/work', session_id: 's1' }), dir, T0);
   hook('failure', JSON.stringify({ error: 'overloaded' }), dir, T0);
+  hook('failure', JSON.stringify({ error: 'something_new' }), dir, T0);
   hook('failure', 'not json', dir, T0);
-  assert.equal(readFileSync(join(dir, 'failures.jsonl'), 'utf8'), '{"at":"2026-10-26T12:00:00.000Z","error":"authentication_failed"}\n');
+  assert.equal(readFileSync(join(dir, 'failures.jsonl'), 'utf8'), '{"at":"2026-10-26T12:00:00.000Z","error":"authentication_failed"}\n{"at":"2026-10-26T12:00:00.000Z","error":"overloaded"}\n');
   assert.deepEqual(grep(dir, CLAUDE_TOKEN), []);
   assert.equal(statSync(join(dir, 'failures.jsonl')).mode & 0o777, 0o600);
   // Out of range or missing numbers drop the window; an input without any window keeps the last reading.
@@ -101,6 +102,16 @@ test('assess with a fake clock: below the minimum is low, at it is fine, a reset
   assert.deepEqual(limitsFor(settings, { limits: { minimum: { sevenDay: 10 } } }), { minimum: { fiveHour: 20, sevenDay: 10 }, warn: { fiveHour: 40, sevenDay: 10 } });
 });
 
+test('every documented StopFailure error type is kept and has a finding', () => {
+  const limits = limitsFor();
+  const state = parseState(null, FAILURES.map((error) => `{"error":"${error}","at":"${new Date(T0 - HOUR).toISOString()}"}`).join('\n') + '\n');
+  const found = usageFindings('main', assess(state, limits, T0), 'relogin');
+  assert.equal(found.length, 12);
+  assert.ok(found.every((f) => f.message && f.fix));
+  assert.equal(failureLine({ error: 'cloud_credential_error' }, T0).includes('cloud_credential_error'), true);
+  assert.equal(failureLine({ error: 'other' }, T0), null);
+});
+
 test('settings.json: the status line and the hook are added next to the user\'s own and taken out again', () => {
   const script = '/home/u/acct/benchkeeper/usage.mjs';
   const own = '{\n  "model": "x",\n  "hooks": { "StopFailure": [{ "matcher": "overloaded", "hooks": [{ "type": "command", "command": "echo hi" }] }] }\n}\n';
@@ -110,7 +121,13 @@ test('settings.json: the status line and the hook are added next to the user\'s 
   assert.equal(doc.statusLine.command, `node "${script}" statusline`);
   assert.equal(doc.hooks.StopFailure.length, 2);
   assert.equal(doc.hooks.StopFailure[0].hooks[0].command, 'echo hi');
-  assert.equal(doc.hooks.StopFailure[1].matcher, 'rate_limit|authentication_failed|billing_error');
+  assert.equal(doc.hooks.StopFailure[1].matcher, FAILURES.join('|'));
+  assert.equal(FAILURES.length, 12, 'every StopFailure error type the hooks page documents');
+  // An entry an earlier version installed (three types) is replaced, not duplicated, and taken out again.
+  const legacy = JSON.parse(own);
+  legacy.hooks.StopFailure.push({ matcher: LEGACY_MATCHER, hooks: [{ type: 'command', command: `node "${script}" failure` }] });
+  assert.deepEqual(JSON.parse(trackedSettings(JSON.stringify(legacy), script)).hooks.StopFailure, doc.hooks.StopFailure);
+  assert.deepEqual(JSON.parse(trackedSettings(JSON.stringify(legacy), script, { remove: true })), JSON.parse(own));
   assert.equal(trackedSettings(on, script), on, 'twice changes nothing');
   assert.deepEqual(JSON.parse(trackedSettings(on, script, { remove: true })), JSON.parse(own));
   assert.equal(trackedSettings(null, script, { remove: true }), null);

@@ -63,8 +63,9 @@ const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
 
 // BenchKeeper adds no permission rules: Claude Code's auto mode (its defaults) decides what needs a prompt. Whatever else sits in
-// permissions.ask or in Codex's rules folder differs from that set and is offered for removal.
-export const PERMISSION_ASK = [];
+// permissions.ask or in Codex's rules folder differs from that set and is offered for removal. The two push and pull request
+// checkpoints are the catalog's suggestion (settings editor, never written here), so they are not offered for removal.
+export const PERMISSION_ASK = ['Bash(git push *)', 'Bash(gh pr create *)'];
 const CODEX_OWN_RULES = ['default.rules'];
 export const CLAUDE_KEYS = [
   [['advisorModel'], 'opus'], [['remoteControlAtStartup'], true], [['showClearContextOnPlanAccept'], true],
@@ -306,6 +307,8 @@ export function globalPlan(env) {
     add('settings:claude', 'Claude settings: advisor Opus, Remote Control at startup, clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off, subagents on Sonnet', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS) });
     add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]) });
     add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]) });
+    // Offered, not preselected: Haiku 5.5 came after Opus 5.5 and its level is saved per model the same way (inferred from the docs wording).
+    add('settings:claude:effort-haiku', 'Claude effort high for Haiku 5.5 (optional; its own default is medium)', { kind: 'write', path: f, edit: sets([[['modelSettings', 'claude-haiku-5-5', 'effortLevel'], 'high']]) }, { selected: false, optional: true });
     add('settings:claude:compact', 'Claude auto-compact window 400000 tokens, per-model values removed', {
       kind: 'write', path: f, edit: (t) => {
         const ms = parseJson(t ?? '{}').modelSettings ?? {};

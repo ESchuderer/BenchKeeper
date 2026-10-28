@@ -240,6 +240,106 @@ test('Doctor reads the project and local layers for project checks only', () => 
   assert.ok(found.some((m) => /silently ignored/.test(m)) && found.some((m) => /OpenTelemetry export variables/.test(m)));
 });
 
+test('catalog coverage of #468: manual alias, ask rules, read block, sandbox disclosure and autoMode are read, planned and undone', () => {
+  const ctx = machine();
+  const rows = () => Object.fromEntries(listSettings(ctx, 'claude').settings.map((r) => [r.key, r]));
+  const AUTO = { allow: ['$defaults', 'Allow `gh pr merge` in the session\'s repository when the user\'s message asks to merge that pull request'] };
+  const cases = [
+    ['permissions.defaultMode', 'manual', ['permissions', 'defaultMode']],
+    ['permissions.ask', ['Bash(git push *)', 'Bash(gh pr create *)'], ['permissions', 'ask']],
+    ['permissions.blockReadsOutsideWorkingDirectories', true, ['permissions', 'blockReadsOutsideWorkingDirectories']],
+    ['sandbox.autoAllowBashIfSandboxed', false, ['sandbox', 'autoAllowBashIfSandboxed']],
+    ['autoMode', AUTO, ['autoMode']],
+  ];
+  // Offered, not written: a fresh home has none of them set, and each row carries a sentence and a source.
+  for (const [key] of cases.slice(1)) assert.ok(rows()[key] && rows()[key].sentence && /^https:\/\//.test(rows()[key].source) && rows()[key].value === undefined && !rows()[key].setByApp, key);
+  assert.deepEqual(rows()['permissions.ask'].suggest.value, ['Bash(git push *)', 'Bash(gh pr create *)']);
+  for (const [key, value, path] of cases) {
+    write(claudeUser(ctx), '{\n  "model": "x"\n}\n');
+    const before = readFileSync(claudeUser(ctx), 'utf8');
+    const plan = preview(settingsChanges(ctx, 'claude', { edits: { [key]: value } }));
+    assert.equal(plan.length, 1, key);
+    assert.equal(readFileSync(claudeUser(ctx), 'utf8'), before, 'a plan writes nothing');
+    const r = apply(plan, ctx, { scope: 'global' });
+    assert.deepEqual(path.reduce((o, k) => o[k], JSON.parse(readFileSync(claudeUser(ctx), 'utf8'))), value, key);
+    assert.deepEqual(rows()[key].value, value, `${key} is read back`);
+    assert.equal(undo(r.id, ctx).status, 'done');
+    assert.equal(readFileSync(claudeUser(ctx), 'utf8'), before, `${key}: undo restores the file`);
+  }
+  // manual is an alias of default: it is a valid value in the project and local files too, and nothing warns.
+  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  for (const layer of ['project', 'local']) assert.equal(settingsChanges(ctx, 'claude', { layer, dir, edits: { 'permissions.defaultMode': 'manual' } }).length, 1);
+  assert.throws(() => settingsChanges(ctx, 'claude', { edits: { 'permissions.defaultMode': 'nonsense' } }), /one of/);
+  assert.throws(() => settingsChanges(ctx, 'claude', { edits: { 'permissions.ask': 'Bash(git push *)' } }), /list of texts/);
+  assert.throws(() => settingsChanges(ctx, 'claude', { edits: { 'permissions.blockReadsOutsideWorkingDirectories': 'yes' } }), /true or false/);
+});
+
+test('autoMode is taken from the user file only; a project or local file is refused and Doctor flags one that exists', () => {
+  const ctx = machine();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  for (const layer of ['project', 'local']) assert.throws(() => settingsChanges(ctx, 'claude', { layer, dir, edits: { autoMode: { allow: ['$defaults'] } } }), /user file only|does not read autoMode/);
+  assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: { allow: 'x' } } }), /object with allow/);
+  assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: { other: [] } } }), /object with allow/);
+  write(join(dir, '.claude/settings.local.json'), JSON.stringify({ autoMode: { allow: ['$defaults'] } }));
+  write(join(dir, 'AGENTS.md'), 'x\n');
+  assert.ok(doctor(ctx, { agents: ['claude'], env: {}, dir }).some((i) => i.check === 'agent-settings' && /does not read autoMode/.test(i.message)));
+});
+
+test('Doctor: a bypass default mode in project or local settings is flagged, in the user file it is left alone', () => {
+  const ctx = machine();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  write(join(dir, 'AGENTS.md'), 'x\n');
+  const found = () => doctor(ctx, { agents: ['claude'], env: {}, dir }).filter((i) => i.check === 'agent-settings' && /silently ignored/.test(i.message));
+  write(join(dir, '.claude/settings.json'), JSON.stringify({ permissions: { defaultMode: 'bypassPermissions' } }));
+  assert.equal(found().length, 1);
+  write(join(dir, '.claude/settings.json'), '{}');
+  write(join(dir, '.claude/settings.local.json'), JSON.stringify({ permissions: { defaultMode: 'bypassPermissions' } }));
+  assert.equal(found().length, 1);
+  write(join(dir, '.claude/settings.local.json'), '{}');
+  write(claudeUser(ctx), JSON.stringify({ permissions: { defaultMode: 'bypassPermissions' } }));
+  assert.equal(found().length, 0, 'the user file takes the mode: the user\'s own choice');
+});
+
+test('Doctor: the advisor rank sees a [1m] model id, and a pinned Sonnet 4.5 or the sonnet alias on Foundry is warned about', () => {
+  const ctx = machine();
+  const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)).map((i) => i.message); };
+  assert.match(messages({ advisorModel: 'claude-sonnet-5-5[1m]', model: 'claude-opus-5-5' })[0], /ranks below the main model/);
+  assert.match(messages({ advisorModel: 'claude-opus-4-6[1m]', model: 'claude-opus-5-5[1m]' })[0], /ranks below the main model/);
+  assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5[1m]', model: 'claude-sonnet-5-5' }), []);
+  // The retiring id, in every place a model is named; other ids and platform forms are not touched.
+  const OLD = 'claude-sonnet-4-5-20250929';
+  for (const settings of [{ model: OLD }, { model: `${OLD}[1m]` }, { advisorModel: OLD }, { fallbackModel: [OLD] }, { env: { ANTHROPIC_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_SONNET_MODEL: OLD } }, { env: { ANTHROPIC_DEFAULT_HAIKU_MODEL: OLD } }, { env: { CLAUDE_CODE_SUBAGENT_MODEL: OLD } }]) {
+    assert.match(messages(settings).join(), /retires on 2026-11-30/, JSON.stringify(settings));
+  }
+  assert.deepEqual(messages({}), []);
+  assert.deepEqual(messages({ model: 'claude-sonnet-5-5' }), []);
+  assert.deepEqual(messages({ model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0' }), [], 'Bedrock keeps its own schedule');
+  // The sonnet alias on Foundry resolves to Sonnet 4.5; the setup's own subagent alias counts too.
+  const FOUNDRY = { CLAUDE_CODE_USE_FOUNDRY: '1' };
+  assert.match(messages({ env: { ...FOUNDRY, CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/);
+  assert.match(messages({ model: 'opusplan', env: FOUNDRY }).join(), /Microsoft Foundry/);
+  assert.match(messages({ model: 'sonnet' }, FOUNDRY).join(), /Microsoft Foundry/, 'Foundry set in the process environment');
+  assert.deepEqual(messages({ model: 'sonnet', env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the alias is pinned by the user');
+  assert.deepEqual(messages({ model: 'sonnet' }), [], 'not on Foundry');
+  assert.deepEqual(messages({ model: 'claude-sonnet-5-5', env: FOUNDRY }), []);
+});
+
+test('Doctor: the keys the settings reference marks deprecated or removed are flagged, derived from the pinned reference', () => {
+  const ctx = machine();
+  const keys = ['disableArtifact', 'keybindingFlavor', 'permissionExplainerEnabled', 'taskOutputMaxChars', 'teammateDefaultModel'];
+  const reference = JSON.parse(readFileSync(new URL('../src/settings/claude-settings-keys.json', import.meta.url), 'utf8'));
+  assert.deepEqual(reference.filter((r) => /^(Deprecated|Removed)\b/.test(r.description) && r.key !== 'includeCoAuthoredBy').map((r) => r.key).sort(), keys);
+  for (const key of keys) {
+    write(claudeUser(ctx), JSON.stringify({ [key]: true }));
+    const found = doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message));
+    assert.equal(found.length, 1, key);
+    assert.match(found[0].message, new RegExp(`${key}: (Deprecated|Removed)`));
+    assert.ok(listSettings(ctx, 'claude', { advanced: true }).advanced.find((a) => a.key === key), key);
+  }
+  write(claudeUser(ctx), '{}');
+  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)), []);
+});
+
 test('Codex: a TOML edit keeps comments, key order and keys the app does not know', () => {
   const ctx = machine();
   const text = '# my config\nmodel = "gpt-x" # keep this\nunknown_key = [1, 2]\n\n# analytics\n[analytics]\nenabled = true # on\n\n[tui]\nnotifications = true\n\n[projects."/gone/worktree"]\ntrust_level = "trusted"\n';

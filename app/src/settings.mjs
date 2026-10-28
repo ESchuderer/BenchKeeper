@@ -175,6 +175,11 @@ export function validate(agentId, def, value, layer) {
       if (['commit', 'pr'].some((k) => k in value && typeof value[k] !== 'string') || ('sessionUrl' in value && typeof value.sessionUrl !== 'boolean')) return bad('commit and pr are texts, sessionUrl is true or false');
       return null;
     }
+    case 'autoMode': {
+      if (layer && layer !== 'user') return bad('the classifier reads it from the user file only (or managed settings)');
+      if (kind(value) !== 'object' || Object.keys(value).some((k) => !['allow', 'soft_deny', 'environment', 'hard_deny'].includes(k)) || Object.values(value).some((v) => !Array.isArray(v) || v.some((x) => typeof x !== 'string'))) return bad('an object with allow, soft_deny, environment and hard_deny, each a list of texts');
+      return null;
+    }
     case 'object': return bad('edit it in the file; the app shows it only');
     default: {
       // From the pinned schema or the reference: the schema's types, else anything.
@@ -195,12 +200,15 @@ const isTomlValue = (v) => isScalar(v) || (Array.isArray(v) && v.every(isScalar)
 // ---- notes: the coupling rules ----
 
 const SWITCHES = (agentId) => agentSettings(agentId).settings.filter((s) => s.type === 'switch');
+// Keys the settings reference marks deprecated or removed; includeCoAuthoredBy has a rule of its own.
+const DEPRECATED = REFERENCE.filter((r) => /^(Deprecated|Removed)\b/.test(r.description) && r.key !== 'includeCoAuthoredBy');
 const truthy = (v) => v === true || v === 1 || /^(1|true)$/i.test(String(v));
 
 // The ids of advisor and main model, as the advisor page ranks them; null when either is not a full model ID.
 const RANKS = COUPLINGS.advisorRanks.map((r) => r.split('|'));
 const rankOf = (id) => {
-  const m = String(id ?? '').match(/^claude-(haiku|sonnet|opus|fable)-(\d+)(?:-(\d+))?(?:-\d{8})?$/);
+  // The [1m] suffix picks a context window, not a rank.
+  const m = String(id ?? '').match(/^claude-(haiku|sonnet|opus|fable)-(\d+)(?:-(\d+))?(?:-\d{8})?(?:\[1m\])?$/);
   if (!m) return null;
   const name = `${m[1]}-${m[2]}${m[3] ? `-${m[3]}` : ''}`;
   const i = RANKS.findIndex((r) => r.includes(name));
@@ -216,6 +224,7 @@ function lookup(state, agentId, key, layers) {
   return found;
 }
 function holds(c, state, agentId) {
+  if (c.keys) return c.keys.some((key) => holds({ ...c, keys: undefined, key }, state, agentId));
   if (c.all) return c.all.every((x) => holds(x, state, agentId));
   if (c.any) return c.any.some((x) => holds(x, state, agentId));
   if (c.not) return !holds(c.not, state, agentId);
@@ -242,6 +251,7 @@ function holds(c, state, agentId) {
     if (c.set) return true;
     if ('eq' in c) return v === c.eq;
     if (c.in) return c.in.includes(v);
+    if (c.match) return [v].flat().some((x) => typeof x === 'string' && new RegExp(c.match).test(x));
     if ('lt' in c) return typeof v === 'number' && v < c.lt;
     if (c.falsy) return v === '0' || v === 0 || v === false || /^false$/i.test(String(v));
     // A switch that counts any value as set, versus a plain boolean that 0 and false turn off.
@@ -255,10 +265,10 @@ export function notes(agentId, layers, { env, onlyDoctor = false, partial = fals
   const state = { layers, env };
   const out = [];
   for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor) && !(partial && x.needsAll))) {
-    const expand = r.forEach === 'zeroIsSet' ? SWITCHES(agentId).filter((s) => s.zeroIsSet).map((s) => s.key) : [null];
+    const expand = r.forEach === 'zeroIsSet' ? SWITCHES(agentId).filter((s) => s.zeroIsSet).map((s) => s.key) : r.forEach === 'deprecated' ? DEPRECATED.map((d) => d.key) : [null];
     for (const key of expand) {
-      const fill = (s) => (key ? s.replaceAll('{key}', key) : s);
-      const when = key ? JSON.parse(fill(JSON.stringify(r.when))) : r.when;
+      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s);
+      const when = key ? JSON.parse(JSON.stringify(r.when).replaceAll('{key}', key)) : r.when;
       if (when && !holds(when, state, agentId)) continue;
       // A value the setup itself writes is on purpose: no finding while every such key still has the setup's value.
       if (r.unlessSetup && r.keys.filter((k) => setupValue(k) !== undefined).every((k) => same(lookup(state, agentId, k)[0], setupValue(k)))) continue;

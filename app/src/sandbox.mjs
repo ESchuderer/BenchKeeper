@@ -83,6 +83,7 @@ export async function starts(tool, run, { t, home, hosts, env, signal }) {
   const r = await run(w.argv, { cwd: t, env: w.env, signal, timeout: 60e3 });
   const tail = mask((r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' '));
   const error = r.code === 0 ? null : `the sandbox (${tool}) did not start: ${tail || `exit ${r.code}`}${/mount proc/i.test(tail) ? ' (in a container, start it with --security-opt unmask=/proc/*)' : ''}`;
-  probed.set(key, { error, until: Date.now() + (error ? 60e3 : 10 * 60e3) });
+  // A stop or a timeout says nothing about the sandbox: it is checked again next time.
+  if (!signal?.aborted && r.code !== 124) probed.set(key, { error, until: Date.now() + (error ? 60e3 : 10 * 60e3) });
   return error;
 }

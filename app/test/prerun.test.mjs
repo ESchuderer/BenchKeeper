@@ -243,3 +243,23 @@ test('prerun: where srt cannot run, bubblewrap or sandbox-exec confine the write
   assert.ok(m.argv[2].includes(JSON.stringify(m.real)));
   assert.deepEqual(m.argv.slice(3), GLOBAL.argv);
 });
+
+test('prerun: a stop during the start check is a cancel, not "unavailable", and the next preview checks again', async () => {
+  const home = tmpHome('cancel');
+  const ctl = new AbortController();
+  let starts = 0;
+  const run = viaSrt(() => quiet);
+  const stopping = (argv, o) => {
+    if (argv[0] === 'npx' && argv.includes('true')) { starts++; ctl.abort(); return { code: 130, stdout: '', stderr: 'cancelled' }; }
+    return run(argv, o);
+  };
+  const ctx = { home, run: stopping, sandbox: SANDBOX };
+  assert.deepEqual(await rehearse(ctx, GLOBAL, { signal: ctl.signal }), { files: [], error: 'cancelled' });
+  const again = await rehearse({ ...ctx, run }, GLOBAL);
+  assert.equal(again.error, null, 'the cancelled check was not kept as a failure');
+  assert.equal(starts, 1);
+  // A timeout is no verdict on the sandbox either.
+  const slow = { home: tmpHome('slow'), sandbox: SANDBOX, run: (argv) => (argv[1]?.endsWith('verify.mjs') ? quiet : { code: 124, stdout: '', stderr: 'stopped after 1 minutes' }) };
+  assert.equal((await rehearse(slow, GLOBAL)).unavailable, true);
+  assert.equal((await rehearse({ ...slow, run: viaSrt(() => quiet) }, GLOBAL)).error, null);
+});

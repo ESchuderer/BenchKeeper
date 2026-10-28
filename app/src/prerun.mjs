@@ -106,7 +106,7 @@ export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3, unconfined 
     if (sb.tool) {
       const hosts = registryHosts(npmrcText, env);
       const error = await starts(sb.tool, runAsync, { t, home: ctx.home, hosts, env, signal });
-      if (error) return { files: [], unavailable: true, error };
+      if (error) return signal?.aborted ? { files: [], error: 'cancelled' } : { files: [], unavailable: true, error };
       cmd = wrap(sb.tool, { argv: c.argv, t, home: ctx.home, hosts, env });
     }
     const r = await runAsync(cmd.argv, { cwd: root, env: cmd.env, signal, timeout });

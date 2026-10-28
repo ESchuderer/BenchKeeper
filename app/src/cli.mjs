@@ -311,6 +311,7 @@ async function command(argv, { out, err, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
   const [cmd = 'ui', arg] = positionals;
   if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
+  if (o.only !== undefined && !(cmd === 'projects' && arg === 'audit')) { out.write('--only belongs to projects audit\n'); return 2; }
   if (o.json && cmd !== 'verify') return jsonCommand({ cmd, arg, o, positionals, out, err, ctx });
   if (cmd === 'ui') {
     const { server, url } = await startServer(ctx, { port: o.port ? Number(o.port) : 0 });

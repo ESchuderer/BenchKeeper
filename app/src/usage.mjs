@@ -3,7 +3,7 @@
 // the window is unknown, never full. Everything here is pure: the files are read by accounts.mjs, the clock is a parameter.
 import { readFileSync } from 'node:fs';
 import { mergeJson, parseJson } from './merge.mjs';
-import { FAILURES } from './usage-hook.mjs';
+import { FAILURES, LEGACY_MATCHER } from './usage-hook.mjs';
 
 export const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
 // The minimum headroom (percent) to start a task; the notice level before it defaults to twice that. Defaults, not claims about what a task needs.
@@ -68,8 +68,17 @@ export function assess(state, limits, now) {
 const at = (iso) => `${iso.slice(0, 16).replace('T', ' ')} UTC`;
 const FAILURE_TEXT = {
   rate_limit: ['info', 'the last session stopped at a rate limit', 'wait for the reset or start under another account'],
+  overloaded: ['info', 'the last session stopped because the API was overloaded', 'try again later'],
   authentication_failed: ['warning', 'the last session ended with an authentication failure', null],
+  oauth_org_not_allowed: ['warning', 'the last session ended because the organization does not allow this login', null],
+  account_on_hold: ['warning', 'the last session ended because the account is on hold', 'check the account with its provider'],
   billing_error: ['warning', 'the last session ended with a billing error', 'check the plan and billing of the account'],
+  invalid_request: ['info', 'the last session ended with an invalid request', 'look at the last turn of that session'],
+  model_not_found: ['warning', 'the last session ended because the model was not found', 'check the model setting and whether the account has access to it'],
+  server_error: ['info', 'the last session ended with an API server error', 'try again later'],
+  max_output_tokens: ['info', 'the last session stopped at the output token limit', 'ask for a shorter answer or raise the limit'],
+  cloud_credential_error: ['warning', 'the last session ended because the cloud provider credentials failed to load', 'check the provider login (Bedrock, Vertex or Foundry)'],
+  unknown: ['info', 'the last session ended with an error of no known type', 'look at the last turn of that session'],
 };
 // Findings for doctor and status: a warning below the minimum, an info below the notice level, the latest failure of each kind.
 export function usageFindings(name, u, relogin) {
@@ -101,14 +110,14 @@ export const readyAt = (u) => Math.max(...lowWindows(u).map((w) => Date.parse(w.
 // The command goes through a shell: only plain path characters are accepted.
 const SAFE = /^[\w ./\\:@+~-]+$/;
 const status = (script) => ({ type: 'command', command: `node "${script}" statusline` });
-const hook = (script) => ({ matcher: FAILURES.join('|'), hooks: [{ type: 'command', command: `node "${script}" failure` }] });
+const hook = (script, matcher = FAILURES.join('|')) => ({ matcher, hooks: [{ type: 'command', command: `node "${script}" failure` }] });
 // The account's settings.json with the status line and the StopFailure hook (remove: without them). An existing status line of
 // another kind is not replaced: the agent has one only. The hook is added to the user's own StopFailure entries.
 export function trackedSettings(text, script, { remove = false } = {}) {
   if (!SAFE.test(script)) throw new Error(`the path ${script} has characters that do not go into a hook command`);
   const current = parseJson(text, 'settings.json');
   const ours = typeof current.statusLine?.command === 'string' && current.statusLine.command.includes(script);
-  if (remove) return text == null ? text : mergeJson(text, [...(ours ? [{ path: ['statusLine'], remove: true }] : []), { path: ['hooks', 'StopFailure'], pull: [hook(script)] }, { path: ['hooks'], prune: true }], 'settings.json');
+  if (remove) return text == null ? text : mergeJson(text, [...(ours ? [{ path: ['statusLine'], remove: true }] : []), { path: ['hooks', 'StopFailure'], pull: [hook(script), hook(script, LEGACY_MATCHER)] }, { path: ['hooks'], prune: true }], 'settings.json');
   if (current.statusLine && !ours) throw new Error('this account already has a status line of its own, and the agent has one only: remove it from its settings.json first');
-  return mergeJson(text, [{ path: ['statusLine'], value: status(script) }, { path: ['hooks', 'StopFailure'], append: [hook(script)] }], 'settings.json');
+  return mergeJson(text, [{ path: ['statusLine'], value: status(script) }, { path: ['hooks', 'StopFailure'], pull: [hook(script, LEGACY_MATCHER)] }, { path: ['hooks', 'StopFailure'], append: [hook(script)] }], 'settings.json');
 }

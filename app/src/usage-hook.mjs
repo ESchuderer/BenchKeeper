@@ -6,7 +6,10 @@ import { appendFileSync, chmodSync, mkdirSync, readFileSync, realpathSync, renam
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const FAILURES = ['rate_limit', 'authentication_failed', 'billing_error'];
+// The error types the StopFailure hook documents (cloud_credential_error needs Claude Code v2.1.267).
+export const FAILURES = ['rate_limit', 'overloaded', 'authentication_failed', 'oauth_org_not_allowed', 'account_on_hold', 'billing_error', 'invalid_request', 'model_not_found', 'server_error', 'max_output_tokens', 'cloud_credential_error', 'unknown'];
+// The matcher of the hook an earlier version installed, for the three types it recorded.
+export const LEGACY_MATCHER = 'rate_limit|authentication_failed|billing_error';
 const KEEP = 20;
 const num = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
 

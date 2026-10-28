@@ -25,6 +25,7 @@ import '@fontsource-variable/inter';
 import '../styles/global.css';
 import Page from '../components/Page';
 import facts from '../data/facts.json';
+import { themeKey } from '../lib/edition';
 
 import { execSync } from 'node:child_process';
 
@@ -56,10 +57,10 @@ try {
   <meta property="og:image:alt" content={`BenchKeeper logo. ${description}`}>
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href={`${base}/logo.svg`} type="image/svg+xml">
-  <script is:inline>
+  <script is:inline define:vars={{ themeKey }}>
     (function () {
       var v = null;
-      try { v = localStorage.getItem('mantine-color-scheme-value'); } catch (e) {}
+      try { v = localStorage.getItem(themeKey); } catch (e) {}
       var s = v === 'light' || v === 'dark' ? v : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.documentElement.setAttribute('data-mantine-color-scheme', s);
     })();
@@ -67,9 +68,9 @@ try {
 </head>
 <body>
   <Page base={base} updated={updated} commit={commit} />
-  <script is:inline>
+  <script is:inline define:vars={{ themeKey }}>
     (function () {
-      var root = document.documentElement, key = 'mantine-color-scheme-value', mq = matchMedia('(prefers-color-scheme: dark)');
+      var root = document.documentElement, key = themeKey, mq = matchMedia('(prefers-color-scheme: dark)');
       function stored() { try { return localStorage.getItem(key); } catch (e) { return null; } }
       document.querySelector('[data-theme-toggle]').addEventListener('click', function () {
         var next = root.getAttribute('data-mantine-color-scheme') === 'dark' ? 'light' : 'dark';

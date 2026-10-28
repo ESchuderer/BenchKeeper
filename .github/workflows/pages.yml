@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions: {}
@@ -31,8 +33,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.3
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+          package-manager-cache: false
       - run: npm ci --ignore-scripts
       - run: node scripts/readme.mjs --check
       - run: npm run build
@@ -59,35 +60,55 @@ jobs:
         with:
           args: --offline --no-progress --root-dir ${{ runner.temp }}/site 'web/dist/**/*.html'
 
-  # Pushes to main build the site again and upload it for the deploy; a failing build or check job keeps the previous deployment.
+  # The site root shows the latest GitHub Release, built from its tag; /next/ shows main. A Pages deployment replaces the
+  # whole site, so this job builds both into one artifact. The Release workflow starts this workflow after it creates a
+  # release (a release made with GITHUB_TOKEN starts no `release` run). A failing build or check job keeps the previous
+  # deployment.
   bundle:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
     env:
       ASTRO_TELEMETRY_DISABLED: 1
+      REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: main
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.3
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: Build the site
+          package-manager-cache: false # the release event runs this job; no cache that a pull request could have written
+      - name: Build main for /next/
         working-directory: web
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           npm ci --ignore-scripts
-          npm run build
+          SITE_EDITION=next npm run build
+      - name: Build the latest release for the root
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$REPO" --json tagName --jq .tagName 2>/dev/null || true)
+          if [ -z "$tag" ]; then
+            mkdir site
+            printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=next/"><title>BenchKeeper</title><a href="next/">BenchKeeper</a>\n' > site/index.html
+          else
+            git fetch --depth 1 --no-tags "https://github.com/$REPO.git" "refs/tags/$tag:refs/tags/$tag"
+            git worktree add --detach "$RUNNER_TEMP/release" "$tag"
+            (cd "$RUNNER_TEMP/release/web" && npm ci --ignore-scripts && npm run build)
+            mv "$RUNNER_TEMP/release/web/dist" site
+          fi
+          mv web/dist site/next
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: web/dist
+          path: site
 
   deploy:
     needs: bundle

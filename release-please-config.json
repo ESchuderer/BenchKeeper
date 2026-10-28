@@ -2,18 +2,20 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "bootstrap-sha": "f35b7290d3b8a28cc599128382c8fae33c132d94",
   "packages": {
-    ".": {
+    "app": {
+      "release-type": "node",
+      "component": "app",
+      "include-component-in-tag": true
+    },
+    "plugins/benchkeeper": {
       "release-type": "simple",
       "component": "setup",
       "include-component-in-tag": true,
-      "bump-minor-pre-major": false,
+      "versioning": "always-bump-minor",
       "extra-files": [
-        { "type": "json", "path": "app/package.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "app/package-lock.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "app/package-lock.json", "jsonpath": "$.packages[''].version" },
-        { "type": "json", "path": "plugins/benchkeeper/.claude-plugin/plugin.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "plugins/benchkeeper/.codex-plugin/plugin.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "plugins/benchkeeper/content.json", "jsonpath": "$.contentVersion" }
+        { "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" },
+        { "type": "json", "path": ".codex-plugin/plugin.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "content.json", "jsonpath": "$.contentVersion" }
       ]
     }
   }

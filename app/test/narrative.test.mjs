@@ -64,8 +64,8 @@ test('the input is an allowlist of finding fields: a planted marker, a full path
 });
 
 test('a path with one separator is cut to its last segment, and the prompt carries at most 25 findings with the rest counted', () => {
-  const finding = (i, message) => ({ id: `f${i}`, signal: 'doctor', severity: 'low', message, evidence: {}, fix: 'edit ~/.bashrc' });
-  const input = narrativeInput({ samples: 0 }, [finding(0, 'DO_NOT_TRACK is set in ~/.bashrc: and in C:\\Users\\me\\x.ini')]);
+  const finding = (i, message) => ({ id: `f${i}`, signal: 'doctor', severity: 'low', message, evidence: {}, fix: 'edit C:\\.bashrc' });
+  const input = narrativeInput({ samples: 0 }, [finding(0, 'DO_NOT_TRACK is set in C:\\.bashrc: and in C:\\Users\\me\\x.ini')]);
   assert.equal(input.findings[0].message, 'DO_NOT_TRACK is set in .bashrc: and in x.ini');
   assert.equal(input.findings[0].proposal, 'edit .bashrc');
   const many = narrativeInput({ samples: 0 }, Array.from({ length: 100 }, (_, i) => finding(i, 'm')));

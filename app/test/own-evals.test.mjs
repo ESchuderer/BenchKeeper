@@ -117,19 +117,19 @@ test('an eval set that names a project must name an absolute one that its target
   assert.throws(() => loadCases(ctx), /outside letters/);
 });
 
-test('case add --scope and eval --target take an own skill on the command line', async () => {
+test('evals cases add --scope and evals run --target take an own skill on the command line', async () => {
   const ctx = machine();
   const project = tmp('bk-own-proj-');
   skill(project, 'own-cli', 'cli\n');
   let text = '';
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
-  assert.equal(await main(['case', 'add', '--target', 'skill:own-cli', '--project', project, '--scope', 'project', '--expected', 'loads', '--query', 'Go [own-cli]'], { out, ctx }), 0);
+  assert.equal(await main(['evals', 'cases', 'add', '--target', 'skill:own-cli', '--project', project, '--scope', 'project', '--expected', 'loads', '--query', 'Go [own-cli]'], { out, ctx }), 0);
   assert.match(text, /^case \S+ for skill:own-cli@project-[0-9a-f]{8} in /);
   text = '';
   // eval refuses under CI, which this test runs in.
   const ci = process.env.CI;
   delete process.env.CI;
-  try { assert.equal(await main(['eval', '--target', 'skill:own-cli', '--yes'], { out, ctx }), 0); } finally { if (ci !== undefined) process.env.CI = ci; }
+  try { assert.equal(await main(['evals', 'run', '--target', 'skill:own-cli', '--yes'], { out, ctx }), 0); } finally { if (ci !== undefined) process.env.CI = ci; }
   assert.match(text, new RegExp(`skill:own-cli@project-[0-9a-f]{8}  claude  1 cases  \\(project ${project}\\)\\n`));
   assert.match(text, /miss 0%/);
 });

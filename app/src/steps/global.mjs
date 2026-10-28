@@ -14,7 +14,7 @@ import { SRT_VERSION } from '../sandbox.mjs';
 import { verifyArgv } from '../verify.mjs';
 
 // lite: the BenchKeeper plugin alone (nothing outside the plugin install). standard: the same on the machine, plus the local block
-// that `project apply` writes per project. full: everything below (global rules, settings, other plugins, host tools).
+// that `projects apply` writes per project. full: everything below (global rules, settings, other plugins, host tools).
 export const LEVELS = ['lite', 'standard', 'full'];
 // The oldest skills CLI the app runs: used when the registry cannot be asked, and never undercut by a newer answer.
 export const SKILLS_CLI = '1.7.2';

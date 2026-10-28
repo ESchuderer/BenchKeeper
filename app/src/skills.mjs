@@ -1,5 +1,5 @@
 // Skills as a project has them: the state of each against the library, what no setup installed, and the plan that
-// changes one skill (update, reset, remove, adopt). Reads only; the changes go through the project plan and its runner.
+// changes one skill (update, reset, remove, adopt, enable, disable). Reads only; the changes go through the project plan and its runner.
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { skillDirs } from './agents.mjs';
@@ -73,13 +73,13 @@ export function skillAction(rows, action, names) {
   for (const n of names) {
     if (action === 'adopt' && !rows.untracked.some((u) => u.name === n && u.library)) throw new Error(`${n} is not an untracked library skill of this project`);
     if (action !== 'adopt' && !row(n)) throw new Error(`${n} is not a skill of this project`);
-    if (action === 'remove' && !row(n).single) throw new Error(`${n} comes from ${row(n).packs.length ? `the pack ${row(n).packs.join(', ')}` : 'the setup'}: switch the pack off (benchkeeper packs disable ${row(n).packs[0] ?? '<pack>'}) or turn the skill off (benchkeeper project apply --disable ${n})`);
+    if (action === 'remove' && !row(n).single) throw new Error(`${n} comes from ${row(n).packs.length ? `the pack ${row(n).packs.join(', ')}` : 'the setup'}: switch the pack off (benchkeeper packs disable ${row(n).packs[0] ?? '<pack>'}) or turn the skill off (benchkeeper skills disable ${n})`);
   }
   if (action === 'update' && !names.length) {
     const outdated = rows.skills.filter((s) => s.state === 'outdated').map((s) => s.name);
     return { names: outdated, answers: { update: outdated } };
   }
-  return { names, answers: { update: action === 'update' ? names : [], reset: action === 'reset' ? names : [], drop: action === 'remove' ? names : [], pick: action === 'adopt' ? names : [] } };
+  return { names, answers: { enable: action === 'enable' ? names : [], disable: action === 'disable' ? names : [], update: action === 'update' ? names : [], reset: action === 'reset' ? names : [], drop: action === 'remove' ? names : [], pick: action === 'adopt' ? names : [] } };
 }
 
 // Only the changes of the skills named, with the state file, the git exclude list and the rules block (it points to own skills).

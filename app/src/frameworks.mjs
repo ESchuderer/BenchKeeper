@@ -149,14 +149,14 @@ export function frameworkChecks({ dir, state, userPlugins = [], lib = library() 
   const found = owners.filter((f) => recorded.has(f.id)
     || Object.keys(SETTINGS).some((s) => Object.entries(tryJson(readText(join(dir, SETTINGS[s])))?.enabledPlugins ?? {}).some(([id, on]) => on === true && name(id) === name(f.install.plugin)))
     || userPlugins.some((p) => name(p.id) === name(f.install.plugin)));
-  if (found.length > 1) out.push(issue('error', `two workflow owners in this project: ${found.map((f) => f.title).join(' and ')}`, 'keep one: benchkeeper project apply --framework <id>, and uninstall the other plugin'));
+  if (found.length > 1) out.push(issue('error', `two workflow owners in this project: ${found.map((f) => f.title).join(' and ')}`, 'keep one: benchkeeper projects apply --framework <id>, and uninstall the other plugin'));
   for (const f of found.filter((x) => !recorded.has(x.id))) {
     const user = userPlugins.some((p) => name(p.id) === name(f.install.plugin));
     out.push(issue('warning', `${f.title} is installed${user ? ' for the user (all projects)' : ' here'}, but this project's setup does not record it: BenchKeeper's workflow and ${f.title} both drive the work`,
-      user ? `claude plugin uninstall ${f.install.plugin}, then choose it per project: benchkeeper project apply --framework ${f.id}` : `benchkeeper project apply --framework ${f.id}, or claude plugin uninstall ${f.install.plugin} --scope <project|local>`));
+      user ? `claude plugin uninstall ${f.install.plugin}, then choose it per project: benchkeeper projects apply --framework ${f.id}` : `benchkeeper projects apply --framework ${f.id}, or claude plugin uninstall ${f.install.plugin} --scope <project|local>`));
   }
   // A framework the state names that the catalog does not: a state file from another version or a changed one.
-  for (const id of recorded) if (!catalog(lib).some((f) => f.id === id)) out.push(issue('warning', `the setup records framework ${id}, which this app does not know`, 'benchkeeper project apply --framework none, or update the app'));
+  for (const id of recorded) if (!catalog(lib).some((f) => f.id === id)) out.push(issue('warning', `the setup records framework ${id}, which this app does not know`, 'benchkeeper projects apply --framework none, or update the app'));
   return out;
 }
 

@@ -25,17 +25,17 @@ function fixture(answers = '') {
 
 test('show prints the entries of each file', async () => {
   const f = fixture();
-  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir]), 0);
+  assert.equal(await f.exec(['knowledge', 'show', f.dir]), 0);
   assert.match(f.text(), /tests\.json {2}1 entries\n {2}test\/a\.test\.mjs {2}score=81\.4 hash=f00/);
   assert.match(f.text(), /verdicts\.json {2}2 entries\n {2}cleanup:src\/a\.mjs:unusedFn {2}verdict=kept reason=public API commit=abc123/);
 });
 
 test('show --json prints the result document in the envelope', async () => {
   const f = fixture();
-  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir, '--json']), 0);
+  assert.equal(await f.exec(['knowledge', 'show', f.dir, '--json']), 0);
   const doc = f.json();
   assert.equal(doc.schemaVersion, 1);
-  assert.equal(doc.command, 'maintain knowledge show');
+  assert.equal(doc.command, 'knowledge show');
   assert.equal(doc.dir, f.dir);
   assert.deepEqual(doc.files.map((x) => [x.name, x.entries.length]), [['tests.json', 1], ['verdicts.json', 2]]);
   assert.deepEqual(doc.ignored, []);
@@ -44,10 +44,10 @@ test('show --json prints the result document in the envelope', async () => {
 test('show without a knowledge base says so, and --json has empty lists', async () => {
   const f = fixture();
   const empty = mkdtempSync(join(tmpdir(), 'bk-know-empty-'));
-  assert.equal(await f.exec(['maintain', 'knowledge', 'show', empty]), 0);
+  assert.equal(await f.exec(['knowledge', 'show', empty]), 0);
   assert.match(f.text(), /no knowledge stored for/);
   const g = fixture();
-  assert.equal(await g.exec(['maintain', 'knowledge', 'show', empty, '--json']), 0);
+  assert.equal(await g.exec(['knowledge', 'show', empty, '--json']), 0);
   assert.deepEqual(g.json().files, []);
 });
 
@@ -59,7 +59,7 @@ test('a tampered, oversized or linked file is ignored with a reason, the rest is
   writeFileSync(join(kb, 'big.json'), `{"entries":[],"pad":"${'x'.repeat(1024 * 1024)}"}`);
   writeFileSync(join(f.dir, 'secret.json'), '{"entries":[{"id":"outside"}]}');
   symlinkSync(join(f.dir, 'secret.json'), join(kb, 'link.json'));
-  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir]), 0);
+  assert.equal(await f.exec(['knowledge', 'show', f.dir]), 0);
   for (const name of ['broken.json', 'shape.json', 'big.json', 'link.json']) assert.match(f.text(), new RegExp(`ignored ${name}: `));
   assert.doesNotMatch(f.text(), /outside/);
   assert.match(f.text(), /verdicts\.json {2}2 entries/);
@@ -68,18 +68,18 @@ test('a tampered, oversized or linked file is ignored with a reason, the rest is
 test('stored text cannot carry terminal control characters or token shapes to the output', async () => {
   const f = fixture();
   writeFileSync(join(f.dir, '.benchkeeper/knowledge/open.json'), JSON.stringify({ entries: [{ id: 'q1', note: '\u001b[31mred ghp_abcdefghijklmnop' }] }));
-  await f.exec(['maintain', 'knowledge', 'show', f.dir]);
+  await f.exec(['knowledge', 'show', f.dir]);
   assert.doesNotMatch(f.text(), /\u001b/);
   assert.doesNotMatch(f.text(), /ghp_abcdefghijklmnop/);
 });
 
 test('clear asks, a no keeps everything, a yes removes the knowledge folder and nothing else', async () => {
   const f = fixture('n\n');
-  assert.equal(await f.exec(['maintain', 'knowledge', 'clear', f.dir]), 1);
+  assert.equal(await f.exec(['knowledge', 'clear', f.dir]), 1);
   assert.match(f.text(), /Remove .*knowledge \(3 entries in 2 files\)\? \[y\/N\]/);
   assert.ok(existsSync(join(f.dir, '.benchkeeper/knowledge/verdicts.json')));
   const g = fixture('y\n');
-  assert.equal(await g.exec(['maintain', 'knowledge', 'clear', g.dir]), 0);
+  assert.equal(await g.exec(['knowledge', 'clear', g.dir]), 0);
   assert.equal(existsSync(join(g.dir, '.benchkeeper/knowledge')), false);
   assert.equal(readFileSync(join(g.dir, '.benchkeeper/state.json'), 'utf8'), '{"kept":true}\n');
   assert.equal(readFileSync(join(g.dir, 'README.md'), 'utf8'), 'project file\n');
@@ -88,11 +88,11 @@ test('clear asks, a no keeps everything, a yes removes the knowledge folder and 
 test('clear --yes skips the question; ignored files go too; a second clear finds nothing', async () => {
   const f = fixture();
   writeFileSync(join(f.dir, '.benchkeeper/knowledge/broken.json'), 'x');
-  assert.equal(await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']), 0);
+  assert.equal(await f.exec(['knowledge', 'clear', f.dir, '--yes']), 0);
   assert.doesNotMatch(f.text(), /\[y\/N\]/);
   assert.equal(existsSync(join(f.dir, '.benchkeeper/knowledge')), false);
   assert.ok(existsSync(join(f.dir, '.benchkeeper/state.json')));
-  assert.equal(await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']), 0);
+  assert.equal(await f.exec(['knowledge', 'clear', f.dir, '--yes']), 0);
   assert.match(f.text(), /no knowledge stored for/);
 });
 
@@ -103,20 +103,20 @@ test('a linked knowledge folder is shown as ignored and clear removes the link, 
   const kb = join(f.dir, '.benchkeeper/knowledge');
   rmSync(kb, { recursive: true });
   symlinkSync(target, kb);
-  await f.exec(['maintain', 'knowledge', 'show', f.dir]);
+  await f.exec(['knowledge', 'show', f.dir]);
   assert.match(f.text(), /ignored \.: not a folder/);
-  await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']);
+  await f.exec(['knowledge', 'clear', f.dir, '--yes']);
   assert.equal(existsSync(kb), false);
   assert.ok(existsSync(join(target, 'verdicts.json')));
 });
 
 test('clear removes an empty knowledge folder; show says it is empty', async () => {
   const f = fixture();
-  await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']);
+  await f.exec(['knowledge', 'clear', f.dir, '--yes']);
   mkdirSync(join(f.dir, '.benchkeeper/knowledge'));
-  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir]), 0);
+  assert.equal(await f.exec(['knowledge', 'show', f.dir]), 0);
   assert.match(f.text(), /the knowledge folder is empty/);
-  assert.equal(await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']), 0);
+  assert.equal(await f.exec(['knowledge', 'clear', f.dir, '--yes']), 0);
   assert.equal(existsSync(join(f.dir, '.benchkeeper/knowledge')), false);
 });
 
@@ -127,10 +127,10 @@ test('a linked .benchkeeper is not read and not removed', async () => {
   writeFileSync(join(outside, 'knowledge/verdicts.json'), '{"entries":[{"id":"elsewhere"}]}');
   rmSync(join(f.dir, '.benchkeeper'), { recursive: true });
   symlinkSync(outside, join(f.dir, '.benchkeeper'));
-  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir]), 0);
+  assert.equal(await f.exec(['knowledge', 'show', f.dir]), 0);
   assert.match(f.text(), /ignored \.benchkeeper: a link, not followed/);
   assert.doesNotMatch(f.text(), /elsewhere/);
-  assert.equal(await f.exec(['maintain', 'knowledge', 'clear', f.dir, '--yes']), 1);
+  assert.equal(await f.exec(['knowledge', 'clear', f.dir, '--yes']), 1);
   assert.match(f.text(), /is a link: nothing removed/);
   assert.ok(existsSync(join(outside, 'knowledge/verdicts.json')));
 });
@@ -140,35 +140,35 @@ test('an unreadable knowledge folder is a read failure, not an absent one', asyn
   chmodSync(join(f.dir, '.benchkeeper/knowledge'), 0o000);
   t.after(() => chmodSync(join(f.dir, '.benchkeeper/knowledge'), 0o700));
   if (process.getuid?.() === 0 || process.platform === 'win32') return t.skip('permissions are not enforced here');
-  assert.equal(await f.exec(['maintain', 'knowledge', 'show', f.dir]), 2);
+  assert.equal(await f.exec(['knowledge', 'show', f.dir]), 2);
   assert.match(f.text(), /cannot read .*knowledge: EACCES/);
   const g = fixture();
   chmodSync(join(g.dir, '.benchkeeper/knowledge'), 0o000);
   t.after(() => chmodSync(join(g.dir, '.benchkeeper/knowledge'), 0o700));
-  assert.equal(await g.exec(['maintain', 'knowledge', 'show', g.dir, '--json']), 2);
+  assert.equal(await g.exec(['knowledge', 'show', g.dir, '--json']), 2);
   assert.match(g.json().error, /EACCES/);
 });
 
 test('token-shaped keys are masked too', async () => {
   const f = fixture();
   writeFileSync(join(f.dir, '.benchkeeper/knowledge/open.json'), JSON.stringify({ entries: [{ id: 'q1', ghp_abcdefghijklmnop: 'x' }] }));
-  await f.exec(['maintain', 'knowledge', 'show', f.dir, '--json']);
+  await f.exec(['knowledge', 'show', f.dir, '--json']);
   assert.doesNotMatch(f.text(), /ghp_abcdefghijklmnop/);
 });
 
 test('usage errors: unknown subcommand, a surplus argument with --json', async () => {
   const f = fixture();
-  assert.equal(await f.exec(['maintain', 'knowledge', 'list']), 2);
-  assert.match(f.text(), /maintain needs knowledge show or knowledge clear/);
+  assert.equal(await f.exec(['knowledge', 'list']), 2);
+  assert.match(f.text(), /knowledge needs show or clear/);
   const g = fixture();
-  assert.equal(await g.exec(['maintain', 'knowledge', 'clear', g.dir, '--json']), 2);
-  assert.equal(g.json().command, 'maintain knowledge clear');
-  assert.match(g.json().error, /works with knowledge show/);
+  assert.equal(await g.exec(['knowledge', 'clear', g.dir, '--json']), 2);
+  assert.equal(g.json().command, 'knowledge clear');
+  assert.match(g.json().error, /knowledge --json works with show/);
   const h = fixture();
-  assert.equal(await h.exec(['maintain', 'knowledge', 'show', h.dir, 'extra', '--json']), 2);
+  assert.equal(await h.exec(['knowledge', 'show', h.dir, 'extra', '--json']), 2);
   assert.match(h.json().error, /unexpected argument extra/);
   // Text mode too: a surplus argument never reaches the removal.
   const i = fixture();
-  assert.equal(await i.exec(['maintain', 'knowledge', 'clear', i.dir, 'extra', '--yes']), 2);
+  assert.equal(await i.exec(['knowledge', 'clear', i.dir, 'extra', '--yes']), 2);
   assert.ok(existsSync(join(i.dir, '.benchkeeper/knowledge/verdicts.json')));
 });

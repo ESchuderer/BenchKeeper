@@ -332,7 +332,7 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
       // Pack switches and single-skill actions of the Projects and Catalog views, on top of the saved answers.
-      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), partial: q.has('focus') };
+      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
       // Skill toggles name skills of this project only.
       const own = input(() => chosenSkills(resolveAnswers(dir, { ...setup, ...switches }), libraryWith(ctx)).map((s) => s.name));
       const disable = q.getAll('disable'), enable = q.getAll('enable');
@@ -351,8 +351,9 @@ export function api(ctx) {
         packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, own: !!x.own, skills: x.skills?.length ?? null, enabled: p.answers.packs.includes(x.id) })) };
     },
     // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
-    'GET /api/skills': () => ({
-      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path)).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path) })).filter((p) => p.skills),
+    // ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.
+    'GET /api/skills': (q = new URLSearchParams()) => ({
+      projects: listProjects(ctx).filter((p) => !p.missing && registered(p.path)).map((p) => ({ path: p.path, name: p.name ?? null, ...projectSkills(ctx, p.path, { check: q.get('check') === '1' }) })).filter((p) => p.skills),
       global: globalUntracked(ctx, installed()),
     }),
     // What a project's first setup offers: the installed agents, environments, tiers, library packs and skills, and the

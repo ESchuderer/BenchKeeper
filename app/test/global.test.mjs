@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { contentDir } from '../src/content.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { inventory } from '../src/inventory.mjs';
-import { MATT_POCOCK_COMMIT, PLUGINS, PONYTAIL_COMMIT, benchkeeperPlugin, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
+import { PLUGINS, benchkeeperPlugin, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
 import { verifyArgv, verifyPackage } from '../src/verify.mjs';
 
 // Stubs: one foreign plugin, marketplace and MCP server per agent; installs and removals change what the lists show.
@@ -91,7 +91,8 @@ test('a failed install does not stop the other steps', () => {
 
 test('full apply: rules, removals, plugins, settings, tools; a second plan is empty', () => {
   const m = machine();
-  const run = apply(m.plan(), m.ctx, { select: all(m.plan()) });
+  // "Keep your edits" is left out: chosen with the rules write, it wins and the write is not applied.
+  const run = apply(m.plan(), m.ctx, { select: all(m.plan()).filter((id) => !id.startsWith('rulesKeep:')) });
   assert.equal(run.status, 'done', JSON.stringify(run.entries.filter((e) => e.status !== 'done')));
   const rules = readFileSync(join(contentDir, 'rules/global.md'), 'utf8');
   assert.equal(readFileSync(join(m.home, '.claude/rules/00-global.md'), 'utf8'), rules);
@@ -181,7 +182,7 @@ test('plugin state comes from the agents\' files; the CLI answers only when they
   assert.ok(calls.includes('claude plugin list --json') && calls.includes('codex plugin list --json'));
 });
 
-test('a plugin older than its pin gets update steps; at or above the pin it is left alone', () => {
+test('BenchKeeper\'s own plugin older than the app gets update steps, at any marketplace ref; at or above it, and any third-party plugin, is left alone', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-pins-'));
   const ctx = context({ home, appVersion: '6.0.0', run: (argv) => ({ code: argv[0] === 'npm' ? 1 : 0, stdout: '', stderr: '' }) });
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
@@ -195,34 +196,32 @@ test('a plugin older than its pin gets update steps; at or above the pin it is l
   const steps = (id) => globalPlan({ ctx, agents: ['claude', 'codex'] }).filter((c) => c.step === id);
   const argv = (id) => steps(id).map((c) => c.argv.join(' '));
   // Refresh and update; never a marketplace removal (it deletes the plugin's options and data).
-  assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), ['claude plugin marketplace update ponytail', 'claude plugin update ponytail@ponytail']);
-  assert.ok(steps('plugin:claude:ponytail@ponytail').every((c) => c.outdated && c.title === 'Claude Code plugin ponytail@ponytail 5.2.0 to 5.3.2'));
   assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
-  assert.deepEqual(argv('plugin:codex:ponytail@ponytail'), ['codex plugin marketplace upgrade ponytail', 'codex plugin add ponytail@ponytail']);
+  assert.ok(steps('plugin:claude:benchkeeper@benchkeeper').every((c) => c.outdated && c.title === 'Claude Code plugin benchkeeper@benchkeeper 5.4.0 to 6.0.0'));
+  assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), []);
+  assert.deepEqual(argv('plugin:codex:ponytail@ponytail'), []);
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
-  // An installed pack plugin is checked without its pack chosen.
-  assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), ['claude plugin marketplace update claude-plugins-official', 'claude plugin update mattpocock-skills@claude-plugins-official']);
+  // An installed pack plugin is left to the agent's own update, with or without its pack chosen.
+  assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), []);
   // No registered project uses its pack any more: removal offered, not preselected; a project that uses it keeps it.
   const mp = (packsInUse, packs) => globalPlan({ ctx, agents: ['claude'], options: { packs, packsInUse } }).filter((c) => c.step === 'plugin:claude:mattpocock-skills@claude-plugins-official');
   const [rm] = mp(['frontend']);
   assert.ok(rm.destructive && rm.argv.join(' ') === 'claude plugin uninstall mattpocock-skills@claude-plugins-official' && rm.undoArgv.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official');
   assert.equal(preview([rm])[0].selected, false);
-  assert.ok(!mp(['matt-pocock'])[0].destructive && !mp(['frontend'], ['matt-pocock'])[0].destructive && !mp(null)[0].destructive);
+  assert.deepEqual([mp(['matt-pocock']), mp(['frontend'], ['matt-pocock']), mp(null)], [[], [], []]);
   const inv = inventory(ctx, ['claude', 'codex']);
-  assert.equal(inv.find((i) => i.step === 'plugin:claude:ponytail@ponytail').state, 'outdated');
+  assert.equal(inv.find((i) => i.step === 'plugin:claude:benchkeeper@benchkeeper').state, 'outdated');
   // A version that is not x.y.z (a commit) cannot be compared and counts as current.
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
     'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }], 'benchkeeper@benchkeeper': [{ scope: 'user', version: '5.4.0' }], 'mattpocock-skills@claude-plugins-official': [{ scope: 'user', version: '0a1b2c3d4e5f' }] } }));
   assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), []);
   assert.equal(inv.find((i) => i.step === 'plugin:codex:benchkeeper@benchkeeper').state, 'current');
   assert.deepEqual(pin(PLUGINS.claude[0], '6.0.0'), { ref: 'stable', version: '6.0.0' });
-  // A marketplace added at another ref: a manual step with the commands, never applied.
-  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.2.0' } }, benchkeeper: { source: { ref: 'stable' } } }));
-  const [stuck] = steps('plugin:claude:ponytail@ponytail');
-  assert.equal(steps('plugin:claude:ponytail@ponytail').length, 1);
-  assert.ok(stuck.title.endsWith(': by hand') && /at v5\.2\.0, not v5\.3\.2.*marketplace remove ponytail/.test(stuck.error));
-  assert.equal(preview([stuck])[0].selected, false);
-  assert.equal(apply([stuck], ctx, { select: [stuck.id] }).entries.length, 0);
+  // A marketplace at another ref is left as it is: the update steps stay, no step is by hand and none is destructive.
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.2.0' } }, benchkeeper: { source: { ref: 'v5.2.0' } } }));
+  assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
+  assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), []);
+  assert.ok(steps('plugin:claude:benchkeeper@benchkeeper').every((c) => !c.error && !c.destructive));
   // Turned off in Claude Code: a settings write turns it on; in Codex a step by hand. Codex files gone: install again.
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': false, 'benchkeeper@benchkeeper': true } }));
   const [on] = steps('plugin:claude:ponytail@ponytail');
@@ -280,46 +279,27 @@ test('globalSkills: the global skill folder plus turned-on plugins, turned-off o
   assert.equal(globalSkills(ctx, 'claude'), 3);
 });
 
-test('pins: Codex adds a marketplace at the pinned commit, Claude Code at the tag; both forms count as the pin', () => {
-  const home = mkdtempSync(join(tmpdir(), 'bk-commit-'));
+test('third-party plugins are not pinned: the marketplace is added as the agent adds it, an installed one is left to the agent', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-unpinned-'));
   const ctx = context({ home, appVersion: '6.0.0', run: () => ({ code: 1, stdout: '', stderr: '' }) });
   const add = (a, id, options) => globalPlan({ ctx, agents: [a], options }).find((c) => c.step === `plugin:${a}:${id}` && c.argv[3] === 'add')?.argv[4];
-  assert.equal(add('claude', 'ponytail@ponytail'), 'DietrichGebert/ponytail#v5.3.2');
-  assert.equal(add('codex', 'ponytail@ponytail'), `DietrichGebert/ponytail@${PONYTAIL_COMMIT}`);
-  assert.equal(add('codex', 'mattpocock-skills@mattpocock', { packs: ['matt-pocock'] }), `mattpocock/skills@${MATT_POCOCK_COMMIT}`);
+  assert.equal(add('claude', 'ponytail@ponytail'), 'DietrichGebert/ponytail');
+  assert.equal(add('codex', 'ponytail@ponytail'), 'DietrichGebert/ponytail');
+  assert.equal(add('codex', 'mattpocock-skills@mattpocock', { packs: ['matt-pocock'] }), 'mattpocock/skills');
+  assert.equal(add('claude', 'benchkeeper@benchkeeper'), 'ESchuderer/BenchKeeper#stable');
   assert.equal(add('codex', 'benchkeeper@benchkeeper'), 'ESchuderer/BenchKeeper@stable');
-  assert.deepEqual(pin(PLUGINS.codex[1], '6.0.0'), { ref: 'v5.3.2', commit: PONYTAIL_COMMIT, version: '5.3.2' });
-  // A marketplace recorded at the commit or at the tag is the pin: the plan installs, it does not ask for a manual move.
-  for (const ref of [PONYTAIL_COMMIT, 'v5.3.2']) {
-    mkdirSync(join(home, '.codex'), { recursive: true });
-    writeFileSync(join(home, '.codex/config.toml'), `[marketplaces.ponytail]\nsource = "x"\nref = "${ref}"\n`);
-    const steps = globalPlan({ ctx, agents: ['codex'] }).filter((c) => c.step === 'plugin:codex:ponytail@ponytail');
-    assert.deepEqual(steps.map((c) => c.argv.join(' ')), ['codex plugin add ponytail@ponytail'], ref);
+  assert.deepEqual(pin(PLUGINS.codex[1], '6.0.0'), { ref: undefined, version: undefined });
+  // Any marketplace ref, any installed version and any installed commit: no step, nothing to move by hand.
+  mkdirSync(join(home, '.codex/plugins/cache/ponytail/ponytail/5.10.0'), { recursive: true });
+  for (const ref of ['v5.2.0', 'main', '16352ac229eb']) {
+    writeFileSync(join(home, '.codex/config.toml'), `[marketplaces.ponytail]\nsource = "x"\nref = "${ref}"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n`);
+    assert.deepEqual(globalPlan({ ctx, agents: ['codex'] }).filter((c) => c.step === 'plugin:codex:ponytail@ponytail'), [], ref);
   }
-  writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.2.0"\n');
-  assert.match(globalPlan({ ctx, agents: ['codex'] }).find((c) => c.step === 'plugin:codex:ponytail@ponytail').error, new RegExp(`at v5\\.2\\.0, not ${PONYTAIL_COMMIT}`));
-});
-
-test('pins: an installed Claude Code plugin at the pin version from another commit is flagged, never reinstalled', () => {
-  const home = mkdtempSync(join(tmpdir(), 'bk-sha-'));
-  const ctx = context({ home, appVersion: '6.0.0', run: () => ({ code: 1, stdout: '', stderr: '' }) });
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
-  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.3.2' } } }));
+  writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: {} } }));
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true } }));
-  const installed = (entry) => writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'ponytail@ponytail': [{ scope: 'user', version: '5.3.2', ...entry }] } }));
-  const steps = () => globalPlan({ ctx, agents: ['claude'] }).filter((c) => c.step === 'plugin:claude:ponytail@ponytail');
-  installed({ gitCommitSha: PONYTAIL_COMMIT });
-  assert.deepEqual(steps(), []);
-  installed({});
-  assert.deepEqual(steps(), [], 'no recorded commit: nothing to compare');
-  installed({ gitCommitSha: PONYTAIL_COMMIT.slice(0, 12) });
-  assert.deepEqual(steps(), [], 'an abbreviated commit is the same commit');
-  installed({ gitCommitSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' });
-  const [flag] = steps();
-  assert.equal(steps().length, 1);
-  assert.match(flag.error, /installed from commit deadbeefdead, the pin for 5\.3\.2 is 16352ac229eb/);
-  assert.equal(preview([flag])[0].selected, false);
-  assert.equal(apply([flag], ctx, { select: [flag.id] }).entries.length, 0);
+  writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'ponytail@ponytail': [{ scope: 'user', version: '5.3.2', gitCommitSha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' }] } }));
+  assert.deepEqual(globalPlan({ ctx, agents: ['claude'] }).filter((c) => c.step === 'plugin:claude:ponytail@ponytail'), []);
 });
 
 test('Orca worker spec and setup samples: offered only with Orca installed, off by default, written to the config folder, undone', () => {

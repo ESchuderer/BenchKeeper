@@ -9,9 +9,8 @@ import { childEnv } from './childenv.mjs';
 import { diffLines } from './diff.mjs';
 import { mask } from './redact.mjs';
 import { exists, isDir, listFiles, readText } from './fsx.mjs';
-import { SKILLS_SPEC } from './steps/global.mjs';
 
-export const rehearsable = (c) => c.kind === 'command' && c.argv?.[2] === SKILLS_SPEC;
+export const rehearsable = (c) => c.kind === 'command' && c.argv?.[2]?.startsWith('skills@npm:skills@') === true;
 
 // Folders npx and npm fill in the scratch home; not part of what the command installs.
 const SKIP = ['.npm', '.cache', join('.config', 'npm')];

@@ -344,6 +344,14 @@ test('an account on another marketplace ref or sharing the default plugins folde
   const ctx = context({ home, appVersion: '6.5.0', run: () => ({ code: 0, stdout: '', stderr: '' }) });
   mkdirSync(ctx.config, { recursive: true });
   writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: ['tagged', 'shared'].map((name) => ({ name, agent: 'claude', mode: 'host', dir: join(home, 'acct', name) })) }));
+  const outside = mkdtempSync(join(tmpdir(), 'bk-acct-out-'));
+  folder(outside, 'stable');
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [{ name: 'outside', agent: 'claude', mode: 'host', dir: outside }] }));
+  const away = preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }));
+  assert.equal(away.length, 1);
+  assert.match(away[0].error, /account outside lies outside/);
+  assert.equal(away[0].selected, false);
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: ['tagged', 'shared'].map((name) => ({ name, agent: 'claude', mode: 'host', dir: join(home, 'acct', name) })) }));
   assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts.map((x) => x.name), ['tagged']);
   const plan = preview(globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }));
   assert.equal(plan.length, 1);

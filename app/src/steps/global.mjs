@@ -8,7 +8,7 @@ import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
 import { contentDir, contentRefusal } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
-import { exists, hashText, listFiles, readText } from '../fsx.mjs';
+import { exists, hashText, inside, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
 import * as orca from '../orca/index.mjs';
@@ -298,6 +298,8 @@ export function globalPlan(env) {
       if (!have || !behind(have.version, version)) continue;
       const step = `plugin:${a}:account:${acc.name}`, title = `${name} account ${acc.name}: plugin ${own.id} ${have.version} to ${version}`;
       const env = { CLAUDE_CONFIG_DIR: acc.dir };
+      // The runner changes only what lies under its roots (the home folder): a folder elsewhere is updated by hand.
+      if (!inside(acc.dir, ctx.roots)) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the folder of account ${acc.name} lies outside ${ctx.roots.join(', ')}, which the app does not change: run claude plugin update --scope user ${own.id} with CLAUDE_CONFIG_DIR set to it` }); continue; }
       const ref = state.refs?.[own.marketplace];
       // A marketplace on another ref does not move when refreshed, and moving it removes the plugin's data: by hand, never by the app.
       if (ref && ref !== own.ref) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, error: `the marketplace ${own.marketplace} of account ${acc.name} is at ${ref}, not ${own.ref}, so a refresh does not move the plugin: remove it, add it again at ${own.ref} and install the plugin again (removing deletes the plugin's options and data)` }); continue; }

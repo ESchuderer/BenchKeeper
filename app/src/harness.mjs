@@ -1,4 +1,4 @@
-// benchkeeper test: deterministic checks of an installed setup, no agent session.
+// benchkeeper verify: deterministic checks of an installed setup, no agent session.
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { agent } from './agents.mjs';

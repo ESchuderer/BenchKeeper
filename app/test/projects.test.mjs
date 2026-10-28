@@ -103,6 +103,26 @@ test('Update all runs the hooks of the checkout, not those of the fetched tree',
   assert.equal(readFileSync(`${mark}-post-checkout`, 'utf8'), 'local\n');
 });
 
+test('Update all runs no hook of the fetched tree for add and status in the worktree', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const mark = join(h, 'index-hook-ran');
+  // A global core.hooksPath of .githooks would run the hook during the fixture's own add and commit.
+  p.git('config', 'core.hooksPath', join(h, 'no-hooks'));
+  mkdirSync(join(p.dir, '.githooks'), { recursive: true });
+  writeFileSync(join(p.dir, '.githooks', 'post-index-change'), `#!/bin/sh\necho fetched > '${mark}'\n`, { mode: 0o755 });
+  p.git('add', '-A');
+  p.git('commit', '-qm', 'hooks');
+  p.git('push', '-q', 'origin', 'main');
+  p.git('reset', '-q', '--hard', 'HEAD~1');
+  p.git('config', 'core.hooksPath', '.githooks');
+  addProject(ctx, p.dir);
+  const [r] = updateAll(ctx, { push: false });
+  assert.equal(r.status, 'committed', r.reason);
+  assert.equal(existsSync(mark), false);
+});
+
 test('Update all commits the new setup on a branch in a worktree and leaves the checkout alone', () => {
   const h = home();
   const ctx = context({ home: h });
@@ -245,7 +265,7 @@ test('a GitHub origin gets a push and a pull request', () => {
   assert.equal(updateAll(context({ home: h }), { paths: [p.dir], push: false })[0].status, 'current');
 });
 
-test('update-all shows the plan, asks once, and --yes --no-push commits without pushing', async () => {
+test('projects update shows the plan, asks once, and --yes --no-push commits without pushing', async () => {
   const h = home();
   const ctx = context({ home: h });
   const p = project(h);
@@ -253,15 +273,19 @@ test('update-all shows the plan, asks once, and --yes --no-push commits without 
   const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
   const exec = (args, answers = '') => main(args, { out, ctx, input: Readable.from([answers]) });
   assert.equal(await exec(['projects', 'add', p.dir]), 0);
-  assert.equal(await exec(['update-all'], 'n\n'), 1);
+  assert.equal(await exec(['projects', 'update'], 'n\n'), 1);
   assert.match(text, new RegExp(`${p.dir}  setup 5\\.0\\.0  \\d+ changes`));
   assert.match(text, /Update 1 projects: .*git push and gh pr create/);
   assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
-  assert.equal(await exec(['update-all', '--yes', '--no-push']), 0);
+  text = '';
+  assert.equal(await exec(['projects', 'update']), 1, 'end of input is no');
+  assert.match(text, /Update 1 projects: .*git push and gh pr create/);
+  assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
+  assert.equal(await exec(['projects', 'update', '--yes', '--no-push']), 0);
   assert.match(text, new RegExp(`committed +${p.dir}`));
 });
 
-test('update-all with directories updates only those, honours --dry-run and --baseline, refuses an unregistered one', async () => {
+test('projects update with directories updates only those, honours --dry-run and --baseline, refuses an unregistered one', async () => {
   const h = home();
   const ctx = context({ home: h });
   const a = project(h), b = project(h), other = project(h);
@@ -270,15 +294,15 @@ test('update-all with directories updates only those, honours --dry-run and --ba
   const exec = (args) => main(args, { out, ctx, input: Readable.from(['']) });
   assert.equal(await exec(['projects', 'add', a.dir, b.dir]), 0);
   text = '';
-  assert.equal(await exec(['update-all', '--dry-run', a.dir]), 0);
+  assert.equal(await exec(['projects', 'update', '--dry-run', a.dir]), 0);
   assert.match(text, new RegExp(`${a.dir}  setup`));
   assert.doesNotMatch(text, new RegExp(b.dir));
   assert.match(text, /dry run: 1 projects would be updated, nothing changed/);
   text = '';
-  assert.equal(await exec(['update-all', other.dir]), 2);
+  assert.equal(await exec(['projects', 'update', other.dir]), 2);
   assert.equal(text, `${other.dir}: not a registered project (benchkeeper projects add <dir>)\n`);
   text = '';
-  assert.equal(await exec(['update-all', '--yes', '--no-push', a.dir]), 0);
+  assert.equal(await exec(['projects', 'update', '--yes', '--no-push', a.dir]), 0);
   assert.match(text, new RegExp(`committed +${a.dir}`));
   assert.doesNotMatch(text, new RegExp(b.dir));
   assert.equal(a.git('branch', '--list', 'chore/*').trim() !== '', true);

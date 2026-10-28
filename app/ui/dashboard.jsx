@@ -5,26 +5,19 @@ import { note, runTitle, when } from './run.jsx';
 import { DoctorTable, FixEverythingButton } from './fix.jsx';
 import { OneRunButtons } from './onerun.jsx';
 import { label, plural } from './projects.jsx';
+import { HEALTH } from '../src/tokens.mjs';
 import { Loading, RANK, STATE_COLOR, href, useApi } from './shell.jsx';
 
 const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign', 'missing', 'error'];
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
 const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
 
-// The health bar's colors: the dataviz palette's status green for current, then its categorical slots in their validated
-// order (adjacent pairs pass the lightness, chroma and color-vision checks in both schemes). The bar never relies on the
-// hue: each segment is named with its number in the legend, and the table repeats every figure.
-const HEALTH = ['current', 'modified', 'outdated', 'missing', 'foreign', 'untracked', 'removed', 'error', 'absent'];
-const COLORS = {
-  light: ['#0ca30c', '#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#6250d6', '#e34948', '#8b8a85'],
-  dark: ['#0ca30c', '#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9', '#e66767', '#8b8a85'],
-};
-const css = (mode) => HEALTH.map((s, i) => `--bk-h-${s}:${COLORS[mode][i]};`).join('');
-const STYLE = `.bk-dash{${css('light')}--bk-bar:#2a78d6}:root[data-mantine-color-scheme='dark'] .bk-dash{${css('dark')}--bk-bar:#3987e5}
-.bk-stack{display:flex;gap:2px;height:16px;border-radius:4px;overflow:hidden;background:var(--mantine-color-default-border)}.bk-stack>span{min-width:3px}
+// The health bar never relies on the hue: each segment is named with its number in the legend, and the table repeats
+// every figure. Its colors (--bk-h-*) are board tokens.
+const STYLE = `.bk-stack{display:flex;gap:2px;height:16px;border-radius:8px;overflow:hidden;background:var(--mantine-color-default-border)}.bk-stack>span{min-width:3px;background-image:linear-gradient(180deg,rgb(255 255 255/.18),transparent 60%)}
 .bk-bars{display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0}.bk-bars>li{display:grid;grid-template-columns:minmax(0,9rem) minmax(40px,1fr) 2.5rem;gap:12px;align-items:center}
-.bk-bar{display:block;height:10px;border-radius:0 4px 4px 0;background:var(--bk-bar)}`;
-const Swatch = ({ state }) => <Box component="span" aria-hidden w={10} h={10} display="inline-block" style={{ borderRadius: 2, background: `var(--bk-h-${state})` }} />;
+.bk-bar{display:block;height:10px;border-radius:0 6px 6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--bk-s1) 75%,var(--bk-accent)),var(--bk-s1))}`;
+const Swatch = ({ state }) => <Box component="span" aria-hidden w={10} h={10} display="inline-block" style={{ borderRadius: 3, backgroundColor: `var(--bk-h-${state})` }} />;
 
 // Where a figure leads: the scopes it counts. Items that are not current are changes the plans would make.
 function target(state, projects) {
@@ -68,7 +61,7 @@ function Health({ data }) {
   return (
     <Stack gap="sm">
       <div className="bk-stack" role="img" aria-label={`Items by state: ${summary}`}>
-        {shown.map((s) => <span key={s} title={`${total(s)} ${s}`} style={{ width: `${(total(s) / all) * 100}%`, background: `var(--bk-h-${s})` }} />)}
+        {shown.map((s) => <span key={s} title={`${total(s)} ${s}`} style={{ width: `${(total(s) / all) * 100}%`, backgroundColor: `var(--bk-h-${s})` }} />)}
       </div>
       <List listStyleType="none" aria-label="Items by state, all scopes" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
         {shown.map((s) => (
@@ -128,7 +121,7 @@ function CatalogByPack({ data }) {
     <Stack gap="xs">
       <ul className="bk-bars" aria-label="Skills per pack">
         {data.catalog.map((p) => (
-          <li key={p.id}><Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor><span aria-hidden><span className="bk-bar" style={{ width: `${(p.skills / max) * 100}%` }} /></span><Text size="sm" ta="right">{p.skills}</Text></li>
+          <li key={p.id}><Anchor href={href('catalog', { pack: p.id })}>{p.title}</Anchor><span aria-hidden><span className="bk-bar" style={{ width: `${(p.skills / max) * 100}%` }} /></span><Text size="sm" ta="right" className="bk-num">{p.skills}</Text></li>
         ))}
       </ul>
       {data.coverage.packs.some((p) => p.skills === null) && <Text size="sm">Packs that are plugins have no skill list: {data.coverage.packs.filter((p) => p.skills === null).map((p) => p.title).join(', ')}.</Text>}

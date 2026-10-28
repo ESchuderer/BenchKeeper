@@ -19,7 +19,7 @@ const machine = (extra = () => null) => context({ home: tmp('bk-harn-'), run: (a
   : { code: 0, stdout: argv.join(' ') === 'claude plugin list --json' ? PLUGINS : argv.includes('--json') ? '[]' : '1.0.0', stderr: '' }) });
 const byName = (checks) => Object.fromEntries(checks.map((c) => [c.name.replace(/ \(.*/, ''), c]));
 
-test('benchkeeper test: files match the ledger, plugins enabled, nothing unexpected; each check can fail', () => {
+test('benchkeeper verify: files match the ledger, plugins enabled, nothing unexpected; each check can fail', () => {
   const ctx = machine();
   apply(preview(globalPlan({ ctx, agents: ['claude'], devcontainerCli: '1.0.0' })), ctx);
   let c = byName(harnessTest(ctx, { agents: ['claude'] }));
@@ -32,7 +32,7 @@ test('benchkeeper test: files match the ledger, plugins enabled, nothing unexpec
   assert.match(c['each agent has the expected skills'].problems.join(), /Gemini CLI: skill workflow missing/);
 });
 
-test('benchkeeper test: project community skills are in skills-lock.json', async () => {
+test('benchkeeper verify: project community skills are in skills-lock.json', async () => {
   const ctx = machine();
   const dir = tmp('bk-harn-proj-');
   const pctx = { ...ctx, roots: [...ctx.roots, dir] };
@@ -46,11 +46,11 @@ test('benchkeeper test: project community skills are in skills-lock.json', async
   writeFileSync(join(dir, 'skills-lock.json'), JSON.stringify({ skills: { accessibility: { source: 'addyosmani/web-quality-skills' } } }));
   let text = '';
   const out = new Writable({ write(c2, _, done) { text += c2; done(); } });
-  assert.equal(await main(['test', dir, '--agents', 'claude'], { out, ctx }), 0, text);
+  assert.equal(await main(['verify', dir, '--agents', 'claude'], { out, ctx }), 0, text);
   assert.match(text, /^ok    project skills are installed/m);
 });
 
-test('benchkeeper test: a skills-lock.json that is not a lock file is a problem, not a crash', () => {
+test('benchkeeper verify: a skills-lock.json that is not a lock file is a problem, not a crash', () => {
   const ctx = machine();
   const dir = tmp('bk-harn-proj-');
   const pctx = { ...ctx, roots: [...ctx.roots, dir] };
@@ -78,11 +78,11 @@ function stubAgent(calls) {
   };
 }
 
-test('benchkeeper eval: rates per target, results stored, unchanged targets skipped, new cases rerun', async () => {
+test('benchkeeper evals: rates per target, results stored, unchanged targets skipped, new cases rerun', async () => {
   const calls = [];
   const ctx = machine(stubAgent(calls));
   const plan = evalPlan(ctx, { model: 'sonnet' });
-  assert.deepEqual(plan.map((p) => p.target).sort(), ['skill:designing-technical-uis', 'skill:maintaining-repos', 'skill:workflow']);
+  assert.deepEqual(plan.map((p) => p.target).sort(), ['skill:designing-technical-uis', 'skill:maintaining-repos', 'skill:operating-benchkeeper', 'skill:workflow']);
   const res = await runEval(ctx, plan);
   const ui = res.find((r) => r.target === 'skill:designing-technical-uis');
   assert.deepEqual([ui.agentVersion, ui.model, ui.cases], ['9.9.9 (Claude Code)', 'sonnet', 12]);
@@ -92,8 +92,8 @@ test('benchkeeper eval: rates per target, results stored, unchanged targets skip
   // The library skill is copied into the scratch repository for its own cases only.
   assert.equal(calls.filter((c) => c.lib).length, 12);
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
-  assert.equal(evalPlan(ctx, { model: 'sonnet', all: true }).length, 3);
-  assert.equal(evalPlan(ctx, { model: 'opus' }).length, 3);
+  assert.equal(evalPlan(ctx, { model: 'sonnet', all: true }).length, 4);
+  assert.equal(evalPlan(ctx, { model: 'opus' }).length, 4);
   addCase(ctx, { target: 'skill:workflow', expected: 'loads', query: 'Rename the CLI flag --out to --output.' });
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }).map((p) => p.target), ['skill:workflow']);
   assert.equal(triggered('{"type":"x"}\nRead /h/.agents/skills/workflow/SKILL.md', 'workflow'), true);
@@ -108,10 +108,26 @@ test('eval asks before starting sessions and refuses in CI', async () => {
   const ci = process.env.CI;
   try {
     delete process.env.CI;
-    assert.equal(await main(['eval', '--target', 'skill:workflow'], { out, ctx, input: Readable.from(['n\n']) }), 1);
+    assert.equal(await main(['evals', 'run', '--target', 'skill:workflow'], { out, ctx, input: Readable.from(['n\n']) }), 1);
     assert.match(text, /Start 13 agent sessions\? \[y\/N\]/);
     process.env.CI = 'true';
-    assert.equal(await main(['eval', '--yes'], { out, ctx }), 2);
+    assert.equal(await main(['evals', 'run', '--yes'], { out, ctx }), 2);
   } finally { if (ci === undefined) delete process.env.CI; else process.env.CI = ci; }
   assert.equal(calls.length, 0);
+});
+
+test('evals plan lists the targets and starts no session, in CI too', async () => {
+  const calls = [];
+  const ctx = machine(stubAgent(calls));
+  let text = '';
+  const out = new Writable({ write(c, _, done) { text += c; done(); } });
+  const ci = process.env.CI;
+  try {
+    process.env.CI = 'true';
+    assert.equal(await main(['evals', 'plan', '--target', 'skill:workflow'], { out, ctx }), 0);
+  } finally { if (ci === undefined) delete process.env.CI; else process.env.CI = ci; }
+  assert.match(text, /skill:workflow\s+claude\s+\d+ cases/);
+  assert.doesNotMatch(text, /Start \d+ agent sessions/);
+  assert.equal(calls.length, 0);
+  assert.equal(await main(['evals'], { out, ctx }), 2);
 });

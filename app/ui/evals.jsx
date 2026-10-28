@@ -11,10 +11,10 @@ import { Loading, Note, SplitView, href, icon, useApi } from './shell.jsx';
 
 const rate = (v) => (v == null ? '-' : `${pct(v)}%`);
 const seriesOf = (r) => `${r.agent}${r.model ? ` ${r.model}` : ''}`;
-// One color per measure everywhere; the shades per scheme are set in App.jsx.
+// One color per measure everywhere: the board's first two series, set per scheme in App.jsx.
 // Recharts sorts legend items by name unless told not to; they follow this order, as the tables and tooltips do.
 const LEGEND = { itemSorter: null };
-const MEASURES = [{ name: 'Miss', key: 'missRate', color: 'var(--bk-miss)' }, { name: 'False trigger', key: 'falseTriggerRate', color: 'var(--bk-false-trigger)', strokeDasharray: '5 5' }];
+const MEASURES = [{ name: 'Miss', key: 'missRate', color: 'var(--bk-s1)' }, { name: 'False trigger', key: 'falseTriggerRate', color: 'var(--bk-s2)', strokeDasharray: '5 5' }];
 
 // The latest result per target, worst first: the higher of its two rates, then the name.
 function latestPerTarget(results) {
@@ -159,7 +159,7 @@ export function Evals({ params }) {
         );
       }}</Loading>
       <RunEvals onDone={evals.reload} />
-      <Cli>{`benchkeeper eval${open ? ` --target ${open}` : ''}\nbenchkeeper eval --all`}</Cli>
+      <Cli>{`benchkeeper evals run${open ? ` --target ${open}` : ''}\nbenchkeeper evals run --all`}</Cli>
     </Stack>
   );
 }

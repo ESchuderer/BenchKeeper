@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { CSP, SCRIPT_HASH, boardHtml, registeredPaths } from '../src/board.mjs';
+import { HEALTH, PRIMARY, TOKENS, cssVars } from '../src/tokens.mjs';
 import { MIN_SAMPLES } from '../src/insights.mjs';
 import { context } from '../src/runner.mjs';
 import { scanSessions } from '../src/sessions.mjs';
@@ -50,6 +51,17 @@ test('every series color holds 3:1 and every text color 4.5:1 against its surfac
     for (const k of ['s1', 's2', 's3', 's4', 's5', 's6', 'other']) assert.ok(contrast(v(k), v('surface')) >= 3, `${name} ${k} ${v(k)} on ${v('surface')}: ${contrast(v(k), v('surface')).toFixed(2)}`);
     for (const k of ['ink', 'ink-2', 'accent']) for (const on of ['surface', 'page']) assert.ok(contrast(v(k), v(on)) >= 4.5, `${name} ${k} on ${on}: ${contrast(v(k), v(on)).toFixed(2)}`);
   }
+});
+
+test('the app shares the board tokens: the primary scale holds its contrast, the health bar has a color per state, variables take the prefix', () => {
+  assert.equal(PRIMARY[9], TOKENS.light.accent);
+  assert.equal(PRIMARY[4], TOKENS.dark.accent);
+  assert.ok(contrast('#ffffff', PRIMARY[9]) >= 4.5, 'white on the filled button');
+  for (const s of ['light', 'dark']) {
+    const hex = [...cssVars(s, 'bk-', true).matchAll(/--bk-h-([a-z]+): (#[0-9a-f]{6})/g)];
+    assert.deepEqual(hex.map((m) => m[1]), HEALTH);
+  }
+  assert.match(cssVars('dark', 'bk-'), /--bk-page: #17181c;/);
 });
 
 test('the low-sample threshold is the insights one and goes to the page as data', () => {

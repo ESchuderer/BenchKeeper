@@ -15,8 +15,8 @@ Not measured. Trigger rate of `benchkeeper:workflow` with no rule line: unverifi
 - To run it, on a scratch HOME so no rule file or other plugin is loaded:
   1. `HOME=$SCRATCH CLAUDE_CONFIG_DIR=$SCRATCH/.claude npx benchkeeper@<version> apply --level lite --agents claude --yes`
   2. Log in there with the subscription (not an API key).
-  3. `HOME=$SCRATCH CLAUDE_CONFIG_DIR=$SCRATCH/.claude npx benchkeeper@<version> eval --target skill:workflow --model sonnet --all --yes`
-  4. Repeat with the rule line present (`apply --level full`, then project apply) as the baseline; compare miss rate and false trigger rate.
+  3. `HOME=$SCRATCH CLAUDE_CONFIG_DIR=$SCRATCH/.claude npx benchkeeper@<version> evals run --target skill:workflow --model sonnet --all --yes`
+  4. Repeat with the rule line present (`apply --level full`, then projects apply) as the baseline; compare miss rate and false trigger rate.
 - Record here: agent and model versions, cases, sessions per case, miss rate and false trigger rate for both arms. 13 cases at one session each is a signal, not a measurement (see the rules in [EVALUATIONS.md](../../EVALUATIONS.md#rules)).
 
 ## Decision

@@ -39,7 +39,7 @@ Asks per change. `--yes` applies the default selection without questions.
 
 After either path, restart the agents. `npx benchkeeper@6.25.0 history` lists what changed, `npx benchkeeper@6.25.0 undo <run>` reverses a run.
 
-[Lite level, the plugin alone](docs/setup.md#levels). [Full setup description](docs/setup.md#setup-details).
+[Lite level, the plugin alone](docs/setup.md#levels). [Full setup description](docs/setup.md#setup-details). [What the app writes and what it never does](docs/setup.md#what-the-app-writes-and-what-it-never-does).
 <!-- /generated:quickstart -->
 
 If `npx` cannot find that version, run the app from a clone: [steps](docs/setup.md#setup-details). Linux and macOS are tested. Windows runs only a CI smoke test.

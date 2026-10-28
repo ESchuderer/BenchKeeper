@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BenchKeeper presets: parameters of a tier and change type",
+  "type": "object",
+  "required": ["schemaVersion", "presets"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "presets": { "type": "array", "items": { "$ref": "#/$defs/preset" } }
+  },
+  "$defs": {
+    "preset": {
+      "type": "object",
+      "required": ["tier"],
+      "properties": {
+        "tier": { "enum": ["quick", "standard", "full", "research"] },
+        "changeType": { "enum": ["docs", "config", "tests", "dependency-minor", "ui-tweak", "ui-behavior", "bug", "refactor", "dependency-major", "ci", "feature", "infrastructure", "schema-migration"] },
+        "review": { "enum": ["none", "required", "independent"] },
+        "effort": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
+        "gates": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" } },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "maxRetries": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "maxMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 1,
   "startLabel": "agent-ready",
   "trustedAuthors": ["example-review-bot[bot]"],
   "workersPerProject": 1,

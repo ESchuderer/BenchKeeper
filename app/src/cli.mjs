@@ -31,6 +31,7 @@ import { scanSessions } from './sessions.mjs';
 import { collectInsights } from './insights.mjs';
 import { writeBoard } from './board.mjs';
 import { detectLevel } from './level.mjs';
+import { resolvePins } from './params.mjs';
 import { PLUGINS, LEVELS, globalPlan, installedPlugins, installedRefusal } from './steps/global.mjs';
 import { projectCtx, projectPlan, scopeCtx, tryState } from './steps/project.mjs';
 import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.mjs';
@@ -185,6 +186,9 @@ Usage: benchkeeper <command> [options]
                                     ignored by git): entries per file; a file that does not parse is listed as ignored
   knowledge clear [dir] [--yes]
                                     removes that folder after a question and nothing else of the project
+  pins list [dir]                   each phase (research, implement, review, verify) with the agent, model and effort
+                                    to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
+                                    then the session's own agent); an invalid file is refused with its rules, exit 1
 
 --json (doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list, rules list, extensions list,
         settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status)
@@ -505,6 +509,16 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'settings') return settingsCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'knowledge') return knowledgeCommand({ o, positionals, out, ask });
+  if (cmd === 'pins') {
+    if (arg !== undefined && arg !== 'list') { out.write('pins needs list\n'); return 2; }
+    const dir = resolve(positionals[2] ?? '.');
+    if (!isDir(dir)) { out.write(`${dir} is not a folder\n`); return 2; }
+    const { pins, errors } = resolvePins(dir);
+    for (const e of errors) out.write(`${e.file}: ${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}\n`);
+    if (errors.length) return 1;
+    for (const p of pins) out.write(`${p.phase.padEnd(10)} ${(p.agent ?? 'session').padEnd(8)} ${(p.model ?? 'default').padEnd(24)} ${(p.effort ?? 'default').padEnd(8)} ${p.source}\n`);
+    return 0;
+  }
   if (cmd === 'accounts') return accountsCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });

@@ -148,6 +148,110 @@
       "Unverified: whether agents inside its containers load the BenchKeeper rules and skills, which are installed on the host."
     ]
   },
+  "overview": {
+    "title": "What BenchKeeper is",
+    "audience": "For developers who run Claude Code or Codex in more than one repository and want the same rules, skills and dev container setup in each.",
+    "parts": [
+      {
+        "id": "app",
+        "title": "The app",
+        "text": "`npx benchkeeper@6.25.0` opens a local web app on 127.0.0.1 behind a one-time link. It sets up the machine and each repository, reports drift on the Dashboard and fixes it in one plan. Every change appears as a diff or a command line before Apply, and each run is recorded, so History can undo a run or a single step.",
+        "evidence": "app/README.md#web-ui"
+      },
+      {
+        "id": "sessions",
+        "title": "Sessions board",
+        "text": "The board reads the Claude Code and Codex transcripts on this machine: per session the project, tier, pattern, the setup installed at the time, skills used, the last test run, time, tokens, cost and pull request state. Charts compare tiers, patterns and setups and mark every bar that rests on fewer than 20 sessions. The page makes no request and holds no message text.",
+        "evidence": "app/README.md#commands"
+      },
+      {
+        "id": "analysis",
+        "title": "Analysis of sessions",
+        "text": "Insights turns the sessions scan and the doctor into findings, each with its evidence and a fix: installed skills no session of the last 90 days used, with the tokens their descriptions cost per turn; projects where sessions ended on a failed test run without a pull request; setup drift; skills a project could add, turn off or update. A finding the setup can fix opens its plan with a diff and undo. The Runs view lists orchestrated runs and their tasks with sessions, cost and tokens. Both read the transcripts when the view opens or on Refresh; nothing watches a running session.",
+        "evidence": "app/README.md#web-ui"
+      },
+      {
+        "id": "installs",
+        "title": "Installs",
+        "text": "One `apply` installs the global setup for the agents it finds: the rules, the BenchKeeper plugin, the chosen packs, agent settings and the Dev Containers CLI, at three levels from the plugin alone to the full setup. A skills CLI install runs first in a scratch folder inside an OS sandbox (not on Windows), so the plan lists the files it would write. Settings files are merged by key, and other keys and hooks stay.",
+        "evidence": "docs/setup.md#setup-details"
+      },
+      {
+        "id": "skills",
+        "title": "Skill management",
+        "text": "Each skill of a project has a state (current, outdated, modified, removed or disabled) and the commit it was installed at. Check for updates asks each source for its newest commit; Update, Reset, Remove, Adopt and the on and off switch each open a plan with a diff and undo. Packs group library skills by topic, and the pack builder warns when two skill descriptions overlap, so an agent may pick the wrong one.",
+        "evidence": "app/README.md#web-ui"
+      },
+      {
+        "id": "setup",
+        "title": "Project setup",
+        "text": "`projects apply` writes the repository rules block, the packs' skills and `.benchkeeper/state.json`, whose answers later runs reuse. The `setting-up-projects` skill adds stack skills, the commands in `AGENTS.md` and the dev container as a recorded session that undo can reverse. `projects update` brings every registered project to the current setup.",
+        "evidence": "docs/setup.md#per-repo"
+      },
+      {
+        "id": "configuration",
+        "title": "Configuration",
+        "text": "Agent settings lists the keys of Claude Code `settings.json` and Codex `config.toml` per layer, with the default, the value in effect, the file it comes from and notes where one setting turns off another. Rules shows the instruction files each agent loads, in load order, with a switch per file and the context budget they take. Extensions lists MCP servers, hooks, subagents and commands and marks the ones that run code; it only shows.",
+        "evidence": "app/README.md#web-ui"
+      },
+      {
+        "id": "cli",
+        "title": "The CLI",
+        "text": "The app's actions run on the command line too: `plan` and `apply` for the machine, then `projects`, `skills`, `packs`, `accounts`, `automations`, `history` and `undo`. `apply` asks per change and `--yes` applies the default selection; many commands print one JSON document with `--json`. The `operating-benchkeeper` skill lets an agent manage its own setup through these commands.",
+        "evidence": "app/README.md#commands"
+      },
+      {
+        "id": "automations",
+        "title": "Automations",
+        "text": "An automation template describes one scheduled agent run in a single Markdown file: schedule, precheck, prompt and what it may change. The app installs a template on Orca, shows when the template or the runner's copy changed, and updates or removes it as a plan with undo. Templates include a pull request watcher, issue pickup, issue triage, CI health, dependency triage and worktree cleanup.",
+        "evidence": "docs/automations.md"
+      },
+      {
+        "id": "accounts",
+        "title": "Accounts",
+        "text": "Several logins per agent, such as work and personal, each in its own folder on the host or a named volume in a dev container, signed in through a private browser window. `run --account` starts the agent as one of them with a filtered environment. Usage readings show what is left of the 5-hour and 7-day window (Claude Code through a status line script that `accounts track` adds, Codex from its app-server) and warn below a minimum. Auto-pick (Claude Code) and handover rotation (Claude Code and Codex) are opt-in and off by default: auto-pick starts a new run under the pool account with the most headroom, handover rotation asks, then starts the agent under that account with a handover text of the task; neither acts inside a running session.",
+        "evidence": "docs/setup.md#accounts"
+      }
+    ],
+    "defaults": [
+      {
+        "title": "The agent runs in the dev container",
+        "text": "Project setup starts the agent inside the repository's dev container, unless the project's `AGENTS.md` says it runs on the host.",
+        "reason": "The container mounts only the project: no host home folder, engine socket or credential forwarding beyond the sign-in variable. It shares the host kernel and is not a security boundary.",
+        "evidence": "docs/setup.md#per-repo"
+      },
+      {
+        "title": "The project setup stays local",
+        "text": "The rules block, skills and state go into files listed in `.git/info/exclude`; `--share` commits them instead.",
+        "reason": "The repository does not change for anyone else until you choose to share the setup.",
+        "evidence": "docs/setup.md#per-repo"
+      },
+      {
+        "title": "Guards are on",
+        "text": "Claude Code projects get deny rules for `--no-verify`, force pushes, `sudo` and infrastructure apply commands, plus a hook for the forms a rule cannot match.",
+        "reason": "The repository rules ask the agent to fix the cause of a failed check; the guards block the commands that would skip one.",
+        "evidence": "docs/setup.md#per-repo"
+      },
+      {
+        "title": "Removals stay unchecked",
+        "text": "Rules files, skills, plugins and servers you installed yourself appear in the plan as removals that are off until you select them.",
+        "reason": "Nothing of yours goes unless you choose it. Only files the app identifies as its own by content are removed by default.",
+        "evidence": "docs/setup.md#what-the-app-writes-and-what-it-never-does"
+      },
+      {
+        "title": "Automations start disabled, in report mode",
+        "text": "An installed automation does nothing until you enable it in the runner, and it only reports until you reinstall it with `mode=act`.",
+        "reason": "You run it once and read its report before it may change anything.",
+        "evidence": "docs/automations.md#install-and-keep-current"
+      },
+      {
+        "title": "Auto-pick is off",
+        "text": "Auto-pick of accounts is opt-in, for Claude Code only, and acts only when a run starts.",
+        "reason": "The provider's consumer terms prohibit bypassing protective measures and do not say whether picking another account at a limit counts, so the choice stays with you.",
+        "evidence": "docs/setup.md#accounts"
+      }
+    ]
+  },
   "sdlc": {
     "requirements": "Requests come from you, GitHub issues, Jira, Linear and other trackers, bug reports, reviews and Maintain findings. Only GitHub issues are automated.",
     "phases": [

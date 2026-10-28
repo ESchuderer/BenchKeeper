@@ -5,8 +5,8 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { AGENTS, NeedsConfirm, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, limitsChange, listAccounts, login, newAccount, pickAccount, registrySettings, removeChange, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer } from './accounts.mjs';
-import { WINDOWS, limitsFor, settingsOf } from './usage.mjs';
+import { AGENTS, NeedsConfirm, ROTATE_WARNING, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, handover, limitsChange, listAccounts, login, loginVars, newAccount, pickAccount, registrySettings, removeChange, rotationFor, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer, writeHandover } from './accounts.mjs';
+import { ROTATE, WINDOWS, limitsFor, settingsOf } from './usage.mjs';
 import { detect, unavailable } from './agents.mjs';
 import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
@@ -207,14 +207,24 @@ Usage: benchkeeper <command> [options]
                                     account's folder; they keep the rate limit windows and failed turns for status, doctor and
                                     run. A plan with a diff and undo; a dev container account is written through devcontainer exec
   accounts limits [name] [--five-hour N] [--seven-day N] [--warn-five-hour N] [--warn-seven-day N]
-                  [--pool name|none] [--auto-pick on|off] [--when-none stop|wait] [--continue-below on|off] [--reset]
+                  [--pool name|none] [--auto-pick on|off] [--when-none stop|wait] [--continue-below on|off]
+                  [--rotate-claude off|handover] [--rotate-codex off|handover] [--reset]
                                     the minimum headroom (percent, defaults 8 and 3) below which run asks first, and the notice
                                     level before it (default twice the minimum); with a name, that account's own values and
                                     --pool (accounts of one person that auto-pick may choose among). Without a name:
                                     the defaults, --auto-pick (off by default: a new run under the default account starts under
                                     a pool member with headroom; the provider's terms on rotating accounts are unclear, so you
                                     carry that call), --when-none (no member has headroom: stop, or wait for the earliest
-                                    reset) and --continue-below (run starts below the minimum without asking). No flag shows them
+                                    reset), --continue-below (run starts below the minimum without asking) and --rotate-<agent>
+                                    (off by default, or handover: see accounts handover). No flag shows them
+  accounts handover <name> [--project dir] [--yes]
+                                    opt-in rotation (accounts limits --rotate-<agent> handover): when the account is below its
+                                    minimum and another account of its pool is at or above it, shows both accounts and a
+                                    handover (task, done, open, worktree and branch, uncommitted file names, next step; from
+                                    git and .benchkeeper/handoff.md, no transcript text, no credential), asks (--yes or
+                                    --continue-below on: no question), writes .benchkeeper/handover.md and starts the agent as
+                                    the other account with it as the first prompt. run does the same after the agent exits, in
+                                    a terminal. No login or credential moves between accounts
   accounts login <name> [--token] [--email address] [--no-browser] [--project dir]
                                     guided sign-in: opens the sign-in link in a private browser window (Firefox, Chrome,
                                     Chromium, Edge), else prints it with the code; paste the code the browser shows if it
@@ -286,7 +296,7 @@ const OPTIONS = {
   only: { type: 'string' }, json: { type: 'boolean' }, check: { type: 'boolean' }, agent: { type: 'string' }, layer: { type: 'string' }, advanced: { type: 'boolean' }, unset: { type: 'boolean' }, bundle: { type: 'string' },
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
   origins: { type: 'boolean' }, 'clone-into': { type: 'string' },
-  'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
+  'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, 'rotate-claude': { type: 'string' }, 'rotate-codex': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
   param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
@@ -309,6 +319,8 @@ function asker(input, out) {
   ask.line = (question) => { if (question) out.write(question); return next(); };
   ask.tty = !!input.isTTY;
   ask.close = () => rl?.close();
+  // A new reader of the same input, for a question after the agent had the terminal.
+  ask.fresh = () => asker(input, out);
   return ask;
 }
 
@@ -1468,7 +1480,13 @@ function limitFlags(o, name) {
     if (!['stop', 'wait'].includes(o['when-none'])) throw new Error('--when-none is stop or wait');
     out.whenNone = o['when-none'];
   }
-  if (name && ['autoPick', 'continueBelow', 'whenNone'].some((k) => out[k] !== undefined)) throw new Error('--auto-pick, --when-none and --continue-below are settings for all accounts: leave out the account name');
+  for (const agent of AGENTS) {
+    const v = o[`rotate-${agent}`];
+    if (v === undefined) continue;
+    if (!ROTATE.includes(v)) throw new Error(`--rotate-${agent} is ${ROTATE.join(' or ')}`);
+    out.rotate = { ...out.rotate, [agent]: v };
+  }
+  if (name && ['autoPick', 'continueBelow', 'whenNone', 'rotate'].some((k) => out[k] !== undefined)) throw new Error('--auto-pick, --when-none, --continue-below and --rotate-<agent> are settings for all accounts: leave out the account name');
   if (!name && (out.pool !== undefined || o.reset)) throw new Error('--pool and --reset belong to one account: give its name');
   out.reset = !!o.reset;
   return out;
@@ -1478,12 +1496,13 @@ const limitsShown = (ctx) => {
   const text = (x) => WINDOWS.map(([k, label]) => `${label} ${x.minimum[k]}% (notice below ${x.warn[k]}%)`).join(', ');
   return [`defaults: minimum headroom ${text(l)}`,
     `auto-pick ${all.autoPick ? 'on' : 'off'}; when no pool member has headroom: ${all.whenNone}; below the minimum run ${all.continueBelow ? 'starts anyway' : 'asks'}`,
+    `rotation: ${AGENTS.map((g) => `${g} ${all.rotate[g]}`).join(', ')}`,
     ...listAccounts(ctx).filter((a) => a.limits || a.pool).map((a) => `${a.name}: ${a.limits ? `minimum headroom ${text(limitsFor(settings, a))}` : 'defaults'}${a.pool ? `; pool ${a.pool}` : ''}`)];
 };
 
 async function accountsCommand(ctx, { o, positionals, out, ask }) {
   const [, sub = 'list', name] = positionals;
-  const subs = ['list', 'add', 'use', 'remove', 'status', 'login', 'track', 'limits'];
+  const subs = ['list', 'add', 'use', 'remove', 'status', 'login', 'track', 'limits', 'handover'];
   if (!subs.includes(sub)) { out.write(`accounts needs ${subs.join(', ')}\n`); return 2; }
   if (positionals.length > 3) { out.write(`unexpected argument ${positionals[3]}\n`); return 2; }
   const problem = accountsProblem(ctx);
@@ -1516,12 +1535,17 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
       if (!need()) return 2;
       return await trackAccount(ctx, findAccount(ctx, name), { o, out, ask });
     }
+    if (sub === 'handover') {
+      if (!need()) return 2;
+      return (await handoverFlow(ctx, findAccount(ctx, name), { dir: resolve(o.project ?? '.'), yes: !!o.yes, ask, out })) ?? 0;
+    }
     let change, entry, gone;
     if (sub === 'limits') {
-      const flags = limitFlags(o, name), given = Object.values({ ...flags.minimum, ...flags.warn }).length || ['pool', 'autoPick', 'whenNone', 'continueBelow'].some((k) => flags[k] !== undefined) || flags.reset;
+      const flags = limitFlags(o, name), given = Object.values({ ...flags.minimum, ...flags.warn }).length || ['pool', 'autoPick', 'whenNone', 'continueBelow', 'rotate'].some((k) => flags[k] !== undefined) || flags.reset;
       if (name) findAccount(ctx, name);
       if (!given) { limitsShown(ctx).forEach((l) => out.write(`${l}\n`)); return 0; }
       change = name ? limitsChange(ctx, name, flags) : settingsChange(ctx, flags);
+      for (const [agent, v] of Object.entries(flags.rotate ?? {})) if (v === 'handover') out.write(`${ROTATE_WARNING[agent]}\n`);
     } else if (sub === 'add') {
       // What is missing is asked, as the Accounts page does step by step; with --yes it is a usage error.
       const asked = !name || !o.agent;
@@ -1583,6 +1607,27 @@ async function trackAccount(ctx, a, { o, out, ask }) {
   return 0;
 }
 
+// The handover to the next account of the pool (opt-in, accounts.mjs rotationFor). after: called by run once the agent exited,
+// where it says only what it does and asks only in a terminal. Returns the new session's exit code, 1 when declined, else null.
+async function handoverFlow(ctx, a, { dir, yes, ask, out, after = false }) {
+  const r = rotationFor(ctx, a, { dir });
+  if (r.action !== 'rotate') {
+    if (r.action === 'notice') out.write(`notice: account ${a.name} is below a threshold or its usage is partly unknown, and no handover goes to another account (it needs both windows known, one below the minimum and an account of pool ${a.pool ?? '(none)'} at or above its minimum)\n`);
+    else if (!after) out.write(r.setting === 'off' ? `rotation is off for ${a.agent}: accounts limits --rotate-${a.agent} handover turns it on\n` : `account ${a.name} is at or above its notice level, or its usage is unknown: no handover\n`);
+    return null;
+  }
+  if (after && !ask.tty) { out.write(`account ${a.name} is below its minimum: benchkeeper accounts handover ${a.name} hands the work to ${r.target.name}\n`); return null; }
+  const h = handover(ctx, dir, { from: a, to: r.target });
+  out.write(`current account: ${a.name}\ntarget account:  ${r.target.name} (pool ${a.pool})\n\n${h.text}\n${ROTATE_WARNING[a.agent]}\n`);
+  for (const k of loginVars(ctx, a.agent)) out.write(`warning: ${k} is set in this environment; the agent uses it instead of the account's login when it reaches the session (only when BENCHKEEPER_PASS_ENV names it)\n`);
+  const go = yes || settingsOf(registrySettings(ctx)).continueBelow || (await ask(`Write ${h.path} and start ${a.agent} as ${r.target.name} with it as the first prompt?`));
+  // The agent reads the terminal next, and a declined question must not keep the input open.
+  ask.close();
+  if (!go) { out.write('not started\n'); return 1; }
+  writeHandover(h);
+  return runAs(ctx, r.target, [a.agent, h.text], { dir, say: (l) => out.write(`${l}\n`), confirmed: true });
+}
+
 async function runAccountCommand({ o, positionals, out, ctx, ask }) {
   const args = positionals.slice(1);
   if (!AGENTS.includes(args[0])) { out.write(`run needs the agent after --: ${AGENTS.join(' or ')}\n`); return 2; }
@@ -1591,15 +1636,19 @@ async function runAccountCommand({ o, positionals, out, ctx, ask }) {
     if (problem) { out.write(`${problem}\n`); return 2; }
     const a = pickAccount(ctx, { name: o.account, agent: args[0] });
     // An account named with --account is never replaced by auto-pick.
-    const opts = { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account };
-    try { return runAs(ctx, a, args, { ...opts, confirmed: !!o.yes }); } catch (e) {
+    let ran = a;
+    const opts = { dir: resolve(o.project ?? '.'), useToken: !!o.token, say: (l) => out.write(`${l}\n`), pick: !o.account, used: (x) => { ran = x; } };
+    let code;
+    try { code = runAs(ctx, a, args, { ...opts, confirmed: !!o.yes }); } catch (e) {
       if (!(e instanceof NeedsConfirm)) throw e;
       out.write(`${e.message}\n`);
       if (!(await ask('Start anyway?'))) { out.write('not started\n'); return 1; }
       // The agent reads the terminal next: this reader must not keep it.
       ask.close();
-      return runAs(ctx, a, args, { ...opts, confirmed: true });
+      code = runAs(ctx, a, args, { ...opts, confirmed: true });
     }
+    // After the session, whatever its exit code: the opt-in handover of the account that ran (nothing is read while it is off).
+    return (await handoverFlow(ctx, ran, { dir: opts.dir, yes: false, ask: ask.fresh(), out, after: true })) ?? code;
   } catch (e) {
     out.write(`${e.message}\n`);
     return 1;

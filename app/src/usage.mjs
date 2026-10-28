@@ -7,7 +7,9 @@ import { FAILURES, LEGACY_MATCHER } from './usage-hook.mjs';
 
 export const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
 // The minimum headroom (percent) to start a task; the notice level before it defaults to twice that. Defaults, not claims about what a task needs.
-const DEFAULTS = { minimum: { fiveHour: 8, sevenDay: 3 }, autoPick: false, whenNone: 'stop', continueBelow: false };
+// rotate: per agent, off or handover (usage-gated handover to another account of the pool); off until the user turns it on.
+const DEFAULTS = { minimum: { fiveHour: 8, sevenDay: 3 }, autoPick: false, whenNone: 'stop', continueBelow: false, rotate: { claude: 'off', codex: 'off' } };
+export const ROTATE = ['off', 'handover'];
 export const STATE_DIR = 'benchkeeper';
 export const HOOK_SOURCE = readFileSync(new URL('./usage-hook.mjs', import.meta.url), 'utf8');
 const FAILURE_HOURS = 24;
@@ -17,9 +19,10 @@ const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
 
 const validWindows = (w) => w === undefined || (isObject(w) && Object.entries(w).every(([k, v]) => WINDOWS.some(([n]) => n === k) && typeof v === 'number' && v >= 0 && v <= 100));
 export const validLimits = (l) => l === undefined || (isObject(l) && validWindows(l.minimum) && validWindows(l.warn));
-export const validSettings = (s) => s === undefined || (isObject(s) && validLimits(s) && (s.autoPick === undefined || typeof s.autoPick === 'boolean') && (s.continueBelow === undefined || typeof s.continueBelow === 'boolean') && (s.whenNone === undefined || ['stop', 'wait'].includes(s.whenNone)));
+export const validSettings = (s) => s === undefined || (isObject(s) && validLimits(s) && (s.autoPick === undefined || typeof s.autoPick === 'boolean') && (s.continueBelow === undefined || typeof s.continueBelow === 'boolean') && (s.whenNone === undefined || ['stop', 'wait'].includes(s.whenNone))
+  && (s.rotate === undefined || (isObject(s.rotate) && Object.entries(s.rotate).every(([k, v]) => Object.hasOwn(DEFAULTS.rotate, k) && ROTATE.includes(v)))));
 
-export const settingsOf = (s) => ({ ...DEFAULTS, ...s, minimum: { ...DEFAULTS.minimum, ...s?.minimum } });
+export const settingsOf = (s) => ({ ...DEFAULTS, ...s, minimum: { ...DEFAULTS.minimum, ...s?.minimum }, rotate: { ...DEFAULTS.rotate, ...s?.rotate } });
 // The thresholds of one account: its own override, else the settings, else the defaults.
 export function limitsFor(settings, a) {
   const minimum = {}, warn = {};
@@ -136,6 +139,20 @@ export const qualifies = (u) => !!u?.tracked && WINDOWS.every(([k]) => ['ok', 'w
 export const headroom = (u) => Math.min(...WINDOWS.map(([k]) => u[k].remaining));
 // When an account with a window below its minimum is expected to qualify again: its last low window resets.
 export const readyAt = (u) => Math.max(...lowWindows(u).map((w) => Date.parse(w.resetsAt)));
+
+// ---- rotation by handover (opt-in per agent): the minimum that decides a launch decides it too
+
+// u: the account's assessment; pool: the other accounts of its pool and agent as [{ account, usage }]; setting: off or handover.
+// A window counts only before its reset (now), so a stale reading never rotates. rotate needs both windows known, one below its
+// minimum and a pool member at or above its minimum; with none, or a window unknown, a window below a threshold is a notice only.
+export function rotation(u, pool, setting, now) {
+  const known = (x) => WINDOWS.filter(([k]) => x?.[k]?.resetsAt && Date.parse(x[k].resetsAt) > now).map(([k]) => x[k].state);
+  const states = known(u);
+  if (setting !== 'handover' || !states.some((s) => s === 'low' || s === 'warn')) return { action: 'none' };
+  if (!states.includes('low') || states.length < WINDOWS.length) return { action: 'notice' };
+  const best = pool.filter((c) => known(c.usage).length === WINDOWS.length && qualifies(c.usage)).sort((p, q) => headroom(q.usage) - headroom(p.usage))[0];
+  return best ? { action: 'rotate', target: best.account } : { action: 'notice' };
+}
 
 // ---- the files of an account's folder
 

@@ -24,7 +24,7 @@ const REPO = 'https://github.com/ESchuderer/BenchKeeper';
 const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research';
 const SETUP = `${REPO}/blob/main/docs/setup.md`;
 // Backticks in facts.json become inline code, the same text the README renders.
-const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
+export const md = (t: string) => t.split('`').map((part, i) => (i % 2 ? <Code key={i}>{part}</Code> : part));
 
 function Section({ id, title, intro, children }: { id: string; title: string; intro?: ReactNode; children: ReactNode }) {
   return (
@@ -54,9 +54,11 @@ function Part({ icon, title, href, scope, children }: { icon: ReactNode; title: 
 }
 
 const phaseColor = Object.fromEntries(facts.sdlc.phases.map((p) => [p.key, p.color]));
-const half = Math.ceil(facts.sdlc.steps.length / 2);
+export const half = Math.ceil(facts.sdlc.steps.length / 2);
 
-function StepList({ from, className }: { from: number; className?: string }) {
+export const SDLC_INTRO = 'The workflow skill sorts each task into a software change, a docs pass or research, and gives a software change a tier: how much process it gets. Quick: branch, build, verify, ship. Full: spec, tickets, tests first, review. Several tasks on one branch run their long checks and reviews once at the end. A skill that matches the task loads in any tier, and each change type adds its own check.';
+
+export function StepList({ from, className }: { from: number; className?: string }) {
   return (
     <Timeline active={facts.sdlc.steps.length} bulletSize={30} lineWidth={2} className={className}>
       {facts.sdlc.steps.slice(from, from + half).map((st, i) => (
@@ -130,6 +132,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
                 <Group mt="sm">
                   <Button component="a" href="#start" size="md">Set up your machine</Button>
                   <Button component="a" href="#sdlc" size="md" variant="default">See the workflow</Button>
+                  <Button component="a" href={`${base}/overview/`} size="md" variant="default">What it brings</Button>
                 </Group>
               </Stack>
               <Box ta="center">
@@ -139,7 +142,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
           </Container>
         </Box>
 
-        <Section id="sdlc" title="One loop, sized to the change" intro="The workflow skill sorts each task into a software change, a docs pass or research, and gives a software change a tier: how much process it gets. Quick: branch, build, verify, ship. Full: spec, tickets, tests first, review. Several tasks on one branch run their long checks and reviews once at the end. A skill that matches the task loads in any tier, and each change type adds its own check.">
+        <Section id="sdlc" title="One loop, sized to the change" intro={SDLC_INTRO}>
           <div className="ring-wrap">
             <div dangerouslySetInnerHTML={{ __html: sdlcSvg }} />
             <div className="ring-tip" role="tooltip" hidden></div>

@@ -2,10 +2,11 @@
 // An account is a folder of its own (CLAUDE_CONFIG_DIR, CODEX_HOME) on the host, or a named volume in a dev container.
 // The registry holds names, folders and dates, never a credential. A token (opt-in, for unattended containers) lives in the
 // OS credential store, goes to one launch only and never into a file, the ledger, a log or devcontainer.json.
-// Switching accounts is the user's choice at a launch. The only exception is the opt-in auto-pick (usage.mjs, settings in
-// accounts.json): a new launch under the default account may start under another account of the same pool, never a running session.
+// Switching accounts is the user's choice at a launch. The exceptions are opt-in (usage.mjs, settings in accounts.json): auto-pick
+// (a new launch under the default account may start under another account of the same pool) and the confirmed handover to a new
+// session of a pool member; never a running session.
 import { randomUUID } from 'node:crypto';
-import { chmodSync, mkdirSync, statSync } from 'node:fs';
+import { chmodSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { openPrivate, signInUrl } from './browser.mjs';
@@ -14,9 +15,10 @@ import { StoreError, credentialStore } from './credstore.mjs';
 import { agent, notAvailable, registry, supports } from './agents.mjs';
 import { diffLines } from './diff.mjs';
 import { exists, inside, readText } from './fsx.mjs';
+import { git } from './git.mjs';
 import { mask } from './redact.mjs';
 import { apply, preview, runCommandAsync } from './runner.mjs';
-import { CODEX_READER, HOOK_SOURCE, STATE_DIR, assess, codexReading, headroom, lowWindows, limitsFor, nearNotices, parseState, qualifies, readyAt, settingsOf, trackedSettings, usageFindings, validLimits, validSettings } from './usage.mjs';
+import { CODEX_READER, HOOK_SOURCE, STATE_DIR, assess, codexReading, headroom, lowWindows, limitsFor, nearNotices, parseState, qualifies, readyAt, rotation, settingsOf, trackedSettings, usageFindings, validLimits, validSettings } from './usage.mjs';
 
 export const AGENTS = registry.filter((a) => a.features.accounts).map((a) => a.id);
 const VAR = { claude: 'CLAUDE_CONFIG_DIR', codex: 'CODEX_HOME' };
@@ -129,7 +131,7 @@ export const tokenChange = (ctx, name, created) => registryChange(`${created ? '
 export const accountDoc = (a, settings) => ({ name: a.name, agent: a.agent, mode: a.mode, label: a.label ?? null, default: !!a.default, pool: a.pool ?? null, limits: limitsFor(settings, a), ...(a.mode === 'host' ? { dir: a.dir } : { volume: a.volume, mount: a.mount }), token: { kept: !!a.token, created: a.token?.created ?? null } });
 
 // Thresholds and pool: o is { minimum, warn, pool (null clears), reset (drops the account's thresholds) } for one account, or
-// { minimum, warn, autoPick, whenNone, continueBelow } for the settings. A value left out stays as it is.
+// { minimum, warn, autoPick, whenNone, continueBelow, rotate } for the settings. A value left out stays as it is.
 const mergeLimits = (old, o) => {
   const out = {};
   for (const k of ['minimum', 'warn']) { const v = { ...old?.[k], ...o[k] }; if (Object.keys(v).length) out[k] = v; }
@@ -145,8 +147,8 @@ export const limitsChange = (ctx, name, o) => registryChange(`${o.reset ? 'reset
   });
 });
 export const settingsChange = (ctx, o) => registryChange('set the usage settings of BenchKeeper', ctx, (list) => list, (old) => {
-  const { autoPick, whenNone, continueBelow } = o;
-  return { ...old, ...mergeLimits(old, o), ...(autoPick === undefined ? {} : { autoPick }), ...(whenNone === undefined ? {} : { whenNone }), ...(continueBelow === undefined ? {} : { continueBelow }) };
+  const { autoPick, whenNone, continueBelow, rotate } = o;
+  return { ...old, ...mergeLimits(old, o), ...(autoPick === undefined ? {} : { autoPick }), ...(whenNone === undefined ? {} : { whenNone }), ...(continueBelow === undefined ? {} : { continueBelow }), ...(rotate === undefined ? {} : { rotate: { ...old?.rotate, ...rotate } }) };
 });
 
 export const store = (ctx) => ctx.credentials ?? credentialStore(ctx.run, { env: where(ctx) });
@@ -320,7 +322,8 @@ function launchGate(ctx, a, u, { dir, now, pick, confirmed, say }) {
 
 // Runs an agent as the account in the foreground, after the preflight. Returns the exit code; a refusal throws.
 // pick: the account was not named, so auto-pick may replace it. confirmed: the user said go on below the minimum.
-export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say = () => {}, pick = false, confirmed = false, now = Date.now() } = {}) {
+// used: called with the account the agent starts under.
+export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say = () => {}, pick = false, confirmed = false, now = Date.now(), used = () => {} } = {}) {
   if (args[0] !== a.agent) throw new Error(`account ${a.name} is a ${a.agent} account: the command is ${a.agent}`);
   let token;
   if (useToken) {
@@ -335,7 +338,8 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
   for (const f of s.findings.filter((x) => x.level !== 'info')) say(`${f.level}: ${f.message} (${f.fix})`);
   for (const f of s.usage ? nearNotices(a.name, s.usage) : []) say(`notice: ${f.message} (${f.fix})`);
   const gate = s.usage ? launchGate(ctx, a, s.usage, { dir, now, pick, confirmed, say }) : null;
-  if (gate) return runAs(ctx, gate.account, args, { dir, useToken, say, now, pick: false, confirmed: !!gate.confirmed });
+  if (gate) return runAs(ctx, gate.account, args, { dir, useToken, say, now, pick: false, confirmed: !!gate.confirmed, used });
+  used(a);
   // The folder is for this user alone, also when the agent creates its first files there.
   if (a.mode === 'host') mkdirSync(a.dir, { recursive: true, mode: 0o700 });
   if (a.mode === 'host') return ctx.run(args, { cwd: dir, env: accountEnv(ctx, a, { token }), stdio: 'inherit' }).code;
@@ -350,6 +354,63 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
     // The launch removes the file as it reads it; this covers a launch that never got that far.
     ctx.run(execArgv(engine, dir, a, ['rm', '-f', file]), opts);
   }
+}
+
+// ---- rotation by handover (opt-in per agent, settings.rotate): a fresh session on another account of the pool continues the work
+
+// The decision for account a (usage.mjs rotation), with the setting. Off reads nothing.
+export function rotationFor(ctx, a, { dir, now = Date.now() } = {}) {
+  const setting = settingsOf(registrySettings(ctx)).rotate[a.agent];
+  if (setting === 'off') return { action: 'none', setting };
+  const usage = (x) => accountStatus(ctx, x, { dir, now }).usage;
+  const pool = a.pool ? listAccounts(ctx).filter((x) => x.agent === a.agent && x.name !== a.name && x.pool === a.pool).map((x) => ({ account: x, usage: usage(x) })) : [];
+  return { ...rotation(usage(a), pool, setting, now), setting };
+}
+
+// Shown when rotation is turned on and before each handover. The sources are the providers' own pages; this is not legal advice.
+export const ROTATE_WARNING = {
+  claude: 'warning: rotating accounts to extend usage may go against Anthropic\'s terms: the usage limits of Pro and Max assume ordinary, individual usage (https://code.claude.com/docs/en/legal-and-compliance), and the consumer terms prohibit bypassing its protective measures (https://www.anthropic.com/legal/consumer-terms, section 3). The risk is yours; this is not legal advice.',
+  codex: 'warning: OpenAI\'s Terms of Use forbid circumventing rate limits (https://openai.com/policies/terms-of-use/), and its Sign in with ChatGPT Terms forbid rotating accounts to bypass usage limits (https://openai.com/policies/sign-in-with-chatgpt-terms/). The risk is yours; this is not legal advice.',
+};
+// A login variable in the environment takes precedence over the account's folder in the agent. childEnv drops these names,
+// so one reaches a session only when BENCHKEEPER_PASS_ENV names it.
+const LOGIN_VARS = { claude: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'], codex: ['OPENAI_API_KEY', 'CODEX_API_KEY'] };
+export const loginVars = (ctx, agent) => LOGIN_VARS[agent].filter((k) => where(ctx)[k]);
+
+const HANDOFF = '.benchkeeper/handoff.md';
+const HANDOVER = '.benchkeeper/handover.md';
+const FIELDS = ['Outcome', 'What changed', 'Checks and results', 'Open risks', 'Next step'];
+// The fields of the handoff block a dispatched worker writes (its worker spec), each up to the next field.
+function handoffFields(text) {
+  const out = {};
+  let key = null;
+  for (const line of String(text ?? '').split('\n')) {
+    const f = FIELDS.find((k) => line.trim().startsWith(`${k}:`));
+    if (f) { key = f; out[f] = line.trim().slice(f.length + 1).trim(); } else if (key && line.trim()) out[key] += ` ${line.trim()}`;
+  }
+  return out;
+}
+// The handover for the session on the next account: built from the worktree's git state and the last handoff block, never from
+// a transcript. File names only for uncommitted changes; token shapes are masked.
+export function handover(ctx, dir, { from, to }) {
+  const g = (args) => { const r = git(ctx, dir, args, { env: where(ctx), timeout: 15e3 }); return r.code === 0 ? r.stdout : ''; };
+  const root = g(['rev-parse', '--show-toplevel']).trim() || dir, branch = g(['rev-parse', '--abbrev-ref', 'HEAD']).trim() || 'unknown';
+  const changed = g(['status', '--porcelain', '--untracked-files=all']).split('\n').filter(Boolean).map((l) => l.slice(3)).filter((f) => f !== HANDOVER);
+  const h = handoffFields(readText(join(root, HANDOFF)));
+  const commits = g(['log', '-5', '--format=%s']).split('\n').filter(Boolean);
+  const text = [`# Handover from account ${from.name} to ${to.name}`, '',
+    'The usage of the previous account reached its minimum headroom. Continue the work below in this worktree; do not start over.', '',
+    `## Task and goal\n\n${h.Outcome ? `Last reported outcome: ${h.Outcome}. ` : ''}Continue the work on branch ${branch}: the sections below say what is done and what is open.`, '',
+    `## Done\n\n${h['What changed'] ?? (commits.length ? commits.map((c) => `- ${c}`).join('\n') : 'nothing committed yet')}`, '',
+    `## Open\n\n${h['Open risks'] ?? 'not recorded'}`, '',
+    `## Worktree and branch\n\n${root}, branch ${branch}`, '',
+    `## Uncommitted changes\n\n${changed.length ? changed.map((f) => `- ${f}`).join('\n') : 'none'}`, '',
+    `## Next step\n\n${h['Next step'] ?? 'Read git status and the last commits, then continue with the open part of the task.'}`, ''].join('\n');
+  return { path: join(root, HANDOVER), text: hide(text) };
+}
+export function writeHandover(h) {
+  mkdirSync(join(h.path, '..'), { recursive: true });
+  writeFileSync(h.path, h.text);
 }
 
 // ---- usage tracking: the status line script and the StopFailure hook in the account's folder (Claude Code)

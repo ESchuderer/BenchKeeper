@@ -37,7 +37,7 @@ function world({ policy = POLICY, workers = [], trees = {}, issues = [], prs = [
   const run = (argv) => {
     calls.push(argv.join(' '));
     const [cmd, a, b] = argv;
-    if (cmd === 'orca' && !runner) return { code: 127, stdout: '', stderr: 'not found' };
+    if (/orca/.test(cmd) && !runner) return { code: 127, stdout: '', stderr: 'not found' };
     if (cmd === 'orca') return ok({ ...RECORDED, result: { ...RECORDED.result, workers, scope: { source: scope } } });
     if (cmd === 'git') return ok(Object.entries({ '/p': 'main', ...trees }).map(([p, br]) => `worktree ${p}\nHEAD ${HEAD}\nbranch refs/heads/${br}\n`).join('\n'));
     if (a === 'repo') return ok({ nameWithOwner: 'o/r', defaultBranchRef: { name: 'main' } });

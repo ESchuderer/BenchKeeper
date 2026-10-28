@@ -86,7 +86,7 @@ export function Automations({ overview, refresh }) {
           const open = data.automations.find((a) => a.id === form);
           return (
             <Stack gap="lg">
-              {!data.runner.installed && <Note color="yellow">{data.runner.name} is not installed. The templates show, and install, update and remove need its CLI.</Note>}
+              {!data.runner.installed && <Note color="yellow">{data.runner.note}. The templates show, and install, update and remove need its CLI.</Note>}
               {data.errors.map((e) => <Note color="red" title="Template not loaded" key={e.file}><Code style={{ overflowWrap: 'anywhere' }}>{e.file}</Code>: {e.message}</Note>)}
               <Section title="Templates">
                 {data.automations.length === 0

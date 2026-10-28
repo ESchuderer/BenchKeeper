@@ -42,7 +42,7 @@ test('the page lists the templates; install is a plan for a registered project, 
   const argv = plan.changes.find((c) => c.kind === 'command').argv.slice(1);
   assert.ok(argv.includes('--disabled'));
   const a = { id: ID, name: 'Alpha', prompt: argv[argv.indexOf('--prompt') + 1], precheck: { command: argv[argv.indexOf('--precheck') + 1] }, rrule: 'FREQ=HOURLY', enabled: false };
-  w.update((s) => ({ replies: [automationReply(argv, a, { times: 1 }), automationReply(showAutomationArgv(ID), a), { argv: runsArgv(ID).slice(1), stdout: DERIVED.runs }, ...s.replies] }));
+  w.update((s) => ({ replies: [automationReply(argv, a, { times: 1 }), automationReply(showAutomationArgv(ID), a), { argv: runsArgv(w.ctx, ID).slice(1), stdout: DERIVED.runs }, ...s.replies] }));
   const { job } = await routes['POST /api/apply']({ planId: plan.planId });
   const state = await wait(() => { const s = routes['GET /api/job'](new URLSearchParams({ id: job })); return s.done && s; });
   assert.equal(state.error, null);

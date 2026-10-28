@@ -95,7 +95,7 @@ const run = (argv, o = {}) => {
     return { code: 0, stdout: '', stderr: '' };
   }
   if (argv[1]?.endsWith('verify.mjs')) return { code: 0, stdout: '', stderr: '' };
-  if (argv[0] === 'orca' && existsSync(RUNNER)) return runner(argv.slice(1));
+  if (/orca/.test(argv[0]) && existsSync(RUNNER)) return runner(argv.slice(1));
   if (argv[0] === 'zenity') return { code: 0, stdout: `${parent}\n`, stderr: '' };
   if (argv[0] === 'claude' && argv[1] === '--version') return { code: 0, stdout: '2.1.0 (Claude Code)\n', stderr: '' };
   // Setup advice: a restricted read-only session answers with one library skill.

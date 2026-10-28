@@ -417,13 +417,13 @@ test('Orca worker spec and setup samples: offered only with Orca installed, off 
   undo(run.id, m.ctx);
   assert.equal(existsSync(join(dir, 'worker-spec.md')), false);
   assert.equal(offered().length, 3);
-  const bare = context({ home: mkdtempSync(join(tmpdir(), 'bk-noorca-')), run: (argv) => ({ code: argv[0] === 'orca' ? 127 : 0, stdout: '', stderr: '' }) });
+  const bare = context({ home: mkdtempSync(join(tmpdir(), 'bk-noorca-')), run: (argv) => ({ code: /orca/.test(argv[0]) ? 127 : 0, stdout: '', stderr: '' }) });
   assert.deepEqual(globalPlan({ ctx: bare, agents: ['claude'] }).filter((c) => c.step === 'orca:templates'), []);
 });
 
 test('names from agent files that start with a dash or hold a path are skipped', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-names-'));
-  const ctx = context({ home, run: (argv) => ({ code: argv[0] === 'npm' || argv[0] === 'orca' ? 1 : 0, stdout: '', stderr: '' }) });
+  const ctx = context({ home, run: (argv) => ({ code: argv[0] === 'npm' || /orca/.test(argv[0]) ? 1 : 0, stdout: '', stderr: '' }) });
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
     'ok@x': [{ scope: 'user', version: '1.0.0' }], '--force@x': [{ scope: 'user', version: '1.0.0' }], '../up@x': [{ scope: 'user', version: '1.0.0' }] } }));

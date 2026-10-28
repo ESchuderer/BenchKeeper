@@ -240,6 +240,20 @@ test('token (Claude Code): setup-token kept in the credential store, recorded wi
   assert.equal(await r.exec(['accounts', 'login', 'work', '--token']), 1);
   assert.match(r.text(), /no secret service/);
   assert.equal(m.calls().length, n);
+  // A delete that fails stops the remove before the registry changes and says how to delete the token by hand.
+  const deleteToken = m.ctx.credentials.delete;
+  m.ctx.credentials = { ...m.ctx.credentials, delete: () => { throw new Error('the keyring is locked'); } };
+  const locked = cli(m);
+  assert.equal(await locked.exec(['accounts', 'remove', 'work', '--yes']), 1);
+  assert.match(locked.text(), /the keyring is locked\nthe account work stays listed: delete the token by hand \(service benchkeeper, account work\)/);
+  assert.ok(findAccount(m.ctx, 'work').token);
+  assert.equal(m.kept.get('work'), CLAUDE_TOKEN);
+  m.ctx.credentials = { ...m.ctx.credentials, delete: deleteToken };
+  const removed = cli(m);
+  assert.equal(await removed.exec(['accounts', 'remove', 'work', '--yes']), 0);
+  assert.match(removed.text(), /deleted the stored token/);
+  assert.equal(m.kept.has('work'), false);
+  assert.deepEqual(listAccounts(m.ctx).map((a) => a.name), []);
 });
 
 test('token (Codex): the access token comes from a pipe, goes to codex login on its stdin and is kept nowhere else', skip, async () => {

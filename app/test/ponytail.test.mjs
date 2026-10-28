@@ -17,10 +17,10 @@ const HEADER = 'key,started,project,name,cost_usd,turns,agent_minutes,tokens_tot
 const FLAG = '.claude/.ponytail-band';
 const CONFIG = '.config/ponytail/config.json';
 
-function machine({ band = true, ponytail = true, flag } = {}) {
+function machine({ band = true, ponytail = true, benchkeeper = true, flag } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'bk-pony-'));
   mkdirSync(join(home, '.claude'), { recursive: true });
-  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: ponytail ? { 'ponytail@ponytail': true } : {}, pluginConfigs: { 'benchkeeper@benchkeeper': { options: { tierBand: band } } } }));
+  writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { ...(ponytail ? { 'ponytail@ponytail': true } : {}), ...(benchkeeper ? { 'benchkeeper@benchkeeper': true } : {}) }, pluginConfigs: { 'benchkeeper@benchkeeper': { options: { tierBand: band } } } }));
   if (flag) writeFileSync(join(home, FLAG), flag);
   return context({ home, run });
 }
@@ -54,7 +54,7 @@ test('two bands: doctor warns, the plan hides both with a diff, nothing changes 
 });
 
 test('two bands: no finding and no step without Ponytail, without the tier band, or with Ponytail\'s band already off', () => {
-  for (const m of [machine({ ponytail: false }), machine({ band: false }), machine({ flag: 'off\n' })]) {
+  for (const m of [machine({ ponytail: false }), machine({ band: false }), machine({ benchkeeper: false }), machine({ flag: 'off\n' })]) {
     assert.deepEqual(doctor(m, { agents: ['claude'], env: {} }).filter((i) => i.check === 'ponytail'), []);
     assert.deepEqual(bandPlan(m), []);
   }
@@ -65,6 +65,15 @@ test('two bands: no finding and no step without Ponytail, without the tier band,
   const broken = machine();
   writeFileSync(join(broken.home, '.claude/settings.json'), '{ nope');
   assert.equal(bandStacks(broken), false);
+});
+
+test('two bands: a config Ponytail keeps that cannot be read fails the plan, and the flag file is not written alone', () => {
+  const ctx = machine();
+  mkdirSync(join(ctx.home, CONFIG), { recursive: true }); // there, but not readable as a file
+  const plan = bandPlan(ctx);
+  assert.ok(plan.some((c) => c.error) && plan.every((c) => c.selected === false));
+  assert.throws(() => apply(plan, ctx, { scope: 'global', select: plan.map((c) => c.id) }), /go together/);
+  assert.equal(existsSync(join(ctx.home, FLAG)), false);
 });
 
 test('csv: quoted commas, quotes and line breaks stay in their field', () => {
@@ -120,6 +129,16 @@ test('ledger: a session in the transcripts and the ledger counts once; ledger-on
   const page = boardHtml(rows, '2026-10-30T00:00:00.000Z');
   assert.ok(!page.includes(MARKER_NAME) && !page.includes(MARKER_TEXT));
   assert.ok(!JSON.stringify(readLedger(ctx)).includes(MARKER_NAME));
+});
+
+test('ledger: the reuse share of a session is computed from its summed counts', () => {
+  const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-pony-reuse-')) });
+  ledgerFile(ctx, 'a.csv', [
+    HEADER,
+    `2d7d8887-1793059689621,2026-10-22 09:00,blog,a,1,1,1,1,1,0,0,10,0,passed,full,`,
+    `2d7d8887-1793059789621,2026-10-22 09:05,blog,b,1,1,1,1,1,100,10,0,0,passed,full,`,
+  ].join('\n'));
+  assert.deepEqual(readLedger(ctx).rows.map((r) => r.reusePct), [50]);
 });
 
 test('ledger: nothing without Ponytail\'s folder, and a file over the limit is skipped', () => {

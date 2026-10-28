@@ -1,7 +1,7 @@
 {
   "name": "benchkeeper",
   "version": "6.25.0",
-  "description": "Chooses how much checking a task gets (a software change, a docs pass or research) and sets up and maintains projects. Works next to Matt Pocock's skills and Ponytail when they are installed. Has an optional status band above the prompt in the Claude Code terminal, off by default.",
+  "description": "Chooses how much checking a task gets (a software change, a docs pass or research) and sets up and maintains projects. Works next to Matt Pocock's skills and Ponytail when they are installed. has an optional status band above the prompt in the Claude Code terminal and desktop app, off by default.",
   "author": { "name": "ESchuderer", "url": "https://github.com/ESchuderer" },
   "homepage": "https://eschuderer.github.io/BenchKeeper/",
   "repository": "https://github.com/ESchuderer/BenchKeeper",
@@ -12,8 +12,8 @@
   "userConfig": {
     "tierBand": {
       "type": "boolean",
-      "title": "Status band above the prompt (terminal only)",
-      "description": "Off by default. Adds two rows above the prompt in the Claude Code terminal: project, branch, last test run and Ponytail's level when it is installed, then the tier of the last answer with buttons that set the tier for this session, open the sessions board and ask the agent to run the doctor. It reads your working folder, git and one Ponytail flag file, writes nothing and sends nothing. Turn it off by setting this option to false. The desktop app and IDE extensions do not draw it.",
+      "title": "Status band above the prompt (terminal and desktop app)",
+      "description": "Off by default. Adds two rows above the prompt in the Claude Code terminal and desktop app: project, branch, last test run and Ponytail's level when it is installed, then the tier of the last answer with buttons that set the tier for this session, open the sessions board and ask the agent to run the doctor. It reads your working folder, git and one Ponytail flag file, writes nothing and sends nothing. Turn it off by setting this option to false. The VS Code extension does not draw it.",
       "default": false
     }
   }

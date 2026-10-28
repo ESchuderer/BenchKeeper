@@ -90,6 +90,12 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
+  // /clear, /resume and /branch reset the band's atoms and do not fire session.start again.
+  on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
+    if (on_) await refresh($).catch(() => undefined)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   on('prompt.submit', async ($, e, next) => {
     if (on_ && e.command?.name === 'benchkeeper:tier') await setOverride($, e.command.args)
     return next(e)

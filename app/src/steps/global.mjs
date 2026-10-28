@@ -319,7 +319,7 @@ export function globalPlan(env) {
       },
     });
     // Offered, not preselected: the band is a choice, and a plugin's options live under its id.
-    add('settings:claude:tier-band', 'BenchKeeper status band above the prompt (optional, terminal only): project, branch, last test run, the tier of the last answer and buttons to set it for the session', { kind: 'write', path: f, edit: sets([[['pluginConfigs', 'benchkeeper@benchkeeper', 'options', 'tierBand'], true]]) }, { selected: false, optional: true });
+    add('settings:claude:tier-band', 'BenchKeeper status band above the prompt (optional, terminal and desktop app): project, branch, last test run, the tier of the last answer and buttons to set it for the session', { kind: 'write', path: f, edit: sets([[['pluginConfigs', 'benchkeeper@benchkeeper', 'options', 'tierBand'], true]]) }, { selected: false, optional: true });
   }
   if (agents.includes('codex')) {
     const f = at('.codex/config.toml');

@@ -160,6 +160,20 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
   await ui.unmount()
 })
 
+test('on: the project row comes back after /clear, /resume and /branch', ON, async ($, on) => {
+  engine(on)
+  on('classic.SessionStart', () => ({}))
+  on('session.cwd', () => ({ value: '/work/shop' }))
+  on('env.get', (_, e) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'main\n', stderr: '' } }) as never)
+  on('fs.read', () => { throw new Error('no such file') })
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /shop/ })).toBeUndefined()
+  await $.classic.SessionStart({ source: 'resume' })
+  expect(await ui.find({ type: 'Text', text: /^shop \(main\)  tests: not run yet$/ })).toBeDefined()
+  await ui.unmount()
+})
+
 test('on: doctor asks the agent to run the doctor, ? explains the band and how to turn it off', ON, async ($, on) => {
   engine(on)
   const sent: string[] = []

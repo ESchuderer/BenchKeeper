@@ -1,9 +1,9 @@
 // Ponytail is an optional third-party plugin. This module reads or writes only files that plugin keeps, only when they are
-// there, and imports none of its code. The task name column of its ledger is never read into a row.
+// there, and imports none of its code. The task name column of its ledger is parsed but not kept in a row.
 // shortcut: paths follow the default layout below the home folder; CLAUDE_CONFIG_DIR, XDG_CONFIG_HOME and APPDATA are not followed, as in the rest of the app.
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { readText } from './fsx.mjs';
+import { exists, readText } from './fsx.mjs';
 import { mergeJson } from './merge.mjs';
 
 export const PLUGIN = 'ponytail@ponytail';
@@ -17,11 +17,12 @@ const KEY = /^([0-9a-f]{8})-(\d{12,14})$/;
 
 const json = (text) => { try { return JSON.parse(text ?? '{}') ?? {}; } catch { return {}; } };
 
-// True when Ponytail's band would draw above the prompt next to BenchKeeper's tier band: the plugin is on, the tier band is
-// on, and `/ponytail band off` has not been run.
+// True when Ponytail's band would draw above the prompt next to BenchKeeper's tier band: both plugins are on, the tier band
+// is on, and `/ponytail band off` has not been run.
 export function bandStacks(ctx) {
   const settings = json(readText(join(ctx.home, '.claude/settings.json')));
   return settings.enabledPlugins?.[PLUGIN] === true
+    && settings.enabledPlugins?.['benchkeeper@benchkeeper'] === true
     && settings.pluginConfigs?.['benchkeeper@benchkeeper']?.options?.tierBand === true
     && readText(join(ctx.home, BAND_FLAG))?.trim() !== 'off';
 }
@@ -29,7 +30,11 @@ export function bandStacks(ctx) {
 // The two writes that hide Ponytail's band and status indicator; its behaviour (mode, skills) stays on. Plan changes.
 export const hideBandChanges = (ctx) => [
   { title: "hide Ponytail's band above the prompt (writes off to ~/.claude/.ponytail-band, what /ponytail band off does)", kind: 'write', path: join(ctx.home, BAND_FLAG), after: 'off' },
-  { title: "hide Ponytail's status indicator (hideStatus in ~/.config/ponytail/config.json)", kind: 'write', path: join(ctx.home, CONFIG), edit: (t) => mergeJson(t, [{ path: ['hideStatus'], value: true }]) },
+  { title: "hide Ponytail's status indicator (hideStatus in ~/.config/ponytail/config.json)", kind: 'write', path: join(ctx.home, CONFIG), edit: (t) => {
+    // A config that is there but unreadable fails the plan, so the flag file is not written alone.
+    if (t === null && exists(join(ctx.home, CONFIG))) throw new Error(`${join(ctx.home, CONFIG)} cannot be read`);
+    return mergeJson(t, [{ path: ['hideStatus'], value: true }]);
+  } },
 ];
 
 // The doctor finding for bandStacks, or [].
@@ -80,11 +85,13 @@ export function readLedger(ctx) {
       const key = r.length === head.length ? at(r, 'key').match(KEY) : null;
       if (!key) { bad++; continue; }
       const prev = bySession.get(key[1]);
-      const row = { id: key[1], startedMs: Number(key[2]), project: at(r, 'project') || null, costUSD: num(at(r, 'cost_usd')), turns: num(at(r, 'turns')) ?? 0, agentMinutes: num(at(r, 'agent_minutes')), tokens: num(at(r, 'tokens_total')), reusePct: num(at(r, 'reuse_pct')), tests: testsOf(at(r, 'tests')), level: at(r, 'level') || null, model: at(r, 'model') || null };
+      const row = { id: key[1], startedMs: Number(key[2]), project: at(r, 'project') || null, costUSD: num(at(r, 'cost_usd')), turns: num(at(r, 'turns')) ?? 0, agentMinutes: num(at(r, 'agent_minutes')), tokens: num(at(r, 'tokens_total')), reusePct: num(at(r, 'reuse_pct')), reused: num(at(r, 'reused')), fresh: num(at(r, 'new')), tests: testsOf(at(r, 'tests')), level: at(r, 'level') || null, model: at(r, 'model') || null };
       const sum = (a, b) => (a == null && b == null ? null : (a ?? 0) + (b ?? 0));
-      bySession.set(key[1], !prev ? row : { ...row, startedMs: Math.min(prev.startedMs, row.startedMs), costUSD: sum(prev.costUSD, row.costUSD), turns: prev.turns + row.turns, agentMinutes: sum(prev.agentMinutes, row.agentMinutes), tokens: sum(prev.tokens, row.tokens), reusePct: row.reusePct ?? prev.reusePct, tests: row.tests ?? prev.tests });
+      bySession.set(key[1], !prev ? row : { ...row, startedMs: Math.min(prev.startedMs, row.startedMs), costUSD: sum(prev.costUSD, row.costUSD), turns: prev.turns + row.turns, agentMinutes: sum(prev.agentMinutes, row.agentMinutes), tokens: sum(prev.tokens, row.tokens), reusePct: row.reusePct ?? prev.reusePct, reused: sum(prev.reused, row.reused), fresh: sum(prev.fresh, row.fresh), tests: row.tests ?? prev.tests });
     }
     if (bad) notes.push(`Ponytail ledger ${f}: ${bad} malformed ${bad === 1 ? 'row' : 'rows'} skipped`);
   }
-  return { rows: [...bySession.values()], notes };
+  // A session's share comes from its summed counts, as Ponytail's own (no share below 3 functions), not from one task's.
+  const rows = [...bySession.values()].map(({ reused, fresh, ...r }) => (reused == null || fresh == null ? r : { ...r, reusePct: reused + fresh < 3 ? null : Math.round((reused / (reused + fresh)) * 100) }));
+  return { rows, notes };
 }

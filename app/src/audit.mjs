@@ -31,9 +31,9 @@ function walk(dir, rel = '', out = []) {
   return out;
 }
 
-// A repository lists its tracked files (generated folders ignored by git stay out); anything else is walked without dot folders.
+// A repository lists its tracked and untracked files without the ones git ignores (generated folders stay out); anything else is walked without dot folders.
 function listProject(ctx, dir) {
-  const r = git(ctx, dir, ['ls-files', '-z'], { timeout: 20000 });
+  const r = git(ctx, dir, ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { timeout: 20000 });
   return (r.code === 0 ? r.stdout.split('\0').filter(Boolean) : walk(dir)).slice(0, MAX_FILES);
 }
 

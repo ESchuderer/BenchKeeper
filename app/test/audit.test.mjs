@@ -225,12 +225,12 @@ test('duplicated tests, snapshot and fixture size, large files with the limit th
   assert.deepEqual(ids(tree({ 'src/long.js': lines(60), '.eslintrc': { rules: { 'max-lines': ['warn', 20] } } })), ['code/large-file:src/long.js']);
 });
 
-test('a git repository lists its tracked files only; a folder is walked without node_modules and dot folders', () => {
+test('a git repository lists its files without the ignored ones; a folder is walked without node_modules and dot folders', () => {
   const dir = tree({ 'src/a.js': lines(1001, 'a'), 'node_modules/p/index.js': lines(1001, 'p'), '.hidden/x.js': lines(1001, 'h'), 'ignored/b.js': lines(1001, 'b') });
   assert.deepEqual(ids(dir), ['code/large-file:ignored/b.js', 'code/large-file:src/a.js']);
   execFileSync('git', ['-C', dir, 'init', '-q']);
-  execFileSync('git', ['-C', dir, 'add', 'src', '.hidden']);
-  assert.deepEqual(ids(dir), ['code/large-file:.hidden/x.js', 'code/large-file:src/a.js']);
+  writeFileSync(join(dir, '.gitignore'), 'ignored/\nnode_modules/\n');
+  assert.deepEqual(ids(dir), ['code/large-file:.hidden/x.js', 'code/large-file:src/a.js'], 'nothing is added yet, the untracked files count');
 });
 
 test('an empty folder lists every check as skipped and --only limits the groups', () => {

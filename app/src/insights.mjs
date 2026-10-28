@@ -49,7 +49,9 @@ export function insights({ sessions = [], skills = [], doctorFindings = [] }, { 
   for (const s of sessions) {
     if (!s.project || s.pattern === 'Orca worker' || s.tier?.last === 'research') continue;
     const folder = folderOf(s.project);
-    if (folder) byFolder.set(folder, [...(byFolder.get(folder) ?? []), s]);
+    if (!folder) continue;
+    if (!byFolder.has(folder)) byFolder.set(folder, []);
+    byFolder.get(folder).push(s);
   }
   for (const [folder, list] of byFolder) {
     const failed = list.filter((s) => s.tests === 'fail' && !s.prs?.length);

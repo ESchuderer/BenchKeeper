@@ -18,4 +18,5 @@ const strings = ['src', 'ui'].filter((d) => existsSync(join(root, d))).flatMap((
   .flatMap((f) => readFileSync(f, 'utf8').split('\n').flatMap((line, i) => NAME.test(line) ? [`${relative(root, f)}:${i + 1}`] : []));
 for (const at of strings) console.error(`error orca-name-outside-module: ${at}`);
 
-process.exit(cruise.status || strings.length ? 1 : 0);
+if (cruise.error) console.error(cruise.error);
+process.exit(cruise.error || cruise.status !== 0 || strings.length ? 1 : 0);

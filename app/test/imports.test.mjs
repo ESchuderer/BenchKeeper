@@ -45,3 +45,8 @@ test('imports: an import across a forbidden boundary, a cycle and the IDE name o
     assert.ok(r.out.includes(`error ${rule}:`), `${rule}: ${r.out}`);
   }
 });
+
+test('imports: an app folder that does not exist fails instead of passing unchecked', () => {
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/imports.mjs', import.meta.url))], { encoding: 'utf8', env: { ...process.env, APP_ROOT: join(tmpdir(), 'bk-imports-missing') } });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+});

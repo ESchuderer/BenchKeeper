@@ -1,6 +1,6 @@
 name: npm publish
 
-# Started by the Release workflow after a merge to main with a new version (its `npm` job), or by the owner (Actions, npm
+# Started by the Release workflow after it created a release (its `npm` job), or by the owner (Actions, npm
 # publish, Run workflow). Publishes app/ as benchkeeper@<version> with npm
 # provenance through trusted publishing (OIDC): no token. The package's npm settings name this repository and npm.yml.
 # Two jobs: `build` installs the dependencies (lifecycle scripts off), tests and packs, and holds no OIDC token;

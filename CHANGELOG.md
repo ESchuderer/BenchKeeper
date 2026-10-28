@@ -1,26 +1,33 @@
 # Changelog
 
-Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>` and a GitHub Release, both created on merge from the plugin `version` and the entry here; benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions and fixes.
+Versions of the BenchKeeper setup (rules, skills, recommended stack). Each version is a git tag `setup-v<major>.<minor>.<patch>` and a GitHub Release, created by the release pull request that release-please keeps open from the Conventional Commit titles on `main`; the pull request is merged once a week (Monday). Benchmark results name the setup version they measured. Major: the layout or the behavior of the rules changes. Minor: additions. Patch: fixes. Entries with a two-part version (up to 6.24) are the earlier hand-written ones, tagged `setup-v<major>.<minor>`; release-please writes the entries above them.
 
-## setup-v6.24 (2026-10-27)
+## 6.25 (2026-10-28)
+
+- App, Sessions board redesigned (#406): a project rail first (newest activity, session count, sparkline, last tier; a chip row on a phone), tiles for sessions, agent time, cost, tokens, tests-pass rate and merged pull requests with a sparkline and the change against the previous period of the same length, the per-day chart stacked by project with a metric switch (cost, agent time, tokens, sessions) and legend chips that hide a series, comparison bars by tier, pattern and setup with the sample size on every bar (under 20 sessions: hatched, marked, left out of the highest and lowest line), cost per merged pull request and model mix by week, histograms of agent time and turns, a 12-week activity calendar with active days and longest streak, and branches and pull request states of the chosen project. Own design tokens (radius, shadow, glow, a six-color series palette checked at 3:1 in light and dark, monospace tabular figures, reduced motion). Same rows as before: no new field, no message text, no network request.
+- Breaking, before 7.0: the per-day chart is stacked by project, not by setup (the setup comparison moved to its own bars); the rail has no all-directories toggle (#404 adds it to the Project select).
+- Plugin `version` 6.25.0.
+- Upgrade: `npx benchkeeper@6.25.0 apply`.
+
+## 6.24 (2026-10-27)
 
 - App, skills: community skills of the library and the global skills install from the default branch of their source instead of a commit. The project's state file records the commit the install got, `benchkeeper skills list --check` (and the Catalog's "Check for updates") asks each source for its default branch and marks moved skills `outdated`, `skills update` re-adds them. The skills CLI runs as the newest release at least 7 days old (as the host tools do; the npm signature check, the dependency cooldown and `ignore_scripts` stay), never below the app's minimum `1.7.2`; `BENCHKEEPER_SKILLS_CLI=x.y.z` runs exactly that version. The doctor no longer warns about the CLI pin. `library.json` no longer holds a `ref` per community skill. `benchkeeper insights` no longer reports skills behind the library (it needs the network). A repository with many skills counts as moved when any file in it changed.
 - Plugin `version` 6.24.0.
 - Upgrade: `npx benchkeeper@6.24.0 apply`.
 
-## setup-v6.23 (2026-10-27)
+## 6.23 (2026-10-27)
 
 - App, `benchkeeper insights --json` (#321, part of #273): findings with a stable id, a severity, the evidence and a fix from three signals. Installed Claude Code skills (global folders and enabled plugins) that none of the sessions of the last 90 days used, with the tokens their descriptions cost per turn: it needs 20 sessions in that window and reports nothing below that. The doctor's findings, as hygiene. Pins behind the newest release, as freshness: the doctor's `pins` and outdated items and the skills of registered projects behind the library. `--project dir` adds that project's doctor checks. Insights is a view of its own in the UI, which comes in a later child; the text form of the command does too. The keys are in the table of machine-readable documents in `app/README.md`.
 - Plugin `version` 6.23.0.
 - Upgrade: `npx benchkeeper@6.23.0 apply`.
 
-## setup-v6.22 (2026-10-27)
+## 6.22 (2026-10-27)
 
 - App, Extensions view and `benchkeeper extensions list [--agent claude|codex] [--project dir] [--json]` (#217, shares the data model of the Rules view): the MCP servers, hooks and subagents Claude Code and Codex load, plus the commands and output styles of Claude Code (Codex has none listed), read from files only (no agent starts) and shown per agent, globally or for a registered project. Each row has its scope, owner (`BenchKeeper`, `plugin`, `project`, `managed`, `yours`), the file it comes from and a "runs code" mark for hooks with a command, stdio MCP servers and commands that run a shell line; a global server or hook of yours links to Doctor's removal offer. MCP servers show name, transport and whether they are on, off or wait for approval. Environment values and headers never appear, a URL shows scheme and host only, a command line is masked, and a file that does not parse is named without its text. Read-only: toggles wait for #184 and #188.
 - Plugin `version` 6.22.0.
 - Upgrade: `npx benchkeeper@6.22.0 apply`.
 
-## setup-v6.21 (2026-10-26)
+## 6.21 (2026-10-26)
 
 - App, usage per account and limit notices (#338, part of #300): `benchkeeper accounts track <name> [--off]` adds a status line script and a `StopFailure` hook (`rate_limit`, `authentication_failed`, `billing_error`) to a Claude Code account's folder, as a plan with a diff and undo (a dev container account is written through `devcontainer exec`); an existing status line of another kind is refused. The script keeps only the used percentage and reset time of the 5-hour and 7-day window and the type and time of a failed turn, never a credential. `accounts status` (`--json` key `usage`), `doctor` and the Accounts view show what is left per window (100 minus `used_percentage`; a window past its reset time is unknown, not full), a notice below twice the minimum and the latest failure.
 - `accounts limits [name]` sets the minimum headroom (defaults 8 percent for the 5-hour and 3 percent for the 7-day window, per account too), the notice level, `--pool` and the launch settings. `run` below the minimum shows the account, window, what is left and the reset time and asks before it starts (`--yes` or `--continue-below on` starts anyway). Opt-in auto-pick, off by default (`--auto-pick on`): a launch without `--account` under a default account below its minimum starts under the pool member with the most headroom, or stops with the earliest reset time, or with `--when-none wait` waits for it; never inside a running session. The provider's consumer terms prohibit bypassing protective measures and are silent on switching accounts at a limit, so the setting says so and the owner carries that call. Codex has no documented usage source and shows none.
@@ -28,34 +35,34 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Plugin `version` 6.21.0.
 - Upgrade: `npx benchkeeper@6.21.0 apply`.
 
-## setup-v6.20 (2026-10-26)
+## 6.20 (2026-10-26)
 
 - App, two security controls in the Claude Code settings catalog (#313, ranks 5 and 6 of the control candidates in `docs/security.md`, part of #272): `env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` (strips credentials from the environments of Bash commands, hooks and stdio MCP servers; GitHub tokens and proxy settings stay) and `permissions.deny`, each with its documentation link and a one-line reason. `doctor` warns while the scrub is not on (`1`, taking the value of the highest settings layer, else the process environment) and while no `Read` deny rule that reaches a home folder (the home anchor, `//**/` or an absolute home path) covers each of the `.ssh`, `.aws` and `.config/gh` folders; it skips both warnings while a settings file cannot be read. `benchkeeper settings set env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB 1` turns the scrub on. Setup writes neither: a subprocess that needs a removed variable would break, and the deny rules merge into a list the user may already have. A deny rule does not cover a script that opens the files itself. Existing catalog entries are unchanged.
 - Plugin `version` 6.20.0.
 - Upgrade: `npx benchkeeper@6.20.0 apply`.
 
-## setup-v6.19 (2026-10-26)
+## 6.19 (2026-10-26)
 
 - App, `benchkeeper maintain knowledge show|clear [dir]` (#314, part of #274): `show` prints the entries the `maintaining-repos` skill stored for a project in `.benchkeeper/knowledge/` (`--json` prints `dir`, `path`, `files` and `ignored` in the usual envelope); `clear` removes that folder after a question (`--yes` skips it) and nothing else of the project. A file that does not parse, is a link or is larger than 1 MiB is ignored with a reason, a linked `.benchkeeper` is never followed or removed, and token shapes in stored text are masked in the output.
 - `maintaining-repos` reads the project's local knowledge base before a pass and writes verdicts back after it (`knowledge.md` next to `SKILL.md`: files and entry shapes, reuse only while the sha256 of every file the entry names is unchanged, expiry of reference-based and rejected verdicts, size cap, modes 0700 and 0600, stored text is data). Breaking, before 7.0 (no compatibility path): the baseline file `.benchkeeper/maintenance.json` is replaced by `.benchkeeper/knowledge/verdicts.json`; an old file is not read.
 - Plugin `version` 6.19.0.
 - Upgrade: `npx benchkeeper@6.19.0 apply`.
 
-## setup-v6.18 (2026-10-26)
+## 6.18 (2026-10-26)
 
 - `orchestrating-projects` author filter for worker text (#311, rank 1 of the control candidates in `docs/security.md`): the worker spec template has a `Trusted authors:` line. A worker follows issue, pull request, review and comment text only from the policy's `trustedAuthors`, the repository owner and users with write access (`authorAssociation` OWNER, MEMBER or COLLABORATOR), and reads any other text, bots included, as data, never instructions. The coordinator picks only issues written by a trusted author. Breaking, before 7.0 (no compatibility path): a review bot's comments are no longer followed unless its login is in `trustedAuthors` of `docs/agents/orchestration.json` (new optional policy field, example in `policy.example.json`).
 - Skill lint: `.github/scripts/skill-lint.mjs` fails a skill whose files mention a worker and hand it issue or pull request text without the `Trusted authors:` line and the words "data, never instructions" (a failing and a passing fixture in `skill-lint.test.mjs`). The filter is wording in the worker session, so it lowers the hit rate and is no boundary.
 - Plugin `version` 6.18.0.
 - Upgrade: `npx benchkeeper@6.18.0 apply`.
 
-## setup-v6.17 (2026-10-26)
+## 6.17 (2026-10-26)
 
 - App, `update-all` for chosen projects (#280): `benchkeeper update-all [dir..]` takes registered project folders and updates only those, with `--dry-run`, `--baseline`, `--max` and the cap on pushed repositories counting only the list. Without folders it behaves as before. A folder that is not a registered project stops the command before anything is listed or changed, with exit 2 and the message `<dir>: not a registered project`. The browser's Update all already took a project list.
 - Breaking, before 7.0 (no compatibility path): the `doctor` message for a skill file that links a missing target now starts with the skill and the project (`skill <name> in <project dir>: <file> links <target>, which does not exist`); a script that matches the old text `<file> links ...` at the start of the message must match the new one. The link in the `accessibility` library skill to its sibling `web-quality-audit` is still reported: #276 did not remove that skill, and the dead link is in the upstream text.
 - Plugin `version` 6.17.0.
 - Upgrade: `npx benchkeeper@6.17.0 apply`.
 
-## setup-v6.16 (2026-10-26)
+## 6.16 (2026-10-26)
 
 - App, loops and groups per tier (#176): the sessions board has a `pattern` per session (single, loop, group, Orca worker) with a By pattern table (median cost and time, tests passed, pull requests merged), a Pattern filter and column, the subagent count and, for an Orca worker, its run id. Loop: `/goal`, `/loop` or a scheduled wakeup in a Claude Code transcript. Group: Claude Code subagent transcripts or Codex subagent rollouts. Orca worker: the two-line Orca dispatch text in the first typed prompt, or the `Orca run: <id>` line of the new worker-spec template; Codex rollouts are not checked for loops or workers. When several apply the first of Orca worker, loop, group wins. A session summary cached before this change, whose transcript the agent has deleted, shows `not recorded`. No rule or skill changes: the tier-to-pattern mapping stays in the playbooks.
 - App, optional global step when Orca is installed (off unless chosen): the Orca worker-spec template (the five task-spec fields of the Orca orchestration guide plus tier, branch, commit and check lines, the run marker and a cap) and samples of `orca.yaml` and `.worktreeinclude` for new worktrees, written to the folder `orca` of the app config folder. Nothing is added to a project.
@@ -63,56 +70,56 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Plugin `version` 6.16.0.
 - Upgrade: `npx benchkeeper@6.16.0 apply`.
 
-## setup-v6.15 (2026-10-26)
+## 6.15 (2026-10-26)
 
 - `maintaining-repos` covers general improvement and cleanup (#274): the pass now starts on a clean tree and adds three parts, each in a file next to `SKILL.md` that is read only when its part runs: cleanup with a tool table per stack and pinned versions (`tools.md`: knip, jscpd, dependency-cruiser, with the Python and Rust candidates marked unverified), architecture checks (`architecture.md`: cycles, forwarding modules, one source of truth, documented against actual structure, and what to do without a `GLOSSARY.md` or ADRs), and a test audit by mutation testing (`test-audit.md`: StrykerJS through its command runner, a bound of one module per run, concurrency 4, a memory cap, a heap cap and a per-mutant timeout, survivors sorted into equivalent, unreachable, message and gap, and a test is removed only when the module's mutation result is unchanged without it). The report is one ranked list with a local baseline file, `.benchkeeper/maintenance.json`, that the next pass compares against. The rule "remove a test only together with the code it covers" now also allows removal with a recorded reason. The description stays a user-started skill (`disable-model-invocation`), so it costs no context in Claude Code. New eval set `skill-maintaining-repos` (should-not-load cases; not run). Evidence: the research comment on #274 and `evaluations/practices/code-health-pass.md`.
 - Plugin `version` 6.15.0.
 - Upgrade: `npx benchkeeper@6.15.0 apply`.
 
-## setup-v6.14 (2026-10-26)
+## 6.14 (2026-10-26)
 
 - App, hostile repositories and project registration (#203): a scan (`POST /api/scan`, `benchkeeper projects scan`) refuses a drive root and the BenchKeeper config folder, where it walked any absolute root before; the home folder and the folders around it stay scannable. Filter drivers (`clean`, `smudge`, `process`) that a repository's own config names, in `.git/config`, `config.worktree` or a file it includes, no longer run for the app's `status`, `add`, `write-tree`, `commit` and `worktree add` (the project list, Update all, session snapshots), except the exact commands git-lfs installs. A repository whose config git cannot read stops those commands. A repository that keeps another filter in its local config (git-crypt) reads as changed, Update all stops on it with the changed-tree message, and its session snapshots hold the files unfiltered (unreferenced objects in its `.git`). The other findings of #203 were fixed before (#239, #184): the registration deny list, the profile import, absolute paths for `POST /api/projects`, `core.fsmonitor`, the `.git` redirect file.
 - Plugin `version` 6.14.0.
 - Upgrade: `npx benchkeeper@6.14.0 apply`.
 
-## setup-v6.13 (2026-10-26)
+## 6.13 (2026-10-26)
 
 - App, environment and isolation of child commands, previews and eval sessions (#200): the commands the app runs for third-party code no longer get `GIT_ASKPASS`, `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_PROXY_COMMAND`, `GIT_EXTERNAL_DIFF`, `GIT_EXEC_PATH`, `GIT_PAGER`, `GIT_EDITOR`, `GIT_SEQUENCE_EDITOR`, `GIT_TEMPLATE_DIR`, `GIT_CURL_VERBOSE`, `GIT_TRACE*`, `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_VALUE_n` or `GIT_CONFIG_PARAMETERS`: they run a program or their values can hold a key or an `Authorization` header, which the name filter cannot see. A setup that needs them (a dev container that exports git settings through `GIT_CONFIG_COUNT`, a private https remote with an askpass program) names each one in `BENCHKEEPER_PASS_ENV`, every `GIT_CONFIG_KEY_n` and `GIT_CONFIG_VALUE_n` too. The skill install preview reads an empty git config and no system config instead of the user's (a preview that needs a certificate or proxy set only in the system config fails, and the run is unchanged): url rewrites and git-only proxy settings of the user's config do not apply in the preview (the proxy and certificate environment variables still do), and the run itself is unchanged. An eval session saves no transcript (it no longer shows on the sessions board or in the agent's own history) where the installed CLI lists `--no-session-persistence` (Claude Code) or `--ephemeral` (Codex), and Claude Code starts no MCP server for it, rule cases included (`--strict-mcp-config`). An eval session that exits non-zero (a CLI that rejects a flag) stops the run with its exit code instead of counting as a missed trigger, and stores nothing for that target (the outputs of its earlier rule cases are removed too, and the output tail in the error is masked before it is cut). The eval's scratch `git init` (without the templates of the user's git config) and version probe get the filtered environment. The other findings of #200 were already fixed (#235, #240) or are decided in `docs/security.md`: the filtered environment of runs and previews, the preview on a click, the preview's context home, the size budget of seeded folders, the login-only environment and no-trace flags of advice sessions, and `benchkeeper record` unconfined by design. An absolute-path write and the network of a preview stay unconfined until there is an OS sandbox for every platform the app runs on.
 - Plugin `version` 6.13.0.
 - Upgrade: `npx benchkeeper@6.13.0 apply`.
 
-## setup-v6.12 (2026-10-26)
+## 6.12 (2026-10-26)
 
 - App, supply chain findings of the security review (#198): every `npm` and `npx` command the app runs (host tool, skills CLI, global and per project) now carries `npm_config_before` set to 7 days ago, so the dependencies of the pinned skills CLI and of the host tool resolve at releases at least 7 days old too, and the signature check, the preview and the run resolve the same tree. The two global skill sources moved back from commits that were 6 days and 1 day old to the newest commits that are 7 days old (`vercel-labs/skills` `13e4063`, `stablyai/orca` `5df4fef`), so the installed skill text is a week older than before. `PIN_DATES` records when each third-party pin was published and a test fails for a pin younger than 7 days or changed without its date. The other findings of #198 were already fixed (#235, #239, #240) or are decided in `docs/security.md`.
 - Plugin `version` 6.12.0.
 - Upgrade: `npx benchkeeper@6.12.0 apply`.
 
-## setup-v6.11 (2026-10-26)
+## 6.11 (2026-10-26)
 
 - App, remaining low-severity findings of the security review (#206): `benchkeeper test` reports a `skills-lock.json` that is not a lock file (not JSON, not an object, `skills` not an object) as a problem line instead of throwing; copies to a path that does not exist yet (backups, undo restores) are written beside it and renamed in, so a failed copy leaves no half-written file or folder; the Catalog lists pack files that are not packs with their reason and removes them (as `packs list` and `packs remove` already did).
 - The other findings of #206 were already fixed (#239) or stay open on purpose in `docs/security.md`.
 - Plugin `version` 6.11.0.
 - Upgrade: `npx benchkeeper@6.11.0 apply`.
 
-## setup-v6.10 (2026-10-25)
+## 6.10 (2026-10-25)
 
 - Library: seven skills that fail the quality bar are removed from `library.json` and their packs: `docx`, `pdf`, `pptx`, `xlsx` (a license that forbids copies and distribution), `scientific-critical-thinking`, `fp-check` and `tdd-workflow` (they need files outside their folder). The `ecc` pack has three skills, the `security` pack three, the `science` pack four. Each is in `evaluations/skill-libraries/library-exclusions.md` with its reason. A project that installed one gets the removal in its next project plan, offered and not preselected.
 - Plugin `version` 6.10.0.
 - Upgrade: `npx benchkeeper@6.10.0 apply`.
 
-## setup-v6.9 (2026-10-25)
+## 6.9 (2026-10-25)
 
 - New skill `orchestrating-projects`, started by the user: a coordinator that runs one worker per project on labeled issues, projects in parallel, verifies each outcome, merges and closes only inside the repository's written policy (`docs/agents/orchestration.json`, read from the default branch; without it nothing merges, closes or deletes), then cleans up and starts the next issue. Workers decide the safest reversible option and write it in the pull request, report blocked and end, and never bypass a repository hook. A worker state of `ready` does not show a blocked worker: the coordinator also checks for no commit, PR or message for a set time. Worktree removal and branch deletion are separate steps. A spec template, a policy example and one reference file for Orca's commands are in the skill folder. Evaluation scenario and checks: `evaluations/practices/orchestrating-projects.md` (scenario not run yet).
 - Plugin `version` 6.9.0.
 - Upgrade: `npx benchkeeper@6.9.0 apply`.
 
-## setup-v6.8 (2026-10-25)
+## 6.8 (2026-10-25)
 
 - The tier band hook returns once per step (SonarCloud S3516); behaviour is unchanged. The rest of the release is the app's SonarCloud fixes: promises handled, linear-time regexes, sorts with a compare function, system tools by full path, scorer commands that accept only known paths, the benchmark arm image installs Claude Code, ECC and the skills CLI without their packages' install scripts (only Claude Code's own `install.cjs` runs) and Spec Kit from its PyPI wheel without a source build.
 - Plugin `version` 6.8.0.
 - Upgrade: `npx benchkeeper@6.8.0 apply`.
 
-## setup-v6.7 (2026-10-25)
+## 6.7 (2026-10-25)
 
 - Frameworks: project setup can add Superpowers, ECC, agency-agents and Matt Pocock's skills inside the project, after showing each with its evaluation. One workflow owner per project (Superpowers is one): choosing it takes BenchKeeper's workflow skill and the issue-tracker specs out of that project's block, and the `workflow` skill defers to a `Workflow owner:` line. `benchkeeper project apply --framework <id> [--agent-file <path>]`, `benchkeeper frameworks`; the setup form has a Frameworks section.
 - Superpowers is a Claude Code plugin enabled for the project only (scope project when shared, local otherwise). ECC is four single skills at a pinned commit (no plugin, no hooks). agency-agents is a pick of agent files fetched at a pinned commit. Codex gets none of these (no project scope or no converter).
@@ -120,7 +127,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Plugin `version` 6.7.0.
 - Upgrade: `npx benchkeeper@6.7.0 apply`, then Update all.
 
-## setup-v6.6 (2026-10-25)
+## 6.6 (2026-10-25)
 
 - Install levels: `benchkeeper apply --level lite|standard|full`. Lite and standard install only the BenchKeeper plugin on the machine (lite relies on the `workflow` skill description to trigger; the trigger rate is not measured yet, see `evaluations/practices/lite-install.md`); standard adds the local project block that `project apply` writes. Without `--level`, `plan` and `apply` use the level found on the machine, full on a machine without BenchKeeper.
 - The repository rules (load the workflow skill, ask open questions in one message, fix the cause of a failed check) moved from the global rules into the project block (`rules/project.md`). Global rules keep secrets and writing. Run `update-all` so each project carries them.
@@ -128,20 +135,20 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Plugin `version` 6.6.0.
 - Upgrade: `npx benchkeeper@6.6.0 apply`, then Update all.
 
-## setup-v6.5 (2026-10-24)
+## 6.5 (2026-10-24)
 
 - One-run setup in the browser: the Dashboard and the command palette start Everything, Global only or Projects (a checklist; projects without a setup or behind are checked). One consent covers the agent suggestion sessions. One progress bar shows a line per item (the global plan with its skill rehearsal, per project the suggestion and the plan), one review page shows a section per plan with a checkbox per section and per change, diffs behind buttons and the project answers (agents, environment, packs, tier) editable in place, and one apply job reports progress per section with a link to each run for undo. A failed suggestion or plan shows its reason and leaves the rest; a failed section leaves the others; cancel stops after the running change.
 - Projects with a shared setup, one still committed, or no repository stay with Update all; Fix everything stays as it is.
 - Plugin `version` 6.5.0.
 - Upgrade: `npx benchkeeper@6.5.0 apply`, which updates the plugin.
 
-## setup-v6.4 (2026-10-24)
+## 6.4 (2026-10-24)
 
 - No ask rules and no approval line in the rules: Claude Code's auto mode (its defaults) decides what needs a prompt. `gh pr merge`, force push, `git reset --hard`, `git branch -D` and `git clean` run without BenchKeeper asking first. The rule that required the user's go before hard-to-undo actions and merges is gone, as is the Codex command rules file. Global setup compares `permissions.ask` in the Claude Code settings and the files in the Codex rules folder with the set BenchKeeper wants (none) and offers each difference for removal, one change per rule or file, off by default so your own rules stay unless you pick them.
 - Plugin `version` 6.4.0.
 - Upgrade: update the plugin, then `npx benchkeeper@6.4.0 apply`.
 
-## setup-v6.3 (2026-10-23)
+## 6.3 (2026-10-23)
 
 - Project setups stay on this machine by default. `project apply` writes the BenchKeeper block into `CLAUDE.local.md` (importing `AGENTS.md`) and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`; rebuilt from `AGENTS.md` on each apply), the sandbox into `.claude/settings.local.json`, and lists every file it writes in a marked block of `.git/info/exclude`, so `git status` stays clean. `--share` (or "In the repository" in the browser) keeps the committed layout: the block in `AGENTS.md`, `CLAUDE.md`, a pull request from Update all. The project's own `AGENTS.md` text, `docs/agents/` and `.devcontainer/` stay committed.
 - Update all applies local setups in the checkout. A repository that still tracks `.benchkeeper/state.json` while its setup is local (every setup from before 6.3) gets a pull request that removes the committed setup, branch `chore/agent-setup-local`; `benchkeeper projects unshare` does the same on request. The checkout stays as it is until you pull the merge, and the answers are kept in `projects.json`, so the next Update all writes the setup locally.
@@ -150,7 +157,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Plugin `version` 6.3.0.
 - Upgrade: `npx benchkeeper@6.3.0 apply`, then Update all (or `benchkeeper projects unshare`) for the projects set up before; merge each pull request, pull, and run Update all once more.
 
-## setup-v6.2 (2026-10-23)
+## 6.2 (2026-10-23)
 
 - Sessions board as a file: each scan of the Sessions view in the browser UI also rewrites `~/.config/benchkeeper/board.html`, as `benchkeeper board` does.
 - Tier band: a board button opens that file; without one, it says to open Sessions in the app or run `benchkeeper board`.
@@ -161,7 +168,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Plugin `version` 6.2.0.
 - Upgrade: `npx benchkeeper@6.2.0 apply`, which updates the plugin.
 
-## setup-v6.1 (2026-10-22)
+## 6.1 (2026-10-22)
 
 - Sessions board: `benchkeeper board` and the Sessions view in the browser UI show every Claude Code and Codex session on this machine with its tier and change type, the setup installed at the time, the skills used, the last test run, pull request state, time, tokens and the cost Claude Code records. It reads the local transcripts, the run ledger and `gh`, and caches in `~/.cache/benchkeeper/`.
 - `/benchkeeper:tier <quick|standard|full|research|auto>` (Codex: `$benchkeeper:tier`): a tier for the rest of the session, below a tier the user names for one task and a risky change.
@@ -173,7 +180,7 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Plugin `version` 6.1.0.
 - Upgrade: `npx benchkeeper@6.1.0 apply`, which updates the plugin; choose the tier band step to turn the band on.
 
-## setup-v6.0 (2026-10-22)
+## 6.0 (2026-10-22)
 
 - Rules rewritten to the lines that change agent behavior: load the workflow skill, ask open questions in one round, get a go before hard-to-undo actions and merges, fix the cause of failing checks, keep secrets out, and the writing rules (no filler, READMEs open with one or two sentences on what the product does, no em dash or emojis, sources). Removed: restating the task before the first edit, the default-branch commit line, the semicolon and middle-dot lines, and the scope, context and development environment sections (where project commands run now lives in each project's `AGENTS.md`).
 - `following-dev-workflow` is now `benchkeeper:workflow`, a router: kind and tier, settle, then `software.md` (issue, branch and pull request flow, change types, verify), `docs.md` (a docs pass: Claude and Codex analyse the documents against the code separately and return findings, the main session alone decides and edits) or `research.md`, batch mode for several tasks on one branch, long checks and reviews once at the end. It runs without Matt Pocock's skills and names them where they help when installed.
@@ -190,26 +197,26 @@ Versions of the BenchKeeper setup (rules, skills, recommended stack). Each versi
 - Plugin `version` 6.0.0. Pinned bench arms keep their skill names.
 - Upgrade: run `npx benchkeeper@6.0.0 apply`, which also updates the plugin (from a clone before the npm release: `node app/bin/benchkeeper.mjs apply`). Projects with `Default tier:` lines keep working; references to `following-dev-workflow` in a project's own files change to `benchkeeper:workflow`.
 
-## setup-v5.4 (2026-10-21)
+## 5.4 (2026-10-21)
 
 - Rules, Brevity: the facts-only line covers READMEs, docs, comments, commit, issue and PR text. Every sentence gives the reader something needed to use, build, change or decide. It also leaves out who the project is for or who uses it, restatements of headings, code or the previous sentence, feature lists that repeat the usage section, introductions and summaries of the document itself, and motivation and history unless asked.
 - Plugin `version` 5.4.0.
 - Upgrade: update the plugin and run `sh plugins/benchkeeper/setup.sh --apply` from the clone.
 
-## setup-v5.3 (2026-10-21)
+## 5.3 (2026-10-21)
 
 - `setup.sh` stops a file replacement when its backup fails. Shell configuration diagnostics print variable names and locations, without values or surrounding commands.
 - Codex settings update existing analytics and feedback values, set effort at the root without changing profiles, and back up the original TOML for restore. Unsupported multiline, inline, dotted or array target forms and CRLF files require manual editing.
 - Plugin `version` 5.3.0. Benchmark arm AO pins this plugin, rules and library separately from historical arms.
 - Upgrade: update the plugin and run `sh plugins/benchkeeper/setup.sh --apply` from the clone.
 
-## setup-v5.2 (2026-10-19)
+## 5.2 (2026-10-19)
 
 - `setting-up-projects` step 5: after Matt Pocock's repository setup, move its `## Agent skills` block from `CLAUDE.md` into `AGENTS.md` when Codex is selected, and write the triage labels when it skipped them. His setup looks for a skill named `triage` and missed the plugin's `mattpocock-skills:triage` in the BenchKeeper repository, so `docs/agents/triage-labels.md` and the GitHub labels were missing.
 - Plugin `version` 5.2.0.
 - Upgrade: update the plugin. Repositories set up already: run `/benchkeeper:setting-up-projects` again, or add `docs/agents/triage-labels.md` by hand.
 
-## setup-v5.1 (2026-10-19)
+## 5.1 (2026-10-19)
 
 Fixes from the first setup-v5.0 runs on five repositories (BenchKeeper, the OpenReloading workspace, Artwork, AutoLever, PiMetry website).
 
@@ -220,7 +227,7 @@ Fixes from the first setup-v5.0 runs on five repositories (BenchKeeper, the Open
 - Plugin `version` 5.1.0.
 - Upgrade: update the plugin (`claude plugin marketplace update benchkeeper && claude plugin update benchkeeper@benchkeeper`). Rules and settings are unchanged.
 
-## setup-v5.0 (2026-10-18)
+## 5.0 (2026-10-18)
 
 A skill library installed per project, and a generic cleanup in place of steps for older setups (#99). The global set is unchanged: rules, the BenchKeeper plugin, Matt Pocock's skills, Ponytail, find-skills, and the Orca skills on request.
 
@@ -239,7 +246,7 @@ A skill library installed per project, and a generic cleanup in place of steps f
 - Plugin `version` 5.0.0.
 - Upgrade from v4.0: update the plugin, then `git -C BenchKeeper pull` and `sh BenchKeeper/plugins/benchkeeper/setup.sh --apply`, then `/benchkeeper:setting-up-projects` in each repository. From v3.4: the same, after installing the plugin as in the README quick start. `setup.sh` lists the old skill links and global marketing or other skills as items to remove. Projects get skills back from the library.
 
-## setup-v4.0 (2026-10-18)
+## 4.0 (2026-10-18)
 
 BenchKeeper installs as a plugin in Claude Code and Codex, and a user-run `setup.sh` replaces the agent-run `setting-up-machine` skill (#88). No agent runs the machine install, nothing needs root, and nothing is removed without a per-item yes.
 
@@ -253,7 +260,7 @@ BenchKeeper installs as a plugin in Claude Code and Codex, and a user-run `setup
 - Benchmarks keep their frozen copies in `bench/arms/`. Behavior inside a task is unchanged apart from the skill names.
 - Upgrade from v3: `git -C BenchKeeper pull`, then `sh BenchKeeper/plugins/benchkeeper/setup.sh` to see the plan and `--apply` to run it. It replaces the rules symlink with a copy, moves the old skill links to the backup and installs the plugins. An existing Ponytail marketplace keeps its current ref. Then `/benchkeeper:setting-up-projects` in each repository with Codex project copies of Matt Pocock's skills.
 
-## setup-v3.4 (2026-10-17)
+## 3.4 (2026-10-17)
 
 One level for the workflow: Matt Pocock's skills are global (his install), so the parts that shape them are global too. Otherwise his skills run without the tier filter in every repository that `setting-up-projects` has not touched.
 
@@ -263,7 +270,7 @@ One level for the workflow: Matt Pocock's skills are global (his install), so th
 - Behavior inside a task is unchanged, so the SkillsBench arm AH (setup-v3.3) also stands for this version.
 - Upgrade: `/setting-up-machine`, then `/setting-up-projects` in each repository that has project copies.
 
-## setup-v3.3 (2026-10-17)
+## 3.3 (2026-10-17)
 
 Matt Pocock's skills installed the way he documents it ([installation](https://github.com/mattpocock/skills#installation-30-second-setup)), with the BenchKeeper additions on top. His skills have no tiers, change-type checks, issue, branch or pull request rules, security review or Ponytail, so `following-dev-workflow` and Ponytail stay.
 
@@ -273,7 +280,7 @@ Matt Pocock's skills installed the way he documents it ([installation](https://g
 - Bench: arm AH (layer v5) measures this setup.
 - Upgrade: `/setting-up-machine` (installs his plugin, removes the pinned project copies' marketplace), then `/setting-up-projects` in each repository with the workflow.
 
-## setup-v3.2 (2026-10-17)
+## 3.2 (2026-10-17)
 
 Fitted to Matt Pocock's own flow and conventions ([mattpocock/skills](https://github.com/mattpocock/skills) v1.3.1, `ask-matt`, `.agents/invocation.md`, `docs/engineering/setup-matt-pocock-skills.md`; [aihero.dev/skills](https://www.aihero.dev/skills)). The pin stays at v1.3.1, his latest release.
 
@@ -283,7 +290,7 @@ Fitted to Matt Pocock's own flow and conventions ([mattpocock/skills](https://gi
 - Every BenchKeeper skill has `agents/openai.yaml` for Codex, with implicit invocation off for the user-invoked ones, as his skills do.
 - Upgrade: `/setting-up-projects` in each repository with the workflow.
 
-## setup-v3.1 (2026-10-17)
+## 3.1 (2026-10-17)
 
 Checked against the current Claude Code docs ([best practices](https://code.claude.com/docs/en/best-practices), [common workflows](https://code.claude.com/docs/en/common-workflows), [code review](https://code.claude.com/docs/en/code-review), retrieved 2026-10-17) and for Matt Pocock's skills by level.
 
@@ -295,7 +302,7 @@ Checked against the current Claude Code docs ([best practices](https://code.clau
 - `AGENTS.md`: the benchmark pin history moved to `bench/AGENTS.md`.
 - Upgrade: `/setting-up-projects` in each repository with the workflow, then `/setting-up-machine`.
 
-## setup-v3.0 (2026-10-17)
+## 3.0 (2026-10-17)
 
 Recommended stack: Matt Pocock's skills with Ponytail and the BenchKeeper workflow skill, without agent-skills and OpenSpec, installed per project. Evidence: `evaluations/skill-libraries/mattpocock-skills.md` (own cartridges and brownfield runs, signals only).
 
@@ -307,7 +314,7 @@ Recommended stack: Matt Pocock's skills with Ponytail and the BenchKeeper workfl
 - `maintaining-repos` names no agent-skills skill. Docs drift includes `GLOSSARY.md` and ADRs.
 - Upgrade order: `/setting-up-projects` in each repository that should keep the workflow, then `/setting-up-machine`, which removes the global workflow parts.
 
-## setup-v2.9 (2026-10-17)
+## 2.9 (2026-10-17)
 
 Workflow fixes from the benchmark diagnosis of the BenchKeeper layer (cartridges and winery, Sonnet 5.5): layer apps lacked a README, checked the UI by screenshots instead of tests, and left browser output in the repository.
 
@@ -317,7 +324,7 @@ Workflow fixes from the benchmark diagnosis of the BenchKeeper layer (cartridges
 - Prose semicolons rewritten in `rules/global.md` and the skills (no rule change). `setting-up-machine` names no host path.
 - `rules/global.md` Brevity: "Short answers." `setting-up-machine` part 7 no longer points to an issue.
 
-## setup-v2.8 (2026-10-16)
+## 2.8 (2026-10-16)
 
 Punctuation rule (owner request: models swap the banned em dash for semicolons and middle dots).
 
@@ -325,7 +332,7 @@ Punctuation rule (owner request: models swap the banned em dash for semicolons a
 - No other joining mark takes the em dash's place: two sentences, or a comma, colon or parentheses.
 - Semicolons only in code syntax or in lists whose items contain commas. Middle dot and bullet only as list bullets or UI label separators.
 
-## setup-v2.7 (2026-10-16)
+## 2.7 (2026-10-16)
 
 Context limits (owner request).
 
@@ -333,7 +340,7 @@ Context limits (owner request).
 - `rules/global.md` Context: one line, suggest `/clear` before an unrelated request. The client compacts by itself at its window (hard limit).
 - `setting-up-machine` part 7: `autoCompactWindow` (default 400000 tokens, the user's value kept). Its effect on usage is not measured yet (planned: 400000 against the default, paired, k of at least 3).
 
-## setup-v2.6 (2026-10-16)
+## 2.6 (2026-10-16)
 
 Fixes from the skill authoring review (#58, `bench/results/2026-10-16-skill-authoring.md`).
 
@@ -341,7 +348,7 @@ Fixes from the skill authoring review (#58, `bench/results/2026-10-16-skill-auth
 - `setting-up-machine` version bumps: `git grep` outside `bench/` and the changelog, so the Dockerfile and workflow pins are found and the benchmark's pinned images and copies stay. Done on a branch as the rules require.
 - `setting-up-machine` part 7 checks `showClearContextOnPlanAccept`, which its install sets.
 
-## setup-v2.5 (2026-10-16)
+## 2.5 (2026-10-16)
 
 Skills checked against Anthropic's skill authoring guide (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices, `evaluations/practices/skill-authoring.md`).
 
@@ -350,13 +357,13 @@ Skills checked against Anthropic's skill authoring guide (https://platform.claud
 - Benchmark: the image installs pinned copies of the two setup skills (`bench/arms/bk-skills/`, as of setup-v2.4, old names) instead of the live `skills/` folder.
 - `project-setup`: dated install count removed (time-sensitive).
 
-## setup-v2.4 (2026-10-16)
+## 2.4 (2026-10-16)
 
 Clarifying questions only where they change the result.
 
 - `rules/global.md` Ask, do not assume: questions only for open points that would change the result, batched in one message (`AskUserQuestion`), never about what the code, the docs or a sensible default answer. The restatement is its own bullet. Non-interactive runs continue without waiting for confirmation (Sonnet arm W stopped to wait for confirmation and scored 0 of 6 in the winery-react run, whose report was removed in #266).
 
-## setup-v2.3 (2026-10-16)
+## 2.3 (2026-10-16)
 
 Task restatement (owner request). Rules trimmed to what the model does not do by default (audit of 2026-10-16 against the Claude Code and Claude prompting docs and arXiv 2602.11988, which found context files raise cost by over 20% without raising task success: https://arxiv.org/abs/2602.11988).
 
@@ -364,7 +371,7 @@ Task restatement (owner request). Rules trimmed to what the model does not do by
 - Brevity: allows that restatement and the closing line on what was skipped. The opener clause removed (current models answer directly). "No caveats" is now "no hedging", with uncertainty in a confidence level.
 - Removed as self-evident or duplicated: "code, commands, error messages ... stay exact"; the Ponytail precedence line (in `sdlc`); the mount scoping line (in `project-setup`); "do not re-read unchanged files" (Claude Code's Read tool says so). Sources and Confidence merged into one section.
 
-## setup-v2.2 (2026-10-16)
+## 2.2 (2026-10-16)
 
 Decisions before Build, discard and restart, review input, documentation, opt-in checks.
 
@@ -375,7 +382,7 @@ Decisions before Build, discard and restart, review input, documentation, opt-in
 - `sdlc` opt-in for hard tasks, only on the user's explicit request: best-of-N in 2 or 3 worktrees, mutation testing on changed files.
 - Benchmark: `bench/arms/bk-v2/` pins these rules and the `sdlc` skill as BenchKeeper layer v2 (`BK=v2` build argument, agent-skills arms). Published runs used v1.
 
-## setup-v2.1 (2026-10-16)
+## 2.1 (2026-10-16)
 
 CI, permission rules removed.
 
@@ -383,7 +390,7 @@ CI, permission rules removed.
 - `sdlc`: risky changes run `security-review` (Claude Code: reviews the diff between the branch and `origin`'s default branch, https://code.claude.com/docs/en/commands) before push, next to `code-review`.
 - CI (`checks.yml`): `actionlint`, forbidden characters (em dash, emoji), SKILL.md front matter, `openspec validate --all --strict`. All actions pinned to commit SHAs. `links.yml` declares read-only permissions. Dependabot for actions and npm.
 
-## setup-v2.0 (2026-10-16)
+## 2.0 (2026-10-16)
 
 Claude Code best practices applied (#37, https://code.claude.com/docs/en/best-practices).
 
@@ -396,6 +403,6 @@ Claude Code best practices applied (#37, https://code.claude.com/docs/en/best-pr
 - Removed: the `/clear` suggestion (shown by Claude Code), the Ponytail `full` default line (set by its config), restated skill triggers, the repeated host and container split.
 - Compaction instruction added.
 
-## setup-v1.0
+## 1.0
 
 State on `main` at `b113b75` (2026-10-16): one rules file with the full SDLC, task tiers and change types; `global-setup` and `project-setup`; Ponytail `full`, addy agent-skills, OpenSpec, Playwright MCP in the dev container. Measured by the benchmark.

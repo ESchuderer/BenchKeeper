@@ -1,0 +1,41 @@
+name: PR title
+
+# Pull requests into main are squash-merged with their title as the commit message: the title follows Conventional
+# Commits. Keep the check named `conventional` and require it on main.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conventional:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    steps:
+      - if: ${{ github.event_name == 'pull_request' }}
+        uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            docs
+            test
+            build
+            ci
+            chore
+            revert
+            style
+          # The title becomes the squash commit and the changelog line: no em dash or emoji (checks.yml, Forbidden characters).
+          subjectPattern: ^[^\u2014\u2300-\u23FF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\uD83C-\uD83E]+$
+          subjectPatternError: The title must not contain an em dash or an emoji.

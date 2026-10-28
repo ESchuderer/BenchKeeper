@@ -11,7 +11,7 @@ What the official documentation says about the two packaging surfaces BenchKeepe
 | | Documented |
 |---|---|
 | Claude Code plugin root | Every component path "must resolve inside the plugin root"; a path that escapes it "doesn't load". Files outside the plugin directory are not copied into the cache. So `plugins/benchkeeper/` is already the content module physically: nothing outside it can be part of the plugin ([manifest reference](https://code.claude.com/docs/en/plugins-reference), [loading reference](https://code.claude.com/docs/en/plugins/loading.md)). |
-| Claude Code plugin version | `version` in `plugin.json` "pins the plugin to that version until you change it"; the manifest's version wins over the marketplace entry's; without either, a git source uses the commit SHA. Users of a `stable` ref therefore receive a skill edit only when `version` changes ([loading reference, Versions and updates](https://code.claude.com/docs/en/plugins/loading.md)). This is why a change under `plugins/` has to raise the version (`.github/scripts/release.sh:12-24`). |
+| Claude Code plugin version | `version` in `plugin.json` "pins the plugin to that version until you change it"; the manifest's version wins over the marketplace entry's; without either, a git source uses the commit SHA. Users of a `stable` ref therefore receive a skill edit only when `version` changes ([loading reference, Versions and updates](https://code.claude.com/docs/en/plugins/loading.md)). This is why a change under `plugins/` has to raise the version (release-please does it on the release pull request, `release-please-config.json`). |
 | Claude Code manifest fields | An unrecognized top-level key is "stripped" and `claude plugin validate` warns, `--strict` fails on warnings. `metadata` is a free-form object Claude Code "doesn't read" (v2.1.222 or later) ([manifest reference](https://code.claude.com/docs/en/plugins-reference)). A separate file next to the manifest avoids depending on either. |
 | Claude Code marketplace sources | Relative path, `github`, `url`, `git-subdir`, `npm` (`package`, `version`, `registry`), `archive`, `command`. `ref` is a branch or tag, `sha` a full commit ([marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference.md)). BenchKeeper's marketplace uses the relative path `./plugins/benchkeeper` in this repository (`.claude-plugin/marketplace.json`) and the app adds it at the branch `stable` (`app/src/steps/global.mjs:50`). |
 | Claude Code plugin dependencies | A plugin that ships a `package.json` and a lockfile gets its dependencies installed into the cache, but "a plugin with a git, GitHub, folder, workspace, or linked dependency gets no install" ([loading reference](https://code.claude.com/docs/en/plugins/loading.md)). `plugins/benchkeeper/` has no `package.json`, so a content package inside it would have to avoid workspace links. |
@@ -120,16 +120,16 @@ Every place the version appears or is derived:
 
 | Where | What | Set by |
 |---|---|---|
-| `app/package.json`, `app/package-lock.json` | app version, the only npm package published | by hand |
-| `plugins/benchkeeper/.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` | setup (content) version, must be equal, `major.minor.0` | by hand, checked by `release.sh check` |
+| `app/package.json`, `app/package-lock.json` | app version, the only npm package published | release-please |
+| `plugins/benchkeeper/.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` | setup (content) version, must be equal | release-please |
 | `app/test/package.test.mjs:9-11` | asserts app version equals both plugin versions | test |
 | `app/src/steps/global.mjs:50,55` | `version: 'app'`: the pinned plugin version is the app version, so `doctor` and `plan` report any other plugin version as drift | code |
 | `.benchkeeper/state.json` `setupVersion` | the app version a project was set up with (`steps/project.mjs:474`); `doctor.mjs:93`, the due check of `update-all` (`projects.mjs:234,251`) and the branch `chore/agent-setup-<version>` compare against it | code |
 | Ledger runs `appVersion` | history record only (`runner.mjs:123,275`) | code |
-| `CHANGELOG.md`, tag `setup-v<major>.<minor>`, branch `stable`, GitHub Release | one entry and one tag per setup version; `stable` is the ref the marketplace follows | `release.yml` |
+| `CHANGELOG.md`, tag `setup-v<major>.<minor>.<patch>`, branch `stable`, GitHub Release | one entry and one tag per setup version; `stable` is the ref the marketplace follows | release-please, `release.yml` |
 | `npx benchkeeper@<x.y.z>` and `--branch setup-v<x.y>` | 44 lines in 11 tracked files outside the recorded history: `README.md` 4, `app/README.md` 6, `docs/setup.md` 9, `docs/stack.md` 2, `AGENTS.md` 1, `web/src/data/facts.json` 7, `web/src/components/Page.tsx` 6, `AppPage.tsx` 1, **`plugins/benchkeeper/skills/setting-up-projects/SKILL.md` 6, `skills/maintaining-repos/SKILL.md` 1, `library/README.md` 1** | `version-pins.mjs` rewrites them, CI checks it |
 
-The last row is the knot. Skill text and the library README, which are content, carry the app version. So a release that changes only the app has to edit three files under `plugins/`, and `release.sh check` then demands a plugin version bump, a changelog entry, a tag and a move of `stable` for a change users of the plugin cannot see.
+The last row is the knot. Skill text and the library README, which are content, carry the app version. So a release that changes only the app has to edit three files under `plugins/`, and the release then carries a plugin version bump, a changelog entry, a tag and a move of `stable` for a change users of the plugin cannot see.
 
 Measured on the non-merge commits of `main` from 2026-10-12 to 2026-10-26 (166 commits):
 
@@ -180,6 +180,8 @@ Deliberately not split: the plan builders and the ledger (undo needs the plan's 
 Revisit workspaces when a second consumer of the engine exists (for example a separate agent-facing package) or when a part needs its own release cadence that the content contract cannot give.
 
 ### Content contract
+
+Since this note was written, `release.sh` (the check and the self-test) was replaced by release-please and a weekly release. The rules below that name `release.sh` (pin-only diffs under `plugins/` need no release, an `app/`-only change raises the app version) need a release-please equivalent when this is built, for example a second package with its own tag.
 
 `plugins/benchkeeper/content.json`: `{ "schemaVersion": 1, "contentVersion": "<major>.<minor>.0", "minApp": "<x.y.z>" }`. A separate file, not a `plugin.json` field: Claude Code strips unknown top-level keys with a warning and whether Codex tolerates them is not documented on the page read (unverified). `plugin.json` `version` stays the plugin's own version and equals `contentVersion`; both manifests keep the `release.sh` equality check.
 

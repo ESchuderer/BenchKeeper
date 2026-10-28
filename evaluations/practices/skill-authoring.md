@@ -19,13 +19,14 @@ Post in r/claudeskills (2026-10-16, screenshot supplied by the owner, Reddit can
 
 ## Skill authoring check
 
-BenchKeeper skills, checked 2026-10-16:
+BenchKeeper skills, checked 2026-10-28 (all six plugin skills; the table heading names the three first checked):
 
 | Point | `benchkeeper:workflow`, `benchkeeper:setting-up-projects`, `benchkeeper:maintaining-repos` (before setup-v6.0: `following-dev-workflow`. setup-v2.5 to v3.4: also `setting-up-machine`, without the plugin prefix. Before setup-v2.5: `sdlc`, `global-setup`, `project-setup`, `maintain`) |
 |---|---|
 | Name format | Valid. The patterns were mixed (acronym, two noun phrases, one verb). Renamed to gerunds (setup-v2.5, owner decision). The benchmark image installs pinned copies under the old names (`bench/arms/bk-skills/`). |
-| Description | 257 to 415 characters, what and when in each. Rewritten in third person (setup-v2.5). |
-| Body size, references | 14 to 156 lines. No nested reference files. |
+| Description | 119 to 482 characters, what and when in each. Rewritten in third person (setup-v2.5). |
+| Body size, references | `SKILL.md` 20 to 137 lines, no reference file over 100 lines (so no table of contents needed). No nested reference files. |
+| Checklists, defaults | `workflow` keeps a checklist of five or six steps per tier inline (the playbooks hold detail only); one default per decision, the alternatives behind a condition. |
 | Time-sensitive text | One dated install count in `project-setup` removed (setup-v2.5). |
 | MCP tool names | None used. |
 | Evaluations, model coverage | Trigger cases for `workflow` and `designing-technical-uis` in `plugins/benchkeeper/evals/` (setup-v6.0), run by the owner with `benchkeeper evals run` as real agent sessions; no results are recorded in the repository yet. The benchmark measures the BenchKeeper layer as a whole (`bench/PROTOCOL.md`), not each skill's effect; its trigger evaluations were dropped (protocol 1.17). The targeted tasks in `bench/PROTOCOL.md` (not run yet) rate each skill's effect on one task per phase. |

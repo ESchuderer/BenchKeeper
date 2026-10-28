@@ -5,6 +5,8 @@ import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
 import { readText, writeAtomic } from './fsx.mjs';
+import { readLedger } from './ponytail.mjs';
+import * as orca from './orca/index.mjs';
 
 const SCHEMA = 1;
 const MAX_DAYS = 3650;
@@ -15,11 +17,6 @@ const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
 const TEST = /(?:^|[\s;&|('"])(npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)(?=$|[\s;&|):'"])/;
 // The folder that holds SKILL.md, also nested (skills/engineering/tdd/SKILL.md).
 const SKILL_READ = /skills[\\/](?:[\w.-]+[\\/])*?([\w.-]+)[\\/]SKILL\.md/g;
-// Orca's text in a dispatched worker's first prompt: two lines, both needed, so a prompt that quotes one is no worker. A user's
-// own words can come before it. Observed in transcripts, not documented: a changed wording reads as no worker. And the line the
-// Orca worker-spec template carries: its value joins a coordinator's workers.
-const ORCA_PREAMBLE = [/^You are working inside Orca, a multi-agent IDE\./m, /^Your task ID is: \S+/m];
-const ORCA_RUN = /^Orca run: ([\w.-]{1,64})[ \t]*$/m;
 const LOOP_COMMANDS = ['goal', 'loop'];
 // Part of every file's cache key: a change to what a transcript summary holds reads the transcripts again, and the summary of one the agent has deleted stays as it was.
 const PARSE = 2;
@@ -70,7 +67,7 @@ async function claudeFile(file) {
       // A typed prompt, or the approved plan that starts a session after plan mode.
       if ((e.origin?.kind === 'human' && !e.isMeta) || e.planContent) {
         // Only the first typed prompt: a later one, or tool output, can quote the text.
-        if (!d.turns) for (const t of texts(content)) { d.run ??= t.match(ORCA_RUN)?.[1] ?? null; d.orca ||= !!d.run || ORCA_PREAMBLE.every((r) => r.test(t)); }
+        if (!d.turns) for (const t of texts(content)) { d.run ??= orca.runOf(t); d.orca ||= !!d.run || orca.isWorkerPrompt(t); }
         d.turns++;
       }
       for (const t of texts(content)) for (const m of t.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) { d.skills.add(m[1]); if (LOOP_COMMANDS.includes(bare(m[1]))) d.loop = true; }
@@ -90,7 +87,7 @@ async function claudeFile(file) {
 // One Codex rollout. Compacted lines repeat earlier history and are skipped.
 // shortcut: skills used and tests come from CommandExecution items, which older rollouts lack; read exec inputs if those matter.
 async function codexFile(file) {
-  // shortcut: no loop or Orca worker detection: the rollout signature of /goal and of a dispatched prompt is not documented; read user messages if that is verified.
+  // shortcut: no loop or worker detection: the rollout signature of /goal and of a dispatched prompt is not documented; read user messages if that is verified.
   const d = { tiers: [], skills: new Set(), prs: new Set(), turns: 0, tests: null, models: new Set(), busy: 0, tokens: 0, loop: false, orca: false, run: null };
   await lines(file, (line) => {
     const ts = line.match(/"timestamp":"([^"]+)"/)?.[1];
@@ -211,10 +208,10 @@ const tierOf = (list) => {
   return { first, last, changeType, movedUp: rank(first) >= 0 && list.some(([t]) => rank(t) > rank(first)) };
 };
 
-// How the session was run. One value when several apply: an Orca worker, else a loop (/goal, /loop or a scheduled wakeup), else
+// How the session was run. One value when several apply: a dispatched worker, else a loop (/goal, /loop or a scheduled wakeup), else
 // a group (at least one subagent; the count is in `subagents`), else single. null for a summary cached before this was read
 // and whose transcript the agent has since deleted: shown as not recorded, never as single.
-const patternOf = (d, subagents) => (d.orca === undefined ? null : d.orca ? 'Orca worker' : d.loop ? 'loop' : subagents ? 'group' : 'single');
+const patternOf = (d, subagents) => (d.orca === undefined ? null : d.orca ? orca.WORKER_PATTERN : d.loop ? 'loop' : subagents ? 'group' : 'single');
 
 // Pull request states from gh: merged kept for good, open asked again after 6 hours (like newest() in
 // steps/global.mjs) and closed after a day (it can be reopened), a failed lookup (no gh, no login, offline) after 10 minutes. Not a GitHub pull request URL:
@@ -245,8 +242,34 @@ export async function prStates(ctx, urls, now = Date.now()) {
   return out;
 }
 
+// Ponytail's ledger beside the transcript rows (opt-in; the figures stay Ponytail's own, in `ponytail`). A Claude Code row
+// whose session id starts like a ledger key is matched and counted once; a ledger row without a transcript here becomes a row
+// of its own, named by `source`. A ledger row is its project's name, not a path, and has no tier, skills or pull requests.
+function withLedger(ctx, rows, since, onNote) {
+  const { rows: ledger, notes } = readLedger(ctx);
+  notes.forEach((n) => onNote?.(n));
+  const byId = new Map(ledger.map((l) => [l.id, l]));
+  for (const r of rows) {
+    const l = r.agent === 'claude' ? byId.get(r.id.slice(0, 8)) : undefined;
+    if (l) byId.delete(l.id);
+    r.source = l ? 'transcript and Ponytail ledger' : 'transcript';
+    if (l) r.ponytail = { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level };
+  }
+  for (const l of byId.values()) {
+    const start = new Date(l.startedMs).toISOString();
+    if (since && start < since) continue;
+    rows.push({
+      agent: 'claude', id: `${l.id}-${l.startedMs}`, project: l.project, branch: null, agentVersion: null, title: null, start, end: start, turns: l.turns, models: l.model ? [l.model] : [],
+      costUSD: l.costUSD, busyMs: l.agentMinutes == null ? null : Math.round(l.agentMinutes * 60e3), tokens: l.tokens ?? 0, tier: null, skills: [], tests: l.tests, setup: null, pattern: null, subagents: 0, run: null,
+      setupVersion: null, prs: [], source: 'Ponytail ledger only', ponytail: { costUSD: l.costUSD, turns: l.turns, agentMinutes: l.agentMinutes, reusePct: l.reusePct, tests: l.tests, level: l.level },
+    });
+  }
+  return rows.sort((a, b) => (a.start < b.start ? 1 : -1));
+}
+
 // One row per session, newest first. since: an ISO time; older sessions are left out. onFile gets { done, total } files.
-export async function scanSessions(ctx, { since, onFile } = {}) {
+// ledger: true adds Ponytail's ledger when it is there (see withLedger); onNote gets a line for each file or row it skipped.
+export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) {
   const all = await parsed(ctx, onFile);
   const entries = Object.entries(all);
   // Claude subagents add their skills to the session they belong to (<session>/subagents/agent-*.jsonl).
@@ -288,5 +311,6 @@ export async function scanSessions(ctx, { since, onFile } = {}) {
   }
   const states = await prStates(ctx, rows.flatMap((r) => r.prs));
   for (const r of rows) r.prs = r.prs.map((url) => ({ url, state: states[url] }));
-  return rows.sort((a, b) => (a.start < b.start ? 1 : -1));
+  rows.sort((a, b) => (a.start < b.start ? 1 : -1));
+  return ledger ? withLedger(ctx, rows, since, onNote) : rows;
 }

@@ -11,10 +11,12 @@ import { integrity } from './integrity.mjs';
 import { levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
 import { warnings } from './packs.mjs';
+import { bandChecks } from './ponytail.mjs';
 import { rulesChecks } from './rules.mjs';
 import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
+import { skillFiles } from './skills.mjs';
 import { globalPlan, pluginState } from './steps/global.mjs';
 import { readState, tracksState, tryState } from './steps/project.mjs';
 
@@ -69,14 +71,6 @@ export function globalDrift(ctx, agents, devcontainerCli, level) {
 
 const description = (text) => skillDescription(text).text;
 
-// The SKILL.md files in a project's agent skill folders; a skill several agents read can appear once per folder.
-// Turned-off skills sit in .benchkeeper/disabled/ and are not among them.
-export function skillFiles(dir) {
-  return ['.claude/skills', '.agents/skills', '.github/skills', '.gemini/skills'].map((x) => join(dir, x)).filter(exists)
-    .flatMap((d) => readdirSync(d).map((name) => ({ name, file: join(d, name, 'SKILL.md') })))
-    .flatMap((f) => { const text = readText(f.file); return text == null ? [] : [{ ...f, text }]; });
-}
-
 export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
@@ -112,6 +106,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   const out = [...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx), ...integrity(ctx).map((i) => issue('warning', 'ledger', i.message, i.fix))];
   out.push(...skillOverlap(ctx, undefined, [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)]));
   out.push(...accountChecks(ctx, { dir, now }));
+  if (!agents || agents.includes('claude')) out.push(...bandChecks(ctx));
   if (level === 'full') {
     out.push(...rulesChecks(ctx, agents));
     if (!['podman', 'docker'].some((e) => ctx.run([e, '--version']).code === 0)) out.push(issue('warning', 'tools', 'no container engine (podman or docker)', 'install Podman or Docker for dev containers'));

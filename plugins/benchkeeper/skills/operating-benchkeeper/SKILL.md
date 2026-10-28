@@ -31,7 +31,7 @@ Never run `apply`, `undo`, `restore` or `update-all` against a home folder or re
 | Answers of a project | `.benchkeeper/state.json`; a changed answer is a new `project plan` |
 | Registered projects | `projects list --json`, `projects scan <root> --json`, `projects add <dir>` |
 | Update one project | `project plan [dir]`, then `project apply [dir] --yes` (the answers default to its state file) |
-| Update every project | `update-all --dry-run` first, then `update-all [dir..] --yes` (`--no-push` keeps a shared setup from pushing) |
+| Update every project | `update-all [dir..]` with no answer first: it prints each project's changes and the push and pull-request summary, then exits 1 without applying (`--dry-run` omits the summary). After approval, `update-all [dir..] --yes` (`--no-push` keeps a shared setup from pushing) |
 | Skills of a project | `skills list --json`; `skills update\|reset\|adopt [name..] --yes` |
 | Packs | `packs list --json`, `packs enable\|disable <id> --project dir --yes` |
 | Rules, extensions, settings | `rules list --json`, `extensions list --json`, `settings list --json`, `settings get <key> --json` |

@@ -257,6 +257,10 @@ test('update-all shows the plan, asks once, and --yes --no-push commits without 
   assert.match(text, new RegExp(`${p.dir}  setup 5\\.0\\.0  \\d+ changes`));
   assert.match(text, /Update 1 projects: .*git push and gh pr create/);
   assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
+  text = '';
+  assert.equal(await exec(['update-all']), 1, 'end of input is no');
+  assert.match(text, /Update 1 projects: .*git push and gh pr create/);
+  assert.equal(p.git('branch', '--list', 'chore/*').trim(), '');
   assert.equal(await exec(['update-all', '--yes', '--no-push']), 0);
   assert.match(text, new RegExp(`committed +${p.dir}`));
 });

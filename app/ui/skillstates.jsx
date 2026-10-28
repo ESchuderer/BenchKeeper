@@ -32,7 +32,7 @@ export function PackSwitches({ packs, project, others, toggles, setToggles }) {
 }
 
 // The plan of one skill action in a project, in a dialog: the same plan, diff, apply and undo as the project view.
-function ActionPlan({ act, onClose, onDone }) {
+export function ActionPlan({ act, onClose, onDone }) {
   const plan = useApi(act ? `/api/project-plan?${new URLSearchParams([['dir', act.dir], ...act.params])}` : null);
   return (
     <Modal opened={!!act} onClose={onClose} size="xl" withCloseButton={false} attributes={{ content: { 'aria-label': act?.title ?? 'Skill action' } }}>

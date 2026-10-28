@@ -9,6 +9,7 @@ import { contentDir } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
+import * as orca from '../orca/index.mjs';
 import { SRT_VERSION } from '../sandbox.mjs';
 import { verifyArgv } from '../verify.mjs';
 
@@ -25,7 +26,7 @@ export const SKILLS_VERIFY = verifyArgv(`skills@${SKILLS_CLI}`);
 // The global skills' repositories, from their default branch: only the skills CLI is pinned.
 export const SKILL_SOURCES = {
   'vercel-labs/skills': 'https://github.com/vercel-labs/skills',
-  'https://github.com/stablyai/orca': 'https://github.com/stablyai/orca',
+  [orca.SKILL_SOURCE]: orca.SKILL_SOURCE,
 };
 // When the CLI minimum and the sandbox of the skill install preview (srt, an exact pin) were published (npm `time`), written by
 // hand when either is raised: one under 7 days old fails the test, as the host tools are held back that long.
@@ -57,8 +58,7 @@ export function pin(p, appVersion) {
 export const marketSource = (p, a) => `${p.source}${p.ref ? `${a === 'claude' ? '#' : '@'}${p.ref}` : ''}`;
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
-const ORCA_FILES = ['worker-spec.md', 'orca.yaml.sample', 'worktreeinclude.sample'];
-export const KEEP_SKILLS = ['find-skills', 'orca-cli', 'orchestration', 'synced'];
+export const KEEP_SKILLS = ['find-skills', ...orca.SKILLS, 'synced'];
 const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-official', 'anthropic-plugin-directory'], codex: ['benchkeeper', 'ponytail', 'mattpocock'] };
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
 
@@ -280,15 +280,15 @@ export function globalPlan(env) {
   if (agents.includes('codex')) {
     for (const s of json(ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: home }).stdout, []).map((x) => x.name).filter((n) => SAFE_NAME.test(n ?? ''))) add('other:codex:mcp', `remove the Codex MCP server ${s} (projects configure their own)`, { kind: 'command', argv: ['codex', 'mcp', 'remove', s], cwd: home, destructive: true });
   }
-  // Hooks per event, Orca's kept (Orca writes its own back).
+  // Hooks per event, the IDE's own kept (it writes them back).
   const hookFiles = [agents.includes('claude') && at('.claude/settings.json'), agents.includes('codex') && at('.codex/hooks.json')].filter(Boolean);
   for (const f of hookFiles) {
     const hooks = parseJsonSafe(readText(f)).hooks ?? {};
     for (const [event, groups] of Object.entries(hooks)) {
-      const orca = (g) => (g.hooks ?? []).some((h) => /ORCA_/.test(h.command ?? ''));
-      if (!Array.isArray(groups) || groups.every(orca)) continue;
-      const keep = groups.filter(orca);
-      add('other:hooks', `remove the non-Orca ${event} hooks from ${f}`, { kind: 'write', path: f, destructive: true, edit: (t) => mergeJson(t, [{ path: ['hooks', event], value: keep.length ? keep : undefined, remove: !keep.length }]) });
+      const own = (g) => (g.hooks ?? []).some((h) => orca.ownsHook(h.command));
+      if (!Array.isArray(groups) || groups.every(own)) continue;
+      const keep = groups.filter(own);
+      add('other:hooks', `remove the non-${orca.NAME} ${event} hooks from ${f}`, { kind: 'write', path: f, destructive: true, edit: (t) => mergeJson(t, [{ path: ['hooks', event], value: keep.length ? keep : undefined, remove: !keep.length }]) });
     }
   }
 
@@ -326,11 +326,10 @@ export function globalPlan(env) {
     snapshot: [at(`.claude/skills/${name}`), at(`.agents/skills/${name}`), at('.agents/.skill-lock.json')],
   });
   const flagsFor = (name) => [agents.includes('claude') && !exists(at(`.claude/skills/${name}`)) && ['-a', 'claude-code'], agents.includes('codex') && !exists(at(`.agents/skills/${name}`)) && ['-a', 'codex']].filter(Boolean).flat();
-  const orca = ctx.run(['orca', '--version']).code === 0;
-  const wanted = [['vercel-labs/skills', 'find-skills'], ...(orca ? [['https://github.com/stablyai/orca', 'orca-cli'], ['https://github.com/stablyai/orca', 'orchestration']] : [])];
+  const hasIde = orca.installed(ctx);
+  const wanted = [['vercel-labs/skills', 'find-skills'], ...(hasIde ? orca.SKILLS.map((n) => [orca.SKILL_SOURCE, n]) : [])];
   for (const [repo, name] of wanted) { const f = flagsFor(name); if (f.length) skill(repo, name, f); }
-  // Offered when Orca is installed: the worker spec and the per-worktree setup samples, in the app's config folder, never in a project.
-  for (const f of orca ? ORCA_FILES : []) add('orca:templates', `Orca worker spec and setup samples (optional): ${f}`, { kind: 'write', path: join(ctx.config, 'orca', f), after: readFileSync(new URL(`../orca/${f}`, import.meta.url), 'utf8') }, { selected: false, optional: true });
+  if (hasIde) for (const t of orca.templates(ctx)) add(t.step, t.title, t.change, { selected: false, optional: true });
   return changes;
 }
 

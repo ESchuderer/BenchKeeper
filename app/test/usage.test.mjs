@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
-import { CLAUDE_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
+import { CLAUDE_TOKEN, CODEX_TOKEN, grep, machine, win } from './fixtures/accounts.mjs';
 import { NeedsConfirm, accountChecks, accountStatus, findAccount, listAccounts, runAs } from '../src/accounts.mjs';
 import { main } from '../src/cli.mjs';
 import { runCommand } from '../src/runner.mjs';
-import { HOOK_SOURCE, assess, limitsFor, parseState, trackedSettings, usageFindings } from '../src/usage.mjs';
+import { HOOK_SOURCE, assess, codexReading, limitsFor, parseState, trackedSettings, usageFindings } from '../src/usage.mjs';
 import { FAILURES, LEGACY_MATCHER, failureLine, run as hook, usageRecord } from '../src/usage-hook.mjs';
 
 function cli(m, answers = []) {
@@ -205,7 +205,7 @@ test('track: a status line of the user\'s own is an error in the plan and nothin
   const x = await add(m, 'dev', 'codex');
   const t = cli(m);
   assert.equal(await t.exec(['accounts', 'track', 'dev', '--yes']), 1);
-  assert.match(t.text(), /Codex has no documented source/);
+  assert.match(t.text(), /Codex has no status line to track/);
   const st = cli(m);
   assert.equal(await st.exec(['accounts', 'status', 'dev', '--json']), 0);
   assert.equal(st.json().accounts[0].usage, null);
@@ -268,11 +268,13 @@ test('run below the minimum asks first; yes, --yes or the setting starts anyway;
   assert.equal(await go(m, ok), 0);
   assert.equal(launches(m).length, 1);
   assert.doesNotMatch(ok.text(), /minimum/);
-  // A notice level is not a stop.
+  // A notice level is not a stop: the account and the window are named, and the launch goes on.
   reading(a, 88, 50);
   const warn = cli(m);
   assert.equal(await go(m, warn), 0);
   assert.equal(launches(m).length, 2);
+  assert.match(warn.text(), /notice: account work: 5-hour window has 12% left \(notice below 16%, resets .+ UTC\) \(a long task may not finish before the reset: --account <name> starts under another account\)/);
+  assert.doesNotMatch(ok.text(), /notice:/);
   // Below the minimum: the account, the window, what is left and the reset are shown, then the question. No answer is no.
   reading(a, 95, 50);
   const no = cli(m);
@@ -496,7 +498,7 @@ test('a dev container account of an agent without a usage source is refused befo
   const before = m.calls().length;
   const c = cli(m);
   assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 1);
-  assert.match(c.text(), /Codex has no documented source/);
+  assert.match(c.text(), /Codex has no status line to track/);
   assert.equal(m.calls().length, before);
 });
 
@@ -512,4 +514,70 @@ test('a container settings.json diff is masked like a host one before it is show
   assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0, c.text());
   assert.doesNotMatch(c.text(), /dummy-key-value|dummy-gh-value/);
   assert.match(readFileSync(join(m.bin, 'vol/data/boxed/settings.json'), 'utf8'), /dummy-key-value-0123456789/, 'the file keeps what it had');
+});
+
+// The answer of account/rateLimits/read, as the fake app-server gives it.
+const codexLimits = (m, primary, secondary = null) => m.mode('limits', JSON.stringify({ limitId: 'codex', primary, secondary, planType: 'plus' }));
+const codexWindow = (used, mins, now = Date.now()) => ({ usedPercent: used, windowDurationMins: mins, resetsAt: epoch(now + 3 * HOUR) });
+
+test('Codex app-server answers: windows by their length, used capped at 100, nothing else kept; an error or no answer is a reason', () => {
+  const answer = (rateLimits) => JSON.stringify({ id: 2, result: { accountId: 'acct-1', rateLimits } });
+  const both = codexReading(answer({ primary: codexWindow(95, 300, T0), secondary: codexWindow(120, 10080, T0), planType: 'pro' }), T0);
+  assert.deepEqual(both.usage, { checkedAt: new Date(T0).toISOString(), fiveHour: { used: 95, resetsAt: epoch(T0 + 3 * HOUR) }, sevenDay: { used: 100, resetsAt: epoch(T0 + 3 * HOUR) } });
+  // A plan without the 5-hour window sends the weekly one as primary; an unknown length is dropped.
+  const weekly = codexReading(answer({ primary: codexWindow(40, 10080, T0), secondary: codexWindow(10, 60, T0) }), T0);
+  assert.equal(weekly.usage.fiveHour, null);
+  assert.equal(weekly.usage.sevenDay.used, 40);
+  assert.equal(assess({ usage: weekly.usage, failures: [] }, limitsFor(undefined), T0).fiveHour.state, 'unknown');
+  assert.deepEqual(codexReading(JSON.stringify({ id: 2, error: { code: -32600, message: 'codex account authentication required to read rate limits' } }), T0), { usage: null, reason: 'codex account authentication required to read rate limits' });
+  assert.deepEqual(codexReading('', T0), { usage: null, reason: 'codex app-server gave no answer' });
+  assert.equal(codexReading(answer({ primary: { usedPercent: 'x', windowDurationMins: 300, resetsAt: 1 } }), T0).usage.fiveHour, null);
+});
+
+test('Codex: status, list and run read the app-server of the account\'s CODEX_HOME; a notice at a limit names the account and never switches it', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'dev', 'codex'), b = await add(m, 'spare', 'codex');
+  codexLimits(m, codexWindow(90, 300), codexWindow(20, 10080));
+  const st = cli(m);
+  assert.equal(await st.exec(['accounts', 'status', 'dev', '--json']), 0);
+  const doc = st.json().accounts[0];
+  assert.equal(doc.loggedIn, true);
+  assert.equal(doc.usage.fiveHour.state, 'warn');
+  assert.equal(doc.usage.sevenDay.state, 'ok');
+  assert.doesNotMatch(JSON.stringify(doc), /acct-secret-id|plus/);
+  assert.match(doc.findings.map((f) => f.message).join('\n'), /account dev: 5-hour window has 10% left \(notice below 16%/);
+  const servers = m.calls().filter((x) => x.me === 'codex' && x.args[0] === 'app-server');
+  assert.ok(servers.length);
+  assert.ok(servers.every((x) => x.env.CODEX_HOME === a.dir));
+  // A notice starts the launch under the chosen account and says so.
+  const near = cli(m);
+  assert.equal(await near.exec(['run', '--', 'codex', '--go']), 0);
+  assert.match(near.text(), /notice: account dev: 5-hour window has 10% left/);
+  // Below the minimum with auto-pick on and a pool: Codex is never switched, the user is asked.
+  for (const n of ['dev', 'spare']) assert.equal(await cli(m).exec(['accounts', 'limits', n, '--pool', 'me', '--yes']), 0);
+  assert.equal(await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--yes']), 0);
+  codexLimits(m, codexWindow(97, 300), codexWindow(20, 10080));
+  const low = cli(m);
+  assert.equal(await low.exec(['run', '--', 'codex', '--go']), 1);
+  assert.match(low.text(), /Start anyway\?/);
+  assert.doesNotMatch(low.text(), /auto-pick/);
+  assert.ok(m.calls().filter((x) => x.me === 'codex' && x.args[0] === '--go').every((x) => x.env.CODEX_HOME === a.dir));
+  // Not signed in: no app-server is started, the list and status say so.
+  rmSync(join(b.dir, 'auth.json'));
+  const before = m.calls().length;
+  const list = cli(m);
+  assert.equal(await list.exec(['accounts', 'list']), 0);
+  assert.match(list.text(), /^dev .+ signed in$/m);
+  assert.match(list.text(), /^spare .+ not signed in$/m);
+  assert.ok(m.calls().slice(before).every((x) => x.args[0] !== 'app-server'), 'list reads the sign-in only');
+  const lj = cli(m);
+  assert.equal(await lj.exec(['accounts', 'list', '--json']), 0);
+  assert.deepEqual(lj.json().accounts.map((x) => [x.name, x.loggedIn]), [['dev', true], ['spare', false]]);
+  assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'spare')).notAvailable, 'not read: not signed in');
+  // The server refuses: the reason is shown, no usage.
+  m.mode('limits', '');
+  assert.match(accountStatus(m.ctx, a).notAvailable, /^not read: codex account authentication required/);
+  // No token in any argument, and the app-server gets the account's filtered environment.
+  assert.ok(m.calls().every((x) => ![CLAUDE_TOKEN, CODEX_TOKEN].some((t) => JSON.stringify(x.args).includes(t))));
+  for (const x of m.calls().filter((c) => c.args[0] === 'app-server')) for (const k of ['GH_TOKEN', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']) assert.equal(x.env[k], undefined, k);
 });

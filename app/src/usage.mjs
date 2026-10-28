@@ -87,13 +87,45 @@ export function usageFindings(name, u, relogin) {
   for (const [k, label] of WINDOWS) {
     const w = u[k];
     if (w.state === 'low') out.push(f('warning', `${label} window has ${w.remaining}% left, below the minimum of ${u.minimum[k]}% (resets ${at(w.resetsAt)})`, `start under another account (benchkeeper run --account <name>) or wait for the reset`));
-    else if (w.state === 'warn') out.push(f('info', `${label} window has ${w.remaining}% left (notice below ${u.warn[k]}%, resets ${at(w.resetsAt)})`, 'a long task may not finish before the reset'));
+    else if (w.state === 'warn') out.push(f('info', `${label} window has ${w.remaining}% left (notice below ${u.warn[k]}%, resets ${at(w.resetsAt)})`, 'a long task may not finish before the reset: --account <name> starts under another account'));
   }
   for (const error of FAILURES) {
     const last = u.failures.filter((x) => x.error === error).at(-1);
     if (last) out.push(f(FAILURE_TEXT[error][0], `${FAILURE_TEXT[error][1]} at ${at(last.at)}`, FAILURE_TEXT[error][2] ?? relogin));
   }
   return out;
+}
+
+// The notices near a limit (below the notice level, at or above the minimum) that a launch shows; the choice stays with the user.
+export const nearNotices = (name, u) => usageFindings(name, { ...u, failures: [] }).filter((f) => f.level === 'info');
+
+// ---- Codex: the app-server method account/rateLimits/read, run with the account's CODEX_HOME
+
+// The server answers only while its input is open, so a node child holds it open and prints the one answer line.
+export const CODEX_READER = `const p = require('node:child_process').spawn('codex', ['app-server'], { stdio: ['pipe', 'pipe', 'ignore'] });
+const quit = (t) => { process.stdout.write(t); p.kill(); process.exit(0); };
+setTimeout(() => quit(''), 20000);
+p.on('error', () => quit('')).on('exit', () => quit(''));
+let buf = '';
+p.stdout.on('data', (c) => {
+  const lines = (buf + c).split('\\n');
+  buf = lines.pop();
+  for (const l of lines) { try { if (JSON.parse(l).id === 2) quit(l); } catch {} }
+});
+p.stdin.write([{ id: 1, method: 'initialize', params: { clientInfo: { name: 'benchkeeper', version: '0' } } }, { method: 'initialized' }, { id: 2, method: 'account/rateLimits/read' }].map((m) => JSON.stringify({ jsonrpc: '2.0', ...m }) + '\\n').join(''));`;
+const WINDOW_MINUTES = { 300: 'fiveHour', 10080: 'sevenDay' };
+// The answer as the usage state: windows by their length (a plan may have the weekly one only), used capped at 100.
+// Only the two windows are kept; the account id, plan and the rest of the answer are dropped.
+export function codexReading(text, now) {
+  let d = null;
+  try { d = JSON.parse(String(text).slice(0, 65536)); } catch { /* no answer */ }
+  if (!isObject(d?.result)) return { usage: null, reason: typeof d?.error?.message === 'string' ? d.error.message.slice(0, 200) : 'codex app-server gave no answer' };
+  const usage = { checkedAt: new Date(now).toISOString(), fiveHour: null, sevenDay: null };
+  for (const w of [d.result.rateLimits?.primary, d.result.rateLimits?.secondary]) {
+    const k = WINDOW_MINUTES[w?.windowDurationMins];
+    if (k && typeof w.usedPercent === 'number') usage[k] = win({ used: Math.min(100, w.usedPercent), resetsAt: w.resetsAt });
+  }
+  return { usage };
 }
 
 // ---- launch decision

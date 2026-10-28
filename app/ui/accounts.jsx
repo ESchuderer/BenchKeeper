@@ -9,7 +9,7 @@ const AGENT = { claude: 'Claude Code', codex: 'Codex' };
 const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
 const DOT = { ok: 'teal', warn: 'yellow', low: 'red', unknown: 'gray' };
 const minimum = (l) => WINDOWS.map(([k, label]) => `${label} ${l.minimum[k]}%`).join(', ');
-// What is left per rate limit window, from the usage a Claude Code account's status line keeps; unknown says why.
+// What is left per rate limit window, from a Claude Code account's status line or a Codex app-server read; unknown says why.
 function Usage({ usage, name, notAvailable }) {
   if (!usage) return notAvailable ? <Text size="sm">Usage: {notAvailable}</Text> : null;
   if (!usage.tracked) return <Text size="sm">Usage is not tracked: <Code>benchkeeper accounts track {name}</Code></Text>;
@@ -194,8 +194,8 @@ export function Accounts({ overview, refresh }) {
             )}
             <Section title="Add account"><AddForm onPlan={setPending} /></Section>
             <Section title="Usage limits">
-              <Text size="sm">Below the minimum headroom of a window (100 minus the used percentage), <Code>benchkeeper run</Code> warns and asks before it starts; a notice shows before that. Defaults: minimum {minimum({ minimum: data.settings.minimum })}, notice below {WINDOWS.map(([k, label]) => `${label} ${data.settings.warn[k]}%`).join(', ')}. Usage is read from the Claude Code status line of an account after <Code>benchkeeper accounts track</Code>; Codex has no documented source.</Text>
-              <Text size="sm">Auto-pick is {data.settings.autoPick ? 'on' : 'off'}{data.settings.autoPick ? `; with no pool member above its minimum a launch ${data.settings.whenNone === 'wait' ? 'waits for the earliest reset' : 'stops'}` : ''}. When it is on, a new launch under the default account starts under another account of the same pool that has headroom, never inside a running session. The provider's consumer terms prohibit bypassing its protective measures and do not say whether switching accounts at a limit is one: the setting is yours to carry. Pool members must all be accounts of one person.</Text>
+              <Text size="sm">Below the minimum headroom of a window (100 minus the used percentage), <Code>benchkeeper run</Code> warns and asks before it starts; a notice shows before that. Defaults: minimum {minimum({ minimum: data.settings.minimum })}, notice below {WINDOWS.map(([k, label]) => `${label} ${data.settings.warn[k]}%`).join(', ')}. Usage is read from the Claude Code status line of an account after <Code>benchkeeper accounts track</Code>, and for a signed-in Codex host account from its app-server at each check.</Text>
+              <Text size="sm">Auto-pick is {data.settings.autoPick ? 'on' : 'off'}{data.settings.autoPick ? `; with no pool member above its minimum a launch ${data.settings.whenNone === 'wait' ? 'waits for the earliest reset' : 'stops'}` : ''}. When it is on, a new launch under the default Claude Code account starts under another Claude Code account of the same pool that has headroom, never inside a running session. The provider's consumer terms prohibit bypassing its protective measures and do not say whether switching accounts at a limit is one: the setting is yours to carry. Pool members must all be accounts of one person.</Text>
               {data.accounts.length > 0 && <Text size="sm">{data.accounts.map((a) => `${a.name}: ${minimum(a.limits)}`).join('; ')}</Text>}
             </Section>
             <Section title="Token for unattended containers">

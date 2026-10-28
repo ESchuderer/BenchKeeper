@@ -190,7 +190,7 @@ test('plugin state comes from the agents\' files; the CLI answers only when they
   assert.ok(calls.includes('claude plugin list --json') && calls.includes('codex plugin list --json'));
 });
 
-test('BenchKeeper\'s own plugin older than the app gets update steps, at any marketplace ref; at or above it, and any third-party plugin, is left alone', () => {
+test('an installed plugin gets no update step from the app, BenchKeeper\'s own at any version and marketplace ref included', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-pins-'));
   const ctx = context({ home, appVersion: '6.0.0', run: (argv) => ({ code: argv[0] === 'npm' ? 1 : 0, stdout: '', stderr: '' }) });
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
@@ -203,9 +203,8 @@ test('BenchKeeper\'s own plugin older than the app gets update steps, at any mar
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.3.2"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
   const steps = (id) => globalPlan({ ctx, agents: ['claude', 'codex'] }).filter((c) => c.step === id);
   const argv = (id) => steps(id).map((c) => c.argv.join(' '));
-  // Refresh and update; never a marketplace removal (it deletes the plugin's options and data).
-  assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
-  assert.ok(steps('plugin:claude:benchkeeper@benchkeeper').every((c) => c.outdated && c.title === 'Claude Code plugin benchkeeper@benchkeeper 5.4.0 to 6.0.0'));
+  // 5.4.0 against an app at 6.0.0: the agent's own update decides, so no refresh, update or removal step.
+  assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), []);
   assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), []);
   assert.deepEqual(argv('plugin:codex:ponytail@ponytail'), []);
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), []);
@@ -218,18 +217,17 @@ test('BenchKeeper\'s own plugin older than the app gets update steps, at any mar
   assert.equal(preview([rm])[0].selected, false);
   assert.deepEqual([mp(['matt-pocock']), mp(['frontend'], ['matt-pocock']), mp(null)], [[], [], []]);
   const inv = inventory(ctx, ['claude', 'codex']);
-  assert.equal(inv.find((i) => i.step === 'plugin:claude:benchkeeper@benchkeeper').state, 'outdated');
+  assert.equal(inv.find((i) => i.step === 'plugin:claude:benchkeeper@benchkeeper').state, 'current');
   // A version that is not x.y.z (a commit) cannot be compared and counts as current.
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: {
     'ponytail@ponytail': [{ scope: 'user', version: '5.2.0' }], 'benchkeeper@benchkeeper': [{ scope: 'user', version: '5.4.0' }], 'mattpocock-skills@claude-plugins-official': [{ scope: 'user', version: '0a1b2c3d4e5f' }] } }));
   assert.deepEqual(argv('plugin:claude:mattpocock-skills@claude-plugins-official'), []);
   assert.equal(inv.find((i) => i.step === 'plugin:codex:benchkeeper@benchkeeper').state, 'current');
   assert.deepEqual(pin(PLUGINS.claude[0], '6.0.0'), { ref: 'stable', version: '6.0.0' });
-  // A marketplace at another ref is left as it is: the update steps stay, no step is by hand and none is destructive.
+  // A marketplace at another ref is left as it is: no step at all, so none is by hand and none is destructive.
   writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ ponytail: { source: { ref: 'v5.2.0' } }, benchkeeper: { source: { ref: 'v5.2.0' } } }));
-  assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
+  assert.deepEqual(argv('plugin:claude:benchkeeper@benchkeeper'), []);
   assert.deepEqual(argv('plugin:claude:ponytail@ponytail'), []);
-  assert.ok(steps('plugin:claude:benchkeeper@benchkeeper').every((c) => !c.error && !c.destructive));
   // Turned off in Claude Code: a settings write turns it on; in Codex a step by hand. Codex files gone: install again.
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': false, 'benchkeeper@benchkeeper': true } }));
   const [on] = steps('plugin:claude:ponytail@ponytail');
@@ -241,12 +239,12 @@ test('BenchKeeper\'s own plugin older than the app gets update steps, at any mar
   assert.deepEqual(argv('plugin:codex:benchkeeper@benchkeeper'), ['codex plugin add benchkeeper@benchkeeper']);
 });
 
-test('the BenchKeeper plugin behind the app is updated by apply; the next plan is empty', () => {
+test('the BenchKeeper plugin behind the app is reported, not updated by apply', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-self-'));
   const installedFile = join(home, '.claude/plugins/installed_plugins.json');
   const installAt = (version) => writeFileSync(installedFile, JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version }] } }));
   const calls = [];
-  const run = (argv) => { calls.push(argv.join(' ')); if (argv.join(' ') === 'claude plugin update benchkeeper@benchkeeper') installAt('6.5.0'); return { code: 0, stdout: '', stderr: '' }; };
+  const run = (argv) => { calls.push(argv.join(' ')); return { code: 0, stdout: '', stderr: '' }; };
   const ctx = context({ home, appVersion: '6.5.0', run });
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
   writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ benchkeeper: { source: { ref: 'stable' } } }));
@@ -254,24 +252,20 @@ test('the BenchKeeper plugin behind the app is updated by apply; the next plan i
   const plan = () => globalPlan({ ctx, agents: ['claude'] }).filter((c) => c.step === 'plugin:claude:benchkeeper@benchkeeper');
   installAt('6.0.0');
   assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.0.0', available: '6.5.0' });
-  assert.deepEqual(plan().map((c) => c.argv.join(' ')), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
-  assert.equal(apply(plan(), ctx).entries.length, 2);
-  assert.deepEqual(calls.slice(-2), ['claude plugin marketplace update benchkeeper', 'claude plugin update benchkeeper@benchkeeper']);
+  assert.deepEqual(plan(), []);
+  installAt('6.5.0');
   assert.deepEqual(benchkeeperPlugin(ctx, 'claude'), { installed: '6.5.0', available: '6.5.0' });
   assert.deepEqual(plan(), []);
   writeFileSync(installedFile, JSON.stringify({ version: 2, plugins: {} }));
   assert.equal(benchkeeperPlugin(ctx, 'claude').installed, null);
-  // Codex reads the version from its plugin cache; the update step is an upgrade and an add.
+  // Codex reads the version from its plugin cache; the same holds.
   const cache = join(home, '.codex/plugins/cache/benchkeeper/benchkeeper');
-  const codexRun = (argv) => { if (argv.join(' ') === 'codex plugin add benchkeeper@benchkeeper') mkdirSync(join(cache, '6.5.0'), { recursive: true }); return { code: 0, stdout: '', stderr: '' }; };
-  const cctx = context({ home, appVersion: '6.5.0', run: codexRun });
+  const cctx = context({ home, appVersion: '6.5.0', run });
   mkdirSync(join(cache, '6.0.0'), { recursive: true });
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.benchkeeper]\nsource = "x"\nref = "stable"\n\n[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
-  const cplan = () => globalPlan({ ctx: cctx, agents: ['codex'] }).filter((c) => c.step === 'plugin:codex:benchkeeper@benchkeeper');
-  assert.deepEqual(cplan().map((c) => c.argv.join(' ')), ['codex plugin marketplace upgrade benchkeeper', 'codex plugin add benchkeeper@benchkeeper']);
-  apply(cplan(), cctx);
-  assert.deepEqual(benchkeeperPlugin(cctx, 'codex'), { installed: '6.5.0', available: '6.5.0' });
-  assert.deepEqual(cplan(), []);
+  assert.deepEqual(globalPlan({ ctx: cctx, agents: ['codex'] }).filter((c) => c.step === 'plugin:codex:benchkeeper@benchkeeper'), []);
+  assert.deepEqual(benchkeeperPlugin(cctx, 'codex'), { installed: '6.0.0', available: '6.5.0' });
+  assert.ok(!calls.some((c) => /plugin (marketplace (update|upgrade)|update)/.test(c)));
 });
 
 test('globalSkills: the global skill folder plus turned-on plugins, turned-off ones not', () => {

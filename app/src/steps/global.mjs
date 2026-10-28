@@ -34,9 +34,9 @@ export const PIN_DATES = {
   [`@anthropic-ai/sandbox-runtime@${SRT_VERSION}`]: '2026-10-20T01:13:23Z',
 };
 // ref is the git ref a new marketplace is added at, version the plugin version it yields; 'app' is this app's version.
-// BenchKeeper's marketplace follows the branch stable, which each release moves, so an update is a marketplace refresh: moving
-// a marketplace to another ref removes it and the plugin's data. Third-party plugins (Ponytail, Matt Pocock) have no ref and
-// no version: the marketplace is added as the agent's own add command does, and the agent's normal update keeps it current.
+// BenchKeeper's marketplace follows the branch stable, which each release moves; moving a marketplace to another ref removes it
+// and the plugin's data, so the app never does. Third-party plugins (Ponytail, Matt Pocock) have no ref and no version. For every
+// plugin the marketplace is added once and the agent's own update keeps an installed plugin current; the app does not update it.
 export const PLUGINS = {
   claude: [
     { id: 'benchkeeper@benchkeeper', marketplace: 'benchkeeper', source: 'ESchuderer/BenchKeeper', ref: 'stable', version: 'app', sparse: ['.claude-plugin', 'plugins'] },
@@ -236,7 +236,6 @@ export function globalPlan(env) {
         add(step, `remove ${name} plugin ${p.id}: no registered project uses the ${p.pack} pack`, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], undoArgv: a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id], destructive: true });
         continue;
       }
-      const { version } = pin(p, ctx.appVersion);
       const sparse = (p.sparse ?? []).flatMap((s) => ['--sparse', s]);
       const addMarket = p.source && [a, 'plugin', 'marketplace', 'add', marketSource(p, a), ...sparse];
       const install = a === 'claude' ? ['claude', 'plugin', 'install', p.id] : ['codex', 'plugin', 'add', p.id];
@@ -248,15 +247,8 @@ export function globalPlan(env) {
       }
       // The entry is there, its files are not: install again.
       if (have?.missing) { add(step, `${name} plugin ${p.id}: files missing, install again`, { kind: 'command', argv: install }); continue; }
-      if (have) {
-        // Older than the app: refresh the marketplace and update. Newer stays. A marketplace at another ref is left as it is
-        // (moving it deletes the plugin's options and data in Claude Code), so there is no by-hand step.
-        if (!version || !semver(have.version) || bySemver(have.version, version) >= 0) continue;
-        const title = `${name} plugin ${p.id} ${have.version} to ${version}`;
-        add(step, title, { kind: 'command', argv: [a, 'plugin', 'marketplace', a === 'claude' ? 'update' : 'upgrade', p.marketplace], outdated: true, unit: step });
-        add(step, title, { kind: 'command', argv: a === 'claude' ? ['claude', 'plugin', 'update', p.id] : install, outdated: true, unit: step });
-        continue;
-      }
+      // Installed: the agent's own update keeps it current (BenchKeeper's marketplace follows the branch stable).
+      if (have) continue;
       if (addMarket && !markets.includes(p.marketplace)) add(step, `${name} marketplace ${p.marketplace}`, { kind: 'command', argv: addMarket, undoArgv: [a, 'plugin', 'marketplace', 'remove', p.marketplace], unit: step });
       add(step, `${name} plugin ${p.id}${p.pack ? ' (optional pack)' : ''}`, { kind: 'command', argv: install, undoArgv: a === 'claude' ? ['claude', 'plugin', 'uninstall', p.id] : ['codex', 'plugin', 'remove', p.id], unit: step });
     }

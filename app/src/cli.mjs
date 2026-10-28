@@ -936,7 +936,19 @@ async function packScopeCommand(ctx, { o, positionals, out, ask }) {
     if (offer && (!scope || offer.fixed)) out.write(`  ${agent(a).name}: ${offer.fixed ? `${offer.scopes[0]} only: ${offer.fixed}` : offer.scopes.join(', ')}\n`);
   }
   if (!scope) return 0;
-  return applyChosen(preview(scopePlan(ctx, id, scope, agents)), ctx, { o, ask, out });
+  const plan = preview(scopePlan(ctx, id, scope, agents));
+  if (!plan.length) { out.write('nothing to change\n'); return 0; }
+  // Each project's changes run under its own bounds as a run of their own, as a projects apply does: a project outside
+  // the home folder is outside the global ones. A project that cannot be one stops the move before any change.
+  let sections;
+  try { sections = [['global', ctx], ...[...new Set(plan.map((c) => c.project).filter(Boolean))].map((p) => [p, projectCtx(ctx, p)])]; } catch (e) { out.write(`${e.message}\n`); return 1; }
+  const select = await choose(plan, o, ask, out);
+  let code = 0;
+  for (const [where, sctx] of sections) {
+    const changes = plan.filter((c) => (c.project ?? 'global') === where);
+    if (where === 'global' || changes.some((c) => select.includes(c.id))) code = Math.max(code, report(apply(changes, sctx, { scope: where, select }), out));
+  }
+  return code;
 }
 
 // A global plan: nothing to change, or the changes chosen applied as one run.
@@ -1612,10 +1624,17 @@ async function accountsCommand(ctx, { o, positionals, out, ask }) {
     if (!plan.length) { out.write('nothing to change\n'); return 0; }
     const select = await choose(plan, o, ask, out);
     if (!select.length) { if (o.yes || o.all) plan.forEach((c) => show(c, out)); return 1; }
+    // The token goes first: after the registry change nothing would point to a token that failed to delete.
+    if (sub === 'remove' && gone.token) {
+      try { store(ctx).delete(gone.name); } catch (e) {
+        out.write(`${e.message}\nthe account ${gone.name} stays listed: delete the token by hand (service benchkeeper, account ${gone.name}) or fix the credential store, then run benchkeeper accounts remove ${gone.name} again\n`);
+        return 1;
+      }
+      out.write('deleted the stored token\n');
+    }
     const code = report(apply(plan, ctx, { scope: 'global', select }), out);
     if (code) return code;
     if (sub === 'remove') {
-      if (gone.token) { store(ctx).delete(gone.name); out.write('deleted the stored token\n'); }
       out.write(gone.mode === 'host' ? `the sign-in in ${gone.dir} is left: delete that folder to remove it\n` : `the volume ${gone.volume} is left: podman volume rm ${gone.volume} removes it\n`);
     }
     if (sub === 'add') {

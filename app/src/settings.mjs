@@ -411,8 +411,9 @@ const strictJson = (text, file) => {
 };
 
 // The editor's write for one key: JSON with comments kept and ancestors created, or a TOML line edit that keeps comments
-// and key order. The result is parsed again before it is returned, so an invalid file never reaches the runner.
-function editFor(agentId, key, value, file = 'the file') {
+// and key order. The result is parsed again before it is returned, so an invalid file never reaches the runner. For JSON,
+// value may be a function of the value in the file at write time.
+export function editFor(agentId, key, value, file = 'the file') {
   if (agentId === 'codex') {
     return (text) => {
       const src = text ?? '';
@@ -431,13 +432,14 @@ function editFor(agentId, key, value, file = 'the file') {
   }
   return (text) => {
     const current = dig(strictJson(text, file), pathOf(key));
-    if (value == null ? current === undefined : same(current, value)) return text;
+    const v = typeof value === 'function' ? value(current) : value;
+    if (v == null ? current === undefined : same(current, v)) return text;
     const path = pathOf(key);
-    const edits = value == null ? [{ path, remove: true }, ...path.slice(0, -1).map((_, i, all) => ({ path: all.slice(0, all.length - i), prune: true }))] : [{ path, value }];
+    const edits = v == null ? [{ path, remove: true }, ...path.slice(0, -1).map((_, i, all) => ({ path: all.slice(0, all.length - i), prune: true }))] : [{ path, value: v }];
     let out;
     try { out = mergeJson(text, edits, file); } catch (e) { if (e instanceof MergeError) throw e; throw new MergeError(`${key}: the file holds a value of another shape there; edit it by hand`); }
     const back = dig(strictJson(out, file), path);
-    if (value != null ? !same(back, value) : back !== undefined) throw new MergeError(`${key}: the file holds a value of another shape there; edit it by hand`);
+    if (v != null ? !same(back, v) : back !== undefined) throw new MergeError(`${key}: the file holds a value of another shape there; edit it by hand`);
     return out;
   };
 }

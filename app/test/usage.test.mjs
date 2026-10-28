@@ -194,6 +194,17 @@ test('track: a plan with a diff and an undo; the installed script writes what st
   assert.match(again.text(), /nothing to change/);
 });
 
+test('track: an account folder outside the home folder is written and undone', skip, async () => {
+  const m = machine();
+  const a = await add(m, 'work', 'claude', '--dir', join(m.root, 'elsewhere', 'work'));
+  assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--yes']), 0);
+  assert.ok(existsSync(join(a.dir, 'settings.json')));
+  const run = m.ctx.ledger.list().find((x) => x.entries.some((e) => /usage script/.test(e.title)));
+  const u = cli(m);
+  assert.equal(await u.exec(['undo', run.id]), 0, u.text());
+  assert.equal(existsSync(join(a.dir, 'settings.json')), false);
+});
+
 test('track: a status line of the user\'s own is an error in the plan and nothing is written; Codex has no usage source', skip, async () => {
   const m = machine();
   const a = await add(m, 'work');

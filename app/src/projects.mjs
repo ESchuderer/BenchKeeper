@@ -55,6 +55,7 @@ export function usersByPack(ctx) {
 // A pack moved to the other scope (PACK_SCOPES) as one plan: its installs come out of one place and go into the other, and the
 // scope file records the choice; undo takes all of it back. Agents that offer one scope only keep their install (fixed).
 // The projects' state files are left for their next projects apply, which records the skill list.
+// A change inside a project names it (project), so it can run under that project's own bounds.
 export function scopePlan(ctx, id, scope, agents) {
   const pack = libraryWith(ctx).packs.find((p) => p.id === id);
   if (!pack) throw new Error(`unknown pack ${id}`);
@@ -66,19 +67,22 @@ export function scopePlan(ctx, id, scope, agents) {
   const changes = [];
   // The other part's steps for this pack, with ids and units per project so two projects do not share one.
   const take = (list, keep, where = '', extra = {}) => changes.push(...list.filter(keep).map((c) => ({ ...c, id: `${where}${c.id}`, ...(c.unit ? { unit: `${where}${c.unit}` } : {}), ...extra })));
-  const projectSide = (keep) => { for (const path of users) take(projectItemPlan(next, path) ?? [], keep, `${path}:`, { selected: true }); };
+  // Preselected, except a change the project plan holds back (a skill edited there) or treats as the user's own.
+  const projectSide = (keep) => { for (const path of users) take((projectItemPlan(next, path) ?? []).map((c) => ({ ...c, selected: c.held || c.foreign ? c.selected : true })), keep, `${path}:`, { project: path }); };
   // The global plan without a registry lookup for the host tools, whose steps are left out anyway.
   const global = (packs = []) => globalPlan({ ctx: next, agents, devcontainerCli: '0.0.0', options: { packs, level: 'full' } });
   if (pack.plugins) {
     for (const a of agents.filter((x) => pack.plugins[x] && !packScopes(pack, x).fixed)) {
       const pid = pack.plugins[a].id, flags = (s) => ['--scope', s];
       if (scope === 'projects') {
-        if (pluginState(ctx, a).listed.some((x) => x.id === pid)) changes.push({ id: `scope:${id}:${a}:user`, step: `scope:${id}`, title: `uninstall ${pid} for the user (now ${scopeText(scope)})`, kind: 'command', argv: [a, 'plugin', 'uninstall', ...flags('user'), pid], undoArgv: [a, 'plugin', 'install', ...flags('user'), pid], selected: true });
+        const argv = [a, 'plugin', 'uninstall', ...flags('user'), pid], undoArgv = [a, 'plugin', 'install', ...flags('user'), pid];
+        if (pluginState(ctx, a).listed.some((x) => x.id === pid)) changes.push({ id: `scope:${id}:${a}:user`, step: `scope:${id}`, title: `uninstall ${pid} for the user (now ${scopeText(scope)})`, kind: 'command', argv, undoArgv, selected: true, destructive: true,
+          impact: `removing runs ${argv.join(' ')}, which deletes the plugin and its data from ${agent(a).name}; ${undoArgv.join(' ')} brings it back` });
         // A marketplace the agent knows stays: undoing its add would remove it.
         const known = pluginState(ctx, a).markets;
         projectSide((c) => c.step === `pack:${id}:${a}` && !(c.argv[3] === 'add' && known.includes(pack.plugins[a].id.split('@')[1])));
       } else {
-        for (const path of users.filter((x) => localPlugins(ctx, x).includes(pid))) changes.push({ id: `scope:${id}:${a}:${path}`, step: `scope:${id}`, title: `uninstall ${pid} in ${path} (local scope; now ${scopeText(scope)})`, kind: 'command', argv: [a, 'plugin', 'uninstall', ...flags('local'), pid], undoArgv: [a, 'plugin', 'install', ...flags('local'), pid], cwd: path, selected: true });
+        for (const path of users.filter((x) => localPlugins(ctx, x).includes(pid))) changes.push({ id: `scope:${id}:${a}:${path}`, step: `scope:${id}`, title: `uninstall ${pid} in ${path} (local scope; now ${scopeText(scope)})`, kind: 'command', argv: [a, 'plugin', 'uninstall', ...flags('local'), pid], undoArgv: [a, 'plugin', 'install', ...flags('local'), pid], cwd: path, project: path, selected: true });
         take(global([id]), (c) => c.step === `plugin:${a}:${pid}`);
       }
     }
@@ -88,12 +92,22 @@ export function scopePlan(ctx, id, scope, agents) {
       take(global(), (c) => c.step === `pack:${id}`);
       projectSide((c) => named(c, 'remove'));
     } else {
-      take(global(), (c) => /^other:\w+:skill$/.test(c.step) && pack.skills.includes(basename(c.path)), '', { selected: true });
+      // A folder of that name the app did not install is the user's: offered, not preselected.
+      for (const c of global().filter((x) => /^other:\w+:skill$/.test(x.step) && pack.skills.includes(basename(x.path)))) changes.push({ ...c, selected: installedSkill(ctx, c.path) });
       projectSide((c) => named(c, 'skill'));
     }
   }
   changes.push({ id: `scope:${id}`, step: `scope:${id}`, title: `pack ${id}: ${scopeText(scope)} (was ${scopeText(was)})`, ...scopeWrite(ctx, id, scope) });
   return changes;
+}
+// BenchKeeper installed the global skill folder: the newest done, not undone ledger entry on it is a pack's install.
+function installedSkill(ctx, dir) {
+  const on = (p) => p === dir || !!p?.startsWith(`${dir}${sep}`);
+  for (const run of ctx.ledger.list()) {
+    const e = [...run.entries].reverse().find((x) => x.status === 'done' && !x.undone && (on(x.path) || x.snapshot?.some((y) => on(y.path))));
+    if (e) return e.step.startsWith('pack:');
+  }
+  return false;
 }
 function save(ctx, projects) {
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);

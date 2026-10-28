@@ -4,14 +4,14 @@
 // claudeMdExcludes (https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files, patterns match absolute
 // paths and cover rules folders), Codex has no such setting and a global file moves to a folder of the app's own.
 // The text of a file is returned only by ruleText, for a file the view lists.
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { agent } from './agents.mjs';
 import { exists, isDir, readText, real, realish } from './fsx.mjs';
 import { git } from './git.mjs';
 import { display, frontMatter, markdownIn, pluginSkills, skillDescription, textOf, walkInstructions } from './instructions.mjs';
 import { allowed } from './runner.mjs';
-import { readSettings, settingsChanges } from './settings.mjs';
+import { editFor, readSettings, settingsChanges } from './settings.mjs';
 import { projectCtx } from './steps/project.mjs';
 
 export const RULE_AGENTS = ['claude', 'codex'];
@@ -418,7 +418,13 @@ export function ruleChanges(ctx, { agent: id, file, dir, on }) {
     const rest = excludesOf(ctx, dir).map((l) => (l.layer === layer ? { ...l, patterns: next } : l)).find((l) => matches(row.path, l.patterns));
     if (on && rest) throw new Error(`${row.shown} is also left out by a pattern of the ${rest.layer} settings that is not its own path: edit claudeMdExcludes there`);
     const sctx = dir ? projectCtx(ctx, dir) : ctx;
-    return settingsChanges(sctx, 'claude', { layer, dir, edits: { claudeMdExcludes: next.length ? next : null } }).map((c) => ({ ...c, title: title(row, on, dir) }));
+    // The write maps the list in the file at apply time, so a pattern added after the plan stays.
+    const map = (current) => {
+      const list = [current].flat().filter((p) => typeof p === 'string');
+      const out = on ? list.filter((p) => p !== pattern && p !== row.path) : list.includes(pattern) ? list : [...list, pattern];
+      return out.length ? out : null;
+    };
+    return settingsChanges(sctx, 'claude', { layer, dir, edits: { claudeMdExcludes: next.length ? next : null } }).map((c) => ({ ...c, title: title(row, on, dir), edit: editFor('claude', 'claudeMdExcludes', map, c.path) }));
   }
   const parked = parkedPath(ctx, row.path);
   const [from, to] = on ? [parked, row.path] : [row.path, parked];
@@ -440,7 +446,11 @@ function editable(ctx, { agent: id, file, dir, text }) {
   if (row.owner === 'BenchKeeper') throw new Error(`${row.shown}: BenchKeeper wrote it, apply keeps it current`);
   if (row.exists === false) throw new Error(`${row.shown} is off: turn it on to edit it`);
   if (dir && row.scope === 'global') throw new Error(`${row.shown} is a global file: edit it in the global view`);
-  if ((readText(row.path) ?? '').length > TEXT_LIMIT) throw new Error(`${row.shown} is longer than the ${TEXT_LIMIT} characters the view shows: edit it in an editor`);
+  if (isDir(row.path)) throw new Error(`${row.shown} is a folder, not a file: edit it in an editor`);
+  const disk = readText(row.path) ?? '';
+  // Save writes the decoded text: bytes that are not UTF-8 would come back as replacement characters.
+  if (disk && !Buffer.from(disk).equals(readFileSync(row.path))) throw new Error(`${row.shown} is not UTF-8 text: edit it in an editor`);
+  if (disk.length > TEXT_LIMIT) throw new Error(`${row.shown} is longer than the ${TEXT_LIMIT} characters the view shows: edit it in an editor`);
   return row;
 }
 
@@ -457,7 +467,9 @@ export function ruleDraft(ctx, { agents = RULE_AGENTS, ...opts }) {
 export function ruleEdit(ctx, opts) {
   const row = editable(ctx, opts);
   const step = `${EDIT}:${row.agent}`;
-  return [{ id: step, step, title: `edit ${row.shown} for ${agent(row.agent).name}`, kind: 'write', path: row.path, after: opts.text }];
+  // A textarea always sends LF: a CRLF file keeps its line endings.
+  const after = (readText(row.path) ?? '').includes('\r\n') && !opts.text.includes('\r') ? opts.text.replaceAll('\n', '\r\n') : opts.text;
+  return [{ id: step, step, title: `edit ${row.shown} for ${agent(row.agent).name}`, kind: 'write', path: row.path, after }];
 }
 
 // Paths and states of the rule files, for the profile: no text, no sizes.

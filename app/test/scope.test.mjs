@@ -17,7 +17,8 @@ const TMP = realpathSync(tmpdir());
 const pack = (ctx, id) => libraryWith(ctx).packs.find((p) => p.id === id);
 
 // Claude Code with Ponytail installed for the user; plugin commands change installed_plugins.json, with the scope and folder.
-function machine() {
+// outside: the project lies in a folder of its own next to the home folder, not inside it.
+function machine({ outside = false } = {}) {
   const home = mkdtempSync(join(TMP, 'bk-scope-'));
   const file = join(home, '.claude/plugins/installed_plugins.json');
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
@@ -38,7 +39,7 @@ function machine() {
   };
   const ctx = context({ home, run });
   // A registered project whose setup selects Ponytail and the frontend pack, with copies of the frontend skills.
-  const dir = join(home, 'p');
+  const dir = outside ? mkdtempSync(join(TMP, 'bk-scope-project-')) : join(home, 'p');
   mkdirSync(join(dir, '.benchkeeper'), { recursive: true });
   const skills = pack(ctx, 'frontend').skills;
   for (const s of skills) { mkdirSync(join(dir, '.claude/skills', s), { recursive: true }); writeFileSync(join(dir, '.claude/skills', s, 'SKILL.md'), 'x'); }
@@ -130,19 +131,38 @@ test('a skill pack for all projects: global copies instead of the project ones, 
   assert.ok(removed.every((c) => c.selected && c.id.startsWith(`${dir}:`)));
   assert.equal(plan.at(-1).title, 'pack frontend: all projects (was selected projects)');
 
-  // Recorded: the global copies are part of the setup, the project plan copies none.
-  writeFileSync(scopeFile(ctx), JSON.stringify({ scopes: { frontend: 'global' } }));
+  // Applied: the global copies are part of the setup (the stubbed skills CLI creates no folder), the project plan copies none.
+  assert.equal(apply(plan, ctx).status, 'done');
   for (const s of skills) mkdirSync(join(home, '.claude/skills', s), { recursive: true });
   const full = globalPlan({ ctx, agents: ['claude'], devcontainerCli: '0.0.0', options: { level: 'full' } });
   assert.ok(!full.some((c) => c.step === 'other:claude:skill' && skills.some((s) => c.path.endsWith(s))));
   assert.ok(!globalDrift(ctx, ['claude'], '0.0.0', 'full').some((i) => i.check === 'unexpected' && skills.some((s) => i.message.includes(s))));
   assert.ok(!projectPlan({ ctx, dir, answers: {} }).changes.some((c) => skills.some((s) => c.step === `skill:${s}`)));
 
-  // Back to selected projects: the global copies go to the backup, the project gets its copies again.
+  // Back to selected projects: the global copies the app installed go to the backup, preselected, the project gets its copies again.
   const back = preview(scopePlan(ctx, 'frontend', 'projects', ['claude']));
   assert.deepEqual(new Set(back.filter((c) => c.step === 'other:claude:skill').map((c) => c.path)), new Set(skills.map((s) => join(home, '.claude/skills', s))));
   assert.ok(back.filter((c) => c.step === 'other:claude:skill').every((c) => c.selected));
   assert.equal(back.at(-1).title, 'pack frontend: selected projects (was all projects)');
+});
+
+test('a scope move preselects no removal of what the user owns and keeps held project changes held', () => {
+  const { ctx, home, dir } = machine();
+  const [uninstall] = scopePlan(ctx, 'ponytail', 'projects', ['claude']);
+  assert.equal(uninstall.destructive, true);
+  assert.equal(uninstall.impact, 'removing runs claude plugin uninstall --scope user ponytail@ponytail, which deletes the plugin and its data from Claude Code; claude plugin install --scope user ponytail@ponytail brings it back');
+
+  // Global folders named like the pack's skills that the app never installed, and a project skill adopted earlier (held).
+  const skills = pack(ctx, 'frontend').skills;
+  writeFileSync(scopeFile(ctx), JSON.stringify({ scopes: { frontend: 'global' } }));
+  for (const s of skills) mkdirSync(join(home, '.claude/skills', s), { recursive: true });
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['claude'], env: 'host', packs: ['ponytail', 'frontend'], skills: skills.map((name) => ({ name, adopted: true })) }));
+  const plan = scopePlan(ctx, 'frontend', 'projects', ['claude']);
+  const removals = plan.filter((c) => c.step === 'other:claude:skill');
+  assert.equal(removals.length, skills.length);
+  assert.ok(removals.every((c) => c.selected === false));
+  const held = plan.filter((c) => c.held);
+  assert.ok(held.length && held.every((c) => c.step === 'skill:designing-technical-uis' && c.selected === false && c.project === dir));
 });
 
 test('packs scope prints the scope and each agent\'s offer, and applies a move', async () => {
@@ -158,4 +178,31 @@ test('packs scope prints the scope and each agent\'s offer, and applies a move',
   text = '';
   await exec(['packs', 'list']);
   assert.match(text, /ponytail +library projects/);
+});
+
+test('packs scope moves a project outside the home folder under its own bounds, as a run of its own that undo takes back', async () => {
+  const { ctx, dir, installs } = machine({ outside: true });
+  let text = '';
+  const out = new Writable({ write(chunk, _, done) { text += chunk; done(); } });
+  const exec = (args) => main(args, { out, ctx, input: Readable.from(['']) });
+  const runs = () => [...text.matchAll(/^run (\S+): undo/gm)].map((m) => m[1]);
+  const undoAll = async () => { for (const id of runs().reverse()) assert.equal(await exec(['undo', id]), 0, text); };
+
+  // A plugin pack: into the project's local scope and back out of it, the local uninstall run in the project.
+  assert.equal(await exec(['packs', 'scope', 'ponytail', 'projects', '--agents', 'claude', '--yes']), 0, text);
+  assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
+  assert.equal(runs().length, 2);
+  text = '';
+  assert.equal(await exec(['packs', 'scope', 'ponytail', 'global', '--agents', 'claude', '--yes']), 0, text);
+  assert.deepEqual(installs(), [{ scope: 'user', version: '5.2.0' }]);
+  await undoAll();
+  assert.deepEqual(installs(), [{ scope: 'local', version: '5.2.0', projectPath: dir }]);
+
+  // A skill pack: the project's copy of BenchKeeper's own skill comes out (the others through the stubbed skills CLI), and undo puts it back.
+  text = '';
+  assert.equal(await exec(['packs', 'scope', 'frontend', 'global', '--agents', 'claude', '--yes']), 0, text);
+  assert.equal(existsSync(join(dir, '.claude/skills/designing-technical-uis')), false, text);
+  await undoAll();
+  assert.ok(existsSync(join(dir, '.claude/skills/designing-technical-uis/SKILL.md')));
+  assert.equal(packScope(ctx, pack(ctx, 'frontend')), 'projects');
 });

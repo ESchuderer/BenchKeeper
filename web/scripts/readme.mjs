@@ -50,9 +50,9 @@ const blocks = {
   frameworks: [
     facts.frameworks.rule,
     '',
-    '| Framework | Role | Installs | Evaluation |',
-    '|---|---|---|---|',
-    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} | [${cell(f.evidence.split('/').pop())}](../${f.evidence}) |`),
+    '| Framework | Role | Installs |',
+    '|---|---|---|',
+    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} |`),
   ],
   reasons: facts.stack.reasons.map((r) => `- ${r.name}: ${r.text}`),
   openhands: [

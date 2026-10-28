@@ -149,9 +149,9 @@ Optional, per project: `npx benchkeeper@6.25.0 projects apply --framework <id>` 
 <!-- generated:frameworks -->
 Project setup asks first: it shows the list and installs nothing you did not choose. A framework is a workflow system that owns how work is planned and run: at most one per project, and choosing it takes BenchKeeper's own workflow skill out of that project. Skill packs (`packs list`) and agent files (`skills sources`) are not frameworks. Everything installs inside the project; what cannot is labelled.
 
-| Framework | Role | Installs | Evaluation |
-|---|---|---|---|
-| [Superpowers](https://github.com/obra/superpowers) | workflow owner | a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache | [superpowers.md](../evaluations/workflow-frameworks/superpowers.md) |
+| Framework | Role | Installs |
+|---|---|---|
+| [Superpowers](https://github.com/obra/superpowers) | workflow owner | a Claude Code plugin enabled for this project only; its plugin files stay in the user's plugin cache |
 <!-- /generated:frameworks -->
 
 ## Update

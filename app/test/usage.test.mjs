@@ -465,6 +465,19 @@ test('a dev container whose settings.json cannot be read is not an empty one: no
   assert.deepEqual(m.calls().filter((x) => x.args.includes('tee')), []);
 });
 
+test('a dev container account of an agent without a usage source is refused before the container is touched', skip, async () => {
+  const m = machine();
+  const project = join(m.root, 'project');
+  mkdirSync(join(project, '.devcontainer'), { recursive: true });
+  writeFileSync(join(project, '.devcontainer/devcontainer.json'), '{ "name": "x" }\n');
+  assert.equal(await cli(m).exec(['accounts', 'add', 'boxed', '--agent', 'codex', '--container', '--mount', '/data/boxed', '--yes']), 0);
+  const before = m.calls().length;
+  const c = cli(m);
+  assert.equal(await c.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 1);
+  assert.match(c.text(), /Codex has no documented source/);
+  assert.equal(m.calls().length, before);
+});
+
 test('a container settings.json diff is masked like a host one before it is shown', skip, async () => {
   const m = machine();
   const project = join(m.root, 'project');

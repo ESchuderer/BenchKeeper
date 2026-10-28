@@ -334,8 +334,9 @@ const scriptOf = (a) => stateFile(a, 'usage.mjs');
 const settingsFile = (a) => (a.mode === 'host' ? join(a.dir, 'settings.json') : `${a.mount}/settings.json`);
 // A host account's change as a plan of the usual kind (diff, ledger run, undo; the folder may lie outside the home folder, so it
 // is added to the roots by the caller). One unit: when the settings cannot take the status line, the script is not written either.
+const requireUsage = (a) => { if (!supports(a.agent, 'usage')) throw new Error(`${notAvailable('usage', a.agent)}: ${agent(a.agent).name} has no documented source`); };
 export const trackChanges = (a, { remove = false } = {}) => {
-  if (!supports(a.agent, 'usage')) throw new Error(`${notAvailable('usage', a.agent)}: ${agent(a.agent).name} has no documented source`);
+  requireUsage(a);
   return [
     { id: 'usage-script', step: 'accounts', unit: 'usage', title: `${remove ? 'remove' : 'write'} the usage script of account ${a.name}`, kind: 'write', path: scriptOf(a), after: remove ? null : HOOK_SOURCE },
     { id: 'usage-settings', step: 'accounts', unit: 'usage', title: `${remove ? 'take the status line and hook out of' : 'add the status line and the StopFailure hook to'} the settings.json of account ${a.name}`, kind: 'write', path: settingsFile(a), edit: (t) => trackedSettings(t, scriptOf(a), { remove }) },
@@ -343,6 +344,7 @@ export const trackChanges = (a, { remove = false } = {}) => {
 };
 // A container account's change: the volume is not a host path, so it is read and written through devcontainer exec.
 function* trackContainerSteps(ctx, a, dir, { remove }) {
+  requireUsage(a);
   const engine = yield* containerSteps(ctx, a, dir);
   // Missing is what cat says about a missing file: a failed exec or a timeout is not an empty settings.json to overwrite.
   const read = function* (path) {

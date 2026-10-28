@@ -430,7 +430,7 @@ export function Projects({ params, overview, refresh }) {
   const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
   const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
   const prs = prsOf(confirmPrs ?? []);
-  const rows = visibleProjects(all, { ...view, version });
+  const rows = visibleProjects(all, view);
   // Bulk actions act on the rows shown: a search or filter never leaves hidden projects selected.
   const chosen = rows.filter((p) => selected.includes(p.path));
   const setUp = (list) => list.filter((p) => !p.missing && p.setupVersion).map((p) => p.path);

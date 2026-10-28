@@ -24,19 +24,19 @@ const setupRank = (p) => { if (p.missing) return 0; if (!p.setupVersion) return 
 const SORTS = {
   added: ['Order added', () => 0],
   name: ['Name', (a, b) => label(a).localeCompare(label(b))],
-  setup: ['Setup state', (a, b, version) => setupRank(a, version) - setupRank(b, version)],
+  setup: ['Setup state', (a, b) => setupRank(a) - setupRank(b)],
   last: ['Last change', (a, b) => (b.last ?? '').localeCompare(a.last ?? '')],
 };
 export const SORT_OPTIONS = Object.entries(SORTS).map(([value, [text]]) => ({ value, label: text }));
 
 // The rows to show: search over name, folder and notes, then the filter, then the sort (a stable one, so ties and the
 // default keep the order the projects were added in).
-export function visibleProjects(list, { query = '', sort = 'added', filter = 'all', pack = '', agent = '', version } = {}) {
+export function visibleProjects(list, { query = '', sort = 'added', filter = 'all', pack = '', agent = '' } = {}) {
   const q = query.trim().toLowerCase();
   const match = FILTERS[filter]?.[1] ?? FILTERS.all[1];
-  const rows = list.filter((p) => match(p, version) && (!pack || p.packs?.includes(pack)) && (!agent || p.agents?.includes(agent)) && (!q || [label(p), p.path, p.notes ?? ''].some((t) => t.toLowerCase().includes(q))));
+  const rows = list.filter((p) => match(p) && (!pack || p.packs?.includes(pack)) && (!agent || p.agents?.includes(agent)) && (!q || [label(p), p.path, p.notes ?? ''].some((t) => t.toLowerCase().includes(q))));
   const by = SORTS[sort]?.[1] ?? SORTS.added[1];
-  return rows.map((p, i) => ({ p, i })).sort((a, b) => by(a.p, b.p, version) || a.i - b.i).map(({ p }) => p);
+  return rows.map((p, i) => ({ p, i })).sort((a, b) => by(a.p, b.p) || a.i - b.i).map(({ p }) => p);
 }
 
 export function ProjectFilters({ query, onQuery, sort, onSort, filter, onFilter, pack, onPack, packs = [], agent, onAgent, agents = [] }) {

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
-import { appVersion, contentDir } from '../src/content.mjs';
+import { appVersion, contentDir, library } from '../src/content.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { harnessTest } from '../src/harness.mjs';
 import { ENVS, STATE, projectCtx, projectPlan, readState, suggest, tryState } from '../src/steps/project.mjs';
@@ -248,11 +248,17 @@ test('a pack is named in the project text only when it is on: off, no mention; o
   }
 });
 
-test("doctor: a pack whose own setup writes AGENTS.md sections is named while they are missing", () => {
+test("doctor: a pack whose own setup writes docs/agents/ and AGENTS.md sections is named while they are missing", () => {
+  assert.equal(library().packs.find((p) => p.id === 'matt-pocock').prompts[0].writes, 'docs/agents');
+  const off = repo();
+  apply(preview(plan(off, { agents: ['claude'], env: 'host' }).changes), off.ctx, { scope: off.dir });
+  assert.deepEqual(projectChecks(off.ctx, off.dir, ['claude']).filter((i) => i.check === 'packs'), []);
   const r = repo();
   apply(preview(plan(r, { agents: ['claude'], env: 'host', packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] }).changes), r.ctx, { scope: r.dir });
-  const found = () => projectChecks(r.ctx, r.dir, ['claude']).filter((i) => i.check === 'packs');
-  assert.deepEqual(found().map((i) => [i.level, i.fix.split(' ').slice(0, 2).join(' ')]), [['info', 'run /mattpocock-skills:setup-matt-pocock-skills']]);
+  const found = () => projectChecks(r.ctx, r.dir, ['claude']).filter((i) => i.check === 'packs').map((i) => [i.level, i.message, i.fix.split(' ').slice(0, 2).join(' ')]);
+  assert.deepEqual(found(), [['warning', 'pack matt-pocock is on, but docs/agents/ does not exist', 'run /mattpocock-skills:setup-matt-pocock-skills']]);
+  mkdirSync(join(r.dir, 'docs/agents'), { recursive: true });
+  assert.deepEqual(found().map((i) => i[0]), ['info']);
   writeFileSync(join(r.dir, 'AGENTS.md'), '## Agent skills\n\n### Issue tracker\n\nGitHub.\n\n### Triage labels\n\nDefault.\n\n### Domain docs\n\nNone.\n');
   assert.deepEqual(found(), []);
 });

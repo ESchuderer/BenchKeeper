@@ -140,7 +140,8 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
     if (JSON.stringify(a) === start.current) applyAdvice(prefill.result, prefill.name, true);
     else setWaiting(prefill);
   }, [prefill, a]);
-  const review = useApi(step === 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
+  // Kept through the result step, which lists the same prompts.
+  const review = useApi(step >= 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
   const create = async () => {
     setBusy(true); setError(null);
@@ -251,6 +252,14 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
               </Note>
             )}
             {result?.run && <RunPanel id={result.run} order={3} />}
+            {result && result.status !== 'stopped' && !!review.data?.prompts.length && (
+              <Stack gap={4} mt="md">
+                <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Start in the project'}</Text>
+                {review.data.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
+                {/* The prompts after the first are the packs' own setups, which write the Agent skills block. */}
+                {review.data.prompts.length > 1 && <Text size="sm">Then apply the setup again: it moves the block these commands write into <Code>AGENTS.md</Code>, where Codex reads it.</Text>}
+              </Stack>
+            )}
             {!result && (a.share ? <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>
               : <Text>Writes the setup in this checkout and adds its files to <Code>.git/info/exclude</Code>.</Text>)}
           </Stepper.Completed>

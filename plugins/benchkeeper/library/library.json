@@ -498,6 +498,7 @@
           "claude": "/mattpocock-skills:setup-matt-pocock-skills",
           "codex": "$mattpocock-skills:setup-matt-pocock-skills",
           "why": "writes `docs/agents/` (issue tracker, triage labels, domain docs) and the `## Agent skills` block",
+          "writes": "docs/agents",
           "sections": [
             "### Issue tracker",
             "### Triage labels",

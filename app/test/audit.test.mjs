@@ -150,7 +150,7 @@ jobs:
     'workflows/no-cancel:.github/workflows/b.yml',
     'workflows/no-path-filter:.github/workflows/a.yml',
     'workflows/no-path-filter:.github/workflows/b.yml',
-    'workflows/repeat-build:.github/workflows/a.yml#three',
+    'workflows/repeat-build:.github/workflows/a.yml#three:one',
     'workflows/unpinned-action:.github/workflows/a.yml',
   ]);
   const r = audit(ctx, dir, { only: ['workflows'] });
@@ -184,6 +184,16 @@ jobs:
     '.github/workflows/broken.yml': 'on: [unclosed\n',
   });
   assert.deepEqual(ids(dir), []);
+});
+
+test('a workflow whose aliases expand past the limit is skipped, a job repeating two builds gives two findings', () => {
+  const bomb = `x: &a [${Array(9).fill('"x"').join(', ')}]\nb: &b [${Array(9).fill('*a').join(', ')}]\nc: &c [${Array(9).fill('*b').join(', ')}]\nd: &d [${Array(9).fill('*c').join(', ')}]\ne: [${Array(9).fill('*d').join(', ')}]\n`;
+  const job = (name, cmd) => `  ${name}:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${cmd}\n`;
+  const dir = tree({
+    '.github/workflows/bomb.yml': bomb,
+    '.github/workflows/b.yml': `on: workflow_dispatch\njobs:\n${job('one', 'make build-a')}${job('two', 'make build-b')}  three:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make build-a\n      - run: make build-b\n`,
+  });
+  assert.deepEqual(ids(dir), ['workflows/broad-permissions:.github/workflows/b.yml', 'workflows/repeat-build:.github/workflows/b.yml#three:one', 'workflows/repeat-build:.github/workflows/b.yml#three:two']);
 });
 
 test('findings of the own tools: a lint step that cannot fail', () => {
@@ -221,6 +231,8 @@ test('duplicated tests, snapshot and fixture size, large files with the limit th
   assert.equal(r.findings.find((f) => f.id === 'code/large-file:src/long.js').evidence.limit, 50);
   assert.equal(r.findings.find((f) => f.id === 'tests/snapshot-size:snapshots').evidence.largest[0].file, 'test/__snapshots__/big.snap');
   assert.deepEqual(ids(tree({ 'src/long.js': lines(60) })), []);
+  assert.deepEqual(ids(tree({ 'src/long.js': `${lines(1000)}\n` })), [], 'a trailing newline is no extra line');
+  assert.deepEqual(ids(tree({ 'src/long.js': `${lines(51)}\n`, '.eslintrc.json': { rules: { 'max-lines': ['error', 50] } } })), ['code/large-file:src/long.js']);
   assert.deepEqual(ids(tree({ 'src/long.js': lines(1001) })), ['code/large-file:src/long.js']);
   assert.deepEqual(ids(tree({ 'src/long.js': lines(60), '.eslintrc': { rules: { 'max-lines': ['warn', 20] } } })), ['code/large-file:src/long.js']);
 });

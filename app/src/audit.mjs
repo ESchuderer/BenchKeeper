@@ -56,7 +56,9 @@ function load(ctx, dir) {
     const file = `.github/workflows/${n}`, body = text(file);
     if (body == null) return [];
     const lc = new LineCounter(), doc = parseDocument(body, { lineCounter: lc });
-    return doc.errors.length ? [] : [{ file, doc, lc, js: doc.toJS() ?? {} }];
+    if (doc.errors.length) return [];
+    // toJS throws when aliases expand past the library's limit (an alias bomb); such a file is skipped like one that does not parse.
+    try { return [{ file, doc, lc, js: doc.toJS() ?? {} }]; } catch { return []; }
   });
   const source = files.filter((f) => SOURCE.test(f) && !TEST.test(f) && !/\.min\./.test(f));
   const tests = files.filter((f) => SOURCE.test(f) && TEST.test(f));
@@ -166,7 +168,7 @@ function repeatedBuild(p) {
         const key = `${s['working-directory'] ?? cwd}|${cmd}`;
         if (!seen.has(key)) seen.set(key, name);
         else if (seen.get(key) !== name && !out.some((f) => f.evidence.job === name && f.evidence.sameAs === seen.get(key))) {
-          out.push(finding(`workflows/repeat-build:${wf.file}#${name}`, 'workflows', 'warning',
+          out.push(finding(`workflows/repeat-build:${wf.file}#${name}:${seen.get(key)}`, 'workflows', 'warning',
             `jobs ${seen.get(key)} and ${name} of ${wf.file} run the same build command`,
             { file: wf.file, line: lineOf(wf, ['jobs', name]), job: name, sameAs: seen.get(key) },
             'build once and pass the output on with upload-artifact and download-artifact, or merge the two jobs', 'medium'));
@@ -383,7 +385,7 @@ function largeFile(p) {
   const rule = rc?.rules?.['max-lines'], max = Array.isArray(rule) ? (typeof rule[1] === 'object' ? rule[1]?.max : rule[1]) : undefined;
   const limit = Number.isInteger(max) && max > 0 ? max : FILE_LINES;
   return p.source.flatMap((file) => {
-    const lines = (p.text(file) ?? '').split('\n').length;
+    const lines = (p.text(file) ?? '').replace(/\r?\n$/, '').split('\n').length;
     return lines > limit ? [{ file, lines }] : [];
   }).sort((a, b) => b.lines - a.lines).slice(0, MAX_FINDINGS).map(({ file, lines }) => finding(`code/large-file:${file}`, 'code', 'info',
     `${file} has ${lines} lines, over the limit of ${limit}`, { file, line: 1, lines, limit },

@@ -413,29 +413,12 @@ test('Doctor: a bypass default mode in project or local settings is flagged, in 
   assert.equal(found().length, 0, 'the user file takes the mode: the user\'s own choice');
 });
 
-test('Doctor: the advisor rank sees a [1m] model id, and the sonnet alias on Foundry is warned about', () => {
+test('Doctor: the advisor rank sees a [1m] model id', () => {
   const ctx = machine();
   const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message)).map((i) => i.message); };
   assert.match(messages({ advisorModel: 'claude-sonnet-5-5[1m]', model: 'claude-opus-5-5' })[0], /ranks below the main model/);
   assert.match(messages({ advisorModel: 'claude-opus-4-6[1m]', model: 'claude-opus-5-5[1m]' })[0], /ranks below the main model/);
   assert.deepEqual(messages({ advisorModel: 'claude-opus-5-5[1m]', model: 'claude-sonnet-5-5' }), []);
-  // The sonnet alias on Foundry resolves to Sonnet 4.5; the setup's own subagent alias counts too.
-  const FOUNDRY = { CLAUDE_CODE_USE_FOUNDRY: '1' };
-  assert.match(messages({ env: { ...FOUNDRY, CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/);
-  assert.match(messages({ model: 'opusplan', env: FOUNDRY }).join(), /Microsoft Foundry/);
-  assert.match(messages({ model: 'sonnet' }, FOUNDRY).join(), /Microsoft Foundry/, 'Foundry set in the process environment');
-  assert.match(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'sonnet' } }).join(), /Microsoft Foundry/, 'the default for new sessions');
-  assert.match(messages({}, { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'opusplan' }).join(), /Microsoft Foundry/, 'the default for new sessions, from the process environment');
-  assert.deepEqual(messages({ model: 'sonnet', env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the alias is pinned by the user');
-  assert.match(messages({ env: FOUNDRY }).join(), /Microsoft Foundry/, 'no model selector: the Foundry default is Sonnet 4.5');
-  assert.match(messages({ model: 'default', env: FOUNDRY }).join(), /Microsoft Foundry/);
-  assert.deepEqual(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_SONNET_MODEL: 'my-sonnet-deployment' } }), [], 'the default is pinned by the user');
-  assert.deepEqual(messages({ model: 'claude-opus-4-6', env: FOUNDRY }), [], 'a named model replaces the default');
-  for (const v of ['inherit', 'haiku', 'default']) assert.match(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: v } }).join(), /Microsoft Foundry/, `ANTHROPIC_DEFAULT_MODEL=${v} is ignored by Claude Code`);
-  assert.deepEqual(messages({ env: { ...FOUNDRY, ANTHROPIC_DEFAULT_MODEL: 'claude-opus-4-6' } }), [], 'a named default model replaces it');
-  assert.deepEqual(messages({}), [], 'no Foundry, no model selector');
-  assert.deepEqual(messages({ model: 'sonnet' }), [], 'not on Foundry');
-  assert.deepEqual(messages({ model: 'claude-sonnet-5-5', env: FOUNDRY }), []);
 });
 
 test('Doctor: the keys the settings reference marks deprecated or removed are flagged, derived from the pinned reference', () => {

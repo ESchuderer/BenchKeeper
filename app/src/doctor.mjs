@@ -22,7 +22,7 @@ import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
 import { skillFiles } from './skills.mjs';
 import { globalPlan, installedRefusal, pluginState } from './steps/global.mjs';
-import { readState, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { promptAgent, readState, recordCommand, tracksState, tryState, upToDate } from './steps/project.mjs';
 
 const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
 const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zshenv', '.config/fish/config.fish'];
@@ -79,10 +79,12 @@ const description = (text) => skillDescription(text).text;
 // The files are checked, not a recorded flag: Doctor is quiet once they exist, however they were written.
 function packSetupChecks(dir, state, lib = library()) {
   const text = ['AGENTS.md', 'CLAUDE.md'].map((f) => readText(join(dir, f)) ?? '').join('\n');
-  const codex = !(state?.agents ?? []).includes('claude') && (state?.agents ?? []).includes('codex');
+  const agent = promptAgent(state?.agents ?? []);
   return (state?.packs ?? []).flatMap((id) => (lib.packs.find((p) => p.id === id)?.prompts ?? []).flatMap((x) => {
-    const fix = `run ${codex ? x.codex : x.claude} once in this project: it ${x.why}`;
-    if (x.writes && !exists(join(dir, x.writes))) return [issue('warning', 'packs', `pack ${id} is on, but ${x.writes}/ does not exist`, fix)];
+    const prompt = agent === 'codex' ? x.codex : x.claude;
+    const fix = `run ${prompt} once in this project: it ${x.why}`;
+    // The Doctor view shows the line to paste in a terminal next to the fix.
+    if (x.writes && !exists(join(dir, x.writes))) return [{ ...issue('warning', 'packs', `pack ${id} is on, but ${x.writes}/ does not exist`, fix), ...(agent ? { start: { agent, dir, prompt, command: recordCommand(dir, agent, prompt) } } : {}) }];
     return x.sections?.some((h) => !text.split('\n').some((l) => l.trim() === h)) ? [issue('info', 'packs', `pack ${id} is on, but ${x.sections.join(', ')} are not all in AGENTS.md`, fix)] : [];
   }));
 }

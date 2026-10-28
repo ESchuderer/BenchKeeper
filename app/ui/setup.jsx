@@ -3,12 +3,15 @@ import { IconBulb, IconPlayerPlay } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { AgentFileChoice, FrameworkChoice } from './frameworks.jsx';
-import { CancelJob, ChangeList, useJob, usePrerun } from './parts.jsx';
+import { CancelJob, ChangeList, StartBlock, useJob, usePrerun } from './parts.jsx';
 import { RunPanel } from './run.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 export const TIER_TEXT = { '': 'No default: each task picks its tier', quick: 'Quick: the diff fits in one sentence', standard: 'Standard: one behavior, approach clear', full: 'Full: several behaviors or a new capability', research: 'Research: questions and spikes, no repository change' };
 export const ENV_TITLE = { container: 'Agent in the dev container (recommended)', 'host-agent': 'Agent on the host, toolchain in the dev container', sandbox: 'Docker Sandboxes microVM', host: 'Everything on the host' };
+
+// The Doctor findings a user-started pack setup clears once it wrote its files.
+const left = (found) => found.filter((i) => i.check === 'packs');
 
 // The query of a project plan for these first-setup answers.
 export const planQuery = (dir, a) => {
@@ -142,6 +145,8 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
   }, [prefill, a]);
   // Kept through the result step, which lists the same prompts.
   const review = useApi(step >= 4 && a ? `/api/project-plan?${planQuery(dir, a)}` : null);
+  // What the started steps left to write, read again on Check again.
+  const checked = useApi(result && result.status !== 'stopped' && !a.share ? `/api/doctor?dir=${encodeURIComponent(dir)}` : null);
   const set = (k) => (v) => setA((x) => ({ ...x, [k]: v }));
   const create = async () => {
     setBusy(true); setError(null);
@@ -238,7 +243,7 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
                   {!!p.prompts.length && (
                     <Stack gap={4}>
                       <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Then start in the project'}</Text>
-                      {p.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
+                      {p.prompts.map((x) => <StartBlock key={x.prompt} start={x} why={x.why} />)}
                     </Stack>
                   )}
                 </Stack>
@@ -255,9 +260,13 @@ function SetupSteps({ dir, push, onFinish, prefill }) {
             {result && result.status !== 'stopped' && !!review.data?.prompts.length && (
               <Stack gap={4} mt="md">
                 <Text size="sm" fw={600}>{a.share ? 'After merging, start in the project' : 'Start in the project'}</Text>
-                {review.data.prompts.map((x) => <Text key={x.prompt} size="sm"><Code>{x.prompt}</Code> {x.why}</Text>)}
+                {review.data.prompts.map((x) => <StartBlock key={x.prompt} start={x} why={x.why} />)}
                 {/* The prompts after the first are the packs' own setups, which write the Agent skills block. */}
                 {review.data.prompts.length > 1 && <Text size="sm">Then apply the setup again: it moves the block these commands write into <Code>AGENTS.md</Code>, where Codex reads it.</Text>}
+                <Text size="sm">The recorded session shows in History with its exit code and changed files.</Text>
+                {!a.share && <Group gap="xs"><Button size="xs" variant="default" onClick={checked.reload} loading={checked.loading}>Check again</Button></Group>}
+                {checked.data && (left(checked.data).length ? left(checked.data).map((i) => <Note key={i.message} color="yellow">{i.message}</Note>)
+                  : <Text size="sm" role="status">Doctor finds no pack setup step left to run.</Text>)}
               </Stack>
             )}
             {!result && (a.share ? <Text>Creates branch <Code>chore/agent-setup-&lt;version&gt;</Code> in a worktree with one commit{push ? ', pushes it and opens a pull request when origin is on GitHub' : ''}.</Text>

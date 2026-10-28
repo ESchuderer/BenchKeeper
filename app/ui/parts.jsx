@@ -1,5 +1,5 @@
 import { Anchor, Badge, Button, Checkbox, Code, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
-import { IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
+import { IconCopy, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { DiffView, RunPanel } from './run.jsx';
@@ -11,6 +11,17 @@ export const Cli = ({ children }) => (
   <Stack gap={4}>
     <Text size="sm" fw={600}>CLI</Text>
     <Code block tabIndex={0}>{children}</Code>
+  </Stack>
+);
+
+// A step only the user can start: the app shows the line for their own terminal and does not run it.
+export const StartBlock = ({ start, why }) => (
+  <Stack gap={4}>
+    <Text size="sm">Start in a terminal: {start.agent} in <Code>{start.dir}</Code>{why ? `, ${why}` : ''}</Text>
+    <Group gap="xs" wrap="nowrap" align="flex-start">
+      <Code block tabIndex={0} style={{ flex: 1, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{start.command}</Code>
+      <Button size="compact-xs" variant="default" leftSection={icon(IconCopy)} aria-label={`Copy the command for ${start.prompt}`} onClick={() => navigator.clipboard?.writeText(start.command).catch(() => {})}>Copy</Button>
+    </Group>
   </Stack>
 );
 

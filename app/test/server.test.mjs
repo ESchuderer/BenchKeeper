@@ -13,7 +13,7 @@ import { SANDBOX, viaSrt } from './fixtures/srt.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
-import { projectPlan } from '../src/steps/project.mjs';
+import { projectPlan, recordCommand } from '../src/steps/project.mjs';
 import { status as projectStatus } from '../src/projects.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
@@ -455,6 +455,26 @@ test('project-plan: disable and enable only name skills the project has', () => 
   assert.equal(status(() => routes['GET /api/project-plan'](q([['enable', '../../etc']]))), 400);
   const off = routes['GET /api/project-plan'](q([['disable', skill]]));
   assert.ok(off.chosen.find((s) => s.name === skill).disabled);
+});
+
+test('a user-started step: project-plan names the record command, doctor repeats it until the files exist', () => {
+  const { ctx, routes } = fixture();
+  const dir = mkdtempSync(join(TMP, "bk-start-it's "));
+  const pctx = { ...ctx, roots: [dir] };
+  apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host', packs: ['matt-pocock'] }, plugins: { claude: ['mattpocock-skills@claude-plugins-official'] } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
+  const q = new URLSearchParams({ dir });
+  // Unregistered: no plan, no doctor, so no command to show.
+  assert.equal(status(() => routes['GET /api/project-plan'](q)), 400);
+  assert.equal(status(() => routes['GET /api/doctor'](q)), 400);
+  routes['POST /api/projects']({ action: 'add', path: dir });
+  const pack = routes['GET /api/project-plan'](q).prompts[1];
+  assert.equal(pack.command, `benchkeeper sessions record --project '${dir.replace("'", "'\\''")}' -- claude '/mattpocock-skills:setup-matt-pocock-skills'`);
+  assert.equal(pack.command, recordCommand(dir, 'claude', pack.prompt));
+  const packs = () => routes['GET /api/doctor'](q).filter((i) => i.check === 'packs');
+  assert.deepEqual(packs().map((i) => [i.level, i.start]), [['warning', { agent: 'claude', dir, prompt: pack.prompt, command: pack.command }]]);
+  // Check again after the session wrote the folder: the warning is gone.
+  mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+  assert.ok(!packs().some((i) => i.level === 'warning'));
 });
 
 test('dashboard: the numbers equal the inventory and the project status; one read per load; coverage and catalog by pack', () => {

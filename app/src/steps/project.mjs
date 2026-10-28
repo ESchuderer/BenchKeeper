@@ -576,14 +576,20 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // Where the agent runs, written by hand outside the block, may contradict the chosen environment; prose is not removed.
   const said = agentPlace(handWritten(dir));
   const envWarning = said && said !== placeOf(a.env) ? [`AGENTS.md also says where commands run outside the BenchKeeper block: check that it agrees with the chosen environment (${a.env}) or remove it.`] : [];
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning, ...frameworkNotices({ a, prev })] };
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...envWarning, ...frameworkNotices({ a, prev })] };
 }
 
+const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
+// The line the user pastes in their own terminal: the app shows it and never runs it.
+export const recordCommand = (dir, agent, prompt) => `benchkeeper sessions record --project ${quote(dir)} -- ${agent} ${quote(prompt)}`;
+// The agent a user-started step names: Claude Code when chosen, else the first agent.
+export const promptAgent = (agents) => (agents.includes('claude') ? 'claude' : agents[0]);
+
 // What the user starts after the deterministic steps: the setup skill session, and the packs' own prompts.
-function promptsFor(a, lib = library()) {
-  const first = a.agents.includes('claude') ? 'claude' : a.agents[0];
+function promptsFor(a, dir, lib = library()) {
+  const first = promptAgent(a.agents);
   const p = [{ agent: first, prompt: first === 'codex' ? '$benchkeeper:setting-up-projects' : first === 'claude' ? '/benchkeeper:setting-up-projects' : 'Load the setting-up-projects skill and run it.', why: 'stack skills, AGENTS.md commands, the dev container' }];
   for (const id of a.packs) for (const x of lib.packs.find((y) => y.id === id)?.prompts ?? []) p.push({ agent: first, prompt: first === 'codex' ? x.codex : x.claude, why: x.why });
-  return p;
+  return p.map((x) => ({ ...x, dir, command: recordCommand(dir, x.agent, x.prompt) }));
 }
 

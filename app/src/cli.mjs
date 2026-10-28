@@ -552,7 +552,7 @@ async function command(argv, { out, err, ask, ctx }) {
       if (code) return code;
     }
     out.write('Then, in an agent session the app records:\n');
-    for (const p of prompts) out.write(`  benchkeeper sessions record --project ${dir} -- ${p.agent} '${p.prompt}'   (${p.why})\n`);
+    for (const p of prompts) out.write(`  ${p.command}   (${p.why})\n`);
     return 0;
   }
   if (cmd === 'projects' && arg === 'status') {

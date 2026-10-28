@@ -2,7 +2,7 @@
 name: maintaining-repos
 description: "Runs a repository-wide maintenance pass: dead code, duplicates, unused options and dependencies, dependency cycles, test audit by mutation, shortcut debt, dependency audit, version pins, docs drift, instruction-file audit, unused skills, repository hygiene."
 disable-model-invocation: true
-disallowed-tools: "Edit NotebookEdit"
+disallowed-tools: "Edit Write NotebookEdit"
 ---
 
 # Maintaining repositories

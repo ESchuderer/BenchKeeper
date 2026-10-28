@@ -116,7 +116,7 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
     if (!sandbox.tool) out.push(issue('info', 'sandbox', `the skill install preview is off: ${sandbox.why}`, 'install the programs named (Windows has none), or use "Rehearse anyway without a sandbox" in the preview'));
     else if (sandbox.tool !== 'srt') out.push(issue('info', 'sandbox', `the skill install preview confines writes only: ${sandbox.note}`, sandbox.fix));
   }
-  if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents', '.github/skills', '.gemini'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir, agents));
+  if (dir && resolve(dir) !== ctx.home && (tryState(dir) || ['.benchkeeper', 'AGENTS.md', 'CLAUDE.md', 'CLAUDE.local.md', '.claude', '.codex', '.agents', '.github/skills', '.gemini', 'docs/agents/orchestration.json'].some((f) => exists(join(dir, f))))) out.push(...projectChecks(ctx, dir, agents));
   if (dir && baseline) out.push(...baselineIssues(ctx, dir, baseline));
   return out;
 }

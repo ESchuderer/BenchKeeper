@@ -509,7 +509,9 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'knowledge') return knowledgeCommand({ o, positionals, out, ask });
   if (cmd === 'pins') {
     if (arg !== undefined && arg !== 'list') { out.write('pins needs list\n'); return 2; }
-    const { pins, errors } = resolvePins(resolve(positionals[2] ?? '.'));
+    const dir = resolve(positionals[2] ?? '.');
+    if (!isDir(dir)) { out.write(`${dir} is not a folder\n`); return 2; }
+    const { pins, errors } = resolvePins(dir);
     for (const e of errors) out.write(`${e.file}: ${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}\n`);
     if (errors.length) return 1;
     for (const p of pins) out.write(`${p.phase.padEnd(10)} ${(p.agent ?? 'session').padEnd(8)} ${(p.model ?? 'default').padEnd(24)} ${(p.effort ?? 'default').padEnd(8)} ${p.source}\n`);

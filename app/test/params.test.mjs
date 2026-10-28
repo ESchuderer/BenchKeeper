@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
@@ -11,7 +12,7 @@ import { doctor } from '../src/doctor.mjs';
 import { FILES, RULES, SCHEMA_VERSION, format, load, loadFiles, paramChecks, resolvePins } from '../src/params.mjs';
 import { context } from '../src/runner.mjs';
 
-const fixtures = new URL('./fixtures/params/', import.meta.url).pathname;
+const fixtures = fileURLToPath(new URL('./fixtures/params/', import.meta.url));
 const text = (...p) => readFileSync(join(fixtures, ...p), 'utf8');
 const tmp = () => mkdtempSync(join(tmpdir(), 'bk-params-'));
 const project = (files) => {
@@ -134,4 +135,29 @@ test('doctor: the personal pins file must be ignored by git', () => {
 test('files are found under the paths the schema families name', () => {
   const dir = project(Object.fromEntries(Object.values(FILES).flat().map((f) => [f, '{}'])));
   assert.deepEqual(Object.keys(FILES).map((f) => loadFiles(dir, f).length), [2, 1, 1]);
+});
+
+test('doctor checks a project that has only the orchestrator policy', () => {
+  const dir = project({ 'docs/agents/orchestration.json': text('policy', 'invalid', 'type.json') });
+  assert.ok(doctor(stub([]), { agents: ['claude'], dir }).some((i) => i.check === 'params' && /orchestration\.json: type/.test(i.message)));
+});
+
+test('a preset list with several null entries is validated without throwing', () => {
+  const { errors } = load('preset', JSON.stringify({ schemaVersion: 1, presets: [null, null] }));
+  assert.ok(errors.length > 0 && errors.every((e) => e.rule !== 'duplicate-preset'));
+});
+
+test('an unreadable pin file is an error, not the session defaults', async () => {
+  const dir = project({});
+  mkdirSync(join(dir, '.benchkeeper/pins.json'), { recursive: true });
+  assert.deepEqual(paramChecks(stub([]), dir).map((i) => [i.level, i.check, i.message]), [['error', 'params', '.benchkeeper/pins.json: unreadable: cannot be read']]);
+  let out = '';
+  assert.equal(await main(['pins', 'list', dir], { out: new Writable({ write(c, _, d) { out += c; d(); } }), ctx: stub([]) }), 1);
+  assert.match(out, /pins\.json: unreadable/);
+});
+
+test('pins list rejects a folder that does not exist', async () => {
+  let out = '';
+  assert.equal(await main(['pins', 'list', join(tmp(), 'missing')], { out: new Writable({ write(c, _, d) { out += c; d(); } }), ctx: stub([]) }), 2);
+  assert.match(out, /is not a folder/);
 });

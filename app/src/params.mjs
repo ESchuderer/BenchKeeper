@@ -12,6 +12,7 @@ export const FILES = { pins: ['.benchkeeper/pins.json', '.benchkeeper/pins.local
 const SCHEMA_FILE = { pins: 'pins', preset: 'preset', policy: 'orchestration' };
 export const PHASES = ['research', 'implement', 'review', 'verify'];
 // Every rule an error can name; the tests keep one invalid fixture for each.
+// loadFiles adds 'unreadable' for a file that exists but cannot be read; it has no document, so no fixture.
 export const RULES = ['bad-json', 'not-object', 'schema-version', 'required', 'type', 'enum', 'length', 'pattern', 'range', 'unique', 'unknown-key', 'unknown-agent', 'effort-without-model', 'duplicate-preset'];
 
 const schemas = {};
@@ -63,7 +64,8 @@ function extra(family, doc, errors) {
   if (family === 'preset' && Array.isArray(doc.presets)) {
     const seen = new Set();
     for (const [i, p] of doc.presets.entries()) {
-      const key = `${p?.tier}/${p?.changeType ?? ''}`;
+      if (!p || typeof p !== 'object') continue;
+      const key = `${p.tier}/${p.changeType ?? ''}`;
       if (seen.has(key)) errors.push({ rule: 'duplicate-preset', path: `presets[${i}]`, message: `tier ${p.tier}${p.changeType ? ` with change type ${p.changeType}` : ''} is already set` });
       seen.add(key);
     }
@@ -88,7 +90,8 @@ export const format = (doc) => `${JSON.stringify(doc, null, 2)}\n`;
 export function loadFiles(dir, family) {
   return FILES[family].flatMap((file) => {
     const text = readText(join(dir, file));
-    if (text == null) return [];
+    // A missing file is absent; one that exists but cannot be read is an error, never a silent fallback to the session defaults.
+    if (text == null) return exists(join(dir, file)) ? [{ file, doc: null, errors: [{ rule: 'unreadable', path: '', message: 'cannot be read', file }] }] : [];
     const { doc, errors } = load(family, text);
     return [{ file, doc, errors: errors.map((e) => ({ ...e, file })) }];
   });

@@ -81,7 +81,7 @@ export function committedSetup(dir) {
     if (Object.keys(tryJson(ownOff(state)(shared)) ?? {}).length) add('sandbox', '.claude/settings.json without the sandbox keys and guards BenchKeeper set', { kind: 'write', path: at('.claude/settings.json'), edit: ownOff(state) });
     else add('sandbox', 'remove .claude/settings.json (only the keys BenchKeeper set)', { kind: 'remove', path: at('.claude/settings.json') });
   }
-  if (state?.guards && exists(at(GUARD_PATH))) add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH) });
+  if (state?.guards && exists(at(GUARD_PATH))) add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH), selected: readText(at(GUARD_PATH)) === guardScript() });
   for (const c of frameworkRemovals(dir, state, 'project')) add(c.step, c.title, c);
   installedFiles(dir, state, add);
   return changes;
@@ -111,7 +111,7 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
     if (Object.keys(tryJson(ownOff(state)(settings)) ?? {}).length) add('sandbox', `${LOCAL_SETTINGS} without the sandbox keys and guards BenchKeeper set`, { kind: 'write', path: at(LOCAL_SETTINGS), edit: ownOff(state) });
     else add('sandbox', `remove ${LOCAL_SETTINGS} (only the keys BenchKeeper set)`, { kind: 'remove', path: at(LOCAL_SETTINGS) });
   }
-  if (state?.guards && exists(at(GUARD_PATH)) && git(ctx, dir, ['ls-files', '--', GUARD_PATH]).stdout.trim() === '') add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH) });
+  if (state?.guards && exists(at(GUARD_PATH)) && git(ctx, dir, ['ls-files', '--', GUARD_PATH]).stdout.trim() === '') add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH), selected: readText(at(GUARD_PATH)) === guardScript() });
   if (state?.agents?.includes('gemini')) {
     const g = agent('gemini').project.rules.setting;
     const v = g.key.reduce((o, k) => o?.[k], tryJson(readText(at(g.path))));

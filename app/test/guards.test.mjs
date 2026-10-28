@@ -39,10 +39,11 @@ const USUAL = ['git commit --no-verify', 'git commit -m "x" --no-verify', 'git c
 const ODD = ['git -C sub push -f', 'git -c push.default=current push --force', '/usr/bin/git push origin main -f', "git 'push' --force", 'git commit -anm "x"', 'git push origin +main',
   "bash -c 'git push --force'", 'sh -lc "git commit --no-verify -m x"', 'eval "sudo ls"', 'echo $(git push -f)', 'echo "$(git commit -n)"', 'env FOO=1 git push -f', 'timeout 30s git commit -n',
   'nice -n 5 sudo ls', 'cd x && git push origin main -f', 'git status; kubectl -n prod apply -f x', 'terraform -chdir=infra apply', 'helm --kube-context prod upgrade app .',
-  'if true; then git push -f; fi', 'cat <<EOF | bash\ngit push --force\nEOF', 'bash <<EOF\nsudo ls\nEOF', 'xargs git push -f', 'FOO=1 sudo -u root ls', 'git\\\n push -f', 'git commit -m x -- a && git commit -n'];
+  'if true; then git push -f; fi', 'cat <<EOF | bash\ngit push --force\nEOF', 'bash <<EOF\nsudo ls\nEOF', 'xargs git push -f', 'FOO=1 sudo -u root ls', 'git\\\n push -f', 'git commit -m x -- a && git commit -n',
+  'cat <<< "x"\ngit push -f', 'env -u VAR git push -f', 'timeout -s KILL 10 git push -f', 'xargs -I X git push -f', 'env -C dir git push -f'];
 const FINE = ['git commit -m "fix: no-verify docs"', 'git commit -m "x -n y"', "git commit -m '--no-verify'", 'git commit -am msg', 'git commit -m n', 'git push origin main', 'git push -u origin feature', 'git push --set-upstream origin x',
   'git log --grep sudo', 'echo sudo', 'grep -r "git push -f" .', 'terraform plan', 'terraform show apply.tfplan', 'kubectl get pods', 'helm list', 'git status', 'npm test && git diff -n',
-  'git commit -F msg.txt', 'git push -o ci.skip origin main', 'cat <<EOF\ngit push -f\nEOF', 'git commit -m "$(cat <<\'EOF\'\nfix: it\'s fine, no --no-verify here\nEOF\n)"', 'git commit -m "it\'s" -- file', '', '# git push -f'];
+  'git commit -F msg.txt', 'git push -o ci.skip origin main', 'cat <<EOF\ngit push -f\nEOF', 'git commit -m "$(cat <<\'EOF\'\nfix: it\'s fine, no --no-verify here\nEOF\n)"', 'git commit -m "it\'s" -- file', '', '# git push -f', 'cat <<< "x"\ngit status', 'env -u VAR git status', 'timeout -s KILL 10 git push origin main'];
 
 test('each denied command form is denied by a rule or by the hook; nothing else is', () => {
   for (const c of USUAL) assert.ok(ruled(c) && denyReason(c), c);
@@ -141,6 +142,12 @@ test('remove setup takes the guards out of a local and of a committed setup', ()
   const shared = committedSetup(s.dir).filter((c) => c.step === 'sandbox' || c.step === 'guards');
   assert.deepEqual(shared.map((c) => c.kind), ['write', 'remove']);
   assert.deepEqual(JSON.parse(shared[0].edit(read(join(s.dir, '.claude/settings.json')))), { permissions: { deny: ['Read(./.env)'] } });
+  // A guard script the user edited is offered for removal, not preselected.
+  assert.deepEqual([local, shared].map((l) => l.at(-1).selected), [true, true]);
+  for (const [dir, l] of [[r.dir, () => localSetup(r.ctx, r.dir)], [s.dir, () => committedSetup(s.dir)]]) {
+    writeFileSync(join(dir, GUARD_PATH), '// mine\n');
+    assert.equal(l().find((c) => c.step === 'guards').selected, false);
+  }
 });
 
 test('doctor: on and complete is quiet, on and missing is a warning, off and present is an info', () => {

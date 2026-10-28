@@ -9,6 +9,8 @@ import { pathToFileURL } from 'node:url';
 const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash', 'ksh', 'fish']);
 // Words that run or prefix another command: the command follows (with their own flags and numbers).
 const WRAP = new Set(['env', 'command', 'exec', 'nohup', 'time', 'nice', 'timeout', 'stdbuf', 'xargs', 'builtin', 'setsid', 'ionice', '{', '}', '!', 'if', 'then', 'else', 'elif', 'do', 'while', 'until']);
+// Of those, the ones whose options take a separate value (env -u VAR, timeout -s KILL, xargs -I X): the command can be any later word.
+const WIDE = new Set(['env', 'timeout', 'xargs', 'stdbuf', 'time', 'exec', 'ionice', 'nice']);
 const base = (w) => w.split('/').pop();
 
 // Splits a command text into simple commands: { words, bodies } with quotes removed and the heredoc bodies that follow.
@@ -30,7 +32,9 @@ function split(text) {
     if (c === "'" || c === '"') { quote = c; word ??= ''; continue; }
     if (c === '\\') { if (text[i + 1] !== '\n') word = (word ?? '') + (text[i + 1] ?? ''); i++; continue; }
     if (c === '#' && word === null) { while (i < text.length && text[i] !== '\n') i++; i--; continue; }
-    if (c === '<' && text.startsWith('<<', i) && text[i + 2] !== '<') {
+    // `<<<` is a here-string: its word is an argument, not a heredoc delimiter.
+    if (c === '<' && text.startsWith('<<<', i)) { flush(); i += 2; continue; }
+    if (c === '<' && text.startsWith('<<', i)) {
       const m = text.slice(i).match(/^<<-?[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|()<>]+))/);
       if (m) { heredocs.push(m[1] ?? m[2] ?? m[3]); i += m[0].length - 1; continue; }
     }
@@ -88,6 +92,20 @@ function git(args) {
   return found.size ? `git ${sub} with ${[...found].join(', ')}` : null;
 }
 
+// The reason to deny a command word with its arguments, or null.
+function check(cmd, args, bodies, depth) {
+  if (cmd === 'sudo') return 'sudo';
+  if (cmd === 'git') return git(args);
+  if (cmd === 'terraform' || cmd === 'kubectl') return args.includes('apply') ? `${cmd} apply` : null;
+  if (cmd === 'helm') return args.includes('upgrade') ? 'helm upgrade' : null;
+  if (cmd === 'eval') return denyReason(args.join(' '), depth + 1);
+  if (SHELLS.has(cmd)) {
+    const c = args.findIndex((a) => /^-[a-z]*c[a-z]*$/.test(a));
+    return c >= 0 && args[c + 1] != null ? denyReason(args[c + 1], depth + 1) : bodies.map((b) => denyReason(b, depth + 1)).find(Boolean) ?? null;
+  }
+  return null;
+}
+
 // The reason to deny a command text, or null.
 export function denyReason(text, depth = 0) {
   if (typeof text !== 'string' || depth > 5) return null;
@@ -97,24 +115,18 @@ export function denyReason(text, depth = 0) {
     if (r) return r;
   }
   for (const { words, bodies } of split(text)) {
-    let i = 0;
+    let i = 0, wide = false;
     for (; i < words.length; i++) {
       if (/^[A-Za-z_]\w*=/.test(words[i])) continue;
       if (!WRAP.has(base(words[i]))) break;
+      wide ||= WIDE.has(base(words[i]));
       while (/^(-|\d|[A-Za-z_]\w*=)/.test(words[i + 1] ?? '')) i++;
     }
-    const cmd = base(words[i] ?? ''), args = words.slice(i + 1);
-    let r = null;
-    if (cmd === 'sudo') r = 'sudo';
-    else if (cmd === 'git') r = git(args);
-    else if (cmd === 'terraform' || cmd === 'kubectl') r = args.includes('apply') ? `${cmd} apply` : null;
-    else if (cmd === 'helm') r = args.includes('upgrade') ? 'helm upgrade' : null;
-    else if (cmd === 'eval') r = denyReason(args.join(' '), depth + 1);
-    else if (SHELLS.has(cmd)) {
-      const c = args.findIndex((a) => /^-[a-z]*c[a-z]*$/.test(a));
-      r = c >= 0 && args[c + 1] != null ? denyReason(args[c + 1], depth + 1) : bodies.map((b) => denyReason(b, depth + 1)).find(Boolean) ?? null;
+    // shortcut: after such a wrapper every later word counts as the command, so `timeout 5 echo sudo` is denied too.
+    for (let j = i; j < (wide ? words.length : i + 1); j++) {
+      const r = check(base(words[j] ?? ''), words.slice(j + 1), bodies, depth);
+      if (r) return r;
     }
-    if (r) return r;
   }
   return null;
 }

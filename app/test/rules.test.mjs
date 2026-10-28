@@ -109,6 +109,22 @@ test('a switch for one project changes that project only: two projects, one glob
   assert.equal(row(ctx, 'claude', team, a).load, 'always');
 });
 
+test('a switch changes only its own pattern in claudeMdExcludes as the file holds it at apply time', () => {
+  const ctx = machine();
+  const team = join(ctx.home, '.claude/rules/20-team.md');
+  write(team, 'x\n');
+  const settings = join(ctx.home, '.claude/settings.json');
+  const excludes = () => JSON.parse(readFileSync(settings, 'utf8')).claudeMdExcludes;
+  const off = preview(ruleChanges(ctx, { agent: 'claude', file: team, on: false }));
+  write(settings, JSON.stringify({ claudeMdExcludes: ['**/added-later.md'] }));
+  assert.equal(apply(off, ctx, { scope: 'global' }).status, 'done');
+  assert.deepEqual(excludes(), ['**/added-later.md', team]);
+  const on = preview(ruleChanges(ctx, { agent: 'claude', file: team, on: true }));
+  write(settings, JSON.stringify({ claudeMdExcludes: ['**/other.md', team, '**/added-later.md'] }));
+  assert.equal(apply(on, ctx, { scope: 'global' }).status, 'done');
+  assert.deepEqual(excludes(), ['**/other.md', '**/added-later.md']);
+});
+
 test('a file left out by a layer this view cannot write, or by another pattern, is not switched on here', () => {
   const ctx = machine();
   const team = join(ctx.home, '.claude/rules/20-team.md');
@@ -432,6 +448,23 @@ test('an edit is refused for a file not listed, of BenchKeeper, global in a proj
   write(team, 'changed meanwhile\n');
   assert.equal(apply(plan, ctx, { scope: 'global' }).status, 'failed');
   assert.equal(readFileSync(team, 'utf8'), 'changed meanwhile\n');
+});
+
+test('an edit keeps CRLF line endings, and a file that is not UTF-8 or a folder is refused', () => {
+  const ctx = machine();
+  const crlf = join(ctx.home, '.claude/rules/30-crlf.md');
+  write(crlf, '# Team\r\nold\r\n');
+  const plan = preview(ruleEdit(ctx, { agent: 'claude', file: crlf, text: '# Team\nnew\n' }));
+  assert.equal(apply(plan, ctx, { scope: 'global' }).status, 'done');
+  assert.equal(readFileSync(crlf, 'utf8'), '# Team\r\nnew\r\n');
+  const latin = join(ctx.home, '.claude/rules/40-latin.md');
+  writeFileSync(latin, Buffer.from([0x23, 0x20, 0xe4, 0x0a]));
+  assert.throws(() => ruleEdit(ctx, { agent: 'claude', file: latin, text: 'x\n' }), /is not UTF-8 text: edit it in an editor/);
+  assert.throws(() => ruleDraft(ctx, { agent: 'claude', file: latin, text: 'x\n' }), /is not UTF-8 text/);
+  const folder = join(ctx.home, '.claude/rules/50-folder.md');
+  mkdirSync(folder, { recursive: true });
+  assert.ok(row(ctx, 'claude', folder), 'the folder is listed');
+  assert.throws(() => ruleEdit(ctx, { agent: 'claude', file: folder, text: 'x\n' }), /is a folder, not a file: edit it in an editor/);
 });
 
 test('the edit routes: a check and a plan write nothing, /api/apply writes, and no rule text reaches History or the profile', async () => {

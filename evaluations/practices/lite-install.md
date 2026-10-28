@@ -4,7 +4,7 @@ Category: practices, Checked 2026-10-25, Decision: Lite level in, trigger rate u
 
 ## Advertised
 
-- A plugin cannot ship always-on instructions: a `CLAUDE.md` at the plugin root is not loaded as context, and `claude plugin validate` warns about it ("put them in a skill"). Source: [plugins reference, standard layout](https://code.claude.com/docs/en/plugins-reference). Lite (the plugin alone) therefore depends on the description of the `workflow` skill to start it, where full level adds a rule line that says to load it.
+- A plugin cannot ship a rule file: a `CLAUDE.md` at the plugin root is not loaded as context, and `claude plugin validate` warns about it ("put them in a skill"). Source: [plugins reference, standard layout](https://code.claude.com/docs/en/plugins-reference). A plugin hook can add context, though: a `SessionStart` hook returns `additionalContext` (or plain stdout on exit 0), capped at 10,000 characters, and a plugin's hooks merge with the user's when it is enabled. Source: [hooks reference](https://code.claude.com/docs/en/hooks.md). BenchKeeper's plugin ships no such hook, so lite (the plugin alone) depends on the description of the `workflow` skill to start it, where full level adds a rule line that says to load it. Whether an injected line would raise the trigger rate is untested.
 
 ## Benchmark
 

@@ -102,7 +102,7 @@ jobs:
         working-directory: app
         run: npm run build && npm run test:ui
 
-  # The plugin as Claude Code reads it: manifest and skill front matter (strict), the marketplace file, the mod tests. Claude Code is pinned to the `stable` tag of its npm package; bump the pin by hand.
+  # The plugin as Claude Code reads it: manifest and skill front matter (strict), the marketplace file, the mod tests. Claude Code is pinned by `.github/claude-code/package-lock.json` (the `stable` tag of its npm package); bump it by hand.
   plugin-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -118,7 +118,8 @@ jobs:
         with:
           node-version: 22.23.3
       - name: Install Claude Code
-        run: npm install --global --no-audit --no-fund @anthropic-ai/claude-code@2.1.308
+        working-directory: .github/claude-code
+        run: npm ci --no-audit --no-fund && echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Validate the plugin and the marketplace
         run: claude plugin validate plugins/benchkeeper --strict && claude plugin validate .
       - name: Plugin mod tests

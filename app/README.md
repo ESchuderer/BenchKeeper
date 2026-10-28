@@ -224,6 +224,7 @@ Every route of the UI server (`src/server.mjs`) with the command that does the s
 | `GET /api/one-run` | `UI internal` | start state of the one-run dialog |
 | `POST /api/setup-advice` | `projects advise` | |
 | `POST /api/board-ticket` | `UI internal` | |
+| `POST /api/ponytail-board` | `UI internal` | opens Ponytail's own board file with the system opener; 400 when it is missing |
 | `POST /api/shutdown` | `UI internal` | |
 | `POST /api/sessions-scan` | `sessions list`, `sessions board` | both scan; `sessions board --json` prints the rows |
 | `GET /api/sessions-cache` | `sessions cache show` | |

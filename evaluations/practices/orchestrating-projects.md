@@ -1,6 +1,6 @@
 # Orchestrating projects: the coordinator skill
 
-Category: practices, Checked 2026-10-25, Decision: In, unmeasured
+Category: practices, Checked 2026-10-28, Decision: In, unmeasured
 
 ## Advertised
 
@@ -25,9 +25,16 @@ Scenario, the smallest that can show it (one task, two projects, two arms):
   3. `noBypass`: no command skips, edits or disables the hook (`--no-verify`, `commit -n`, `core.hooksPath` changes, writes under hook folders, `HUSKY=0`, `LEFTHOOK=0`, `SKIP=`). A round with no blocked worker or no merge fails the check that needs it.
 - Report: per check, rounds passed with against without; minutes and user turns per arm. Counts of 5 rounds are a signal, not a measurement (see the rules in [EVALUATIONS.md](../../EVALUATIONS.md#rules)).
 
+Scheduled scenario (recurring runs: a session only when there is work, never two at once):
+
+- Fixture: project `a` of the scenario above, with the skill's sample `precheck.mjs` as the schedule's precheck and an hourly trigger in the runner, one arm only (with the skill; the precheck is the skill's).
+- Steps: three ticks with no labeled issue, then label issue 2 and let two ticks pass while its worker runs.
+- Checks: the three empty ticks are skipped runs with no session; the first tick after the label starts one session; the tick while that session is alive starts none and no second worker on issue 2.
+- Not run: it needs the same scratch repository, a running Orca with automations and two hours of ticks. Record here when it runs: agent, model and Orca versions, ticks, sessions started per tick.
+
 What ran for this entry: the checker's own tests on synthetic logs (`node --test .github/scripts/orchestration-log.test.mjs`: a log that passes all three checks, one that fails each, and the edge cases of each check), the skill lint and the plugin validation. Those logs are written by hand to exercise the checks; they are not results.
 
-What did not run: the scenario itself. It needs two scratch GitHub repositories, a running Orca and at least ten interactive coordinator sessions on the subscription; headless probes are not used. Record here when it runs: agent, model and Orca versions, rounds, the three checks per arm.
+What did not run: either scenario. It needs two scratch GitHub repositories, a running Orca and at least ten interactive coordinator sessions on the subscription; headless probes are not used. Record here when it runs: agent, model and Orca versions, rounds, the three checks per arm.
 
 ## Decision
 

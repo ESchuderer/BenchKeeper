@@ -71,7 +71,7 @@ function Row({ row, layer, edits, setEdit }) {
           {row.setByApp && <Text size="sm">BenchKeeper's setup writes this key too: another value shows as drift in Doctor, and the next apply restores the setup's value.</Text>}
           {suggest && (own === undefined && edit === undefined) && (
             <Group gap="xs">
-              <Text size="sm">Suggested: {suggest.value == null ? 'leave unset' : String(suggest.value)}. {suggest.reason}</Text>
+              <Text size="sm">Suggested: {suggest.value == null ? 'leave unset' : text(suggest.value)}. {suggest.reason}</Text>
               {suggest.value != null && <Button size="compact-xs" variant="default" leftSection={icon(IconArrowBackUp)} aria-label={`Use suggestion for ${row.key}`} onClick={() => setEdit(row.key, suggest.value)}>Use suggestion</Button>}
               {suggest.source && <Anchor underline="always" size="sm" href={suggest.source} target="_blank" rel="noreferrer">Source</Anchor>}
             </Group>

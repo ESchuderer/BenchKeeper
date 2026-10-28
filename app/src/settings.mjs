@@ -178,7 +178,8 @@ export function validate(agentId, def, value, layer) {
     }
     case 'autoMode': {
       if (layer && layer !== 'user') return bad('the classifier reads it from the user file only (or managed settings)');
-      if (kind(value) !== 'object' || Object.keys(value).some((k) => !['allow', 'soft_deny', 'environment', 'hard_deny'].includes(k)) || Object.values(value).some((v) => !Array.isArray(v) || v.some((x) => typeof x !== 'string'))) return bad('an object with allow, soft_deny, environment and hard_deny, each a list of texts');
+      const { classifyAllShell, ...lists } = kind(value) === 'object' ? value : { classifyAllShell: 0 };
+      if (typeof (classifyAllShell ?? false) !== 'boolean' || Object.entries(lists).some(([k, v]) => !['allow', 'soft_deny', 'environment', 'hard_deny'].includes(k) || !Array.isArray(v) || v.some((x) => typeof x !== 'string'))) return bad('an object with allow, soft_deny, environment and hard_deny (lists of texts) and classifyAllShell (true or false)');
       return null;
     }
     case 'object': return bad('edit it in the file; the app shows it only');

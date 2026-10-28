@@ -384,6 +384,15 @@ test('autoMode is taken from the user file only; a project or local file is refu
   for (const layer of ['project', 'local']) assert.throws(() => settingsChanges(ctx, 'claude', { layer, dir, edits: { autoMode: { allow: ['$defaults'] } } }), /user file only|does not read autoMode/);
   assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: { allow: 'x' } } }), /object with allow/);
   assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: { other: [] } } }), /object with allow/);
+  assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: { classifyAllShell: 'yes' } } }), /object with allow/);
+  assert.throws(() => settingsChanges(ctx, 'claude', { edits: { autoMode: 'allow' } }), /object with allow/);
+  // The documented classifyAllShell boolean is kept in the object the editor writes.
+  write(claudeUser(ctx), JSON.stringify({ autoMode: { classifyAllShell: true } }));
+  const before = readFileSync(claudeUser(ctx), 'utf8');
+  const r = apply(preview(settingsChanges(ctx, 'claude', { edits: { autoMode: { allow: ['$defaults'], classifyAllShell: true } } })), ctx, { scope: 'global' });
+  assert.deepEqual(JSON.parse(readFileSync(claudeUser(ctx), 'utf8')).autoMode, { allow: ['$defaults'], classifyAllShell: true });
+  assert.equal(undo(r.id, ctx).status, 'done');
+  assert.equal(readFileSync(claudeUser(ctx), 'utf8'), before);
   write(join(dir, '.claude/settings.local.json'), JSON.stringify({ autoMode: { allow: ['$defaults'] } }));
   write(join(dir, 'AGENTS.md'), 'x\n');
   assert.ok(doctor(ctx, { agents: ['claude'], env: {}, dir }).some((i) => i.check === 'agent-settings' && /does not read autoMode/.test(i.message)));

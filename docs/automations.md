@@ -26,14 +26,14 @@ TOML front matter between two `+++` lines, then the prompt.
 | `precheck` | yes, lint | empty | a bounded, read-only command: exit code 0 starts the run, anything else skips it |
 | `missed_run_grace_minutes` | no | `0` | how long a missed run may still start |
 | `mode` | no | `report` | `report` or `act`; the value a run gets unless the install says otherwise |
-| `parameters` | no | none | one table per parameter with `description` (one line) and an optional `default` |
+| `parameters` | no | none | one table per parameter with `description` (one line), an optional `default` and an optional `allow` (a list of prefixes) |
 | `helpers` | no | none | scripts the precheck or the prompt call, each as `<id>/<file>`; an installed precheck and prompt name the copy in the config folder |
 
 Unknown keys are an error.
 
 ## Parameters
 
-`{{name}}` in the prompt and in the precheck is replaced when the template is filled. `{{mode}}` is always available. Filling rejects a parameter that is not declared, a declared parameter without a default that was not given, and a `{{name}}` that is not declared. A value may hold letters, digits and `_ @ . / : , + = -` only, because it ends up in a shell command. A list default is joined with commas, and a default that holds other characters is an error when the template is parsed.
+`{{name}}` in the prompt and in the precheck is replaced when the template is filled. `{{mode}}` is always available. Filling rejects a parameter that is not declared, a declared parameter without a default that was not given, and a `{{name}}` that is not declared. A value may hold letters, digits and `_ @ . / : , + = -` only, because it ends up in a shell command. A list default is joined with commas, and a default that holds other characters is an error when the template is parsed. With `allow`, each comma-separated item of the value must start with one of its prefixes and hold no `..`: a default that does not is an error when the template is parsed (so the lint fails), and filling or installing rejects such a value.
 
 ## Lint
 
@@ -134,7 +134,7 @@ The generic templates, ranked by what the projects need. A row without a templat
 | Issue triage: classifies, finds duplicates, drafts questions; never sets the agent label | every few hours | issues without a triage label | labels, comments | planned, [#353](https://github.com/ESchuderer/BenchKeeper/issues/353) |
 | Code-scanning and quality-gate findings to fix workers, grouped by rule | weekly | open findings | pull requests | planned, [#354](https://github.com/ESchuderer/BenchKeeper/issues/354) |
 | `release-watch`: Release watch: the package at the version in the registry (`registry`), the version pins in the README and docs, the release notes and an install in a clean container (`install_command`, empty: an npm install); never publishes, tags or edits a release | hourly | a valid release tag without a recorded pass, or a failure older than a day | one issue per failing tag, updated by the next check and closed after a pass (act mode) | template, [#355](https://github.com/ESchuderer/BenchKeeper/issues/355) |
-| `provider-changelog`: Provider changelog scan: what the installed agent CLIs changed that affects the setup (settings, hooks, deprecations, new events), with proposals for the settings catalog and Insights; reads only the official release notes in `sources`, uses a subscription session | weekly | an installed agent version the last report does not name; refuses a source that is not an official provider page | one local report (`file`) | template, [#357](https://github.com/ESchuderer/BenchKeeper/issues/357) |
+| `provider-changelog`: Provider changelog scan: what the installed agent CLIs changed that affects the setup (settings, hooks, deprecations, new events), with proposals for the settings catalog and Insights; reads only the official release notes in `sources` (install refuses a page outside its `allow` list), uses a subscription session | weekly | an installed agent version the last report does not name | one local report (`file`) | template, [#357](https://github.com/ESchuderer/BenchKeeper/issues/357) |
 | `update-all`: Update all for the registered projects; skips a project whose git config that runs code is not confirmed (`benchkeeper projects confirm-git <dir>`) | weekly | a project the dry run reports ready | setup commits, pushes and pull requests in act mode (push off by default) | template, [#358](https://github.com/ESchuderer/BenchKeeper/issues/358) |
 
 Not offered: merging external pull requests, applying the agent label, changing settings or rulesets, switching accounts automatically.

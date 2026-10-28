@@ -1,7 +1,8 @@
 #!/bin/sh
 # Usage: precheck.sh <report file> <sources, comma separated>
-# Exit 2 for a source that is not an official provider page. Exit 0 to start the run: no session of this automation is
-# alive, an agent CLI is installed, and there is no report yet or it lacks a line "<agent> <version>" of versions.sh.
+# Exit 2 for a source that is not an official provider page (the allow list of the template, checked again here).
+# Exit 0 to start the run: no session of this automation is alive, an agent CLI is installed, and there is no report yet
+# or it lacks a line "<agent> <version>" of versions.sh.
 [ -n "$2" ] || { echo "sources is empty" >&2; exit 2; }
 for s in $(echo "$2" | tr , ' '); do
   case "$s" in
@@ -9,7 +10,7 @@ for s in $(echo "$2" | tr , ' '); do
     github.com/anthropics/claude-code/*|code.claude.com/docs/*|docs.claude.com/*|docs.anthropic.com/*) continue ;;
     github.com/openai/codex/*|developers.openai.com/codex/*) continue ;;
     github.com/google-gemini/gemini-cli/*) continue ;;
-    github.com/github/copilot-cli/*|docs.github.com/*/copilot/*|github.blog/changelog/*) continue ;;
+    github.com/github/copilot-cli/*|docs.github.com/en/copilot/*|github.blog/changelog/*) continue ;;
   esac
   echo "not an official provider page: $s" >&2
   exit 2

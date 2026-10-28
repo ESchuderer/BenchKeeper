@@ -15,7 +15,8 @@ description = "The report file, relative to the project checkout or absolute; ea
 
 [parameters.sources]
 default = ["github.com/anthropics/claude-code/blob/main/CHANGELOG.md", "github.com/openai/codex/releases", "github.com/google-gemini/gemini-cli/releases", "github.com/github/copilot-cli/releases"]
-description = "Official release note pages of the agent providers, as host/path without https:// and separated by commas; the precheck refuses any other page."
+allow = ["github.com/anthropics/claude-code/", "code.claude.com/docs/", "docs.claude.com/", "docs.anthropic.com/", "github.com/openai/codex/", "developers.openai.com/codex/", "github.com/google-gemini/gemini-cli/", "github.com/github/copilot-cli/", "docs.github.com/en/copilot/", "github.blog/changelog/"]
+description = "Official release note pages of the agent providers, as host/path without https:// and separated by commas; install refuses any other page."
 +++
 Marker: automation-provider-changelog. Mode: {{mode}}. Report: {{file}}. Sources: {{sources}}.
 Report only until mode is act.

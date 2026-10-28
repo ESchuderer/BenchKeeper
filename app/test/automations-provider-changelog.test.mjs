@@ -46,12 +46,16 @@ test('provider-changelog precheck: runs without a report or for a version the la
   assert.equal(precheck({}, v, 'claude 2.1.30\ncodex 0.50.0\n').code, 0, 'a version is matched as a whole line');
 });
 
-test('provider-changelog precheck: refuses a source that is not an official provider page', sh, () => {
-  const v = { claude: '2.1.3' };
-  for (const s of ['example.com/claude-code/CHANGELOG.md', 'github.com/someone/claude-code/releases', 'github.com/anthropics/claude-code/../../evil/x', 'github.com/anthropics', '']) {
-    const r = precheck({ sources: s }, v);
-    assert.equal(r.code, 2, s);
+test('provider-changelog: install and the precheck both refuse a source that is not an official provider page', sh, () => {
+  const t = template(), v = { claude: '2.1.3' };
+  for (const s of ['example.com/claude-code/CHANGELOG.md', 'github.com/someone/claude-code/releases', 'github.com/anthropics/claude-code/../../evil/x', 'github.com/anthropics', 'github.com/openai/codex/releases,reddit.com/r/codex', '']) {
+    assert.throws(() => fill(t, { file: 'r.md', sources: s }), /does not start with/, s);
+    // The precheck called as installed, with the value fill refused.
+    const r = spawnSync('sh', ['provider-changelog/precheck.sh', 'r.md', s], { cwd: genericDir, encoding: 'utf8' });
+    assert.equal(r.status, 2, s);
   }
-  assert.match(precheck({ sources: 'github.com/openai/codex/releases,reddit.com/r/codex' }, v).stderr, /not an official provider page: reddit\.com\/r\/codex/);
-  assert.equal(precheck({ sources: 'developers.openai.com/codex/changelog,docs.github.com/en/copilot/whats-new' }, v).code, 0);
+  for (const s of ['developers.openai.com/codex/changelog,docs.github.com/en/copilot/whats-new', t.parameters.sources.allow.map((a) => `${a}x`).join(',')]) {
+    assert.equal(fill(t, { file: 'r.md', sources: s }).values.sources, s);
+    assert.equal(precheck({ sources: s }, v).code, 0, s);
+  }
 });

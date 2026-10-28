@@ -872,7 +872,7 @@ test.describe('views', () => {
     await frontend.click();
     await expect(frontend).not.toBeChecked();
     const changes = page.getByRole('region', { name: /^Changes in / });
-    await expect(changes).toContainText('Remove:');
+    await expect(changes.getByRole('group', { name: 'Remove', exact: true })).toBeVisible();
     await expect(changes).toContainText('designing-technical-uis');
     await noAxe(page);
     await frontend.click();
@@ -880,7 +880,7 @@ test.describe('views', () => {
     // Copy packs from a project with none: the pack goes off in the plan, nothing is written yet.
     await choose(page, 'Copy packs from project', 'uno: no packs');
     await expect(frontend).not.toBeChecked();
-    await expect(changes).toContainText('Remove:');
+    await expect(changes.getByRole('group', { name: 'Remove', exact: true })).toBeVisible();
     await unregister(page, ['uno']);
   });
 
@@ -948,7 +948,7 @@ test.describe('views', () => {
     // Remove takes the single pick out of the project; the untracked folder is still there.
     await adopted.getByRole('button', { name: /^Remove/ }).click();
     const remove = page.getByRole('dialog', { name: 'Remove mermaid-diagrams in sk-proj' });
-    await expect(remove).toContainText('remove skill mermaid-diagrams');
+    await expect(remove.getByRole('group', { name: 'Remove', exact: true })).toContainText('Remove skill mermaid-diagrams');
     await remove.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
     await expect(remove.getByRole('button', { name: 'Undo run' })).toBeVisible();
     await remove.getByRole('button', { name: 'Close' }).click();
@@ -1015,7 +1015,8 @@ test.describe('views', () => {
     for (let i = 0; i < 4; i++) await drawer.getByRole('button', { name: 'Next' }).click();
     await expect(drawer).toContainText(/\d+ changes on branch/);
     await expect(drawer).toContainText('AGENTS.md');
-    await expect(drawer).toContainText('skill designing-technical-uis (own)');
+    await drawer.getByRole('button', { name: 'Show Install' }).click();
+    await expect(drawer).toContainText('Skill designing-technical-uis (own)');
     await noAxe(page);
     await drawer.getByRole('button', { name: 'Continue' }).click();
     await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();
@@ -1074,7 +1075,8 @@ test.describe('views', () => {
     await expect(drawer.getByText(/^Prefilled from Claude Code's suggestion/)).toBeVisible();
     await drawer.getByRole('radio', { name: /^In the repository/ }).check();
     for (let s = 0; s < 4; s++) await drawer.getByRole('button', { name: 'Next' }).click();
-    await expect(drawer).toContainText('skill designing-technical-uis (own)');
+    await drawer.getByRole('button', { name: 'Show Install' }).click();
+    await expect(drawer).toContainText('Skill designing-technical-uis (own)');
     await drawer.getByRole('button', { name: 'Continue' }).click();
     await drawer.getByRole('button', { name: 'Create branch and pull request' }).click();
     await expect(drawer.getByRole('link', { name: 'https://github.com/acme/alpha/pull/1' })).toBeVisible();
@@ -1113,7 +1115,7 @@ test.describe('views', () => {
   test('Dashboard: Fix everything walks through global setup, projects and manual fixes, then applies', async ({ page }) => {
     await page.getByRole('button', { name: 'Fix everything' }).click();
     const fix = page.getByRole('dialog', { name: 'Fix everything' });
-    await expect(fix.getByRole('checkbox', { name: /^global skill find-skills/ })).toBeChecked();
+    await expect(fix.getByRole('checkbox', { name: /^Global skill find-skills/ })).toBeChecked();
     // A marketplace and its plugin go together: one note for the pair, none per change.
     const pair = fix.getByRole('group', { name: '2 changes that go together' }).first();
     await expect(pair.getByRole('checkbox')).toHaveCount(2);
@@ -1154,13 +1156,87 @@ test.describe('views', () => {
     await nav(page, 'Global setup').click();
     await page.getByRole('button', { name: /^Plan setup for/ }).click();
     const changes = page.getByRole('region', { name: 'Changes' });
-    await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
-    // The result replaces the plan: the run report with each change, and a link to it in History.
+    const footer = changes.getByRole('group', { name: 'Selected changes' });
+    await expect(footer).toContainText(/[1-9]\d* changes? selected/);
+    const n = Number((await footer.textContent()).match(/(\d+) change/)[1]);
+    await changes.getByRole('button', { name: `Apply ${n} changes` }).click();
+    // The result replaces the plan: the run report with each change, its undo, and a link to it in History.
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await expect(changes.getByRole('button', { name: 'Undo run' })).toBeEnabled();
     await expect(changes.getByRole('link', { name: 'Open in History' })).toBeVisible();
     await expect(nav(page, 'History')).toContainText(String(before + 1));
     await nav(page, 'History').click();
     await expect(runs).toHaveCount(before + 1);
+  });
+
+  test('Apply preview: one card per group in order, a sentence, impact and chip per step, the command behind Show command, the plugins BenchKeeper did not install folded and unticked; keyboard, Cancel, 390 px; no axe violations', async ({ page }) => {
+    const write = (id, state, extra = {}) => ({ id, step: id, title: `${id} file`, kind: 'write', path: `/work/u/${id}.md`, diff: '', state, selected: true, ...extra });
+    const changes = [
+      ...[1, 2, 3, 4, 5, 6].map((n) => write(`skill-${n}`, 'absent')),
+      { id: 'market', step: 'plugin', unit: 'plugin', kind: 'command', title: 'Claude Code marketplace demo', argv: ['claude', 'plugin', 'marketplace', 'add', 'demo/market'], undoArgv: ['claude', 'plugin', 'marketplace', 'remove', 'demo'], state: null, selected: true },
+      { id: 'plugin', step: 'plugin', unit: 'plugin', kind: 'command', title: 'Claude Code plugin demo@demo', argv: ['claude', 'plugin', 'install', 'demo@demo'], undoArgv: ['claude', 'plugin', 'uninstall', 'demo@demo'], state: null, selected: true },
+      write('rules', 'outdated'), write('agents', 'modified'),
+      { id: 'old', step: 'state', kind: 'remove', title: 'remove .benchkeeper/old', path: '/p/.benchkeeper/old', destructive: true, state: 'foreign', selected: false },
+      { id: 'mcp', step: 'other:claude:mcp', kind: 'command', title: 'remove the Claude user MCP server demo', argv: ['claude', 'mcp', 'remove', '--scope', 'user', 'demo'], destructive: true, state: 'foreign', selected: false },
+      write('settings', 'outdated', { title: 'Claude default model opusplan', settings: { agent: 'claude', keys: ['model'] } }),
+      { id: 'off', step: 'off', kind: 'command', title: 'Codex plugin demo@demo: turn on by hand', argv: ['codex', 'plugin', 'add', 'demo@demo'], error: 'demo@demo is installed but turned off', state: null, selected: false },
+      { id: 'own', step: 'own', kind: 'command', foreign: true, pack: 'frontend', title: 'frontend (Claude Code plugin own@own) is installed on this machine, but BenchKeeper did not set it up. Keep it (default) or remove it.', argv: ['claude', 'plugin', 'uninstall', 'own@own'], undoArgv: ['claude', 'plugin', 'install', 'own@own'], impact: 'removing runs claude plugin uninstall own@own, which deletes the plugin and its data', destructive: true, state: 'foreign', selected: false },
+    ];
+    await page.route(/\/api\/global-plan(\?|$)/, (route) => route.fulfill({ json: { planId: 'preview-test', agents: ['claude'], changes } }));
+    await nav(page, 'Global setup').click();
+    await page.getByRole('button', { name: /^Plan setup for/ }).click();
+    const view = page.getByRole('region', { name: 'Changes' });
+    const card = (name) => view.getByRole('group', { name, exact: true });
+    await expect(card('Install')).toBeVisible();
+    const cards = await view.getByRole('group').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')).filter((l) => !/go together|^About /.test(l) && l !== 'Selected changes'));
+    expect(cards).toEqual(['Install', 'Update', 'Remove', 'Settings changes', 'Needs your action', 'Plugins BenchKeeper did not install']);
+    // No state word "foreign" and no raw command until asked for.
+    await expect(view).not.toContainText('foreign');
+    await expect(view).not.toContainText('claude plugin');
+    await expect(card('Update')).toContainText('outdated');
+    await expect(card('Update')).toContainText('modified');
+    await expect(card('Update')).toContainText('Replaces your edits in /work/u/agents.md. Undo in History restores them.');
+    await expect(card('Remove')).toContainText('installed by you');
+    await expect(card('Remove')).toContainText('installed by BenchKeeper');
+    await expect(card('Remove')).toContainText('Deletes /p/.benchkeeper/old. Undo in History puts it back.');
+    await expect(card('Settings changes').getByRole('group', { name: 'About model' })).toBeVisible();
+    await expect(card('Needs your action')).toContainText('Not applied: demo@demo is installed but turned off');
+    // A long card starts folded and opens by keyboard.
+    const showInstall = card('Install').getByRole('button', { name: 'Show Install' });
+    await expect(showInstall).toHaveAttribute('aria-expanded', 'false');
+    await expect(card('Install')).not.toContainText('Skill-1 file.');
+    await showInstall.focus();
+    await page.keyboard.press('Enter');
+    await expect(card('Install').getByRole('checkbox', { name: 'Skill-1 file.' })).toBeChecked();
+    await expect(card('Install')).toContainText('new');
+    await expect(card('Install')).toContainText('Creates /work/u/skill-1.md.');
+    // The command and its copy button behind Show command.
+    const show = card('Remove').getByRole('button', { name: 'Show command of remove the Claude user MCP server demo' });
+    await show.focus();
+    await page.keyboard.press('Enter');
+    await expect(card('Remove').getByText('claude mcp remove --scope user demo')).toBeVisible();
+    await expect(card('Remove').getByRole('button', { name: 'Copy the command of remove the Claude user MCP server demo' })).toBeVisible();
+    // Defaults leave every removal off; Select all in Remove ticks its rows and leaves the plugin the user installed alone.
+    const footer = view.getByRole('group', { name: 'Selected changes' });
+    await expect(footer).toContainText('11 changes selected');
+    await card('Remove').getByRole('checkbox', { name: 'Select all in Remove' }).focus();
+    await page.keyboard.press('Space');
+    await expect(footer).toContainText('13 changes selected');
+    await expect(card('Remove').getByRole('checkbox', { name: 'Remove the Claude user MCP server demo.' })).toBeChecked();
+    const own = card('Plugins BenchKeeper did not install');
+    await expect(own.getByRole('checkbox')).toHaveCount(0);
+    await own.getByRole('button', { name: 'Show Plugins BenchKeeper did not install' }).click();
+    await expect(own.getByRole('checkbox', { name: 'Remove own@own' })).not.toBeChecked();
+    await expect(view.getByRole('button', { name: 'Apply 13 changes' })).toBeEnabled();
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await noAxe(page);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    // Cancel applies nothing and the plan can be reviewed again.
+    await footer.getByRole('button', { name: 'Cancel' }).click();
+    await expect(view.getByRole('status')).toHaveText('Nothing applied.');
+    await view.getByRole('button', { name: 'Review the changes again' }).click();
+    await expect(footer).toContainText('13 changes selected');
   });
 
   test('Evals: one agent at a time, targets worst first, the chart and runs table of one target', async ({ page }) => {
@@ -1379,7 +1455,7 @@ test.describe('views', () => {
     await expect(errors).toBeHidden();
     await page.getByRole('button', { name: 'Review change' }).click();
     const changes = page.getByRole('region', { name: 'Changes' });
-    await expect(changes).toContainText('write .benchkeeper/pins.json');
+    await expect(changes).toContainText('Write .benchkeeper/pins.json');
     await expect(changes).toContainText('"// why": "kept"');
     await page.mouse.move(0, 0);
     await noAxe(page);
@@ -1456,8 +1532,8 @@ test.describe('views', () => {
       await changes.getByRole('button', { name: 'Close', exact: true }).click();
       await row.getByRole('button', { name: 'Remove Pull request watch' }).focus();
       await page.keyboard.press('Enter');
-      await expect(changes).toContainText('Remove: remove the');
-      await expect(changes.getByRole('checkbox', { name: /^Remove: / })).toBeChecked();
+      await expect(changes.getByRole('group', { name: 'Remove', exact: true })).toContainText('Remove the');
+      await expect(changes.getByRole('checkbox', { name: /^Remove the / })).toBeChecked();
       await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).focus();
       await page.keyboard.press('Enter');
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
@@ -1485,7 +1561,7 @@ test.describe('views', () => {
     for (const name of ['work', 'home']) {
       await page.getByLabel('Name', { exact: true }).fill(name);
       await page.getByRole('button', { name: 'Plan the new account' }).click();
-      await expect(changes).toContainText(`add claude account ${name}`);
+      await expect(changes).toContainText(`Add claude account ${name}`);
       await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await changes.getByRole('button', { name: 'Close' }).click();

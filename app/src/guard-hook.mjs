@@ -4,7 +4,8 @@
 // It only denies (exit 2 and one line on stderr); it never approves, writes nothing and reads only its input.
 // shortcut: a shell parser by hand, not a full one (no nesting inside command substitution, no variables, no aliases,
 // no abbreviated long options); a command it cannot read passes on to the normal permission flow.
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash', 'ksh', 'fish']);
 // Words that run or prefix another command: the command follows (with their own flags and numbers).
@@ -62,7 +63,9 @@ function split(text) {
 }
 
 // Short-flag letters that take the rest of the cluster (or the next word) as their value.
-const VALUE_LETTERS = { commit: 'mFCctuS', push: 'o' };
+const VALUE_LETTERS = { commit: 'mFCct', push: 'o' };
+// Letters whose value is optional and only ever attached (-S<keyid>, -u<mode>): they end the cluster, never take the next word.
+const ATTACHED_LETTERS = { commit: 'uS', push: '' };
 const VALUE_WORDS = new Set(['--message', '--file', '--author', '--date', '--template', '--fixup', '--squash', '--reuse-message', '--reedit-message', '--cleanup', '--push-option', '--repo', '--receive-pack', '--exec']);
 const GIT_VALUE_OPTS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--super-prefix', '--config-env']);
 
@@ -74,7 +77,10 @@ function git(args) {
   if (sub !== 'commit' && sub !== 'push') return null;
   const found = new Set();
   const rest = args.slice(i + 1);
-  for (let j = 0; j < rest.length && rest[j] !== '--'; j++) {
+  const stop = rest.indexOf('--');
+  // After `--` the words are not flags, but a push refspec with a leading + still forces.
+  if (sub === 'push' && stop >= 0 && rest.slice(stop + 1).some((a) => a.startsWith('+'))) found.add('a +refspec');
+  for (let j = 0; j < (stop < 0 ? rest.length : stop); j++) {
     const a = rest[j];
     if (VALUE_WORDS.has(a)) { j++; continue; }
     if (a === '--no-verify') found.add('--no-verify');
@@ -83,6 +89,7 @@ function git(args) {
     else if (a.startsWith('-')) {
       for (let k = 1; k < a.length; k++) {
         // The letter that takes a value ends the cluster; with nothing after it in the word, the value is the next word.
+        if (ATTACHED_LETTERS[sub].includes(a[k])) break;
         if (VALUE_LETTERS[sub].includes(a[k])) { if (k === a.length - 1) j++; break; }
         if (a[k] === 'n') found.add('-n');
         if (a[k] === 'f' && sub === 'push') found.add('-f');
@@ -139,7 +146,9 @@ export function decide(input) {
   return why && `BenchKeeper guard: ${why} is denied in this project (the rules without exceptions); ask the user to run it themselves`;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Node resolves the main module to its real path but leaves process.argv[1] as given, so compare real paths (a symlinked project path).
+const isMain = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
+if (process.argv[1] && isMain()) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (d) => { input += d; });

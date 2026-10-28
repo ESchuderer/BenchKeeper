@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -40,10 +40,12 @@ const ODD = ['git -C sub push -f', 'git -c push.default=current push --force', '
   "bash -c 'git push --force'", 'sh -lc "git commit --no-verify -m x"', 'eval "sudo ls"', 'echo $(git push -f)', 'echo "$(git commit -n)"', 'env FOO=1 git push -f', 'timeout 30s git commit -n',
   'nice -n 5 sudo ls', 'cd x && git push origin main -f', 'git status; kubectl -n prod apply -f x', 'terraform -chdir=infra apply', 'helm --kube-context prod upgrade app .',
   'if true; then git push -f; fi', 'cat <<EOF | bash\ngit push --force\nEOF', 'bash <<EOF\nsudo ls\nEOF', 'xargs git push -f', 'FOO=1 sudo -u root ls', 'git\\\n push -f', 'git commit -m x -- a && git commit -n',
-  'cat <<< "x"\ngit push -f', 'env -u VAR git push -f', 'timeout -s KILL 10 git push -f', 'xargs -I X git push -f', 'env -C dir git push -f'];
+  'cat <<< "x"\ngit push -f', 'env -u VAR git push -f', 'timeout -s KILL 10 git push -f', 'xargs -I X git push -f', 'env -C dir git push -f',
+  'git commit -S -n', 'git -C x commit -S --no-verify', 'git commit -u -n', 'git push -- origin +main'];
 const FINE = ['git commit -m "fix: no-verify docs"', 'git commit -m "x -n y"', "git commit -m '--no-verify'", 'git commit -am msg', 'git commit -m n', 'git push origin main', 'git push -u origin feature', 'git push --set-upstream origin x',
   'git log --grep sudo', 'echo sudo', 'grep -r "git push -f" .', 'terraform plan', 'terraform show apply.tfplan', 'kubectl get pods', 'helm list', 'git status', 'npm test && git diff -n',
-  'git commit -F msg.txt', 'git push -o ci.skip origin main', 'cat <<EOF\ngit push -f\nEOF', 'git commit -m "$(cat <<\'EOF\'\nfix: it\'s fine, no --no-verify here\nEOF\n)"', 'git commit -m "it\'s" -- file', '', '# git push -f', 'cat <<< "x"\ngit status', 'env -u VAR git status', 'timeout -s KILL 10 git push origin main'];
+  'git commit -F msg.txt', 'git push -o ci.skip origin main', 'cat <<EOF\ngit push -f\nEOF', 'git commit -m "$(cat <<\'EOF\'\nfix: it\'s fine, no --no-verify here\nEOF\n)"', 'git commit -m "it\'s" -- file', '', '# git push -f', 'cat <<< "x"\ngit status', 'env -u VAR git status', 'timeout -s KILL 10 git push origin main',
+  'git commit -S -m x', 'git commit -Skey -m x', 'git commit -u -m x', 'git push -- origin main'];
 
 test('each denied command form is denied by a rule or by the hook; nothing else is', () => {
   for (const c of USUAL) assert.ok(ruled(c) && denyReason(c), c);
@@ -57,6 +59,11 @@ test('the hook only denies: exit 2 with one line, or no output and exit 0', () =
   assert.deepEqual([denied.status, denied.stdout, denied.stderr.trim().split('\n').length], [2, '', 1]);
   assert.match(denied.stderr, /^BenchKeeper guard: git push with -f is denied/);
   for (const ok of [call('git status'), call('git push -f', 'Read'), spawnSync(process.execPath, [new URL('../src/guard-hook.mjs', import.meta.url).pathname], { input: 'not json', encoding: 'utf8' })]) assert.deepEqual([ok.status, ok.stdout, ok.stderr], [0, '', '']);
+  // Run through a symlinked directory the hook still denies (Node resolves the main module, argv[1] stays as given).
+  const link = join(mkdtempSync(join(TMP, 'bk-link-')), 'src');
+  symlinkSync(new URL('../src', import.meta.url).pathname, link);
+  const viaLink = spawnSync(process.execPath, [join(link, 'guard-hook.mjs')], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push -f' } }), encoding: 'utf8' });
+  assert.equal(viaLink.status, 2);
   // Input of other shapes and a loop of eval stay quiet instead of failing.
   assert.equal(decide(JSON.stringify({ tool_name: 'Bash', tool_input: {} })), null);
   assert.equal(denyReason('eval eval eval eval eval eval eval "sudo ls"'), null);

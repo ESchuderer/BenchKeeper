@@ -2,7 +2,7 @@ import { Badge, Button, Code, Group, List, Loader, Modal, Paper, Radio, Stack, T
 import { useRef, useState } from 'react';
 import { api } from './api.js';
 import { fixAction } from './fix.jsx';
-import { CancelJob, Cli, useJob } from './parts.jsx';
+import { CancelJob, Cli, SettingFactsOf, useJob } from './parts.jsx';
 import { Dot, Loading, Note, href, useApi } from './shell.jsx';
 import { ActionPlan } from './skillstates.jsx';
 
@@ -40,6 +40,7 @@ function Card({ finding: f, busy, onTriage, onPlan }) {
         </Group>
         <Title order={3} size="h5" id={`finding-${f.key}`}>{f.message}</Title>
         <Evidence finding={f} />
+        {f.settings && <SettingFactsOf settings={f.settings} />}
         {!((action || plan) && f.fix.startsWith('benchkeeper ')) && <Text size="sm">{f.fix}</Text>}
         <Group gap="xs">
           {action && <Button component="a" href={action[0]} size="xs">Apply</Button>}

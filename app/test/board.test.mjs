@@ -39,6 +39,29 @@ test('registered projects and their worktrees go to the board as the Project fil
   assert.deepEqual(JSON.parse(html.match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]).registered, registeredPaths(ctx));
 });
 
+test('worktrees of two repositories count as their repository, also a removed one; a folder of no repository is left for Other; the rows go to the page unchanged', () => {
+  const rows = [
+    { ...row, id: 'a', project: '/wt/shop/a', repo: '/src/shop' },
+    { ...row, id: 'b', project: '/wt/shop/b', repo: '/src/shop' },
+    // Removed before the first scan: the folder pattern <worktrees root>/<repository>/<worktree> names it.
+    { ...row, id: 'c', project: '/wt/shop/gone', repo: null },
+    // Cached before the repository was read: another row of the same folder has it.
+    { ...row, id: 'd', project: '/wt/shop/a' },
+    { ...row, id: 'e', project: '/src/blog', repo: '/src/blog' },
+    { ...row, id: 'f', project: '/src/blog/.claude/worktrees/x', repo: null },
+    { ...row, id: 'g', project: '/wt/blog-fix' },
+    { ...row, id: 'h', project: '/home/u/notes', repo: null },
+  ];
+  const before = structuredClone(rows);
+  const data = JSON.parse(boardHtml(rows, '2026-10-23T00:00:00Z', [{ path: '/src/blog', worktrees: ['/wt/blog-fix'] }]).match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]);
+  assert.deepEqual(Object.fromEntries(data.keys), {
+    '/wt/shop/a': '/src/shop', '/wt/shop/b': '/src/shop', '/wt/shop/gone': '/src/shop',
+    '/src/blog': '/src/blog', '/src/blog/.claude/worktrees/x': '/src/blog', '/wt/blog-fix': '/src/blog',
+  });
+  assert.deepEqual(data.rows, before);
+  assert.deepEqual(rows, before);
+});
+
 // WCAG relative luminance; a mark needs 3:1 against its surface (the dataviz palette validator's contrast check).
 const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)).reduce((n, c, i) => n + c * [0.2126, 0.7152, 0.0722][i], 0);
 const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };

@@ -9,7 +9,7 @@ import { doctor } from '../src/doctor.mjs';
 import { removeTable, removeToml, setToml } from '../src/merge.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
-import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingsAgents, settingsChanges } from '../src/settings.mjs';
+import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingFacts, settingsAgents, settingsChanges } from '../src/settings.mjs';
 
 const SECRET = 'sk-value-not-for-output';
 const docs = JSON.parse(readFileSync(new URL('./fixtures/settings-docs.json', import.meta.url), 'utf8'));
@@ -58,6 +58,61 @@ test('pinned schemas: advanced mode lists every schema leaf, none is left undesc
   const list = listSettings(ctx, 'codex', { advanced: true });
   assert.ok(list.advanced.some((a) => a.key === 'sandbox_workspace_write.network_access'));
   assert.ok(listSettings(ctx, 'claude', { advanced: true }).advanced.some((a) => a.key === 'modelSettings'), 'a reference key the schema lacks');
+});
+
+// Sentences end at a period, question or exclamation mark before a space or the end, so v2.1.281 and Opus 5.5 stay one.
+const sentences = (s) => s.trim().split(/(?<=[.!?])\s+/).filter(Boolean).length;
+test('explainer: every catalog entry has a one-line summary, an eli5 of up to two sentences and an impact of up to three', () => {
+  for (const id of settingsAgents) {
+    for (const s of agentSettings(id).settings) {
+      for (const f of ['summary', 'eli5', 'impact']) assert.ok(typeof s[f] === 'string' && s[f].trim(), `${id} ${s.key}: ${f} is missing or empty`);
+      assert.ok(!s.summary.includes('\n') && sentences(s.summary) === 1, `${id} ${s.key}: the summary is one line`);
+      assert.ok(sentences(s.eli5) <= 2, `${id} ${s.key}: the eli5 is at most two sentences`);
+      assert.ok(sentences(s.impact) <= 3, `${id} ${s.key}: the impact is at most three sentences`);
+    }
+  }
+});
+
+test('facts: the current value names its source: user, project, local or managed file, the environment, or the default', () => {
+  const ctx = machine();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  write(claudeUser(ctx), JSON.stringify({ model: 'user', env: { DISABLE_ERROR_REPORTING: '1' } }));
+  write(join(dir, '.claude/settings.json'), '{ "cleanupPeriodDays": 9 }');
+  write(join(dir, '.claude/settings.local.json'), '{ "outputStyle": "Explanatory" }');
+  write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, '{ "theme": "light" }');
+  // A file's env value wins over the shell's; a variable no file sets comes from the environment.
+  const env = { DISABLE_ERROR_REPORTING: 'shell', DISABLE_TELEMETRY: '1' };
+  const keys = ['model', 'cleanupPeriodDays', 'outputStyle', 'theme', 'env.DISABLE_ERROR_REPORTING', 'env.DISABLE_TELEMETRY', 'autoMemoryEnabled'];
+  const facts = Object.fromEntries(settingFacts(ctx, 'claude', keys, { dir, env }).map((f) => [f.key, f]));
+  assert.deepEqual(keys.map((k) => [facts[k].value, facts[k].from]), [['user', 'user'], [9, 'project'], ['Explanatory', 'local'], ['light', 'managed'], ['1', 'user'], ['1', 'environment'], [undefined, 'default']]);
+  const memory = agentSettings('claude').settings.find((s) => s.key === 'autoMemoryEnabled');
+  assert.deepEqual(facts.autoMemoryEnabled, { key: 'autoMemoryEnabled', summary: memory.summary, eli5: memory.eli5, impact: memory.impact, default: 'true', docs: memory.source, value: undefined, from: 'default' });
+  // The editor's rows carry the same facts.
+  const row = listSettings(ctx, 'claude', { dir, env }).settings.find((s) => s.key === 'env.DISABLE_TELEMETRY');
+  assert.deepEqual([row.value, row.from, row.summary], ['1', 'environment', facts['env.DISABLE_TELEMETRY'].summary]);
+});
+
+test('facts outside the catalog: no explanation, the schema default, the value, its source and the docs link', () => {
+  const ctx = machine();
+  write(claudeUser(ctx), '{ "agent": "reviewer" }');
+  write(codexUser(ctx), 'file_opener = "cursor"\n');
+  const [agent] = settingFacts(ctx, 'claude', ['agent']);
+  assert.deepEqual(agent, { key: 'agent', summary: null, eli5: null, impact: null, default: null, docs: 'https://code.claude.com/docs/en/settings-reference#agent', value: 'reviewer', from: 'user' });
+  const [opener] = settingFacts(ctx, 'codex', ['file_opener']);
+  assert.deepEqual([opener.summary, opener.value, opener.from, opener.docs], [null, 'cursor', 'user', 'https://learn.chatgpt.com/docs/config-file/config-reference']);
+  const advanced = listSettings(ctx, 'claude', { advanced: true }).advanced.find((r) => r.key === 'agent');
+  assert.deepEqual([advanced.summary, advanced.from, advanced.docs], [null, 'user', agent.docs]);
+});
+
+test('facts are named where a setting is: a settings plan, a doctor finding and the route', async () => {
+  const ctx = machine();
+  const [planned] = settingsChanges(ctx, 'claude', { edits: { theme: 'light' } });
+  assert.deepEqual(planned.settings, { agent: 'claude', keys: ['theme'] });
+  write(claudeUser(ctx), JSON.stringify({ advisorModel: 'opus', env: { DISABLE_TELEMETRY: '1' } }));
+  const found = doctor(ctx, { agents: ['claude'], env: {} }).find((i) => /advisor stays off/.test(i.message));
+  assert.deepEqual(found.settings, { agent: 'claude', keys: COUPLINGS.rules.find((r) => r.id === 'advisor-needs-flags').keys });
+  const facts = await api(ctx)['GET /api/settings'](new URLSearchParams({ agent: 'claude', keys: 'advisorModel,theme' }));
+  assert.deepEqual(facts.map((f) => [f.key, f.value, f.from]), [['advisorModel', 'opus', 'user'], ['theme', undefined, 'default']]);
 });
 
 test('Claude Code: set and remove keep other keys and their order; unknown keys survive; secrets stay out of the list', () => {

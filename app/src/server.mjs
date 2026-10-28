@@ -40,7 +40,7 @@ import { catalog, evalResults, overview, runReport } from './reads.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
-import { bundleEdits, isSettingsFile, listSettings, readSettings, redact, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
+import { bundleEdits, isSettingsFile, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { levelFor } from './level.mjs';
 import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
@@ -574,6 +574,8 @@ export function api(ctx) {
       if (!settingsAgents.includes(agentId)) throw bad(`agent must be one of ${settingsAgents.join(', ')}`);
       const dir = q.get('dir') ? resolve(q.get('dir')) : undefined;
       if (dir && !registered(dir)) throw bad('register the project first');
+      // keys=a,b: only the facts of those keys, for the views that name a setting (the doctor, Insights, the plans).
+      if (q.get('keys')) return input(() => settingFacts(ctx, agentId, q.get('keys').split(','), { dir, env: process.env }));
       return input(() => listSettings(ctx, agentId, { dir, advanced: q.get('advanced') === '1', env: process.env }));
     },
     // A plan for edits { key: value | null } (null removes the key) or a bundle in one layer; applied through /api/apply.

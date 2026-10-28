@@ -24,15 +24,15 @@ function draw() {
   const $ = (id) => document.getElementById(id);
   const patternKey = (r) => r.pattern ?? 'not recorded';
   const setupKey = (r) => (!r.setup ? 'not recorded' : r.setup.length ? r.setup.join(' + ') : 'none');
-  // A session counts as the repository the scan found for its folder, else as the registered project whose worktree it
-  // ran in (a summary cached before the scan looked), else as its folder.
+  // A session counts as the repository the app resolved for its folder (boardHtml), else under Other.
+  const keys = new Map(D.keys);
   const under = (dir, p) => p === dir || p.startsWith(`${dir}/`) || p.startsWith(`${dir}\\`);
   const owners = new Map();
   const owner = (p) => {
     if (!owners.has(p)) owners.set(p, (p && D.registered.find((x) => [x.path, ...x.worktrees].some((d) => under(d, p)))?.path) || null);
     return owners.get(p);
   };
-  const projectKey = (r) => r.repo ?? owner(r.project) ?? r.project ?? 'unknown';
+  const projectKey = (r) => keys.get(r.project) ?? 'Other';
   const listed = (r) => owner(projectKey(r)) != null;
   const short = (p) => p.split(/[\\/]/).slice(-2).join('/');
   // A project by its folder name; two of the same name each add their parent folder.
@@ -42,7 +42,7 @@ function draw() {
   const name = (k) => (k === 'Other' ? k : names.get(folder(k)) > 1 ? short(k) : folder(k));
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   // Its sessions and the worktrees (folders other than the repository's own) they ran in.
-  const counts = (k, rs) => { const w = new Set(rs.map((r) => r.project).filter((p) => p && p !== k)).size; return `${plural(rs.length, 'session')}${w ? `, ${plural(w, 'worktree')}` : ''}`; };
+  const counts = (k, rs) => { const w = new Set(rs.map((r) => r.project).filter((p) => p && p !== k)).size; return `${plural(rs.length, 'session')}${w ? `, ${plural(w, k === 'Other' ? 'folder' : 'worktree')}` : ''}`; };
   const day = (iso) => iso.slice(0, 10);
   const median = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
   const pct = (part, all) => (all ? `${Math.round((part / all) * 100)}%` : '-');
@@ -93,6 +93,11 @@ function draw() {
   try { reg = localStorage.getItem('bk-board-registered') === 'true'; } catch { /* storage blocked */ }
   const state = { period: '30', q: '', project: '', folder: '', rq: '', open: new Set(), older: false, reg: reg && D.registered.length > 0, hidden: new Set() };
   const pool = () => (state.reg ? rows.filter(listed) : rows);
+  // The last project chosen, remembered like the theme; one no longer in the data falls back to All.
+  try {
+    const [p, f] = JSON.parse(localStorage.getItem('bk-board-project')) ?? [];
+    if (pool().some((r) => projectKey(r) === p && (!f || r.project === f))) { Object.assign(state, { project: p, folder: f ?? '' }); if (f) state.open.add(p); }
+  } catch { /* storage blocked */ }
   const options = (f) => {
     const values = [...new Set(rows.map(f))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     return [el('option', { value: '' }, 'All'), ...values.map((v) => el('option', { value: v }, v))];
@@ -113,7 +118,7 @@ function draw() {
   regBox.addEventListener('change', () => {
     state.reg = regBox.checked;
     try { localStorage.setItem('bk-board-registered', String(state.reg)); } catch { /* storage blocked */ }
-    if (state.reg && state.project && !listed({ repo: state.project })) state.project = state.folder = '';
+    if (state.reg && state.project && owner(state.project) == null) state.project = state.folder = '';
     render();
   });
   bar.append(el('span', { class: 'f' }, regBox, el('label', { for: 'f-reg' }, 'Registered only'), none ? el('span', { class: 'muted', id: 'f-reg-hint' }, 'No project is registered in the app.') : null));
@@ -137,13 +142,14 @@ function draw() {
   // Rank over every session once: a project keeps its slot and color while the filters change; the rest fold into Other.
   const ranked = new Map();
   for (const r of rows) ranked.set(projectKey(r), (ranked.get(projectKey(r)) ?? 0) + 1);
+  ranked.delete('Other');
   const TOP = [...ranked].sort((a, b) => b[1] - a[1]).slice(0, SERIES).map(([k]) => k);
   // A filtered list of at most SERIES projects names them all; a project outside the top ones takes a color no shown top one uses.
   let named = TOP, extra = new Map();
   const slot = (r) => (named.includes(projectKey(r)) ? projectKey(r) : 'Other');
   const color = (k) => (k === 'Other' || (!TOP.includes(k) && !extra.has(k)) ? 'var(--other)' : `var(--s${(TOP.includes(k) ? TOP.indexOf(k) : extra.get(k)) + 1})`);
   const assign = (list) => {
-    const distinct = [...new Set(list.map(projectKey))];
+    const distinct = [...new Set(list.map(projectKey))].filter((k) => k !== 'Other');
     named = distinct.length <= SERIES ? distinct : TOP;
     const free = [...Array(SERIES).keys()].filter((i) => !distinct.includes(TOP[i]));
     extra = new Map(named.filter((k) => !TOP.includes(k)).map((k) => [k, free.shift()]));
@@ -194,7 +200,8 @@ function draw() {
   }
 
   // The project rail: registered repositories, All, then the other repositories, each newest first. A repository with
-  // sessions in more than one folder expands to them; one without a session in 30 days sits under Show older.
+  // sessions in more than one folder expands to them; one without a session in 30 days sits under Show older. Other, the
+  // folders of no known repository, comes last.
   // Framed or narrow, the rail is one button with the choice that opens the same list.
   const narrow = () => getComputedStyle($('rail-toggle')).display !== 'none';
   const setOpen = (open) => { $('rail').classList.toggle('open', open); $('rail-toggle').setAttribute('aria-expanded', String(open)); };
@@ -234,12 +241,13 @@ function draw() {
     };
     const all = el('button', { type: 'button', class: 'card all', 'aria-pressed': String(!state.project) }, state.reg ? 'All registered projects' : 'All projects');
     all.addEventListener('click', () => { state.project = state.folder = ''; render(); if (narrow()) { setOpen(false); $('rail-toggle').focus(); } });
-    const old = cards.filter((c) => c.k === 'unknown' || day(c.newest) < recent);
+    const other = cards.filter((c) => c.k === 'Other');
+    const old = cards.filter((c) => c.k !== 'Other' && day(c.newest) < recent);
     const older = el('details', { class: 'older', open: state.older || null }, el('summary', {}, `Show older (${old.length})`), old.map(entry));
     older.addEventListener('toggle', () => { state.older = older.open; });
-    const fresh = cards.filter((c) => !old.includes(c));
-    $('rail-list').replaceChildren(...fresh.filter((c) => listed({ repo: c.k })).map(entry), all, ...fresh.filter((c) => !listed({ repo: c.k })).map(entry), ...(old.length ? [older] : []));
-    $('rail-toggle').firstChild.textContent = `${state.project ? `${name(state.project)}${state.folder ? ` / ${folder(state.folder)}` : ''}` : all.textContent}, ${plural(cards.length, 'project')}`;
+    const fresh = cards.filter((c) => !old.includes(c) && !other.includes(c));
+    $('rail-list').replaceChildren(...fresh.filter((c) => owner(c.k) != null).map(entry), all, ...fresh.filter((c) => owner(c.k) == null).map(entry), ...(old.length ? [older] : []), ...other.map(entry));
+    $('rail-toggle').firstChild.textContent = `${state.project ? `${name(state.project)}${state.folder ? ` / ${folder(state.folder)}` : ''}` : all.textContent}, ${plural(cards.length - other.length, 'project')}`;
     find();
   }
   const expand = (e, open) => {
@@ -521,6 +529,7 @@ function draw() {
 
   const CHARTS = ['chart', 'by-tier', 'by-pattern', 'by-setup', 'by-prpr', 'by-model', 'dist-time', 'dist-turns', 'calendar', 'by-change', 'skills'];
   function render() {
+    try { localStorage.setItem('bk-board-project', JSON.stringify([state.project, state.folder])); } catch { /* storage blocked */ }
     // Whole UTC days, the same ones the chart draws: today and the days before it.
     const len = state.period === 'all' ? null : Number(state.period);
     const since = len ? iso(now - (len - 1) * DAY) : '';
@@ -653,11 +662,30 @@ details summary { cursor: pointer; color: var(--ink-2); margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; } }
 `;
 
+const parts = (p) => p.split(/[\\/]/).filter(Boolean);
+const inside = (dir, p) => p === dir || p.startsWith(`${dir}/`) || p.startsWith(`${dir}\\`);
+// The repository each session folder counts under, the first that names one: the main worktree git gave for the folder
+// on any of its rows (kept after the folder is gone); the registered project whose folder or worktree holds it; the
+// deepest known repository it sits in; the one known repository named like its parent folder
+// (<worktrees root>/<repository>/<worktree>). A folder none of them names is left out: the board shows it under Other.
+function repoKeys(rows, registered) {
+  const found = new Map(rows.filter((r) => r.project && r.repo).map((r) => [r.project, r.repo]));
+  const known = [...new Set([...found.values(), ...registered.map((x) => x.path)])].sort((a, b) => b.length - a.length);
+  const named = new Map();
+  for (const k of known) named.set(parts(k).at(-1), named.has(parts(k).at(-1)) ? null : k);
+  const keys = new Map();
+  for (const p of new Set(rows.map((r) => r.project).filter(Boolean))) {
+    const k = found.get(p) ?? registered.find((x) => [x.path, ...x.worktrees].some((d) => inside(d, p)))?.path ?? known.find((d) => inside(d, p)) ?? named.get(parts(p).at(-2));
+    if (k) keys.set(p, k);
+  }
+  return keys;
+}
+
 // rows: scanSessions output; now: an ISO time (the periods count back from it); registered: registeredPaths(), the
 // projects Registered only keeps, with their worktrees for rows cached without a repository.
 export function boardHtml(rows, now = new Date().toISOString(), registered = []) {
   // JSON in a script element: < as <, so no value can close the element.
-  const data = JSON.stringify({ rows, runs: byRun(rows), now, registered, minSamples: MIN_SAMPLES }).replace(/</g, '\\u003c');
+  const data = JSON.stringify({ rows, keys: [...repoKeys(rows, registered)], runs: byRun(rows), now, registered, minSamples: MIN_SAMPLES }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html lang="en">
 <head>

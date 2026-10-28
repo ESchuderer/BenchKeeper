@@ -3,7 +3,7 @@ import { IconPlayerPlay, IconPlayerStop, IconTool, IconWand } from '@tabler/icon
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { updateProjects } from './update.js';
-import { ChangeList, RunProgress, StartBlock, confirms, defaultSelect, usePrerun } from './parts.jsx';
+import { ChangeList, RunProgress, SettingFactsOf, StartBlock, confirms, defaultSelect, usePrerun } from './parts.jsx';
 import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
 
 // Doctor findings the setup can fix open the plan that fixes them; the others keep their fix text only.
@@ -33,7 +33,7 @@ export function DoctorTable({ found, onAction }) {
             return (
               <Table.Tr key={n}>
                 <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.tag ?? i.level}</Badge></Table.Td>
-                <Table.Td>{withRuns(i.message)}</Table.Td>
+                <Table.Td>{withRuns(i.message)}{i.settings && <SettingFactsOf settings={i.settings} />}</Table.Td>
                 <Table.Td>
                   <Stack gap={4} align="flex-start">
                     {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(i.fix.replace(SOURCE, ''))}</Text>}

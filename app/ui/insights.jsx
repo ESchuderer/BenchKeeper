@@ -57,12 +57,12 @@ function Narrative({ rev }) {
   const [open, setOpen] = useState(false);
   const [job, setJob] = useState(null);
   const [error, setError] = useState(null);
+  // A second click before the job exists would start a second request and show its 409 as an error.
+  const starting = useRef(false);
   const d = state.data;
   if (!d || !d.count) return null;
   const agent = picked ?? d.advisers[0]?.id ?? null;
   const name = d.advisers.find((x) => x.id === agent)?.name ?? agent;
-  // A second click before the job exists would start a second request and show its 409 as an error.
-  const starting = useRef(false);
   const run = async () => {
     if (starting.current) return;
     starting.current = true;

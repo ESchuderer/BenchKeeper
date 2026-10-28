@@ -92,14 +92,6 @@ function CmdRow({ cmd, note }: { cmd: string; note: ReactNode }) {
   );
 }
 
-const reasons: [string, string][] = [
-  ['Quality', 'in BenchKeeper\'s mistreevous brownfield run only ECC scored measurably above plain Claude Code; Matt Pocock\'s skills, Ponytail and BenchKeeper stayed within the round-to-round spread (medians 84.1 to 90.1, Sonnet 5.5, k = 3).'],
-  ['Time', 'it depends on the version: setup-v4.0 with Matt Pocock\'s skills took a median 13.1 minutes against 22.7 for plain Claude Code, setup-v5.0 took 24.9. setup-v6.0 is not measured yet.'],
-  ['Cost', 'Ponytail alone cost 0.58 times plain Claude Code in the mistreevous run (k = 3); external results range from 10% less to 55% more.'],
-  ['Skills by level', 'the full flow runs only for full-tier work. Small changes load one targeted skill.'],
-  ['One install', 'one machine setup covers every repository. Each repository adds only its tracker, docs and stack.'],
-];
-
 const host = ['Rules and the plugins: BenchKeeper, optionally Ponytail and Matt Pocock\'s skills', 'Git and gh: branches, commits, pull requests', 'Dev Containers CLI and Docker or Podman', 'The agent, with --env host-agent'];
 const container = ['The agent (default), started with devcontainer exec', 'Project toolchain at pinned versions', 'Installs, builds, lint, tests', 'Playwright browser', 'Non-root user, project mount only'];
 
@@ -194,7 +186,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
             {facts.frameworks.items.map((f) => (
               <Paper key={f.name} withBorder p="lg" radius="lg">
                 <Group gap="xs"><Title order={3} fz="lg"><Anchor href={f.url}>{f.name}</Anchor></Title><Badge variant="outline">{f.role}</Badge></Group>
-                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/main/${f.evaluation}`}>Evaluation</Anchor></Text>
+                <Text size="sm" mt="xs">Installs {md(f.installs)}. <Anchor href={`${REPO}/blob/main/${f.evidence}`}>Evaluation</Anchor></Text>
               </Paper>
             ))}
           </SimpleGrid>
@@ -241,7 +233,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
 
         <Section id="selected" title="Why this stack">
           <List spacing="sm" maw={760}>
-            {reasons.map(([k, v]) => <List.Item key={k}><Text span fw={700}>{k}:</Text> {v}</List.Item>)}
+            {facts.stack.reasons.map((r) => <List.Item key={r.name}><Text span fw={700}>{r.name}:</Text> {r.text}</List.Item>)}
           </List>
           <Text size="sm" mt="lg">For details, check the full data: <Anchor href={`${REPO}/blob/main/EVALUATIONS.md`}>evaluations</Anchor>, <Anchor href={`${RESEARCH}#recorded-results`}>benchmark results</Anchor>.</Text>
         </Section>

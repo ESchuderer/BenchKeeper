@@ -58,6 +58,9 @@ jobs:
       # Install commands in the docs name the app version (npx benchkeeper@<version>, the clone tag).
       - name: Version pins
         run: node --test .github/scripts/version-pins.test.mjs && node .github/scripts/version-pins.mjs --check
+      # Each claim in web/src/data/facts.json names its evidence: a repository file or heading, a test title, or a BenchKeeper-research result.
+      - name: Claims evidence
+        run: node --test .github/scripts/claims.test.mjs && node .github/scripts/claims.mjs
 
   # The web UI against a fixture home: request checks are in the app tests, views and axe (light, dark) here.
   app-ui-tests:

@@ -534,7 +534,10 @@ button:hover { border-color: var(--accent); }
 #filters select { max-width: min(240px, 100%); }
 .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
 #rail { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 4px; margin: -4px; }
-.framed #rail { position: static; max-height: none; }
+/* Framed in the app, whose navbar already stands on the left, the rail is a scrolling chip row at every width. */
+.framed .layout { grid-template-columns: minmax(0, 1fr); }
+.framed #rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; position: static; max-height: none; padding-bottom: 8px; }
+.framed .card { width: auto; min-width: 150px; max-width: 230px; flex: none; }
 .card { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; text-align: left; width: 100%; padding: 10px 12px; border-radius: var(--radius); box-shadow: var(--shadow); }
 .card.all { display: block; font-weight: 600; } .card:hover { transform: translateY(-1px); }
 .card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), var(--shadow); }

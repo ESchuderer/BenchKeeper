@@ -9,7 +9,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, useChange } from './accounts.mjs';
 import { limitsFor, settingsOf } from './usage.mjs';
 import { automationsView, installChanges as automationInstall, removeChanges as automationRemove, updateChanges as automationUpdate } from './automations.mjs';
@@ -17,6 +17,7 @@ import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
+import { boardFile as ponytailBoard } from './ponytail.mjs';
 import { contentDir } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
@@ -417,7 +418,14 @@ export function api(ctx) {
       for (const [k, at] of t) if (now - at > FRESH_SCAN_MS) t.delete(k);
       const ticket = randomBytes(24).toString('base64url');
       t.set(ticket, now);
-      return { ticket };
+      return { ticket, ponytail: isFile(ponytailBoard(ctx)) };
+    },
+    // Opens Ponytail's own board with the opener the CLI uses for the sessions board; the path never comes from the request.
+    'POST /api/ponytail-board': () => {
+      const file = ponytailBoard(ctx);
+      if (!isFile(file)) throw bad("Ponytail's board was not found");
+      (ctx.open ?? launch)(pathToFileURL(file).href);
+      return { opened: file };
     },
     // The page's Stop button: refused while an apply or eval runs; scans, suggestions and rehearsals stop with the server.
     'POST /api/shutdown': () => {

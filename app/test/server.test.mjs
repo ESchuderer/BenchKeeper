@@ -3,8 +3,9 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { apply, context, preview } from '../src/runner.mjs';
 import { CSP as BOARD_CSP } from '../src/board.mjs';
 import { fake, missing, RECORDED, replies } from './fakes/orca.mjs';
@@ -391,6 +392,20 @@ test('reveal opens registered projects only', () => {
   routes['POST /api/projects']({ path: dir });
   routes['POST /api/reveal']({ path: dir });
   assert.deepEqual(opened, [dir]);
+});
+
+test("Ponytail's board: offered and opened only when its file exists, only that path", () => {
+  const { ctx, routes } = fixture();
+  const opened = [];
+  ctx.open = (p) => opened.push(p);
+  const file = join(ctx.home, '.config/ponytail/band/board.html');
+  assert.equal(routes['POST /api/board-ticket']().ponytail, false);
+  assert.equal(status(() => routes['POST /api/ponytail-board']({ path: '/etc/passwd' })), 400);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, '<!doctype html>');
+  assert.equal(routes['POST /api/board-ticket']().ponytail, true);
+  routes['POST /api/ponytail-board']({ path: '/etc/passwd' });
+  assert.deepEqual(opened, [pathToFileURL(file).href]);
 });
 
 test('pick-folder: the first dialog found answers; a cancel is null; no tool is unavailable', () => {

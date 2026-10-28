@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { writeAtomic } from './fsx.mjs';
 import { MIN_SAMPLES } from './insights.mjs';
 import { listProjects } from './projects.mjs';
+import { cssVars } from './tokens.mjs';
 
 // Runs in the browser only: toString() of this function is the page script. The UI tests cover it, not the unit coverage.
 /* node:coverage disable */
@@ -477,16 +478,9 @@ export const CSP = `default-src 'none'; script-src '${SCRIPT_HASH}'; style-src '
 
 // Tokens first: the colors per theme, then the shape, shadow and type every panel shares.
 const STYLE = `
-:root { color-scheme: light; --page: #f4f6fa; --surface: #ffffff; --ink: #1a1b1e; --ink-2: #55565c; --grid: #e6e7e9; --line: #dde1e8;
-  --s1: #2a78d6; --s2: #d9531c; --s3: #0a8f5e; --s4: #a86b00; --s5: #7a4fd1; --s6: #c22a7a; --other: #8a8984; --accent: #1c5cab;
-  --glow: rgba(42, 120, 214, 0.1); --shadow: 0 1px 2px rgba(20, 24, 40, 0.06), 0 8px 24px rgba(20, 24, 40, 0.07); }
-@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) { color-scheme: dark; --page: #17181c; --surface: #242424; --ink: #e9ecef;
-  --ink-2: #b8bcc2; --grid: #373a40; --line: #3d4047; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #a98af0; --s6: #e0629f; --other: #8d8c85; --accent: #86b6ef;
-  --glow: rgba(57, 135, 229, 0.16); --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35); } }
-:root[data-theme="dark"] { color-scheme: dark; --page: #17181c; --surface: #242424; --ink: #e9ecef; --ink-2: #b8bcc2; --grid: #373a40; --line: #3d4047;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #a98af0; --s6: #e0629f; --other: #8d8c85; --accent: #86b6ef;
-  --glow: rgba(57, 135, 229, 0.16); --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35); }
-:root { --radius: 16px; --radius-sm: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --ease: 150ms ease; }
+:root { color-scheme: light; ${cssVars('light')} }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) { color-scheme: dark; ${cssVars('dark')} } }
+:root[data-theme="dark"] { color-scheme: dark; ${cssVars('dark')} }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 16px; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }

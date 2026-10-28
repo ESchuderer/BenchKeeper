@@ -81,6 +81,10 @@ test('lint rule private: paths and given names fail the generic tier only', () =
   const named = template({}, `automation-alpha {{mode}} {{repository}}\n${GUARDS}\nAsk the Acme-Internal team.`);
   assert.deepEqual(problems(tier(named), { privateNames: ['acme-internal'] }), ['private']);
   assert.deepEqual(problems(tier(named), { privateNames: ['other'] }), []);
+  const scoped = template({}, `automation-alpha {{mode}} {{repository}}\n${GUARDS}\nInstall @acme/tool first.`);
+  assert.deepEqual(problems(tier(scoped), { privateNames: ['@acme/tool'] }), ['private'], 'a name that starts with punctuation');
+  assert.deepEqual(problems(tier(scoped), { privateNames: ['acme'] }), ['private'], 'a name inside punctuation');
+  assert.deepEqual(problems(tier(template({}, `automation-alpha {{mode}} {{repository}}\n${GUARDS}\nThe acmeish team.`)), { privateNames: ['acme'] }), [], 'part of a longer word');
   assert.deepEqual(problems(tier(template({}, `automation-alpha {{mode}} {{repository}}\n${GUARDS}\nUse $HOME.`)), { privateNames: ['acme-internal'] }), []);
   const user = check(machine(), { tiers: [['user', tier(template({}, body))]], privateNames: ['x'] });
   assert.deepEqual(user, [], 'the user tier may name its own paths');
@@ -108,8 +112,17 @@ test('a helper that is a link or sits outside the template folder is missing', (
   assert.throws(() => parse(template({ helpers: '["other/check.sh"]' })), /helpers/);
 });
 
+test('a helper behind a linked folder that leads out of the tier is missing', () => {
+  const dir = tier(template(), null);
+  const outside = mkdtempSync(join(tmpdir(), 'bk-auto-out-'));
+  writeFileSync(join(outside, 'check.sh'), SH, { mode: 0o755 });
+  symlinkSync(outside, join(dir, 'alpha'), 'dir');
+  assert.deepEqual(problems(dir), ['session', 'helper']);
+});
+
 test('lint rule placeholder: an undeclared placeholder fails', () => {
   assert.deepEqual(problems(tier(template({}, `automation-alpha {{mode}} {{repository}} {{nope}}\n${GUARDS}`))), ['placeholder']);
+  assert.deepEqual(problems(tier(template({}, `automation-alpha {{mode}} {{repository}} {{constructor}}\n${GUARDS}`))), ['placeholder'], 'an inherited name is not declared');
 });
 
 test('filling: unknown and missing parameters are rejected, defaults and mode are filled', () => {
@@ -117,6 +130,8 @@ test('filling: unknown and missing parameters are rejected, defaults and mode ar
   assert.throws(() => fill(t), /missing parameter: repository/);
   assert.throws(() => fill(t, { repository: 'o/r', owner: 'x' }), /unknown parameter: owner/);
   assert.throws(() => fill(parse(template({}, `{{ghost}}\n${GUARDS}`))), /unknown parameter: ghost/);
+  assert.throws(() => fill(parse(template({}, `{{constructor}}\n${GUARDS}`))), /unknown parameter: constructor/);
+  assert.throws(() => fill(t, { repository: 'o/r', constructor: 'x' }), /unknown parameter: constructor/);
   const out = fill(t, { repository: 'o/r' });
   assert.match(out.prompt, /^automation-alpha report o\/r 1,2$/m);
   assert.equal(out.precheck, 'alpha/check.sh o/r');
@@ -154,6 +169,8 @@ test('parse: each malformed field is rejected with its name', () => {
   assert.throws(withParam('[parameters.repository]\ndescription = "x"\nkind = 1'), /unknown key "kind"/);
   assert.throws(withParam('[parameters.repository]\ndescription = "x\\ny"'), /one line/);
   assert.throws(withParam('[parameters.repository]\ndescription = "x"\ndefault = { a = 1 }'), /default must be/);
+  assert.throws(withParam('[parameters.repository]\ndescription = "x"\ndefault = "two words"'), /default may hold only/);
+  assert.throws(withParam('[parameters.repository]\ndescription = "x"\ndefault = ["a", "b;c"]'), /default may hold only/);
   assert.equal(parse(template({ missed_run_grace_minutes: '15', reuse_session: 'true', workspace: '"new-worktree"', mode: '"act"' })).mode, 'act');
 });
 
@@ -173,5 +190,7 @@ test('load: both tiers, an id that differs from the file name, a duplicate id an
   assert.match(errors.find((e) => e.file.endsWith('beta.md')).message, /differs from the file name/);
   assert.equal(load(ctx).errors.length, 2, 'default tiers: the user folder of the context');
   assert.deepEqual(load(machine()), { templates: [], errors: [] }, 'no folder, no templates');
+  const file = join(user, 'notes.txt');
+  assert.match(load(ctx, [['user', file]]).errors[0].message, /cannot read the folder: ENOTDIR/, 'a tier path that is a file');
   assert.deepEqual(check(ctx, { tiers: [['generic', generic], ['user', user]] }).map((p) => p.rule), ['format', 'format', 'format']);
 });

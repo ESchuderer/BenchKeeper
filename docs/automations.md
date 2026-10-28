@@ -33,7 +33,7 @@ Unknown keys are an error.
 
 ## Parameters
 
-`{{name}}` in the prompt and in the precheck is replaced when the template is filled. `{{mode}}` is always available. Filling rejects a parameter that is not declared, a declared parameter without a default that was not given, and a `{{name}}` that is not declared. A value may hold letters, digits and `_ @ . / : , + = -` only, because it ends up in a shell command. A list default is joined with commas.
+`{{name}}` in the prompt and in the precheck is replaced when the template is filled. `{{mode}}` is always available. Filling rejects a parameter that is not declared, a declared parameter without a default that was not given, and a `{{name}}` that is not declared. A value may hold letters, digits and `_ @ . / : , + = -` only, because it ends up in a shell command. A list default is joined with commas, and a default that holds other characters is an error when the template is parsed.
 
 ## Lint
 
@@ -42,7 +42,7 @@ Each rule has a failing and a passing fixture in `app/test/automations.test.mjs`
 | Rule | Requires |
 |---|---|
 | `precheck` | a non-empty precheck |
-| `session` | in a recurring template: the marker `automation-<id>` in the prompt, and a precheck (or a helper it calls) that names the marker and checks `pgrep`, `pidof`, `flock` or a lock file, so it refuses while a session of the same automation is alive. Write one character of the marker in brackets (`automation-[o]pen-pr-report`) so `pgrep -f` does not match the precheck itself. A process check sees the marker only where the scheduler shows the prompt in the process arguments; otherwise let the prompt create a lock file and check that. |
+| `session` | in a recurring template: the marker `automation-<id>` in the prompt, and a precheck (or a helper it calls) that names the marker and one of `pgrep`, `pidof`, `flock` or a lock file. This is a text match, not a proof: the lint does not run the precheck or check that it refuses while a session of the same automation is alive. Write one character of the marker in brackets (`automation-[o]pen-pr-report`) so `pgrep -f` does not match the precheck itself. A process check sees the marker only where the scheduler shows the prompt in the process arguments; otherwise let the prompt create a lock file and check that. |
 | `guardrail` | the three lines below at the start of a line, and `{{mode}}` in the prompt |
 | `private` | generic tier only: no absolute path into a home folder, a mount or a drive, and no path starting with a tilde, and none of the private names the caller passes in |
 | `helper` | each helper exists as a plain file in the template folder, is executable, starts with a `sh`, `bash` or `python` shebang and uses no network except `gh` (no `curl`, `wget`, `ssh`, `git fetch`, URL, `socket`, `urllib` and the like; a word list, not a parser) |

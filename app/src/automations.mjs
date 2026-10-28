@@ -1,8 +1,8 @@
 // Automation templates: one Markdown file per scheduled agent run, TOML front matter between +++ lines and the prompt as the body.
 // Two tiers: the generic ones ship in <content>/automations/, the user's own live in <config>/automations/ and are never committed.
 // Loading, filling and linting read files only; no runner is started.
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { basename, join, sep } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { registry } from './agents.mjs';
 import { contentDir } from './content.mjs';
@@ -19,6 +19,7 @@ const MODES = ['report', 'act'];
 const FIELDS = ['id', 'title', 'agent', 'schedule', 'workspace', 'reuse_session', 'precheck', 'missed_run_grace_minutes', 'mode', 'parameters', 'helpers'];
 const DEFAULTS = { schedule: '', workspace: 'project', reuse_session: false, precheck: '', missed_run_grace_minutes: 0, mode: 'report', parameters: {}, helpers: [] };
 
+const own = (o, k) => Object.hasOwn(o, k);
 const text = (v) => typeof v === 'string' && v.trim() !== '';
 const scalar = (v) => ['string', 'number', 'boolean'].includes(typeof v);
 
@@ -29,7 +30,9 @@ function parameter(name, p) {
   if (!text(p.description) || /[\r\n]/.test(p.description)) throw new Error(`parameter "${name}": description must be one line`);
   const d = p.default;
   if (d !== undefined && !(scalar(d) || (Array.isArray(d) && d.every(scalar)))) throw new Error(`parameter "${name}": default must be a string, number, boolean or a list of them`);
-  return { description: p.description, ...(d === undefined ? {} : { default: Array.isArray(d) ? d.join(',') : String(d) }) };
+  const value = d === undefined ? undefined : Array.isArray(d) ? d.join(',') : String(d);
+  if (value !== undefined && !SAFE_VALUE.test(value)) throw new Error(`parameter "${name}": the default may hold only letters, digits and _ @ . / : , + = -`);
+  return { description: p.description, ...(value === undefined ? {} : { default: value }) };
 }
 
 // Text of a template file to its fields; throws with the first thing that is wrong.
@@ -61,7 +64,7 @@ const placeholders = (t) => [...new Set([t.prompt, t.precheck].flatMap((s) => [.
 export function fill(t, values = {}) {
   const known = { mode: t.mode, ...Object.fromEntries(Object.entries(t.parameters).map(([k, p]) => [k, p.default])) };
   const given = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)]));
-  const unknown = [...Object.keys(given), ...placeholders(t)].filter((k) => !(k in known));
+  const unknown = [...Object.keys(given), ...placeholders(t)].filter((k) => !own(known, k));
   if (unknown.length) throw new Error(`unknown parameter: ${[...new Set(unknown)].join(', ')}`);
   const all = { ...known, ...given };
   const missing = Object.keys(all).filter((k) => all[k] === undefined);
@@ -93,7 +96,7 @@ export function lint(t, { generic = true, privateNames = [] } = {}) {
   const bad = (rule, message) => out.push({ rule, message });
   const files = (t.helper_files ?? t.helpers.map((path) => ({ path, text: null })));
   if (t.precheck.trim() === '') bad('precheck', 'no precheck: a run that finds nothing to do would still use a session');
-  for (const k of placeholders(t)) if (k !== 'mode' && !(k in t.parameters)) bad('placeholder', `{{${k}}} is not a declared parameter`);
+  for (const k of placeholders(t)) if (k !== 'mode' && !own(t.parameters, k)) bad('placeholder', `{{${k}}} is not a declared parameter`);
   for (const [r, line] of GUARDRAILS) if (!r.test(t.prompt)) bad('guardrail', `the prompt needs the line "${line}"`);
   if (!t.prompt.includes('{{mode}}')) bad('guardrail', 'the prompt must show the run its mode with {{mode}}');
   if (t.schedule !== '') {
@@ -105,7 +108,7 @@ export function lint(t, { generic = true, privateNames = [] } = {}) {
   if (generic) {
     const all = [t.title, t.prompt, t.precheck, ...files.map((f) => f.text ?? '')].join('\n');
     if (HOME_PATH.test(all)) bad('private', 'a home, mount or drive path: use $HOME or a parameter');
-    for (const n of privateNames) if (new RegExp(`\\b${re(n)}\\b`, 'i').test(all)) bad('private', `the private name "${n}"`);
+    for (const n of privateNames) if (new RegExp(`(?<!\\w)${re(n)}(?!\\w)`, 'i').test(all)) bad('private', `the private name "${n}"`);
   }
   for (const f of files) {
     if (f.text == null) { bad('helper', `${f.path} is missing, not a plain file, or outside the template folder`); continue; }
@@ -123,7 +126,8 @@ function helperFile(dir, path) {
   const file = join(dir, path);
   try {
     const st = lstatSync(file);
-    if (!st.isFile()) return { path, text: null };
+    // lstat judges the last component only: a linked parent folder must not lead out of the tier.
+    if (!st.isFile() || !realpathSync(file).startsWith(realpathSync(dir) + sep)) return { path, text: null };
     return { path, text: readFileSync(file, 'utf8'), executable: process.platform === 'win32' || (st.mode & 0o111) !== 0 };
   } catch { return { path, text: null }; }
 }
@@ -133,7 +137,10 @@ export function load(ctx, tiers = [['generic', genericDir], ['user', userDir(ctx
   const templates = [], errors = [];
   for (const [tier, dir] of tiers) {
     let names;
-    try { names = readdirSync(dir).filter((n) => n.endsWith('.md')).sort(); } catch { continue; }
+    try { names = readdirSync(dir).filter((n) => n.endsWith('.md')).sort(); } catch (e) {
+      if (e.code !== 'ENOENT') errors.push({ tier, file: dir, message: `cannot read the folder: ${e.code ?? e.message}` });
+      continue;
+    }
     for (const name of names) {
       const file = join(dir, name);
       try {

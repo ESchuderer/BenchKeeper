@@ -11,6 +11,16 @@ export const SKILLS = ['orca-cli', 'orchestration'];
 const FILES = ['worker-spec.md', 'orca.yaml.sample', 'worktreeinclude.sample'];
 
 export const installed = (ctx) => ctx.run(['orca', '--version']).code === 0;
+// The version the adapter and its recorded test fixtures were observed with. On another major version the owner runs the
+// manual checks first; doctor warns until then. Unknown output is no warning.
+export const OBSERVED = '1.4.243';
+const major = (v) => /^\s*v?(\d+)\.\d+/.exec(v)?.[1] ?? null;
+export function unobserved(ctx) {
+  const r = ctx.run(['orca', '--version']);
+  const seen = r.code === 0 ? major(String(r.stdout)) : null;
+  if (!seen || seen === major(OBSERVED)) return null;
+  return { message: `${NAME} ${String(r.stdout).trim()} is a major version this app was not checked with (${OBSERVED})`, fix: `update benchkeeper; until a release names this version, its ${NAME} runs view may miss runs (checklist: docs/orca-checks.md in the BenchKeeper repository)` };
+}
 // Its hooks carry its environment variables in the command; the agent settings files get them written back.
 export const ownsHook = (command) => /ORCA_/.test(String(command ?? ''));
 

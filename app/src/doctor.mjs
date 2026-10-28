@@ -11,6 +11,7 @@ import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from 
 import { integrity } from './integrity.mjs';
 import { levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
+import * as orca from './orca/index.mjs';
 import { warnings } from './packs.mjs';
 import { paramChecks } from './params.mjs';
 import { bandChecks } from './ponytail.mjs';
@@ -121,6 +122,8 @@ export function doctor(ctx, { agents, dir, env = process.env, devcontainerCli, n
   const out = [...(tooNew ? [issue('error', 'content', tooNew, 'run the newer benchkeeper command named, or update the plugin to the version this app sets up')] : []), ...featureVars(ctx, env), ...globalDrift(ctx, agents, devcontainerCli, level), ...settingsChecks(ctx, { agents, env }), ...allowChecks(ctx, { agents }), ...instructionChecks(ctx), ...integrity(ctx).map((i) => issue('warning', 'ledger', i.message, i.fix))];
   out.push(...skillOverlap(ctx, undefined, [...skillFiles(ctx.home).map((f) => ({ ...f, scope: 'global' })), ...pluginSkills(ctx)]));
   out.push(...accountChecks(ctx, { dir, now }));
+  const ide = orca.unobserved(ctx);
+  if (ide) out.push(issue('warning', 'tools', ide.message, ide.fix));
   if (!agents || agents.includes('claude')) out.push(...bandChecks(ctx));
   if (level === 'full') {
     out.push(...rulesChecks(ctx, agents));

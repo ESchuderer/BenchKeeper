@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { apply, context, preview } from '../src/runner.mjs';
 import { CSP as BOARD_CSP } from '../src/board.mjs';
+import { fake, missing, RECORDED, replies } from './fakes/orca.mjs';
 import { SANDBOX, viaSrt } from './fixtures/srt.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
 import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/server.mjs';
@@ -768,17 +769,12 @@ test('apply-all: a cancel stops after the running change; later changes are skip
 
 test('runs: a run with its tasks, worktree, branch and cost, the last setup change, the IDE runs as ids, states and counts; no worker or task text', async () => {
   const MARK = 'PLANTED-WORKER-TEXT-4711';
-  const ide = (argv) => {
-    const cmd = argv.join(' ');
-    const ok = (result) => ({ code: 0, stdout: JSON.stringify({ ok: true, result }), stderr: '' });
-    if (cmd === 'orca --version') return { code: 0, stdout: '1.4.0', stderr: '' };
-    if (cmd.startsWith('orca orchestration run-list')) return ok({ runs: [{ id: 'run_a', objective: MARK, created_at: '2026-10-23T08:00:00Z', updated_at: '2026-10-23T12:00:00Z' }] });
-    if (cmd.startsWith('orca orchestration task-list --run run_a')) {
-      return ok({ tasks: [{ id: 'task_a', status: 'completed', spec: MARK, display_name: MARK, task_title: MARK, result: JSON.stringify({ subject: MARK, body: MARK }) }, { id: 'task_b', status: 'running', spec: MARK }] });
-    }
-    return realGit(argv, {});
-  };
-  const { ctx, routes } = fixture(ide);
+  // The IDE is the fake CLI with a run of the recorded shape whose text fields hold the mark.
+  const run = { ...RECORDED.runList.result.runs[0], id: 'run_a', objective: MARK, created_at: '2026-10-23T08:00:00Z', updated_at: '2026-10-23T12:00:00Z' };
+  const task = RECORDED.taskList.result.tasks[0];
+  const tasks = [{ ...task, id: 'task_a', status: 'completed', spec: MARK, display_name: MARK, task_title: MARK, result: JSON.stringify({ subject: MARK, body: MARK }) }, { ...task, id: 'task_b', status: 'dispatched', spec: MARK }];
+  const ide = fake({ replies: replies({ runs: [run], tasks: { run_a: tasks } }) });
+  const { ctx, routes } = fixture((argv, o) => (argv[0] === 'orca' ? ide.ctx.run(argv, o) : realGit(argv, {})));
   const dir = repo('runs');
   routes['POST /api/projects']({ path: dir });
   // A session title can hold prompt text: it is planted too, and the view never takes it.
@@ -794,13 +790,14 @@ test('runs: a run with its tasks, worktree, branch and cost, the last setup chan
   const at = { worktree: dir, branch: 'feat/cart' };
   assert.deepEqual(r.runs, [{ run: 'r-9', sessions: 3, costUSD: 2.25, tokens: 345, tasks: [{ task: 'task_b', sessions: 1, costUSD: 0.25, tokens: 115, ...at }, { task: 'task_a', sessions: 2, costUSD: 2, tokens: 230, ...at }] }]);
   assert.deepEqual(r.setup.map((p) => [p.project, p.lastChange?.kind, p.lastChange?.status]), [[dir, 'apply', 'done']]);
-  assert.deepEqual(r.ide, { name: 'Orca', runs: [{ id: 'run_a', created: '2026-10-23T08:00:00Z', updated: '2026-10-23T12:00:00Z', tasks: 2, states: { completed: 1, running: 1 } }] });
+  assert.deepEqual(r.ide, { name: 'Orca', runs: [{ id: 'run_a', created: '2026-10-23T08:00:00Z', updated: '2026-10-23T12:00:00Z', tasks: 2, states: { completed: 1, dispatched: 1 } }] });
   for (const text of [JSON.stringify(r), ...logged]) assert.ok(!text.includes(MARK));
 });
 
 test('runs: without the IDE its runs are null and it is asked nothing more; the Settings page routes run no command', async () => {
   const asked = [];
-  const { routes } = fixture((argv) => { asked.push(argv.join(' ')); return null; });
+  const gone = missing();
+  const { routes } = fixture((argv, o) => { asked.push(argv.join(' ')); return argv[0] === 'orca' ? gone.ctx.run(argv, o) : null; });
   routes['GET /api/tier-band']();
   routes['GET /api/sessions-cache']();
   assert.deepEqual(asked, []);

@@ -27,7 +27,7 @@ const SORTS = {
   setup: ['Setup state', (a, b) => setupRank(a) - setupRank(b)],
   last: ['Last change', (a, b) => (b.last ?? '').localeCompare(a.last ?? '')],
 };
-export const SORT_OPTIONS = Object.entries(SORTS).map(([value, [text]]) => ({ value, label: text }));
+const SORT_OPTIONS = Object.entries(SORTS).map(([value, [text]]) => ({ value, label: text }));
 
 // The rows to show: search over name, folder and notes, then the filter, then the sort (a stable one, so ties and the
 // default keep the order the projects were added in).

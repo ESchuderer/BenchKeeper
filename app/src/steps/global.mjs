@@ -24,8 +24,6 @@ export const SKILLS_CLI = '1.7.2';
 // As an npm alias: npx runs a package from the project's node_modules when its version satisfies a plain spec, so a
 // cloned repository could ship its own "skills" 1.7.2. An alias range never matches a local package (npm 10 libnpmexec).
 export const SKILLS_SPEC = `skills@npm:skills@${SKILLS_CLI}`;
-// Run before a command that fetches the skills CLI: npm's registry signatures of the CLI and its dependencies.
-export const SKILLS_VERIFY = verifyArgv(`skills@${SKILLS_CLI}`);
 // The global skills' repositories, from their default branch: only the skills CLI is pinned.
 export const SKILL_SOURCES = {
   'vercel-labs/skills': 'https://github.com/vercel-labs/skills',
@@ -69,7 +67,7 @@ const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropi
 // BenchKeeper adds no permission rules: Claude Code's auto mode (its defaults) decides what needs a prompt. Whatever else sits in
 // permissions.ask or in Codex's rules folder differs from that set and is offered for removal. The two push and pull request
 // checkpoints are the catalog's suggestion (settings editor, never written here), so they are not offered for removal.
-export const PERMISSION_ASK = ['Bash(git push *)', 'Bash(gh pr create *)'];
+const PERMISSION_ASK = ['Bash(git push *)', 'Bash(gh pr create *)'];
 const CODEX_OWN_RULES = ['default.rules'];
 export const CLAUDE_KEYS = [
   [['advisorModel'], 'opus'], [['showClearContextOnPlanAccept'], true],
@@ -153,7 +151,7 @@ function readPluginState(ctx, a, account) {
 // Claude Code keeps one plugin cache per config folder (CLAUDE_CONFIG_DIR), so each registered host account has its own copy of a
 // plugin, and the default-folder steps of the global plan never reach it. These are the accounts whose folder exists and is not the
 // default folder (a registered path, or its plugins folder, that resolves to the default one, a link included, is that folder).
-export function claudeAccounts(ctx) {
+function claudeAccounts(ctx) {
   const real = (p) => { try { return realpathSync(p); } catch { return p; } };
   const def = real(join(ctx.home, '.claude')), defPlugins = real(join(ctx.home, '.claude/plugins'));
   try { return listAccounts(ctx).filter((a) => a.agent === 'claude' && a.mode === 'host' && exists(a.dir) && real(a.dir) !== def && real(join(a.dir, 'plugins')) !== defPlugins); } catch { return []; /* doctor reports an unreadable registry */ }

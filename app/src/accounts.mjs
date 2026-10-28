@@ -35,11 +35,11 @@ const ESC = String.fromCharCode(27), BEL = String.fromCharCode(7);
 const ANSI = new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]|${ESC}\\][^${BEL}]*${BEL}`, 'g');
 const clean = (t) => String(t).replace(ANSI, '').replace(/[^\P{Cc}\t\n]/gu, '');
 // shortcut: a token of an unknown shape that sits in a run shorter than 32 characters is not recognised; a longer run is hidden.
-export const hide = (text, secret) => mask(clean(text), { keys: true }).replace(/[A-Za-z0-9_-]{32,}/g, '***').split(secret || '\0').join('***');
+const hide = (text, secret) => mask(clean(text), { keys: true }).replace(/[A-Za-z0-9_-]{32,}/g, '***').split(secret || '\0').join('***');
 
 // ---- registry: accounts.json in the config folder
 
-export const registryFile = (ctx) => join(ctx.config, 'accounts.json');
+const registryFile = (ctx) => join(ctx.config, 'accounts.json');
 const where = (ctx) => (ctx.env ?? process.env);
 const home = (ctx) => ctx.home ?? homedir();
 
@@ -80,7 +80,7 @@ export function pickAccount(ctx, { name, agent }) {
 
 // The registry as a change of the usual kind: a diff in the plan, a ledger entry, undo. f maps the list to the new list
 // and throws on a refusal, which the preview shows as the change's error; g does the same for the settings. The registry holds no credential.
-export function registryChange(title, ctx, f, g = (s) => s) {
+function registryChange(title, ctx, f, g = (s) => s) {
   return { id: 'accounts', step: 'accounts', title, kind: 'write', path: registryFile(ctx), edit: (text) => {
     const doc = parseDoc(text), settings = g(doc.settings);
     const out = `${JSON.stringify({ schemaVersion: 1, ...(settings && Object.keys(settings).length ? { settings } : {}), accounts: f(doc.accounts) }, null, 2)}\n`;
@@ -172,7 +172,7 @@ const asyncRun = (ctx) => ctx.runAsync ?? ctx.run;
 function* engineSteps(ctx) {
   for (const e of ['podman', 'docker']) if ((yield [[e, '--version'], { env: where(ctx) }]).code === 0) return e;
 }
-export const engineOf = (ctx) => drive(engineSteps(ctx), ctx.run);
+const engineOf = (ctx) => drive(engineSteps(ctx), ctx.run);
 const mounts = (ctx) => listAccounts(ctx).filter((a) => a.mode === 'container').flatMap((a) => ['--mount', `type=volume,source=${a.volume},target=${a.mount}`]);
 // devcontainer exec runs cmd in the project's container; the account's folder variable is a --remote-env value.
 const execArgv = (engine, dir, a, cmd) => ['devcontainer', 'exec', '--docker-path', engine, '--workspace-folder', dir, '--remote-env', `${VAR[a.agent]}=${a.mount}`, ...cmd];
@@ -201,8 +201,8 @@ function* containerSteps(ctx, a, dir) {
   if ((yield inContainer(['grep', '-qF', ` ${a.mount} `, '/proc/self/mountinfo'])).code !== 0 || (yield inContainer(['test', '-w', a.mount])).code !== 0) throw new Error(`the volume ${a.volume} is not mounted at ${a.mount} in this container, or not writable for its user. A mount applies when a container is created: recreate it with\n  ${[...up, '--remove-existing-container'].join(' ')}`);
   return engine;
 }
-export const ensureContainer = (ctx, a, dir) => drive(containerSteps(ctx, a, dir), ctx.run);
-export const ensureContainerAsync = (ctx, a, dir) => driveAsync(containerSteps(ctx, a, dir), asyncRun(ctx));
+const ensureContainer = (ctx, a, dir) => drive(containerSteps(ctx, a, dir), ctx.run);
+const ensureContainerAsync = (ctx, a, dir) => driveAsync(containerSteps(ctx, a, dir), asyncRun(ctx));
 
 // ---- status and preflight
 
@@ -289,7 +289,7 @@ export class NeedsConfirm extends Error {
   constructor() { super('below the minimum headroom of the account (--yes starts anyway, --account <name> chooses another)'); }
 }
 const sleep = (ctx, ms) => (ctx.sleep ?? ((n) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, n)))(ms);
-export const accountUsage = (ctx, a, o) => drive(usageNowSteps(ctx, a, o), ctx.run);
+const accountUsage = (ctx, a, o) => drive(usageNowSteps(ctx, a, o), ctx.run);
 
 // The usage check of a launch, for an account with a window below its minimum. Returns null (go on: confirmed, or the settings
 // say go on; the findings printed before show the windows), { account, confirmed? } (start under that account instead; confirmed after a wait), or throws NeedsConfirm or a stop.
@@ -497,5 +497,3 @@ function loginCodexToken(ctx, a, { io, dir }) {
   io.step('done', { stored: false });
   return { stored: false };
 }
-
-export { StoreError };

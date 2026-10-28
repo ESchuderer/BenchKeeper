@@ -45,7 +45,7 @@ import { levelFor } from './level.mjs';
 import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
 
-export const HEADER = 'x-benchkeeper';
+const HEADER = 'x-benchkeeper';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
 const cookieName = (port) => `bk_session_${port}`;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
@@ -795,7 +795,7 @@ export function launch(target) {
 
 // A snap or Flatpak browser has its own /tmp and cannot read the file openBrowser writes there; handing it the URL would put
 // the token into the arguments, which other local users read with ps. It is not launched: the CLI prints the URL to paste.
-export function confinedBrowser(run = runCommand, home = process.env.HOME ?? '') {
+function confinedBrowser(run = runCommand, home = process.env.HOME ?? '') {
   if (process.platform !== 'linux') return false;
   const app = run(['xdg-settings', 'get', 'default-web-browser'], { timeout: 5e3 }).stdout.trim();
   return !!app && !app.includes('/') && ['/var/lib/snapd/desktop/applications', '/var/lib/flatpak/exports/share/applications', join(home, '.local/share/flatpak/exports/share/applications')]
@@ -824,7 +824,7 @@ export function openBrowser(url, { wait = 120e3, open = launch, confined = confi
   }
 }
 // On Windows through explorer: cmd would read & or ^ in a folder name as its own syntax.
-export function openFolder(dir) {
+function openFolder(dir) {
   if (process.platform !== 'win32') return launch(dir);
   try { spawn(windowsTool('explorer.exe'), [dir], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch { /* nothing to open */ }
 }

@@ -20,7 +20,7 @@ export const agentSettings = (id) => CATALOG[id] ?? (() => { throw new Error(`no
 
 // Whole words of the name (split at case changes and separators), so includeCoAuthoredBy and MAX_THINKING_TOKENS stay visible.
 const SECRET_WORD = /^(?:\w*key|\w*token|\w*secret|\w*password|passwd|credentials?|o?auth(?:orization)?|bearer|cookie|private)$/i;
-export const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
+const isSecretName = (name) => String(name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).some((w) => SECRET_WORD.test(w));
 const MASK = '(set)';
 // A masked value must never come back as an edit: the placeholder would replace the stored secret.
 const hasMask = (v) => (typeof v === 'string' ? v === MASK || v.includes(`"${MASK}"`) || v.includes(`:${MASK}@`) : v != null && typeof v === 'object' && Object.values(v).some(hasMask));
@@ -45,7 +45,7 @@ export const redact = (text) => (text == null ? text : redactAt(text.replace(URL
 export const isSettingsFile = (path) => /(^|[\\/])(settings(\.local)?\.json|config\.toml|managed_config\.toml|\.claude\.json)$/.test(String(path));
 
 // Which layers exist for an agent and where their files are. dir is a project folder; without it only user and managed.
-export function layerFiles(ctx, agentId, dir) {
+function layerFiles(ctx, agentId, dir) {
   const a = agentSettings(agentId);
   const files = [];
   for (const p of a.managed) files.push({ layer: 'managed', path: `${ctx.managedRoot ?? ''}${p}`, readOnly: true });
@@ -71,7 +71,7 @@ export function readSettings(ctx, agentId, { dir } = {}) {
   });
 }
 
-export const pathOf = (key) => key.split('.');
+const pathOf = (key) => key.split('.');
 const dig = (data, path) => path.reduce((o, k) => (o != null && typeof o === 'object' ? o[k] : undefined), data);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -155,7 +155,7 @@ export function parseInput(def, text) {
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
 
 // null when the value fits the key, else the reason. value undefined or null means removing the key.
-export function validate(agentId, def, value, layer) {
+function validate(agentId, def, value, layer) {
   if (value == null) return null;
   const bad = (m) => `${def.key}: ${m}`;
   switch (def.type) {
@@ -371,7 +371,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
 }
 
 // Codex [projects."<path>"] entries with whether the folder still exists, from the user layer only.
-export function trustList(layers) {
+function trustList(layers) {
   const user = layers.find((l) => l.layer === 'user');
   return Object.entries(user?.data?.projects ?? {}).map(([path, v]) => ({ path, trust: v?.trust_level ?? null, exists: exists(path) }));
 }
@@ -384,7 +384,7 @@ const strictJson = (text, file) => {
 
 // The editor's write for one key: JSON with comments kept and ancestors created, or a TOML line edit that keeps comments
 // and key order. The result is parsed again before it is returned, so an invalid file never reaches the runner.
-export function editFor(agentId, key, value, file = 'the file') {
+function editFor(agentId, key, value, file = 'the file') {
   if (agentId === 'codex') {
     return (text) => {
       const src = text ?? '';

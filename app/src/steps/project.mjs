@@ -23,7 +23,8 @@ import * as orca from '../orca/index.mjs';
 
 export const STATE = '.benchkeeper/state.json';
 // A local setup's files: Claude Code's personal instructions and settings, and Codex's override of AGENTS.md.
-export const LOCAL_CLAUDE = 'CLAUDE.local.md', OVERRIDE = 'AGENTS.override.md', LOCAL_SETTINGS = '.claude/settings.local.json';
+export const LOCAL_CLAUDE = 'CLAUDE.local.md';
+const OVERRIDE = 'AGENTS.override.md', LOCAL_SETTINGS = '.claude/settings.local.json';
 // The skills CLI's lockfile: its commands change it next to the skill folders.
 const LOCK = 'skills-lock.json';
 export const ENVS = {
@@ -153,7 +154,7 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
 
 // State schema 2 holds appVersion and contentVersion. A version 1 file (setupVersion) is read with that value as both; the next apply writes version 2.
 // Ids that left the frameworks are migrated on every read (migrateFrameworks); the next apply writes them where they now belong.
-export const STATE_SCHEMA = 2;
+const STATE_SCHEMA = 2;
 export const parseState = (text) => normalizeState(JSON.parse(text));
 // Also for a state the registry kept as an object.
 export function normalizeState(s) {
@@ -579,12 +580,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
 }
 
 // What the user starts after the deterministic steps: the setup skill session, and the packs' own prompts.
-export function promptsFor(a, lib = library()) {
+function promptsFor(a, lib = library()) {
   const first = a.agents.includes('claude') ? 'claude' : a.agents[0];
   const p = [{ agent: first, prompt: first === 'codex' ? '$benchkeeper:setting-up-projects' : first === 'claude' ? '/benchkeeper:setting-up-projects' : 'Load the setting-up-projects skill and run it.', why: 'stack skills, AGENTS.md commands, the dev container' }];
   for (const id of a.packs) for (const x of lib.packs.find((y) => y.id === id)?.prompts ?? []) p.push({ agent: first, prompt: first === 'codex' ? x.codex : x.claude, why: x.why });
   return p;
 }
 
-export const blockOf = (dir) => getBlock(readText(join(dir, 'AGENTS.md')), 'project');
-export { parseJson };

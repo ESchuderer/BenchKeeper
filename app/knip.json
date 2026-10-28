@@ -1,0 +1,4 @@
+{
+  "entry": ["src/cli.mjs", "scripts/baseline-sync.mjs"],
+  "ignoreDependencies": ["dependency-cruiser", "jscpd", "@stryker-mutator/command-runner"]
+}

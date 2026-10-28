@@ -63,7 +63,7 @@ function excludesOf(ctx, dir) {
 }
 
 // Where a global file goes while it is off: the app's own folder, the path below the home folder kept.
-export const parkedPath = (ctx, file) => join(ctx.config, 'disabled-rules', relative(ctx.home, file));
+const parkedPath = (ctx, file) => join(ctx.config, 'disabled-rules', relative(ctx.home, file));
 
 // Paths BenchKeeper wrote and has not undone, from the ledger.
 // The moves of a switch are not BenchKeeper writing the file: the file stays the user's.

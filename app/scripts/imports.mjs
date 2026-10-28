@@ -13,7 +13,7 @@ const cruise = spawnSync(process.execPath, [bin, '--config', join(here, '.depend
 
 // The name in a word in any case, or inside a string literal; a lowercase identifier, an import or require path and a `${}` expression are not one.
 // Scans the whole file, so a template literal over several lines is one literal. Shortcut: a backtick inside a `${}` and a regex literal after something other than an operator or bracket end the scan of that literal early; upgrade to a parser if the check misfires on real code.
-const TOKEN = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|(?<=[(,=:[!&|?{};]\s*|\breturn\s+)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n[])+\/[a-z]*|(['"])(?:\\[\s\S]|(?!\1)[^\\\n])*\1|`(?:\\[\s\S]|[^`\\])*`/g;
+const TOKEN = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|(?<=[(,=:[!&|?{};]|\breturn)\s*\/(?![*/])(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n[])+\/[a-z]*|(['"])(?:\\[\s\S]|(?!\1)[^\\\n])*\1|`(?:\\[\s\S]|[^`\\])*`/g;
 // `from 'x'` and `import 'x'` take the path bare, `import('x')` and `require('x')` in parentheses; a call `from('x')` is none.
 const SPECIFIER = /(?<![.$\w])(?:(?:from|import)|(?:import|require)\s*\()\s*$/;
 const nameAt = (text) => {

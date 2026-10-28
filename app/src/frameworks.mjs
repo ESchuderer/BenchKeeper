@@ -18,7 +18,7 @@ const stemOf = (path) => basename(path, '.md');
 const tryJson = (t) => { try { return t == null ? null : parseJson(t); } catch { return null; } };
 
 // A shared setup enables the plugin in the project's settings file (scope project), a local one in the personal file (scope local).
-export const SETTINGS = { project: '.claude/settings.json', local: '.claude/settings.local.json' };
+const SETTINGS = { project: '.claude/settings.json', local: '.claude/settings.local.json' };
 const scopeOf = (a) => (a.share ? 'project' : 'local');
 const enabledIn = (dir, scope, id) => tryJson(readText(join(dir, SETTINGS[scope])))?.enabledPlugins?.[id] === true;
 
@@ -62,7 +62,7 @@ export const ownerOf = (a, lib = library()) => catalog(lib).find((f) => f.role =
 
 // Agent files of the catalog among files.
 const filesOf = (lib) => new Set(sources(lib).flatMap((f) => f.install.files.map((x) => x.path)));
-export const agentFilesOf = (files, lib = library()) => files.filter((p) => filesOf(lib).has(p));
+const agentFilesOf = (files, lib = library()) => files.filter((p) => filesOf(lib).has(p));
 
 // What a state file still says that this app's catalog knows: an id or path it does not know (a newer app, a renamed file) is
 // ignored, so the project can still be planned; the doctor reports it.

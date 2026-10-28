@@ -509,7 +509,7 @@ function draw() {
 }
 /* node:coverage enable */
 
-export const SCRIPT = `(${draw})();`;
+const SCRIPT = `(${draw})();`;
 export const SCRIPT_HASH = `sha256-${createHash('sha256').update(SCRIPT).digest('base64')}`;
 // No requests at all; inline styles only; the script by its hash. The app adds frame-ancestors in its header.
 export const CSP = `default-src 'none'; script-src '${SCRIPT_HASH}'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'`;

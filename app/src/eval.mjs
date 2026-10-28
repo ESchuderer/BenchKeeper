@@ -13,7 +13,7 @@ import { inLibrary, loadCases, scopeOf, skillSource, userEvals } from './cases.m
 const results = (ctx) => join(userEvals(ctx), 'results.jsonl');
 
 // What a target's result depends on: the skill or rules text, and its cases.
-export function targetHash(ctx, target, cases) {
+function targetHash(ctx, target, cases) {
   const src = target.startsWith('rule:') ? join(contentDir, 'rules', `${target.slice('rule:'.length)}.md`) : skillSource(ctx, target, cases[0]?.project)?.dir;
   return hashText(`${src ? hashPath(src) : 'missing'}\n${JSON.stringify(cases.map(({ file, ...c }) => c))}`);
 }
@@ -21,7 +21,7 @@ export function targetHash(ctx, target, cases) {
 // --target takes the id of a target, or skill:<name> for an own skill that no library skill shares.
 const picked = (only, target) => only.some((t) => t === target || (target.startsWith(`${t}@`) && !inLibrary(t.slice('skill:'.length))));
 
-export function lastResults(ctx) {
+function lastResults(ctx) {
   const last = new Map();
   for (const line of (readText(results(ctx)) ?? '').split('\n').filter(Boolean)) {
     const r = JSON.parse(line);

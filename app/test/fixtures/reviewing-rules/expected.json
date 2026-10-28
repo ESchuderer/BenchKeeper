@@ -1,0 +1,7 @@
+{
+  "contradiction.md": [{"kind": "contradiction", "lines": [3, 5]}, {"kind": "contradiction", "lines": [4, 6]}],
+  "vague.md": [{"kind": "vague", "lines": [3]}, {"kind": "vague", "lines": [4]}, {"kind": "vague", "lines": [5]}],
+  "enforceable.md": [{"kind": "enforceable", "lines": [3]}, {"kind": "enforceable", "lines": [4]}, {"kind": "enforceable", "lines": [5]}],
+  "restates.md": [{"kind": "restates", "lines": [3]}, {"kind": "restates", "lines": [4]}, {"kind": "restates", "lines": [5]}],
+  "clean.md": []
+}

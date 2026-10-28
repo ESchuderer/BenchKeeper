@@ -1,0 +1,5 @@
+interface:
+  display_name: "Reviewing rules"
+  short_description: "Review one rule file for problems the checks miss"
+policy:
+  allow_implicit_invocation: false

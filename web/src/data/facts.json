@@ -4,7 +4,7 @@
   "levels": [
     {
       "name": "Lite",
-      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects` and `operating-benchkeeper` skills",
+      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
       "command": "npx benchkeeper@6.25.0 apply --level lite",
       "evidence": "app/test/level.test.mjs"

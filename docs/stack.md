@@ -22,7 +22,7 @@ Global (per machine): the rules, the BenchKeeper plugin, the plugins of the pack
 With the `ponytail` pack, another Ponytail level for the current session: `/ponytail lite` or `/ponytail ultra` (Claude Code).
 
 <!-- generated:core -->
-**Optional: [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request).
+**Optional: [mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock:** the workflow owner: his skills run the phases of standard and full work when installed (grilling, spec and tickets, tests first, code review, pull request).
 <!-- /generated:core -->
 
 ## Contents

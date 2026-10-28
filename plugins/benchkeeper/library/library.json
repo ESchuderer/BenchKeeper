@@ -22,11 +22,6 @@
       "note": "The skills read `.agents/product-marketing.md` when it exists, which `product-marketing` writes."
     },
     {
-      "id": "ecc",
-      "title": "ECC",
-      "note": "Three skills of ECC's `workflow-quality` module (the `minimal` profile), installed as single skills: no plugin, no hooks, nothing outside the project."
-    },
-    {
       "id": "security",
       "title": "Security",
       "note": "CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project."
@@ -429,30 +424,6 @@
       "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The repository holds user interviews, surveys or feedback to evaluate"
-    },
-    {
-      "name": "verification-loop",
-      "section": "ecc",
-      "source": "affaan-m/ECC",
-      "license": "MIT",
-      "agents": "both",
-      "pickWhen": "Work needs a pass of build, types, lint and a diff review before a pull request"
-    },
-    {
-      "name": "error-handling",
-      "section": "ecc",
-      "source": "affaan-m/ECC",
-      "license": "MIT",
-      "agents": "both",
-      "pickWhen": "The code needs one consistent way to raise, handle and report errors"
-    },
-    {
-      "name": "architecture-decision-records",
-      "section": "ecc",
-      "source": "affaan-m/ECC",
-      "license": "MIT",
-      "agents": "both",
-      "pickWhen": "A design choice needs a record of its context, options and outcome"
     }
   ],
   "packs": [
@@ -483,6 +454,7 @@
     {
       "id": "matt-pocock",
       "title": "Matt Pocock's skills",
+      "role": "workflow owner",
       "pickWhen": "The project uses his grilling, spec, tickets, test-first and review skills",
       "plugins": {
         "claude": {
@@ -587,38 +559,6 @@
         "compliance-check",
         "gdpr-compliant"
       ]
-    },
-    {
-      "id": "ecc",
-      "title": "ECC (selected skills)",
-      "pickWhen": "The owner names ECC: its verification, error handling and decision record skills",
-      "skills": [
-        "verification-loop",
-        "error-handling",
-        "architecture-decision-records"
-      ]
-    }
-  ],
-  "frameworks": [
-    {
-      "id": "superpowers",
-      "title": "Superpowers",
-      "role": "owner",
-      "repo": "obra/superpowers",
-      "license": "MIT",
-      "pin": "the official Claude Code marketplace's pin (7.0.0 on 2026-10-25; the repository is at 7.0.1)",
-      "evaluation": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/superpowers.md",
-      "verdict": "Not in by default: cost higher in every with/without test but one, pass rate not significantly different.",
-      "hooks": "One SessionStart hook.",
-      "gives": "BenchKeeper's workflow skill and the issue-tracker specs give way in this project.",
-      "install": {
-        "kind": "plugin",
-        "plugin": "superpowers@claude-plugins-official",
-        "agents": [
-          "claude"
-        ]
-      },
-      "limits": "Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project."
     }
   ],
   "sources": [

@@ -47,13 +47,6 @@ const blocks = {
     '|---|---|---|---|',
     ...facts.parallelTools.map((t) => `| ${link(t.name, t.url)} | ${cell(t.platforms)} | ${cell(t.points.join('; '))} | ${cell(t.when)} |`),
   ],
-  frameworks: [
-    facts.frameworks.rule,
-    '',
-    '| Framework | Role | Installs |',
-    '|---|---|---|',
-    ...facts.frameworks.items.map((f) => `| ${link(f.name, f.url)} | ${cell(f.role)} | ${cell(f.installs)} |`),
-  ],
   reasons: facts.stack.reasons.map((r) => `- ${r.name}: ${r.text}`),
   openhands: [
     `**Unattended or isolated runs: [${facts.openhands.name}](${facts.openhands.url}).** ${facts.openhands.summary}`,
@@ -66,7 +59,7 @@ const blocks = {
 const pick = (names) => Object.fromEntries(names.map((n) => [n, blocks[n]]));
 const targets = [
   ['README.md', pick(['description', 'quickstart'])],
-  ['docs/setup.md', pick(['prerequisites', 'levels', 'support', 'frameworks'])],
+  ['docs/setup.md', pick(['prerequisites', 'levels', 'support'])],
   ['docs/stack.md', pick(['core', 'reasons', 'tools', 'openhands'])],
   ['app/README.md', { quickstart: quickstart('../docs/setup.md') }],
 ];

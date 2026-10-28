@@ -8,7 +8,7 @@ import { appVersion, contentDir, contentVersion, library } from '../content.mjs'
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { cooldownEnv } from '../cooldown.mjs';
 import { exists, hashPath, isLink, listFiles, readText, realish } from '../fsx.mjs';
-import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, migrateFrameworks, ownerOf, resolveFrameworks } from '../frameworks.mjs';
+import { frameworkChanges, frameworkNotices, frameworkPaths, frameworkRemovals, frameworkState, keptFrom, resolveFrameworks } from '../frameworks.mjs';
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { getBlock, mergeJson, parseJson, setBlock } from '../merge.mjs';
@@ -115,7 +115,7 @@ export function committedSetup(dir) {
     else add('sandbox', 'remove .claude/settings.json (only the keys BenchKeeper set)', { kind: 'remove', path: at('.claude/settings.json') });
   }
   if (state?.guards && exists(at(GUARD_PATH))) add('guards', `remove ${GUARD_PATH}`, { kind: 'remove', path: at(GUARD_PATH), selected: readText(at(GUARD_PATH)) === guardScript() });
-  for (const c of frameworkRemovals(dir, state, 'project')) add(c.step, c.title, c);
+  for (const c of frameworkRemovals(dir, state)) add(c.step, c.title, c);
   for (const p of offeredFiles(dir)) add('offered', `remove ${p}`, { kind: 'remove', path: at(p) });
   installedFiles(dir, state, add);
   return changes;
@@ -152,7 +152,7 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
     if (JSON.stringify(v) === JSON.stringify(g.value)) add('gemini-context', 'Gemini CLI no longer reads AGENTS.md', { kind: 'write', path: at(g.path), edit: (t) => mergeJson(t, [{ path: g.key, remove: true }, { path: g.key.slice(0, -1), prune: true }]) });
   }
   const tracked = (p) => git(ctx, dir, ['ls-files', '--', p]).stdout.trim() !== '';
-  for (const c of frameworkRemovals(dir, state, 'local').filter((x) => !tracked(x.path))) add(c.step, c.title, c);
+  for (const c of frameworkRemovals(dir, state).filter((x) => !tracked(x.path))) add(c.step, c.title, c);
   for (const p of offeredFiles(dir).filter((x) => !tracked(x))) add('offered', `remove ${p}`, { kind: 'remove', path: at(p) });
   installedFiles(dir, state, add, tracked);
   const exclude = keepExclude ? null : excludeFile(ctx, dir);
@@ -162,14 +162,13 @@ export function localSetup(ctx, dir, { keepExclude = false } = {}) {
 }
 
 // State schema 2 holds appVersion and contentVersion. A version 1 file (setupVersion) is read with that value as both; the next apply writes version 2.
-// Ids that left the frameworks are migrated on every read (migrateFrameworks); the next apply writes them where they now belong.
 const STATE_SCHEMA = 2;
 export const parseState = (text) => normalizeState(JSON.parse(text));
 // Also for a state the registry kept as an object.
 export function normalizeState(s) {
   if (s?.schemaVersion > STATE_SCHEMA) throw new Error(`schemaVersion ${s.schemaVersion}, this benchkeeper reads up to ${STATE_SCHEMA}: update it with npx benchkeeper@${appVersion.split('.')[0]}`);
-  if (s && s.schemaVersion !== STATE_SCHEMA) { const { setupVersion, ...rest } = s; return migrateFrameworks({ ...rest, schemaVersion: STATE_SCHEMA, appVersion: rest.appVersion ?? setupVersion, contentVersion: rest.contentVersion ?? setupVersion }); }
-  return migrateFrameworks(s);
+  if (s && s.schemaVersion !== STATE_SCHEMA) { const { setupVersion, ...rest } = s; return { ...rest, schemaVersion: STATE_SCHEMA, appVersion: rest.appVersion ?? setupVersion, contentVersion: rest.contentVersion ?? setupVersion }; }
+  return s;
 }
 // Both versions equal this app's and its content's: a project is behind when either differs.
 export const upToDate = (s) => s?.appVersion === appVersion && s?.contentVersion === contentVersion;
@@ -181,7 +180,7 @@ export function readState(dir) {
 // For listings: an unreadable state file counts as none, so one broken project does not hide the others.
 export const tryState = (dir) => { try { return readState(dir); } catch { return null; } };
 
-// answers: { agents, env, sandbox, packs, frameworks (ids; one workflow owner at most), agentFiles (picked agent files of a framework), skills (single skills besides the packs'), disable, enable, packOn, packOff (packs
+// answers: { agents, env, sandbox, packs, agentFiles (picked agent files of a source), skills (single skills besides the packs'), disable, enable, packOn, packOff (packs
 // switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), update (community skills added again from
 // the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
@@ -200,7 +199,6 @@ export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], pa
   a.partial = partial;
   a.share = a.share === true;
   a.guards = a.guards !== false;
-  a.frameworks = [a.frameworks].flat();
   a.agentFiles = [a.agentFiles].flat();
   for (const m of a.callers) if (!CALLERS.includes(m)) throw new Error(`caller must be one of ${CALLERS.join(', ')}`);
   if (!a.agents.length) throw new Error('choose the agents for this project (--agents)');
@@ -339,12 +337,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // stops Claude Code reading AGENTS.md on its own) and AGENTS.override.md for Codex (read instead of AGENTS.md, so it
   // carries AGENTS.md's text too and is rebuilt from it on every apply).
   const rules = forAgent(readFileSync(join(contentDir, 'rules/project.md'), 'utf8'), a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
-  // A workflow owner chosen takes BenchKeeper's workflow skill and the issue-tracker specs out of the block: it gives way.
-  const owner = ownerOf(a);
-  const ruleLines = rules.split('\n').map((l) => l.replace(/^- /, '')).filter((l) => !owner || !/`(?:benchkeeper:)?workflow` skill/.test(l));
-  const ownerLine = owner && forAgent(`Workflow owner: ${owner.title}. Its skills plan and run the work here: do not load the \`benchkeeper:workflow\` skill or write BenchKeeper issue-tracker specs.`, a.agents.find((id) => !agent(id).plugins) ?? a.agents[0]);
+  const ruleLines = rules.split('\n').map((l) => l.replace(/^- /, ''));
   const packLines = a.packs.map((id) => lib.packs.find((p) => p.id === id)?.pointer).filter(Boolean);
-  const lines = (run) => [...ruleLines, ownerLine, ENVS[a.env], dc && written(dc, run) && DC_LINE, a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
+  const lines = (run) => [...ruleLines, ENVS[a.env], dc && written(dc, run) && DC_LINE, a.tier && `Default tier: ${a.tier}`, ...packLines, ...skills.filter((s) => s.source === 'own' && !a.disabled.includes(s.name)).map((s) => s.pointer?.match(/^`([^`]+)`/)?.[1])].filter(Boolean);
   const blockText = (run) => { const l = lines(run); return l.length ? l.map((x) => `- ${x}`).join('\n') : null; };
   const overrideOurs = (t) => t == null || getBlock(t, 'project') != null;
   const rulesUnit = unit({ id: 'rules:project', kind: 'rules', source: { type: 'library' }, agents: a.agents, scope: 'project', removal: 'block' });
@@ -420,14 +415,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     }
   }
 
-  // Frameworks: a plugin enabled for this project only, or agent files fetched at a pinned commit; packs go with the packs above.
+  // Agent files fetched at a pinned commit.
   const fwIds = new Map();
   for (const { step, title, key, ...c } of frameworkChanges({ a, dir, prev })) { add(step, title, c); if (key) fwIds.set(key, changes.at(-1).id); }
-  // Whether a framework install or fetch ran in the run that writes the state file (null: none planned).
+  // Whether an agent-file fetch ran in the run that writes the state file (null: none planned).
   const ranFw = (run) => (key) => (!fwIds.has(key) ? null : !run || run.entries.some((e) => e.id === fwIds.get(key) && e.status === 'done'));
 
-  // Guards: deny rules and the PreToolUse hook for the rules without exceptions, in the settings file of the sandbox step. After the frameworks: a plugin install for this project edits the same file, and undo
-  // needs this write to be the last one to it.
+  // Guards: deny rules and the PreToolUse hook for the rules without exceptions, in the settings file of the sandbox step.
   const hook = at(GUARD_PATH), guarded = a.guards && a.agents.includes('claude');
   if (guarded) {
     add('guards', 'Claude Code deny rules (--no-verify, force push, sudo, terraform apply, kubectl apply, helm upgrade) and the guard hook', { kind: 'write', path: at(settings), edit: guardsOn });

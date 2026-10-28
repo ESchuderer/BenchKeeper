@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { extract, target } from './github-links.mjs';
 
 test('maps GitHub links to API paths or local files', () => {
-  assert.deepEqual(target('https://github.com/obra/superpowers'), { api: '/repos/obra/superpowers' });
+  assert.deepEqual(target('https://github.com/mattpocock/skills'), { api: '/repos/mattpocock/skills' });
   assert.deepEqual(target('https://github.com/a/b.git'), { api: '/repos/a/b' });
   assert.deepEqual(target('https://github.com/a/b/blob/main/docs/x.md'), { api: '/repos/a/b/contents/docs/x.md?ref=main' });
   assert.deepEqual(target('https://github.com/a/b/issues/12'), { api: '/repos/a/b/issues/12' });

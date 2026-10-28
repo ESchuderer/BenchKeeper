@@ -66,16 +66,6 @@ The skills read `.agents/product-marketing.md` when it exists, which `product-ma
 | Optional: `directory-submissions` | `coreyhaines31/marketingskills` (MIT) | both | The product gets listed in startup, SaaS or AI directories |
 | Optional: `analytics` | `coreyhaines31/marketingskills` (MIT) | both | Event tracking: GA4, tag manager, UTM parameters |
 
-## ECC
-
-Three skills of ECC's `workflow-quality` module (the `minimal` profile), installed as single skills: no plugin, no hooks, nothing outside the project.
-
-| Skills | Source (license) | Agents | Pick when |
-| --- | --- | --- | --- |
-| `verification-loop` | `affaan-m/ECC` (MIT) | both | Work needs a pass of build, types, lint and a diff review before a pull request |
-| `error-handling` | `affaan-m/ECC` (MIT) | both | The code needs one consistent way to raise, handle and report errors |
-| `architecture-decision-records` | `affaan-m/ECC` (MIT) | both | A design choice needs a record of its context, options and outcome |
-
 ## Security
 
 CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project.
@@ -116,7 +106,7 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 | Pack | Contents | Pick when |
 | --- | --- | --- |
 | `ponytail` | plugins `ponytail@ponytail`, `ponytail@ponytail` | The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full |
-| `matt-pocock` | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, test-first and review skills |
+| `matt-pocock` (workflow owner) | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, test-first and review skills |
 | `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
 | `testing` | `playwright-best-practices` | The repository has or adds browser tests |
 | `security` | `gha-security-review`, `variant-analysis`, `sharp-edges` | CI workflows, a public API, or security findings to triage |
@@ -125,15 +115,6 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 | `data` | `validate-data`, `exploratory-data-analysis`, `statistical-analysis` | The repository imports, analyzes or publishes datasets |
 | `marketing` | `product-marketing`, `copywriting`, `copy-editing`, `seo-audit`, `launch` | A product site, landing pages or a public launch |
 | `operations` | `incident-response`, `compliance-check`, `gdpr-compliant` | A deployed service or regulated product |
-| `ecc` | `verification-loop`, `error-handling`, `architecture-decision-records` | The owner names ECC: its verification, error handling and decision record skills |
-
-## Frameworks
-
-The frameworks project setup offers (`--framework <id>`): workflow systems that own how work is planned and run. At most one per project, and BenchKeeper's own workflow skill gives way in it. Evidence per framework: its evaluation file.
-
-| Framework | Installs | Evaluation |
-| --- | --- | --- |
-| `superpowers` | plugin `superpowers@claude-plugins-official` for the project only. Claude Code only: Codex plugins install for the user, not the project. The plugin files stay in the user's plugin cache, only the switch is per project. | [superpowers.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/superpowers.md) |
 
 ## Sources
 

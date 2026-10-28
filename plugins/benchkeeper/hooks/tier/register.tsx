@@ -1,11 +1,12 @@
-// Optional tier band (userConfig tierBand, off by default): a row with the project, its branch, the last test result and
-// Ponytail's level (when that plugin is on), a row with the tier line of the last answer and buttons for /benchkeeper:tier,
-// the sessions board and the doctor, and the session's override kept in the system prompt, so it outlasts compaction and
-// resume. It reads the working folder, git and one flag file of Ponytail; it writes nothing and sends nothing.
+// Optional tier band (userConfig tierBand, off by default): a row with the project, its branch and Ponytail's level (when that
+// plugin is on), a row with the last test run, the last lint or type check and whether the tier's checks passed since the
+// last edit, a row with the tier line of the last answer and buttons for /benchkeeper:tier, the sessions board and the
+// doctor, and the session's override kept in the system prompt, so it outlasts compaction and resume. It reads the working
+// folder, git and one flag file of Ponytail; it writes nothing and sends nothing.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { TierLine, Where } from '../../types'
+import type { Check, TierLine, Where } from '../../types'
 
 export const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm
 const CHOICES = ['quick', 'standard', 'full', 'research']
@@ -13,14 +14,47 @@ const tier = atom({ plugin: 'benchkeeper', key: 'tier' } as const, null)
 const override = atom({ plugin: 'benchkeeper', key: 'override' } as const, null)
 const where = atom({ plugin: 'benchkeeper', key: 'where' } as const, null)
 const tests = atom({ plugin: 'benchkeeper', key: 'tests' } as const, null)
+const lint = atom({ plugin: 'benchkeeper', key: 'lint' } as const, null)
+// A command list as found anywhere in a command, and as the start of one part of a chain.
+const commands = (list: string) => ({
+  any: new RegExp(`(?:^|[\\s;&|('"])${list}(?=$|[\\s;&|):'"])`),
+  start: new RegExp(`^(?:\\w+=\\S+\\s+)*${list}(?=$|\\s)`),
+})
 // The test commands the sessions board counts too (app/src/sessions.mjs).
-const COMMANDS = '(?:npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)'
-const TEST = new RegExp(`(?:^|[\\s;&|('"])${COMMANDS}(?=$|[\\s;&|):'"])`)
-const START = new RegExp(`^(?:\\w+=\\S+\\s+)*${COMMANDS}(?=$|\\s)`)
+const TEST = commands('(?:npm (?:run )?test|node --test|npx playwright test|pytest|go test|cargo test|vitest|jest)')
+const LINT = commands('(?:eslint|npm run lint|npx tsc|tsc|ruff|mypy|pyright|go vet|cargo clippy|biome)')
+const EDITS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 
 // The commands of a chain joined by && only, else none: with ||, ;, | or & the exit code can come from another command, and a
 // quoted name (echo "npm test") runs no test.
 const chain = (command: string) => (/[;|&\n`]|\$\(/.test(command.replaceAll('&&', ' ')) ? [] : command.split('&&').map((part) => part.trim()))
+
+// The result of a check run, as the board reads a test run: a failed exit code fails, any other result passes. A compound
+// command, a failed chain or a background run has no result of its own (null). undefined leaves the last result.
+function outcome(check: typeof TEST, command: string, ran: { isError?: boolean; text?: string; backgroundTaskId?: unknown }) {
+  if (!check.any.test(command)) return undefined
+  const parts = chain(command)
+  // A chain passes when every part passed. It fails for the check only when the check is the whole command: in cd x && npm test
+  // or false && npm test the failure may be another part's, and in npm test && false the test passed.
+  if (!parts.some((part) => check.start.test(part)) || ran.backgroundTaskId) return null
+  if (!ran.isError) return 'pass'
+  if (parts.length > 1) return null
+  return /Exit code [1-9]/.test(ran.text ?? '') ? 'fail' : undefined
+}
+
+const state = (check: Check | null) => (!check ? 'not run' : check.edits ? `stale (${check.edits} edit${check.edits > 1 ? 's' : ''} since)` : check.result === 'pass' ? 'passed' : 'failed')
+
+// What the tier asks for before pushing (the playbook table of the workflow skill): quick the fast checks, standard and full
+// the tests and a review, which no hook sees. Only results after the last edit count. Research and no tier: no verdict.
+function verdict(tier: string | null, testRun: Check | null, lintRun: Check | null): string | null {
+  if (tier !== 'quick' && tier !== 'standard' && tier !== 'full') return null
+  const t = testRun?.edits === 0 ? testRun.result : null
+  const l = lintRun?.edits === 0 ? lintRun.result : null
+  const missing = [t === 'fail' && 'tests', l === 'fail' && 'lint/types'].filter(Boolean)
+  if (tier === 'quick' ? !t && !l : !t) missing.push(tier === 'quick' ? 'tests or lint/types' : 'tests')
+  if (missing.length) return `checks needed: ${missing.join(', ')}`
+  return tier === 'quick' ? 'ready' : 'ready, review is yours'
+}
 
 // The last tier line in a text, or null.
 export function lastTier(text: string): TierLine | null {
@@ -67,7 +101,7 @@ async function openBoard($: EngineInterface) {
   await $.process.run(windows ? ['cmd', '/c', 'start', '', file.replaceAll('/', '\\')] : [mac ? 'open' : 'xdg-open', file])
 }
 
-const HELP = 'BenchKeeper band. Top row: project, branch, last test run, Ponytail level. quick, standard, full set the tier of this session, auto lets each task choose. board opens the sessions board. doctor asks the agent to run benchkeeper doctor. Nothing leaves this machine. Turn off: set Tier band to false in the plugin options.'
+const HELP = 'BenchKeeper band. Top row: project, branch, Ponytail level. Second row: last test run and lint or type check, stale after an edit, and ready when the checks the tier asks for passed since the last edit. quick, standard, full set the tier of this session, auto lets each task choose. board opens the sessions board. doctor asks the agent to run benchkeeper doctor. Nothing leaves this machine. Turn off: set Tier band to false in the plugin options.'
 
 export const register: Register = (on, options) => {
   const on_ = options.tierBand === true
@@ -81,18 +115,25 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  // The last test run of the main loop, as the board reads it: a failed exit code fails, any other result passes. A compound
-  // command, a failed chain or a background run has no result of its own: the band shows no result then. Never denies.
+  // The last test run and lint or type check of the main loop. Never denies.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const ran = await next(e)
-    if (on_ && !e.agentId && TEST.test(e.command) && ran.deny === undefined) {
-      const parts = chain(e.command)
-      // A chain passes when every part passed. It fails for the test only when the test is the whole command: in cd x && npm test
-      // or false && npm test the failure may be another part's, and in npm test && false the test passed.
-      if (!parts.some((part) => START.test(part)) || (ran as { backgroundTaskId?: unknown }).backgroundTaskId) await update($, tests, () => null)
-      else if (!ran.isError) await update($, tests, () => 'pass')
-      else if (parts.length > 1) await update($, tests, () => null)
-      else if (/Exit code [1-9]/.test(ran.text ?? '')) await update($, tests, () => 'fail')
+    if (on_ && !e.agentId && ran.deny === undefined) {
+      const testRun = outcome(TEST, e.command, ran)
+      const lintRun = outcome(LINT, e.command, ran)
+      if (testRun !== undefined) await update($, tests, () => (testRun && { result: testRun, edits: 0 }))
+      if (lintRun !== undefined) await update($, lint, () => (lintRun && { result: lintRun, edits: 0 }))
+    }
+    return ran
+  }).catch(($, e, next) => next(e))
+
+  // An edit of the main loop makes the results before it stale; a denied or failed edit changed nothing.
+  on('tool.call', { tool: EDITS }, async ($, e, next) => {
+    const ran = await next(e)
+    if (on_ && !e.agentId && ran.deny === undefined && !ran.isError) {
+      const stale = (c: Check | null) => (c ? { ...c, edits: c.edits + 1 } : null)
+      await update($, tests, stale)
+      await update($, lint, stale)
     }
     return ran
   }).catch(($, e, next) => next(e))
@@ -128,7 +169,9 @@ export const register: Register = (on, options) => {
     const line = await read($, tier)
     const v = await current($)
     const at = await read($, where)
-    const last = await read($, tests)
+    const testRun = await read($, tests)
+    const lintRun = await read($, lint)
+    const ready = verdict(v ?? line?.tier ?? null, testRun, lintRun)
     const pick = async (level: string) => {
       await $.command.run({ command: 'benchkeeper:tier', args: level })
       await setOverride($, level)
@@ -136,12 +179,12 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const info = [
       at?.project ? `${at.project}${at.branch ? ` (${at.branch})` : ''}` : null,
-      `tests: ${last === 'pass' ? 'passed' : last === 'fail' ? 'failed' : 'not run yet'}`,
       at?.ponytail ? `Ponytail: ${at.ponytail}` : null,
     ].filter(Boolean).join('  ')
     const mine = (
       <Box flexDirection="column" width={e.props.bodyColumns}>
-      <Text dimColor>{info}</Text>
+      {info ? <Text dimColor>{info}</Text> : null}
+      <Text>tests: {state(testRun)}  lint/types: {state(lintRun)}{ready ? `  ${ready}` : ''}</Text>
       <Box flexDirection="row" alignItems="center" gap={2} width={e.props.bodyColumns}>
         <Text>Tier: {line ? `${line.tier}${line.changeType ? ` (${line.changeType})` : ''}` : 'none yet'}</Text>
         <Text dimColor>override: {v ?? 'none'}</Text>

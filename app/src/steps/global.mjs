@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
-import { contentDir } from '../content.mjs';
+import { contentDir, contentRefusal } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, listFiles, readText } from '../fsx.mjs';
 import { mergeJson, parseJson, setToml } from '../merge.mjs';
@@ -64,8 +64,9 @@ const KEEP_MARKETPLACES = { claude: ['benchkeeper', 'ponytail', 'claude-plugins-
 const keepPlugin = (id, a) => PLUGINS[a].some((p) => p.id === id) || /@(anthropic-plugin-directory|openai-curated)/.test(id);
 
 // BenchKeeper adds no permission rules: Claude Code's auto mode (its defaults) decides what needs a prompt. Whatever else sits in
-// permissions.ask or in Codex's rules folder differs from that set and is offered for removal.
-export const PERMISSION_ASK = [];
+// permissions.ask or in Codex's rules folder differs from that set and is offered for removal. The two push and pull request
+// checkpoints are the catalog's suggestion (settings editor, never written here), so they are not offered for removal.
+export const PERMISSION_ASK = ['Bash(git push *)', 'Bash(gh pr create *)'];
 const CODEX_OWN_RULES = ['default.rules'];
 export const CLAUDE_KEYS = [
   [['advisorModel'], 'opus'], [['remoteControlAtStartup'], true], [['showClearContextOnPlanAccept'], true],
@@ -102,6 +103,13 @@ export function pluginState(ctx, a) {
   const state = readPluginState(ctx, a);
   return { ...state, listed: state.listed.filter((p) => SAFE_NAME.test(p.id ?? '')), markets: state.markets.filter((m) => SAFE_NAME.test(m ?? '')) };
 }
+// The newest version folder of a plugin in Codex's cache, and its path; both undefined without one.
+function codexCache(ctx, id) {
+  const [name, market] = id.split('@');
+  const d = join(ctx.home, `.codex/plugins/cache/${market}/${name}`);
+  const version = (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
+  return { version, dir: version && join(d, version) };
+}
 function readPluginState(ctx, a) {
   const at = (p) => join(ctx.home, p);
   try {
@@ -110,28 +118,29 @@ function readPluginState(ctx, a) {
       const markets = JSON.parse(readText(at('.claude/plugins/known_marketplaces.json')));
       const on = parseJson(readText(at('.claude/settings.json')) ?? '{}').enabledPlugins ?? {};
       if (installed?.version === 2 && installed.plugins && markets) {
-        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, ...(p.gitCommitSha ? { commit: p.gitCommitSha } : {}), enabled: on[id] === true })));
+        const listed = Object.entries(installed.plugins).flatMap(([id, l]) => l.filter((p) => p.scope === 'user').map((p) => ({ id, version: p.version, ...(p.installPath ? { dir: p.installPath } : {}), ...(p.gitCommitSha ? { commit: p.gitCommitSha } : {}), enabled: on[id] === true })));
         return { listed, markets: Object.keys(markets), refs: Object.fromEntries(Object.entries(markets).map(([m, v]) => [m, v?.source?.ref])) };
       }
     } else {
       const conf = parseToml(readText(at('.codex/config.toml')) ?? '');
       if (conf.plugins || conf.marketplaces) {
-        const version = (id) => {
-          const [name, market] = id.split('@');
-          const d = at(`.codex/plugins/cache/${market}/${name}`);
-          return (exists(d) ? readdirSync(d) : []).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort(bySemver).at(-1);
-        };
-        // No version folder in the cache: the entry is there, its files are not.
-        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => ({ id, version: version(id), enabled: p?.enabled === true, missing: !version(id) }));
+        const listed = Object.entries(conf.plugins ?? {}).map(([id, p]) => {
+          const { version, dir } = codexCache(ctx, id);
+          // No version folder in the cache: the entry is there, its files are not.
+          return { id, version, ...(dir ? { dir } : {}), enabled: p?.enabled === true, missing: !version };
+        });
         return { listed, markets: Object.keys(conf.marketplaces ?? {}), refs: Object.fromEntries(Object.entries(conf.marketplaces ?? {}).map(([m, v]) => [m, v?.ref])) };
       }
     }
   } catch { /* the CLI below */ }
   if (a === 'claude') {
-    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, enabled: p.enabled })),
+    return { listed: json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'user' || p.scope == null).map((p) => ({ id: p.id, version: p.version, ...(p.installPath ? { dir: p.installPath } : {}), enabled: p.enabled })),
       ...marketRefs(json(ctx.run(['claude', 'plugin', 'marketplace', 'list', '--json']).stdout, [])) };
   }
-  return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => ({ id: p.pluginId, version: p.version, enabled: p.enabled })),
+  return { listed: (json(ctx.run(['codex', 'plugin', 'list', '--json']).stdout, {}).installed ?? []).map((p) => {
+    const { dir } = codexCache(ctx, String(p.pluginId));
+    return { id: p.pluginId, version: p.version, ...(dir ? { dir } : {}), enabled: p.enabled };
+  }),
     ...marketRefs(json(ctx.run(['codex', 'plugin', 'marketplace', 'list', '--json']).stdout, {}).marketplaces ?? []) };
 }
 
@@ -139,6 +148,16 @@ function readPluginState(ctx, a) {
 export function benchkeeperPlugin(ctx, a) {
   const p = PLUGINS[a].find((x) => x.id === 'benchkeeper@benchkeeper');
   return { installed: pluginState(ctx, a).listed.find((x) => x.id === p.id)?.version ?? null, available: pin(p, ctx.appVersion).version };
+}
+
+// The first installed BenchKeeper plugin whose content needs a newer app than this one, as a message; null when none does.
+export function installedRefusal(ctx, agents = ['claude', 'codex']) {
+  for (const a of agents.filter((x) => PLUGINS[x])) {
+    const dir = pluginState(ctx, a).listed.find((p) => p.id === 'benchkeeper@benchkeeper')?.dir;
+    const why = dir && contentRefusal(dir, ctx.appVersion);
+    if (why) return why;
+  }
+  return null;
 }
 
 // Enabled plugin ids per agent.
@@ -302,6 +321,8 @@ export function globalPlan(env) {
     add('settings:claude', 'Claude settings: advisor Opus, Remote Control at startup, clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off, subagents on Sonnet', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS) });
     add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]) });
     add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]) });
+    // Offered, not preselected: Haiku 5.5 came after Opus 5.5 and its level is saved per model the same way (inferred from the docs wording).
+    add('settings:claude:effort-haiku', 'Claude effort high for Haiku 5.5 (optional; its own default is medium)', { kind: 'write', path: f, edit: sets([[['modelSettings', 'claude-haiku-5-5', 'effortLevel'], 'high']]) }, { selected: false, optional: true });
     add('settings:claude:compact', 'Claude auto-compact window 400000 tokens, per-model values removed', {
       kind: 'write', path: f, edit: (t) => {
         const ms = parseJson(t ?? '{}').modelSettings ?? {};

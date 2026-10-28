@@ -75,10 +75,17 @@ test('plan changes nothing, leaves rule files of the user alone and lists the ot
   assert.equal(readFileSync(join(m.home, '.claude/CLAUDE.md'), 'utf8'), 'old rules');
   assert.ok(!plan.some((c) => c.step.startsWith('rules:claude:other') || c.title.includes('CLAUDE.md') || c.title.includes('10-other')), 'rule files of the user are not part of the plan');
   assert.equal(plan.find((c) => c.step === 'settings:claude:tier-band').selected, false);
+  assert.equal(plan.find((c) => c.step === 'settings:claude:effort-haiku').selected, false, 'the Haiku 5.5 effort is offered, not written by default');
   const ask = plan.filter((c) => c.step.startsWith('ask:'));
   assert.deepEqual(ask.map((c) => c.step).sort(), ['ask:claude:Bash(gh pr merge *)', 'ask:claude:Bash(mine *)', 'ask:codex:benchkeeper.rules']);
   assert.ok(ask.every((c) => c.selected === false), 'ask rules are offered, not preselected');
   assert.ok(plan.every((c) => !c.title.includes('find-skills') || c.kind === 'command'));
+});
+
+test('the push and pull request ask rules of the settings catalog are not offered for removal', () => {
+  const m = machine();
+  writeFileSync(join(m.home, '.claude/settings.json'), JSON.stringify({ permissions: { ask: ['Bash(git push *)', 'Bash(gh pr create *)', 'Bash(mine *)'] } }));
+  assert.deepEqual(m.plan().filter((c) => c.step.startsWith('ask:claude')).map((c) => c.step), ['ask:claude:Bash(mine *)']);
 });
 
 test('a failed install does not stop the other steps', () => {
@@ -116,8 +123,9 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.ok(st.cleanupPeriodDays === 14 && st.autoUpdatesChannel === 'stable' && st.env.DISABLE_FEEDBACK_COMMAND === '1' && st.env.CLAUDE_CODE_SUBAGENT_MODEL === 'sonnet');
   assert.equal(st.autoCompactWindow, 400000);
   assert.equal(st.pluginConfigs['benchkeeper@benchkeeper'].options.tierBand, true);
-  assert.deepEqual(st.modelSettings, { 'claude-opus-5-5': { effortLevel: 'high' }, 'claude-sonnet-5-5': { effortLevel: 'high' } });
+  assert.deepEqual(st.modelSettings, { 'claude-opus-5-5': { effortLevel: 'high' }, 'claude-sonnet-5-5': { effortLevel: 'high' }, 'claude-haiku-5-5': { effortLevel: 'high' } });
   assert.equal(st.permissions, undefined, 'ask rules offered and removed when selected');
+  assert.ok(st.autoMode === undefined && st.sandbox === undefined, 'keys the settings catalog only offers are not written by the setup');
   assert.equal(readFileSync(join(m.home, '.codex/config.toml'), 'utf8'), 'model_reasoning_effort = "high"\n[analytics]\nenabled = false\n\n[feedback]\nenabled = false\n');
   assert.equal(m.s.dc, '1.0.0', 'host tool at the newest release older than 7 days');
   assert.ok(existsSync(join(m.home, '.claude/skills/find-skills')) && existsSync(join(m.home, '.agents/skills/orca-cli')));
@@ -173,7 +181,7 @@ test('plugin state comes from the agents\' files; the CLI answers only when they
   writeFileSync(join(home, '.claude/settings.json'), JSON.stringify({ enabledPlugins: { 'ponytail@ponytail': true, 'off@x': false } }));
   writeFileSync(join(home, '.codex/config.toml'), '[marketplaces.ponytail]\nsource = "x"\nref = "v5.3.2"\n\n[plugins."ponytail@ponytail"]\nenabled = true\n');
   assert.deepEqual(pluginState(ctx, 'claude'), { listed: [{ id: 'ponytail@ponytail', version: '5.2.0', enabled: true }, { id: 'off@x', version: '1.0.0', enabled: false }], markets: ['ponytail', 'benchkeeper'], refs: { ponytail: 'v5.2.0', benchkeeper: undefined } });
-  assert.deepEqual(pluginState(ctx, 'codex'), { listed: [{ id: 'ponytail@ponytail', version: '5.10.0', enabled: true, missing: false }], markets: ['ponytail'], refs: { ponytail: 'v5.3.2' } });
+  assert.deepEqual(pluginState(ctx, 'codex'), { listed: [{ id: 'ponytail@ponytail', version: '5.10.0', dir: join(home, '.codex/plugins/cache/ponytail/ponytail/5.10.0'), enabled: true, missing: false }], markets: ['ponytail'], refs: { ponytail: 'v5.3.2' } });
   assert.deepEqual(calls, []);
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), '{broken');
   writeFileSync(join(home, '.codex/config.toml'), 'model = "x"\n');

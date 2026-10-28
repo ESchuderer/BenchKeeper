@@ -323,8 +323,8 @@ const lags = (p) => p.setupVersion && p.checkout !== p.setupVersion;
 // committed: the repository still carries a setup kept local; Update all opens the pull request that removes it.
 const SetupBadge = ({ p, version }) => (p.missing ? <MissingBadge /> : (
   <Group gap={4} wrap="nowrap">
-    <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.setupVersion === version ? 'teal' : 'yellow'} />}>
-      {p.setupVersion ? `${p.setupVersion} ${p.setupVersion === version ? 'current' : 'behind'}${lags(p) ? ` on ${p.origin}` : ''}` : 'no state file'}
+    <Badge variant="default" miw="max-content" leftSection={<Dot color={!p.setupVersion ? 'gray' : p.current ? 'teal' : 'yellow'} />}>
+      {p.setupVersion ? `${p.setupVersion} ${p.current ? 'current' : 'behind'}${lags(p) ? ` on ${p.origin}` : ''}` : 'no state file'}
     </Badge>
     {p.setupVersion && <Badge variant="default" miw="max-content">{p.share ? 'shared' : p.committed ? 'local, still committed' : 'local'}</Badge>}
   </Group>
@@ -431,7 +431,7 @@ export function Projects({ params, overview, refresh }) {
   const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
   const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
   const prs = prsOf(confirmPrs ?? []);
-  const rows = visibleProjects(all, { ...view, version });
+  const rows = visibleProjects(all, view);
   // Bulk actions act on the rows shown: a search or filter never leaves hidden projects selected.
   const chosen = rows.filter((p) => selected.includes(p.path));
   const setUp = (list) => list.filter((p) => !p.missing && p.setupVersion).map((p) => p.path);

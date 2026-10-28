@@ -86,6 +86,9 @@ test('lint rule private: paths and given names fail the generic tier only', () =
   assert.deepEqual(problems(tier(scoped), { privateNames: ['acme'] }), ['private'], 'a name inside punctuation');
   assert.deepEqual(problems(tier(template({}, `automation-alpha {{mode}} {{repository}}\n${GUARDS}\nThe acmeish team.`)), { privateNames: ['acme'] }), [], 'part of a longer word');
   assert.deepEqual(problems(tier(template({}, `automation-alpha {{mode}} {{repository}}\n${GUARDS}\nUse $HOME.`)), { privateNames: ['acme-internal'] }), []);
+  const param = (line) => tier(template().replace('description = "The repository."', line));
+  assert.deepEqual(problems(param(`description = "The repository."\ndefault = "${abs('home', 'alice')}/repo"`)), ['private'], 'a path in a default');
+  assert.deepEqual(problems(param('description = "Repository of acme-internal."'), { privateNames: ['acme-internal'] }), ['private'], 'a name in a description');
   const user = check(machine(), { tiers: [['user', tier(template({}, body))]], privateNames: ['x'] });
   assert.deepEqual(user, [], 'the user tier may name its own paths');
 });

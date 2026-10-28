@@ -98,6 +98,8 @@ test('facts outside the catalog: no explanation, the schema default, the value, 
   write(codexUser(ctx), 'file_opener = "cursor"\n');
   const [agent] = settingFacts(ctx, 'claude', ['agent']);
   assert.deepEqual(agent, { key: 'agent', summary: null, eli5: null, impact: null, default: null, docs: 'https://code.claude.com/docs/en/settings-reference#agent', value: 'reviewer', from: 'user' });
+  // An env.* key outside the catalog's switches never reads the process environment.
+  assert.deepEqual(settingFacts(ctx, 'claude', ['env.HOME_SECRET'], { env: { HOME_SECRET: 'x' } }).map((f) => [f.value, f.from]), [[undefined, 'default']]);
   const [opener] = settingFacts(ctx, 'codex', ['file_opener']);
   assert.deepEqual([opener.summary, opener.value, opener.from, opener.docs], [null, 'cursor', 'user', 'https://learn.chatgpt.com/docs/config-file/config-reference']);
   const advanced = listSettings(ctx, 'claude', { advanced: true }).advanced.find((r) => r.key === 'agent');

@@ -1284,10 +1284,11 @@ test.describe('views', () => {
       await expect(box.getByRole('link', { name: 'Docs' })).toHaveAttribute('href', /^https:\/\//);
     };
     await nav(page, 'Agent settings').click();
+    // The fixture home holds the global setup's settings: the advisor and the retention come from the user file.
     const advisor = about(page, 'advisorModel');
     await facts(advisor);
     await expect(advisor).toContainText('from the user file');
-    await expect(about(page, 'cleanupPeriodDays')).toContainText('Current: the default');
+    await expect(about(page, 'autoMemoryEnabled')).toContainText('Current: the default');
     // A key outside the catalog: no guessed text, the rest of the facts still there.
     await page.getByRole('switch', { name: 'Advanced: every key' }).check();
     await page.getByLabel('Search settings').fill('modelSettings');
@@ -1297,25 +1298,34 @@ test.describe('views', () => {
     await expect(outside).not.toContainText('Impact:');
     await page.getByRole('switch', { name: 'Advanced: every key' }).uncheck();
     await page.getByLabel('Search settings').fill('');
-    // The Plan drawer: the planned key with its facts.
+    // The Plan drawer: the planned key with its facts. Applied, it moves the user file off the setup's value.
     await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
     await page.getByRole('button', { name: 'Review 1 change' }).click();
-    await facts(about(page.getByRole('region', { name: 'Changes' }), 'cleanupPeriodDays'));
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await facts(about(changes, 'cleanupPeriodDays'));
     await noAxe(page);
-    await page.getByRole('button', { name: 'Discard changes' }).click();
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     // The doctor and Insights name the keys of a settings finding.
     await nav(page, 'Dashboard').click();
     await facts(about(page.getByRole('table', { name: 'Doctor findings' }), 'permissions.deny'));
     await nav(page, 'Insights').click();
     await facts(about(page.getByRole('article', { name: /No Read deny rule/ }), 'permissions.deny'));
     await noAxe(page);
-    // The Apply drawer: the global settings change lists the facts of each key it writes.
+    // The Apply drawer: the global settings change, planned again, lists the facts of each key it writes.
     await nav(page, 'Dashboard').click();
     await page.getByRole('button', { name: 'Fix everything' }).click();
     const fix = page.getByRole('dialog', { name: 'Fix everything' });
-    await facts(about(fix, 'advisorModel'));
+    await facts(about(fix, 'cleanupPeriodDays'));
     await noAxe(page);
     await page.keyboard.press('Escape');
+    await expect(fix).toBeHidden();
+    // Back to the setup's value.
+    await nav(page, 'Agent settings').click();
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('14');
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
   });
 
 

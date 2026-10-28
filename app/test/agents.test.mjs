@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { agent, detect, forAgent, registry, renderJsonSettings, renderRules, renderSubagent, skillDirs, subagentFile } from '../src/agents.mjs';
+import { FEATURES, agent, detect, forAgent, notAvailable, registry, renderJsonSettings, renderRules, renderSubagent, skillDirs, subagentFile, supports, unavailable } from '../src/agents.mjs';
+import { supportTables } from '../../web/scripts/support.mjs';
 import { setToml } from '../src/merge.mjs';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
@@ -48,4 +49,33 @@ test('settings renderers: JSON, JSONC with comments, TOML', () => {
   assert.equal(renderJsonSettings('{\n  "model": "opus"\n}\n', [{ path: ['advisorModel'], value: 'opus' }]), fixture('settings.json'));
   assert.equal(renderJsonSettings('{\n  // mine\n  "theme": "dark"\n}\n', [{ path: ['trusted_folders'], append: ['/p'] }]), fixture('settings.jsonc'));
   assert.equal(setToml('[analytics]\nenabled = true\n', '', 'model_reasoning_effort', 'high'), fixture('config.toml'));
+});
+
+const VERSION = /^\d{1,9}\.\d{1,9}\.\d{1,9}$/;
+test('registry fields: wake mode, trust, permission default, headless forms, model and effort flags, observed versions, features', () => {
+  for (const a of registry) {
+    assert.ok(['background', 'waker', 'unsupported'].includes(a.wake), `${a.id} wake`);
+    assert.ok(['dialog', 'none'].includes(a.trust), `${a.id} trust`);
+    for (const k of ['permissionDefault', 'modelFlag', 'effortFlag']) assert.ok(a[k] === null || /^-{1,2}[\w-]+(=\w+)?$/.test(a[k]), `${a.id} ${k}`);
+    assert.ok(Array.isArray(a.forbiddenHeadless) && a.forbiddenHeadless.every((f) => typeof f === 'string' && f), `${a.id} forbiddenHeadless`);
+    assert.ok(Array.isArray(a.observed) && a.observed.every((v) => VERSION.test(v)), `${a.id} observed`);
+    assert.deepEqual(Object.keys(a.features).sort(), ['accounts', 'tier', 'usage']);
+    assert.ok(Object.values(a.features).every((v) => typeof v === 'boolean') && typeof a.plugins === 'boolean', `${a.id} features`);
+    assert.ok(a.note === undefined || typeof a.note === 'string', `${a.id} note`);
+  }
+});
+
+test('a missing surface says "not available for <agent>", one message per feature', () => {
+  assert.deepEqual(unavailable('claude'), []);
+  assert.deepEqual(unavailable('codex'), ['the usage feed is not available for Codex', 'the tier strip is not available for Codex']);
+  assert.deepEqual(unavailable('gemini'), ['plugin install is not available for Gemini CLI', 'the usage feed is not available for Gemini CLI', 'accounts is not available for Gemini CLI', 'the tier strip is not available for Gemini CLI']);
+  for (const a of registry) for (const f of Object.keys(FEATURES)) assert.equal(unavailable(a.id).includes(notAvailable(f, a.id)), !supports(a.id, f), `${a.id} ${f}`);
+});
+
+test('the support tables in docs/setup.md are the ones derived from the registry; a changed registry changes them', () => {
+  const doc = readFileSync(new URL('../../docs/setup.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const block = doc.match(/<!-- generated:support -->\n([\s\S]*?)\n<!-- \/generated:support -->/)?.[1];
+  assert.equal(block, supportTables(registry).join('\n'), 'run node web/scripts/readme.mjs');
+  const changed = registry.map((a) => (a.id === 'gemini' ? { ...a, features: { ...a.features, usage: true } } : a));
+  assert.notEqual(supportTables(changed).join('\n'), block);
 });

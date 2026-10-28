@@ -73,6 +73,7 @@ test('refusals: bad names and agents, duplicates, a folder inside the config fol
   const cases = [
     [['accounts', 'add', 'Bad Name', '--agent', 'claude', '--yes'], /the name is 1 to 32/],
     [['accounts', 'add', 'x', '--agent', 'gemini', '--yes'], /the agent is one of claude, codex/],
+    [['accounts', 'add', 'x', '--agent', 'copilot', '--yes'], /accounts is not available for GitHub Copilot CLI/],
     [['accounts', 'add', 'x', '--agent', 'claude', '--dir', join(m.ctx.config, 'accounts/x'), '--yes'], /outside the BenchKeeper config folder/],
     [['accounts', 'add', 'x', '--agent', 'claude', '--container', '--mount', '../etc', '--yes'], /--mount is the absolute path/],
     [['accounts', 'add', 'x', '--agent', 'claude', '--container', '--yes'], /--mount is the absolute path/],
@@ -311,6 +312,24 @@ test('run --token: the stored token is the one extra variable, for Claude Code o
   // Codex keeps no token variable.
   await cli(m).exec(['accounts', 'add', 'dev', '--agent', 'codex', '--yes']);
   assert.equal(await cli(m).exec(['run', '--account', 'dev', '--token', '--', 'codex']), 1);
+});
+
+test('the usage feed of a Codex account is reported as not available, in the CLI and in the status document', skip, async () => {
+  const m = machine();
+  await cli(m).exec(['accounts', 'add', 'dev', '--agent', 'codex', '--yes']);
+  const s = cli(m);
+  assert.equal(await s.exec(['accounts', 'status', 'dev']), 0);
+  assert.match(s.text(), /usage +the usage feed is not available for Codex/);
+  assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'dev')).notAvailable, 'the usage feed is not available for Codex');
+  await cli(m).exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']);
+  assert.equal(accountStatus(m.ctx, findAccount(m.ctx, 'work')).notAvailable, undefined);
+});
+
+test('plan names what an agent has no surface for', skip, async () => {
+  const m = machine(), p = cli(m);
+  await p.exec(['plan', '--agents', 'gemini']);
+  assert.match(p.text(), /^the tier strip is not available for Gemini CLI$/m);
+  assert.doesNotMatch(p.text(), /not available for Claude/);
 });
 
 test('status and doctor: signed out, a token in its 11th month, an expired token; each with the command that fixes it', skip, async () => {

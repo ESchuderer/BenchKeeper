@@ -249,8 +249,11 @@ export async function prefetchOrigins(ctx, paths) {
 // The setup that counts: the checkout's, unless origin's default branch has a newer one (or the checkout none).
 export function setupOf(ctx, path, checkout = tryState(path)) {
   const origin = upToDate(checkout) ? null : originState(ctx, path);
-  const v = origin?.state?.contentVersion;
-  const state = typeof v === 'string' && (!checkout?.contentVersion || newer(v, checkout.contentVersion)) ? origin.state : checkout;
+  const o = origin?.state;
+  // An app-only setup update on origin keeps the content version and raises the app version.
+  const ahead = typeof o?.contentVersion === 'string' && (!checkout?.contentVersion || newer(o.contentVersion, checkout.contentVersion)
+    || (o.contentVersion === checkout.contentVersion && typeof o.appVersion === 'string' && (!checkout.appVersion || newer(o.appVersion, checkout.appVersion))));
+  const state = ahead ? o : checkout;
   return { state, checkout: checkout?.contentVersion ?? null, origin: origin?.ref ?? null };
 }
 

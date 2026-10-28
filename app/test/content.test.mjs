@@ -40,6 +40,11 @@ test('an installed plugin whose content needs a newer app is an error in doctor 
   assert.match(installedRefusal(ctx, ['claude']), /needs benchkeeper 99\.0\.0 or newer/);
   assert.deepEqual(doctor(ctx, { agents: ['claude'] }).filter((i) => i.check === 'content').map((i) => i.level), ['error']);
   assert.equal(installedRefusal({ ...ctx, appVersion: '99.0.0' }, ['claude']), null);
+  // An agent without plugins is not read as Codex.
+  contentAt(join(home, '.codex/plugins/cache/benchkeeper/benchkeeper/99.0.0'), '99.0.0');
+  writeFileSync(join(home, '.codex/config.toml'), '[plugins."benchkeeper@benchkeeper"]\nenabled = true\n');
+  assert.match(installedRefusal(ctx, ['codex']), /needs benchkeeper 99\.0\.0 or newer/);
+  assert.equal(installedRefusal(ctx, ['gemini']), null);
 });
 
 test('state version 1 is read as version 2 with its setup version as both values; a schemaVersion above 2 is refused', () => {

@@ -7,7 +7,7 @@ import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { projectChecks } from '../src/doctor.mjs';
-import { appVersion } from '../src/content.mjs';
+import { appVersion, contentVersion } from '../src/content.mjs';
 import { addProject, canon, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
@@ -352,6 +352,23 @@ test('status and Update all read the state file on the fetched default branch wh
   offline.git('fetch', '-q', 'origin');
   offline.git('remote', 'set-url', 'origin', join(h, 'gone.git'));
   assert.deepEqual([status(ctx, offline.dir).origin, status(ctx, offline.dir).checkout], [null, '5.0.0']);
+});
+
+test('status takes origin\'s state when only its app version is newer (same content version)', () => {
+  const h = home();
+  const ctx = context({ home: h });
+  const p = project(h);
+  const state = JSON.parse(readFileSync(join(p.dir, STATE), 'utf8'));
+  writeFileSync(join(p.dir, STATE), JSON.stringify({ ...state, appVersion: '5.0.0', contentVersion }));
+  p.git('commit', '-qam', 'content current');
+  p.git('push', '-q', 'origin', 'main');
+  const other = mkdtempSync(join(TMP, 'bk-clone-'));
+  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion, contentVersion }));
+  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'app-only setup']);
+  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  const s = status(ctx, p.dir);
+  assert.deepEqual([s.current, s.origin, s.changes], [true, 'origin/main', null]);
 });
 
 test('prefetchOrigins reads origin without blocking and fills the cache status uses; a failed fetch counts as no origin', async () => {

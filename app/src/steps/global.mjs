@@ -143,7 +143,7 @@ export function benchkeeperPlugin(ctx, a) {
 
 // The first installed BenchKeeper plugin whose content needs a newer app than this one, as a message; null when none does.
 export function installedRefusal(ctx, agents = ['claude', 'codex']) {
-  for (const a of agents) {
+  for (const a of agents.filter((x) => PLUGINS[x])) {
     const dir = pluginState(ctx, a).listed.find((p) => p.id === 'benchkeeper@benchkeeper')?.dir;
     const why = dir && contentRefusal(dir, ctx.appVersion);
     if (why) return why;

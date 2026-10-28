@@ -198,8 +198,9 @@ Usage: benchkeeper <command> [options]
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
 --json (doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list,
-        settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status;
-        apply, projects apply, add, remove, rename and relocate, settings set, rules and packs enable|disable, skills update, undo)
+        settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status,
+        evals plan and run; apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs
+        enable|disable, skills update, undo)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md. A changing command
                                     that would ask needs --yes: without it exit 2 and nothing changes
@@ -401,12 +402,15 @@ async function command(argv, { out, err, ask, ctx }) {
     if (unknown.length) { out.write(`${unknown.join(', ')}: not a registered project (benchkeeper projects add <dir>)\n`); return 2; }
     const projects = registered.filter((p) => !asked.length || asked.includes(p.path)).map((p) => status(ctx, p.path));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
+    // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
+    const isReady = (p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current));
     for (const p of projects) {
-      const commits = p.share || p.committed;
+      const commits = p.share || p.committed, shown = (p.clean || !commits) && p.changes;
       const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean && commits ? 'working tree has changes, skipped'
         : p.changes ? `${p.changes.length} changes` : `setup ${p.setupVersion} on ${p.origin}, checkout ${p.checkout ?? 'without one'}${p.current ? ': pull it' : ''}`);
       out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
-      if ((p.clean || !commits) && p.changes) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
+      if (shown) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
+      if (o['dry-run']) out.projects?.push({ path: p.path, setupVersion: p.setupVersion ?? null, ready: !!isReady(p), reason: why, changes: shown ? p.changes.map(changeDoc) : [] });
     }
     if (o.baseline) {
       for (const p of projects) {
@@ -414,8 +418,7 @@ async function command(argv, { out, err, ask, ctx }) {
         for (const i of baselineIssues(ctx, p.path, { profile: o.baseline, ref: o['baseline-ref'] })) out.write(`  ${(i.tag ?? i.level).padEnd(8)} ${i.message}\n`);
       }
     }
-    // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
-    const ready = projects.filter((p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current)));
+    const ready = projects.filter(isReady);
     if (!ready.length) { out.write('nothing to update\n'); return 0; }
     if (o['dry-run']) { out.write(`dry run: ${ready.length} projects would be updated, nothing changed\n`); return 0; }
     const pushing = o['no-push'] ? 0 : pushTargets(ctx, ready.map((p) => p.path)).length;
@@ -425,6 +428,8 @@ async function command(argv, { out, err, ask, ctx }) {
     if (!o.yes && !(await ask(`Update ${what}?`))) return 1;
     let results;
     try { results = updateAll(ctx, { paths: ready.map((p) => p.path), push: !o['no-push'], max }); } catch (e) { out.write(`${e.message}\n`); return 1; }
+    out.projects?.push(...results);
+    out.runs?.push(...results.map((r) => r.run && ctx.ledger.get(r.run)).filter(Boolean));
     for (const r of results) out.write(`${r.status.padEnd(12)} ${r.path}${r.pr ? `  ${r.pr}` : ''}${r.reason ? `: ${r.reason}` : ''}\n`);
     return results.some((r) => r.status === 'stopped') ? 1 : 0;
   }
@@ -695,7 +700,7 @@ const commandName = (cmd, arg) => (['projects', 'packs', 'skills', 'rules', 'ext
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
-const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'remove', 'rename', 'relocate'].includes(arg))
+const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'remove', 'rename', 'relocate', 'update'].includes(arg))
   || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'skills' && arg === 'update');
 const runDoc = (r) => ({ id: r.id, kind: r.kind, scope: r.scope, status: r.status, entries: r.entries.map((e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) })) });
 const projectDoc = ({ reason, ...p }) => ({ ...p, ...(reason ? { reason: redact(reason) } : {}) });
@@ -710,8 +715,8 @@ async function changeJson(argv, { cmd, arg, out, err, ctx }) {
   let code, error;
   try { code = await command(argv.filter((a) => a !== '--json'), { out: log, err, ask: refuse, ctx }); } catch (e) { code = 2; error = e.message; err.write(`${redact(e.message)}\n`); }
   const made = log.runs.length || log.projects?.length;
-  // A command that stops before a change prints why as its last line.
-  if (code && !made) error ??= lines.at(-1)?.trim();
+  // A command that stops before a change prints why as its last line; with nothing made that is a usage or read failure.
+  if (code && !made) { error ??= lines.at(-1)?.trim(); code = 2; }
   const doc = { runs: log.runs.map(runDoc), ...(log.projects ? { projects: log.projects.map(projectDoc) } : {}) };
   out.write(jsonDoc(name, error && !made ? { error: redact(error) } : { ...doc, ...(error ? { error: redact(error) } : {}) }));
   return code;
@@ -848,13 +853,26 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const accounts = picked.map((a) => accountStatus(ctx, a, { dir: o.project ? resolve(o.project) : undefined }));
     return emit({ accounts }, accounts.some((a) => a.findings.some((f) => f.level === 'error')) ? 1 : 0);
   }
+  if (cmd === 'evals' && ['plan', 'run'].includes(arg)) {
+    if (arg === 'run' && process.env.CI) return fail('evals run starts agent sessions on a subscription and does not run in CI');
+    const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
+    // Case ids only: a query or expected text can quote a transcript.
+    const doc = { plan: plan.map((p) => ({ target: p.target, agent: p.agent, model: p.model ?? null, cases: p.cases.map((c) => c.id), ...(p.project ? { project: p.project } : {}) })) };
+    if (arg === 'plan' || !plan.length) return emit(doc);
+    if (!o.yes) { const message = `evals run starts ${doc.plan.reduce((n, p) => n + p.cases.length, 0)} agent sessions: add --yes to run it with --json`; err.write(`${message}\n`); return emit({ ...doc, error: message }, 2); }
+    const results = [];
+    let error;
+    try { await runEval(ctx, plan, { onResult: (r) => results.push(r) }); } catch (e) { error = redact(e.message); err.write(`${error}\n`); }
+    const resultDoc = ({ details, ...r }) => ({ ...r, details: details.map(({ expected, ...d }) => d) });
+    return emit({ ...doc, results: results.map(resultDoc), ...(error ? { error } : {}) }, error ? 1 : 0);
+  }
   if (cmd === 'profile' && arg === 'export') {
     if (positionals[2]) return fail('profile export --json prints the document: redirect stdout and take `.profile` before profile import');
     const broken = registryFail();
     if (broken !== undefined) return broken;
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx) })) });
   }
-  return fail('--json works with doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status, and the changing commands apply, projects apply, add, remove, rename and relocate, settings set, rules and packs enable and disable, skills update and undo');
+  return fail('--json works with doctor, verify, plan, projects plan, history, projects list, scan and audit, packs list, skills list and sources, rules list, extensions list, settings list and get, frameworks list, sessions board, insights, profile export, knowledge show, accounts list and status, evals plan and run, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

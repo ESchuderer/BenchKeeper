@@ -131,3 +131,39 @@ test('evals plan lists the targets and starts no session, in CI too', async () =
   assert.equal(calls.length, 0);
   assert.equal(await main(['evals'], { out, ctx }), 2);
 });
+
+test('evals --json: the plan starts nothing, run needs --yes and prints the plan and its results, no case text leaks', async () => {
+  const calls = [];
+  const ctx = machine(stubAgent(calls));
+  const secret = 'case-text-that-must-not-leak-41d7';
+  addCase(ctx, { target: 'skill:workflow', expected: secret, query: `Write a README for ${secret}.` });
+  const json = async (args) => {
+    let text = '';
+    const code = await main([...args, '--json'], { out: new Writable({ write(c, _, done) { text += c; done(); } }), err: new Writable({ write(_c, _e, done) { done(); } }), ctx });
+    assert.ok(!text.includes(secret), `${args.join(' ')} leaks the case text`);
+    return { code, doc: JSON.parse(text) };
+  };
+  const ci = process.env.CI;
+  try {
+    delete process.env.CI;
+    const plan = await json(['evals', 'plan', '--target', 'skill:workflow']);
+    assert.deepEqual([plan.code, plan.doc.command, Object.keys(plan.doc).slice(2)], [0, 'evals plan', ['plan']]);
+    assert.deepEqual(plan.doc.plan.map((p) => [p.target, p.agent, p.model]), [['skill:workflow', 'claude', null]]);
+    assert.ok(plan.doc.plan[0].cases.length > 1 && plan.doc.plan[0].cases.every((c) => typeof c === 'string'));
+    const asked = await json(['evals', 'run', '--target', 'skill:workflow']);
+    assert.deepEqual([asked.code, Object.keys(asked.doc).slice(2)], [2, ['plan', 'error']]);
+    assert.match(asked.doc.error, /add --yes/);
+    assert.equal(calls.length, 0);
+    const ran = await json(['evals', 'run', '--target', 'skill:workflow', '--yes']);
+    assert.deepEqual([ran.code, ran.doc.command, Object.keys(ran.doc).slice(2)], [0, 'evals run', ['plan', 'results']]);
+    assert.equal(calls.length, plan.doc.plan[0].cases.length);
+    const [r] = ran.doc.results;
+    assert.deepEqual([r.target, r.agent, r.cases, typeof r.missRate], ['skill:workflow', 'claude', calls.length, 'number']);
+    assert.ok(r.details.every((d) => d.id && !('expected' in d)));
+    assert.deepEqual((await json(['evals', 'plan', '--target', 'skill:workflow'])).doc.plan, [], 'the run stored its result');
+    process.env.CI = 'true';
+    const started = calls.length;
+    assert.equal((await json(['evals', 'run', '--all', '--yes'])).code, 2);
+    assert.equal(calls.length, started, 'no session in CI');
+  } finally { if (ci === undefined) delete process.env.CI; else process.env.CI = ci; }
+});

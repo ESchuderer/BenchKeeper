@@ -260,6 +260,9 @@ test('--json: the changing commands print their runs and entries, refuse a quest
       [['projects', 'relocate', dir], 'projects relocate', /needs the old and the new directory/],
       [['projects', 'rename', join(TMP, 'bk-json-never-added'), 'x'], 'projects rename', /is not a registered project/],
       [['settings', 'set'], 'settings set', /needs a key/],
+      [['settings', 'set', 'no.such.key', 'x', '--yes'], 'settings set', /is not a key of/],
+      [['packs', 'enable', 'nope', '--project', dir, '--yes'], 'packs enable', /unknown pack nope/],
+      [['undo', 'nosuchrun'], 'undo', /nosuchrun/],
     ]) assert.match((await doc(args, 2, command, ['error'])).error, message);
   } finally {
     if (before === undefined) delete process.env.DO_NOT_TRACK; else process.env.DO_NOT_TRACK = before;

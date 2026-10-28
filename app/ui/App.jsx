@@ -146,7 +146,7 @@ function Shell() {
   const seen = useRef(null);
   useEffect(() => { if (overview.data) seen.current = overview.data; }, [overview.data]);
   const o = overview.data ?? seen.current;
-  const counts = { dashboard: doctor.data?.length, projects: o?.projects.filter((p) => p.setupVersion !== o.version).length, history: history.data?.length };
+  const counts = { dashboard: doctor.data?.length, projects: o?.projects.filter((p) => !p.current).length, history: history.data?.length };
   const actions = [
     { group: 'Views', actions: VIEWS.map(([id, label]) => ({ id: `view-${id}`, label, onClick: () => go(id) })) },
     { group: 'Projects', actions: (o?.projects ?? []).map((p) => ({ id: `project-${p.path}`, label: p.path, onClick: () => go('projects', { path: p.path }) })) },

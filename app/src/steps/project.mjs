@@ -3,6 +3,7 @@
 // records (session.mjs).
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { listAccounts } from '../accounts.mjs';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
@@ -261,9 +262,14 @@ export function projectCtx(ctx, dir) {
 }
 
 // The context to undo a run of this scope: global, or a folder that could be a project (a ledger file names the scope, and
-// a changed one must not widen the write roots).
+// a changed one must not widen the write roots). A global run may have tracked a host account whose folder lies outside the
+// home folder: the folders come from the registry, not from the ledger file.
 export function scopeCtx(ctx, scope) {
-  if (scope === 'global') return ctx;
+  if (scope === 'global') {
+    let dirs = [];
+    try { dirs = listAccounts(ctx).filter((a) => a.mode === 'host').map((a) => a.dir); } catch { /* an unreadable registry adds no root */ }
+    return { ...ctx, roots: [...ctx.roots, ...dirs] };
+  }
   if (typeof scope !== 'string' || !exists(scope)) throw new Error(`the scope of this run is not a folder here: ${scope}`);
   return projectCtx(ctx, scope);
 }

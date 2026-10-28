@@ -6,7 +6,7 @@
 // (a new launch under the default account may start under another account of the same pool) and the confirmed handover to a new
 // session of a pool member; never a running session.
 import { randomUUID } from 'node:crypto';
-import { chmodSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { openPrivate, signInUrl } from './browser.mjs';
@@ -14,7 +14,7 @@ import { childEnv } from './childenv.mjs';
 import { StoreError, credentialStore } from './credstore.mjs';
 import { agent, notAvailable, registry, supports } from './agents.mjs';
 import { diffLines } from './diff.mjs';
-import { exists, inside, readText } from './fsx.mjs';
+import { exists, inside, isDir, readText } from './fsx.mjs';
 import { git } from './git.mjs';
 import { mask } from './redact.mjs';
 import { apply, preview, runCommandAsync } from './runner.mjs';
@@ -107,6 +107,8 @@ export function newAccount(ctx, o) {
   // Outside the config folder: the agent's own login file sits there, and the config folder is what the ledger and backups hold.
   const dir = resolve(o.dir ?? dataDir(ctx, o.name));
   if (inside(dir, [ctx.config])) throw new Error('the account folder must lie outside the BenchKeeper config folder');
+  // Sign-in makes the folder this user's alone and tracking writes settings.json into it: never a folder that holds something.
+  if (o.dir !== undefined && isDir(dir) && readdirSync(dir).length) throw new Error(`${dir} is not empty: an account gets a new or empty folder`);
   return { ...base, mode: 'host', dir };
 }
 export const addChange = (ctx, entry) => registryChange(`add ${entry.agent} account ${entry.name} (${entry.mode === 'host' ? 'host' : 'dev container'})`, ctx, (list) => {

@@ -204,7 +204,7 @@ test('a profile import registers no home folder and gives it no plan', () => {
 test('undo takes the scope of a run from a folder that could be a project only', () => {
   const h = home();
   const c = context({ home: h });
-  assert.equal(scopeCtx(c, 'global'), c);
+  assert.deepEqual(scopeCtx(c, 'global').roots, c.roots);
   assert.throws(() => scopeCtx(c, h), /home folder/);
   assert.throws(() => scopeCtx(c, '/'), /root of a drive/);
   assert.throws(() => scopeCtx(c, join(h, 'gone')), /not a folder here/);

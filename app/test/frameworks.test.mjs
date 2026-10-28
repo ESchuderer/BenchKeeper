@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { library } from '../src/content.mjs';
 import { frameworkRemovals, sourceRows, sources } from '../src/frameworks.mjs';
+import { classify } from '../src/inventory.mjs';
 import { apply, context, preview, runCommand, undo, undoable } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { localSetup, projectPlan, readState, resolveAnswers } from '../src/steps/project.mjs';
@@ -55,7 +56,33 @@ test('the catalog: agent-file sources, each with an evaluation in BenchKeeper-re
     assert.match(f.install.ref, /^[0-9a-f]{40}$/);
     for (const { path } of f.install.files) assert.match(path, /^[a-z0-9-]+\/[a-z0-9-]+\.md$/);
   }
-  assert.equal(sourceRows().find((f) => f.id === 'agency-agents').files.length, 6);
+  const row = sourceRows().find((f) => f.id === 'agency-agents'), ref = sources(lib)[0].install.ref;
+  assert.equal(row.files.length, 6);
+  assert.equal(row.readme, `https://github.com/msitarzewski/agency-agents/blob/${ref}/README.md`);
+  assert.equal(row.files.find((x) => x.path === FILE).url, `https://github.com/msitarzewski/agency-agents/blob/${ref}/${FILE}`);
+});
+
+test('a new pin: the refetch shows outdated, and a file edited since the fetch gets a warning naming it', () => {
+  const r = repo();
+  run(r, { ...base, agentFiles: [FILE] });
+  const at = join(r.dir, '.benchkeeper/state.json');
+  const state = JSON.parse(readFileSync(at, 'utf8'));
+  assert.match(state.agentHashes[FILE], /^[0-9a-f]{64}$/);
+  writeFileSync(at, JSON.stringify({ ...state, frameworkRefs: { 'agency-agents': '0'.repeat(40) } }));
+  const states = (p) => { const out = []; classify(r.ctx, p.changes.filter((c) => c.step.startsWith('framework:')), (_, __, x) => out.push(x)); return out; };
+  const edited = (p) => p.warnings.filter((w) => w.includes('was edited since it was fetched'));
+  const unedited = plan(r, {});
+  assert.deepEqual(states(unedited), ['outdated']);
+  assert.deepEqual(edited(unedited), []);
+  writeFileSync(join(r.dir, AGENT), 'my edit\n');
+  const p = plan(r, {});
+  assert.deepEqual(states(p), ['outdated']);
+  assert.equal(edited(p).length, 1);
+  assert.match(edited(p)[0], new RegExp(`^${join(r.dir, AGENT)} was edited .* backup`));
+  // A file missing on disk is fetched as missing, not outdated.
+  execFileSync('rm', [join(r.dir, AGENT)]);
+  const gone = plan(r, {});
+  assert.deepEqual([states(gone), edited(gone)], [['missing'], []]);
 });
 
 test('removing a local setup takes the fetched agent files out too', () => {
@@ -148,7 +175,7 @@ test('CLI and server: skills sources shows the evidence, --agent-file is an answ
   for (const argv of [['skills', 'sources'], ['skills', 'sources', 'list']]) {
     const x = sink();
     assert.equal(await main(argv, { out: x.out, ctx: r.ctx, input: Readable.from(['']) }), 0);
-    assert.match(x.text(), /agency-agents\s+agents[^\n]*\n\s+--agent-file engineering\/engineering-frontend-developer\.md: A web UI is built or changed/);
+    assert.match(x.text(), /agency-agents\s+agents[^\n]* README: https:\/\/github\.com\/msitarzewski\/agency-agents\/blob\/[0-9a-f]{40}\/README\.md\n\s+--agent-file engineering\/engineering-frontend-developer\.md: A web UI is built or changed[^\n]* Source: https:\/\/github\.com\/msitarzewski\/agency-agents\/blob\/[0-9a-f]{40}\/engineering\/engineering-frontend-developer\.md\n/);
   }
   const t = sink();
   const code = await main(['projects', 'apply', r.dir, '--agents', 'claude', '--env', 'host', '--agent-file', FILE, '--yes'], { out: t.out, ctx: r.ctx, input: Readable.from(['']) });

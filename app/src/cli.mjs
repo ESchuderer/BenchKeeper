@@ -387,7 +387,7 @@ function show(c, out) {
 }
 
 // A source as `skills sources` prints it, with the agent files to pick.
-const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen}\n`).join('')}`;
+const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation} README: ${f.readme}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen} Source: ${x.url}\n`).join('')}`;
 
 export async function main(argv, { out = process.stdout, err = process.stderr, input = process.stdin, ctx = machineContext() } = {}) {
   const ask = asker(input, out);

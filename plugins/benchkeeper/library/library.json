@@ -62,7 +62,6 @@
       "name": "frontend-design",
       "section": "anthropic",
       "source": "anthropics/skills",
-      "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
       "agents": "both",
       "pickWhen": "New UI or a visual redesign"
     },
@@ -70,7 +69,6 @@
       "name": "mcp-builder",
       "section": "anthropic",
       "source": "anthropics/skills",
-      "ref": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
       "agents": "both",
       "pickWhen": "The repository builds an MCP server"
     },
@@ -79,7 +77,6 @@
       "section": "science",
       "set": "Core",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Experiments are planned before data collection: randomization, blocking, factorial designs"
@@ -89,7 +86,6 @@
       "section": "science",
       "set": "Core",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Observations turn into testable hypotheses and preregistered plans"
@@ -99,7 +95,6 @@
       "section": "science",
       "set": "Core",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Groups are compared or hypotheses tested: test choice, assumptions, effect sizes, reporting"
@@ -109,7 +104,6 @@
       "section": "science",
       "set": "Core",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Sample sizes or power need calculating before a study"
@@ -119,7 +113,6 @@
       "section": "science",
       "set": "Core",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Physical units and measurement uncertainty propagate through calculations"
@@ -129,7 +122,6 @@
       "section": "science",
       "set": "Core",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Unfamiliar CSV, JSON, HDF5 or FASTA files get profiled: missingness, outliers, leakage"
@@ -139,7 +131,6 @@
       "section": "science",
       "set": "Core",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Publication figures with Matplotlib, Seaborn or Plotly"
@@ -149,7 +140,6 @@
       "section": "science",
       "set": "Literature",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Systematic or scoping literature reviews"
@@ -159,7 +149,6 @@
       "section": "science",
       "set": "Literature",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Papers, preprints and open-access full text are searched in scholarly APIs"
@@ -169,7 +158,6 @@
       "section": "science",
       "set": "Literature",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "References need validating or converting to BibTeX"
@@ -179,7 +167,6 @@
       "section": "science",
       "set": "Literature",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Facts come from named public database APIs, with provenance"
@@ -189,7 +176,6 @@
       "section": "science",
       "set": "Literature",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "PDF, Office or other documents are converted to Markdown"
@@ -199,7 +185,6 @@
       "section": "science",
       "set": "Writing",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "A manuscript or report is drafted or revised"
@@ -209,7 +194,6 @@
       "section": "science",
       "set": "Writing",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "A manuscript, protocol or proposal gets a peer review"
@@ -219,7 +203,6 @@
       "section": "science",
       "set": "Writing",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "A paper, poster or grant follows a journal or conference template (LaTeX)"
@@ -229,7 +212,6 @@
       "section": "science",
       "set": "Modelling",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Symbolic math: exact algebra, calculus, equation solving"
@@ -239,7 +221,6 @@
       "section": "science",
       "set": "Modelling",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Single- or multi-objective optimization (NSGA-II, Pareto fronts)"
@@ -249,7 +230,6 @@
       "section": "science",
       "set": "Modelling",
       "source": "K-Dense-AI/scientific-agent-skills",
-      "ref": "a1043ef544e3a100c28e70a736b6cf32554d0677",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Chemical kinetics, combustion and ignition delay with Cantera"
@@ -259,7 +239,6 @@
       "section": "marketing",
       "set": "Core",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Positioning, target audience and the product context the other marketing skills read"
@@ -269,7 +248,6 @@
       "section": "marketing",
       "set": "Core",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "New copy for a homepage, landing or pricing page"
@@ -279,7 +257,6 @@
       "section": "marketing",
       "set": "Core",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Existing marketing copy gets edited or proofread"
@@ -289,7 +266,6 @@
       "section": "marketing",
       "set": "Core",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Search ranking problems: technical SEO, meta tags, crawl errors"
@@ -299,7 +275,6 @@
       "section": "marketing",
       "set": "Core",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Answers from AI search engines and LLMs should cite the site"
@@ -309,7 +284,6 @@
       "section": "marketing",
       "set": "Core",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Structured data: JSON-LD, schema.org, rich results"
@@ -319,7 +293,6 @@
       "section": "marketing",
       "set": "Core",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "A product launch, feature announcement or go-to-market plan"
@@ -329,7 +302,6 @@
       "section": "marketing",
       "set": "Core",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Page hierarchy, navigation, URLs and internal links of a website"
@@ -339,7 +311,6 @@
       "section": "marketing",
       "set": "Optional",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "A blog or content plan: topics, clusters, editorial calendar"
@@ -349,7 +320,6 @@
       "section": "marketing",
       "set": "Optional",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "A page or form does not convert well enough"
@@ -359,7 +329,6 @@
       "section": "marketing",
       "set": "Optional",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "The product gets listed in startup, SaaS or AI directories"
@@ -369,7 +338,6 @@
       "section": "marketing",
       "set": "Optional",
       "source": "coreyhaines31/marketingskills",
-      "ref": "ad6903e9b89caa5e06e2032793a0deb5dab2cdb4",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Event tracking: GA4, tag manager, UTM parameters"
@@ -378,7 +346,6 @@
       "name": "gha-security-review",
       "section": "security",
       "source": "getsentry/skills",
-      "ref": "c93fb1e82454278a0caeb08e062a75a2e18feebb",
       "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The repository has GitHub Actions workflows"
@@ -387,7 +354,6 @@
       "name": "variant-analysis",
       "section": "security",
       "source": "trailofbits/skills",
-      "ref": "e1f86a390d4caf28bf1c377a7d86707b2898669c",
       "license": "CC-BY-SA-4.0",
       "agents": "both",
       "pickWhen": "A found vulnerability may repeat elsewhere in the code"
@@ -396,7 +362,6 @@
       "name": "sharp-edges",
       "section": "security",
       "source": "trailofbits/skills",
-      "ref": "e1f86a390d4caf28bf1c377a7d86707b2898669c",
       "license": "CC-BY-SA-4.0",
       "agents": "both",
       "pickWhen": "The repository exposes an API or configuration others can misuse"
@@ -405,7 +370,6 @@
       "name": "playwright-best-practices",
       "section": "testing",
       "source": "currents-dev/playwright-best-practices-skill",
-      "ref": "283d5cbc5d11aac1abda058b16ad22c317d54dc0",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "The repository has or adds Playwright tests"
@@ -414,7 +378,6 @@
       "name": "mermaid-diagrams",
       "section": "docs",
       "source": "softaworks/agent-toolkit",
-      "ref": "3027f20f3181758385a1bb8c022d4041dfb4de84",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "The docs hold architecture, sequence or flow diagrams"
@@ -423,7 +386,6 @@
       "name": "accessibility",
       "section": "docs",
       "source": "addyosmani/web-quality-skills",
-      "ref": "afa8da942115f2961fdbfa80807ea0b232ff6c00",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "A web UI that needs a WCAG 2.2 audit"
@@ -432,7 +394,6 @@
       "name": "validate-data",
       "section": "docs",
       "source": "anthropics/knowledge-work-plugins",
-      "ref": "f652327d4e953d7957d99e735c3c7f9964e9d2e5",
       "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The repository imports or publishes datasets"
@@ -441,7 +402,6 @@
       "name": "incident-response",
       "section": "operations",
       "source": "anthropics/knowledge-work-plugins",
-      "ref": "f652327d4e953d7957d99e735c3c7f9964e9d2e5",
       "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "A deployed service with on-call or postmortems"
@@ -450,7 +410,6 @@
       "name": "compliance-check",
       "section": "operations",
       "source": "anthropics/knowledge-work-plugins",
-      "ref": "f652327d4e953d7957d99e735c3c7f9964e9d2e5",
       "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The product falls under a regulation (privacy, finance, health)"
@@ -459,7 +418,6 @@
       "name": "gdpr-compliant",
       "section": "operations",
       "source": "github/awesome-copilot",
-      "ref": "772e23900abaff43ccd3ea7c4e048cb5d8cae8da",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "The code processes personal data of people in the EU"
@@ -468,7 +426,6 @@
       "name": "synthesize-research",
       "section": "operations",
       "source": "anthropics/knowledge-work-plugins",
-      "ref": "f652327d4e953d7957d99e735c3c7f9964e9d2e5",
       "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The repository holds user interviews, surveys or feedback to evaluate"
@@ -477,7 +434,6 @@
       "name": "verification-loop",
       "section": "ecc",
       "source": "affaan-m/ECC",
-      "ref": "c05b2d6614f62f6db0047669aa4eefb223d478f9",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "Work needs a pass of build, types, lint and a diff review before a pull request"
@@ -486,7 +442,6 @@
       "name": "error-handling",
       "section": "ecc",
       "source": "affaan-m/ECC",
-      "ref": "c05b2d6614f62f6db0047669aa4eefb223d478f9",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "The code needs one consistent way to raise, handle and report errors"
@@ -495,7 +450,6 @@
       "name": "architecture-decision-records",
       "section": "ecc",
       "source": "affaan-m/ECC",
-      "ref": "c05b2d6614f62f6db0047669aa4eefb223d478f9",
       "license": "MIT",
       "agents": "both",
       "pickWhen": "A design choice needs a record of its context, options and outcome"

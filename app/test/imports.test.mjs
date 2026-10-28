@@ -39,6 +39,18 @@ test('imports: an import across a forbidden boundary, a cycle and the IDE name o
     'no-circular': { 'src/projects.mjs': "import b from './board.mjs';\nexport default b;\n", 'src/board.mjs': "import p from './projects.mjs';\nexport default p;\n" },
     'orca-name-outside-module': { 'src/board.mjs': "export const hook = 'ORCA_ROOT';\n" },
   };
+  const names = {
+    'a URL': "export const u = 'https://github.com/stablyai/orca';\n",
+    'a template': "export const t = `${'x'.length} stablyai/orca`;\n",
+    'a CommonJS file': "module.exports = 'Orca';\n",
+  };
+  const ok = check({ ...CLEAN, 'src/board.mjs': "export const t = `non-${name.orca} ${1}`;\n" });
+  assert.equal(ok.code, 0, ok.out);
+  for (const [what, text] of Object.entries(names)) {
+    const r = check({ ...CLEAN, [what === 'a CommonJS file' ? 'src/board.cjs' : 'src/board.mjs']: text });
+    assert.equal(r.code, 1, what);
+    assert.ok(r.out.includes('error orca-name-outside-module:'), `${what}: ${r.out}`);
+  }
   for (const [rule, change] of Object.entries(rules)) {
     const r = check({ ...CLEAN, ...change });
     assert.equal(r.code, 1, rule);

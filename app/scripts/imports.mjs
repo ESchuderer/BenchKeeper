@@ -11,11 +11,13 @@ const bin = join(here, 'node_modules/dependency-cruiser/bin/dependency-cruiser.m
 
 const cruise = spawnSync(process.execPath, [bin, '--config', join(here, '.dependency-cruiser.cjs'), ...['src', 'ui'].filter((d) => existsSync(join(root, d)))], { cwd: root, stdio: 'inherit' });
 
-// Any case of the name in a word or in a quoted string; a lowercase identifier (a variable, an import path) is not one.
-const NAME = /Orca|ORCA|['"`]orca/;
-const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? (join(dir, e.name) === join(root, 'src', 'orca') ? [] : files(join(dir, e.name))) : /\.(mjs|js|jsx)$/.test(e.name) ? [join(dir, e.name)] : []);
+// The name in a word in any case, or inside a string literal; a lowercase identifier and an import path and a `${}` expression are not one (shortcut: a string inside a `${}` is not scanned).
+const SPECIFIER = /\b(?:from|import)\s*\(?\s*(['"`])(?:(?!\1).)*\1/g;
+const LITERAL = /(['"`])(?:\\.|(?!\1).)*\1/g;
+const hasName = (line) => /Orca|ORCA/.test(line) || (line.replace(SPECIFIER, '').replace(/\$\{[^}]*\}/g, '').match(LITERAL) ?? []).some((s) => /orca/i.test(s));
+const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? (join(dir, e.name) === join(root, 'src', 'orca') ? [] : files(join(dir, e.name))) : /\.(mjs|cjs|js|jsx)$/.test(e.name) ? [join(dir, e.name)] : []);
 const strings = ['src', 'ui'].filter((d) => existsSync(join(root, d))).flatMap((d) => files(join(root, d)))
-  .flatMap((f) => readFileSync(f, 'utf8').split('\n').flatMap((line, i) => NAME.test(line) ? [`${relative(root, f)}:${i + 1}`] : []));
+  .flatMap((f) => readFileSync(f, 'utf8').split('\n').flatMap((line, i) => hasName(line) ? [`${relative(root, f)}:${i + 1}`] : []));
 for (const at of strings) console.error(`error orca-name-outside-module: ${at}`);
 
 if (cruise.error) console.error(cruise.error);

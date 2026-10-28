@@ -23,7 +23,15 @@ function draw() {
   const $ = (id) => document.getElementById(id);
   const patternKey = (r) => r.pattern ?? 'not recorded';
   const setupKey = (r) => (!r.setup ? 'not recorded' : r.setup.length ? r.setup.join(' + ') : 'none');
-  const projectKey = (r) => r.project ?? 'unknown';
+  // A session in a registered project or one of its worktrees counts as that project.
+  const REG = new Set(D.registered.map((x) => x.path));
+  const under = (dir, p) => p === dir || p.startsWith(`${dir}/`) || p.startsWith(`${dir}\\`);
+  const owners = new Map();
+  const owner = (p) => {
+    if (!owners.has(p)) owners.set(p, (p && D.registered.find((x) => [x.path, ...x.worktrees].some((d) => under(d, p)))?.path) || null);
+    return owners.get(p);
+  };
+  const projectKey = (r) => owner(r.project) ?? r.project ?? 'unknown';
   const short = (p) => p.split(/[\\/]/).slice(-2).join('/');
   const day = (iso) => iso.slice(0, 10);
   const median = (xs) => { const s = xs.filter((x) => x != null).sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
@@ -72,17 +80,33 @@ function draw() {
   ];
   // Projects registered in the app and their worktrees; a leading space keeps the option apart from any path.
   const REGISTERED = ' registered';
-  const listed = (r) => !!r.project && D.registered.some((p) => r.project === p || r.project.startsWith(`${p}/`) || r.project.startsWith(`${p}\\`));
+  const listed = (r) => owner(r.project) != null;
   const FIRST = rows.some(listed) ? REGISTERED : '';
-  const state = { period: '30', q: '', project: FIRST, hidden: new Set() };
+  // all: the Project list and the rail show every directory a session ran in, not only the registered projects.
+  const state = { period: '30', q: '', project: FIRST, all: false, hidden: new Set() };
   const matches = (key, f, r) => (key === 'project' && state.project === REGISTERED ? listed(r) : f(r) === state[key]);
+  const worktrees = (k) => { const n = D.registered.find((x) => x.path === k).worktrees.length; return n ? ` (${n} worktree${n === 1 ? '' : 's'})` : ''; };
+  const options = (key, f) => {
+    const values = [...new Set(rows.map(f))].filter((v) => key !== 'project' || state.all || REG.has(v)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const own = key === 'project' && D.registered.length ? [el('option', { value: REGISTERED }, 'Registered projects')] : [];
+    return [...own, el('option', { value: '' }, 'All'), ...values.map((v) => el('option', { value: v }, key === 'project' && REG.has(v) ? `${v}${worktrees(v)}` : v))];
+  };
   const bar = $('filters');
   for (const [key, label, f] of FILTERS) {
-    const values = [...new Set(rows.map(f))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    const own = key === 'project' && D.registered.length ? [el('option', { value: REGISTERED, selected: state.project === REGISTERED }, 'Registered projects')] : [];
-    const s = el('select', { id: `f-${key}` }, own, el('option', { value: '', selected: !state[key] }, 'All'), values.map((v) => el('option', { value: v }, v)));
+    const s = el('select', { id: `f-${key}` }, options(key, f));
+    s.value = state[key] ?? '';
     s.addEventListener('change', () => { state[key] = s.value; render(); });
     bar.append(el('span', { class: 'f' }, el('label', { for: `f-${key}` }, label), s));
+    if (key !== 'project') continue;
+    const all = el('input', { type: 'checkbox', id: 'f-all' });
+    all.addEventListener('change', () => {
+      state.all = all.checked;
+      if (!state.all && state.project && state.project !== REGISTERED && !REG.has(state.project)) state.project = FIRST;
+      s.replaceChildren(...options(key, f));
+      s.value = state.project;
+      render();
+    });
+    bar.append(el('span', { class: 'f' }, all, el('label', { for: 'f-all' }, 'Show all directories'), D.registered.length ? null : el('span', { class: 'muted' }, 'No project is registered in the app.')));
   }
   const period = el('select', { id: 'f-period' }, [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['all', 'All time']].map(([v, t]) => el('option', { value: v, selected: v === state.period }, t)));
   period.addEventListener('change', () => { state.period = period.value; render(); });
@@ -167,7 +191,7 @@ function draw() {
   // The project rail: newest activity first; a click filters everything below, a second click clears it.
   function rail(list) {
     const regOnly = state.project === REGISTERED || (state.project && listed({ project: state.project }));
-    const by = group(list.filter((r) => !regOnly || listed(r)), projectKey);
+    const by = group(list.filter((r) => (state.all && !regOnly) || listed(r)), projectKey);
     const span = [...Array(14).keys()].map((i) => iso(now - (13 - i) * DAY));
     const cards = [...by].map(([k, rs]) => ({ k, rs, newest: rs.reduce((a, r) => (r.start > a ? r.start : a), '') })).sort((a, b) => (a.newest < b.newest ? 1 : a.newest > b.newest ? -1 : b.rs.length - a.rs.length));
     const choose = (v) => { state.project = state.project === v ? FIRST : v; $('f-project').value = state.project; render(); };
@@ -548,8 +572,8 @@ details summary { cursor: pointer; color: var(--ink-2); margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation: none !important; } }
 `;
 
-// rows: scanSessions output; now: an ISO time (the periods count back from it); registered: folders the Project filter
-// offers as one choice, and preselects when a session ran in one.
+// rows: scanSessions output; now: an ISO time (the periods count back from it); registered: registeredPaths(), the
+// projects the Project filter lists (with their worktrees folded in) and offers as one choice, preselected when a session ran in one.
 export function boardHtml(rows, now = new Date().toISOString(), registered = []) {
   // JSON in a script element: < as <, so no value can close the element.
   const data = JSON.stringify({ rows, now, registered, minSamples: MIN_SAMPLES }).replace(/</g, '\\u003c');
@@ -601,10 +625,10 @@ export function writeBoard(ctx, rows, now) {
   return file;
 }
 
-// The app's registered projects with their Git worktrees, where sessions on a branch often run.
+// The app's registered projects, each with its other Git worktrees, where sessions on a branch often run.
 export function registeredPaths(ctx) {
-  return [...new Set(listProjects(ctx).flatMap(({ path }) => {
+  return listProjects(ctx).map(({ path }) => {
     const r = ctx.run(['git', '-C', path, 'worktree', 'list', '--porcelain']);
-    return [path, ...(r.code === 0 ? r.stdout.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9)) : [])];
-  }))];
+    return { path, worktrees: r.code === 0 ? r.stdout.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9)).filter((w) => w !== path) : [] };
+  });
 }

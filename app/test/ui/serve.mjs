@@ -11,7 +11,7 @@ import { startServer } from '../../src/server.mjs';
 import { SKILLS_SPEC, globalPlan } from '../../src/steps/global.mjs';
 import { projectPlan } from '../../src/steps/project.mjs';
 import { SANDBOX, viaSrt } from '../fixtures/srt.mjs';
-import { writeSessions } from '../fixtures/sessions.mjs';
+import { writeSessions, writeTreeSessions } from '../fixtures/sessions.mjs';
 
 // git from a system folder, so the PATH search does not decide which program runs.
 const GIT = ['/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git'].find((p) => existsSync(p));
@@ -55,7 +55,11 @@ for (const name of ['alpha', 'broken']) {
   for (const a of [['init', '-q', '-b', 'main'], ['config', 'user.email', 't@example.com'], ['config', 'user.name', 't'], ['add', '-A'], ['commit', '-qm', 'init']]) execFileSync(GIT, ['-C', d, ...a]);
 }
 execFileSync(GIT, ['-C', join(BATCH, 'alpha'), 'remote', 'add', 'origin', 'https://github.com/acme/alpha.git']);
+// Two worktrees of the registered project, listed by the git stub below; a session in each folds into the project on the board.
+const TREES = ['a', 'b'].map((t) => join(tmpdir(), `bk-ui-tree-${PORT}`, t));
+let registered = null;
 const run = (argv, o = {}) => {
+  if (!DEMO && argv[0] === 'git' && argv[2] === registered && argv.slice(3).join(' ') === 'worktree list --porcelain') return { code: 0, stdout: [registered, ...TREES].map((w) => `worktree ${w}\nHEAD 0\n`).join('\n'), stderr: '' };
   // GitHub is never reached: fetch answers with the local default branch as origin's, push and ls-remote answer as an empty remote, gh opens a pull request.
   // The fetch becomes a ref update in the same repository, so origin/<branch> exists as after a real fetch.
   if (argv[0] === 'git' && argv.includes('fetch')) argv = [...argv.slice(0, argv.indexOf('fetch')), 'update-ref', `refs/remotes/origin/${argv.at(-1)}`, 'HEAD'];
@@ -103,7 +107,7 @@ execFileSync(GIT, ['init', '-q', '-b', 'main', dir]);
 writeFileSync(join(dir, 'README.md'), '# Demo\n');
 const pctx = { ...ctx, roots: [dir] };
 apply(preview(projectPlan({ ctx: pctx, dir, answers: { agents: ['claude'], env: 'host-agent', packs: ['frontend'], tier: 'quick', share: true } }).changes).filter((c) => c.kind !== 'command'), pctx, { scope: dir });
-addProject(ctx, dir);
+registered = addProject(ctx, dir);
 mkdirSync(join(dir, '.claude'), { recursive: true });
 writeFileSync(join(dir, '.claude/settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'AUDIT_TOKEN=dummy-hook-secret ./audit.sh' }] }] } }));
 {
@@ -122,7 +126,7 @@ writeFileSync(join(ctx.config, 'evals/results.jsonl'), [result('2026-10-01T10:00
 
 // Claude Code and Codex transcripts for the Sessions board.
 if (DEMO) writeSessions(home, { root: parent, title: 'Fix the cart total' });
-else writeSessions(home);
+else { writeSessions(home); writeTreeSessions(home, TREES); }
 
 // Insights: a dismissal tied to other evidence (stale) and a snooze that ran out; both findings must show. The Insights test dismisses and snoozes others.
 {

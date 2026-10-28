@@ -34,7 +34,7 @@ test('registered projects and their worktrees go to the board as the Project fil
   const ctx = context({ home, run });
   mkdirSync(ctx.config, { recursive: true });
   writeFileSync(join(ctx.config, 'projects.json'), JSON.stringify({ projects: [{ path: `${home}/shop` }, { path: `${home}/plain` }] }));
-  assert.deepEqual(registeredPaths(ctx), [`${home}/shop`, `${home}/wt/shop-fix`, `${home}/plain`]);
+  assert.deepEqual(registeredPaths(ctx), [{ path: `${home}/shop`, worktrees: [`${home}/wt/shop-fix`] }, { path: `${home}/plain`, worktrees: [] }]);
   const html = boardHtml([], '2026-10-23T00:00:00Z', registeredPaths(ctx));
   assert.deepEqual(JSON.parse(html.match(/<script type="application\/json" id="data">(.*?)<\/script>/s)[1]).registered, registeredPaths(ctx));
 });

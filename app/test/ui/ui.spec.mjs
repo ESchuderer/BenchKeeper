@@ -224,9 +224,10 @@ test.describe('views', () => {
     await nav(page, 'Sessions').click();
     const board = page.frameLocator('iframe[title="Sessions board"]');
     await expect(board.getByRole('heading', { level: 1, name: 'Sessions board' })).toBeVisible();
-    // The fixture project is registered, but no session ran in it: All stays chosen, Registered projects is offered.
+    // Sessions ran in the registered project's worktrees: Registered projects is chosen.
     await expect(board.locator('#f-project').locator('option').first()).toHaveText('Registered projects');
-    await expect(board.locator('#f-project')).toHaveValue('');
+    await expect(board.locator('#f-project')).toHaveValue(' registered');
+    await board.getByLabel('Project', { exact: true }).selectOption('');
     await board.getByLabel('Period').selectOption('all');
     // A changed count is announced.
     await expect(board.locator('#count-live')).toContainText(/\d+ of \d+ sessions/);
@@ -241,11 +242,23 @@ test.describe('views', () => {
     await noAxe(page);
   });
 
+  test('Sessions board: the Project list shows the registered project once with its worktree count; Show all directories adds the unrelated ones', async ({ page }) => {
+    await nav(page, 'Sessions').click();
+    const board = page.frameLocator('iframe[title="Sessions board"]');
+    const options = board.locator('#f-project option');
+    await expect(options).toHaveText(['Registered projects', 'All', /bk-ui-proj \(2 worktrees\)$/]);
+    await board.getByLabel('Period').selectOption('all');
+    await expect(board.locator('#count')).toHaveText('2 of 2 sessions');
+    await board.getByLabel('Show all directories').check();
+    await expect(options).toHaveText(['Registered projects', 'All', /bk-ui-proj \(2 worktrees\)$/, '/work/blog', '/work/shop']);
+  });
+
   test('Sessions board: the frame has the board\'s height and its own heading, intro and theme button are hidden; a day is read by pointer and keyboard; a setup keeps its color; an empty selection says so', async ({ page }) => {
     await nav(page, 'Sessions').click();
     const frame = page.locator('iframe[title="Sessions board"]');
     const board = page.frameLocator('iframe[title="Sessions board"]');
     await board.getByLabel('Period').selectOption('all');
+    await board.getByLabel('Project', { exact: true }).selectOption('');
     // The frame is as tall as the board, so the page scrolls and the frame does not.
     await expect.poll(async () => (await frame.boundingBox()).height).toBeGreaterThan(700);
     expect(await board.locator('body').evaluate((b) => b.scrollHeight - b.clientHeight)).toBeLessThanOrEqual(1);
@@ -270,7 +283,7 @@ test.describe('views', () => {
     // The fixture's sessions with subagents are groups; the others are single.
     await expect(board.locator('#by-pattern')).toContainText('group');
     await board.getByLabel('Pattern', { exact: true }).selectOption('single');
-    await expect(board.locator('#count')).toContainText(/^1 of 1 sessions/);
+    await expect(board.locator('#count')).toContainText(/^3 of 3 sessions/);
     await board.getByLabel('Pattern', { exact: true }).selectOption('');
     // A filter that drops series does not repaint the others.
     await board.getByLabel('Agent', { exact: true }).selectOption('claude');

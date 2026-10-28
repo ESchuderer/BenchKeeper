@@ -16,7 +16,9 @@ const data = () => [
   row({ project: '/work/api', pattern: 'loop', start: ago(0, 11) }),
   ...Array.from({ length: 10 }, (_, i) => row({ project: '/work/shop', start: ago(31 + i) })),
 ];
-const load = async (page, rows, registered = []) => { await page.setContent(boardHtml(rows, NOW, registered)); await expect(page.locator('#count')).toContainText(/sessions/); };
+// Registered projects as registeredPaths() gives them; the fixture's three by default.
+const reg = (...paths) => paths.map((path) => ({ path, worktrees: [] }));
+const load = async (page, rows, registered = reg('/work/shop', '/work/blog', '/work/api')) => { await page.setContent(boardHtml(rows, NOW, registered)); await expect(page.locator('#count')).toContainText(/sessions/); };
 const errors = (page) => { const e = []; page.on('pageerror', (x) => e.push(x.message)); return e; };
 
 test('the rail lists projects newest first with count and last tier; a click filters everything and a second click clears it', async ({ page }) => {
@@ -37,6 +39,30 @@ test('the rail lists projects newest first with count and last tier; a click fil
   await cards.filter({ hasText: 'work/blog' }).click();
   await expect(page.locator('#count')).toHaveText('40 of 40 sessions');
   await expect(page.locator('#project-page')).toBeHidden();
+  expect(e).toEqual([]);
+});
+
+test('the Project list folds worktrees into their project; with no project registered it says so and the toggle lists every directory', async ({ page }) => {
+  const e = errors(page);
+  await load(page, [...data(), row({ project: '/wt/shop-a' }), row({ project: '/wt/shop-b/app' }), row({ project: '/home/u' })], [{ path: '/work/shop', worktrees: ['/wt/shop-a', '/wt/shop-b'] }]);
+  const options = page.locator('#f-project option');
+  await expect(options).toHaveText(['Registered projects', 'All', '/work/shop (2 worktrees)']);
+  await expect(page.locator('#filters')).not.toContainText('null');
+  await expect(page.locator('#rail button.card:not(.all)')).toHaveText([/work\/shop22 sessions/]);
+  await page.getByLabel('Show all directories').check();
+  await expect(options).toHaveText(['Registered projects', 'All', '/home/u', '/work/api', '/work/blog', '/work/shop (2 worktrees)']);
+  await page.locator('#f-project').selectOption('/home/u');
+  await expect(page.locator('#count')).toHaveText('1 of 1 sessions');
+  // Unchecked again: a directory outside the registered projects is no longer a choice.
+  await page.getByLabel('Show all directories').uncheck();
+  await expect(page.locator('#f-project')).toHaveValue(' registered');
+  await load(page, data(), []);
+  await expect(page.locator('#filters')).toContainText('No project is registered in the app.');
+  await expect(options).toHaveText(['All']);
+  await expect(page.locator('#rail button.card:not(.all)')).toHaveCount(0);
+  await page.getByLabel('Show all directories').check();
+  await expect(options).toHaveCount(4);
+  await expect(page.locator('#rail button.card:not(.all)')).toHaveCount(3);
   expect(e).toEqual([]);
 });
 
@@ -121,7 +147,7 @@ test('a title stays text; the cost per merged pull request counts a pull request
 for (const [name, size] of [['desktop', { width: 1280, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
   test(`no axe violations at ${name} width, system and chosen light and dark`, async ({ page }) => {
     await page.setViewportSize(size);
-    await load(page, data(), ['/work/shop']);
+    await load(page, data(), reg('/work/shop'));
     // The first chart tooltip and a hidden series: the states a pointer or key leaves behind.
     await page.locator('#chart').focus();
     await page.keyboard.press('End');

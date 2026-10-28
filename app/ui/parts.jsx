@@ -94,6 +94,34 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
   if (!plan.changes.length) return <Text>Nothing to change.</Text>;
   const unitOf = (c) => (c.unit ? plan.changes.filter((x) => x.unit === c.unit).map((x) => x.id) : [c.id]);
   const toggle = (c) => setSelect((s) => (s.includes(c.id) ? s.filter((x) => !unitOf(c).includes(x)) : [...new Set([...s, ...unitOf(c)])]));
+  // A unit's changes are listed together under one note, at the place of its first change.
+  const units = new Map(), groups = [];
+  plan.changes.forEach((c, i) => {
+    if (c.unit && units.has(c.unit)) units.get(c.unit).push([c, i]);
+    else { const g = [[c, i]]; if (c.unit) units.set(c.unit, g); groups.push(g); }
+  });
+  const row = ([c, i]) => (
+    <Stack key={`${c.id}:${i}`} gap={4}>
+      <Group gap="xs" wrap="nowrap" align="flex-start">
+        {select ? (
+          <Checkbox checked={select.includes(c.id)} disabled={!!c.error || unitOf(c).some((id) => plan.changes.find((x) => x.id === id).error)} onChange={() => toggle(c)}
+            label={c.destructive ? `Remove: ${c.title}` : c.title} />
+        ) : <Text size="sm" fw={600}>{c.destructive ? `Remove: ${c.title}` : c.title}</Text>}
+        <StateBadge state={c.state} />
+      </Group>
+      {c.error && <Text size="sm" c="red">{c.kind === 'command' ? 'Not applied' : 'Cannot merge'}: {c.error}</Text>}
+      {c.kind === 'command' && !c.diff && <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code>}
+      {(() => {
+        const detail = (
+          <>
+            {(c.kind !== 'command' || c.diff) && (c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null)}
+            {c.prerun && prerun && <Rehearsal c={c} prerun={prerun} />}
+          </>
+        );
+        return collapsed && (c.diff || (c.prerun && prerun)) && !c.diff?.startsWith('copy ') ? <Folded title={c.title}>{detail}</Folded> : detail;
+      })()}
+    </Stack>
+  );
   return (
     <Stack gap="sm">
       {prerun && !prerun.asked && (
@@ -109,28 +137,12 @@ export function ChangeList({ plan, select, setSelect, prerun, collapsed = false 
         </Group>
       )}
       {prerun && <CancelJob job={prerun.job} state={prerun.state} what="the preview" />}
-      {plan.changes.map((c, i) => (
-        <Stack key={`${c.id}:${i}`} gap={4}>
-          <Group gap="xs" wrap="nowrap" align="flex-start">
-            {select ? (
-              <Checkbox checked={select.includes(c.id)} disabled={!!c.error || unitOf(c).some((id) => plan.changes.find((x) => x.id === id).error)} onChange={() => toggle(c)}
-                label={c.destructive ? `Remove: ${c.title}` : c.title} description={unitOf(c).length > 1 ? `Goes with ${unitOf(c).length - 1} other change${unitOf(c).length > 2 ? 's' : ''} of this list` : undefined} />
-            ) : <Text size="sm" fw={600}>{c.destructive ? `Remove: ${c.title}` : c.title}</Text>}
-            <StateBadge state={c.state} />
-          </Group>
-          {c.error && <Text size="sm" c="red">{c.kind === 'command' ? 'Not applied' : 'Cannot merge'}: {c.error}</Text>}
-          {c.kind === 'command' && !c.diff && <Code block tabIndex={0}>{`$ ${c.argv.join(' ')}`}</Code>}
-          {(() => {
-            const detail = (
-              <>
-                {(c.kind !== 'command' || c.diff) && (c.diff?.startsWith('copy ') ? <Text size="sm">Copies <Code>{c.diff.slice(5)}</Code></Text> : c.diff ? <DiffView diff={c.diff} path={c.path} /> : null)}
-                {c.prerun && prerun && <Rehearsal c={c} prerun={prerun} />}
-              </>
-            );
-            return collapsed && (c.diff || (c.prerun && prerun)) && !c.diff?.startsWith('copy ') ? <Folded title={c.title}>{detail}</Folded> : detail;
-          })()}
+      {groups.map((g) => (g.length > 1 ? (
+        <Stack key={g[0][0].unit} gap="sm" pl="sm" role="group" aria-label={`${g.length} changes that go together`} style={{ borderLeft: '2px solid var(--mantine-color-default-border)' }}>
+          <Text size="sm">These {g.length} changes go together.</Text>
+          {g.map(row)}
         </Stack>
-      ))}
+      ) : row(g[0])))}
     </Stack>
   );
 }

@@ -48,7 +48,7 @@ function subcommands(rest) {
   return group.includes('|') || group === 'list' ? group.split('|').map((s) => s.trim().split(' ')[0]) : rest.split(' ')[0].split('|');
 }
 const commands = [...HELP.matchAll(/^ {2}([a-z][a-z-]*)(?: (.*?))?(?: {2,}|$)/gm)].flatMap(([, word, rest = '']) => {
-  const names = subcommands(rest).filter((s) => /^[a-z]+( [a-z]+)?$/.test(s));
+  const names = subcommands(rest).filter((s) => /^[a-z][a-z-]*( [a-z]+)?$/.test(s));
   return names.length ? names.map((n) => `${word} ${n}`) : [word];
 });
 

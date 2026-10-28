@@ -24,7 +24,7 @@ import { projectOrigins } from './origin.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { frameworkRows, sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
-import { MAX_PROJECTS, addProject, canon, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unshare, updateAll } from './projects.mjs';
+import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleText, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
@@ -46,6 +46,7 @@ import { focusOn, globalUntracked, projectSkills, skillAction } from './skills.m
 import { clearKnowledge, entryLine, knowledgeDir, linkedParent, readKnowledge } from './knowledge.mjs';
 import { automationDiff, automationStatus, installChanges, load as loadAutomations, readRegistry, removeChanges, updateChanges } from './automations.mjs';
 import { undoableAutomation } from './orca/index.mjs';
+import { ENTRY, TIMEOUT, UsageError, logFile, removeWebhook, sendWebhook, setWebhook, webhookStatus } from './webhook.mjs';
 
 export const HELP = `benchkeeper ${appVersion}: installs, updates and undoes the BenchKeeper agent setup.
 
@@ -162,13 +163,19 @@ Usage: benchkeeper <command> [options]
   projects unshare [dir..] [--yes] [--no-push]
                                     per project whose repository still carries a setup kept local: a pull request
                                     that removes it (branch chore/agent-setup-local); default: every such project
-  projects update [dir..] [--yes] [--no-push] [--dry-run] [--max N] [--baseline auto|oss|private-advisory]
+  projects confirm-git <dir>..      shows the project's git config that runs code or sends git elsewhere (hooks, ssh
+                                    command, credential helper, push URL, URL rewrites and the like) and, after a yes
+                                    typed in a terminal, records it as confirmed for projects update --unattended (key
+                                    and a hash of each value)
+  projects update [dir..] [--yes] [--no-push] [--dry-run] [--unattended] [--max N] [--baseline auto|oss|private-advisory]
                                     dir..: only these registered projects (default: all); per project: local setup (the
                                     default) applied in the checkout; shared setup
                                     (projects apply --share) on branch chore/agent-setup-<version> in a worktree,
                                     one commit, push and pull request when origin is on GitHub;
                                     --dry-run stops after the plan; pushes go to at most 25 repositories per run (--max N);
                                     --baseline also reports each project's GitHub settings drift, changing none
+                                    --unattended skips a project whose git config that runs code differs from the
+                                    one confirmed with projects confirm-git
   sessions board [--no-open]        sessions board of the Claude Code and Codex transcripts on this machine:
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html);
                                     Ponytail's ledger, when present, is read beside them (read only)
@@ -238,6 +245,14 @@ Usage: benchkeeper <command> [options]
   automations diff <id>             the installed automation as the runner holds it against the template now
   automations status                each installed one: current, outdated (template changed), modified (changed on
                                     the runner), removed (gone from the runner) or unknown; nothing is written
+  webhook set|remove|status         the webhook a run calls when it finishes or needs a person, off until set: set reads
+                                    the URL (https, or http to this machine) from the first line of stdin and an optional
+                                    bearer token from the second into the OS credential store; remove [--yes] deletes it;
+                                    status shows whether one is set and the last failed send, never the URL or token
+  webhook send --state finished|failed|needs-person [--run id] [--automation id] [--task id]
+                                    one POST of these ids and the state, started detached with a 5 second limit and no
+                                    retry; without a webhook nothing happens; a failure is one line in
+                                    ~/.cache/benchkeeper/webhook.log, without the URL
   pins list [dir]                   each phase (research, implement, review, verify) with the agent, model and effort
                                     to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
@@ -258,7 +273,7 @@ const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, framework: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
-  'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
+  'no-push': { type: 'boolean' }, narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, max: { type: 'string' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
   baseline: { type: 'string' }, 'baseline-ref': { type: 'string' }, caller: { type: 'string', multiple: true },
@@ -266,7 +281,7 @@ const OPTIONS = {
   setup: { type: 'boolean' }, worktree: { type: 'boolean' }, notes: { type: 'string' }, global: { type: 'boolean' },
   origins: { type: 'boolean' }, 'clone-into': { type: 'string' },
   'five-hour': { type: 'string' }, 'seven-day': { type: 'string' }, 'warn-five-hour': { type: 'string' }, 'warn-seven-day': { type: 'string' }, pool: { type: 'string' }, 'auto-pick': { type: 'string' }, 'when-none': { type: 'string' }, 'continue-below': { type: 'string' }, off: { type: 'boolean' }, reset: { type: 'boolean' },
-  param: { type: 'string', multiple: true },
+  param: { type: 'string', multiple: true }, state: { type: 'string' }, task: { type: 'string' }, automation: { type: 'string' },
   account: { type: 'string' }, library: { type: 'boolean' }, 'keep-days': { type: 'string' }, container: { type: 'boolean' }, label: { type: 'string' }, dir: { type: 'string' }, mount: { type: 'string' }, email: { type: 'string' }, token: { type: 'boolean' }, 'no-browser': { type: 'boolean' },
 };
 
@@ -559,13 +574,14 @@ async function command(argv, { out, err, ask, ctx }) {
     const asked = positionals.slice(2).map(canon), registered = listProjects(ctx);
     const unknown = positionals.slice(2).filter((_, i) => !registered.some((p) => p.path === asked[i]));
     if (unknown.length) { out.write(`${unknown.join(', ')}: not a registered project (benchkeeper projects add <dir>)\n`); return 2; }
-    const projects = registered.filter((p) => !asked.length || asked.includes(p.path)).map((p) => status(ctx, p.path));
+    const projects = registered.filter((p) => !asked.length || asked.includes(p.path)).map((p) => ({ ...status(ctx, p.path), unconfirmed: o.unattended ? unconfirmedGit(ctx, p.path) : [] }));
     if (!projects.length) { out.write('no projects: benchkeeper projects add <dir>\n'); return 1; }
     // A checkout behind origin's setup gets its changes from there: Update all starts at origin's default branch.
-    const isReady = (p) => p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current));
+    const isReady = (p) => !p.unconfirmed.length && p.repo && (p.clean || !(p.share || p.committed)) && !p.error && (p.changes?.length || (p.checkout !== p.setupVersion && !p.current));
     for (const p of projects) {
       const commits = p.share || p.committed, shown = (p.clean || !commits) && p.changes;
-      const why = !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean && commits ? 'working tree has changes, skipped'
+      const why = p.unconfirmed.length ? `git config that runs code or sends git elsewhere is not confirmed (${p.unconfirmed.join(', ')}): benchkeeper projects confirm-git ${p.path}, skipped`
+        : !p.setupVersion ? 'no state file, skipped' : p.error ?? (!p.repo ? 'not a git repository, skipped' : !p.clean && commits ? 'working tree has changes, skipped'
         : p.changes ? `${p.changes.length} changes` : `setup ${p.setupVersion} on ${p.origin}, checkout ${p.checkout ?? 'without one'}${p.current ? ': pull it' : ''}`);
       out.write(`${p.path}  setup ${p.setupVersion ?? '-'}  ${why}\n`);
       if (shown) p.changes.forEach((c) => out.write(`  ${c.title}${c.kind === 'command' ? `\n    $ ${c.argv.join(' ')}` : ''}\n`));
@@ -614,6 +630,18 @@ async function command(argv, { out, err, ask, ctx }) {
       const path = relocateProject(ctx, dirs[0], dirs[1]);
       out.projects?.push({ path, from: canon(dirs[0]), status: 'relocated' });
       out.write(`relocated ${canon(dirs[0])} to ${path}\n`);
+    }
+    else if (arg === 'confirm-git') {
+      if (!dirs.length) { out.write('projects confirm-git needs a directory\n'); return 2; }
+      // Only the owner confirms: no --yes and no piped answer, so a scheduled session cannot confirm the run it is gated by.
+      if (!ask.tty) { out.write('projects confirm-git asks in a terminal: run it yourself\n'); return 2; }
+      for (const d of dirs) {
+        const found = gitCodeConfig(ctx, canon(d));
+        out.write(`${canon(d)}\n${found.map((i) => `  ${i.key.startsWith('hook ') ? i.key : `${i.key} = ${redact(i.value)}`}\n`).join('') || '  none\n'}`);
+        if (!(await ask(`Let projects update --unattended run in ${canon(d)} with this config?`))) return 1;
+        confirmGit(ctx, d);
+        out.projects?.push({ path: canon(d), status: 'confirmed' });
+      }
     }
     else if (arg === 'remove' && o.setup) return removeSetups(ctx, dirs, { o, out, ask });
     else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.projects?.push({ path: resolve(d), status: 'removed' }); out.write(`removed ${resolve(d)}\n`); });
@@ -729,6 +757,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'run') return runAccountCommand({ o, positionals, out, ctx, ask });
   if (cmd === 'rules') return rulesCommand({ o, positionals, out, ask, ctx });
   if (cmd === 'automations') return automationsCommand(ctx, { o, positionals, out, ask });
+  if (cmd === 'webhook') return webhookCommand(ctx, { o, positionals, out, ask });
   if (cmd === 'extensions') {
     if (arg && arg !== 'list') { out.write('extensions needs list\n'); return 2; }
     if (o.agent && !RULE_AGENTS.includes(o.agent)) { out.write(`agent must be one of ${RULE_AGENTS.join(', ')}\n`); return 2; }
@@ -913,7 +942,7 @@ const commandName = (cmd, arg, sub) => (cmd === 'sessions' && arg === 'cache' ? 
 const count = (list, level) => list.filter((i) => i.level === level).length;
 
 // The commands that change the machine or a repository: under --json they print what they did, not what they read.
-const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'remove', 'rename', 'relocate', 'update'].includes(arg))
+const changing = (cmd, arg) => ['apply', 'undo'].includes(cmd) || (cmd === 'projects' && ['apply', 'add', 'confirm-git', 'remove', 'rename', 'relocate', 'update'].includes(arg))
   || (cmd === 'settings' && arg === 'set') || (['rules', 'packs'].includes(cmd) && ['enable', 'disable'].includes(arg)) || (cmd === 'skills' && arg === 'update')
   || (cmd === 'automations' && ['install', 'update', 'remove'].includes(arg));
 const entryDoc = (e) => ({ step: e.step, title: e.title, kind: e.kind, status: e.status, ...(e.reason ? { reason: redact(e.reason) } : {}), ...(e.error ? { error: redact(e.error) } : {}) });
@@ -1308,6 +1337,44 @@ async function automationsCommand(ctx, { o, positionals, out, ask }) {
     if (!d.automations.length) out.write('no automation installed\n');
   }
   return r.code ?? 0;
+}
+
+// ---- webhook: the run notification (webhook.mjs)
+
+async function webhookCommand(ctx, { o, positionals, out, ask }) {
+  const [, sub] = positionals;
+  if (!['set', 'remove', 'status', 'send'].includes(sub)) { out.write('webhook needs set, remove, status or send\n'); return 2; }
+  if (positionals.length > 2) { out.write(`unexpected argument ${positionals[2]}\n`); return 2; }
+  if (sub !== 'send' && [o.state, o.run, o.automation, o.task].some((v) => v !== undefined)) { out.write('--state, --run, --automation and --task belong to webhook send\n'); return 2; }
+  try {
+    if (sub === 'send') {
+      // A run calls this last: only bad arguments fail it, a missing webhook or store does not.
+      const r = sendWebhook(ctx, { state: o.state, run: o.run, automation: o.automation, task: o.task });
+      out.write(r.sent ? `sending, at most ${TIMEOUT / 1000} seconds; a failure goes to ${logFile(ctx)}\n` : 'no webhook set: nothing sent\n');
+      return 0;
+    }
+    if (sub === 'status') {
+      const s = webhookStatus(ctx);
+      out.write(`configured: ${s.configured ? 'yes' : 'no'}${s.store ? ` (${s.store}, entry ${ENTRY})` : `: ${s.note}`}\nlast failure: ${s.lastFailure ?? 'none'}\n`);
+      return 0;
+    }
+    if (sub === 'set') {
+      // Never an argument and never typed with an echo: the URL can hold a secret of its own.
+      if (ask.tty) { out.write('pipe the URL, and a token on a second line, on stdin: printenv HOOK | benchkeeper webhook set\n'); return 2; }
+      const url = ((await ask.line('')) ?? '').trim(), token = ((await ask.line('')) ?? '').trim() || undefined;
+      const r = setWebhook(ctx, url, token);
+      out.write(`${r.replaced ? 'replaced the webhook' : 'webhook kept'} in the OS credential store (${r.store}, entry ${ENTRY}); webhook remove deletes it\n`);
+      return 0;
+    }
+    if (!webhookStatus(ctx).configured) { out.write('no webhook set\n'); return 0; }
+    if (!o.yes && !(await ask('Delete the webhook from the OS credential store? Runs then send nothing.'))) return 1;
+    removeWebhook(ctx);
+    out.write('deleted the webhook\n');
+    return 0;
+  } catch (e) {
+    out.write(`${e.message}\n`);
+    return e instanceof UsageError ? 2 : 1;
+  }
 }
 
 // ---- accounts: the registry, the guided sign-in and the launcher (accounts.mjs)

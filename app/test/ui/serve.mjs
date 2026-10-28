@@ -154,6 +154,8 @@ if (!DEMO) {
 // Claude Code and Codex transcripts for the Sessions board.
 if (DEMO) writeSessions(home, { root: parent, title: 'Fix the cart total' });
 else { writeSessions(home); writeTreeSessions(home, TREES); }
+// A Ponytail ledger file that is not one: the scan skips it with a note.
+if (!DEMO) { mkdirSync(join(home, '.config/ponytail/band'), { recursive: true }); writeFileSync(join(home, '.config/ponytail/band/broken.csv'), 'a,b\n1,2\n'); }
 
 // Insights: a dismissal tied to other evidence (stale) and a snooze that ran out; both findings must show. The Insights test dismisses and snoozes others.
 {

@@ -309,8 +309,12 @@ test('server: project-plan switches packs and acts on one skill; /api/skills lis
   routes['POST /api/projects']({ action: 'add', path: r.dir });
   const q = (extra) => new URLSearchParams([['dir', r.dir], ...extra]);
   const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
+  mkdirSync(join(r.dir, 'docs'));
   let p = routes['GET /api/project-plan'](q([]));
   assert.deepEqual(p.packs.filter((x) => x.enabled).map((x) => x.id), ['ui-a']);
+  // Each pack says when to pick it, and the ones the repository's files point to say why.
+  assert.deepEqual(p.packs.filter((x) => x.suggested).map((x) => [x.id, x.suggested]), [['docs', 'a docs folder']]);
+  assert.ok(p.packs.find((x) => x.id === 'docs').pickWhen);
   p = routes['GET /api/project-plan'](q([['pack-on', 'ui-b'], ['pack-off', 'ui-a']]));
   assert.deepEqual(p.packs.filter((x) => x.enabled).map((x) => x.id), ['ui-b']);
   assert.deepEqual(p.skills.removed, [], 'the skill is in the other pack');

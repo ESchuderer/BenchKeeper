@@ -63,7 +63,6 @@
       "exports src/cases.mjs CASE_SCHEMA",
       "exports src/cases.mjs shippedEvals",
       "exports src/content.mjs content",
-      "exports src/credstore.mjs TOKEN",
       "exports src/dashboard.mjs STATES",
       "exports src/doctor.mjs FEATURE_VARS",
       "exports src/eval.mjs lastResults",

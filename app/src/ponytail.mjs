@@ -17,6 +17,9 @@ const KEY = /^([0-9a-f]{8})-(\d{12,14})$/;
 
 const json = (text) => { try { return JSON.parse(text ?? '{}') ?? {}; } catch { return {}; } };
 
+// The page Ponytail writes next to its ledgers; the app opens this one path and no other.
+export const boardFile = (ctx) => join(ctx.home, LEDGER, 'board.html');
+
 // True when Ponytail's band would draw above the prompt next to BenchKeeper's tier band: both plugins are on, the tier band
 // is on, and `/ponytail band off` has not been run.
 export function bandStacks(ctx) {

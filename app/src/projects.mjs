@@ -291,6 +291,42 @@ export function status(ctx, path) {
     share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
 }
 
+// Repository git config that runs code or sends git elsewhere during Update all (local and worktree scope, include files
+// followed), and the executable hooks of the common hooks folder. An unattended Update all runs a project only while this
+// list equals the one its owner confirmed.
+const CODE_KEYS = /^(core\.(hookspath|fsmonitor|sshcommand|askpass|gitproxy|worktree)|credential\.(.+\.)?helper|url\..+\.(pushinsteadof|insteadof)|remote\..+\.(url|pushurl|vcs|uploadpack|receivepack)|protocol\.(.+\.)?allow|filter\..+\.(clean|smudge|process)|commit\.gpgsign|gpg\.(.+\.)?program|include\.path|includeif\..+\.path|fetch\.recursesubmodules|submodule\.recurse)$/;
+export function gitCodeConfig(ctx, path) {
+  if (!isRepo(ctx, path)) return [];
+  const parts = git(ctx, path, ['config', '--list', '--show-scope', '--includes', '-z']).stdout.split('\0');
+  const out = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const [key, value = ''] = parts[i + 1].split(/\n([\s\S]*)/);
+    if (['local', 'worktree'].includes(parts[i]) && CODE_KEYS.test(key)) out.push({ key, value });
+  }
+  const common = git(ctx, path, ['rev-parse', '--path-format=absolute', '--git-common-dir']).stdout.trim();
+  const hooks = common && join(common, 'hooks');
+  for (const name of isDir(hooks) ? readdirSync(hooks).sort() : []) {
+    const file = join(hooks, name), st = statSync(file);
+    if (!name.endsWith('.sample') && st.isFile() && (st.mode & 0o111)) out.push({ key: `hook ${name}`, value: readFileSync(file, 'utf8') });
+  }
+  return out;
+}
+// Key and a hash of the value: a credential helper's value can hold a token, and the registry holds none.
+const fingerprint = (items) => items.map((i) => `${i.key}=${hashText(i.value).slice(0, 16)}`).sort();
+// The keys whose presence or value differs from the confirmed list; empty when they match.
+export function unconfirmedGit(ctx, path) {
+  const confirmed = new Set(listProjects(ctx).find((p) => p.path === canon(path))?.gitConfirmed ?? []);
+  const now = new Set(fingerprint(gitCodeConfig(ctx, path)));
+  const key = (f) => f.replace(/=[^=]*$/, '');
+  return [...new Set([...now].filter((f) => !confirmed.has(f)).concat([...confirmed].filter((f) => !now.has(f))).map(key))].sort();
+}
+// Records the project's current list as confirmed by its owner.
+export function confirmGit(ctx, path) {
+  const entry = registeredEntry(ctx, path), gitConfirmed = fingerprint(gitCodeConfig(ctx, entry.path));
+  save(ctx, listProjects(ctx).map((x) => (x.path === entry.path ? { ...x, gitConfirmed } : x)));
+  return gitConfirmed;
+}
+
 // One run pushes to at most this many repositories (max raises it): a registry that grew by an import or a scan does not
 // publish to every repository at once.
 export const MAX_PROJECTS = 25;

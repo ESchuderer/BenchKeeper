@@ -9,7 +9,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { accountDoc, accountStatusAsync, accountsProblem, addChange, findAccount, listAccounts, login, newAccount, registrySettings, removeChange, store, useChange } from './accounts.mjs';
 import { limitsFor, settingsOf } from './usage.mjs';
 import { automationsView, installChanges as automationInstall, removeChanges as automationRemove, updateChanges as automationUpdate } from './automations.mjs';
@@ -17,6 +17,7 @@ import { ADVISERS, adviseSetup } from './advise.mjs';
 import { CSP as BOARD_CSP, boardHtml, registeredPaths, writeBoard } from './board.mjs';
 import { detect } from './agents.mjs';
 import { evalPlan, runEval } from './eval.mjs';
+import { boardFile as ponytailBoard } from './ponytail.mjs';
 import { contentDir } from './content.mjs';
 import { doctor, projectChecks } from './doctor.mjs';
 import { collectInsights } from './insights.mjs';
@@ -362,6 +363,8 @@ export function api(ctx) {
       const notInLibrary = switches.pick.filter((n) => !libraryWith(ctx).skills.some((x) => x.name === n));
       if (notInLibrary.length) throw bad(`not in the library: ${notInLibrary.join(', ')}`);
       const p = input(() => projectPlan({ ctx: projectCtx(ctx, dir), dir, answers: { ...setup, ...switches, disable, enable } }));
+      // The packs the repository's files point to, as the setup suggests them.
+      const hints = suggest(dir).packs;
       // Plugin installs change the machine, not the project: the global plan does them, as in Update all.
       // focus: one skill's action shows only that skill's changes and the records of them.
       const focus = q.getAll('focus');
@@ -369,7 +372,8 @@ export function api(ctx) {
       const changes = focus.length ? focusOn(all, focus) : all;
       return { planId: keep(changes, projectCtx(ctx, dir), dir), changes: serialize(changes, projectCtx(ctx, dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
         chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name) })),
-        packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, own: !!x.own, skills: x.skills?.length ?? null, enabled: p.answers.packs.includes(x.id) })) };
+        packs: libraryWith(ctx).packs.map((x) => ({ id: x.id, title: x.title ?? x.id, pickWhen: x.pickWhen ?? null, own: !!x.own, skills: x.skills?.length ?? null, enabled: p.answers.packs.includes(x.id),
+          suggested: hints.find((h) => h.id === x.id)?.reason ?? null })) };
     },
     // Every registered project's skills with their state, and the folders no setup installed, for the Catalog.
     // ?check=1 asks each skill source for its default branch (the one network call), to mark skills outdated.
@@ -414,7 +418,14 @@ export function api(ctx) {
       for (const [k, at] of t) if (now - at > FRESH_SCAN_MS) t.delete(k);
       const ticket = randomBytes(24).toString('base64url');
       t.set(ticket, now);
-      return { ticket };
+      return { ticket, ponytail: isFile(ponytailBoard(ctx)) };
+    },
+    // Opens Ponytail's own board with the opener the CLI uses for the sessions board; the path never comes from the request.
+    'POST /api/ponytail-board': () => {
+      const file = ponytailBoard(ctx);
+      if (!isFile(file)) throw bad("Ponytail's board was not found");
+      (ctx.open ?? launch)(pathToFileURL(file).href);
+      return { opened: file };
     },
     // The page's Stop button: refused while an apply or eval runs; scans, suggestions and rehearsals stop with the server.
     'POST /api/shutdown': () => {

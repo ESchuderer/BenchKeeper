@@ -234,7 +234,7 @@ test('the commands: list, install with --json and --yes, status exit codes', asy
   const out = { write: (s) => { lines.push(s); } };
   const cli = (argv) => main(argv, { out, err: { write: () => {} }, ctx: w.ctx });
   assert.equal(await cli(['automations', 'list', '--json']), 0);
-  assert.deepEqual(JSON.parse(lines.pop()).templates.map((t) => [t.id, t.tier, t.installed]), [['alpha', 'user', false]]);
+  assert.deepEqual(JSON.parse(lines.pop()).templates.filter((t) => t.tier === 'user').map((t) => [t.id, t.tier, t.installed]), [['alpha', 'user', false]]);
   assert.equal(await cli(['automations', 'install', 'alpha', '--param', 'repository=o/r', '--json']), 2, 'a question needs --yes');
   assert.match(JSON.parse(lines.pop()).error, /add --yes/);
   // The plan the command makes is the one above; the fake answers its create.

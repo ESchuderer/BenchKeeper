@@ -48,13 +48,19 @@ const theme = createTheme({
 const resolver = () => Object.fromEntries(['light', 'dark'].map((s) => [s, {
   ...varsOf(s, 'bk-', true), '--mantine-color-text': 'var(--bk-ink)', '--mantine-color-dimmed': 'var(--bk-ink-2)', '--mantine-color-body': 'var(--bk-surface)',
 }]).concat([['variables', {}]]));
-// Dashboard and Projects first: the views used most.
-const VIEWS = [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks], ['agents', 'Agents', Agents, IconRobot],
-  ['history', 'History', History, IconHistory], ['sessions', 'Sessions', Sessions, IconActivity], ['runs', 'Runs', Runs, IconListTree], ['insights', 'Insights', Insights, IconBulb], ['evals', 'Evals', Evals, IconChartBar], ['agent-settings', 'Agent settings', AgentSettings, IconAdjustmentsHorizontal], ['rules', 'Rules', Rules, IconFileText], ['extensions', 'Extensions', Extensions, IconPlug], ['accounts', 'Accounts', Accounts, IconUsers], ['automations', 'Automations', Automations, IconCalendarTime], ['settings', 'Settings', Settings, IconSettings]];
+// The sidebar's groups; Ctrl+1 to Ctrl+9 open the first nine views in this order.
+const GROUPS = [
+  ['Overview', [['dashboard', 'Dashboard', Dashboard, IconLayoutDashboard], ['history', 'History', History, IconHistory]]],
+  ['Projects', [['projects', 'Projects', Projects, IconFolders], ['catalog', 'Catalog', Catalog, IconBooks]]],
+  ['Analysis', [['sessions', 'Sessions', Sessions, IconActivity], ['runs', 'Runs', Runs, IconListTree], ['insights', 'Insights', Insights, IconBulb], ['evals', 'Evals', Evals, IconChartBar]]],
+  ['Agent configuration', [['agents', 'Global setup', Agents, IconRobot], ['agent-settings', 'Agent settings', AgentSettings, IconAdjustmentsHorizontal], ['rules', 'Rules', Rules, IconFileText], ['extensions', 'Extensions', Extensions, IconPlug], ['accounts', 'Accounts', Accounts, IconUsers]]],
+  ['Machine', [['automations', 'Automations', Automations, IconCalendarTime], ['settings', 'Preferences', Settings, IconSettings]]],
+];
+const VIEWS = GROUPS.flatMap(([, views]) => views);
 // The "Advanced" group: only while its setting is on, else the route does not exist.
 const ADVANCED = [['editors', 'Presets, pins and policy', Editors, IconCode]];
 
-// The "/" key opens the palette unless turned off in Settings (WCAG 2.1.4: a character-key shortcut must be switchable).
+// The "/" key opens the palette unless turned off in Preferences (WCAG 2.1.4: a character-key shortcut must be switchable).
 const SLASH = 'bk-slash';
 function useSlash() {
   const [on, set] = useState(() => { try { return localStorage.getItem(SLASH) !== 'off'; } catch { return true; } });
@@ -209,27 +215,26 @@ function Shell() {
           </Group>
         </AppShell.Header>
         <AppShell.Navbar id="app-nav" p="xs" aria-label="Views" inert={phone && !nav ? true : undefined}>
-          {VIEWS.map(([id, label, , Icon]) => (
-            <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} aria-current={view === id ? 'page' : undefined}
-              rightSection={counts[id] ? <Badge variant="default" size="sm" className="bk-num">{counts[id]}</Badge> : null} />
-          ))}
-          {o.editors && (
-            <div role="group" aria-labelledby="nav-advanced">
-              <Text id="nav-advanced" size="xs" fw={600} px="sm" pt="sm" pb={4}>Advanced</Text>
-              {ADVANCED.map(([id, label, , Icon]) => <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} aria-current={view === id ? 'page' : undefined} />)}
+          {[...GROUPS, ...(o.editors ? [['Advanced', ADVANCED]] : [])].map(([group, items], g) => (
+            <div key={group} role="group" aria-labelledby={`nav-${g}`}>
+              <Text id={`nav-${g}`} size="xs" fw={600} px="sm" pt={g ? 'sm' : 0} pb={4}>{group}</Text>
+              {items.map(([id, label, , Icon]) => (
+                <NavLink key={id} component="a" href={href(id)} label={label} leftSection={icon(Icon, 18)} active={view === id} aria-current={view === id ? 'page' : undefined}
+                  rightSection={counts[id] ? <Badge variant="default" size="sm" className="bk-num">{counts[id]}</Badge> : null} />
+              ))}
             </div>
-          )}
+          ))}
           {/* The header has no room for the doctor count below md, nor for theme and Stop below sm: they live here. */}
           <Stack gap="xs" mt="auto" p="xs">
             <Group hiddenFrom="md"><DoctorBadge doctor={doctor} /></Group>
             <Button hiddenFrom="sm" variant="default" leftSection={icon(scheme === 'dark' ? IconSun : IconMoon)} onClick={toggleTheme}>{scheme === 'dark' ? 'Light theme' : 'Dark theme'}</Button>
             <Button hiddenFrom="sm" variant="default" leftSection={icon(IconPower)} onClick={stopModal.open}>Stop BenchKeeper</Button>
           </Stack>
-          <Text size="xs" mt="auto" p="xs" visibleFrom="sm">{MOD}+1 to {MOD}+{Math.min(VIEWS.length, 9)}: views</Text>
+          <Text size="xs" mt="auto" p="xs" visibleFrom="sm">{MOD}+1 to {MOD}+9: the first nine views</Text>
         </AppShell.Navbar>
         <AppShell.Main>
           <Title order={2} size="h3" id="view-title" tabIndex={-1} mb="md" style={{ outline: 'none' }}>{label}</Title>
-          <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} keys={{ slash, setSlash }} />
+          <View key={view} params={params} overview={overview} doctor={doctor} history={history} catalog={catalog} refresh={refresh} keys={{ slash, setSlash, views: VIEWS.slice(0, 9).map(([, l]) => l) }} />
         </AppShell.Main>
         <Spotlight actions={actions} shortcut={slash ? ['mod + K', '/'] : 'mod + K'} nothingFound="Nothing found" highlightQuery attributes={{ content: { 'aria-label': 'Command palette' } }} searchProps={{ placeholder: 'Views, projects, skills, runs, actions', 'aria-label': 'Search' }}
           scrollAreaProps={{ viewportProps: { tabIndex: 0, 'aria-label': 'Results' } }} styles={{ actionDescription: { color: 'var(--mantine-color-text)' } }} />

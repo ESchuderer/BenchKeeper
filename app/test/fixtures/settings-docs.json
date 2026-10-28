@@ -1,5 +1,5 @@
 {
- "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26, the deprecated-key, auto mode, Sonnet 4.5 and Foundry passages 2026-10-28 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
+ "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26, the sandbox, deprecated-key, auto mode, Sonnet 4.5 and Foundry passages 2026-10-28 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
  "fetched": "2026-10-25",
  "pages": {
   "https://code.claude.com/docs/en/advisor": [
@@ -36,11 +36,21 @@
    "ting keys. Codex ignores openai_base_url , chatgpt_base_url , apps_mcp_product_sku , model_provider , model_providers , notify , profile , profiles , experimental_realtime_ws_base_url , and otel when they appear in a project-local .codex/config.toml ; put provider, notification, and telemetry keys in user-level config instead. Config profile files live next to config",
    " :read-only , :workspace , and :danger-full-access ; custom profile names require matching [permissions.<name>] tables. Don't combine with sandbox_mode or [sandbox_workspace_write] . desktop.custom_file_handlers.<id> table User-level only. Defines an additional Open in target for the ChatGPT desktop",
    "n Codex CLI, false also disables custom OTLP metrics exporters. When unset, the client default applies. approval_policy on-request | never | { granular = { sandbox_approval = bool, rules = bool, mcp_elicitations = bool, request_permissions = bool, skill_approv",
-   "rkers array<string> List of project root marker filenames; used when searching parent directories for the project root. projects.<path>.trust_level string Mark a project or worktree as trusted or untrusted ( \"trusted\" | \"untrusted\" ). Untrusted projects skip project-"
+   "rkers array<string> List of project root marker filenames; used when searching parent directories for the project root. projects.<path>.trust_level string Mark a project or worktree as trusted or untrusted ( \"trusted\" | \"untrusted\" ). Untrusted projects skip project-",
+   "sandbox_mode read-only | workspace-write | danger-full-access Sandbox policy for filesystem and network access during command execution. sandbox_workspace_write.exclude_slash_tmp boolean Exclude /tmp from writable roots in workspace-write mode."
   ],
   "https://code.claude.com/docs/en/permissions": [
    "or the compound command to be allowed. ### Read and Edit To block Claude's file tools from reading a file or directory, add a `Read` deny rule for its path, such as `Read(./.env)` or `Read(./secrets/**)`; [Exclude sensitive files](https://code.claude.com/docs/en/settings-ref",
    "ead`, `tail`, `sed`, and `tee`, and to the targets of Bash [redirections](#redirections) such as `> file` and `< file`. They don't apply to a command that reads files without naming them, such as `grep -r pattern .` run from the directory that holds the file, or to arbitrary subprocesses that read or writ"
+  ],
+  "https://code.claude.com/docs/en/sandboxing": [
+   "The sandbox runs on macOS, Linux, and WSL2. On native Windows, Claude Code runs commands unsandboxed. To use the sandbox on a Windows machine, run Claude Code inside a WSL2 distribution.",
+   "By default, if the sandbox can't start because a dependency is missing or the platform is unsupported, Claude Code runs commands without sandboxing. To make Claude Code exit at startup instead, set sandbox.failIfUnavailable to true.",
+   "You can disable the unsandboxed retry by setting \"allowUnsandboxedCommands\": false in your sandbox settings.",
+   "On Linux and WSL2, the sandbox relies on these packages: bubblewrap : the unprivileged sandboxing tool that enforces filesystem isolation socat : the relay used to route network traffic through the sandbox proxy",
+   "Linux and WSL2 : the sandbox relies on `bubblewrap` and `socat`, covered in Set up Linux and WSL2.",
+   "Connections go through a proxy on your machine that checks each host against your allowed domains, which start empty. Domain restrictions : your allowed domains start empty.",
+   "strict sandbox mode](#turn-off-the-retry-with-strict-sandbox-mode) for the sessions where typed commands run sandboxed. The sandbox doesn't run on native Windows, so with `failIfUnavailable` set, Claude Code exits at startup on those machines. If your fleet includes Windows hosts, you can: * **Deliver the configuration by operating system**: deploy it through y"
   ],
   "https://code.claude.com/docs/en/auto-mode-config": [
    "tributed to all developers | | `--settings` flag or Agent SDK | Inline JSON | Per-invocation overrides for automation | The classifier doesn't read `autoMode` from project settings in `.claude/settings.json` or `.claude/settings.local.json`. Both files live in the repo directory, so a checked-in repo or a build step could otherwise inject its own allow rules."

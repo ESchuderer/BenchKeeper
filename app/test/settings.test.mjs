@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
@@ -22,8 +22,9 @@ function machine() {
   return Object.assign(context({ home, run }), { managedRoot: managed });
 }
 const write = (path, text) => { mkdirSync(join(path, '..'), { recursive: true }); writeFileSync(path, text); };
-// The two security controls of #313 fire on a home that sets neither; tests of other rules leave them out.
+// The security controls (#313 and the sandbox settings, #312) fire on a home that sets none; tests of other rules leave them out.
 const CONTROLS = /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off|credential files/;
+const HIDDEN = new RegExp(`${CONTROLS.source}|sandbox\\.|sandbox is unsupported|sandbox_mode`);
 const claudeUser = (ctx) => join(ctx.home, '.claude/settings.json');
 const codexUser = (ctx) => join(ctx.home, '.codex/config.toml');
 // Plan, apply and return the run.
@@ -178,7 +179,7 @@ test('the advisor with a flag-fetching switch: a note on both keys and a Doctor 
 
 test('Doctor: the other pairs, no-op keys, retention, switches that are not booleans', () => {
   const ctx = machine();
-  const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)).map((i) => i.message); };
+  const messages = (settings, env = {}) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], env }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message)).map((i) => i.message); };
   assert.match(messages({ remoteControlAtStartup: true, env: { DISABLE_GROWTHBOOK: '1' } })[0], /Remote Control is unavailable/);
   assert.deepEqual(messages({ remoteControlAtStartup: true, env: { DISABLE_TELEMETRY: '1' } }), [], 'Remote Control stays available with only DISABLE_TELEMETRY');
   assert.match(messages({ autoUpdatesChannel: 'stable', env: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } })[0], /stops auto-updates/);
@@ -229,13 +230,116 @@ test('Doctor: the environment scrub and the credential Read deny rules', () => {
   assert.deepEqual(listSettings(ctx, 'claude', { env: {} }).notes.filter((n) => CONTROLS.test(n.message)), [], 'the settings list skips them too');
 });
 
+test('Doctor: the sandbox settings, per platform, for Claude Code and Codex', () => {
+  const ctx = machine();
+  const SANDBOX = /sandbox\.|sandbox is unsupported/;
+  const have = (...bins) => (b) => bins.includes(b);
+  // Returns the findings (level and the first words) of the sandbox rules for a settings object on a platform.
+  const found = (settings, platform = 'linux', has = have('bwrap', 'socat')) => {
+    write(claudeUser(ctx), JSON.stringify(settings));
+    ctx.sandbox = { platform, has, node: '22.22.0' };
+    return doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && SANDBOX.test(i.message));
+  };
+  const keys = (list) => list.map((i) => i.message.match(/sandbox\.\w+(\.\w+)?|bubblewrap|socat/)?.[0] ?? 'unsupported').sort();
+  const on = { sandbox: { enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false, network: { allowedDomains: ['registry.npmjs.org'] } } };
+  for (const platform of ['linux', 'darwin']) {
+    // Nothing set: the sandbox is off, and the retry key is not false. The off rule and the retry rule are warnings; no more.
+    const none = found({}, platform);
+    assert.deepEqual(keys(none), ['sandbox.allowUnsandboxedCommands', 'sandbox.enabled'], platform);
+    assert.ok(none.every((i) => i.level === 'warning' && /benchkeeper settings set sandbox\./.test(i.fix) && /code\.claude\.com\/docs\/en\/sandboxing/.test(i.fix)));
+    assert.deepEqual(found(on, platform), [], `${platform}: everything set`);
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, enabled: false } }, platform)), ['sandbox.enabled'], 'explicitly off');
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, failIfUnavailable: undefined } }, platform)), ['sandbox.failIfUnavailable']);
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, failIfUnavailable: false } }, platform)), ['sandbox.failIfUnavailable']);
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, allowUnsandboxedCommands: true } }, platform)), ['sandbox.allowUnsandboxedCommands']);
+    // The empty allowlist is advice (info) while the sandbox is on, and never a warning.
+    const empty = found({ sandbox: { ...on.sandbox, network: { allowedDomains: [] } } }, platform);
+    assert.deepEqual(keys(empty), ['sandbox.network.allowedDomains']);
+    assert.equal(empty[0].level, 'info');
+    assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, network: undefined } }, platform)), ['sandbox.network.allowedDomains'], 'no list is an empty list');
+    assert.ok(!keys(found({}, platform)).includes('sandbox.network.allowedDomains'), 'no advice while the sandbox is off');
+  }
+  // Linux and WSL2 (platform linux) name the missing program; macOS ships its own.
+  assert.deepEqual(keys(found(on, 'linux', have('socat'))), ['bubblewrap']);
+  assert.deepEqual(keys(found(on, 'linux', have('bwrap'))), ['socat']);
+  assert.deepEqual(keys(found(on, 'linux', have())), ['bubblewrap', 'socat']);
+  // Only a managed path counts, and only when it names an executable file; a user path is ignored by Claude Code.
+  const bwrap = join(ctx.managedRoot, 'bwrap'), socat = join(ctx.managedRoot, 'socat');
+  for (const f of [bwrap, socat]) { write(f, '#!/bin/sh\n'); chmodSync(f, 0o755); }
+  const managed = (sandbox) => write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, JSON.stringify({ sandbox }));
+  managed({ bwrapPath: bwrap, socatPath: socat });
+  assert.deepEqual(found(on, 'linux', have()), [], 'a managed path replaces the PATH lookup');
+  if (process.platform !== 'win32') { // Windows has no execute bit.
+    chmodSync(socat, 0o644);
+    assert.deepEqual(keys(found(on, 'linux', have())), ['socat'], 'a managed path that is no executable file is unset');
+  }
+  managed({ bwrapPath: join(ctx.managedRoot, 'absent'), socatPath: join(ctx.managedRoot, 'absent-socat') });
+  assert.deepEqual(keys(found(on, 'linux', have())), ['bubblewrap', 'socat'], 'a managed path that is missing is unset');
+  managed({ bwrapPath: relative(process.cwd(), bwrap), socatPath: relative(process.cwd(), socat) }); // would run from the working directory
+  assert.deepEqual(keys(found(on, 'linux', have())), ['bubblewrap', 'socat'], 'a relative managed path is unset');
+  managed({});
+  assert.deepEqual(keys(found({ sandbox: { ...on.sandbox, bwrapPath: bwrap, socatPath: socat } }, 'linux', have())), ['bubblewrap', 'socat'], 'a user path is ignored');
+  // A managed enabledPlatforms list that leaves the platform out makes the sandbox inert, whatever sandbox.enabled says.
+  managed({ enabledPlatforms: ['macos'] });
+  assert.deepEqual(keys(found(on, 'linux', have())), ['sandbox.enabled'], 'managed list without this platform');
+  assert.match(found(on, 'linux', have())[0].fix, /administrator/);
+  managed({ enabledPlatforms: ['wsl'] });
+  assert.deepEqual(found(on, 'linux', have('bwrap', 'socat')), [], 'WSL2 reports linux');
+  managed({ enabledPlatforms: ['linux'] });
+  assert.deepEqual(found(on, 'darwin', have()).map((i) => i.level), ['warning'], 'macOS left out');
+  assert.deepEqual(found(on, 'linux', have('bwrap', 'socat')), []);
+  write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, '{}');
+  assert.deepEqual(keys(found({}, 'linux', have())), ['sandbox.allowUnsandboxedCommands', 'sandbox.enabled'], 'a missing program matters only while the sandbox is on');
+  assert.deepEqual(found(on, 'darwin', have()), [], 'macOS needs neither');
+  // Native Windows: unsupported, information, never a warning, whatever the settings say.
+  for (const settings of [{}, on]) {
+    const win = found(settings, 'win32', have());
+    assert.equal(win.length, 1);
+    assert.equal(win[0].level, 'info');
+    assert.match(win[0].message, /unsupported on native Windows.*exits at startup when sandbox\.failIfUnavailable is true, unless a managed sandbox\.enabledPlatforms list leaves Windows out/);
+  }
+  // Layers: the highest wins (a local file turns the user's sandbox off); a file that cannot be read may hold the keys: no guess.
+  const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
+  write(join(dir, 'AGENTS.md'), 'x\n');
+  write(claudeUser(ctx), JSON.stringify(on));
+  ctx.sandbox = { platform: 'linux', has: have('bwrap', 'socat') };
+  const project = (local) => { write(join(dir, '.claude/settings.local.json'), JSON.stringify(local)); return doctor(ctx, { agents: ['claude'], env: {}, dir }).filter((i) => SANDBOX.test(i.message)); };
+  assert.deepEqual(keys(project({ sandbox: { enabled: false } })), ['sandbox.enabled']);
+  assert.deepEqual(project({ sandbox: { enabled: true } }), []);
+  write(claudeUser(ctx), '{\n  // mine\n}\n');
+  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => SANDBOX.test(i.message)), [], 'unreadable file');
+  // The settings list shows them next to the key.
+  write(claudeUser(ctx), '{}');
+  assert.ok(listSettings(ctx, 'claude', { env: {} }).settings.find((s) => s.key === 'sandbox.enabled').notes.some((n) => /sandbox\.enabled is off/.test(n.message)));
+  // Codex: danger-full-access warns; the other modes and no value do not. The project file counts.
+  const codex = (text, name = 'user') => { write(name === 'user' ? codexUser(ctx) : join(dir, '.codex/config.toml'), text); return doctor(ctx, { agents: ['codex'], env: {}, dir }).filter((i) => /sandbox_mode/.test(i.message)); };
+  const full = codex('sandbox_mode = "danger-full-access"\n');
+  assert.equal(full.length, 1);
+  assert.equal(full[0].level, 'warning');
+  assert.match(full[0].fix, /workspace-write.*learn\.chatgpt\.com/);
+  assert.deepEqual(codex('sandbox_mode = "workspace-write"\n'), []);
+  assert.deepEqual(codex('sandbox_mode = "read-only"\n'), []);
+  assert.deepEqual(codex('model = "x"\n'), []);
+  // Setup writes none of the keys; settings set does, as for the environment scrub.
+  const home = mkdtempSync(join(tmpdir(), 'bk-home-'));
+  const fresh = Object.assign(context({ home, run }), { managedRoot: mkdtempSync(join(tmpdir(), 'bk-managed-')) });
+  apply(preview(settingsChanges(fresh, 'claude', { edits: { 'sandbox.failIfUnavailable': true, 'sandbox.allowUnsandboxedCommands': false } })), fresh, { scope: 'global' });
+  assert.deepEqual(JSON.parse(readFileSync(claudeUser(fresh), 'utf8')).sandbox, { failIfUnavailable: true, allowUnsandboxedCommands: false });
+  const entries = Object.fromEntries(agentSettings('claude').settings.filter((x) => x.key.startsWith('sandbox.')).map((x) => [x.key, x]));
+  for (const k of ['sandbox.enabled', 'sandbox.failIfUnavailable', 'sandbox.allowUnsandboxedCommands']) assert.ok(entries[k] && !entries[k].setup && entries[k].suggest?.reason && /^https:\/\//.test(entries[k].source), k);
+  assert.equal(entries['sandbox.failIfUnavailable'].suggest.value, true);
+  assert.equal(entries['sandbox.allowUnsandboxedCommands'].suggest.value, false);
+  assert.ok(!('sandbox.network.allowedDomains' in entries), 'the allowlist is never suggested or written');
+  assert.equal(agentSettings('codex').settings.find((x) => x.key === 'sandbox_mode').suggest.value, 'workspace-write');
+});
+
 test('Doctor reads the project and local layers for project checks only', () => {
   const ctx = machine();
   const dir = mkdtempSync(join(tmpdir(), 'bk-proj-'));
   write(join(dir, '.claude/settings.local.json'), JSON.stringify({ permissions: { defaultMode: 'auto' }, env: { OTEL_METRICS_EXPORTER: 'otlp' } }));
   write(join(dir, 'AGENTS.md'), 'x\n');
-  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)), []);
-  const found = doctor(ctx, { agents: ['claude'], env: {}, dir }).filter((i) => i.check === 'agent-settings' && !CONTROLS.test(i.message)).map((i) => i.message);
+  assert.deepEqual(doctor(ctx, { agents: ['claude'], env: {} }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message)), []);
+  const found = doctor(ctx, { agents: ['claude'], env: {}, dir }).filter((i) => i.check === 'agent-settings' && !HIDDEN.test(i.message)).map((i) => i.message);
   assert.equal(found.length, 2);
   assert.ok(found.some((m) => /silently ignored/.test(m)) && found.some((m) => /OpenTelemetry export variables/.test(m)));
 });

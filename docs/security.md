@@ -78,7 +78,7 @@ Paths below the home folder unless marked project. Every read is of the user's o
 - Delete a local branch it did not create in the same run.
 - Edit a file that changed since the preview without telling (a whole-file write of new text is refused, an edit applies to the file as it is; a copy from a folder is not checked).
 - Start a second run while another one holds the lock.
-- Add telemetry or send file contents itself. What leaves the machine is what the tools it starts send: `git push` and `gh pr create` of Update all (a GitHub origin, not with `--no-push`), the package registries, the agents' own CLIs (an advice or eval session sends what its agent reads to the agent's provider), and the update notice (an unauthenticated GET for the package version).
+- Add telemetry or send file contents itself. What leaves the machine is what the tools it starts send: `git push` and `gh pr create` of Update all (a GitHub origin, not with `--no-push`), the package registries, the agents' own CLIs (an advice or eval session sends what its agent reads to the agent's provider), the update notice (an unauthenticated GET for the package version), and, through Claude Code's Remote Control that the global setup turns on at startup, the transcript of each connected session.
 - Apply a removal that is not selected. Removals are unselected by default, except removals of files the app identifies as its own by content (see Open, #206).
 - Open the `gh` login files: `gh` runs as a command only, and transcripts are read for names and counts.
 
@@ -287,7 +287,7 @@ Orca workers are Claude Code or Codex sessions in a git worktree (`orchestrating
 | Environment of child processes | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` strips credentials from the environments of Bash commands, hooks and stdio MCP servers but leaves GitHub tokens and proxy settings; opt-in ([env vars][cc-env]) | Not set by setup, because a subprocess that needs a removed variable would break. The catalog lists it (`catalog.json:43`) and `doctor` warns while it is off (`couplings.json:48`; [#313](https://github.com/ESchuderer/BenchKeeper/issues/313)). `childEnv` and `agentEnv` filter what the app itself starts (`childenv.mjs:17`, `childenv.mjs:32`) and do not reach the user's own sessions | `advise.test.mjs` "an agent session gets its own agent's login variables ..."; `secrets.test.mjs` "an eval session starts with the agent login variables only ..."; `settings.test.mjs` "Doctor: the environment scrub and the credential Read deny rules" |
 | Managed settings | Highest precedence, cannot be overridden by project or command line; `allowManagedHooksOnly`, `allowManagedPermissionRulesOnly`, `strictKnownMarketplaces`, `disableBypassPermissionsMode`, `disableSkillShellExecution` exist ([managed settings][cc-managed], [settings reference][cc-settings]) | Never written: the app writes under the home folder and reads the managed paths only (`catalog.json:5-6`). A managed file needs root and fits an organization | none |
 | Logging | Transcripts on disk; OpenTelemetry export off by default, `tool_decision` and `tool_result` events once on, tool input only with `OTEL_LOG_TOOL_DETAILS=1` ([monitoring][cc-monitoring]) | Sets `cleanupPeriodDays` to 14 (`steps/global.mjs:82`) while the catalog advises 30 or more (`catalog.json:46-47`); the sessions board reads transcripts (`sessions.mjs:163`) | `global.test.mjs` "full apply ..." for the key; none for the retention choice |
-| Remote Control | `remoteControlAtStartup` connects Remote Control when an interactive session starts ([settings reference][cc-settings]); what a remote input is checked against: unverified | Set to true (`steps/global.mjs:81`) | none |
+| Remote Control | Connects only when started, unless `remoteControlAtStartup` connects it when an interactive session starts ([settings reference][cc-settings]). While connected, the session transcript (your messages, Claude's responses and tool activity) is stored on Anthropic servers under the data usage policy; commands and file access stay on the machine, and the traffic is outbound HTTPS through the Anthropic API with no inbound port. On Team and Enterprise plans it stays off until an organization Owner enables it ([Remote Control][cc-remote-control]) | Set to true (`steps/global.mjs:73`) | none |
 
 ### Guards in Claude Code
 
@@ -405,6 +405,7 @@ Not run. Setup and test matrix: [#292](https://github.com/ESchuderer/BenchKeeper
 [cc-tools]: https://code.claude.com/docs/en/tools-reference
 [cc-plugins-security]: https://code.claude.com/docs/en/plugins/security
 [cc-skills]: https://code.claude.com/docs/en/skills
+[cc-remote-control]: https://code.claude.com/docs/en/remote-control
 [cx-approvals]: https://learn.chatgpt.com/docs/agent-approvals-security
 [cx-sandbox]: https://learn.chatgpt.com/docs/sandboxing
 [cx-web]: https://learn.chatgpt.com/docs/web-search

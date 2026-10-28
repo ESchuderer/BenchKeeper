@@ -148,6 +148,17 @@ test('ledger: nothing without Ponytail\'s folder, and a file over the limit is s
   assert.deepEqual(readLedger(ctx), { rows: [], notes: ['Ponytail ledger big.csv skipped: larger than 8 MB'] });
 });
 
+test('ledger: the newest task by start gives project, tests, level and model, whatever the file order', () => {
+  const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-pony-newest-')) });
+  ledgerFile(ctx, 'a.csv', [
+    HEADER,
+    `2d7d8887-1793059789621,2026-10-22 09:05,newer,b,1,1,1,1,1,,,,0,,lite,m2`,
+    `2d7d8887-1793059689621,2026-10-22 09:00,older,a,1,1,1,1,1,,,,0,passed,full,m1`,
+  ].join('\n'));
+  const [row] = readLedger(ctx).rows;
+  assert.deepEqual([row.project, row.tests, row.level, row.model, row.startedMs, row.turns], ['newer', null, 'lite', 'm2', 1793059689621, 2]);
+});
+
 test('ledger: a folder that cannot be listed is reported, not read as empty', () => {
   const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-pony-file-')) });
   mkdirSync(join(ctx.home, '.config/ponytail'), { recursive: true });

@@ -90,7 +90,9 @@ export function readLedger(ctx) {
       const prev = bySession.get(key[1]);
       const row = { id: key[1], startedMs: Number(key[2]), project: at(r, 'project') || null, costUSD: num(at(r, 'cost_usd')), turns: num(at(r, 'turns')) ?? 0, agentMinutes: num(at(r, 'agent_minutes')), tokens: num(at(r, 'tokens_total')), reusePct: num(at(r, 'reuse_pct')), reused: num(at(r, 'reused')), fresh: num(at(r, 'new')), tests: testsOf(at(r, 'tests')), level: at(r, 'level') || null, model: at(r, 'model') || null };
       const sum = (a, b) => (a == null && b == null ? null : (a ?? 0) + (b ?? 0));
-      bySession.set(key[1], !prev ? row : { ...row, startedMs: Math.min(prev.startedMs, row.startedMs), costUSD: sum(prev.costUSD, row.costUSD), turns: prev.turns + row.turns, agentMinutes: sum(prev.agentMinutes, row.agentMinutes), tokens: sum(prev.tokens, row.tokens), reusePct: row.reusePct ?? prev.reusePct, reused: sum(prev.reused, row.reused), fresh: sum(prev.fresh, row.fresh), tests: row.tests ?? prev.tests });
+      // The newest task (by start, not by file order) gives the fields that are not sums; a newer task without a test result keeps none.
+      const newest = !prev || row.startedMs >= prev.startedMs ? row : prev;
+      bySession.set(key[1], !prev ? row : { ...newest, startedMs: Math.min(prev.startedMs, row.startedMs), costUSD: sum(prev.costUSD, row.costUSD), turns: prev.turns + row.turns, agentMinutes: sum(prev.agentMinutes, row.agentMinutes), tokens: sum(prev.tokens, row.tokens), reused: sum(prev.reused, row.reused), fresh: sum(prev.fresh, row.fresh) });
     }
     if (bad) notes.push(`Ponytail ledger ${f}: ${bad} malformed ${bad === 1 ? 'row' : 'rows'} skipped`);
   }

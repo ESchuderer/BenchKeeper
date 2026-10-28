@@ -2,11 +2,12 @@
 // from, notes on keys that cancel each other, and plans that edit one key at a time through the runner. The key list is
 // src/settings/catalog.json, the rules between keys src/settings/couplings.json, the pinned schemas sit beside them.
 // Never writes a managed layer. Values of secret-looking names are masked in everything this module returns.
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { accessSync, constants, readFileSync, statSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { MergeError, mergeJson, removeTable, removeToml, setToml } from './merge.mjs';
 import { exists, readText } from './fsx.mjs';
+import { onPath } from './sandbox.mjs';
 import { CLAUDE_KEYS } from './steps/global.mjs';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`./settings/${f}`, import.meta.url), 'utf8'));
@@ -207,7 +208,7 @@ const rankOf = (id) => {
   return i < 0 ? null : i;
 };
 
-// state: { layers: [{ layer, data }], env } for the keys the rule reads. Each test looks in the layers it names, else in all.
+// state: { layers: [{ layer, data }], env, has } for the keys the rule reads. Each test looks in the layers it names, else in all.
 function lookup(state, agentId, key, layers) {
   const order = agentSettings(agentId).precedence;
   const found = [...state.layers].sort((a, b) => order.indexOf(a.layer) - order.indexOf(b.layer)).filter((l) => !layers || layers.includes(l.layer)).map((l) => dig(l.data, pathOf(key))).filter((v) => v !== undefined);
@@ -215,6 +216,9 @@ function lookup(state, agentId, key, layers) {
   if (key.startsWith('env.') && (!layers || layers.includes('process')) && state.env?.[key.slice(4)] !== undefined) found.push(state.env[key.slice(4)]);
   return found;
 }
+const isExecutable = (p) => {
+  try { if (!isAbsolute(p)) return false; accessSync(p, constants.X_OK); return statSync(p).isFile(); } catch { return false; }
+};
 function holds(c, state, agentId) {
   if (c.all) return c.all.every((x) => holds(x, state, agentId));
   if (c.any) return c.any.some((x) => holds(x, state, agentId));
@@ -230,6 +234,16 @@ function holds(c, state, agentId) {
     // What follows the anchor must be the folder itself, bare or followed by /* or /**: a rule for one file in it, for .ssh-backup or for work/.ssh does not count.
     return COUPLINGS.credentialDirs.some((d) => !reads.some((r) => new RegExp(`^${d.slice(1).replaceAll('.', '\\.')}(/\\*{1,2})?$`).test(r)));
   }
+  // Claude Code reads the program's path from managed settings only; a path that is no executable file counts as unset, and the PATH decides.
+  if (c.op === 'toolMissing') return !lookup(state, agentId, c.setting, ['managed']).some(isExecutable) && !state.has(c.tool);
+  // The sandbox runs: sandbox.enabled is effective, and a managed enabledPlatforms list, which makes the whole sandbox config inert elsewhere, names this platform (WSL2 reports linux).
+  if (c.op === 'sandboxOn') {
+    const [list] = lookup(state, agentId, 'sandbox.enabledPlatforms', ['managed']);
+    const names = { darwin: ['macos'], linux: ['linux', 'wsl'], win32: ['windows'] }[state.platform] ?? [];
+    return holds({ key: 'sandbox.enabled', on: true, effective: true }, state, agentId) && (!Array.isArray(list) || names.some((n) => list.includes(n)));
+  }
+  // shortcut: the lists of all layers, not the managed-only switch; add it if allowManagedDomainsOnly matters.
+  if (c.op === 'allowlistEmpty') return lookup(state, agentId, 'sandbox.network.allowedDomains').flat().length === 0;
   if (c.op === 'effortDiffers') {
     const top = lookup(state, agentId, 'effortLevel', ['user'])[0], saved = lookup(state, agentId, 'modelSettings', ['user'])[0];
     return top !== undefined && Object.values(saved ?? {}).some((m) => m?.effortLevel !== undefined && m.effortLevel !== top);
@@ -251,10 +265,11 @@ function holds(c, state, agentId) {
 }
 
 // Findings for the rules of one agent over the given layers: [{ id, level, message, fix, source, keys, key? }].
-export function notes(agentId, layers, { env, onlyDoctor = false, partial = false } = {}) {
-  const state = { layers, env };
+// facts: { platform, has(bin) }, as for sandbox.pick; a rule with platforms applies on those only (WSL2 reports linux).
+export function notes(agentId, layers, { env, onlyDoctor = false, partial = false, facts: { platform = process.platform, has = onPath } = {} } = {}) {
+  const state = { layers, env, has, platform };
   const out = [];
-  for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor) && !(partial && x.needsAll))) {
+  for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor) && !(partial && x.needsAll) && (!x.platforms || x.platforms.includes(platform)))) {
     const expand = r.forEach === 'zeroIsSet' ? SWITCHES(agentId).filter((s) => s.zeroIsSet).map((s) => s.key) : [null];
     for (const key of expand) {
       const fill = (s) => (key ? s.replaceAll('{key}', key) : s);
@@ -310,7 +325,7 @@ function unknownKeys(agentId, layers, known) {
 export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) {
   const a = agentSettings(agentId);
   const layers = readSettings(ctx, agentId, { dir });
-  const found = notes(agentId, layers, { env, partial: layers.some((l) => l.error) });
+  const found = notes(agentId, layers, { env, facts: ctx.sandbox, partial: layers.some((l) => l.error) });
   const row = (def) => {
     const vals = valuesOf(layers, agentId, def.key);
     const eff = vals[0];
@@ -451,8 +466,8 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
     const readable = all.filter((l) => !l.error);
     // A file that cannot be read may hold what a rule about a missing setting looks for.
     const partial = readable.length < all.length;
-    const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, onlyDoctor: true, partial }).filter((x) => !before.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
+    const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, facts: ctx.sandbox, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
+    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id))) out.push(issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir));
     if (id === 'codex' && !dir) {
       for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }

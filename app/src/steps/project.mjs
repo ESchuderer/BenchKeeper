@@ -2,7 +2,7 @@
 // Steps that need judgement (stack skills, AGENTS.md commands, the dev container) run in an agent session the app
 // records (session.mjs).
 import { readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import nodePath, { dirname, isAbsolute, join, resolve } from 'node:path';
 import { listAccounts } from '../accounts.mjs';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
@@ -316,7 +316,7 @@ export function ownSkillFiles(name, paths) {
 export const editedHere = (skillsDir, name, hash) => !!hash && exists(join(skillsDir, name)) && hashPath(join(skillsDir, name)) !== hash;
 
 // Exclude lines use / on every platform: in Git's ignore syntax a backslash escapes the next character.
-export const slashRel = (dir, p, path = { relative, sep }) => path.relative(dir, p).split(path.sep).join('/');
+export const slashRel = (dir, p, path = nodePath) => path.relative(dir, p).split(path.sep).join('/');
 
 export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const a = resolveAnswers(dir, answers);

@@ -283,6 +283,30 @@ test('apply: the live output of a command is masked before it is cut, a token sp
   await jobDone(routes, job);
 });
 
+test('apply: the live output masks a key block whose END line has not come yet, and a block longer than the kept tail', async () => {
+  const { ctx, routes } = fixture();
+  let release, print;
+  ctx.runAsync = (argv, o) => { if (argv[1]?.endsWith('verify.mjs')) return Promise.resolve(ctx.run(argv, o)); print = o.onOutput; return new Promise((r) => { release = () => r({ code: 0, stdout: 'ok', stderr: '' }); }); };
+  const plan = routes['GET /api/global-plan'](new URLSearchParams('agents=claude&level=full'));
+  const command = plan.changes.find((c) => c.kind === 'command');
+  const { job } = routes['POST /api/apply']({ planId: plan.planId, select: [command.id] });
+  await waitFor(() => print, `command of job ${job}`);
+  const out = () => routes['GET /api/job'](new URLSearchParams({ id: job })).output[command.id];
+  const [begin, end] = ['BEGIN', 'END'].map((w) => `-----${w} OPENSSH PRIVATE KEY-----`);
+  print(`${begin}\nb3BlbnNzaC1rZXk`);
+  assert.equal(out(), `${begin}\n***`);
+  print('tdjEAAAA\nQUFBQUFB\n');
+  assert.equal(out(), `${begin}\n***\n***\n`);
+  // 70 kB of body: the kept 64 kB tail no longer holds the BEGIN line.
+  for (let i = 0; i < 1000; i++) print(`${'Q'.repeat(69)}\n`);
+  assert.doesNotMatch(out(), /Q|b3Bl/);
+  print(`${end}\ndone token=abc123\n`);
+  assert.ok(out().endsWith(`***\n${end}\ndone token=***\n`));
+  assert.doesNotMatch(out(), /Q/);
+  release();
+  await jobDone(routes, job);
+});
+
 test('apply: answers at once with a job; the job shows the running command and its output, then the run; one at a time', async () => {
   const { ctx, routes } = fixture();
   let release;

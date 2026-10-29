@@ -148,7 +148,7 @@ export default function Page({ base, updated, commit }: { base: string; updated?
         <Section id="parts" title="What gets installed">
           <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
             <Part icon={<IconFileText size={20} />} title={<Code fz="sm">rules/global.md</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/rules/global.md`} scope="Global, every session, full level">
-              Secrets kept out, confirmation before hard-to-reverse or public actions, when and how to ask the user, best practice with a source, writing without filler, sources for claims. The repository rules (ask before assuming, checks never weakened, load the workflow skill) are in <Code>rules/project.md</Code>, part of each project's block.
+              Secrets kept out, confirmation before hard-to-reverse actions or actions visible to others, when and how to ask the user, best practice with a source, writing without filler, sources for claims. The repository rules (ask before assuming, checks never weakened, load the workflow skill) are in <Code>rules/project.md</Code>, part of each project's block.
             </Part>
             <Part icon={<IconListCheck size={20} />} title={<Code fz="sm">workflow</Code>} href={`${REPO}/blob/main/plugins/benchkeeper/skills/workflow/SKILL.md`} scope="Global, before repository work">
               The task kind and tier, the playbooks for software changes, docs passes and research, the check per change type, batch mode with long checks at the end.

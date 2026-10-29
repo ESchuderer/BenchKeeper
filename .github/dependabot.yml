@@ -1,7 +1,7 @@
 # Version updates for the `uses:` pins (SHA plus version comment) and the npm packages of the site and the app.
-# Not covered, bumped by hand: the actionlint image digest in checks.yml, node-version (checks, links, mutation, npm, pages and
-# release workflows) and the Node image of .devcontainer/Dockerfile, which must stay equal to it. Each update waits until the
-# release is 7 days old (cooldown): a release withdrawn within that time never reaches a pull request.
+# Not covered, bumped by hand: the actionlint image digest in checks.yml, node-version (checks, links, pages and npm workflows) and
+# the Node image of .devcontainer/Dockerfile, which must stay equal to it. Each update waits until the release is 7 days old
+# (cooldown): a release withdrawn within that time never reaches a pull request.
 version: 2
 updates:
   - package-ecosystem: github-actions

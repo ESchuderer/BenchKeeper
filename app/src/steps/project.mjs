@@ -2,7 +2,7 @@
 // Steps that need judgement (stack skills, AGENTS.md commands, the dev container) run in an agent session the app
 // records (session.mjs).
 import { readFileSync } from 'node:fs';
-import nodePath, { dirname, isAbsolute, join, resolve } from 'node:path';
+import nodePath, { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { listAccounts } from '../accounts.mjs';
 import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';

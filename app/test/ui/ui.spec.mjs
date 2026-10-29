@@ -683,10 +683,17 @@ test.describe('views', () => {
     await expect(ask).toBeHidden();
     await expect(page.getByRole('progressbar', { name: /^Update all:/ })).toHaveCount(0);
     await page.getByRole('button', { name: 'Update all', exact: true }).click();
+    // After the last of the 2 projects the page reloads the list; its response means the handler's route.fetch() is done.
+    let updated = 0;
+    const reloaded = page.waitForResponse((r) => {
+      if (r.url().endsWith('/api/update-all')) updated++;
+      return updated === 2 && /\/api\/projects(\?|$)/.test(r.url()) && r.request().method() === 'GET';
+    });
     await ask.getByRole('button', { name: 'Update all and open up to 1 pull request' }).click();
     await expect(page.getByRole('progressbar', { name: 'Update all: 2 of 2 projects' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(/stopped|current|committed/);
-    // The page keeps polling the list, so a route.fetch() can still be in flight here.
+    await reloaded;
+    // Guard for any later call of the handler.
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 

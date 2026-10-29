@@ -2064,6 +2064,10 @@ test.describe('views', () => {
     await expect(uno.getByRole('group', { name: /^Diff of / })).toHaveCount(0);
     await uno.getByRole('button', { name: /^Show diff of / }).first().click();
     await expect(uno.getByRole('group', { name: /^Diff of .*CLAUDE\.local\.md$/ })).toBeVisible();
+    // Guards keep the saved choice of a project set up before and are on for a new one, as in the wizard.
+    await expect(uno).toContainText('guards on');
+    await expect(uno).not.toContainText('guard hook removed');
+    await expect(duo).toContainText('Claude Code deny rules (--no-verify');
     // An edit of the answers builds that project's plan again.
     const checked = () => duo.getByText(/\d+ of \d+ changes checked/).textContent();
     const before = await checked();

@@ -1,4 +1,4 @@
-import { Anchor, Button, Checkbox, Code, Drawer, Group, NativeSelect, Progress, Stack, Table, Text, Title } from '@mantine/core';
+import { Anchor, Button, Checkbox, Code, Drawer, Group, NativeSelect, Progress, Stack, Switch, Table, Text, Title } from '@mantine/core';
 import { IconPlayerPlay, IconWand } from '@tabler/icons-react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
@@ -37,8 +37,8 @@ async function waitJob(id) {
 // A project's first answers: its state file, or the suggested defaults; an agent's suggestion on top.
 function initialAnswers(setup, advice) {
   const st = setup.state;
-  const a = st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '' }
-    : { agents: setup.agents.map((x) => x.id), env: setup.suggested.env?.id ?? 'container', sandbox: false, packs: setup.suggested.packs.map((p) => p.id), skills: [], tier: '' };
+  const a = st ? { agents: st.agents ?? [], env: st.env ?? 'container', sandbox: !!st.sandbox, guards: st.guards !== false, packs: st.packs ?? [], skills: st.singles ?? [], tier: st.tier ?? '' }
+    : { agents: setup.agents.map((x) => x.id), env: setup.suggested.env?.id ?? 'container', sandbox: false, guards: true, packs: setup.suggested.packs.map((p) => p.id), skills: [], tier: '' };
   if (!advice) return a;
   const some = advice.packs.length || advice.skills.length;
   return { ...a, env: advice.env?.id ?? a.env, packs: some ? advice.packs.map((p) => p.id) : a.packs, skills: some ? advice.skills.map((k) => k.name) : a.skills };
@@ -285,7 +285,7 @@ function Answers({ item, patch }) {
   return (
     <Stack gap="xs">
       <Group gap="xs">
-        <Text size="sm">Answers: {answers.agents.map((a) => names[a] ?? a).join(', ') || 'no agent'}; {ENV_TITLE[answers.env]?.replace(/ \(recommended\)$/, '') ?? answers.env}; {answers.packs.length ? `packs ${answers.packs.join(', ')}` : 'no pack'}; {answers.tier ? `tier ${answers.tier}` : 'no default tier'}</Text>
+        <Text size="sm">Answers: {answers.agents.map((a) => names[a] ?? a).join(', ') || 'no agent'}; {ENV_TITLE[answers.env]?.replace(/ \(recommended\)$/, '') ?? answers.env}; {answers.guards ? 'guards on' : 'guards off'}; {answers.packs.length ? `packs ${answers.packs.join(', ')}` : 'no pack'}; {answers.tier ? `tier ${answers.tier}` : 'no default tier'}</Text>
         <Button size="compact-xs" variant="default" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Edit'} answers of ${item.title}`} onClick={() => setOpen(!open)}>{open ? 'Hide answers' : 'Edit answers'}</Button>
         {busy && <Text size="sm" role="status">Building the plan again</Text>}
       </Group>
@@ -296,6 +296,7 @@ function Answers({ item, patch }) {
           </Checkbox.Group>
           <NativeSelect label="Where the agent and the project's commands run" value={answers.env} onChange={(e) => set('env')(e.currentTarget.value)}
             data={Object.keys(setup.envs).map((id) => ({ value: id, label: ENV_TITLE[id] ?? id }))} />
+          <Switch label="Deny rules and a guard hook for --no-verify, force push, sudo and applying changes to shared systems (Claude Code)" checked={answers.guards} onChange={(e) => set('guards')(e.currentTarget.checked)} />
           <Checkbox.Group label="Packs" value={answers.packs} onChange={set('packs')}>
             <Group mt="xs">{setup.packs.map((x) => <Checkbox key={x.id} value={x.id} label={x.title} />)}</Group>
           </Checkbox.Group>

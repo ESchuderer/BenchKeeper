@@ -519,7 +519,8 @@ export function unshare(ctx, path, { push = true } = {}) {
 // setup too.
 export function setupRemoval(ctx, path) {
   registeredEntry(ctx, path);
-  const state = tryState(path);
+  // A state file this app cannot read stops the plan: without it the removal would miss what only the file names.
+  const state = readState(path);
   const shared = state?.share === true;
   // A local setup git still tracks leaves with a pull request too, next to the local files git ignores.
   const pr = shared || (isRepo(ctx, path) && tracksState(ctx, path));

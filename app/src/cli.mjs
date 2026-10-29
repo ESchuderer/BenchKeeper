@@ -809,7 +809,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'profile') {
     if (arg === 'export') {
       const origins = o.origins ? shownOrigins(ctx, positionals[2] ? out : err) : [];
-      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins });
+      const text = exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins, warn: (m) => err.write(`${m}\n`) });
       if (positionals[2]) { writeAtomic(resolve(positionals[2]), text); out.write(`wrote ${resolve(positionals[2])}\n`); } else out.write(text);
       return 0;
     }
@@ -824,6 +824,7 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const r of done.refused) out.write(`refused: ${r}\n`);
     const plan = importPlan(ctx, p);
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
+    for (const m of plan.skipped) out.write(`skipped ${m}\n`);
     if (plan.global.length) code |= report(apply(plan.global, ctx, { scope: 'global', select: await choose(plan.global, o, ask, out) }), out);
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);
@@ -1300,7 +1301,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     if (positionals[2]) return fail('profile export --json prints the document: redirect stdout and take `.profile` before profile import');
     const broken = registryFail();
     if (broken !== undefined) return broken;
-    return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [] })) });
+    return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [], warn: (m) => err.write(`${m}\n`) })) });
   }
   return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }

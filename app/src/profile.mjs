@@ -10,7 +10,7 @@ import { ruleStates } from './rules.mjs';
 import { unfit } from './roots.mjs';
 import { preview } from './runner.mjs';
 import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
-import { projectCtx, projectPlan, readState, tryState } from './steps/project.mjs';
+import { projectCtx, projectPlan, readState } from './steps/project.mjs';
 
 const PROFILE_SCHEMA = 1;
 const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled'];
@@ -22,9 +22,11 @@ export function installedPacks(ctx) {
 }
 
 // origins: projectOrigins' result; a project with an address of it carries `origin` (a profile has none otherwise).
-export function exportProfile(ctx, { agents, packs = [], origins = [] }) {
+// warn gets the message of each project exported without answers because its state file cannot be read.
+export function exportProfile(ctx, { agents, packs = [], origins = [], warn = () => {} }) {
   const projects = listProjects(ctx).map(({ path }) => {
-    const s = tryState(path);
+    let s = null;
+    try { s = readState(path); } catch (e) { warn(`exported without answers: ${e.message}`); }
     const origin = origins.find((o) => o.path === path)?.url;
     return { path, ...(origin ? { origin } : {}), ...(s ? { answers: Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]])) } : {}), ...(existsSync(path) ? { rules: ruleStates(ctx, { agents, dir: path }) } : {}) };
   });
@@ -48,19 +50,22 @@ export function readProfile(text) {
 }
 
 // The import plan: the global changes for the profile's agents and packs, plus the project setup of registered
-// paths that exist here and have no state file yet. Paths missing here are listed and skipped.
+// paths that exist here and have no state file yet. Paths missing here are listed and skipped, and so are projects
+// whose plan fails (a state file this app cannot read): skipped holds their messages.
 export function importPlan(ctx, p, { devcontainerCli } = {}) {
   const global = preview(globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [] }, devcontainerCli }));
-  const projects = [], missing = [];
+  const projects = [], missing = [], skipped = [];
   for (const x of p.projects ?? []) {
     if (!existsSync(x.path)) { missing.push(x.path); continue; }
     // A folder that cannot be a project (a drive root, the home folder) is not given a plan, whatever the file says.
     if (unfit(ctx, x.path)) continue;
-    const pctx = projectCtx(ctx, x.path);
-    const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined } }).changes);
-    projects.push({ path: x.path, ctx: pctx, changes });
+    try {
+      const pctx = projectCtx(ctx, x.path);
+      const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined } }).changes);
+      projects.push({ path: x.path, ctx: pctx, changes });
+    } catch (e) { skipped.push(`${x.path}: ${e.message}`); }
   }
-  return { global, projects, missing };
+  return { global, projects, missing, skipped };
 }
 
 // Own packs and the project registry; the plans apply through the step engine like any other run.

@@ -589,7 +589,10 @@ export function api(ctx) {
       if (b.action === 'remove') return removePack(ctx, b.id, { usedBy: projectsUsing(ctx, b.id) }), { removed: b.id };
       throw bad('action must be save, import or remove');
     }),
-    'GET /api/profile-export': (q) => ({ text: exportProfile(ctx, { agents: q.get('agents') ? q.get('agents').split(',') : installed(), packs: installedPacks(ctx) }) }),
+    'GET /api/profile-export': (q) => {
+      const skipped = [];
+      return { text: exportProfile(ctx, { agents: q.get('agents') ? q.get('agents').split(',') : installed(), packs: installedPacks(ctx), warn: (m) => skipped.push(m) }), skipped };
+    },
     // First what the file holds; with register, the own packs and projects are saved first (project plans can name
     // those packs), then the global and project plans come back to apply like any other.
     'POST /api/profile-import': (b) => {
@@ -597,7 +600,7 @@ export function api(ctx) {
       if (!b.register) return { agents: p.global.agents, globalPacks: p.global.packs ?? [], packs: (p.packs ?? []).map((x) => x.id), projects: (p.projects ?? []).map((x) => ({ path: x.path, here: exists(x.path) })) };
       const done = input(() => importChoices(ctx, p));
       const plan = importPlan(ctx, p);
-      return { ...done, missing: plan.missing, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
+      return { ...done, missing: plan.missing, skipped: plan.skipped, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
         plans: plan.projects.filter((x) => x.changes.length).map((x) => ({ path: x.path, planId: keep(x.changes, x.ctx, x.path), changes: serialize(x.changes, x.ctx) })) };
     },
     'POST /api/scan': (b) => {

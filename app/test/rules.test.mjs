@@ -16,6 +16,7 @@ import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { projectCtx } from '../src/steps/project.mjs';
+import { jobDone } from './fakes/job.mjs';
 
 const TMP = realpathSync(tmpdir());
 const SHOWN = join('~', '.claude/rules/20-team.md');
@@ -287,7 +288,7 @@ test('the routes: the view, the text, a plan applied through /api/apply; a path 
   assert.deepEqual(plan.changes.map((c) => c.title), [`turn off ${row(ctx, 'claude', team).shown} for Claude Code`]);
   assert.ok(!JSON.stringify(plan).includes(SECRET));
   const job = routes['POST /api/apply']({ planId: plan.planId });
-  for (let i = 0; i < 50 && !routes['GET /api/job'](q({ id: job.job })).done; i++) await new Promise((r) => setTimeout(r, 20));
+  await jobDone(routes, job.job);
   assert.equal(row(ctx, 'claude', team).load, 'off');
   const other = join(ctx.home, '.claude/rules/30-style.md');
   write(other, 'style\n');
@@ -481,7 +482,7 @@ test('the edit routes: a check and a plan write nothing, /api/apply writes, and 
   assert.equal(readFileSync(local, 'utf8'), `${SECRET} old\n`, 'a plan writes nothing');
   assert.ok(!plan.changes.some((c) => c.title.includes(SECRET)));
   const job = routes['POST /api/apply']({ planId: plan.planId });
-  for (let i = 0; i < 50 && !routes['GET /api/job'](q({ id: job.job })).done; i++) await new Promise((r) => setTimeout(r, 20));
+  await jobDone(routes, job.job);
   assert.equal(readFileSync(local, 'utf8'), `${SECRET} new\n`);
   const [last] = ctx.ledger.list();
   assert.equal(undo(last.id, projectCtx(ctx, dir)).status, 'done');

@@ -509,15 +509,17 @@ test.describe('views', () => {
     await expect(page.getByText(new RegExp(`^\\d+ findings: ${counts}\\. Do first: `))).toBeVisible();
   });
 
-  test('Insights: the summary names the count and the first finding, findings are grouped by severity and area; Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
+  test('Insights: the summary names the count and the first finding, findings are grouped by severity and area; a card names its action as the Doctor table does and links its fix source, the action opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const card = (re) => page.getByRole('article', { name: re });
     const market = card(/marketplace benchkeeper$/), deny = card(/No Read deny rule/), scrub = card(/SUBPROCESS_ENV_SCRUB/);
     // The seeded dismissal belongs to other evidence and the seeded snooze has ended: both findings show.
     await expect(deny).toBeVisible();
     await expect(scrub).toBeVisible();
-    await expect(deny.getByRole('link', { name: 'Apply' })).toHaveAttribute('href', /^#\/agent-settings/);
+    await expect(deny.getByRole('link', { name: 'Open settings' })).toHaveAttribute('href', /^#\/agent-settings/);
     await expect(deny).toContainText('permissions.deny');
+    await expect(deny.getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', /^https:\/\//);
+    await expect(deny).not.toContainText('(https://');
     await expect(page.getByText(/^\d+ findings: \d+ (error|warning).*\. Do first: /)).toBeVisible();
     await expect(page.getByText(/^Checked at \d\d:\d\d: the doctor's checks/)).toBeVisible();
     await expect(page.getByRole('heading', { level: 3, name: 'Setup' }).first()).toBeVisible();
@@ -527,7 +529,7 @@ test.describe('views', () => {
     await page.getByRole('button', { name: await first.textContent(), exact: true }).click();
     await expect(first).toBeFocused();
     await noAxe(page);
-    await card(/plugin benchkeeper@benchkeeper$/).getByRole('link', { name: 'Apply' }).click();
+    await card(/plugin benchkeeper@benchkeeper$/).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page).toHaveURL(/#\/agents\?plan=1$/);
     await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
     await nav(page, 'Insights').click();

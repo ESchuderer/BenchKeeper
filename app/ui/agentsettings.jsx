@@ -106,13 +106,15 @@ function Rows({ rows, layer, edits, setEdit, label }) {
   );
 }
 
-function Editor({ data, agent, layer, dir, edits, setEdit, clear, advanced, onApplied }) {
+function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced, onApplied }) {
   const [search, setSearch] = useState('');
   const [changed, setChanged] = useState(false);
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
+  // A plan holds the edits of its Review: a later edit drops it, so Apply never clears edits it did not write.
+  const setEdit = (key, v) => { put(key, v); setPlan(null); };
   const count = Object.keys(edits).length;
   const q = search.trim().toLowerCase();
   const match = (r) => (!q || `${r.key} ${r.summary ?? ''} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed);

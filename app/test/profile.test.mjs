@@ -168,6 +168,20 @@ test('an import project plan keeps its skills when it is applied before the scop
   assert.ok(!y.changes.some((c) => c.title.includes('accessibility')));
 });
 
+test('a pack moved to all projects: its global installs and its scope write are applied together or not at all', () => {
+  const b = machine();
+  savePack(b, { id: 'ui', skills: ['accessibility'] });
+  const { global } = importPlan(b, { global: { agents: ['claude'], scopes: { ui: 'global' } } });
+  const scope = global.find((c) => c.id === 'scope:ui');
+  const installs = global.filter((c) => c.step === 'pack:ui');
+  assert.ok(scope.unit && installs.length && installs.every((c) => c.unit === scope.unit));
+  const runs = [];
+  const ctx = { ...b, run: (argv) => { runs.push(argv); return b.run(argv); } };
+  assert.throws(() => apply(global, ctx, { scope: 'global', select: global.filter((c) => c !== scope).map((c) => c.id) }), /go together/);
+  assert.ok(!runs.some((argv) => argv.includes('accessibility')));
+  assert.ok(!existsSync(scopeFile(b)));
+});
+
 test('a profile scope must be one of the pack scopes', () => {
   const base = { kind: 'benchkeeper-profile', schemaVersion: 1 };
   assert.throws(() => readProfile(JSON.stringify({ ...base, global: { agents: ['claude'], scopes: { ui: 'everywhere' } } })), /scope of pack ui must be one of global, projects/);

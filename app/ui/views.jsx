@@ -391,10 +391,10 @@ export function ProjectList({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  // Update all pushes a branch and opens a pull request for each project whose setup is shared or still committed and
-  // whose origin is on GitHub; any other such project gets a local branch only.
+  // Update all pushes a branch and opens a pull request for each project the list marks willPush (a shared or still
+  // committed setup whose origin is on GitHub); any other shared or committed project gets a local branch only.
   const [confirmPrs, setConfirmPrs] = useState(null);
-  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && (p.share || p.committed) && p.github).length : 0);
+  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && p.willPush).length : 0);
   const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
   const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
   const prs = prsOf(confirmPrs ?? []);

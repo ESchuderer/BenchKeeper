@@ -303,7 +303,7 @@ test('a GitHub origin gets a push and a pull request', () => {
   assert.equal(updateAll(context({ home: h }), { paths: [p.dir], push: false })[0].status, 'current');
 });
 
-test('an untracked local setup with a newer shared one on origin: status and Update all both go by pull request', () => {
+test('an untracked local setup with a newer shared one on origin: the list promises no pull request and Update all opens none', async () => {
   const h = home();
   const p = project(h);
   const other = mkdtempSync(join(TMP, 'bk-clone-'));
@@ -319,17 +319,18 @@ test('an untracked local setup with a newer shared one on origin: status and Upd
   writeFileSync(join(p.dir, STATE), JSON.stringify({ ...state, share: false }));
   const calls = [];
   const base = context({ home: h });
+  addProject(base, p.dir);
   const ctx = context({ home: h, run: (argv, o) => {
     if (argv[0] === 'gh') { calls.push('gh'); return { code: 0, stdout: 'https://github.com/o/r/pull/3\n', stderr: '' }; }
     if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
     return base.run(argv, o);
   } });
-  const s = status(ctx, p.dir);
-  assert.deepEqual([s.share, s.github, s.origin], [true, true, 'origin/main']);
-  assert.deepEqual(pushTargets(ctx, [p.dir]), [p.dir]);
+  const [listed] = await api(ctx)['GET /api/projects']();
+  assert.deepEqual([listed.share, listed.github, listed.willPush], [true, true, false]);
+  assert.deepEqual(pushTargets(ctx, [p.dir]), []);
   const [r] = updateAll(ctx, { paths: [p.dir] });
-  assert.equal(r.status, 'pull request', r.reason);
-  assert.deepEqual(calls, ['gh']);
+  assert.ok(['applied', 'current'].includes(r.status), r.reason);
+  assert.deepEqual(calls, []);
 });
 
 test('projects update shows the plan, asks once, and --yes --no-push commits without pushing', async () => {

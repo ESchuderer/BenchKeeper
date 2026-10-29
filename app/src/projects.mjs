@@ -449,9 +449,9 @@ export const MAX_PROJECTS = 25;
 // Updates every registered project with a state file. Each project stops on its own error; the others continue.
 // answers[path] sets up a project without a state file the same way. A local setup (the default) is applied in the
 // checkout; a shared one lands on branch chore/agent-setup-<version> with one commit and a pull request.
-// The setup that counts for a project says whether it is shared: the checkout's or the one kept from a removal pull
-// request, unless origin's is newer. status reads the same one, so its plan and the run agree.
-const setupFor = (ctx, path, local = readState(path)) => setupOf(ctx, path, local ?? keptStrict(ctx, path)).state;
+// The setup that counts for a project says whether it is shared: the checkout's, the one kept from a removal pull request,
+// or origin's.
+const setupFor = (ctx, path, local = readState(path)) => local ?? keptStrict(ctx, path) ?? (isRepo(ctx, path) ? setupOf(ctx, path, local).state : null);
 // The paths a pushed run would push: a GitHub origin and a pull request (a shared setup, or a committed one that goes local).
 // A local setup is applied in the checkout and pushes nothing.
 export const pushTargets = (ctx, paths, answers = {}) => paths.filter((p) => {

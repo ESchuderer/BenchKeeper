@@ -654,10 +654,10 @@ test.describe('views', () => {
   });
 
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
-    // The fixture project has no origin; the list says it is on GitHub so Update all asks before the pull request.
+    // The fixture project has no origin; the list says Update all pushes the shared one so Update all asks before the pull request.
     await page.route(/\/api\/projects(\?|$)/, async (route) => {
       const r = await route.fetch();
-      await route.fulfill({ response: r, json: (await r.json()).map((p) => ({ ...p, github: true })) });
+      await route.fulfill({ response: r, json: (await r.json()).map((p) => ({ ...p, github: true, willPush: p.share })) });
     });
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);
@@ -697,9 +697,10 @@ test.describe('views', () => {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 
-  test('Projects: Update all counts a pull request only for a shared or committed project whose origin is on GitHub', async ({ page }) => {
+  test('Projects: Update all counts a pull request only for a project the list marks willPush', async ({ page }) => {
     const project = (name, extra) => ({ path: `/work/${name}`, setupVersion: '0.1.0', current: false, changes: [], repo: true, clean: true, ...extra });
-    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local'), project('shared', { share: true, github: true }), project('no-github', { share: true }), project('committed', { committed: true })] }));
+    // shared-local: status reads a newer shared setup on origin, but Update all applies the untracked local one.
+    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local'), project('shared', { share: true, github: true, willPush: true }), project('shared-local', { share: true, github: true }), project('no-github', { share: true }), project('committed', { committed: true })] }));
     await nav(page, 'Projects').click();
     await page.getByRole('button', { name: 'Update all', exact: true }).click();
     const ask = page.getByRole('dialog', { name: 'Open up to 1 pull request?' });

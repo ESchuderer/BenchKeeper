@@ -17,7 +17,7 @@ Authority:
 - You may: create that branch, commit changes to the owned paths, run checks, push that branch, open or update a draft pull request.
 - You may not: merge, force-push, stash, reset, clean, push another branch, change a path outside the owned paths, or start with a flag that bypasses or skips permission prompts.
 
-Repository rules: read AGENTS.md and the files it points to before the first edit. They decide checks, commit format, branch and pull request conventions. Where they differ from this spec, they win, except for the Authority block and the three blocks after Flow.
+Repository rules: read AGENTS.md and the files it points to before the first edit. They decide checks, commit format, branch and pull request conventions. Where they differ from this spec, they win, except for the Authority block and the blocks after Flow.
 
 Acknowledge: send one heartbeat through the runner's message command as your first action.
 

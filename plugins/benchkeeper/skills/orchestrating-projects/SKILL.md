@@ -3,7 +3,7 @@ name: orchestrating-projects
 description: "Runs a coordinator for parallel autonomous issue work: one worker per project with the projects in parallel, each report verified, merged only where the repository's written policy allows, cleaned up, then the next issue started. Start it on request with the project paths."
 disable-model-invocation: true
 argument-hint: "<project paths>"
-writes: "Specs, prompts and handoff copies in `.benchkeeper/runs/<run id>/`, deleted when the run closes; issue comments, merges, issue closes and branch deletions only where the project's `docs/agents/orchestration.json` allows. Workers write the branches and pull requests."
+writes: "Specs, prompts and handoff copies in `.benchkeeper/runs/<run id>/`, deleted when the run closes, and a `.benchkeeper/runs` line in `.git/info/exclude` when git does not ignore it yet; verified draft pull requests marked ready; the worktrees and containers of finished workers removed; issue comments, merges, issue closes and local and remote branch deletions only where the project's `docs/agents/orchestration.json` allows. Workers write the branches and pull requests."
 ---
 
 # Orchestrating projects

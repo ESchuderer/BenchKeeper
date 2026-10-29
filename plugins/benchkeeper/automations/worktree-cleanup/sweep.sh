@@ -38,9 +38,12 @@ busy() {
 
 # Prints the ignored paths of worktree $1 that cannot be rebuilt: outside every folder named in $rebuildable and not a
 # .worktreeinclude entry of the checkout that still equals the checkout's copy. git worktree remove deletes them.
+# Fails when Git cannot list them. Only a folder counts as rebuildable: Git marks one with a trailing slash, so the last
+# path component of a file is never checked.
 ignored() {
-  git -C "$1" status --porcelain --ignored=matching | sed -n 's|^!! \(.*[^/]\)/*$|\1|p' |
-    awk -F/ -v r=",$rebuildable," '{ for (i = 1; i <= NF; i++) if (index(r, "," $i ",")) next; print }' |
+  s=$(git -C "$1" status --porcelain --ignored=matching --untracked-files=normal) || return 1
+  printf '%s\n' "$s" | sed -n 's|^!! ||p' |
+    awk -F/ -v r=",$rebuildable," '{ for (i = 1; i < NF; i++) if (index(r, "," $i ",")) next; sub(/\/+$/, ""); print }' |
     while IFS= read -r p; do
       grep -qxF -- "$p" "$top/.worktreeinclude" 2>/dev/null && diff -rq -- "$top/$p" "$1/$p" >/dev/null 2>&1 || echo "$p"
     done
@@ -78,8 +81,9 @@ while IFS=$tab read -r head flag branch path; do
   if [ "$branch" = - ]; then reason=detached
   elif [ "$flag" != ok ]; then reason=$flag
   elif busy "$path"; then reason=busy
-  elif [ -n "$(git -C "$path" status --porcelain 2>&1)" ]; then reason=dirty
-  elif [ -n "$(ignored "$path")" ]; then reason=ignored-files
+  elif [ -n "$(git -C "$path" status --porcelain --untracked-files=normal 2>&1)" ]; then reason=dirty
+  elif ! files=$(ignored "$path"); then reason=ignored-scan
+  elif [ -n "$files" ]; then reason=ignored-files
   elif [ -n "$(containers -q --filter "$(label "$path")")" ]; then reason=container-running
   else reason=$(unmerged "$branch" "$head")
   fi

@@ -28,6 +28,15 @@ test('mask: values of secret keys and token shapes, nothing else', () => {
   assert.equal(mask(`curl -H "Authorization: Bearer ${TOKEN}"`), 'curl -H "Authorization: ***"');
   assert.equal(mask('git clone https://user:pw@github.com/o/r'), 'git clone https://***@github.com/o/r');
   assert.equal(mask('"effortLevel": "high"'), '"effortLevel": "high"');
+  assert.equal(mask('Authorization: token abc123def456'), 'Authorization: ***');
+  const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl_-x';
+  // Built from parts so the fixture does not read as a real key to secret scanners.
+  const [begin, end] = ['BEGIN', 'END'].map((w) => `-----${w} EC PRIVATE KEY-----`);
+  const pem = `${begin}\nb3BlbnNzaC1rZXk=\nAAAAkey=\n${end}`;
+  for (const keys of [true, false]) {
+    assert.equal(mask(`id ${jwt} end`, { keys }), 'id *** end');
+    assert.equal(mask(`a\n${pem}\nb`, { keys }), `a\n${begin}\n***\n${end}\nb`);
+  }
   // Free text: only shapes. A rule that says "Keep secrets: read them from the environment" stays readable.
   assert.equal(mask('Keep secrets: read them from files', { keys: false }), 'Keep secrets: read them from files');
   assert.equal(mask(`paste ${TOKEN} here`, { keys: false }), 'paste *** here');
@@ -246,17 +255,23 @@ test('an eval session leaves no transcript, loads no MCP server, and its probes 
   const help = { claude: '  --no-session-persistence  Disable session persistence\n', codex: '      --ephemeral\n          Run without persisting session files\n' };
   for (const agent of ['claude', 'codex']) {
     const calls = [];
-    const ctx = context({ home: tmp(), run: (argv, o) => { calls.push({ argv, env: o?.env }); return argv[0] === 'git' ? runCommand(argv, o) : { code: 0, stdout: argv.includes('--help') ? help[agent] : '{"type":"system"}\n', stderr: '' }; } });
+    const ctx = context({ home: tmp(), run: (argv, o) => { calls.push({ argv, env: o?.env }); return argv[0] === 'git' ? runCommand(argv, o) : { code: 0, stdout: argv.includes('--help') ? help[agent] : argv[1] === 'mcp' ? '[{"name":"browser"},{"name":"docs-2"}]' : '{"type":"system"}\n', stderr: '' }; } });
     await runEval(ctx, [{ target: 'skill:x', agent, hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]);
     const session = calls.find((c) => c.argv[0] === agent && c.argv.includes('q')).argv;
     assert.ok(session.includes(agent === 'claude' ? '--no-session-persistence' : '--ephemeral'), agent);
     assert.equal(session.includes('--strict-mcp-config'), agent === 'claude');
+    assert.equal(['browser', 'docs-2'].every((n) => session.includes(`mcp_servers.${n}.enabled=false`)), agent === 'codex', agent);
     // The query is an argument value, never an option: after -p for Claude, last for Codex.
     assert.equal(agent === 'claude' ? session[1] === '-p' && session[2] === 'q' : session.at(-1) === 'q', true, agent);
     for (const c of calls.filter((x) => x.env)) for (const name of ['GH_TOKEN', 'NPM_TOKEN']) assert.ok(!(name in c.env), `${agent} ${c.argv.slice(0, 2).join(' ')} ${name}`);
     assert.ok(calls.find((c) => c.argv[0] === 'git').argv.includes('--template='), 'the scratch repository takes no git template');
     assert.ok(calls.filter((c) => c.argv[0] === 'git' || c.argv.includes('--version')).every((c) => c.env), 'git init and the version probe pass an environment');
   }
+});
+
+test('a Codex MCP server name that cannot be turned off stops the eval before any session starts', async () => {
+  const ctx = context({ home: tmp(), run: (argv) => (argv[1] === 'mcp' ? { code: 0, stdout: '[{"name":"a.b"}]', stderr: '' } : assert.fail(`started ${argv.join(' ')}`)) });
+  await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'codex', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), /the MCP server name "a.b" cannot be turned off/);
 });
 
 test('an eval session that exits non-zero is no missed trigger and stores no result', async () => {

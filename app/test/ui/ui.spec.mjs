@@ -346,6 +346,7 @@ test.describe('views', () => {
   });
 
   test('Dashboard shows the edited rules file as modified in the setup by part', async ({ page }) => {
+    await page.getByText('More about the setup').click();
     const cell = page.getByRole('table', { name: 'Global setup by part' }).getByRole('link', { name: 'rules for Claude Code: modified, open the plan' });
     await cell.click();
     await expect(page).toHaveURL(/#\/agents\?agent=claude$/);
@@ -394,9 +395,21 @@ test.describe('views', () => {
     await expect(page.getByText('Starting')).toHaveCount(0);
   });
 
-  test('Dashboard: flow diagram links, install health counts, recent runs', async ({ page }) => {
-    await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 2 registered, 1 behind attention$/ })).toBeVisible();
+  test('Dashboard: the top row counts what needs attention and where, the health ring and the scopes; the flow folds away', async ({ page }) => {
+    await expect(page.getByRole('link', { name: /^\d+ items need attention, open what it counts$/ })).toHaveAttribute('href', '#/projects?show=changes');
+    await expect(page.getByRole('link', { name: /^\d+ doctor findings, open the table$/ })).toHaveAttribute('href', '#/dashboard?panel=doctor');
     await expect(page.getByRole('img', { name: /^Items by state: .*\d+ modified/ })).toBeVisible();
+    const where = page.getByRole('region', { name: 'Where' }).getByRole('list', { name: 'Items by scope' });
+    await expect(where.getByRole('listitem').first()).toContainText(/^Global\d+ current/);
+    await expect(where.getByRole('link', { name: 'Global' })).toHaveAttribute('href', '#/agents?plan=1');
+    await expect(where.getByRole('listitem').filter({ hasText: 'not set up' })).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Setup flow' })).toBeHidden();
+    // At 390 px the blocks stack and nothing scrolls sideways.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.getByText('More about the setup').click();
+    await expect(page.getByRole('group', { name: /^Setup flow/ }).getByRole('link', { name: /^Projects 2 registered, 1 behind attention$/ })).toBeVisible();
     await expect(page.getByRole('region', { name: 'BenchKeeper plugin' })).toContainText(/available \d+\.\d+\.\d+/);
     await expect(page.getByRole('region', { name: 'Install level' })).toContainText('full');
     await page.getByRole('region', { name: 'Recent runs' }).getByRole('link').first().click();
@@ -404,14 +417,13 @@ test.describe('views', () => {
   });
 
   test('Dashboard: installed, health and coverage figures are links with a keyboard path; the catalog by pack is a sorted list', async ({ page }) => {
+    await page.getByText('More about the setup').click();
     const installed = page.getByRole('table', { name: 'Installed skills and packs' });
     await expect(installed.getByRole('row', { name: /^Global/ }).getByRole('link', { name: /^Claude Code \d+$/ })).toHaveAttribute('href', '#/agents?agent=claude');
     await expect(installed.getByRole('row', { name: /bk-ui-proj/ }).getByRole('link', { name: 'frontend' })).toHaveAttribute('href', '#/catalog?pack=frontend');
-    // The legend counts what the bar draws; the table of values repeats every figure.
+    // The rows beside the ring count what it draws.
     const health = page.getByRole('region', { name: 'Health' });
     await expect(health.getByRole('list', { name: 'Items by state, all scopes' }).getByRole('link', { name: /modified/ })).toBeVisible();
-    await health.getByText('Table of values').click();
-    await expect(health.getByRole('link', { name: /^Global: 1 modified$/ })).toHaveAttribute('href', '#/agents?plan=1');
     // Coverage rows are the packs a project chose; the others are one line of links under the table.
     const coverage = page.getByRole('region', { name: 'Coverage' });
     const packRows = coverage.getByRole('table', { name: 'Pack coverage' }).locator('tbody tr');
@@ -425,6 +437,7 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/projects\?pack=frontend&agent=claude$/);
     await expect(page.getByRole('table', { name: 'Projects' }).getByRole('row', { name: /bk-ui-proj/ })).toBeVisible();
     await nav(page, 'Dashboard').click();
+    await page.getByText('More about the setup').click();
     const bars = page.getByRole('list', { name: 'Skills per pack' }).getByRole('listitem');
     await expect(bars.first()).toBeVisible();
     const counts = await bars.evaluateAll((li) => li.map((x) => Number(x.lastElementChild.textContent)));

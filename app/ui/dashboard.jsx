@@ -1,4 +1,4 @@
-import { Anchor, Box, Grid, Group, List, Stack, Table, Text, Timeline } from '@mantine/core';
+import { Anchor, Box, Grid, Group, List, Paper, SimpleGrid, Stack, Table, Text, Timeline } from '@mantine/core';
 import { useEffect, useRef } from 'react';
 import { Cli, Section, StateBadge } from './parts.jsx';
 import { note, runTitle, when } from './run.jsx';
@@ -12,8 +12,8 @@ export const ATTENTION = ['absent', 'outdated', 'modified', 'removed', 'foreign'
 const PARTS = ['rules', 'ask', 'plugin', 'skills', 'settings', 'tools', 'other'];
 const worst = (items) => items.reduce((w, i) => (RANK.indexOf(i.state) > RANK.indexOf(w) ? i.state : w), items[0]?.state);
 
-// The health bar (.bk-stack in theme.css) never relies on the hue: each segment is named with its number in the legend,
-// and the table repeats every figure. Its colors (--bk-h-*) are board tokens.
+// The health ring and the bars per scope (.bk-stack in theme.css) never rely on the hue: each segment is named with its
+// number beside it. Their colors (--bk-h-*) are board tokens.
 const STYLE = `.bk-bars{display:flex;flex-direction:column;gap:6px;list-style:none;margin:0;padding:0}.bk-bars>li{display:grid;grid-template-columns:minmax(0,9rem) minmax(40px,1fr) 2.5rem;gap:12px;align-items:center}
 .bk-bar{display:block;height:10px;border-radius:0 6px 6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--bk-s1) 75%,var(--bk-accent)),var(--bk-s1))}`;
 export const Swatch = ({ state }) => <Box component="span" aria-hidden w={10} h={10} display="inline-block" style={{ borderRadius: 3, backgroundColor: `var(--bk-h-${state})` }} />;
@@ -48,43 +48,90 @@ function Installed({ data, names }) {
   );
 }
 
+// One row per scope: the global setup and each registered project. The inventory's untracked is zero by definition; a
+// project's comes from its folders.
+const scopes = (data) => [{ key: 'global', label: 'Global', states: data.global.states, to: href('agents', { plan: '1' }), packs: [...new Set(Object.values(data.global.packs).flat())] },
+  ...data.projects.map((p) => ({ key: p.path, label: label(p), states: p.states && { ...p.states, untracked: p.untracked }, to: projectHref(p.path, 'installs'), packs: p.packs, note: p.error ?? (!p.setup && 'not set up') }))];
+const needs = (states) => ATTENTION.reduce((n, s) => n + (states?.[s] ?? 0), 0);
+
+// A ring of one stroke per state on a circle of length 100, starting at the top; the count in the centre.
+function Donut({ parts, total, name }) {
+  let at = 0;
+  const gap = parts.length > 1 ? 0.8 : 0;
+  return (
+    <svg viewBox="0 0 42 42" width={150} height={150} role="img" aria-label={name} style={{ flexShrink: 0 }}>
+      <circle cx="21" cy="21" r="15.915" fill="none" stroke="var(--bk-grid)" strokeWidth="5" />
+      {parts.map(([s, n]) => {
+        const len = Math.max((n / total) * 100 - gap, 0.5);
+        const arc = <circle key={s} cx="21" cy="21" r="15.915" fill="none" stroke={`var(--bk-h-${s})`} strokeWidth="5" strokeDasharray={`${len} ${100 - len}`} strokeDashoffset={25 - at} />;
+        at += (n / total) * 100;
+        return arc;
+      })}
+      <text x="21" y="22" textAnchor="middle" fontSize="8" fontWeight="650" fill="currentColor" className="bk-num">{total}</text>
+      <text x="21" y="28.5" textAnchor="middle" fontSize="3.5" fill="currentColor">items</text>
+    </svg>
+  );
+}
+
 function Health({ data }) {
-  const rows = [{ key: 'global', label: 'Global', states: data.global.states, to: href('agents', { plan: '1' }) },
-    ...data.projects.filter((p) => p.states).map((p) => ({ key: p.path, label: label(p), states: { ...p.states, untracked: p.untracked }, to: projectHref(p.path, 'installs') }))];
-  // The inventory's untracked is zero by definition; a project's comes from its folders.
+  const rows = scopes(data).filter((r) => r.states);
   const total = (s, from = rows) => from.reduce((n, r) => n + (r.states[s] ?? 0), 0);
   const shown = HEALTH.filter((s) => total(s) > 0);
   const all = shown.reduce((n, s) => n + total(s), 0);
   const summary = shown.map((s) => `${total(s)} ${s}`).join(', ');
-  if (!all) return <Text size="sm">No items yet.</Text>;
+  if (!all) return <Text size="sm">No items yet. Set up everything installs the global setup and the projects you pick.</Text>;
   return (
     <Stack gap="sm">
-      <div className="bk-stack" role="img" aria-label={`Items by state: ${summary}`}>
-        {shown.map((s) => <span key={s} title={`${total(s)} ${s}`} style={{ width: `${(total(s) / all) * 100}%`, backgroundColor: `var(--bk-h-${s})` }} />)}
-      </div>
-      <List listStyleType="none" aria-label="Items by state, all scopes" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-        {shown.map((s) => (
-          <List.Item key={s}><Group gap={6} wrap="nowrap"><Swatch state={s} /><Anchor href={target(s, total(s, rows.slice(1)))} aria-label={`${total(s)} ${s}, open what it counts`}>{total(s)} {s}</Anchor></Group></List.Item>
-        ))}
-      </List>
-      <details>
-        <summary>Table of values</summary>
-        <Table.ScrollContainer minWidth={420}>
-          <Table aria-label="Items by state per scope" withTableBorder mt="xs">
-            <Table.Thead><Table.Tr><Table.Th>Scope</Table.Th>{shown.map((s) => <Table.Th key={s}>{s}</Table.Th>)}</Table.Tr></Table.Thead>
-            <Table.Tbody>
-              {rows.map((r) => (
-                <Table.Tr key={r.key}>
-                  <Table.Th scope="row">{r.label}</Table.Th>
-                  {shown.map((s) => <Table.Td key={s}>{r.states[s] ? <Anchor href={r.to} aria-label={`${r.label}: ${r.states[s]} ${s}`}>{r.states[s]}</Anchor> : 0}</Table.Td>)}
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      </details>
+      <Group gap="xl" align="center">
+        <Donut parts={shown.map((s) => [s, total(s)])} total={all} name={`Items by state: ${summary}`} />
+        <List listStyleType="none" aria-label="Items by state, all scopes" spacing={4}>
+          {shown.map((s) => (
+            <List.Item key={s}><Group gap={8} wrap="nowrap"><Swatch state={s} /><Anchor href={target(s, total(s, rows.slice(1)))} aria-label={`${total(s)} ${s}, open what it counts`}><span className="bk-num">{total(s)}</span> {s}</Anchor></Group></List.Item>
+          ))}
+        </List>
+      </Group>
       <Text size="sm">Untracked is a skill folder in a project that BenchKeeper did not install.</Text>
     </Stack>
+  );
+}
+
+// Where the items are: one row per scope with its state bar; the counts beside it are the text of the bar.
+function Where({ data }) {
+  return (
+    <List listStyleType="none" aria-label="Items by scope" spacing="md">
+      {scopes(data).map((r) => {
+        const shown = HEALTH.filter((s) => r.states?.[s]);
+        const all = shown.reduce((n, s) => n + r.states[s], 0);
+        return (
+          <List.Item key={r.key}>
+            <Stack gap={4}>
+              <Group justify="space-between" gap="xs">
+                <Anchor href={r.to} fw={600}>{r.label}</Anchor>
+                <Text size="sm">{r.note || shown.map((s) => `${r.states[s]} ${s}`).join(', ') || 'no items'}</Text>
+              </Group>
+              {!!all && <div className="bk-stack" aria-hidden>{shown.map((s) => <span key={s} style={{ width: `${(r.states[s] / all) * 100}%`, backgroundColor: `var(--bk-h-${s})` }} />)}</div>}
+              {!!r.packs?.length && <Text size="xs">Packs: {r.packs.map((id, n) => <span key={id}>{n ? ', ' : ''}<Anchor href={href('catalog', { pack: id })}>{id}</Anchor></span>)}</Text>}
+            </Stack>
+          </List.Item>
+        );
+      })}
+    </List>
+  );
+}
+
+// A card of the top row: its title, one big number that links to what it counts, a line of detail.
+const Card = ({ title, children }) => <Paper withBorder p="md"><Stack gap={6} align="flex-start"><Text fw={600}>{title}</Text>{children}</Stack></Paper>;
+const Big = ({ n, to, name }) => <Anchor href={to} className="bk-num" fz={40} fw={650} lh={1.1} aria-label={name}>{n}</Anchor>;
+
+function Attention({ data }) {
+  const where = scopes(data).filter((r) => needs(r.states));
+  const n = where.reduce((t, r) => t + needs(r.states), 0);
+  if (!n) return <Text size="sm">Nothing needs attention.</Text>;
+  return (
+    <>
+      <Big n={n} to={target('attention', where.some((r) => r.key !== 'global'))} name={`${n} items need attention, open what it counts`} />
+      <Text size="sm">items, in {where.map((r, i) => <span key={r.key}>{i ? ', ' : ''}<Anchor href={r.to}>{r.key === 'global' ? 'the global setup' : r.label}</Anchor> {needs(r.states)}</span>)}</Text>
+    </>
   );
 }
 
@@ -232,36 +279,32 @@ export function Dashboard({ overview, doctor, history, params }) {
         <Text size="sm" maw={560}>One-run setup prepares the global setup and the projects you pick without questions in between, then shows every change on one page to check before it applies them.</Text>
         <OneRunButtons />
       </Stack>
-      <Group justify="space-between" align="flex-start">
-        <Text size="sm" maw={560}>Fix everything walks through the global setup, the projects that are behind and what is left to do by hand, then applies what you checked.</Text>
-        <FixEverythingButton />
-      </Group>
-      <Section title="Setup flow"><Flow nodes={nodes} /></Section>
-      <Section title="Install level">
-        <Text size="sm">{o?.level?.level ?? 'none'}{o?.level?.adds ? `: ${o.level.adds}` : ''}</Text>
-      </Section>
-      {agents.some((a) => a.plugin) && (
-        <Section title="BenchKeeper plugin">
-          {agents.filter((a) => a.plugin).map((a) => (
-            <Text key={a.id} size="sm">{a.name}: {a.plugin.installed ? `installed ${a.plugin.installed}` : 'not installed'}, available {a.plugin.available}</Text>
-          ))}
-          {agents.flatMap((a) => (a.plugin?.accounts ?? []).map((x) => (
-            <Text key={`${a.id}:${x.name}`} size="sm">{a.name} account {x.name}: {x.installed ? `installed ${x.installed}` : 'not installed'}{x.ref ? `, on ${x.ref}, left to its own update` : x.behind ? `, behind ${a.plugin.available}: benchkeeper apply updates it` : ''}</Text>
-          )))}
-        </Section>
-      )}
-      <Section title="Installed"><Loading state={dash} label="dashboard">{(d) => <Installed data={d} names={names} />}</Loading></Section>
-      <Section title="Health"><Loading state={dash} label="dashboard">{(d) => <Health data={d} />}</Loading></Section>
+      <SimpleGrid cols={{ base: 1, sm: 2 }}>
+        <Card title="Need attention">
+          <Loading state={dash} label="dashboard">{(d) => <Attention data={d} />}</Loading>
+          <FixEverythingButton />
+        </Card>
+        <Card title="Doctor findings">
+          <Loading state={doctor} label="doctor">{(found) => (
+            <>
+              <Big n={found.length} to={href('dashboard', { panel: 'doctor' })} name={`${found.length} doctor findings, open the table`} />
+              <Text size="sm">{errors} errors, {warnings} warnings</Text>
+            </>
+          )}</Loading>
+        </Card>
+      </SimpleGrid>
       <Grid gutter="xl">
-        <Grid.Col span={{ base: 12, md: 7 }}>
-          <Section title="Coverage"><Loading state={dash} label="dashboard">{(d) => <PackCoverage data={d} names={names} />}</Loading></Section>
-        </Grid.Col>
         <Grid.Col span={{ base: 12, md: 5 }}>
-          <Section title="Catalog by pack"><Loading state={dash} label="dashboard">{(d) => <CatalogByPack data={d} />}</Loading></Section>
+          <Section title="Health"><Loading state={dash} label="dashboard">{(d) => <Health data={d} />}</Loading></Section>
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 7 }}>
+          <Section title="Where"><Loading state={dash} label="dashboard">{(d) => <Where data={d} />}</Loading></Section>
         </Grid.Col>
       </Grid>
-      <Section title="Global setup by part"><Loading state={inv} label="inventory">{() => <Parts items={items} agents={agents} />}</Loading></Section>
       <Grid gutter="xl">
+        <Grid.Col span={{ base: 12, md: 8 }}>
+          <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => <DoctorTable found={found} />}</Loading></Section>
+        </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Section title="Recent runs">
             <Loading state={history} label="history">{(list) => (list.length ? (
@@ -276,10 +319,37 @@ export function Dashboard({ overview, doctor, history, params }) {
             ) : <Text>No runs yet.</Text>)}</Loading>
           </Section>
         </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Section title="Doctor" id="doctor"><Loading state={doctor} label="doctor">{(found) => <DoctorTable found={found} />}</Loading></Section>
-        </Grid.Col>
       </Grid>
+      {/* Reference, not status: folded until opened. */}
+      <details>
+        <summary><Text component="span" fw={600}>More about the setup</Text></summary>
+        <Stack gap="xl" mt="md">
+          <Section title="Setup flow"><Flow nodes={nodes} /></Section>
+          <Section title="Install level">
+            <Text size="sm">{o?.level?.level ?? 'none'}{o?.level?.adds ? `: ${o.level.adds}` : ''}</Text>
+          </Section>
+          {agents.some((a) => a.plugin) && (
+            <Section title="BenchKeeper plugin">
+              {agents.filter((a) => a.plugin).map((a) => (
+                <Text key={a.id} size="sm">{a.name}: {a.plugin.installed ? `installed ${a.plugin.installed}` : 'not installed'}, available {a.plugin.available}</Text>
+              ))}
+              {agents.flatMap((a) => (a.plugin?.accounts ?? []).map((x) => (
+                <Text key={`${a.id}:${x.name}`} size="sm">{a.name} account {x.name}: {x.installed ? `installed ${x.installed}` : 'not installed'}{x.ref ? `, on ${x.ref}, left to its own update` : x.behind ? `, behind ${a.plugin.available}: benchkeeper apply updates it` : ''}</Text>
+              )))}
+            </Section>
+          )}
+          <Section title="Installed"><Loading state={dash} label="dashboard">{(d) => <Installed data={d} names={names} />}</Loading></Section>
+          <Grid gutter="xl">
+            <Grid.Col span={{ base: 12, md: 7 }}>
+              <Section title="Coverage"><Loading state={dash} label="dashboard">{(d) => <PackCoverage data={d} names={names} />}</Loading></Section>
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 5 }}>
+              <Section title="Catalog by pack"><Loading state={dash} label="dashboard">{(d) => <CatalogByPack data={d} />}</Loading></Section>
+            </Grid.Col>
+          </Grid>
+          <Section title="Global setup by part"><Loading state={inv} label="inventory">{() => <Parts items={items} agents={agents} />}</Loading></Section>
+        </Stack>
+      </details>
       <Cli>{'benchkeeper plan\nbenchkeeper doctor'}</Cli>
     </Stack>
   );

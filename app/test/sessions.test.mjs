@@ -203,3 +203,17 @@ test('the cache count equals the board rows, also when a Codex parent has expire
   assert.deepEqual(rows.map((r) => r.id).sort(), ['c2', 's2']);
   assert.equal(sessionCache(ctx).sessions, rows.length);
 });
+
+test('tests: a test command counts in command position only, not echoed or quoted in another command', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-sessions-'));
+  const dir = join(home, '.codex/sessions/2026/10/22');
+  mkdirSync(dir, { recursive: true });
+  const rollout = (id, commands) => writeFileSync(join(dir, `rollout-2026-10-22T10-00-00-${id}.jsonl`), [
+    { timestamp: '2026-10-22T10:00:00.000Z', type: 'session_meta', payload: { id, cwd: '/work/shop' } },
+    ...commands.map(([command, code]) => ({ timestamp: '2026-10-22T10:00:01.000Z', type: 'event_msg', payload: { type: 'item_completed', item: { type: 'CommandExecution', command: ['/usr/bin/bash', '-lc', command], exit_code: String(code) } } })),
+  ].map((l) => JSON.stringify(l)).join('\n'));
+  rollout('echoed', [['npm test', 1], ["echo 'playwright test'", 0], ['git commit -m "fix: npm test"', 0]]);
+  rollout('chained', [['npm test', 1], ['cd app && CI=1 npx vitest run', 0]]);
+  const rows = byId(await scanSessions(context({ home, run: () => ({ code: 127, stdout: '', stderr: '' }) })));
+  assert.deepEqual([rows.echoed.tests, rows.chained.tests], ['fail', 'pass']);
+});

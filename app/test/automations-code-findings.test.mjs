@@ -116,4 +116,5 @@ test('code-findings check step: the quality configs and coverage markers of the 
   assert.deepEqual(lines('fix-quality-config.diff'), ['knip.json', 'tsconfig.json', 'biome-quality.jsonc', '.basedpyright/baseline.json', 'scripts/tsc-baseline.sh'].map((f) => `config: ${f}`));
   assert.deepEqual(lines('fix-markers.diff'), ['suppression: src/a.js: /* v8 ignore next */', 'suppression: src/a.js: // stryker-disable-next-line all', 'suppression: pkg/mod.py:     return 1  # pragma: no cover']);
   assert.deepEqual(lines('fix-rename.diff'), ['config: eslint.config.mjs']);
+  assert.deepEqual(lines('fix-quoted.diff'), ['config: caf\\303\\251/tsconfig.json'], 'a path git quotes for its non-ASCII characters');
 });

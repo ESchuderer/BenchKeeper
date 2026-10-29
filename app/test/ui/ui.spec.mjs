@@ -521,6 +521,28 @@ test.describe('views', () => {
     await expect(scrub).toBeVisible();
   });
 
+  test('Insights: while a dismissal is saved, triage waits across the list, so two quick dismissals leave focus on a remaining finding', async ({ page }) => {
+    await nav(page, 'Insights').click();
+    const cards = page.getByRole('article');
+    const [first, second] = [cards.nth(0), cards.nth(1)];
+    const name = await first.getAttribute('aria-labelledby');
+    let release;
+    const held = new Promise((r) => { release = r; });
+    await page.route(/\/api\/insights-triage$/, async (route) => { await held; await route.continue(); });
+    await first.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(second.getByRole('button', { name: 'Dismiss' })).toBeDisabled();
+    await expect(second.getByRole('button', { name: 'Snooze 7 days' })).toBeDisabled();
+    release();
+    await expect(page.locator(`[id="${name}"]`)).toHaveCount(0);
+    const focused = await page.evaluate(() => document.activeElement.id);
+    expect(await page.locator('article').evaluateAll((all) => all.map((a) => a.getAttribute('aria-labelledby')))).toContain(focused);
+    await page.unroute(/\/api\/insights-triage$/);
+    const hidden = page.getByRole('region', { name: 'Hidden findings' });
+    await hidden.getByRole('button', { name: /^Hidden/ }).click();
+    await hidden.getByRole('button', { name: 'Show again' }).click();
+    await expect(hidden).toHaveCount(0);
+  });
+
   test('Insights narrative: the input is on the page, the first run asks for consent, the text is marked as model text and a dismissal drops it; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const narrative = page.getByRole('region', { name: 'Adviser narrative' });

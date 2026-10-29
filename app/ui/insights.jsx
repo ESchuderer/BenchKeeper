@@ -146,6 +146,7 @@ export function Insights() {
   const state = useApi('/api/insights');
   // The server's answer to each click, by finding key: a click does not read the sessions again.
   const [local, setLocal] = useState({});
+  // The finding whose triage is being saved: triage waits across the list, as each click picks its focus target from the list as it is.
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const [hiddenOpen, setHiddenOpen] = useState(false);
@@ -174,7 +175,7 @@ export function Insights() {
               <Narrative rev={rev} />
               <Title order={2} size="h4" id="findings-title" tabIndex={-1}>Findings</Title>
               {status}
-              {shown.length ? shown.map((f) => <Card key={f.key} finding={f} busy={busy === f.key} onTriage={(g, a) => triage(g, a, next(g))} onPlan={setAct} />) : <Text>No findings.</Text>}
+              {shown.length ? shown.map((f) => <Card key={f.key} finding={f} busy={busy != null} onTriage={(g, a) => triage(g, a, next(g))} onPlan={setAct} />) : <Text>No findings.</Text>}
               {hidden.length > 0 && (
                 <Stack gap="sm" component="section" aria-label="Hidden findings" id="hidden-findings-section" tabIndex={-1}>
                   <div><Button variant="default" size="xs" aria-expanded={hiddenOpen} aria-controls="hidden-findings" onClick={() => setHiddenOpen(!hiddenOpen)}>Hidden ({hidden.length})</Button></div>
@@ -183,7 +184,7 @@ export function Insights() {
                       {hidden.map((f) => (
                         <Group key={f.key} gap="sm" justify="space-between" wrap="nowrap" align="flex-start">
                           <Text size="sm">{f.message}<br />{current(f).state === 'dismissed' ? 'Dismissed' : `Snoozed until ${day(current(f).until)}`}</Text>
-                          <Button size="xs" variant="default" miw="max-content" disabled={busy === f.key} onClick={() => triage(f, 'reopen', hidden.length > 1 ? 'hidden-findings-section' : 'findings-title')}>Show again</Button>
+                          <Button size="xs" variant="default" miw="max-content" disabled={busy != null} onClick={() => triage(f, 'reopen', hidden.length > 1 ? 'hidden-findings-section' : 'findings-title')}>Show again</Button>
                         </Group>
                       ))}
                     </Stack>

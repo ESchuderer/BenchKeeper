@@ -4,8 +4,10 @@
 # configuration file of a linter, scanner or quality gate (under its old name too when renamed) and each changed line
 # in a quality tool section of pyproject.toml, setup.cfg or tox.ini; exit 0 for a fix without one.
 awk '
-/^\+\+\+ / { file = substr($2, 3) }
-/^diff --git / { f = $4; sub(/^b\//, "", f); old = $3; sub(/^a\//, "", old)
+# git quotes a path with non-ASCII characters ("b/caf\303\251/tsconfig.json"): the match needs it without the quotes.
+function unquote(s) { return s ~ /^".*"$/ ? substr(s, 2, length(s) - 2) : s }
+/^\+\+\+ / { file = substr(unquote($2), 3) }
+/^diff --git / { f = unquote($4); sub(/^b\//, "", f); old = unquote($3); sub(/^a\//, "", old)
   ini = f ~ /(^|\/)(pyproject\.toml|setup\.cfg|tox\.ini)$/
   for (i = 0; i < 2; i++) { n = i ? old : f
     if ((!i || n != f) && n ~ /(^|\/)(\.eslintrc[^\/]*|eslint\.config\.[a-z]+|\.eslintignore|\.stylelintrc[^\/]*|biome[^\/]*\.jsonc?|\.?knip\.jsonc?|tsconfig[^\/]*\.json|tsc-baseline\.sh|\.basedpyright\/baseline\.json|\.flake8|\.pylintrc|ruff\.toml|\.ruff\.toml|\.rubocop[^\/]*\.yml|\.golangci\.ya?ml|\.semgrepignore|\.sonarcloud\.properties|sonar-project\.properties|codeql-config\.ya?ml|\.codeclimate\.yml|\.bandit|tslint\.json)$/) { print "config: " n; bad = 1 } } }

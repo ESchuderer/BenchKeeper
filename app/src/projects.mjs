@@ -218,12 +218,16 @@ export function addProject(ctx, path, { worktree = false } = {}) {
   if (!found.same) updateRegistry(ctx, (list) => (list.some((x) => x.path === found.path) ? list : [...list, { path: found.path, added: new Date().toISOString() }]));
   return found.path;
 }
-// path or a list of them; the files in the folders stay.
+// path or a list of them; the files in the folders stay. Throws, removing none, when one is not registered.
 export function removeProject(ctx, path) {
   const gone = new Set([path].flat().map(canon));
-  updateRegistry(ctx, (list) => list.filter((x) => !gone.has(x.path)));
+  updateRegistry(ctx, (list) => {
+    const unknown = [...gone].find((p) => !list.some((x) => x.path === p));
+    if (unknown) throw new Error(`${unknown} is not a registered project`);
+    return list.filter((x) => !gone.has(x.path));
+  });
 }
-const registeredEntry = (ctx, path) => {
+export const registeredEntry = (ctx, path) => {
   const p = canon(path), entry = listProjects(ctx).find((x) => x.path === p);
   if (!entry) throw new Error(`${p} is not a registered project`);
   return entry;

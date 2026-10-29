@@ -25,7 +25,7 @@ import { projectOrigins } from './origin.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, warnings } from './packs.mjs';
-import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
+import { MAX_PROJECTS, addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, pushTargets, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
 import { BUDGET_TOKENS, RULE_AGENTS, ruleChanges, ruleText, rulesChecks, rulesView } from './rules.mjs';
 import { recordSession } from './session.mjs';
@@ -744,11 +744,14 @@ async function command(argv, { out, err, ask, ctx }) {
       }
     }
     else if (arg === 'remove' && o.setup) return removeSetups(ctx, dirs, { o, out, ask });
-    else if (arg === 'remove') dirs.forEach((d) => { removeProject(ctx, d); out.projects?.push({ path: resolve(d), status: 'removed' }); out.write(`removed ${resolve(d)}\n`); });
+    else if (arg === 'remove') {
+      removeProject(ctx, dirs);
+      dirs.map(canon).forEach((path) => { out.projects?.push({ path, status: 'removed' }); out.write(`removed ${path}\n`); });
+    }
     else if (arg === 'unshare') {
       const max = o.max === undefined ? MAX_PROJECTS : Number(o.max);
       if (!Number.isInteger(max) || max < 1) { out.write('--max must be a whole number of at least 1\n'); return 2; }
-      const due = (dirs.length ? dirs.map((d) => resolve(d)) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
+      const due = (dirs.length ? dirs.map((d) => registeredEntry(ctx, d).path) : listProjects(ctx).map((p) => p.path)).map((d) => status(ctx, d)).filter((p) => p.committed || dirs.length);
       if (!due.length) { out.write('no project carries a committed setup\n'); return 0; }
       for (const p of due) out.write(`${p.path}  setup ${p.origin ?? '-'} on origin${p.clean ? '' : ', working tree has changes: skipped'}\n`);
       const ready = due.filter((p) => p.clean);

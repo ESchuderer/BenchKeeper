@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { agentEnv } from './childenv.mjs';
+import { mask } from './redact.mjs';
 import { ENVS, isEnv } from './steps/project.mjs';
 
 // The flag that keeps an agent from saving the session to disk, where the installed CLI has it: read from the CLI's help
@@ -37,7 +38,7 @@ function codexHome() {
 export function codexMcpOff(ctx, dir) {
   const list = ctx.run(['codex', 'mcp', 'list', '--json'], { cwd: dir, timeout: 30e3, env: agentEnv('codex') });
   let servers;
-  try { servers = JSON.parse(list.stdout).map((s) => s.name); } catch { throw new Error(`codex mcp list --json failed (${list.code}): ${(list.stderr || list.stdout).trim().slice(-200)}`); }
+  try { servers = JSON.parse(list.stdout).map((s) => s.name); } catch { throw new Error(`codex mcp list --json failed (${list.code}): ${mask((list.stderr || list.stdout).trim()).slice(-200)}`); }
   const odd = servers.findIndex((n) => typeof n !== 'string' || !/^[\w-]+$/.test(n));
   if (odd >= 0) throw new Error(`the MCP server name ${JSON.stringify(servers[odd] ?? null)} cannot be turned off for this session`);
   return servers.flatMap((n) => ['-c', `mcp_servers.${n}.enabled=false`]);
@@ -77,7 +78,7 @@ function advicePrompt(lib) {
 export function parseAdvice(text, lib) {
   const raw = String(text ?? '');
   let j;
-  try { j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)); } catch { throw new Error('the agent gave no JSON answer'); }
+  try { j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)); } catch { throw new Error(`the agent gave no JSON answer; check its login or try again: ${mask(raw.trim()).slice(0, 200)}`); }
   const reason = (x) => String(x ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
   const list = (x) => (Array.isArray(x) ? x : []);
   return {
@@ -108,7 +109,7 @@ export async function agentAnswer(ctx, { dir, agent, prompt, signal, tools, usag
     const r = await (ctx.runAsync ?? ctx.run)(ARGV[agent](ctx, dir, prompt, out, { tools, usage }), { cwd: dir, timeout: 5 * 60e3, signal, env: agentEnv(agent) });
     // A session that ended on its own before the cancel keeps its answer.
     if (signal?.aborted && r.code !== 0) throw new Error('cancelled');
-    if (r.code !== 0) throw new Error(`${agent} exited with ${r.code}: ${(r.stderr || r.stdout || '').trim().slice(-300)}`);
+    if (r.code !== 0) throw new Error(`${agent} exited with ${r.code}: ${mask((r.stderr || r.stdout || '').trim()).slice(-300)}`);
     let text;
     try { text = agent === 'claude' ? JSON.parse(r.stdout).result : readFileSync(out, 'utf8'); } catch { throw new Error(`${agent} gave no answer`); }
     return { text, cost: costOf(agent, r.stdout ?? '') };

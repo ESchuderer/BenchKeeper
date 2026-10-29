@@ -380,7 +380,7 @@ export function setupOf(ctx, path, checkout = tryState(path)) {
 // the changes Update all would make, from the checkout's state file only when that is the one that counts.
 export function status(ctx, path) {
   // A moved or deleted folder: nothing to read, Relocate and Remove are what is left.
-  if (!isDir(path)) return { path, missing: true, setupVersion: null, current: false, checkout: null, origin: null, repo: false, branch: null, clean: null, changes: null, error: null, skills: {}, share: false, committed: false, agents: [], packs: [], tier: null };
+  if (!isDir(path)) return { path, missing: true, setupVersion: null, current: false, checkout: null, origin: null, repo: false, branch: null, clean: null, changes: null, error: null, skills: {}, share: false, committed: false, github: false, agents: [], packs: [], tier: null };
   let local = null, error = null;
   try { local = readState(path); } catch (e) { error = e.message; }
   const own = local;
@@ -392,6 +392,8 @@ export function status(ctx, path) {
   // committed: git tracks the state file of a setup this machine keeps local; Update all opens the pull request
   // that removes it, and plans no local changes until then.
   const committed = !!repo && !share && tracksState(ctx, path);
+  // github: Update all opens a pull request for a shared or committed setup only where origin is on GitHub.
+  const github = !!repo && githubRemote(ctx, path);
   let changes = null;
   if (state && state === local && !committed) {
     // Changes offered but not preselected (a removal BenchKeeper did not set up) are not pending.
@@ -400,7 +402,7 @@ export function status(ctx, path) {
   // Per chosen agent, the skills in the project folder it reads.
   const skills = skillCounts(path, state?.agents ?? []);
   return { path, setupVersion: state?.contentVersion ?? null, current: upToDate(state), checkout, origin, repo, branch, clean: repo ? clean(ctx, path) : null, changes, error, skills,
-    share, committed, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
+    share, committed, github, agents: state?.agents ?? [], packs: state?.packs ?? [], tier: state?.tier ?? null };
 }
 
 // Repository git config that runs code or sends git elsewhere during Update all (local and worktree scope, include files

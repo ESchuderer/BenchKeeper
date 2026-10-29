@@ -293,6 +293,8 @@ test('a GitHub origin gets a push and a pull request', () => {
     if (argv.includes('push')) calls.push(argv);
     return base.run(argv, o);
   } });
+  assert.equal(status(ctx, p.dir).github, true);
+  assert.equal(status(base, p.dir).github, false);
   const [r] = updateAll(ctx, { paths: [p.dir] });
   assert.equal(r.status, 'pull request', r.reason);
   assert.equal(r.pr, 'https://github.com/o/r/pull/1');

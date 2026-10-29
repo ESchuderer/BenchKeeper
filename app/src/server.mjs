@@ -29,7 +29,7 @@ import { rehearsable, rehearse } from './prerun.mjs';
 import { sourceRows } from './frameworks.mjs';
 import { exportPack, importPack, invalidPacks, libraryWith, removePack, savePack, warnings } from './packs.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
+import { addProject, canon, checkAdd, listProjects, packsInUse, prefetchOrigins, projectInstalls, projectsUsing, projectState, pushTargets, relocateProject, removeProject, removeSetup, renameProject, scan, setupRemoval, status, updateAll, usersByPack } from './projects.mjs';
 import { extensionsView } from './extensions.mjs';
 import { RULE_AGENTS, ruleChanges, ruleDraft, ruleEdit, ruleText, rulesView } from './rules.mjs';
 import { checkText, paramsChange, paramsView } from './params.mjs';
@@ -333,7 +333,8 @@ export function api(ctx) {
       return listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
         const seen = Object.fromEntries(Object.entries(s.skills).map(([a, n]) => [a, n + cached(`skills:${a}`, () => globalSkills(ctx, a))]));
-        return { ...s, seen, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path)?.time ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
+        // willPush: the rule Update all pushes by, so its confirmation counts what the run opens.
+        return { ...s, seen, willPush: pushTargets(ctx, [p.path]).length === 1, name: p.name ?? null, notes: p.notes ?? null, added: p.added ?? null, last: last.get(p.path)?.time ?? null, changes: s.changes && serialize(s.changes, projectCtx(ctx, p.path)) };
       });
     },
     // What adding a folder runs into: registered already, another worktree of a registered repository, inside a project.
@@ -600,7 +601,7 @@ export function api(ctx) {
       if (!b.register) return { agents: p.global.agents, globalPacks: p.global.packs ?? [], packs: (p.packs ?? []).map((x) => x.id), projects: (p.projects ?? []).map((x) => ({ path: x.path, here: exists(x.path) })) };
       const done = input(() => importChoices(ctx, p));
       const plan = importPlan(ctx, p);
-      return { ...done, missing: plan.missing, skipped: plan.skipped, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
+      return { ...done, missing: plan.missing, skipped: plan.skipped, notes: plan.notes, global: { planId: keep(plan.global, ctx, 'global'), changes: serialize(plan.global, ctx) },
         plans: plan.projects.filter((x) => x.changes.length).map((x) => ({ path: x.path, planId: keep(x.changes, x.ctx, x.path), changes: serialize(x.changes, x.ctx) })) };
     },
     'POST /api/scan': (b) => {

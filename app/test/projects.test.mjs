@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
-import { addProject, canon, gitCodeConfig, listProjects, prefetchOrigins, removeProject, scan, status, updateAll } from '../src/projects.mjs';
+import { addProject, canon, gitCodeConfig, listProjects, prefetchOrigins, pushTargets, removeProject, scan, status, updateAll } from '../src/projects.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { STATE, projectPlan } from '../src/steps/project.mjs';
@@ -293,12 +293,44 @@ test('a GitHub origin gets a push and a pull request', () => {
     if (argv.includes('push')) calls.push(argv);
     return base.run(argv, o);
   } });
+  assert.deepEqual(pushTargets(ctx, [p.dir]), [p.dir]);
+  assert.deepEqual(pushTargets(base, [p.dir]), []);
   const [r] = updateAll(ctx, { paths: [p.dir] });
   assert.equal(r.status, 'pull request', r.reason);
   assert.equal(r.pr, 'https://github.com/o/r/pull/1');
   assert.deepEqual(calls.map((a) => a.filter((x) => ['push', 'origin', r.branch, 'gh', 'create'].includes(x)).join(' ')), [`push origin ${r.branch}`, `gh create ${r.branch}`]);
   assert.equal(p.git('ls-remote', 'origin', r.branch).includes(r.branch), true);
   assert.equal(updateAll(context({ home: h }), { paths: [p.dir], push: false })[0].status, 'current');
+});
+
+test('an untracked local setup with a newer shared one on origin: the list promises no pull request and Update all opens none', async () => {
+  const h = home();
+  const p = project(h);
+  const other = mkdtempSync(join(TMP, 'bk-clone-'));
+  execFileSync('git', ['clone', '-q', '-b', 'main', p.git('remote', 'get-url', 'origin').trim(), other]);
+  const state = JSON.parse(readFileSync(join(other, STATE), 'utf8'));
+  writeFileSync(join(other, STATE), JSON.stringify({ ...state, appVersion, contentVersion: appVersion }));
+  execFileSync('git', ['-C', other, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qam', 'setup']);
+  execFileSync('git', ['-C', other, 'push', '-q', 'origin', 'main']);
+  // This checkout keeps an older setup local: its state file is untracked and ignored.
+  p.git('rm', '-q', '--cached', STATE);
+  p.git('commit', '-qm', 'local setup');
+  writeFileSync(join(p.dir, '.git/info/exclude'), '.benchkeeper/\n');
+  writeFileSync(join(p.dir, STATE), JSON.stringify({ ...state, share: false }));
+  const calls = [];
+  const base = context({ home: h });
+  addProject(base, p.dir);
+  const ctx = context({ home: h, run: (argv, o) => {
+    if (argv[0] === 'gh') { calls.push('gh'); return { code: 0, stdout: 'https://github.com/o/r/pull/3\n', stderr: '' }; }
+    if (argv.includes('get-url')) return { code: 0, stdout: 'git@github.com:o/r.git\n', stderr: '' };
+    return base.run(argv, o);
+  } });
+  const [listed] = await api(ctx)['GET /api/projects']();
+  assert.deepEqual([listed.share, listed.github, listed.willPush], [true, true, false]);
+  assert.deepEqual(pushTargets(ctx, [p.dir]), []);
+  const [r] = updateAll(ctx, { paths: [p.dir] });
+  assert.ok(['applied', 'current'].includes(r.status), r.reason);
+  assert.deepEqual(calls, []);
 });
 
 test('projects update shows the plan, asks once, and --yes --no-push commits without pushing', async () => {

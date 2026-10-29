@@ -94,6 +94,8 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
   const open = list.filter((p) => !blocked(p)).map((p) => p.path);
   const fresh = (projects.data ?? []).filter((p) => !p.setupVersion && !p.error && !p.missing).length;
   const nothing = !select?.length && !picked.length;
+  const branched = list.filter((p) => picked.includes(p.path) && (p.share || p.committed));
+  const viaPr = branched.filter((p) => p.willPush).length, onBranch = branched.length - viaPr, inPlace = picked.length - branched.length;
   return (
     <Stack gap="md">
       <Stepper active={running ? 4 : step} onStepClick={running ? undefined : setStep} size="sm">
@@ -139,7 +141,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
         <Stepper.Step label="Apply">
           <List spacing={4} aria-label="What Apply does">
             <List.Item>Global setup: {select?.length ? `${select.length} of ${global.data.changes.length} changes` : 'nothing'}</List.Item>
-            <List.Item>Projects: {picked.length ? `${picked.length}, one branch and pull request each` : 'none'}</List.Item>
+            <List.Item>Projects: {picked.length ? [inPlace && `${inPlace} written in their checkout`, onBranch && `${onBranch} as a branch`, viaPr && `${viaPr} as a branch and pull request`].filter(Boolean).join(', ') : 'none'}</List.Item>
             <List.Item>By hand: {manual.length ? `${manual.length} left to you` : 'nothing'}; the doctor runs again after the run</List.Item>
           </List>
         </Stepper.Step>

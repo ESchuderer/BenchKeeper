@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
-import { ownPacks, savePack } from '../src/packs.mjs';
-import { exportProfile, readProfile } from '../src/profile.mjs';
+import { ownPacks, savePack, scopeFile } from '../src/packs.mjs';
+import { exportProfile, importPlan, readProfile } from '../src/profile.mjs';
 import { addProject, listProjects } from '../src/projects.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
 import { STATE, projectPlan, readState } from '../src/steps/project.mjs';
@@ -31,7 +31,7 @@ test('export holds choices only; import registers projects, saves packs, sets up
   const p = readProfile(text);
   const { rules, ...entry } = p.projects[0];
   assert.deepEqual(rules.map((r) => [r.path, r.owner, r.state]), [['CLAUDE.local.md', 'BenchKeeper', 'always']]);
-  assert.deepEqual(entry, { path: proj, answers: { agents: ['claude'], env: 'host', sandbox: false, share: false, packs: ['ui'], singles: [], tier: 'quick', paths: {}, disabled: [] } });
+  assert.deepEqual(entry, { path: proj, answers: { agents: ['claude'], env: 'host', sandbox: false, share: false, packs: ['ui'], singles: [], tier: 'quick', paths: {}, disabled: [], guards: true } });
   assert.ok(!text.includes('TOKEN') && !text.includes('accessibility/SKILL'));
 
   // The other machine has the clone without the state file.
@@ -100,4 +100,80 @@ test('a state file this app cannot read: export names the project, import skips 
     assert.equal(readFileSync(join(bad, STATE), 'utf8'), text);
     assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
   }
+});
+
+test('an own pack this library cannot take is skipped with its reason; the other packs, the projects and the plans go on', async () => {
+  const proj = tmp('bk-prof-proj-');
+  const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] },
+    packs: [{ id: 'ui', skills: ['accessibility'] }, { id: 'newer', skills: ['accessibility', 'not-a-skill'] }],
+    projects: [{ path: proj, answers: { agents: ['claude'], env: 'host', packs: ['ui'], tier: 'quick' } }] });
+  const b = machine();
+  const file = join(tmp('bk-prof-file-'), 'profile.json');
+  writeFileSync(file, text);
+  let out = '';
+  const w = new Writable({ write(c, _, done) { out += c; done(); } });
+  assert.equal(await main(['profile', 'import', file, '--yes'], { out: w, ctx: b, input: Readable.from(['']) }), 0, out);
+  assert.match(out, /skipped pack newer: not in the library: not-a-skill/);
+  assert.deepEqual(ownPacks(b).map((x) => x.id), ['ui']);
+  assert.deepEqual(listProjects(b).map((x) => x.path), [proj]);
+  assert.equal(readState(proj).tier, 'quick');
+  assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
+});
+
+test('a round trip keeps guards, agent files and the pack scopes, which the import reports as notes; an agent file this catalog does not know is dropped', async () => {
+  const a = machine();
+  savePack(a, { id: 'ui', skills: ['accessibility'] });
+  mkdirSync(a.config, { recursive: true });
+  writeFileSync(scopeFile(a), JSON.stringify({ schemaVersion: 1, scopes: { ui: 'global', 'matt-pocock': 'projects' } }));
+  const proj = tmp('bk-prof-proj-');
+  const actx = { ...a, roots: [...a.roots, proj] };
+  apply(preview(projectPlan({ ctx: actx, dir: proj, answers: { agents: ['claude'], env: 'host', tier: 'quick', guards: false } }).changes), actx, { scope: proj });
+  const file = 'engineering/engineering-frontend-developer.md';
+  writeFileSync(join(proj, STATE), JSON.stringify({ ...readState(proj), agentFiles: [file, 'newer/unknown.md'] }));
+  addProject(a, proj);
+  const p = readProfile(exportProfile(a, { agents: ['claude'], packs: [] }));
+  assert.deepEqual(p.global.scopes, { ui: 'global', 'matt-pocock': 'projects' });
+  assert.deepEqual(p.global.packs, ['ui']);
+  assert.ok(p.projects[0].answers.guards === false && p.projects[0].answers.agentFiles.length === 2);
+
+  rmSync(join(proj, '.benchkeeper'), { recursive: true });
+  const b = machine();
+  const at = join(tmp('bk-prof-file-'), 'profile.json');
+  writeFileSync(at, JSON.stringify(p));
+  let out = '';
+  const w = new Writable({ write(c, _, done) { out += c; done(); } });
+  assert.equal(await main(['profile', 'import', at, '--yes'], { out: w, ctx: b, input: Readable.from(['']) }), 0, out);
+  assert.ok(!existsSync(scopeFile(b)));
+  assert.deepEqual(readState(proj).guards, false);
+  assert.deepEqual(readState(proj).agentFiles, [file]);
+  const notes = importPlan(b, p).notes;
+  assert.deepEqual(notes, [
+    'pack ui: selected projects here, all projects in the profile; to change it: benchkeeper packs scope ui global',
+    'pack matt-pocock: all projects here, selected projects in the profile; to change it: benchkeeper packs scope matt-pocock projects',
+  ]);
+  for (const m of notes) assert.ok(out.includes(`note: ${m}\n`), out);
+});
+
+test('an import writes no pack scope: its plans follow the scopes saved here', () => {
+  const b = machine();
+  savePack(b, { id: 'ui', skills: ['accessibility'] });
+  const proj = tmp('bk-prof-proj-');
+  const p = { global: { agents: ['claude'], packs: ['ui'], scopes: { ui: 'global' } }, projects: [{ path: proj, answers: { agents: ['claude'], env: 'host', packs: ['ui'], singles: [], tier: 'quick' } }] };
+  const plan = importPlan(b, p);
+  assert.ok(!plan.global.some((c) => c.step.startsWith('scope:') || c.step === 'pack:ui'));
+  assert.ok(plan.projects[0].changes.some((c) => c.title.includes('accessibility')));
+  assert.deepEqual(plan.notes, ['pack ui: selected projects here, all projects in the profile; to change it: benchkeeper packs scope ui global']);
+
+  // Global here as in the profile: no note, the global plan copies the skills and the project gets none.
+  mkdirSync(b.config, { recursive: true });
+  writeFileSync(scopeFile(b), JSON.stringify({ schemaVersion: 1, scopes: { ui: 'global' } }));
+  const same = importPlan(b, p);
+  assert.deepEqual(same.notes, []);
+  assert.ok(same.global.some((c) => c.step === 'pack:ui'));
+  assert.ok(!same.projects[0].changes.some((c) => c.title.includes('accessibility')));
+});
+
+test('a profile scope must be one of the pack scopes', () => {
+  const base = { kind: 'benchkeeper-profile', schemaVersion: 1 };
+  assert.throws(() => readProfile(JSON.stringify({ ...base, global: { agents: ['claude'], scopes: { ui: 'everywhere' } } })), /scope of pack ui must be one of global, projects/);
 });

@@ -81,7 +81,7 @@ test('skill proposals: turn off what the project sessions did not use, add what 
   assert.ok(r.findings.every((f) => f.signal === 'skills' && f.severity === 'info' && f.evidence.dir === dir));
   assert.deepEqual(by['skill-disable'].evidence.skills, [{ name: 'idle', scope: 'my shop' }]);
   assert.equal(by['skill-disable'].fix, 'benchkeeper skills disable idle --project "/work/my shop"');
-  assert.match(by['skill-disable'].message, /^1 skill of my shop not used in any of its last 20 sessions: idle$/);
+  assert.match(by['skill-disable'].message, /^1 skill of my shop not used in any of its last 20 Claude Code and Codex sessions: idle$/);
   assert.equal(by['skill-add'].fix, 'benchkeeper skills add a11y ui --project "/work/my shop"');
   assert.deepEqual([by['skill-add'].evidence.action, by['skill-add'].evidence.packs], ['pick', ['frontend']]);
   assert.equal(by['skill-update'].fix, 'benchkeeper skills update old --project "/work/my shop"');
@@ -94,6 +94,17 @@ test('skill proposals: no remove below the threshold of the project sessions, se
   const elsewhere = sessions(MIN_SAMPLES).map((s) => ({ ...s, dir: '/work/shopping' }));
   assert.deepEqual(ids(insights({ sessions: elsewhere, projects: [p] })), []);
   assert.deepEqual(ids(insights({ sessions: elsewhere.slice(1).map((s) => ({ ...s, dir: '/work/shop' })), projects: [p] })), []);
+});
+
+test('skill proposals: a skill used only by a Codex session of the project is not proposed, the message counts both agents', () => {
+  const p = { dir: '/work/shop', skills: [{ name: 'idle', state: 'current' }, { name: 'codexed', state: 'current' }], keep: [], add: [], packs: [] };
+  const inProject = [...sessions(MIN_SAMPLES), ...sessions(1, ['codexed'], 'codex')].map((s) => ({ ...s, dir: '/work/shop' }));
+  const [f] = insights({ sessions: inProject, projects: [p] }).findings;
+  assert.deepEqual(f.evidence.skills, [{ name: 'idle', scope: 'shop' }]);
+  assert.equal(f.evidence.sessions, 21);
+  assert.match(f.message, /last 21 Claude Code and Codex sessions: idle$/);
+  // Codex sessions alone do not reach the threshold.
+  assert.deepEqual(ids(insights({ sessions: [...sessions(MIN_SAMPLES - 1), ...sessions(5, [], 'codex')].map((s) => ({ ...s, dir: '/work/shop' })), projects: [p] })), []);
 });
 
 test('hygiene and freshness: the doctor findings are split, each fact appears once', () => {

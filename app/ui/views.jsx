@@ -391,9 +391,10 @@ export function ProjectList({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  // Update all pushes a branch and opens a pull request for each project whose setup is shared or still committed.
+  // Update all pushes a branch and opens a pull request for each project the list marks willPush (a shared or still
+  // committed setup whose origin is on GitHub); any other shared or committed project gets a local branch only.
   const [confirmPrs, setConfirmPrs] = useState(null);
-  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && (p.share || p.committed)).length : 0);
+  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && p.willPush).length : 0);
   const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
   const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
   const prs = prsOf(confirmPrs ?? []);
@@ -475,7 +476,7 @@ export function ProjectList({ params, overview, refresh }) {
       <Modal opened={!!confirmPrs} onClose={() => setConfirmPrs(null)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
         <Stack gap="sm">
           <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
-          <Text size="sm">{plural(prs, 'project')} with a shared setup or a local one still committed get a branch pushed to origin and a pull request when origin is on GitHub (the second kind removes the committed setup). Projects with uncommitted changes are skipped.</Text>
+          <Text size="sm">{plural(prs, 'project')} on GitHub with a shared setup or a local one still committed get a branch pushed to origin and a pull request (the second kind removes the committed setup); without a GitHub origin the branch stays local. Projects with uncommitted changes are skipped.</Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setConfirmPrs(null)}>Cancel</Button>
             <Button leftSection={icon(IconRefresh)} onClick={() => runUpdate(confirmPrs)}>Update all and open up to {plural(prs, 'pull request')}</Button>
@@ -561,8 +562,9 @@ function Profile({ overview, refresh }) {
       {plans && (
         <>
           <Text size="sm">Registered projects: {plans.projects.join(', ') || 'none'}. Own packs: {plans.packs.join(', ') || 'none'}.{plans.missing.length ? ` Skipped: ${plans.missing.join(', ')}.` : ''}</Text>
-          {plans.skipped.map((m) => <Note key={m} color="yellow">Skipped {m}</Note>)}
+          {[...plans.skippedPacks, ...plans.skipped].map((m) => <Note key={m} color="yellow">Skipped {m}</Note>)}
           {plans.refused.map((m) => <Note key={m} color="yellow">Not registered: {m}</Note>)}
+          {plans.notes.map((m) => <Note key={m} color="blue">{m}</Note>)}
           <Section title="Global changes"><Plan key={plans.global.planId} plan={plans.global} onDone={refresh} /></Section>
           {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} onDone={refresh} /></Section>)}
         </>

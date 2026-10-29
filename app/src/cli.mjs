@@ -833,10 +833,12 @@ async function command(argv, { out, err, ask, ctx }) {
     // Own packs next: the project plans can name them.
     const done = importChoices(ctx, p);
     out.write(`own packs: ${done.packs.join(', ') || 'none'}\nregistered projects: ${done.projects.join(', ') || 'none'}\n`);
+    for (const m of done.skippedPacks) out.write(`skipped ${m}\n`);
     for (const r of done.refused) out.write(`refused: ${r}\n`);
     const plan = importPlan(ctx, p);
     for (const m of plan.missing) out.write(`skipped ${m}: not on this machine\n`);
     for (const m of plan.skipped) out.write(`skipped ${m}\n`);
+    for (const m of plan.notes) out.write(`note: ${m}\n`);
     if (plan.global.length) code |= report(apply(plan.global, ctx, { scope: 'global', select: await choose(plan.global, o, ask, out) }), out);
     for (const x of plan.projects.filter((y) => y.changes.length)) {
       out.write(`project ${x.path}\n`);

@@ -72,11 +72,12 @@
     },
     "roots": {
       "tests": [
+        "roots.test.mjs",
         "profile.test.mjs",
         "projects.test.mjs",
         "projects-manage.test.mjs"
       ],
-      "floor": 29.03
+      "floor": 98
     },
     "rules": {
       "floor": 69.28

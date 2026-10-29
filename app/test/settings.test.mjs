@@ -52,6 +52,14 @@ test('pins: every catalog key is in a pinned schema or the reference, every coup
   for (const id of settingsAgents) for (const s of agentSettings(id).settings) assert.ok(s.sentence && s.default && /^https:\/\//.test(s.source), s.key);
 });
 
+test('describeKey: names of built-in object members are not schema keys', () => {
+  const nested = { claude: 'permissions', codex: 'sandbox_workspace_write' };
+  for (const id of settingsAgents) for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    assert.equal(describeKey(id, name), null, `${id} ${name}`);
+    assert.equal(describeKey(id, `${nested[id]}.${name}`), null, `${id} ${nested[id]}.${name}`);
+  }
+});
+
 test('pinned schemas: advanced mode lists every schema leaf, none is left undescribed', () => {
   for (const id of settingsAgents) for (const k of schemaKeys(id)) assert.ok(describeKey(id, k), `${id} ${k}`);
   const ctx = machine();

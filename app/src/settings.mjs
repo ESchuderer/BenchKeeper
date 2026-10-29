@@ -114,7 +114,7 @@ function schemaNode(agentId, path) {
   let node = schema;
   for (const seg of path) {
     node = resolve(schema, node);
-    const next = node?.properties?.[seg] ?? (node?.additionalProperties && typeof node.additionalProperties === 'object' ? node.additionalProperties : null);
+    const next = (node?.properties && Object.hasOwn(node.properties, seg) ? node.properties[seg] : null) ?? (node?.additionalProperties && typeof node.additionalProperties === 'object' ? node.additionalProperties : null);
     if (!next) return null;
     node = next;
   }

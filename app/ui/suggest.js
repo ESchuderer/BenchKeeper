@@ -3,6 +3,8 @@
 const norm = (row, v) => (row.type === 'switch' ? v != null && (row.zeroIsSet ? String(v) !== '' : v === true || v === 1 || /^(1|true)$/i.test(String(v))) : v ?? null);
 export const matches = (row, v) => JSON.stringify(norm(row, v)) === JSON.stringify(norm(row, row.suggest.value));
 export const ownOf = (row, layer) => row.sets?.find((x) => x.layer === layer)?.value;
+// The scope of a key can refuse the layer's file even where the key is editable in the user file.
+export const editableIn = (row, layer) => row.editable !== false && !row.refusedIn?.includes(layer);
 export const differs = (row, layer) => !!row.suggest && !matches(row, ownOf(row, layer));
 
 // A layer listed before this one in precedence sets the key, so a value written here would not take effect.
@@ -17,4 +19,4 @@ const stays = (row, layer, precedence) => {
 
 // The values a note's fix sets: the suggestions of its editable settings that differ and that the layer decides, and none when
 // the note prescribes no fix.
-export const fixOf = (note, rows, layer, precedence) => (note.fix ? Object.fromEntries(rows.filter((r) => r.editable !== false && differs(r, layer) && !overridden(r, layer, precedence) && !stays(r, layer, precedence)).map((r) => [r.key, r.suggest.value])) : {});
+export const fixOf = (note, rows, layer, precedence) => (note.fix ? Object.fromEntries(rows.filter((r) => editableIn(r, layer) && differs(r, layer) && !overridden(r, layer, precedence) && !stays(r, layer, precedence)).map((r) => [r.key, r.suggest.value])) : {});

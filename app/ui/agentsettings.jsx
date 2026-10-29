@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { Folded, Plan, Section, SettingFacts } from './parts.jsx';
 import { Dot, Loading, Note, href, icon, useAnnounce, useApi } from './shell.jsx';
-import { differs, fixOf, matches, ownOf } from './suggest.js';
+import { differs, editableIn, fixOf, matches, ownOf } from './suggest.js';
 
 const LAYERS = { user: 'User file', project: 'Project file', local: 'Local file' };
 const SHOWN = 150;
@@ -94,7 +94,7 @@ function ValueControl({ row, own, edit, setEdit, readOnly }) {
 function Row({ row, layer, edits, setEdit, stage, running }) {
   const own = ownOf(row, layer);
   const edit = edits[row.key];
-  const editable = row.editable !== false;
+  const editable = editableIn(row, layer);
   return (
     <Table.Tr>
       <Table.Td>

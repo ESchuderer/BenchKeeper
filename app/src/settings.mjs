@@ -158,14 +158,21 @@ export function parseInput(def, text) {
 
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
 
+// null when the layer's file is read for the key, else the reason, from the reference's scope.
+function scopeRefusal(def, layer) {
+  if (def.scope && SCOPE_NOTE[def.scope]) return SCOPE_NOTE[def.scope];
+  if ((def.scope === 'User' || def.scope === 'User or managed') && layer !== 'user') return 'this key is taken from the user file only';
+  if (def.scope === 'User, local, or managed' && layer === 'project') return 'this key is not taken from the project file';
+  return null;
+}
+
 // null when the value fits the key, else the reason. value undefined or null means removing the key.
 function validate(agentId, def, value, layer) {
   if (value == null) return null;
   const bad = (m) => `${def.key}: ${m}`;
   // The reference's scope holds for every type: a key the target file is not read for is refused.
-  if (def.scope && SCOPE_NOTE[def.scope]) return bad(SCOPE_NOTE[def.scope]);
-  if ((def.scope === 'User' || def.scope === 'User or managed') && layer !== 'user') return bad('this key is taken from the user file only');
-  if (def.scope === 'User, local, or managed' && layer === 'project') return bad('this key is not taken from the project file');
+  const scope = scopeRefusal(def, layer);
+  if (scope) return bad(scope);
   switch (def.type) {
     case 'switch':
       if (value !== true) return bad('an environment switch is set or removed, never 0 or false: use "set" or remove it');
@@ -389,7 +396,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
     const sets = vals.map((x) => ({ layer: x.layer, value: maskSecrets(x.value, k) }));
     const masked = sets.some((x, i) => !same(x.value, vals[i].value));
     const asTable = def.types?.length > 0 && def.types.every((t) => t === 'object');
-    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !(def.scope && SCOPE_NOTE[def.scope]) && (agentId === 'claude' || !asTable), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
+    return { key: k, type: def.type, values: def.values, sentence: def.sentence, group: def.group, scope: def.scope ?? null, inSchema: def.schema ?? true, masked, editable: !masked && !scopeRefusal(def, 'user') && (agentId === 'claude' || !asTable), refusedIn: ['project', 'local'].filter((l) => scopeRefusal(def, l)), ...facts(agentId, def, vals, env), layer: vals[0]?.layer ?? null, sets, changed: vals.length > 0 };
   });
   const known = new Set([...have, ...keys, ...REFERENCE.map((r) => r.key), ...schemaKeys(agentId)]);
   result.outside = unknownKeys(agentId, layers, known);

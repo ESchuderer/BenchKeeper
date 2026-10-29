@@ -182,6 +182,8 @@ test('listSettings: basic and advanced rows, the app value, what is editable, ke
   assert.deepEqual([adv('teammateMode').editable, adv('teammateMode').inSchema, adv('teammateMode').layer, adv('teammateMode').changed, adv('teammateMode').scope], [true, true, 'user', true, 'Any file']);
   assert.deepEqual([adv('copyOnSelect').editable, adv('copyOnSelect').inSchema, adv('copyOnSelect').layer, adv('copyOnSelect').changed], [false, false, null, false]);
   assert.equal(adv('pluginConfigs').editable, true);
+  // The layers a key's scope refuses: the project and local files for a user key, the project file for a user or local one.
+  for (const [k, scope, refusedIn] of [['worktree.location', 'User', ['project', 'local']], ['appendPlugins', 'User or managed', ['project', 'local']], ['syncClaudeAiPlugins', 'User, local, or managed', ['project']], ['teammateMode', 'Any file', []]]) assert.deepEqual([adv(k).scope, adv(k).editable, adv(k).refusedIn], [scope, true, refusedIn], k);
   assert.equal(adv('feedbackSurveyRate').scope, 'Any file');
   assert.ok(!l.advanced.some((a) => a.key === 'model'));
   const keys = l.advanced.map((a) => a.key);

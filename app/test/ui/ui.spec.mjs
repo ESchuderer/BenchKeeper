@@ -686,6 +686,8 @@ test.describe('views', () => {
     await ask.getByRole('button', { name: 'Update all and open up to 1 pull request' }).click();
     await expect(page.getByRole('progressbar', { name: 'Update all: 2 of 2 projects' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(/stopped|current|committed/);
+    // The page keeps polling the list, so a route.fetch() can still be in flight here.
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 
   test('Projects: Update all counts a pull request only for a shared or committed project whose origin is on GitHub', async ({ page }) => {

@@ -560,7 +560,9 @@ test('projects update --unattended skips and lists a project whose own hooks or 
   assert.equal(skipped.ready, false);
   assert.match(skipped.reason, /not confirmed \(credential\.helper, hook pre-commit, remote\.origin\.url\): benchkeeper projects confirm-git .*skipped/);
   let shown = '';
-  const confirm = (answer, isTTY) => main(['projects', 'confirm-git', p.dir, '--yes'], { out: new Writable({ write(c, _, done) { shown += c; done(); } }), ctx, input: Object.assign(Readable.from([answer]), { isTTY }) });
+  const confirm = (answer, isTTY, flags = []) => main(['projects', 'confirm-git', p.dir, ...flags], { out: new Writable({ write(c, _, done) { shown += c; done(); } }), ctx, input: Object.assign(Readable.from([answer]), { isTTY }) });
+  assert.equal(await confirm('y\n', true, ['--yes']), 2, '--yes confirms nothing');
+  assert.match(shown, /--yes does not belong to projects confirm-git/);
   assert.equal(await confirm('y\n', false), 2, 'a piped yes confirms nothing');
   assert.match(shown, /asks in a terminal/);
   assert.equal(await confirm('n\n', true), 1, 'a no stores nothing');

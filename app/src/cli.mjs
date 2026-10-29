@@ -70,7 +70,7 @@ Usage: benchkeeper <command> [options]
   profile import <file> [--yes] [--clone-into dir]
                                     shows the global and project changes, applies the chosen ones; a missing project with an
                                     origin is cloned into dir after its own question (never under --yes); other missing paths are skipped
-  doctor [dir] [--agents a,b] [--baseline auto|oss|private-advisory] [--baseline-ref ref]
+  doctor [dir] [--project dir] [--agents a,b] [--baseline auto|oss|private-advisory] [--baseline-ref ref]
                                     the install level, setup problems with a fix each, nothing written; exit 1 on an error;
                                     --baseline also compares the GitHub settings and caller workflows with a
                                     repo-baseline profile (read-only gh api; auto: advisory for private repositories)
@@ -108,7 +108,8 @@ Usage: benchkeeper <command> [options]
                                     only targets changed since their last result unless --all; plan lists the targets and
                                     sessions and starts none, run asks first (--yes answers it)
   evals results                     the stored eval results: per target and agent the miss and false trigger rates
-  verify [dir] [--agents a,b]       deterministic checks: files match the ledger, expected plugins and skills,
+  verify [dir] [--project dir] [--agents a,b]
+                                    deterministic checks: files match the ledger, expected plugins and skills,
                                     nothing unexpected installed, project skills present; exit 1 on a failure
   history                           runs, newest first
   history show <run>                one run: each change with its status and the diff of each file it wrote (settings
@@ -116,10 +117,10 @@ Usage: benchkeeper <command> [options]
   undo <run> [--step <step>] [--unit <unit>]
                                     restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
-  projects plan|apply [dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--pack p] [--skill s] [--tier t] [--yes]
+  projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--pack p] [--skill s] [--tier t] [--yes]
                     [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
-                                    project setup; answers default to the project's .benchkeeper/state.json;
+                                    project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude); --share commits them (AGENTS.md block, CLAUDE.md);
                                     --caller writes that repo-baseline workflow file (never GitHub settings);
@@ -511,11 +512,63 @@ const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
 
+const PLAN_FLAGS = 'agents env sandbox guards no-guards share local pack skill tier agent-file caller';
+// The flags each command reads besides --help and --json; a command without an entry is refused as unknown later.
+const FLAGS = {
+  ui: 'no-open port', plan: 'agents pack level', apply: 'agents pack level yes all',
+  'profile export': 'agents origins', 'profile import': 'yes all clone-into',
+  doctor: 'agents baseline baseline-ref project', verify: 'agents project',
+  'settings list': 'agent advanced project', 'settings get': 'agent project', 'settings set': 'agent layer project unset bundle yes all',
+  'rules list': 'agent agents project', 'rules show': 'agent project', 'rules check': 'agent agents project limit',
+  'rules disable': 'agent project yes all', 'rules enable': 'agent project yes all', 'extensions list': 'agent project',
+  'evals cases': 'target expected should-not run project scope transcript description query',
+  'evals plan': 'agents model target all', 'evals run': 'agents model target all yes', 'evals results': '',
+  history: '', 'history show': '', undo: 'step unit', restore: 'yes',
+  'projects plan': `${PLAN_FLAGS} project`, 'projects apply': `${PLAN_FLAGS} project yes all`,
+  'packs list': '', 'packs show': '', 'packs save': 'skill', 'packs export': '', 'packs import': 'id', 'packs remove': '', 'packs warnings': '',
+  'packs scope': 'agents yes all', 'packs enable': `${PLAN_FLAGS} project global yes all`, 'packs disable': `${PLAN_FLAGS} project global yes all`,
+  'skills list': 'project check agents library', 'skills show': '', 'skills sources': '', 'skills cli': '',
+  ...Object.fromEntries(['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'].map((s) => [`skills ${s}`, `${PLAN_FLAGS} project check yes all`])),
+  'projects status': '', 'projects advise': 'agent', 'projects list': '', 'projects add': 'worktree', 'projects scan': '',
+  'projects remove': 'setup yes no-push', 'projects audit': 'only', 'projects rename': 'notes', 'projects relocate': '',
+  'projects unshare': 'yes no-push max', 'projects confirm-git': '', 'projects update': 'yes no-push dry-run unattended max baseline baseline-ref',
+  'sessions board': 'no-open', 'sessions list': 'run', 'sessions cache': 'keep-days yes', 'sessions record': 'project',
+  'accounts list': '', 'accounts add': 'agent container mount label dir token email no-browser project yes all', 'accounts use': 'yes all',
+  'accounts remove': 'yes all', 'accounts status': 'project', 'accounts track': 'off project yes all', 'accounts handover': 'project yes',
+  'accounts limits': 'five-hour seven-day warn-five-hour warn-seven-day pool auto-pick when-none continue-below rotate-claude rotate-codex reset yes all',
+  'accounts login': 'token email no-browser project', run: 'account project token yes',
+  insights: 'project agents narrative agent yes', 'knowledge show': '', 'knowledge clear': 'yes', inventory: 'agents', dashboard: 'agents',
+  'automations list': '', 'automations show': '', 'automations install': 'param project yes all', 'automations update': 'yes all',
+  'automations remove': 'yes all', 'automations diff': '', 'automations status': '', 'automations precheck': 'param project',
+  'webhook set': '', 'webhook remove': 'yes', 'webhook status': '', 'webhook send': 'state run automation task', 'pins list': '',
+};
+// The most positionals of the commands that take a fixed number and do not check it themselves.
+const ARGS = { ui: 1, plan: 1, apply: 1, doctor: 2, verify: 2, history: 1, undo: 2, restore: 2, 'projects plan': 3, 'projects apply': 3, 'skills cli': 2, 'pins list': 3 };
+// The position of the folder that --project names as well.
+const FOLDER = { doctor: 1, verify: 1, 'projects plan': 2, 'projects apply': 2 };
+
+// The usage error of a flag or argument the command does not read, if any; puts a --project folder in its positional.
+function checkArgs(o, positionals) {
+  const [cmd = 'ui', arg] = positionals;
+  const name = [`${cmd} ${arg ?? 'list'}`, cmd].find((k) => Object.hasOwn(FLAGS, k));
+  if (!name) return undefined;
+  const flag = Object.keys(o).find((f) => !['help', 'json', ...FLAGS[name].split(' ')].includes(f));
+  if (flag) return `--${flag} does not belong to ${name}`;
+  const at = FOLDER[name];
+  if (at && o.project !== undefined) {
+    if (positionals[at] !== undefined && resolve(positionals[at]) !== resolve(o.project)) return `--project ${o.project} and ${positionals[at]} name different folders: give one`;
+    positionals[at] = o.project;
+  }
+  return positionals.length > (ARGS[name] ?? Infinity) ? `unexpected argument ${positionals[ARGS[name]]}` : undefined;
+}
+
 async function command(argv, { out, err, ask, ctx }) {
   const { values: o, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+  if (o.help || positionals[0] === 'help') { out.write(`${HELP}\n`); return 0; }
+  const refused = checkArgs(o, positionals);
+  // With --json, main turns the error into the document.
+  if (refused) { if (o.json) throw new Error(refused); out.write(`${refused}\n`); return 2; }
   const [cmd = 'ui', arg] = positionals;
-  if (o.help || cmd === 'help') { out.write(`${HELP}\n`); return 0; }
-  if (o.only !== undefined && !(cmd === 'projects' && arg === 'audit')) { out.write('--only belongs to projects audit\n'); return 2; }
   if (o.json && changing(cmd, arg)) return changeJson(argv, { cmd, arg, out, err, ctx });
   if (o.json && cmd !== 'verify') return jsonCommand({ cmd, arg, o, positionals, out, err, ctx });
   if (cmd === 'ui') {

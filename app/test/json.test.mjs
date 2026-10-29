@@ -409,3 +409,26 @@ test('rules show, skills show, packs warnings and projects advise print the text
     for (const [k, v] of Object.entries(env)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
 });
+
+test('--project names the folder of projects plan, doctor and verify; a different positional, a foreign flag or an extra argument exits 2 before anything runs', async () => {
+  const { ctx, dir } = setup();
+  const plan = await run(ctx, ['projects', 'plan', '--project', dir, '--agents', 'claude', '--json']);
+  assert.equal(plan.code, 0);
+  assert.equal(plan.doc.dir, dir);
+  assert.equal((await run(ctx, ['projects', 'plan', dir, '--project', dir, '--agents', 'claude', '--json'])).doc.dir, dir);
+  assert.deepEqual((await run(ctx, ['doctor', '--project', dir, '--agents', 'claude', '--json'])).doc, (await run(ctx, ['doctor', dir, '--agents', 'claude', '--json'])).doc);
+  for (const [args, message] of [
+    [['projects', 'apply', TMP, '--project', dir, '--yes'], `--project ${dir} and ${TMP} name different folders: give one`],
+    [['doctor', TMP, '--project', dir], `--project ${dir} and ${TMP} name different folders: give one`],
+    [['verify', dir, 'extra'], 'unexpected argument extra'],
+    [['doctor', 'a', 'b', 'c'], 'unexpected argument b'],
+    [['history', '--yes'], '--yes does not belong to history'],
+    [['plan', '--project', dir], '--project does not belong to plan'],
+  ]) {
+    const r = await run(ctx, [...args, '--json']);
+    assert.equal(r.code, 2, args.join(' '));
+    assert.equal(r.doc.error, message);
+    assert.equal(r.err, `${message}\n`);
+  }
+  assert.equal(ctx.ledger.list().length, 0);
+});

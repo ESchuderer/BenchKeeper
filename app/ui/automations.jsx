@@ -49,7 +49,7 @@ function InstallForm({ a, projects, onPlan, onCancel }) {
     setBusy(false);
   };
   return (
-    <Stack gap="sm" component="form" onSubmit={(e) => { e.preventDefault(); submit(); }} aria-label={`Install ${t.title}`}>
+    <Stack gap="sm" component="form" onSubmit={(e) => { e.preventDefault(); submit().catch(console.error); }} aria-label={`Install ${t.title}`}>
       <Text size="sm">Installed disabled and in mode {t.mode}: enable it in the runner once a manual run reads right. Schedule <Code>{t.schedule}</Code>, precheck <Code style={{ overflowWrap: 'anywhere' }}>{t.precheck}</Code>.</Text>
       <Select ref={first} label="Project" description="A registered project; the runs start in its folder" data={projects.map((p) => ({ value: p.path, label: p.name ? `${p.name} (${p.path})` : p.path }))} value={dir} onChange={setDir} allowDeselect={false} />
       {Object.entries(t.parameters).map(([k, p]) => (

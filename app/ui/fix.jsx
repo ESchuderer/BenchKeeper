@@ -2,6 +2,7 @@ import { Anchor, Badge, Button, Checkbox, Code, Drawer, Group, List, Progress, S
 import { IconPlayerPlay, IconPlayerStop, IconTool, IconWand } from '@tabler/icons-react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
+import { splitSource } from './fixsource.js';
 import { updateProjects } from './update.js';
 import { ChangeList, RunProgress, SettingFactsOf, StartBlock, confirms, defaultSelect, usePrerun } from './parts.jsx';
 import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
@@ -15,9 +16,8 @@ export function fixAction(i) {
   return null;
 }
 
-// A fix names its source as "(https://...)" and a finding its run by id: the cell shows the action, the source becomes
+// A fix names its source (fixsource.js) and a finding its run by id: the cell shows the action, the source becomes
 // a link, and a run id opens the run in History.
-const SOURCE = /\s*\((https:\/\/[^\s)]+)\)/;
 const RUN = /(\d{8}T\d{6}Z-[0-9a-f]{6})/;
 const withRuns = (text) => text.split(RUN).map((part, n) => (n % 2 ? <Anchor key={n} href={href('history', { run: part })}>{part}</Anchor> : part));
 
@@ -29,14 +29,14 @@ export function DoctorTable({ found, onAction }) {
         <Table.Thead><Table.Tr><Table.Th w={140}>Level</Table.Th><Table.Th>Problem</Table.Th><Table.Th>Fix</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>
           {found.map((i, n) => {
-            const action = fixAction(i), source = i.fix.match(SOURCE)?.[1];
+            const action = fixAction(i), { text, source } = splitSource(i.fix);
             return (
               <Table.Tr key={n}>
                 <Table.Td><Badge variant="default" leftSection={<Dot color={i.level === 'error' ? 'red' : 'yellow'} />}>{i.tag ?? i.level}</Badge></Table.Td>
                 <Table.Td>{withRuns(i.message)}{i.settings && <SettingFactsOf settings={i.settings} />}</Table.Td>
                 <Table.Td>
                   <Stack gap={4} align="flex-start">
-                    {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(i.fix.replace(SOURCE, ''))}</Text>}
+                    {action ? <Button component="a" href={action[0]} onClick={onAction} size="xs" variant="default" leftSection={icon(IconTool)}>{action[1]}</Button> : <Text size="sm">{withRuns(text)}</Text>}
                     {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
                     {i.start && <StartBlock start={i.start} />}
                   </Stack>

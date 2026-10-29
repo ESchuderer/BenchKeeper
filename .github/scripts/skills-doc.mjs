@@ -18,7 +18,10 @@ export function skillEntry(text) {
   const name = fm?.name;
   const writes = unquote(fm?.writes);
   if (!name || !fm.description || !writes) throw new Error(`${name ?? 'a skill'}: front matter needs name, description and writes`);
-  const [, purpose, rest] = /^(.*?\.)(?:\s+(.*))?$/.exec(unquote(fm.description));
+  // The first sentence ends at the first period followed by white space or the end.
+  const description = unquote(fm.description), end = /\.(?:\s+|$)/.exec(description);
+  if (!end) throw new Error(`${name}: the description needs a sentence that ends with a period`);
+  const purpose = description.slice(0, end.index + 1), rest = description.slice(end.index + end[0].length);
   const when = unquote(fm.when) || rest;
   if (!when) throw new Error(`${name}: needs a when field or a second sentence in the description`);
   const user = fm['disable-model-invocation'] === 'true';

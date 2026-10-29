@@ -6,8 +6,8 @@ const root = new URL('../../', import.meta.url);
 const facts = JSON.parse(readFileSync(new URL('web/src/data/facts.json', root), 'utf8'));
 const agents = JSON.parse(readFileSync(new URL('app/src/agents.json', root), 'utf8')).agents;
 
-// `|` would end a table cell.
-const cell = (s) => s.replace(/\|/g, '\\|');
+// `|` would end a table cell, and a backslash in the text would escape the one added before it.
+const cell = (s) => s.replace(/[\\|]/g, '\\$&');
 const link = (name, url) => `[${cell(name)}](${url.replace(/\|/g, '%7C')})`;
 
 // Install paths as headed blocks (GitHub Markdown has no tabs). `setup` is the link to docs/setup.md from the file that holds the block.

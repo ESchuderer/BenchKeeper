@@ -120,7 +120,7 @@ function projectInput(ctx, dir, lib) {
     .map((p) => ({ id: p?.id, add: (p?.skills ?? []).filter((n) => !have.has(n) && lib.skills.some((s) => s.name === n)) })).filter((p) => p.add.length);
   const texts = [...skillFiles(dir), ...skillFiles(ctx.home), ...pluginSkills(ctx, dir)];
   const keep = rows.skills.map((s) => s.name).filter((n) => texts.some((t) => t.name !== n && new RegExp(`(^|[^a-z0-9-])${n}($|[^a-z0-9-])`).test(t.text)));
-  return [{ dir, skills: rows.skills.map(({ name, state }) => ({ name, state })), keep, add: [...new Set(packs.flatMap((p) => p.add))].sort(), packs: packs.map((p) => p.id) }];
+  return [{ dir, skills: rows.skills.map(({ name, state }) => ({ name, state })), keep, add: [...new Set(packs.flatMap((p) => p.add))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)), packs: packs.map((p) => p.id) }];
 }
 
 // The state from this machine: transcripts through the sessions scan, the installed skills (global folders and enabled

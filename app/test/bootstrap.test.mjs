@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
@@ -81,6 +81,13 @@ test('a login is dropped from an address, a name for the folder never leaves it'
   assert.equal(cloneName('/old/machine/..', URL), 'demo');
   assert.equal(cloneName('/old/.hidden', 'https://github.com/a/.git'), null);
   assert.equal(cloneName('/x/a b', 'git@github.com:a/rep o'), null);
+});
+
+test('the clone name drops trailing slashes and colons as the earlier /[/:]+$/ did', () => {
+  const before = (url) => basename(url.replace(/[/:]+$/, '')).replace(/\.git$/, '');
+  for (const url of ['https://github.com/a/b.git', 'https://github.com/a/b/', 'git@github.com:a/b:/:/', 'host:', '/', '', 'a//b//', 'https://github.com/a/b.git/']) {
+    assert.equal(cloneName('/x/.hidden', url), [before(url)].find((n) => /^[A-Za-z0-9_][\w.-]*$/.test(n)) ?? null, url);
+  }
 });
 
 test('export holds origins only on request, without a login, and not for a local or odd address', () => {

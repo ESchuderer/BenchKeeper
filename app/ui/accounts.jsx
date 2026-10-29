@@ -202,7 +202,7 @@ export function Accounts({ overview, refresh }) {
   };
   // Each card reads its sign-in and usage when the list loads; a container account once a project is chosen.
   const accounts = state.data?.accounts;
-  useEffect(() => { for (const a of accounts ?? []) if (a.mode === 'host' || project) check(a); }, [accounts, project]);
+  useEffect(() => { for (const a of accounts ?? []) if (a.mode === 'host' || project) check(a).catch(console.error); }, [accounts, project]);
   const start = async (a) => {
     setError(null);
     try { setSignIn({ title: `Signing in ${a.name}`, ...(await api('/api/accounts-login', { name: a.name, ...(project ? { project } : {}) })) }); } catch (e) { setError(e.message); }

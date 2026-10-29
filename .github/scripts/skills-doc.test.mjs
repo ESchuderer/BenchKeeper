@@ -27,6 +27,20 @@ test('the when column comes from the field, else from the description after its 
   assert.equal(user.when, 'On request.');
   assert.match(user.start, /^you: `\/benchkeeper:u`/);
 });
+test('the first sentence ends where the earlier /^(.*?\.)(?:\s+(.*))?$/ ended it', () => {
+  const FIRST = /^(.*?\.)(?:\s+(.*))?$/;
+  for (const d of ['Does a. Use when b.', 'Does a.b. Use when c.', 'Does a.  Use when b.', 'v1.2 does a. When b.', 'Does a. When b. And c.']) {
+    const [, purpose, rest] = FIRST.exec(d);
+    const e = skillEntry(skill(['name: a', `description: "${d}"`, 'writes: "c"']));
+    assert.deepEqual([e.purpose, e.when], [purpose, rest], d);
+  }
+  // No second sentence: the earlier match had no rest, and without a when field the skill fails.
+  for (const d of ['Does a.', 'Does a. ']) {
+    assert.ok(!FIRST.exec(d)[2], d);
+    assert.throws(() => skillEntry(skill(['name: a', `description: "${d}"`, 'writes: "c"'])), /when/, d);
+  }
+  assert.throws(() => skillEntry(skill(['name: a', 'description: "No period"', 'writes: "c"'])), /a sentence that ends with a period/);
+});
 test('a skill without writes or when fails', () => {
   assert.throws(() => skillEntry(skill(['name: a', 'description: "Does a. Use when b."'])), /writes/);
   assert.throws(() => skillEntry(skill(['name: a', 'description: "Does a."', 'writes: "c"'])), /when/);

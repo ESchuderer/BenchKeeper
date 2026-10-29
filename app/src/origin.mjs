@@ -66,7 +66,10 @@ export function projectOrigins(ctx, paths) {
 // The folder name a project gets under the folder the user picks: the profile's name for it, else the repository's.
 // Both come from the file, so a name that could leave the folder or hide as a dot file is not used.
 export function cloneName(path, url) {
-  return [basename(path), basename(url.replace(/[/:]+$/, '')).replace(/\.git$/, '')].find((n) => /^[A-Za-z0-9_][\w.-]*$/.test(n)) ?? null;
+  let repo = url;
+  // A loop, not /[/:]+$/: that takes quadratic time on a long run of slashes.
+  while (/[/:]$/.test(repo)) repo = repo.slice(0, -1);
+  return [basename(path), basename(repo).replace(/\.git$/, '')].find((n) => /^[A-Za-z0-9_][\w.-]*$/.test(n)) ?? null;
 }
 
 // The runner change for one clone, run in `folder` (a plain git clone of the default branch):

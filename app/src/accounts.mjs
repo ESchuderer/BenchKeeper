@@ -553,8 +553,13 @@ export async function login(ctx, a, { io, token = false, email, noBrowser = fals
 
 // The first of base, base-2, base-3 ... that taken does not hold.
 const free = (base, taken) => { let n = 1; while (taken(n === 1 ? base : `${base}-${n}`)) n++; return n === 1 ? base : `${base}-${n}`; };
-// The local part of an address as a name: 29 characters at most, so a number on a clash still fits.
-const slug = (email) => String(email ?? '').split('@')[0].toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 29).replace(/^[-_]+|[-_]+$/g, '');
+// The local part of an address as a name: 29 characters at most, so a number on a clash still fits. The end is trimmed
+// in a loop: /[-_]+$/ takes quadratic time on a long run of dashes.
+const slug = (email) => {
+  let s = String(email ?? '').split('@')[0].toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 29).replace(/^[-_]+/, '');
+  while (/[-_]$/.test(s)) s = s.slice(0, -1);
+  return s;
+};
 // Add by sign-in: the agent signs in first, in a new folder below the data folder, and only a signed-in account is registered,
 // under a name from its identity (Claude Code's address; Codex prints none, so its name is the agent's with a number).
 // The folder keeps its first name: the agent may tie its stored login to the folder path. opts: those of login.

@@ -186,6 +186,19 @@ test('add by sign-in: no question up front, the name from the identity with a nu
   await assert.rejects(async () => routes['POST /api/accounts-add']({ agent: 'gemini' }), (e) => e.status === 400 && /agent must be one of claude, codex/.test(e.message));
 });
 
+test('add by sign-in: the name trims dashes and underscores at both ends as the earlier /^[-_]+|[-_]+$/g did', skip, async () => {
+  const m = machine({ flow: 'callback' });
+  const routes = api(m.ctx);
+  const before = (email) => email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 29).replace(/^[-_]+|[-_]+$/g, '') || 'claude';
+  for (const email of ['__Jo--Do__@example.com', '.a.b.@example.com', '-_-@example.com', `x${'-'.repeat(40)}@example.com`]) {
+    m.mode('email', email);
+    const { job: id } = await routes['POST /api/accounts-add']({ agent: 'claude' });
+    const done = await wait(() => { const s = job(routes, id); return s.done && s; });
+    assert.equal(done.login.account, before(email), email);
+  }
+  assert.deepEqual(listAccounts(m.ctx).map((a) => a.name), ['jo--do', 'a-b', 'claude', 'x']);
+});
+
 test('a failed sign-in adds no account', skip, async () => {
   const m = machine({ flow: 'fail' });
   const routes = api(m.ctx);

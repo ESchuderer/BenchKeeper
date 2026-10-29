@@ -215,7 +215,7 @@ function Shell() {
             </Group>
           </Group>
         </AppShell.Header>
-        <AppShell.Navbar id="app-nav" p="xs" aria-label="Views" inert={phone && !nav ? true : undefined}>
+        <AppShell.Navbar id="app-nav" p="xs" aria-label="Views" style={{ overflowY: 'auto' }} inert={phone && !nav ? true : undefined}>
           {[...GROUPS, ...(o.editors ? [['Advanced', ADVANCED]] : [])].map(([group, items], g) => (
             <div key={group} role="group" aria-labelledby={`nav-${g}`}>
               <Text id={`nav-${g}`} size="xs" fw={600} px="sm" pt={g ? 'sm' : 0} pb={4}>{group}</Text>

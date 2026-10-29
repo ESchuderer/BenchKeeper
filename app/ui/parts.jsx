@@ -40,7 +40,8 @@ export const StartBlock = ({ start, why }) => (
 
 export const Section = ({ title, children, id }) => (
   <Stack gap="sm" component="section" aria-label={title} id={id}>
-    <Title order={3} size="h3">{title}</Title>
+    {/* With an id, the heading can take focus after an action removed a row of the section. */}
+    <Title order={3} size="h3" id={id && `${id}-title`} tabIndex={id ? -1 : undefined}>{title}</Title>
     {children}
   </Stack>
 );

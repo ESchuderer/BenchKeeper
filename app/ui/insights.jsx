@@ -3,12 +3,13 @@ import { useRef, useState } from 'react';
 import { api } from './api.js';
 import { fixAction } from './fix.jsx';
 import { CancelJob, Cli, SettingFactsOf, useJob } from './parts.jsx';
-import { Dot, Loading, Note, href, useApi } from './shell.jsx';
+import { Dot, Loading, Note, href, useAnnounce, useApi } from './shell.jsx';
 import { ActionPlan } from './skillstates.jsx';
 
 const SEVERITY_COLOR = { error: 'red', warning: 'yellow', info: 'blue' };
 const SHOWN = 10;
 const day = (iso) => iso.slice(0, 10);
+const TRIAGED = { dismiss: 'Dismissed', snooze: 'Snoozed for 7 days', reopen: 'Shown again' };
 
 // The evidence a finding is about, by signal: the unused skills, the failed sessions of a project, or the file or folder of a doctor finding.
 function Evidence({ finding: { evidence: e } }) {
@@ -38,7 +39,7 @@ function Card({ finding: f, busy, onTriage, onPlan }) {
           <Badge variant="default" leftSection={<Dot color={SEVERITY_COLOR[f.severity]} />}>{f.severity}</Badge>
           <Badge variant="default">{f.signal}</Badge>
         </Group>
-        <Title order={3} size="h5" id={`finding-${f.key}`}>{f.message}</Title>
+        <Title order={3} size="h5" id={`finding-${f.key}`} tabIndex={-1}>{f.message}</Title>
         <Evidence finding={f} />
         {f.settings && <SettingFactsOf settings={f.settings} />}
         {!((action || plan) && f.fix.startsWith('benchkeeper ')) && <Text size="sm">{f.fix}</Text>}
@@ -151,9 +152,11 @@ export function Insights() {
   // Counts the saved triage clicks: the narrative covers the findings shown, so it reads its input again after each.
   const [rev, setRev] = useState(0);
   const [act, setAct] = useState(null);
-  const triage = (f, action) => {
+  const [status, announce] = useAnnounce();
+  // focus: the id of the element that takes focus once the finding has moved to the other list.
+  const triage = (f, action, focus) => {
     setBusy(f.key); setError(null);
-    api('/api/insights-triage', { key: f.key, action }).then((r) => { setLocal((l) => ({ ...l, [r.key]: r.triage })); setRev((n) => n + 1); }, (e) => setError(e.message)).finally(() => setBusy(null));
+    api('/api/insights-triage', { key: f.key, action }).then((r) => { setLocal((l) => ({ ...l, [r.key]: r.triage })); setRev((n) => n + 1); announce(focus, `${TRIAGED[action]}: ${f.message}`); }, (e) => setError(e.message)).finally(() => setBusy(null));
   };
   return (
     <Stack gap="lg">
@@ -162,21 +165,25 @@ export function Insights() {
           const now = Date.now();
           const current = (f) => { const t = f.key in local ? local[f.key] : f.triage; return t?.state === 'snoozed' && Date.parse(t.until) <= now ? null : t; };
           const shown = findings.filter((f) => !current(f)), hidden = findings.filter((f) => current(f));
+          // After Dismiss or Snooze the next finding's heading, after the last one the previous, then the list heading.
+          const next = (f) => { const i = shown.indexOf(f), g = shown[i + 1] ?? shown[i - 1]; return g ? `finding-${g.key}` : 'findings-title'; };
           return (
             <>
               {error && <Note color="red" title="Not saved">{error}</Note>}
               {samples.sessions < samples.minSamples && <Text size="sm">{samples.sessions} Claude Code sessions in the last 90 days: the unused-skills signal needs {samples.minSamples}, and friction needs {samples.minSamples} in one project.</Text>}
               <Narrative rev={rev} />
-              {shown.length ? shown.map((f) => <Card key={f.key} finding={f} busy={busy === f.key} onTriage={triage} onPlan={setAct} />) : <Text>No findings.</Text>}
+              <Title order={2} size="h4" id="findings-title" tabIndex={-1}>Findings</Title>
+              {status}
+              {shown.length ? shown.map((f) => <Card key={f.key} finding={f} busy={busy === f.key} onTriage={(g, a) => triage(g, a, next(g))} onPlan={setAct} />) : <Text>No findings.</Text>}
               {hidden.length > 0 && (
-                <Stack gap="sm" component="section" aria-label="Hidden findings">
+                <Stack gap="sm" component="section" aria-label="Hidden findings" id="hidden-findings-section" tabIndex={-1}>
                   <div><Button variant="default" size="xs" aria-expanded={hiddenOpen} aria-controls="hidden-findings" onClick={() => setHiddenOpen(!hiddenOpen)}>Hidden ({hidden.length})</Button></div>
                   {hiddenOpen && (
                     <Stack gap="xs" id="hidden-findings">
                       {hidden.map((f) => (
                         <Group key={f.key} gap="sm" justify="space-between" wrap="nowrap" align="flex-start">
                           <Text size="sm">{f.message}<br />{current(f).state === 'dismissed' ? 'Dismissed' : `Snoozed until ${day(current(f).until)}`}</Text>
-                          <Button size="xs" variant="default" miw="max-content" disabled={busy === f.key} onClick={() => triage(f, 'reopen')}>Show again</Button>
+                          <Button size="xs" variant="default" miw="max-content" disabled={busy === f.key} onClick={() => triage(f, 'reopen', hidden.length > 1 ? 'hidden-findings-section' : 'findings-title')}>Show again</Button>
                         </Group>
                       ))}
                     </Stack>

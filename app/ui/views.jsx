@@ -13,7 +13,7 @@ import { SessionsHistory } from './sessionscache.jsx';
 import { Surfaces } from './runs.jsx';
 import { AddNotices, BulkBar, MissingBadge, ProjectCard, ProjectFilters, ProjectTotals, RemoveFromList, RemoveSetup, SelectCheckbox } from './projects.jsx';
 import { chipsOf, label, lags, plural, visibleProjects } from './cards.js';
-import { Dot, Loading, MOD, Note, SplitView, download, groupBy, href, icon, projectHref, useApi } from './shell.jsx';
+import { Dot, Loading, MOD, Note, SplitView, download, groupBy, href, icon, projectHref, useAnnounce, useApi } from './shell.jsx';
 
 // The charts load with the first eval view or skill with results, not with the first page.
 const EvalResults = lazy(() => import('./evals.jsx').then((m) => ({ default: m.EvalResults })));
@@ -38,6 +38,7 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
   const [id, setId] = useState('');
   const [title, setTitle] = useState('');
   const [error, setError] = useState(null);
+  const [status, announce] = useAnnounce();
   const warn = useApi(skills.length ? `/api/pack-warnings?skills=${skills.map(encodeURIComponent).join(',')}` : null);
   const save = async () => {
     setError(null);
@@ -50,9 +51,10 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
         <Group justify="space-between"><Title order={2} size="h3">Build a pack</Title><Button variant="subtle" onClick={onClose}>Close</Button></Group>
         <TextInput label="Pack id: lowercase letters, digits and dashes" value={id} onChange={(e) => setId(e.currentTarget.value)} />
         <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
-        <Text fw={600}>Skills ({skills.length})</Text>
+        <Text fw={600} id="pack-skills" tabIndex={-1}>Skills ({skills.length})</Text>
+        {status}
         {skills.length ? skills.map((n) => (
-          <Group key={n} justify="space-between" wrap="nowrap"><Text size="sm">{n}</Text><Button leftSection={icon(IconTrash)} size="xs" variant="default" onClick={() => onRemove(n)} aria-label={`Remove ${n}`}>Remove</Button></Group>
+          <Group key={n} justify="space-between" wrap="nowrap"><Text size="sm">{n}</Text><Button leftSection={icon(IconTrash)} size="xs" variant="default" onClick={() => { onRemove(n); announce('pack-skills', `Removed: ${n}`); }} aria-label={`Remove ${n}`}>Remove</Button></Group>
         )) : <Text size="sm">Choose skills with the checkboxes in the list.</Text>}
         {warn.data?.map((w) => <Note key={w} color="yellow">{w}</Note>)}
         {error && <Note color="red" title="Save failed">{error}</Note>}
@@ -64,11 +66,15 @@ function PackBuilder({ opened, onClose, skills, onRemove, onSaved }) {
 }
 
 // Files in the packs folder that are no pack: the library leaves them out, so they are listed here to be removed (the file goes to the backups).
-function InvalidPacks({ files, onChange }) {
+function InvalidPacks({ files, onChange, announce }) {
   const [error, setError] = useState(null);
-  const remove = async (file) => { setError(null); try { await api('/api/packs', { action: 'remove', id: file }); onChange(); } catch (e) { setError(e.message); } };
+  // This section goes with its last file: focus then moves to the Packs heading.
+  const remove = async (file) => {
+    setError(null);
+    try { await api('/api/packs', { action: 'remove', id: file }); onChange(); announce(files.length > 1 ? 'invalid-packs-title' : 'packs-title', `Removed: ${file}`); } catch (e) { setError(e.message); }
+  };
   return (
-    <Section title="Pack files that are not packs">
+    <Section title="Pack files that are not packs" id="invalid-packs">
       {error && <Note color="red" title="Failed">{error}</Note>}
       {files.map(({ file, reason }) => (
         <Group key={file} justify="space-between" wrap="nowrap">
@@ -80,7 +86,7 @@ function InvalidPacks({ files, onChange }) {
   );
 }
 
-function Packs({ packs, onChange }) {
+function Packs({ packs, onChange, announce }) {
   const [error, setError] = useState(null);
   const [file, setFile] = useState(0);
   // A pack file whose id is an own pack's: asked first, the old file goes to the backup.
@@ -88,7 +94,7 @@ function Packs({ packs, onChange }) {
   const run = (f) => async (...a) => { setError(null); try { await f(...a); onChange(); } catch (e) { setError(e.message); } };
   const importText = run(async (text) => { setReplace(null); await api('/api/packs', { action: 'import', text }); setFile((n) => n + 1); });
   return (
-    <Section title="Packs">
+    <Section title="Packs" id="packs">
       {error && <Note color="red" title="Failed">{error}</Note>}
       <Table.ScrollContainer minWidth={520}>
         <Table aria-label="Packs">
@@ -103,7 +109,7 @@ function Packs({ packs, onChange }) {
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
                     {p.skills && <Button leftSection={icon(IconDownload)} size="xs" variant="default" aria-label={`Export ${p.id}`} onClick={run(async () => { const r = await api(`/api/pack-export?id=${encodeURIComponent(p.id)}`); download(r.name, r.text); })}>Export</Button>}
-                    {p.own && <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${p.id}`} disabled={!!p.usedBy?.length} title={p.usedBy?.length ? `In use by ${p.usedBy.join(', ')}: switch it off there first` : undefined} onClick={run(() => api('/api/packs', { action: 'remove', id: p.id }))}>Remove</Button>}
+                    {p.own && <Button leftSection={icon(IconTrash)} size="xs" variant="subtle" aria-label={`Remove ${p.id}`} disabled={!!p.usedBy?.length} title={p.usedBy?.length ? `In use by ${p.usedBy.join(', ')}: switch it off there first` : undefined} onClick={run(async () => { await api('/api/packs', { action: 'remove', id: p.id }); announce('packs-title', `Removed: ${p.id}`); })}>Remove</Button>}
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -146,6 +152,8 @@ export function Catalog({ catalog, params, refresh }) {
   const [used, setUsed] = useState(null);
   const [picked, setPicked] = useState([]);
   const [builder, setBuilder] = useState(false);
+  // Here and not in the packs sections: the section of files that are not packs goes with its last file.
+  const [status, announce] = useAnnounce();
   const open = params.get('skill');
   const flip = (n) => setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
   return (
@@ -179,8 +187,9 @@ export function Catalog({ catalog, params, refresh }) {
             </Table>
           } detail={skill ? <SkillDetail key={skill.name} skill={skill} results={evals.data?.filter((r) => r.target === `skill:${skill.name}`) ?? []} /> : null} />
           <SkillStates refresh={refresh} />
-          <Packs packs={c.packs} onChange={refresh} />
-          {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} />}
+          <Packs packs={c.packs} onChange={refresh} announce={announce} />
+          {c.invalidPacks?.length > 0 && <InvalidPacks files={c.invalidPacks} onChange={refresh} announce={announce} />}
+          {status}
           <PackBuilder opened={builder} onClose={() => setBuilder(false)} skills={picked} onRemove={flip} onSaved={() => { setBuilder(false); setPicked([]); refresh(); }} />
           <Cli>{`benchkeeper packs list\nbenchkeeper projects apply --pack ${pack ?? '<id>'}${open ? ` --skill ${open}` : ''}\nbenchkeeper skills list --project <dir>\nbenchkeeper skills update|reset|remove|adopt|enable|disable <name> --project <dir>`}</Cli>
         </Stack>

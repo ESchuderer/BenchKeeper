@@ -4,7 +4,7 @@ description: "Runs a repository-wide maintenance pass: dead code, duplicates, un
 disable-model-invocation: true
 disallowed-tools: "Edit Write NotebookEdit"
 when: "On request, on a clean working tree."
-writes: "Nothing until you approve the findings (Edit and Write are off), apart from the verdicts in the project's local knowledge base; then the issues you approve and one commit per approved change under `workflow`."
+writes: "Nothing until you approve the findings (Edit and Write are off), apart from the verdicts in the project's local knowledge base and the `.benchkeeper/` line in `.git/info/exclude` that keeps it local; then the issues you approve and one commit per approved change under `workflow`."
 ---
 
 # Maintaining repositories

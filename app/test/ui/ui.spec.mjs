@@ -1532,7 +1532,7 @@ test.describe('views', () => {
     await expect(fix).toContainText('skipped: uncommitted changes');
     await noAxe(page);
     await fix.getByRole('button', { name: 'Next' }).click();
-    await expect(fix.getByRole('table', { name: 'Doctor findings' }).or(fix.getByText('No problems found.'))).toBeVisible();
+    await expect(fix.getByRole('table', { name: 'Doctor findings' }).or(fix.getByText('No findings.'))).toBeVisible();
     await fix.getByRole('button', { name: 'Next' }).click();
     await expect(fix.getByRole('list', { name: 'What Apply does' })).toContainText(/Global setup: \d+ of \d+ changes/);
     await expect(fix.getByRole('list', { name: 'What Apply does' })).toContainText('Projects: none');

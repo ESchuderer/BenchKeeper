@@ -384,7 +384,7 @@ test('rules check exits 1 on an error finding and prints --json; Doctor lists th
   const text = await cli('rules', 'check', '--project', dir, '--agents', 'claude,codex');
   assert.equal(text.code, 1, text.text);
   assert.match(text.text, /^error +CLAUDE\.md:4 links docs\/missing\.md, which does not exist\n {8}fix: /m);
-  assert.match(text.text, /\d+ errors, \d+ warnings\n$/);
+  assert.match(text.text, /\n\d+ errors?(, \d+ warnings?)?(, \d+ info)?\n$/);
   const json = await cli('rules', 'check', '--project', dir, '--json');
   assert.equal(json.code, 1);
   const doc = JSON.parse(json.text);

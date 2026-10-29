@@ -2,7 +2,8 @@ import { Anchor, Badge, Button, Code, Group, List, Loader, Modal, Paper, Radio, 
 import { useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import { splitSource } from './fixsource.js';
-import { LEVEL_COLOR, fixAction, levelCounts } from './fix.jsx';
+import { LEVEL_COLOR, fixAction } from './fix.jsx';
+import { levelCounts } from '../src/levels.mjs';
 import { CancelJob, Cli, SettingFactsOf, useJob } from './parts.jsx';
 import { Dot, Loading, Note, href, useAnnounce, useApi } from './shell.jsx';
 import { ActionPlan } from './skillstates.jsx';

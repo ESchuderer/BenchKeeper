@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
 import { doctor } from '../src/doctor.mjs';
+import { levelCounts } from '../src/levels.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 
@@ -21,6 +22,12 @@ function machine({ engine = true } = {}) {
   return context({ home, run });
 }
 const levels = (found, check) => found.filter((i) => i.check === check).map((i) => i.level);
+
+test('the summary counts each level in the singular or plural, info included, and leaves a zero level out', () => {
+  assert.equal(levelCounts([{ level: 'error' }, { level: 'warning' }, { level: 'warning' }]).text, '1 error, 2 warnings');
+  assert.equal(levelCounts([{ level: 'info' }, { level: 'info' }]).text, '2 info');
+  assert.equal(levelCounts([]).text, '');
+});
 
 test('feature switches: environment, shell files, settings; names and places, never values', () => {
   const ctx = machine();
@@ -146,7 +153,7 @@ test('project: summary sections, overlapping descriptions, broken links; exit 1 
   const out = new Writable({ write(c, _, done) { text += c; done(); } });
   assert.equal(await main(['doctor', dir, '--agents', 'claude'], { out, ctx }), 1);
   assert.match(text, /^error +skills +skill a in .*: \.claude\/skills\/a\/SKILL\.md links reference\.md/m);
-  assert.match(text, /\d+ errors, \d+ warnings\n$/);
+  assert.match(text, /\n\d+ errors?(, \d+ warnings?)?(, \d+ info)?\n$/);
 });
 
 test('feature switches: every name, every shell start file, both settings files; comments and other keys are not findings', () => {

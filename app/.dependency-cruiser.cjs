@@ -1,6 +1,6 @@
 // Import rules of the app's modules (decoupled-modules note). A module is a set of paths under src/; moving a file into a folder
 // changes only its pattern here. engine is every file of src/ that no other module claims.
-const CORE = 'fsx|git|merge|redact|childenv|cooldown|states|tokens|ledger|diff|roots|runner|units';
+const CORE = 'fsx|git|merge|redact|childenv|cooldown|states|tokens|ledger|diff|roots|runner|units|levels';
 const MODULES = {
   core: `^src/(${CORE})\\.mjs$`,
   agents: '^src/agents\\.mjs$',
@@ -11,7 +11,7 @@ const MODULES = {
   engine: `^src/(?!(?:${CORE}|agents|content|packs|cli|server)\\.mjs$|orca/)`,
   ui: '^ui/',
 };
-// What each module may import besides itself. The UI reaches src/ through HTTP, apart from the two pure files the browser also loads.
+// What each module may import besides itself. The UI reaches src/ through HTTP, apart from the pure files the browser also loads.
 const MAY = {
   core: [], agents: ['core'], content: ['core'], orca: ['core'],
   engine: ['core', 'agents', 'content', 'orca'],
@@ -19,7 +19,7 @@ const MAY = {
   cli: ['core', 'agents', 'content', 'orca', 'engine', 'server'],
   ui: [],
 };
-const BROWSER_SAFE = '^src/(states|tokens)\\.mjs$';
+const BROWSER_SAFE = '^src/(states|tokens|levels)\\.mjs$';
 
 module.exports = {
   forbidden: [

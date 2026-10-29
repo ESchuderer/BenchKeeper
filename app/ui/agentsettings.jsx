@@ -46,8 +46,9 @@ function Compare({ row, layer, own, edit, use }) {
   );
 }
 
-// One control for one key; edit is undefined (untouched), null (remove the key) or the new value.
-function ValueControl({ row, own, edit, setEdit }) {
+// One control for one key; edit is undefined (untouched), null (remove the key) or the new value. readOnly: while a
+// plan applies, the edit is ignored, and a text field would keep showing what was typed.
+function ValueControl({ row, own, edit, setEdit, readOnly }) {
   const shown = edit === undefined ? own : edit;
   const label = `${row.key} value`;
   const set = (v) => setEdit(v === own || (v == null && own == null) ? undefined : v);
@@ -58,12 +59,12 @@ function ValueControl({ row, own, edit, setEdit }) {
     case 'bool':
       return <SegmentedControl styles={NOFADE} aria-label={label} size="xs" data={[UNSET, 'true', 'false']} value={shown == null ? UNSET : String(shown)} onChange={(v) => set(v === UNSET ? null : v === 'true')} />;
     case 'enum':
-      return <Select aria-label={label} data={[...(row.values ?? []).map(String), ...(typeof shown === 'string' && !(row.values ?? []).includes(shown) ? [shown] : [])]} value={shown ?? null} placeholder={UNSET} clearable searchable={!!row.also}
+      return <Select aria-label={label} readOnly={readOnly} data={[...(row.values ?? []).map(String), ...(typeof shown === 'string' && !(row.values ?? []).includes(shown) ? [shown] : [])]} value={shown ?? null} placeholder={UNSET} clearable searchable={!!row.also}
         onChange={(v) => set(v)} allowDeselect={false} comboboxProps={{ withinPortal: false }} />;
     case 'int': case 'number':
-      return <NumberInput aria-label={label} value={shown ?? ''} min={row.min} allowDecimal={row.type === 'number'} onChange={(v) => { if (v === '') set(null); else if (Number.isFinite(Number(v))) set(Number(v)); }} />;
+      return <NumberInput aria-label={label} readOnly={readOnly} value={shown ?? ''} min={row.min} allowDecimal={row.type === 'number'} onChange={(v) => { if (v === '') set(null); else if (Number.isFinite(Number(v))) set(Number(v)); }} />;
     case 'string':
-      return <TextInput aria-label={label} value={shown ?? ''} placeholder={UNSET} onChange={(e) => set(e.currentTarget.value || null)} />;
+      return <TextInput aria-label={label} readOnly={readOnly} value={shown ?? ''} placeholder={UNSET} onChange={(e) => set(e.currentTarget.value || null)} />;
     case 'attribution': {
       const mode = shown === false ? 'hidden' : shown && typeof shown === 'object' ? 'custom' : 'built-in';
       const custom = mode === 'custom' ? shown : { commit: '', pr: '', sessionUrl: false };
@@ -73,8 +74,8 @@ function ValueControl({ row, own, edit, setEdit }) {
             onChange={(v) => set(v === 'built-in' ? null : v === 'hidden' ? false : { commit: '', pr: '', sessionUrl: false })} />
           {mode === 'custom' && (
             <>
-              <TextInput aria-label="attribution commit text" placeholder="commit trailer" value={custom.commit ?? ''} onChange={(e) => set({ ...custom, commit: e.currentTarget.value })} />
-              <TextInput aria-label="attribution pull request text" placeholder="pull request text" value={custom.pr ?? ''} onChange={(e) => set({ ...custom, pr: e.currentTarget.value })} />
+              <TextInput aria-label="attribution commit text" readOnly={readOnly} placeholder="commit trailer" value={custom.commit ?? ''} onChange={(e) => set({ ...custom, commit: e.currentTarget.value })} />
+              <TextInput aria-label="attribution pull request text" readOnly={readOnly} placeholder="pull request text" value={custom.pr ?? ''} onChange={(e) => set({ ...custom, pr: e.currentTarget.value })} />
               <Switch label="session link" checked={!!custom.sessionUrl} onChange={(e) => set({ ...custom, sessionUrl: e.currentTarget.checked })} />
             </>
           )}
@@ -85,12 +86,12 @@ function ValueControl({ row, own, edit, setEdit }) {
       return <Code>{own === undefined ? UNSET : text(own)}</Code>;
     default:
       // strings, JSON values and keys only a schema describes: JSON text, a bare word counts as text.
-      return <TextInput aria-label={label} value={edit === undefined ? text(own) : edit === null ? '' : text(edit)} placeholder={UNSET}
+      return <TextInput aria-label={label} readOnly={readOnly} value={edit === undefined ? text(own) : edit === null ? '' : text(edit)} placeholder={UNSET}
         onChange={(e) => { const s = e.currentTarget.value; if (!s) return set(null); try { set(JSON.parse(s)); } catch { set(s); } }} />;
   }
 }
 
-function Row({ row, layer, edits, setEdit, stage }) {
+function Row({ row, layer, edits, setEdit, stage, running }) {
   const own = ownOf(row, layer);
   const edit = edits[row.key];
   const editable = row.editable !== false;
@@ -110,7 +111,7 @@ function Row({ row, layer, edits, setEdit, stage }) {
       </Table.Td>
       <Table.Td miw={200}>
         <Stack gap={6}>
-          {editable ? <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} /> : <Text size="sm">Not edited here: {row.masked ? 'it holds a secret, shown masked: edit the file by hand' : row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text>}
+          {editable ? <ValueControl row={row} own={own} edit={edit} setEdit={(v) => setEdit(row.key, v)} readOnly={running} /> : <Text size="sm">Not edited here: {row.masked ? 'it holds a secret, shown masked: edit the file by hand' : row.scope ? `it lives in the ${row.scope} file or layer` : 'it is a table, edit the file by hand'}.</Text>}
           <Compare row={row} layer={layer} own={own} edit={edit} use={editable ? () => stage({ [row.key]: row.suggest.value }) : undefined} />
         </Stack>
       </Table.Td>
@@ -118,19 +119,19 @@ function Row({ row, layer, edits, setEdit, stage }) {
   );
 }
 
-function Rows({ rows, layer, edits, setEdit, stage, label }) {
+function Rows({ rows, layer, edits, setEdit, stage, label, running }) {
   if (!rows.length) return <Text size="sm">No setting matches.</Text>;
   return (
     <Table.ScrollContainer minWidth={720} scrollAreaProps={{ viewportProps: { tabIndex: 0, role: 'region', 'aria-label': `${label}, scrollable` } }}>
       <Table aria-label={label} verticalSpacing="sm">
         <Table.Thead><Table.Tr><Table.Th>Setting</Table.Th><Table.Th>{LAYERS[layer]}</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>{rows.map((r) => <Row key={r.key} row={r} layer={layer} edits={edits} setEdit={setEdit} stage={stage} />)}</Table.Tbody>
+        <Table.Tbody>{rows.map((r) => <Row key={r.key} row={r} layer={layer} edits={edits} setEdit={setEdit} stage={stage} running={running} />)}</Table.Tbody>
       </Table>
     </Table.ScrollContainer>
   );
 }
 
-function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced, onApplied }) {
+function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced, onApplied, running, onRunning }) {
   const [search, setSearch] = useState('');
   const [changed, setChanged] = useState(false);
   const [plan, setPlan] = useState(null);
@@ -142,8 +143,9 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const [showHardening, setShowHardening] = useState(false);
   const [target, setTarget] = useState(null);
   // A plan holds the edits of its Review: a later edit drops it, and a pending Review's answer for older edits is ignored, so Apply never clears edits it did not write.
+  // While it applies, edits and Reviews are ignored: dropping it would lose the run's view and its reload.
   const rev = useRef(0);
-  const setEdit = (key, v) => { put(key, v); rev.current++; setPlan(null); };
+  const setEdit = (key, v) => { if (running) return; put(key, v); rev.current++; setPlan(null); };
   const count = Object.keys(edits).length;
   const q = search.trim().toLowerCase();
   const match = (r) => (!q || `${r.key} ${r.summary ?? ''} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed) && (!only || differs(r, layer));
@@ -151,13 +153,14 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const groups = [...new Set(basic.map((r) => r.group))];
   const adv = (data.advanced ?? []).filter(match);
   const review = async (body) => {
+    if (running) return;
     setBusy(true); setError(null); setPlan(null);
     const asked = rev.current;
     try { const p = await api('/api/settings-plan', { agent, layer, dir, ...body }); if (asked === rev.current) setPlan(p); } catch (e) { if (asked === rev.current) setError(e.message); }
     setBusy(false);
   };
   // Use suggested and a note's fix: the values join the pending edits, and the plan of all of them opens at once.
-  const stage = (fix) => { for (const [k, v] of Object.entries(fix)) setEdit(k, v); void review({ edits: { ...edits, ...fix } }); };
+  const stage = (fix) => { if (running) return; for (const [k, v] of Object.entries(fix)) setEdit(k, v); void review({ edits: { ...edits, ...fix } }); };
   useEffect(() => { if (plan) document.getElementById('settings-changes-title')?.focus(); }, [plan]);
   const clearFilters = () => { setSearch(''); setChanged(false); setOnly(false); };
   // Go to the setting: a filter may hide its row, so focus waits for the render without filters.
@@ -208,13 +211,13 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
       </Group>
       {data.bundles?.map((b) => <Text key={b.id} size="sm">{b.label}: {b.sentence} <Anchor underline="always" size="sm" href={b.source} target="_blank" rel="noreferrer">Source</Anchor></Text>)}
       {groups.map((g) => (
-        <Section key={g} title={g}><Rows rows={basic.filter((r) => r.group === g)} layer={layer} edits={edits} setEdit={setEdit} stage={stage} label={g} /></Section>
+        <Section key={g} title={g}><Rows rows={basic.filter((r) => r.group === g)} layer={layer} edits={edits} setEdit={setEdit} stage={stage} label={g} running={running} /></Section>
       ))}
       {!groups.length && !advanced && <Group gap="sm"><Text>No setting matches.</Text><Button size="xs" variant="default" onClick={clearFilters}>Clear search and filters</Button></Group>}
       {advanced && (
         <Section title="Every key of the pinned schemas">
           <Text size="sm">{adv.length} keys{adv.length > SHOWN ? `, the first ${SHOWN} shown: search to narrow` : ''}. A value is JSON, a bare word counts as text.</Text>
-          <Rows rows={adv.slice(0, SHOWN)} layer={layer} edits={edits} setEdit={setEdit} stage={stage} label="Advanced keys" />
+          <Rows rows={adv.slice(0, SHOWN)} layer={layer} edits={edits} setEdit={setEdit} stage={stage} label="Advanced keys" running={running} />
         </Section>
       )}
       {advanced && data.env && (
@@ -271,10 +274,10 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
       </Folded>
       <Group>
         <Button leftSection={icon(IconListCheck)} loading={busy} disabled={!count} onClick={() => review({ edits })}>Review {count} change{count === 1 ? '' : 's'}</Button>
-        {count > 0 && <Button variant="default" onClick={() => { clear(); rev.current++; setPlan(null); }}>Discard changes</Button>}
+        {count > 0 && <Button variant="default" onClick={() => { if (running) return; clear(); rev.current++; setPlan(null); }}>Discard changes</Button>}
       </Group>
       {error && <Note color="red" title="Not planned">{error}</Note>}
-      {plan && <Section title="Changes" id="settings-changes"><Plan key={plan.planId} plan={plan} why="You changed these values in Agent settings." scope={layer === 'user' ? 'global' : 'project'} onDone={() => { clear(); onApplied(); }} /></Section>}
+      {plan && <Section title="Changes" id="settings-changes"><Plan key={plan.planId} plan={plan} why="You changed these values in Agent settings." scope={layer === 'user' ? 'global' : 'project'} onRunning={onRunning} onDone={() => { clear(); onApplied(); }} /></Section>}
     </Stack>
   );
 }
@@ -287,26 +290,29 @@ export function AgentSettings({ overview, params, refresh, project }) {
   const [dir, setDir] = useState(project ?? params.get('path'));
   const [advanced, setAdvanced] = useState(false);
   const [edits, setEdits] = useState({});
+  const [running, setRunning] = useState(false);
   const projects = overview.data?.projects ?? [];
   const chosen = layer === 'user' ? undefined : dir ?? projects[0]?.path;
   const query = new URLSearchParams({ agent, ...(chosen ? { dir: chosen } : {}), ...(advanced ? { advanced: '1' } : {}) });
   const state = useApi(layer === 'user' || chosen ? `/api/settings?${query}` : null);
   const setEdit = (key, v) => setEdits((e) => { const n = { ...e }; if (v === undefined) delete n[key]; else n[key] = v; return n; });
-  const reset = (f) => (v) => { f(v); setEdits({}); };
+  // Another agent, file or project replaces the Editor and its plan, so the choices wait for a running apply.
+  const reset = (f) => (v) => { if (running) return; f(v); setEdits({}); };
+  const off = { readOnly: running, 'aria-disabled': running || undefined };
   const layers = (agent === 'claude' ? Object.keys(LAYERS) : ['user', 'project']).filter((l) => !project || l !== 'user');
   return (
     <Stack gap="lg">
       <Note>Every change is a plan with a diff, and History undoes it.</Note>
       <Group align="flex-end">
-        <SegmentedControl styles={NOFADE} aria-label="Agent" data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} value={agent} onChange={reset((v) => { setAgent(v); if (v === 'codex' && layer === 'local') setLayer(project ? 'project' : 'user'); })} />
-        <Select label="Write to" data={layers.map((l) => ({ value: l, label: LAYERS[l] }))} value={layer} onChange={reset((v) => setLayer(v ?? layer))} allowDeselect={false} comboboxProps={{ withinPortal: false }} />
-        {layer !== 'user' && !project && <Select label="Project" data={projects.map((p) => p.path)} value={chosen ?? null} onChange={reset(setDir)} placeholder="register a project first" allowDeselect={false} comboboxProps={{ withinPortal: false }} />}
-        <Switch label="Advanced: every key" checked={advanced} onChange={(e) => setAdvanced(e.currentTarget.checked)} />
+        <SegmentedControl styles={NOFADE} aria-label="Agent" data={[{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }]} value={agent} aria-disabled={running || undefined} onChange={reset((v) => { setAgent(v); if (v === 'codex' && layer === 'local') setLayer(project ? 'project' : 'user'); })} />
+        <Select label="Write to" data={layers.map((l) => ({ value: l, label: LAYERS[l] }))} value={layer} {...off} onChange={reset((v) => setLayer(v ?? layer))} allowDeselect={false} comboboxProps={{ withinPortal: false }} />
+        {layer !== 'user' && !project && <Select label="Project" data={projects.map((p) => p.path)} value={chosen ?? null} {...off} onChange={reset(setDir)} placeholder="register a project first" allowDeselect={false} comboboxProps={{ withinPortal: false }} />}
+        <Switch label="Advanced: every key" checked={advanced} aria-disabled={running || undefined} onChange={(e) => !running && setAdvanced(e.currentTarget.checked)} />
       </Group>
       {layer !== 'user' && !chosen && <Note color="yellow">The project and local files belong to a registered project: add one under Projects.</Note>}
       {chosen || layer === 'user' ? (
         <Loading state={state} label="settings">
-          {(data) => <Editor key={`${agent}-${layer}-${chosen}`} data={data} agent={agent} layer={layer} dir={chosen} edits={edits} setEdit={setEdit} clear={() => setEdits({})} advanced={advanced} onApplied={() => { state.reload(); refresh(); }} />}
+          {(data) => <Editor key={`${agent}-${layer}-${chosen}`} data={data} agent={agent} layer={layer} dir={chosen} edits={edits} setEdit={setEdit} clear={() => setEdits({})} advanced={advanced} onApplied={() => { state.reload(); refresh(); }} running={running} onRunning={setRunning} />}
         </Loading>
       ) : null}
     </Stack>

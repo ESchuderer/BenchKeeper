@@ -39,6 +39,15 @@ test('apply --yes, history, undo', async () => {
   assert.match(c.text(), new RegExp(`${id}  apply +done`));
   assert.equal(await c.exec(['undo', id]), 0);
   assert.equal(existsSync(join(c.home, '.claude/rules/00-global.md')), false);
+  // Nothing left to restore: a usage error for an unknown step or unit, exit 1 for a second undo, no run either way.
+  assert.equal(await c.exec(['undo', id, '--step', 'typo']), 2);
+  assert.match(c.text(), new RegExp(`run ${id} has no step typo; its steps: \\S`));
+  assert.equal(await c.exec(['undo', id, '--unit', 'typo']), 2);
+  assert.match(c.text(), /has no unit typo; its units: /);
+  assert.equal(await c.exec(['undo', id]), 1);
+  assert.match(c.text(), new RegExp(`nothing to undo in run ${id}: `));
+  await c.exec(['history']);
+  assert.equal(c.text().match(/undo +done/g).length, 1, 'the history lists one undo run');
 });
 
 test('a pack plugin BenchKeeper did not install: shown with its impact, never removed by --yes or --all, only by its own answer', async () => {

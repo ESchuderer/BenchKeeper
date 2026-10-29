@@ -612,10 +612,16 @@ test('run report: the undo of a created file shows its removal as a diff', () =>
   const { ctx, routes } = fixture();
   const f = join(ctx.home, 'new.txt');
   const run = apply([{ id: '1', step: 's', title: 'create', kind: 'write', path: f, after: 'x\ny\n' }], ctx);
+  assert.equal(status(() => routes['POST /api/undo']({ run: run.id, step: 'typo' })), 400);
+  assert.equal(status(() => routes['POST /api/undo']({ run: run.id, unit: 'typo' })), 400);
   const u = routes['POST /api/undo']({ run: run.id });
   const [e] = routes['GET /api/run'](new URLSearchParams({ id: u.id })).entries;
   assert.equal(e.removed, true);
   assert.match(e.diff, /\n@@ -1,3 \+0,0 @@\n-x\n-y/);
+  // A second undo restores nothing and records no run.
+  const runs = ctx.ledger.list().length;
+  assert.equal(status(() => routes['POST /api/undo']({ run: run.id })), 409);
+  assert.equal(ctx.ledger.list().length, runs);
 });
 
 test('run report: a failed session undo (no files recorded) still opens', () => {

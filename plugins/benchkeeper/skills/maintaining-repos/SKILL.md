@@ -34,4 +34,4 @@ Baseline: the verdicts of the knowledge base (`verdicts.json`). The next pass re
 
 ## Changes after approval
 
-Each approved item is a change under `benchkeeper:workflow` (a refactor in one module is standard, across modules full; several items on one branch run as a batch), one commit per concern, behavior unchanged, the project's tests before and after. Before deleting anything, search every reference to it (code, tests, docs, scripts, config) and record the result. Remove a test only with its recorded reason: it protects nothing, or the code it covers is removed with it.
+Each approved item is a change under `benchkeeper:workflow` (a refactor in one module is standard, across modules full; several quick items on one branch run as a batch, a risky or larger item at its own tier), one commit per concern, behavior unchanged, the project's tests before and after. Before deleting anything, search every reference to it (code, tests, docs, scripts, config) and record the result. Remove a test only with its recorded reason: it protects nothing, or the code it covers is removed with it.

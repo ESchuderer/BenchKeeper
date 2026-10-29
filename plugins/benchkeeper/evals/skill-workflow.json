@@ -46,6 +46,12 @@
       "expected": "the skill loads"
     },
     {
+      "id": "s8",
+      "query": "On one branch: bump the copyright year in LICENSE, fix a typo in CONTRIBUTING.md, and add input validation to the login form handler in src/auth.js.",
+      "should": true,
+      "expected": "the skill loads"
+    },
+    {
       "id": "n1",
       "query": "What does the git command `git rebase --onto` do?",
       "should": false,

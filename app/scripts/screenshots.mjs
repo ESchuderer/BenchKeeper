@@ -75,6 +75,34 @@ const VIEWS = [
     await nav(page, 'Catalog').click();
     await page.getByRole('table', { name: 'Skill states' }).evaluate((el) => { el.scrollIntoView({ block: 'start' }); window.scrollBy(0, -200); });
   }],
+  ['runs', async (page) => {
+    await nav(page, 'Runs').click();
+    await expect(page.getByRole('heading', { name: 'Last setup change' })).toBeVisible();
+  }],
+  ['insights', async (page) => {
+    await nav(page, 'Insights').click();
+    await expect(page.getByRole('heading', { name: 'Findings' })).toBeVisible();
+  }],
+  ['evals', async (page) => {
+    await nav(page, 'Evals').click();
+    await expect(page.getByRole('table', { name: 'Eval targets' })).toBeVisible();
+  }],
+  ['global', async (page) => {
+    await nav(page, 'Global setup').click();
+    await expect(page.getByRole('table', { name: 'Agents' })).toBeVisible();
+  }],
+  ['extensions', async (page) => {
+    await nav(page, 'Extensions').click();
+    await expect(page.getByRole('table', { name: 'Claude Code extensions' })).toBeVisible();
+  }],
+  ['automations', async (page) => {
+    await nav(page, 'Automations').click();
+    await expect(page.getByRole('table', { name: 'Automations' })).toBeVisible();
+  }],
+  ['preferences', async (page) => {
+    await nav(page, 'Preferences').click();
+    await expect(page.getByRole('table', { name: 'Keyboard shortcuts' })).toBeVisible();
+  }],
   ['rules', async (page) => {
     await nav(page, 'Rules').click();
     await expect(page.getByRole('region', { name: 'Checks' })).toBeVisible();

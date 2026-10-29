@@ -1,12 +1,11 @@
 import { Anchor, Badge, Button, Code, Group, List, Loader, Modal, Paper, Radio, Stack, Text, Title } from '@mantine/core';
 import { useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
-import { fixAction } from './fix.jsx';
+import { LEVEL_COLOR, fixAction, levelCounts } from './fix.jsx';
 import { CancelJob, Cli, SettingFactsOf, useJob } from './parts.jsx';
 import { Dot, Loading, Note, href, useAnnounce, useApi } from './shell.jsx';
 import { ActionPlan } from './skillstates.jsx';
 
-const SEVERITY_COLOR = { error: 'red', warning: 'yellow', info: 'blue' };
 const SEVERITIES = [['error', 'Errors'], ['warning', 'Warnings'], ['info', 'Info']];
 // Areas in user words, from fields the findings carry: a doctor finding that names settings keys belongs to Agent settings.
 const AREAS = ['Setup', 'Agent settings', 'Updates', 'Skills', 'Sessions'];
@@ -180,7 +179,7 @@ export function Insights() {
           // After Dismiss or Snooze the next finding's heading of the same severity, else the previous, then the list heading:
           // a heading in another severity group may be folded.
           const next = (f) => { const i = order.indexOf(f), g = [order[i + 1], order[i - 1]].find((x) => x?.severity === f.severity); return g ? `finding-${g.key}` : 'findings-title'; };
-          const counts = SEVERITIES.map(([sev]) => [sev, order.filter((f) => f.severity === sev).length]).filter(([, n]) => n).map(([sev, n]) => plural(n, sev, sev === 'info' ? sev : undefined)).join(', ');
+          const counts = levelCounts(order, (f) => f.severity).text;
           const goTo = (f) => { const h = document.getElementById(`finding-${f.key}`); h.closest('details').open = true; h.focus(); };
           return (
             <>
@@ -198,7 +197,7 @@ export function Insights() {
               {status}
               {groups.map(([sev, label, areas]) => (
                 <details key={sev} open={sev !== 'info'}>
-                  <summary><Dot color={SEVERITY_COLOR[sev]} /> <Text component="span" fw={600}>{label} ({areas.reduce((n, [, l]) => n + l.length, 0)})</Text></summary>
+                  <summary><Dot color={LEVEL_COLOR[sev]} /> <Text component="span" fw={600}>{label} ({areas.reduce((n, [, l]) => n + l.length, 0)})</Text></summary>
                   <Stack gap="sm" mt="sm">
                     {areas.map(([area, list]) => (
                       <Stack key={area} gap="sm">

@@ -24,6 +24,7 @@ export const canon = (p) => { try { return realish(p); } catch { return resolve(
 export function listProjects(ctx) {
   let list;
   try { list = JSON.parse(readFileSync(file(ctx), 'utf8')).projects; } catch { return []; }
+  if (!Array.isArray(list)) return [];
   const merged = new Map();
   for (const p of list) {
     const path = canon(p.path), prev = merged.get(path);
@@ -142,7 +143,10 @@ function installedSkill(ctx, dir) {
   }
   return false;
 }
+// A registry that exists but cannot be read is listed as empty, so writing then would drop every project.
 function save(ctx, projects) {
+  const problem = registryProblem(ctx);
+  if (problem) throw Object.assign(new Error(problem), { status: 409 });
   writeAtomic(file(ctx), `${JSON.stringify({ schemaVersion: 1, projects }, null, 2)}\n`);
 }
 // The state file a removal pull request deletes from the checkout on the next pull, kept in the registry until the

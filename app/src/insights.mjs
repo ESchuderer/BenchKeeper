@@ -90,11 +90,13 @@ export function insights({ sessions = [], skills = [], doctorFindings = [], proj
       evidence: { project: folder, dir: p.dir, action, skills: names.map((name) => ({ name, scope: folder })), ...extra },
       fix: `benchkeeper skills ${VERBS[action]} ${names.join(' ')} --project ${shellArg(p.dir)}`,
     });
-    const mine = claude.filter((s) => s.dir === p.dir || s.dir?.startsWith(`${p.dir}${sep}`));
-    if (mine.length >= minSamples) {
+    // The sample threshold counts Claude Code sessions; the used skills come from every agent, as disable takes a skill from all of them.
+    const inFolder = (s) => s.dir === p.dir || s.dir?.startsWith(`${p.dir}${sep}`);
+    if (claude.filter(inFolder).length >= minSamples) {
+      const mine = sessions.filter(inFolder);
       const used = new Set(mine.flatMap((s) => s.skills));
       const unused = p.skills.filter((s) => !['disabled', 'removed'].includes(s.state) && !used.has(s.name) && !p.keep.includes(s.name)).map((s) => s.name);
-      propose('disable', unused, `${plural(unused.length, 'skill', 'skills')} of ${folder} not used in any of its last ${mine.length} sessions`, { sessions: mine.length });
+      propose('disable', unused, `${plural(unused.length, 'skill', 'skills')} of ${folder} not used in any of its last ${mine.length} Claude Code and Codex sessions`, { sessions: mine.length });
     }
     propose('pick', p.add, `${folder} matches the library ${p.packs.length === 1 ? 'pack' : 'packs'} ${p.packs.join(', ')}, whose ${p.add.length === 1 ? 'skill it lacks' : 'skills it lacks'}`, { packs: p.packs });
     const behind = p.skills.filter((s) => s.state === 'outdated').map((s) => s.name);

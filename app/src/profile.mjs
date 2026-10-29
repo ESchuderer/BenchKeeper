@@ -5,7 +5,7 @@ import { isAbsolute } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
 import { keptFrom } from './frameworks.mjs';
-import { PACK_SCOPES, globalSkillPacks, libraryWith, ownPacks, savePack, scopeText, scopeWrite, storedScopes } from './packs.mjs';
+import { PACK_SCOPES, globalSkillPacks, libraryWith, ownPacks, packScope, savePack, scopeText, scopeWrite, storedScopes } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
 import { ruleStates } from './rules.mjs';
 import { unfit } from './roots.mjs';
@@ -51,13 +51,17 @@ export function readProfile(text) {
   return p;
 }
 
-// The import plan: the profile's pack scopes (written first, both plans are built with them), the global changes for its
+// The import plan: the profile's pack scopes (written first, the global plan is built with them), the global changes for its
 // agents and packs, plus the project setup of registered paths that exist here and have no state file yet. Paths missing
 // here are listed and skipped, and so are projects whose plan fails (a state file this app cannot read): skipped holds their messages.
 // Scopes of packs this machine does not have (an own pack that was not saved) are left out.
 export function importPlan(ctx, p, { devcontainerCli } = {}) {
-  const known = libraryWith(ctx).packs.map((x) => x.id);
-  const scopes = Object.entries(p.global.scopes ?? {}).filter(([id]) => known.includes(id));
+  const lib = libraryWith(ctx);
+  const scopes = Object.entries(p.global.scopes ?? {}).filter(([id]) => lib.packs.some((x) => x.id === id));
+  // The scope writes may be applied after the project plans or declined, so a project copies a pack's skills unless it is
+  // global both now and in the profile.
+  const changed = scopes.filter(([id, s]) => s !== packScope(ctx, lib.packs.find((x) => x.id === id)));
+  const projectBase = { ...ctx, packScopes: { ...ctx.packScopes, ...Object.fromEntries(changed.map(([id]) => [id, 'projects'])) } };
   ctx = { ...ctx, packScopes: { ...ctx.packScopes, ...Object.fromEntries(scopes) } };
   const scopeChanges = scopes.map(([id, s]) => ({ id: `scope:${id}`, step: `scope:${id}`, title: `pack ${id}: ${scopeText(s)}`, ...scopeWrite(ctx, id, s) }));
   const global = preview([...scopeChanges, ...globalPlan({ ctx, agents: p.global.agents, options: { packs: p.global.packs ?? [] }, devcontainerCli })]);
@@ -67,7 +71,7 @@ export function importPlan(ctx, p, { devcontainerCli } = {}) {
     // A folder that cannot be a project (a drive root, the home folder) is not given a plan, whatever the file says.
     if (unfit(ctx, x.path)) continue;
     try {
-      const pctx = projectCtx(ctx, x.path);
+      const pctx = projectCtx(projectBase, x.path);
       const changes = readState(x.path) || !x.answers ? [] : preview(projectPlan({ ctx: pctx, dir: x.path, answers: { ...x.answers, skills: x.answers.singles, singles: undefined, agentFiles: keptFrom(x.answers).agentFiles } }).changes);
       projects.push({ path: x.path, ctx: pctx, changes });
     } catch (e) { skipped.push(`${x.path}: ${e.message}`); }

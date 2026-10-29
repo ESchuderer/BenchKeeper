@@ -3,6 +3,7 @@
 // nothing. The policy is read from the default branch on GitHub, never from a checked-out branch, so a worker cannot widen it.
 import { freemem } from 'node:os';
 import { hashText } from './fsx.mjs';
+import { repoEnv } from './git.mjs';
 import * as orca from './orca/index.mjs';
 import { load } from './params.mjs';
 
@@ -47,7 +48,7 @@ async function project(ctx, dir) {
   if (errors.length) throw new Error(`${POLICY} on ${branch}: ${errors[0].path || 'the file'} ${errors[0].message}`);
   const all = await orca.workers(ctx);
   if (!all) throw new Error(`${orca.NAME} did not list the open workers of every run, so the worker limits cannot be checked`);
-  const trees = ctx.run(['git', '-C', dir, 'worktree', 'list', '--porcelain'], { timeout: 15e3 });
+  const trees = ctx.run(['git', '-C', dir, 'worktree', 'list', '--porcelain'], { env: repoEnv(), timeout: 15e3 });
   if (trees.code !== 0) throw new Error(`${dir} is not a git checkout: ${trees.stderr.trim()}`);
   const branches = new Map();
   let path;

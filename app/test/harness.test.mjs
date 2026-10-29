@@ -88,7 +88,7 @@ test('benchkeeper evals: rates per target, results stored, unchanged targets ski
   assert.deepEqual([ui.agentVersion, ui.model, ui.cases], ['9.9.9 (Claude Code)', 'sonnet', 12]);
   assert.equal(ui.missRate, 4 / 6);
   assert.equal(ui.falseTriggerRate, 0);
-  assert.equal(res.find((r) => r.target === 'skill:workflow').missRate, 4 / 7);
+  assert.equal(res.find((r) => r.target === 'skill:workflow').missRate, 5 / 8);
   // The library skill is copied into the scratch repository for its own cases only.
   assert.equal(calls.filter((c) => c.lib).length, 12);
   assert.deepEqual(evalPlan(ctx, { model: 'sonnet' }), []);
@@ -109,7 +109,7 @@ test('eval asks before starting sessions and refuses in CI', async () => {
   try {
     delete process.env.CI;
     assert.equal(await main(['evals', 'run', '--target', 'skill:workflow'], { out, ctx, input: Readable.from(['n\n']) }), 1);
-    assert.match(text, /Start 13 agent sessions\? \[y\/N\]/);
+    assert.match(text, /Start 14 agent sessions\? \[y\/N\]/);
     process.env.CI = 'true';
     assert.equal(await main(['evals', 'run', '--yes'], { out, ctx }), 2);
   } finally { if (ci === undefined) delete process.env.CI; else process.env.CI = ci; }

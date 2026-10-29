@@ -5,6 +5,7 @@ import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { library } from './content.mjs';
 import { readText, writeAtomic } from './fsx.mjs';
+import { repoEnv } from './git.mjs';
 import { readLedger } from './ponytail.mjs';
 import * as orca from './orca/index.mjs';
 
@@ -205,7 +206,7 @@ async function withRepos(ctx, entries) {
   const found = new Map();
   const repoOf = async (dir) => {
     if (!existsSync(dir)) return null;
-    const r = await run(['git', '-C', dir, 'worktree', 'list', '--porcelain'], { timeout: 15e3 });
+    const r = await run(['git', '-C', dir, 'worktree', 'list', '--porcelain'], { env: repoEnv(), timeout: 15e3 });
     const main = r.code === 0 ? r.stdout.split('\n').find((l) => l.startsWith('worktree '))?.slice(9) : null;
     return main ? resolve(main) : null;
   };

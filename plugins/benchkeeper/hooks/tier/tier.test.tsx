@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { lastTier } from './register'
+import { lastTier, plain } from './register'
 
 const BAND = {
   plugin: 'benchkeeper',
@@ -37,6 +37,16 @@ test('reads the last tier line and its change type', () => {
   expect(lastTier('Reading.\nTier: quick (docs, typo)\nTier: full (feature)\ndone')).toEqual({ tier: 'full', changeType: 'feature' })
   expect(lastTier('Tier: research')).toEqual({ tier: 'research', changeType: null })
   expect(lastTier('The Tier: quick line is mid-sentence')).toBeNull()
+})
+
+test('drops redirections in linear time', () => {
+  expect(plain('npm test > test.log 2>&1')).toBe('npm test')
+  expect(plain('npm test>test.log && ls 12>>err')).toBe('npm test && ls')
+  expect(plain('npm test &> test.log; x 1 2>&1')).toBe('npm test; x 1')
+  // Long runs of spaces or digits without a redirection took seconds with a backtracking expression.
+  const start = Date.now()
+  for (const command of [`a${' '.repeat(50000)}b`, `${'1'.repeat(50000)}x`]) expect(plain(command)).toBe(command)
+  expect(Date.now() - start).toBeLessThan(100)
 })
 
 test('off by default: no band, no prompt section, no override kept', async ($, on) => {

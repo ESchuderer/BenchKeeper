@@ -281,7 +281,7 @@ export function Agents({ overview, params, refresh }) {
           <Section title="Installed globally"><Loading state={inv} label="global items">{(items) => <GlobalItems items={items} />}</Loading></Section>
           <Group><Button leftSection={icon(IconListCheck)} onClick={() => load(chosen)} disabled={!chosen.length}>Plan setup for {chosen.length} agent{chosen.length === 1 ? '' : 's'}</Button></Group>
           {error && <Note color="red" title="Plan failed">{error}</Note>}
-          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={() => { refresh(); inv.reload(); }} /></Section>}
+          {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} scope="global" onDone={() => { refresh(); inv.reload(); }} /></Section>}
           <Text size="sm">Removing the setup: undo its runs in History. The app does not install or remove agents.</Text>
           <Cli>{`benchkeeper plan --agents ${chosen.join(',')}\nbenchkeeper apply --agents ${chosen.join(',')}`}</Cli>
         </Stack>
@@ -574,8 +574,8 @@ function Profile({ overview, refresh }) {
           {[...plans.skippedPacks, ...plans.skipped].map((m) => <Note key={m} color="yellow">Skipped {m}</Note>)}
           {plans.refused.map((m) => <Note key={m} color="yellow">Not registered: {m}</Note>)}
           {plans.notes.map((m) => <Note key={m} color="blue">{m}</Note>)}
-          <Section title="Global changes"><Plan key={plans.global.planId} plan={plans.global} onDone={refresh} /></Section>
-          {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} onDone={refresh} /></Section>)}
+          <Section title="Changes on this machine"><Plan key={plans.global.planId} plan={plans.global} onDone={refresh} scope="global" /></Section>
+          {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} onDone={refresh} scope="project" /></Section>)}
         </>
       )}
       <Cli>{`benchkeeper profile export benchkeeper-profile.json --agents ${agents.join(',') || '<a,b>'}\nbenchkeeper profile import benchkeeper-profile.json`}</Cli>

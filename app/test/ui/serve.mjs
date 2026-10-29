@@ -167,9 +167,10 @@ if (DEMO) {
   writeFileSync(join(acct('work'), 'benchkeeper/usage.json'), JSON.stringify({ checkedAt: new Date().toISOString(), fiveHour: { used: 28, resetsAt: hour + 2 * 3600 }, sevenDay: { used: 59, resetsAt: hour + 4 * 86400 } }));
 }
 
-// Claude Code and Codex transcripts for the Sessions board.
-if (DEMO) writeSessions(home, { root: parent, title: 'Fix the cart total' });
-else { writeSessions(home); writeTreeSessions(home, TREES); }
+// Claude Code and Codex transcripts for the Sessions board, dated relative to the start so the period filter keeps them.
+const now = Date.now();
+if (DEMO) writeSessions(home, { root: parent, title: 'Fix the cart total', now });
+else { writeSessions(home, { now }); writeTreeSessions(home, TREES, { now }); }
 // A Ponytail ledger file that is not one: the scan skips it with a note.
 if (!DEMO) { mkdirSync(join(home, '.config/ponytail/band'), { recursive: true }); writeFileSync(join(home, '.config/ponytail/band/broken.csv'), 'a,b\n1,2\n'); }
 

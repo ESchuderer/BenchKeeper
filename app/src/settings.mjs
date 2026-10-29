@@ -373,7 +373,7 @@ export function listSettings(ctx, agentId, { dir, advanced = false, env } = {}) 
       changed: vals.length > 0, setByApp: !!def.setup, ...(agentId === 'claude' && dflt !== undefined ? { appValue: maskSecrets(dflt, def.key) } : {}), notes: found.filter((n) => n.keys.includes(def.key)).map(({ id, level, kind, message, default: d, risk, fixChanges, source, static: s }) => ({ id, level, kind, message, default: d, risk, fixChanges, source, static: s })) };
   };
   const settings = a.settings.filter((s) => advanced || s.basic !== false).map(row);
-  const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), settings, bundles: a.bundles, notes: found.filter((n) => !n.static), dismissed: all.filter((n) => !n.static && off.has(n.id)) };
+  const result = { agent: agentId, name: a.name, layers: layers.map(({ data, ...l }) => l), precedence: a.precedence, settings, bundles: a.bundles, notes: found.filter((n) => !n.static), dismissed: all.filter((n) => !n.static && off.has(n.id)) };
   if (agentId === 'codex') result.trust = trustList(layers);
   if (!advanced) return result;
   // Advanced: every key of the pinned schemas and the reference, the app's own rows first.

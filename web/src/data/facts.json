@@ -213,7 +213,7 @@
       {
         "id": "sessions",
         "title": "Sessions board",
-        "text": "The board reads the Claude Code and Codex transcripts on this machine: per session the project, tier, pattern, the setup installed at the time, skills used, the last test run, time, tokens, cost and pull request state. Charts compare tiers, patterns and setups and mark every bar that rests on fewer than 20 sessions. The page makes no request and holds no message text.",
+        "text": "The board reads the Claude Code and Codex transcripts on this machine: per session the project, tier, pattern, the setup installed at the time, skills used, the last test run, time, tokens, cost (Claude Code) and pull request state. Charts compare tiers, patterns and setups and mark every bar that rests on fewer than 20 sessions. The page makes no request and holds no message text.",
         "evidence": "app/README.md#commands"
       },
       {
@@ -261,7 +261,7 @@
       {
         "id": "accounts",
         "title": "Accounts",
-        "text": "Several logins per agent, such as work and personal, each in its own folder on the host or a named volume in a dev container, signed in through a private browser window. `run --account` starts the agent as one of them with a filtered environment. Usage readings show what is left of the 5-hour and 7-day window (Claude Code through a status line script that `accounts track` adds, Codex from its app-server) and warn below a minimum. Auto-pick (Claude Code) and handover rotation (Claude Code and Codex) are opt-in and off by default: auto-pick starts a new run under the pool account with the most headroom, handover rotation asks, then starts the agent under that account with a handover text of the task; neither acts inside a running session.",
+        "text": "Several logins per agent, such as work and personal, each in its own folder on the host or a named volume in a dev container, signed in through a private browser window. `run --account` starts the agent as one of them with a filtered environment. Usage readings show what is left of the 5-hour and 7-day window (Claude Code through a status line script that `accounts track` adds, Codex from its app-server) and warn below a minimum. Auto-pick and handover rotation (both Claude Code only) are opt-in and off by default: auto-pick starts a new run under the pool account with the most headroom, handover rotation asks, then starts the agent under that account with a handover text of the task; neither acts inside a running session.",
         "evidence": "docs/setup.md#accounts"
       }
     ],

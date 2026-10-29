@@ -74,7 +74,7 @@ export const VIEWS: { id: string; title: string; shot: string; alt: string; text
     id: 'sessions', title: 'Sessions board', shot: 'sessions',
     alt: 'The Sessions view with the board in a frame: filters for agent, tier, pattern, setup and period, the project list open with its search, then tiles for sessions, agent time, cost, tokens, tests passed and merged pull requests.',
     text: [
-      'The board reads the Claude Code and Codex transcripts on the machine when it opens and on Rescan: per session the tier, the pattern (single, loop, group or Orca worker), the setup installed at the time, skills used, last test run, cost, time and pull request state.',
+      'The board reads the Claude Code and Codex transcripts on the machine when it opens and on Rescan: per session the tier, the pattern (single, loop, group or Orca worker), the setup installed at the time, skills used, last test run, cost (Claude Code), time and pull request state.',
       'The project list puts registered repositories first, one entry per repository with its worktrees folded in, and has a search. Comparison charts by tier, pattern and setup show how many sessions each bar rests on and mark the ones under 20. Each chart has its table behind a button.',
     ],
     cli: [`${V} sessions board`],
@@ -90,9 +90,10 @@ export const VIEWS: { id: string; title: string; shot: string; alt: string; text
   },
   {
     id: 'settings', title: 'Agent settings', shot: 'settings',
-    alt: 'The Agent settings view for Claude Code: the settings file of each layer and whether it exists, warnings for settings that weaken the setup with their sources, and the settings search.',
+    alt: 'The Agent settings view for Claude Code: hardening advice folded into one line, the count of settings that differ from the suggestion, the settings search and filters, and the first settings with a Differs from suggested marker and a Use suggested button.',
     text: [
-      'The agents\' own settings, per agent and layer, with the file of each layer and whether it exists. Warnings name settings that conflict with the setup, each with its source.',
+      'The agents\' own settings, per agent and layer. Each setting shows the value in your file, the value in effect when another source wins, and BenchKeeper\'s suggestion with its reason; Use suggested opens the change plan.',
+      'Conflicting settings are shown in full with the default, the risk and what the fix changes; hardening advice folds into one line.',
       'Every change is a plan with a diff, and History undoes it.',
     ],
     cli: [`${V} settings list --agent claude`, `${V} settings set <key> <value>`],

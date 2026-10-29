@@ -88,7 +88,7 @@ export function ActionPlan({ act, onClose, onDone }) {
         <Loading state={plan} label="skill plan">{(p) => (
           <>
             {p.warnings.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-            <Plan key={p.planId} plan={p} onDone={onDone} />
+            <Plan key={p.planId} plan={p} scope="project" onDone={onDone} />
           </>
         )}</Loading>
         <Group justify="flex-end"><Button variant="default" onClick={onClose}>Close</Button></Group>

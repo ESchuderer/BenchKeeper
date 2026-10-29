@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { AGENTS, NeedsConfirm, ROTATE_WARNING, accountDoc, accountStatus, accountsProblem, addChange, commit, findAccount, handover, limitsChange, listAccounts, login, loginVars, newAccount, pickAccount, registrySettings, removeChange, rotationFor, runAs, settingsChange, store, tokenChange, trackChanges, trackContainer, useChange, writeContainer, writeHandover } from './accounts.mjs';
-import { ROTATE, WINDOWS, limitsFor, settingsOf } from './usage.mjs';
+import { ROTATABLE, ROTATE, WINDOWS, limitsFor, settingsOf } from './usage.mjs';
 import { agent, detect, unavailable } from './agents.mjs';
 import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
 import { PROFILES, baselineIssues } from './baseline.mjs';
@@ -222,17 +222,17 @@ Usage: benchkeeper <command> [options]
                                     run. A plan with a diff and undo; a dev container account is written through devcontainer exec
   accounts limits [name] [--five-hour N] [--seven-day N] [--warn-five-hour N] [--warn-seven-day N]
                   [--pool name|none] [--auto-pick on|off] [--when-none stop|wait] [--continue-below on|off]
-                  [--rotate-claude off|handover] [--rotate-codex off|handover] [--reset]
+                  [--rotate-claude off|handover] [--reset]
                                     the minimum headroom (percent, defaults 8 and 3) below which run asks first, and the notice
                                     level before it (default twice the minimum); with a name, that account's own values and
                                     --pool (accounts of one person that auto-pick may choose among). Without a name:
                                     the defaults, --auto-pick (off by default: a new run under the default account starts under
                                     a pool member with headroom; the provider's terms on rotating accounts are unclear, so you
                                     carry that call), --when-none (no member has headroom: stop, or wait for the earliest
-                                    reset), --continue-below (run starts below the minimum without asking) and --rotate-<agent>
-                                    (off by default, or handover: see accounts handover). No flag shows them
+                                    reset), --continue-below (run starts below the minimum without asking) and --rotate-claude
+                                    (off by default, or handover: see accounts handover; Claude Code only). No flag shows them
   accounts handover <name> [--project dir] [--yes]
-                                    opt-in rotation (accounts limits --rotate-<agent> handover): when the account is below its
+                                    opt-in rotation (accounts limits --rotate-claude handover): when the account is below its
                                     minimum and another account of its pool is at or above it, shows both accounts and a
                                     handover (task, done, open, worktree and branch, uncommitted file names, next step; from
                                     git and .benchkeeper/handoff.md, no transcript text, no credential), asks (--yes or
@@ -1637,6 +1637,8 @@ function limitFlags(o, name) {
     out.rotate = { ...out.rotate, [agent]: v };
   }
   if (name && ['autoPick', 'continueBelow', 'whenNone', 'rotate'].some((k) => out[k] !== undefined)) throw new Error('--auto-pick, --when-none, --continue-below and --rotate-<agent> are settings for all accounts: leave out the account name');
+  const unavailable = Object.keys(out.rotate ?? {}).find((agent) => out.rotate[agent] === 'handover' && !ROTATABLE.includes(agent));
+  if (unavailable) throw new Error(`--rotate-${unavailable} handover is not available: rotation is for ${ROTATABLE.join(', ')} only`);
   if (!name && (out.pool !== undefined || o.reset)) throw new Error('--pool and --reset belong to one account: give its name');
   out.reset = !!o.reset;
   return out;
@@ -1776,7 +1778,7 @@ async function handoverFlow(ctx, a, { dir, yes, ask, out, after = false }) {
   const r = rotationFor(ctx, a, { dir });
   if (r.action !== 'rotate') {
     if (r.action === 'notice') out.write(`notice: account ${a.name} is below a threshold or its usage is partly unknown, and no handover goes to another account (it needs both windows known, one below the minimum and an account of pool ${a.pool ?? '(none)'} at or above its minimum)\n`);
-    else if (!after) out.write(r.setting === 'off' ? `rotation is off for ${a.agent}: accounts limits --rotate-${a.agent} handover turns it on\n` : `account ${a.name} is at or above its notice level, or its usage is unknown: no handover\n`);
+    else if (!after) out.write(!ROTATABLE.includes(a.agent) ? `rotation is not available for ${a.agent}\n` : r.setting === 'off' ? `rotation is off for ${a.agent}: accounts limits --rotate-${a.agent} handover turns it on\n` : `account ${a.name} is at or above its notice level, or its usage is unknown: no handover\n`);
     return null;
   }
   if (after && !ask.tty) { out.write(`account ${a.name} is below its minimum: benchkeeper accounts handover ${a.name} hands the work to ${r.target.name}\n`); return null; }

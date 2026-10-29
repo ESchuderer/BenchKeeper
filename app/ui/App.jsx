@@ -10,7 +10,7 @@ import { api } from './api.js';
 import { EvalJob, RunProgress } from './parts.jsx';
 import { Dot, MOD, go, href, icon, projectHref, useApi, useRoute } from './shell.jsx';
 import { AdviceJob } from './setup.jsx';
-import { FixEverything } from './fix.jsx';
+import { FixEverything, levelCounts } from './fix.jsx';
 import { ApplyProgress, OneRunDrawer, OneRunProvider } from './onerun.jsx';
 import { AgentSettings } from './agentsettings.jsx';
 import { Runs } from './runs.jsx';
@@ -70,10 +70,10 @@ function useSlash() {
 
 function DoctorBadge({ doctor }) {
   if (!doctor.data) return <Badge variant="default">Doctor: {doctor.error ? 'failed' : 'checking'}</Badge>;
-  const errors = doctor.data.filter((i) => i.level === 'error').length, warnings = doctor.data.length - errors;
+  const { error, warning, text } = levelCounts(doctor.data);
   return (
     <Anchor href={href('dashboard', { panel: 'doctor' })} underline="never">
-      <Badge variant="default" leftSection={<Dot color={errors ? 'red' : warnings ? 'yellow' : 'teal'} />}>Doctor: {errors} errors, {warnings} warnings</Badge>
+      <Badge variant="default" leftSection={<Dot color={error ? 'red' : warning ? 'yellow' : 'teal'} />}>Doctor: {text || 'no findings'}</Badge>
     </Anchor>
   );
 }

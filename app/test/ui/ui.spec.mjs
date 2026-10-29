@@ -34,6 +34,15 @@ async function noAxe(page) {
     expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
   }
 }
+// A view is up once its CLI block shows; Agent settings has none, its count line shows instead.
+const ready = (page) => page.getByText('CLI', { exact: true }).or(page.getByText(/settings with a suggestion differ from it/));
+// A plan's diffs are folded: open each before reading one.
+const openDiffs = async (scope) => {
+  const buttons = scope.getByRole('button', { name: /^Show file diff of / });
+  await expect(buttons.first()).toBeVisible();
+  // An opened fold renames its button, so the first one left is always the next.
+  for (let n = await buttons.count(); n > 0; n--) await buttons.first().click();
+};
 const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 
 test.describe.configure({ mode: 'serial' });
@@ -70,7 +79,7 @@ test.describe('views', () => {
     for (const scheme of ['light', 'dark']) {
       test(`no axe violations in ${view}, ${scheme} mode`, async ({ page }) => {
         await nav(page, view).click();
-        await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+        await expect(ready(page)).toBeVisible();
         await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
         const { violations } = await new AxeBuilder({ page }).analyze();
         expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
@@ -84,7 +93,7 @@ test.describe('views', () => {
       test(`no axe violations in ${view}, ${scheme} mode, phone width`, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto(`/#/${route}`);
-        await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+        await expect(ready(page)).toBeVisible();
         await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
         const { violations } = await new AxeBuilder({ page }).analyze();
         expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
@@ -128,7 +137,7 @@ test.describe('views', () => {
     const theme = page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /theme$/ });
     await expect.poll(async () => (await theme.boundingBox()).x).toBeGreaterThanOrEqual(0);
     await expect(page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: 'Stop BenchKeeper' })).toBeVisible();
-    await expect(page.getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Doctor: \d+ errors?, \d+ warnings?$/ })).toBeVisible();
   });
 
   test('skip link: the first Tab stop moves focus to the view heading; each view has a title and a heading', async ({ page }) => {
@@ -436,6 +445,21 @@ test.describe('views', () => {
     await expect(page.getByText('Nothing needs attention.')).toHaveCount(0);
   });
 
+  test('Dashboard: a failed dashboard request shows one alert with one Try again, and the panels it feeds say Not loaded', async ({ page }) => {
+    let fail = true;
+    await page.route(/\/api\/dashboard(\?|$)/, (route) => (fail ? route.fulfill({ status: 500, json: { error: 'stubbed failure' } }) : route.fallback()));
+    await page.reload();
+    const alert = page.getByRole('alert').filter({ hasText: 'Dashboard data not loaded' });
+    await expect(alert).toHaveCount(1);
+    await expect(alert).toContainText('stubbed failure');
+    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Health' })).toContainText('Not loaded.');
+    fail = false;
+    await alert.getByRole('button', { name: 'Try again' }).click();
+    await expect(alert).toHaveCount(0);
+    await expect(page.getByRole('img', { name: /^Items by state: / })).toBeVisible();
+  });
+
   test('Dashboard: installed, health and coverage figures are links with a keyboard path; the catalog by pack is a sorted list', async ({ page }) => {
     await page.getByText('More about the setup').click();
     const installed = page.getByRole('table', { name: 'Installed skills and packs' });
@@ -475,7 +499,7 @@ test.describe('views', () => {
     const doctor = page.getByRole('region', { name: 'Doctor' });
     await doctor.getByRole('row', { name: /Claude Code rules/ }).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('Claude Code rules');
-    await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors, \d+ warnings$/ })).toBeVisible();
+    await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors?, \d+ warnings?$/ })).toBeVisible();
   });
 
   test('Dashboard: a doctor cell shows the action, a source URL sits behind a link, a run id opens History', async ({ page }) => {
@@ -489,17 +513,45 @@ test.describe('views', () => {
     await expect(page.getByRole('region', { name: /^Run / })).toBeVisible();
   });
 
-  test('Insights: Apply opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
+  test('Doctor counts: the header, the Dashboard and Insights count errors, warnings and info alike; an info finding has the info color', async ({ page }) => {
+    const info = { level: 'info', check: 'allow-rules', message: 'Claude Code allows WebFetch (user, settings.json): every WebFetch call', fix: 'information only, nothing is changed' };
+    await page.route(/\/api\/doctor(\?|$)/, async (route) => route.fulfill({ json: [...await (await route.fetch()).json(), info] }));
+    await page.route(/\/api\/insights(\?|$)/, async (route) => {
+      const real = await (await route.fetch()).json();
+      route.fulfill({ json: { ...real, findings: [...real.findings, { ...real.findings.at(-1), key: 'info-test', id: 'info-test', severity: 'info', message: info.message, triage: null }] } });
+    });
+    await page.goto('/#/dashboard');
+    await page.reload();
+    const badge = page.getByRole('banner').getByRole('link', { name: /^Doctor: / });
+    await expect(badge).toHaveText(/^Doctor: \d+ errors?, \d+ warnings?, 1 info$/);
+    const counts = (await badge.textContent()).slice('Doctor: '.length);
+    await expect(page.getByRole('region', { name: 'Doctor' }).getByRole('row', { name: /allows WebFetch/ }).locator('.bk-dot')).toHaveAttribute('style', /--mantine-color-blue-filled/);
+    await expect(page.getByText(counts, { exact: true })).toHaveCount(2);
+    await nav(page, 'Insights').click();
+    await expect(page.getByText(new RegExp(`^\\d+ findings: ${counts}\\. Do first: `))).toBeVisible();
+  });
+
+  test('Insights: the summary names the count and the first finding, findings are grouped by severity and area; a card names its action as the Doctor table does and links its fix source, the action opens the plan, Dismiss and Snooze hide a card and a reload keeps it, Show again brings it back; focus moves to the next finding or the list and the status says what happened; other evidence and an ended snooze show; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const card = (re) => page.getByRole('article', { name: re });
     const market = card(/marketplace benchkeeper$/), deny = card(/No Read deny rule/), scrub = card(/SUBPROCESS_ENV_SCRUB/);
     // The seeded dismissal belongs to other evidence and the seeded snooze has ended: both findings show.
     await expect(deny).toBeVisible();
     await expect(scrub).toBeVisible();
-    await expect(deny.getByRole('link', { name: 'Apply' })).toHaveAttribute('href', /^#\/agent-settings/);
+    await expect(deny.getByRole('link', { name: 'Open settings' })).toHaveAttribute('href', /^#\/agent-settings/);
     await expect(deny).toContainText('permissions.deny');
+    await expect(deny.getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', /^https:\/\//);
+    await expect(deny).not.toContainText('(https://');
+    await expect(page.getByText(/^\d+ findings: \d+ (error|warning).*\. Do first: /)).toBeVisible();
+    await expect(page.getByText(/^Checked at \d\d:\d\d: the doctor's checks/)).toBeVisible();
+    await expect(page.getByRole('heading', { level: 3, name: 'Setup' }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 3, name: 'Agent settings' })).toBeVisible();
+    // Do first names the first card and moves focus to it.
+    const first = page.getByRole('article').first().getByRole('heading');
+    await page.getByRole('button', { name: await first.textContent(), exact: true }).click();
+    await expect(first).toBeFocused();
     await noAxe(page);
-    await card(/plugin benchkeeper@benchkeeper$/).getByRole('link', { name: 'Apply' }).click();
+    await card(/plugin benchkeeper@benchkeeper$/).getByRole('link', { name: 'Plan fix' }).click();
     await expect(page).toHaveURL(/#\/agents\?plan=1$/);
     await expect(page.getByRole('region', { name: 'Changes' })).toBeVisible();
     await nav(page, 'Insights').click();
@@ -522,8 +574,8 @@ test.describe('views', () => {
     await expect(deny).toBeVisible();
     await expect(market).toHaveCount(0);
     await expect(scrub).toHaveCount(0);
-    const hidden = page.getByRole('region', { name: 'Hidden findings' });
-    await hidden.getByRole('button', { name: 'Hidden (2)' }).click();
+    const hidden = page.getByRole('region', { name: 'Dismissed and snoozed findings' });
+    await hidden.getByRole('button', { name: 'Dismissed and snoozed (2)' }).click();
     const week = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
     await expect(hidden).toContainText('Dismissed');
     await expect(hidden).toContainText(`Snoozed until ${week}`);
@@ -557,8 +609,8 @@ test.describe('views', () => {
     const focused = await page.evaluate(() => document.activeElement.id);
     expect(await page.locator('article').evaluateAll((all) => all.map((a) => a.getAttribute('aria-labelledby')))).toContain(focused);
     await page.unroute(/\/api\/insights-triage$/);
-    const hidden = page.getByRole('region', { name: 'Hidden findings' });
-    await hidden.getByRole('button', { name: /^Hidden/ }).click();
+    const hidden = page.getByRole('region', { name: 'Dismissed and snoozed findings' });
+    await hidden.getByRole('button', { name: /^Dismissed and snoozed/ }).click();
     await hidden.getByRole('button', { name: 'Show again' }).click();
     await expect(hidden).toHaveCount(0);
   });
@@ -566,6 +618,9 @@ test.describe('views', () => {
   test('Insights narrative: the input is on the page, the first run asks for consent, the text is marked as model text and a dismissal drops it; no axe violations', async ({ page }) => {
     await nav(page, 'Insights').click();
     const narrative = page.getByRole('region', { name: 'Adviser narrative' });
+    // Opt-in: folded until a narrative exists.
+    await expect(narrative).toBeHidden();
+    await page.getByText('Adviser narrative', { exact: true }).click();
     await expect(narrative).toBeVisible();
     await narrative.getByRole('button', { name: /^Input sent to the agent \(\d/ }).click();
     await expect(narrative.locator('#narrative-input')).toContainText('"findings"');
@@ -583,8 +638,8 @@ test.describe('views', () => {
     await expect(narrative.getByRole('button', { name: 'Write again with Claude Code' })).toBeVisible();
     await page.getByRole('article', { name: /SUBPROCESS_ENV_SCRUB/ }).getByRole('button', { name: 'Dismiss' }).click();
     await expect(narrative.getByText('Model text')).toHaveCount(0);
-    const hidden = page.getByRole('region', { name: 'Hidden findings' });
-    await hidden.getByRole('button', { name: /^Hidden/ }).click();
+    const hidden = page.getByRole('region', { name: 'Dismissed and snoozed findings' });
+    await hidden.getByRole('button', { name: /^Dismissed and snoozed/ }).click();
     await hidden.getByRole('button', { name: 'Show again' }).click();
   });
 
@@ -748,7 +803,7 @@ test.describe('views', () => {
     await expect(page).toHaveURL(/#\/projects\/[^/?]+$/);
     await expect(page.getByRole('region', { name: 'Project doctor' })).toBeVisible();
     await page.getByRole('tab', { name: 'Installs' }).click();
-    const changes = page.getByRole('region', { name: /^Changes in / });
+    const changes = page.getByRole('region', { name: 'Changes', exact: true });
     await expect(changes).toBeVisible();
     const skill = page.getByRole('region', { name: 'Skills' }).getByRole('switch').first();
     await skill.click();
@@ -953,7 +1008,7 @@ test.describe('views', () => {
     await page.keyboard.press('ArrowRight');
     await expect(tabs.getByRole('tab', { name: 'Installs' })).toHaveAttribute('aria-selected', 'true');
     await expect(page).toHaveURL((u) => u.hash === route('installs'));
-    await expect(project.getByRole('region', { name: /^Changes in / })).toBeVisible();
+    await expect(project.getByRole('region', { name: 'Changes', exact: true })).toBeVisible();
     // History: only this project's runs; reload keeps the tab, Back returns to the one before.
     await tabs.getByRole('tab', { name: 'History' }).click();
     await expect(page).toHaveURL((u) => u.hash === route('history'));
@@ -1008,7 +1063,7 @@ test.describe('views', () => {
     await expect(global.getByRole('link', { name: 'Change them in Global setup' })).toHaveAttribute('href', '#/agents');
     // An agent file switched on by keyboard: the plan fetches it; switched off again, nothing is written.
     const file = page.getByRole('region', { name: 'Agent files' }).getByRole('switch').first();
-    const changes = page.getByRole('region', { name: /^Changes in / });
+    const changes = page.getByRole('region', { name: 'Changes', exact: true });
     await file.focus();
     await page.keyboard.press('Space');
     await expect(file).toBeChecked();
@@ -1051,7 +1106,7 @@ test.describe('views', () => {
     await page.route(/\/api\/apply$/, (route) => route.fulfill({ json: { job: 'stub-job', total: 1 } }));
     await page.route(/\/api\/job\?id=stub-job$/, async (route) => route.fulfill({ json: await Promise.race([done, { done: false, run: { entries: [] } }]) }));
     await file.click();
-    const changes = page.getByRole('region', { name: /^Changes in / });
+    const changes = page.getByRole('region', { name: 'Changes', exact: true });
     await changes.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
     await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeFocused();
     for (const s of [skill, pack, file]) await expect(s).toBeDisabled();
@@ -1248,7 +1303,7 @@ test.describe('views', () => {
     await expect(packs.getByRole('group', { name: 'More packs' })).toContainText('The repository has or adds browser tests');
     await frontend.click();
     await expect(frontend).not.toBeChecked();
-    const changes = page.getByRole('region', { name: /^Changes in / });
+    const changes = page.getByRole('region', { name: 'Changes', exact: true });
     await expect(changes.getByRole('group', { name: 'Remove', exact: true })).toBeVisible();
     await expect(changes).toContainText('designing-technical-uis');
     await noAxe(page);
@@ -1321,6 +1376,7 @@ test.describe('views', () => {
     // Reset: the diff against the library comes first; the edit is in the run's backup.
     await own.getByRole('button', { name: /^Reset/ }).click();
     const reset = page.getByRole('dialog', { name: 'Reset designing-technical-uis in sk-proj' });
+    await openDiffs(reset);
     await expect(reset.getByRole('group', { name: /^Diff of .*SKILL\.md$/ })).toContainText('edited here');
     await noAxe(page);
     await reset.getByRole('button', { name: /^Apply \d+ changes$/ }).click();
@@ -1389,6 +1445,7 @@ test.describe('views', () => {
     expect(prompts[0].command).toMatch(/^benchkeeper sessions record --project '.+' -- claude '\/benchkeeper:setting-up-projects'$/);
     await expect(drawer.getByText(prompts[0].command)).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'Copy the command for /benchkeeper:setting-up-projects' })).toBeVisible();
+    await openDiffs(drawer);
     await expect(drawer).toContainText('CLAUDE.local.md');
     // The summary shows every answer next to its step; Change goes back to that step and one click returns.
     const answers = drawer.getByRole('list', { name: 'Your answers' });
@@ -1603,17 +1660,23 @@ test.describe('views', () => {
     const card = (name) => view.getByRole('group', { name, exact: true });
     await expect(card('Install')).toBeVisible();
     const cards = await view.getByRole('group').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')).filter((l) => !/go together|^About /.test(l) && l !== 'Selected changes'));
-    expect(cards).toEqual(['Install', 'Update', 'Remove', 'Settings changes', 'Needs your action', 'Plugins BenchKeeper did not install']);
+    expect(cards).toEqual(['Install', 'Update', 'Remove', 'Settings', 'Needs your action', 'Plugins BenchKeeper did not install']);
     // No state word "foreign" and no raw command until asked for.
     await expect(view).not.toContainText('foreign');
     await expect(view).not.toContainText('claude plugin');
     await expect(card('Update')).toContainText('outdated');
     await expect(card('Update')).toContainText('modified');
-    await expect(card('Update')).toContainText('Replaces your edits in /work/u/agents.md. Undo in History restores them.');
+    // Each change says what it does, why, who it affects and how History undoes it.
+    const agents = card('Update').getByRole('group', { name: 'About agents file' });
+    await expect(agents).toContainText('What it does: Replaces your edits in /work/u/agents.md.');
+    await expect(agents).toContainText("Why: The file differs from BenchKeeper's setup.");
+    await expect(agents).toContainText('Undo: History restores your edits.');
+    await expect(agents.getByRole('link', { name: 'History' })).toHaveAttribute('href', '#/history');
     await expect(card('Remove')).toContainText('installed by you');
     await expect(card('Remove')).toContainText('installed by BenchKeeper');
-    await expect(card('Remove')).toContainText('Deletes /p/.benchkeeper/old. Undo in History puts it back.');
-    await expect(card('Settings changes').getByRole('group', { name: 'About model' })).toBeVisible();
+    await expect(card('Remove')).toContainText('What it does: Deletes /p/.benchkeeper/old.');
+    await expect(card('Remove')).toContainText('Undo: History puts the file back.');
+    await expect(card('Settings').getByRole('group', { name: 'About model' })).toBeVisible();
     await expect(card('Needs your action')).toContainText('Not applied: demo@demo is installed but turned off');
     // A long card starts folded and opens by keyboard.
     const showInstall = card('Install').getByRole('button', { name: 'Show Install' });
@@ -1623,7 +1686,7 @@ test.describe('views', () => {
     await page.keyboard.press('Enter');
     await expect(card('Install').getByRole('checkbox', { name: 'Skill-1 file.' })).toBeChecked();
     await expect(card('Install')).toContainText('new');
-    await expect(card('Install')).toContainText('Creates /work/u/skill-1.md.');
+    await expect(card('Install')).toContainText('What it does: Creates /work/u/skill-1.md.');
     // The command and its copy button behind Show command.
     const show = card('Remove').getByRole('button', { name: 'Show command of remove the Claude user MCP server demo' });
     await show.focus();
@@ -1648,7 +1711,7 @@ test.describe('views', () => {
     await page.setViewportSize({ width: 1280, height: 720 });
     // Cancel applies nothing and the plan can be reviewed again.
     await footer.getByRole('button', { name: 'Cancel' }).click();
-    await expect(view.getByRole('status')).toHaveText('Nothing applied.');
+    await expect(view.getByRole('status')).toHaveText('Cancelled. Nothing was changed.');
     await view.getByRole('button', { name: 'Review the changes again' }).click();
     await expect(footer).toContainText('13 changes selected');
   });
@@ -1740,7 +1803,7 @@ test.describe('views', () => {
     await (await chooser).setFiles(await file.path());
     await expect(page.getByRole('region', { name: 'Profile contents' })).toContainText('Agents: claude');
     await page.getByRole('button', { name: 'Register projects and packs' }).click();
-    await expect(page.getByRole('region', { name: 'Global changes' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Changes on this machine' })).toBeVisible();
     await noAxe(page);
   });
 
@@ -1748,6 +1811,7 @@ test.describe('views', () => {
   test('Agent settings: the list with its notes, a change as plan and diff, undo; advanced lists every key; no axe violations', async ({ page }) => {
     await nav(page, 'Agent settings').click();
     await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeVisible();
+    await page.getByRole('button', { name: /^Show settings files/ }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.claude/settings.json');
     // The fixture home holds the setup's advisor model: its row says what it is, and BenchKeeper's setup writes it too.
     const advisor = page.getByRole('row', { name: /advisorModel/ }).first();
@@ -1770,6 +1834,7 @@ test.describe('views', () => {
     // An environment switch is set or removed; the advisor with a telemetry switch shows the note on both rows.
     await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
     await page.getByRole('button', { name: 'Review 1 change' }).click();
+    await openDiffs(page.getByRole('region', { name: 'Changes' }));
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('"DISABLE_TELEMETRY": "1"');
     await page.getByRole('button', { name: 'Discard changes' }).click();
     // Advanced: every key, searchable; keys the app does not know are listed and kept.
@@ -1780,7 +1845,60 @@ test.describe('views', () => {
     await noAxe(page);
     // Codex: its own file and keys.
     await page.getByText('Codex', { exact: true }).click();
+    await page.getByRole('button', { name: /^Show settings files/ }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
+  });
+
+  test('Agent settings: each row compares the user file with the suggestion, Use suggested and a note fix open the plan, hardening folds, a conflict stays; no axe violations', async ({ page }) => {
+    const conflict = { id: 'stub-conflict', level: 'warning', kind: 'conflict', message: 'A stubbed conflict.', default: 'The default.', risk: 'The risk.', fixChanges: 'What changes.', keys: ['model'], source: 'https://example.com/' };
+    const view = /\/api\/settings\?agent=claude$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      await route.fulfill({ response: r, json: { ...body, notes: [conflict, ...body.notes] } });
+    });
+    await nav(page, 'Agent settings').click();
+    await expect(page.getByText(/^\d+ of \d+ settings with a suggestion differ from it in the user file\.$/)).toBeVisible();
+    // The setup's retention differs from the suggestion to leave it unset; the update channel matches.
+    const row = (key) => page.getByRole('row').filter({ has: page.locator(`[id="setting-${key}"]`) });
+    await expect(row('cleanupPeriodDays')).toContainText('Differs from suggested');
+    await expect(row('cleanupPeriodDays')).toContainText('Suggested: leave unset.');
+    await expect(row('autoUpdatesChannel')).toContainText('Matches suggested.');
+    await expect(row('autoUpdatesChannel')).not.toContainText('Differs from suggested');
+    // The conflict stays in full with its three lines; hardening advice is one folded line.
+    const notes = page.getByRole('region', { name: 'Notes on the settings' });
+    for (const t of ['Conflicting settings. A stubbed conflict.', 'Default: The default.', 'Risk: The risk.', 'What the fix changes: What changes.']) await expect(notes).toContainText(t);
+    const fold = notes.getByRole('button', { name: /^Hardening advice \(\d+\)$/ });
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(notes.getByRole('button', { name: 'Dismiss, I accept this: sandbox-off' })).toHaveCount(0);
+    await noAxe(page);
+    // Only the differences.
+    await page.getByRole('switch', { name: 'Differs from suggested' }).check();
+    await expect(row('cleanupPeriodDays')).toBeVisible();
+    await expect(row('autoUpdatesChannel')).toHaveCount(0);
+    await page.getByLabel('Search settings').fill('no such setting');
+    await page.getByRole('button', { name: 'Clear search and filters' }).click();
+    await expect(page.getByRole('switch', { name: 'Differs from suggested' })).not.toBeChecked();
+    await expect(row('autoUpdatesChannel')).toBeVisible();
+    // Use suggested stages the value and opens its plan; the row then matches in the pending changes.
+    await page.getByRole('button', { name: 'Use suggested for sandbox.enabled' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('sandbox.enabled');
+    await expect(changes.getByRole('heading', { name: 'Changes' })).toBeFocused();
+    await expect(row('sandbox.enabled')).toContainText('Matches suggested (in your changes).');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    // A hardening note's fix plans the suggestion of its setting; one without a suggested value goes to its setting.
+    await fold.click();
+    await notes.getByRole('button', { name: 'Fix, review the change: env-scrub-off' }).click();
+    await openDiffs(changes);
+    await expect(changes).toContainText('"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    await page.getByLabel('Search settings').fill('model');
+    await notes.getByRole('button', { name: 'Go to the setting: read-deny-credentials' }).click();
+    await expect(page.locator('[id="setting-permissions.deny"]')).toBeFocused();
+    await expect(page.getByLabel('Search settings')).toHaveValue('');
+    await noAxe(page);
+    await page.unroute(view);
   });
 
   test('Agent settings: Dismiss and Show again move a note between the lists, focus stays on the notes and the status says what happened', async ({ page }) => {
@@ -1808,6 +1926,26 @@ test.describe('views', () => {
     await expect(notes.getByRole('button', { name: /^Dismissed/ })).toHaveCount(0);
     await expect(notes).toBeFocused();
     await expect(status).toHaveText('Shown again: stub-note');
+    await page.unroute(view);
+    await page.unroute(/\/api\/settings-dismiss$/);
+  });
+
+  test('Agent settings: a failed Dismiss says Not saved inside the notes, and focus stays on the note', async ({ page }) => {
+    const note = { id: 'stub-note', level: 'info', kind: 'note', message: 'A stubbed note.', source: 'https://example.com/' };
+    const view = /\/api\/settings\?agent=claude$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      await route.fulfill({ response: r, json: { ...(await r.json()), notes: [note], dismissed: [] } });
+    });
+    await page.route(/\/api\/settings-dismiss$/, (route) => route.fulfill({ status: 500, json: { error: 'stubbed failure' } }));
+    await nav(page, 'Agent settings').click();
+    const notes = page.getByRole('region', { name: 'Notes on the settings' });
+    const button = notes.getByRole('button', { name: 'Dismiss, I accept this: stub-note' });
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect(notes.getByRole('alert').filter({ hasText: 'Not saved' })).toContainText('stubbed failure');
+    await expect(page.getByRole('alert').filter({ hasText: 'Not planned' })).toHaveCount(0);
+    await expect(button).toBeFocused();
     await page.unroute(view);
     await page.unroute(/\/api\/settings-dismiss$/);
   });
@@ -1875,6 +2013,7 @@ test.describe('views', () => {
     await expect(changes).toBeHidden();
     await page.getByRole('button', { name: 'Review 2 changes' }).click();
     await expect(changes).toContainText('cleanupPeriodDays');
+    await openDiffs(changes);
     await expect(changes).toContainText('"DISABLE_TELEMETRY": "1"');
     await changes.getByRole('button', { name: /^Apply 2 changes$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
@@ -1902,6 +2041,7 @@ test.describe('views', () => {
     await expect(page.getByRole('region', { name: 'Changes' })).toBeHidden();
     await page.unroute(/\/api\/settings-plan$/);
     await page.getByRole('button', { name: 'Review 2 changes' }).click();
+    await openDiffs(page.getByRole('region', { name: 'Changes' }));
     await expect(page.getByRole('region', { name: 'Changes' })).toContainText('"DISABLE_TELEMETRY": "1"');
     await page.getByRole('button', { name: 'Discard changes' }).click();
   });
@@ -1930,9 +2070,27 @@ test.describe('views', () => {
     await expect(drawer).toBeHidden();
     // A switch is a plan with a diff; the file itself is never changed.
     // The switch's track lies over its input, which Playwright's hit test refuses.
-    await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const toggle = team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ });
+    await toggle.click({ force: true });
     const changes = page.getByRole('region', { name: 'Changes' });
+    // The switch shows the requested position as pending until the plan is applied, cancelled or closed.
+    await expect(toggle).not.toBeChecked();
+    await expect(team).toContainText('Pending');
+    await expect(changes).toContainText(/What it does: Claude Code stops loading this file: about [\d,]+ tokens less in every turn\./);
+    await expect(changes).toContainText('Why: You turned the switch off in Rules.');
+    await expect(changes).toContainText('Affects: Every project on this machine.');
+    // The diff is folded.
+    const fold = changes.getByRole('button', { name: /^Show file diff of / });
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(changes).not.toContainText('claudeMdExcludes');
+    await fold.click();
     await expect(changes).toContainText('claudeMdExcludes');
+    await changes.getByRole('button', { name: 'Cancel' }).click();
+    await expect(changes.getByRole('status')).toHaveText('Cancelled. Nothing was changed.');
+    await expect(toggle).toBeChecked();
+    await expect(team).not.toContainText('Pending');
+    await changes.getByRole('button', { name: 'Review the changes again' }).click();
+    await expect(team).toContainText('Pending');
     await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await expect(team).toContainText('off');
@@ -1947,6 +2105,23 @@ test.describe('views', () => {
     await page.getByRole('option').nth(1).click();
     await expect(page.getByRole('heading', { level: 3, name: 'Claude Code files for this project' })).toBeVisible();
     await noAxe(page);
+  });
+
+  test('Rules: a path-scoped file costs its tokens only in the turns it loads for matching files', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      const agents = body.agents.map((a) => ({ ...a, rows: a.rows.map((row) => (/20-team\.md$/.test(row.path) ? { ...row, load: 'path-scoped' } : row)) }));
+      await route.fulfill({ response: r, json: { ...body, agents } });
+    });
+    await nav(page, 'Rules').click();
+    const team = page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ });
+    await team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText(/What it does: Claude Code stops loading this file: about [\d,]+ tokens less in each turn it loads for matching files\./);
+    await changes.getByRole('button', { name: 'Cancel' }).click();
+    await page.unroute(view);
   });
 
   test('Editors: off, no sidebar entry and no route; on, a file is edited with live validation, planned, applied and undone; no axe violations at desktop and phone width', async ({ page }) => {
@@ -1977,6 +2152,8 @@ test.describe('views', () => {
     await page.getByRole('button', { name: 'Review change' }).click();
     const changes = page.getByRole('region', { name: 'Changes' });
     await expect(changes).toContainText('Write .benchkeeper/pins.json');
+    await expect(changes).toContainText('Why: You edited this file here.');
+    await openDiffs(changes);
     await expect(changes).toContainText('"// why": "kept"');
     await page.mouse.move(0, 0);
     await noAxe(page);
@@ -2229,8 +2406,10 @@ test.describe('views', () => {
     await expect(duo).toContainText('Suggested by Claude Code: skill designing-technical-uis');
     const uno = drawer.getByRole('region', { name: 'uno', exact: true });
     await expect(uno.getByRole('group', { name: /^Diff of / })).toHaveCount(0);
-    await uno.getByRole('button', { name: /^Show diff of / }).first().click();
+    await uno.getByRole('button', { name: /^Show file diff of / }).first().click();
     await expect(uno.getByRole('group', { name: /^Diff of .*CLAUDE\.local\.md$/ })).toBeVisible();
+    // A change without an install unit names the section's scope.
+    await expect(uno).toContainText('Affects: This project only.');
     // Guards keep the saved choice of a project set up before and are on for a new one, as in the wizard.
     await expect(uno).toContainText('guards on');
     await expect(uno).not.toContainText('guard hook removed');

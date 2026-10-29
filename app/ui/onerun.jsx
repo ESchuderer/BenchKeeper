@@ -257,15 +257,15 @@ function ReviewSection({ item, patch }) {
       {item.setup && <Answers item={item} patch={patch} />}
       {item.planError && <Note color="red" title="No plan for these answers">{item.planError}</Note>}
       {plan.warnings?.map((w) => <Note key={w} color="yellow">{w}</Note>)}
-      <PlanBody plan={plan} select={item.select} setSelect={setSelect} />
+      <PlanBody plan={plan} select={item.select} setSelect={setSelect} scope={path ? 'project' : 'global'} />
     </Stack>
   );
 }
 
 // Changes as ChangeList shows them, with each diff behind a button and its skill installs rehearsed.
-function PlanBody({ plan, select, setSelect }) {
+function PlanBody({ plan, select, setSelect, scope }) {
   const prerun = usePrerun(plan);
-  return <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} collapsed />;
+  return <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} scope={scope} />;
 }
 
 // A project's answers, editable in place: an edit builds that project's plan again, with its changes checked as by default.

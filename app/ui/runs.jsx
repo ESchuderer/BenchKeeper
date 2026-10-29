@@ -81,9 +81,12 @@ export function Surfaces() {
   const [plan, setPlan] = useState(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
+  // While a plan is asked for, the switch ignores input: a second answer could replace a plan that already applies.
+  const [asking, setAsking] = useState(false);
   const ask = async (on) => {
-    setError(null); setPlan(null);
+    setError(null); setPlan(null); setAsking(true);
     try { setPlan({ on, plan: await api('/api/settings-plan', { agent: 'claude', layer: 'user', edits: { [band.data.key]: on } }) }); } catch (e) { setError(e.message); }
+    setAsking(false);
   };
   return (
     <Section title="Views and their cost">
@@ -95,7 +98,7 @@ export function Surfaces() {
       </List>
       <Loading state={band} label="tier strip setting">{(b) => (
         <PlanSwitch name="Terminal tier strip" description="The plugin option in your Claude Code user settings, applied as a plan you can undo." on={b.on}
-          pending={plan && !plan.done ? plan : null} off={running} onAsk={ask} onClear={() => setPlan(null)} />
+          pending={plan && !plan.done ? plan : null} off={running || asking} onAsk={ask} onClear={() => setPlan(null)} />
       )}</Loading>
       {error && <Note color="red" title="Not planned">{error}</Note>}
       {plan && (

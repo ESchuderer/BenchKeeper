@@ -947,6 +947,14 @@ test('runs: without the IDE its runs are null and it is asked nothing more; the 
   assert.deepEqual(asked.filter((c) => /orca/.test(c)).map((c) => c.replace(/^\/\S*\//, '')), ['orca --version', 'orca-ide --version', 'orca --version']);
 });
 
+test('a settings plan with two changes to one key: the second is compared with the file the first leaves', () => {
+  const { ctx, routes } = fixture();
+  mkdirSync(join(ctx.home, '.claude'), { recursive: true });
+  writeFileSync(join(ctx.home, '.claude/settings.json'), JSON.stringify({ sandbox: { enabled: false } }));
+  const plan = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { sandbox: { enabled: true }, 'sandbox.enabled': false } });
+  assert.deepEqual(plan.changes.map((c) => c.keyState), ['changed', 'changed']);
+});
+
 test('the tier strip switch: off by default; on and off are plans in the Claude Code user settings, and off can be undone', async () => {
   const { ctx, routes } = fixture();
   const file = join(ctx.home, '.claude/settings.json');

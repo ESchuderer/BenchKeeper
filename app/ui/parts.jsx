@@ -365,12 +365,22 @@ export function Plan({ plan, onDone, onRunning, onCancel, why, scope }) {
         style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--mantine-color-body)', borderTop: '1px solid var(--mantine-color-default-border)' }}>
         <Text size="sm" role="status">{select.length} {select.length === 1 ? 'change' : 'changes'} selected</Text>
         <Group gap="xs">
-          <Button variant="default" onClick={() => cancel(true)}>Cancel</Button>
+          {/* While the apply request is out, Cancel would hide a job that has started. */}
+          <Button variant="default" data-disabled={busy || undefined} aria-disabled={busy || undefined} onClick={() => !busy && cancel(true)}>Cancel</Button>
           <Button leftSection={icon(IconPlayerPlay)} onClick={run} loading={busy} disabled={!select.length} aria-label={`Apply ${select.length} ${select.length === 1 ? 'change' : 'changes'}`}>Apply</Button>
         </Group>
       </Group>
     </Stack>
   );
+}
+
+// The apply state of a view's open plan: running for its controls, idle() for a plan that arrives later (asked for
+// before the apply started), which must not replace a running plan: that drops the run's view and its reload.
+export function usePlanRunning() {
+  const [running, setRunning] = useState(false);
+  const now = useRef(false);
+  const onRunning = (on) => { now.current = on; setRunning(on); };
+  return [running, onRunning, () => !now.current];
 }
 
 // Close under a plan: while it applies, closing would drop the run's view and its reload, so the button ignores clicks

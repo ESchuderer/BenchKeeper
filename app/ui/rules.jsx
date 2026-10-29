@@ -2,7 +2,7 @@ import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Tabl
 import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, PlanClose, PlanSwitch, Section } from './parts.jsx';
+import { Cli, Plan, PlanClose, PlanSwitch, Section, usePlanRunning } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const GLOBAL = 'global';
@@ -203,7 +203,7 @@ export function Rules({ overview, params, refresh, project }) {
   const projects = overview.data?.projects ?? [];
   const [dir, setDir] = useState(project ?? params.get('path') ?? GLOBAL);
   const [pending, setPending] = useState(null);
-  const [running, setRunning] = useState(false);
+  const [running, setRunning, idle] = usePlanRunning();
   const [preview, setPreview] = useState(null);
   const chosen = dir === GLOBAL ? undefined : dir;
   // A plan asked for under another selection is dropped when it arrives.
@@ -211,7 +211,7 @@ export function Rules({ overview, params, refresh, project }) {
   shown.current = chosen;
   const state = useApi(`/api/rules${chosen ? `?${new URLSearchParams({ dir: chosen })}` : ''}`);
   const choose = (v) => { if (running) return; setDir(v ?? GLOBAL); setPending(null); };
-  const onPlan = (p) => { if (p.dir === shown.current) setPending(p); };
+  const onPlan = (p) => { if (p.dir === shown.current && idle()) setPending(p); };
   return (
     <Stack gap="lg">
       <Note>The instruction files the agents load, who wrote them, what they cost in context and what the checks found. A file that is not BenchKeeper's is yours: nothing here deletes it. A switch is a plan with a diff, and History undoes it.</Note>

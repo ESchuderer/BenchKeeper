@@ -2135,6 +2135,60 @@ test.describe('views', () => {
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
   });
 
+  test('Rules: a plan answer that arrives while an apply runs does not replace the running plan', async ({ page }) => {
+    const view = /\/api\/rules$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      const row = body.agents[0].rows.find((x) => /20-team\.md$/.test(x.path));
+      await route.fulfill({ response: r, json: { ...body, findings: [{ level: 'warn', message: `${row.shown} is long`, fix: 'Split it.', file: row.shown, action: { agent: body.agents[0].id, file: row.path } }] } });
+    });
+    let answerPlan, answerJob;
+    const planHeld = new Promise((resolve) => { answerPlan = resolve; });
+    const jobHeld = new Promise((resolve) => { answerJob = resolve; });
+    let asked = 0;
+    await page.route(/\/api\/rules-plan$/, async (route) => { if (asked++) await planHeld; await route.continue(); });
+    await page.route(/\/api\/job\?/, async (route) => { await jobHeld; await route.continue(); });
+    await nav(page, 'Rules').click();
+    await page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ }).getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    const apply = changes.getByRole('button', { name: /^Apply 1 change$/ });
+    await expect(apply).toBeVisible();
+    // A second plan is asked for, and its answer comes only after the first plan started to apply.
+    await page.getByRole('table', { name: 'Rule findings' }).getByRole('button', { name: /^Turn off / }).click();
+    await apply.click();
+    await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
+    const late = page.waitForResponse(/\/api\/rules-plan$/);
+    answerPlan();
+    await late;
+    answerJob();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await page.unroute(view);
+    await page.unroute(/\/api\/rules-plan$/);
+    await page.unroute(/\/api\/job\?/);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
+  test('A plan: while the apply request is out, Cancel ignores input and the job shows when it starts', async ({ page }) => {
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/apply$/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Rules').click();
+    await page.getByRole('table', { name: 'Claude Code instruction files' }).getByRole('row', { name: /20-team\.md/ }).getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ }).click({ force: true });
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
+    const cancel = changes.getByRole('button', { name: 'Cancel' });
+    await expect(cancel).toHaveAttribute('aria-disabled', 'true');
+    await cancel.click({ force: true });
+    await expect(changes).not.toContainText('Cancelled');
+    answer();
+    await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
+    await page.unroute(/\/api\/apply$/);
+    await changes.getByRole('button', { name: 'Undo run' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
+  });
+
   test('A settings merge into a hand-edited file: the Rules switch and the Agent settings plans name the key, not the file state', async ({ page }) => {
     // The fixture's settings file as one the user edited by hand: the server's own plan, its file state modified.
     const edited = async (route) => {
@@ -2347,6 +2401,22 @@ test.describe('views', () => {
     await expect(views.getByRole('switch', { name: 'Terminal tier strip: Pending' })).toBeChecked();
     await views.getByRole('region', { name: 'Changes' }).getByRole('button', { name: 'Close' }).click();
     await expect(views.getByRole('switch', { name: 'Terminal tier strip: Off' })).not.toBeChecked();
+  });
+
+  test('Preferences: the tier strip switch ignores input while its plan is asked for', async ({ page }) => {
+    let answer;
+    const held = new Promise((resolve) => { answer = resolve; });
+    await page.route(/\/api\/settings-plan$/, async (route) => { await held; await route.continue(); });
+    await nav(page, 'Preferences').click();
+    const views = page.getByRole('region', { name: 'Views and their cost' });
+    const strip = views.getByRole('switch', { name: 'Terminal tier strip: Off' });
+    await strip.click({ force: true });
+    await expect(strip).toHaveAttribute('aria-disabled', 'true');
+    answer();
+    const changes = views.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('Why: You turned the tier strip on in Preferences.');
+    await page.unroute(/\/api\/settings-plan$/);
+    await changes.getByRole('button', { name: 'Close' }).click();
   });
 
   test('Accounts: a late answer for the project chosen before is dropped; clearing the project clears a container card', async ({ page }) => {

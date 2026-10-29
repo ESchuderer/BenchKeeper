@@ -473,7 +473,8 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
     if (stored == null) { const parent = dig(after, path.slice(0, -1)); if (parent && typeof parent === 'object') delete parent[path.at(-1)]; } else {
       let o = after;
       for (const seg of path.slice(0, -1)) o = (o[seg] != null && typeof o[seg] === 'object') ? o[seg] : (o[seg] = {});
-      o[path.at(-1)] = stored;
+      // A copy: a later edit of a key inside this value must not change what this edit writes.
+      o[path.at(-1)] = structuredClone(stored);
     }
     const secret = isSecretName(key) || path.some(isSecretName);
     const shown = stored == null ? 'removed' : `= ${secret ? MASK : JSON.stringify(maskSecrets(stored, key))}`;

@@ -2,7 +2,7 @@ import { Badge, Button, Code, Group, Select, Stack, Table, Text, TextInput } fro
 import { IconDownload, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, PlanClose, Section } from './parts.jsx';
+import { Cli, Plan, PlanClose, Section, usePlanRunning } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const TIER = { generic: 'generic', user: 'private' };
@@ -70,12 +70,12 @@ export function Automations({ overview, refresh }) {
   const state = useApi('/api/automations');
   const projects = overview.data?.projects ?? [];
   const [pending, setPending] = useState(null);
-  const [running, setRunning] = useState(false);
+  const [running, setRunning, idle] = usePlanRunning();
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
   const plan = async (body) => {
     setError(null);
-    try { setPending({ plan: await api('/api/automations-plan', body), why: `You asked to ${body.op} this automation in Automations.` }); setForm(null); } catch (e) { setError(e.message); }
+    try { const p = await api('/api/automations-plan', body); if (idle()) { setPending({ plan: p, why: `You asked to ${body.op} this automation in Automations.` }); setForm(null); } } catch (e) { setError(e.message); }
   };
   const done = () => { state.reload(); refresh(); };
   return (

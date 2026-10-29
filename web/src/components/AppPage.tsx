@@ -45,10 +45,10 @@ export const VIEWS: { id: string; title: string; shot: string; alt: string; text
   },
   {
     id: 'projects', title: 'Projects and pack switching', shot: 'projects',
-    alt: 'The Projects view: a table of two projects with setup, skills and pending changes, and the detail of shop with its packs as switches, the pack in use first, each with what it is for and its number of skills.',
+    alt: 'The Installs tab of the project shop, outdated with one finding: its packs as switches, the pack in use or suggested first, then the others, each with its scope, its state, what it is for and what turning it on copies.',
     text: [
-      'Each registered project shows its setup, skills, pending changes and Git state. A project is behind when its setup version differs from the one of the app.',
-      'The detail lists the packs in use or suggested first, then the others, each with a switch and what it is for. A switch is a plan with a diff, and History undoes it.',
+      'Each registered project is a card with its health, setup, packs and sessions of the last 30 days. A project is behind when its setup version differs from the one of the app.',
+      'The Installs tab of a project lists the packs in use or suggested first, then the others, each with a switch and what it is for. A switch is a plan with a diff, and History undoes it.',
     ],
     cli: [`${V} projects list`, `${V} packs enable <id> --project <dir>`],
   },

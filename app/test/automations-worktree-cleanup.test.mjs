@@ -140,6 +140,18 @@ test('worktree-cleanup sweep: lists before act removes merged work with its cont
   } finally { session.kill(); }
 });
 
+test('worktree-cleanup: a branch whose tip moves during the removal is kept and the worktree reported as removed', sh, () => {
+  const f = fixture();
+  const done = f.worktree('done');
+  f.merged('done', commit(done, 'a'));
+  // A podman whose container removal adds a commit to the branch, as a commit from elsewhere would.
+  writeFileSync(join(f.bin, 'podman'), `#!/bin/sh\ncase "$*" in "ps -a -q"*) echo c1 ;; "rm -v c1") git update-ref refs/heads/done "$(git -c user.name=t -c user.email=t@example.com commit-tree -p done -m b done^{tree})" ;; esac\n`, { mode: 0o755 });
+  const act = f.sweep('act');
+  assert.deepEqual(act.out.slice(1), [`removed container c1 ${done}`, `removed worktree ${done} done`, 'kept branch done moved']);
+  assert.ok(!existsSync(done));
+  assert.deepEqual(f.branches().sort(), ['done', 'main']);
+});
+
 test('worktree-cleanup: a file named like a rebuildable folder, an untracked file and a failing ignored-file scan keep the worktree', sh, () => {
   const f = fixture();
   writeFileSync(join(f.repo, '.gitignore'), 'dist\n');

@@ -349,7 +349,7 @@ test('projects audit prints a Markdown report; --json one document under the env
 test('--only is refused outside projects audit', async () => {
   const text = await run(['projects', 'list', '--only', 'tests']);
   assert.equal(text.code, 2);
-  assert.match(text.text, /--only belongs to projects audit/);
+  assert.match(text.text, /--only does not belong to projects list/);
 });
 
 test('projects audit refuses an unknown group, a missing folder and extra arguments with exit 2', async () => {

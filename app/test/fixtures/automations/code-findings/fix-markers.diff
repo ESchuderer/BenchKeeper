@@ -1,0 +1,17 @@
+diff --git a/src/a.js b/src/a.js
+index 1111111..2222222 100644
+--- a/src/a.js
++++ b/src/a.js
+@@ -1,2 +1,4 @@
++/* v8 ignore next */
+ if (rare) handle();
++// stryker-disable-next-line all
+ export const x = 1;
+diff --git a/pkg/mod.py b/pkg/mod.py
+index 1111111..2222222 100644
+--- a/pkg/mod.py
++++ b/pkg/mod.py
+@@ -1,2 +1,2 @@
+ def rare():
+-    return 1
++    return 1  # pragma: no cover

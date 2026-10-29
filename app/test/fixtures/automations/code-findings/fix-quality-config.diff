@@ -1,0 +1,41 @@
+diff --git a/knip.json b/knip.json
+index 1111111..2222222 100644
+--- a/knip.json
++++ b/knip.json
+@@ -1,3 +1,3 @@
+ {
+-  "ignore": []
++  "ignore": ["src/a.js"]
+ }
+diff --git a/tsconfig.json b/tsconfig.json
+index 1111111..2222222 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -1,3 +1,3 @@
+ {
+-  "compilerOptions": { "strict": true }
++  "compilerOptions": { "strict": false }
+ }
+diff --git a/biome-quality.jsonc b/biome-quality.jsonc
+index 1111111..2222222 100644
+--- a/biome-quality.jsonc
++++ b/biome-quality.jsonc
+@@ -1 +1 @@
+-{ "linter": { "enabled": true } }
++{ "linter": { "enabled": false } }
+diff --git a/.basedpyright/baseline.json b/.basedpyright/baseline.json
+index 1111111..2222222 100644
+--- a/.basedpyright/baseline.json
++++ b/.basedpyright/baseline.json
+@@ -1,3 +1,4 @@
+ {
+   "files": {
++    "./src/a.py": [{ "code": "reportArgumentType" }]
+diff --git a/scripts/tsc-baseline.sh b/scripts/tsc-baseline.sh
+index 1111111..2222222 100644
+--- a/scripts/tsc-baseline.sh
++++ b/scripts/tsc-baseline.sh
+@@ -1,2 +1,2 @@
+ #!/bin/sh
+-max=3
++max=4

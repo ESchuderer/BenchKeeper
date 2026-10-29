@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { library } from '../src/content.mjs';
-import { exportPack, importPack, libraryWith, ownPacks, removePack, savePack, warnings } from '../src/packs.mjs';
+import { exportPack, globalSkillPacks, importPack, invalidPacks, libraryWith, overlap, ownPacks, removePack, savePack, scopeFile, scopeText, scopeWrite, storedScopes, warnings } from '../src/packs.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { projectPlan, readState } from '../src/steps/project.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
@@ -50,6 +50,70 @@ test('pack files name library skills only and keep their schema', () => {
   assert.throws(() => importPack(ctx, 'nope'), /pack file/);
   assert.throws(() => exportPack(ctx, 'matt-pocock'), /plugin/);
   assert.deepEqual(ownPacks(ctx), []);
+});
+
+test('pack files that are not packs are listed as invalid with the reason, and can be removed', () => {
+  const ctx = ctxAt();
+  assert.deepEqual(invalidPacks(ctx), []);
+  savePack(ctx, { id: 'ok', title: 'Ok', skills: ['accessibility', 'accessibility'] });
+  assert.deepEqual(ownPacks(ctx)[0].skills, ['accessibility']);
+  const dir = join(ctx.config, 'packs');
+  writeFileSync(join(dir, 'broken.json'), '{');
+  writeFileSync(join(dir, 'bad.json'), JSON.stringify({ id: 'Bad' }));
+  writeFileSync(join(dir, 'noid.json'), '{}');
+  writeFileSync(join(dir, 'other.json'), JSON.stringify({ id: 'name' }));
+  writeFileSync(join(dir, 'notes.txt'), '{');
+  const byFile = Object.fromEntries(invalidPacks(ctx).map((x) => [x.file, x.reason]));
+  assert.deepEqual(byFile, { 'bad.json': 'the id is not a plain id', 'broken.json': 'not valid JSON', 'noid.json': 'the id is not a plain id', 'other.json': 'the file name is not name.json' });
+  assert.deepEqual(ownPacks(ctx).map((p) => p.id), ['ok']);
+  removePack(ctx, 'broken');
+  removePack(ctx, 'bad.json');
+  assert.deepEqual(invalidPacks(ctx).map((x) => x.file).sort(), ['noid.json', 'other.json']);
+  assert.throws(() => removePack(ctx, 'name'), /^Error: no own pack name$/);
+  assert.throws(() => removePack(ctx, 'ok', { usedBy: ['/a', '/b'] }), /^Error: pack ok is in use by \/a, \/b: switch it off there first \(benchkeeper packs disable ok --project <dir>\)$/);
+  assert.equal(readdirSync(join(ctx.config, 'backup', 'packs')).filter((f) => /^(broken|bad)-\d+\.json$/.test(f)).length, 2);
+  assert.throws(() => exportPack(ctx, 'nope'), /^Error: unknown pack nope$/);
+  assert.throws(() => savePack(ctx, { id: 'e', title: 'E', skills: [] }), /^Error: a pack needs skills$/);
+  assert.throws(() => savePack(ctx, { id: 'e', title: 'E', skills: ['x', 'y'] }), /^Error: not in the library: x, y$/);
+  assert.throws(() => savePack(ctx, { id: 'frontend', skills: ['accessibility'] }), /^Error: frontend is a library pack$/);
+  assert.throws(() => savePack(ctx, { id: '-a', skills: ['accessibility'] }), /^Error: pack id: lowercase letters, digits and dashes$/);
+  assert.throws(() => savePack(ctx, { id: 'a', title: ' ', skills: ['accessibility'] }), /^Error: pack title: one line of at most 80 characters$/);
+  assert.throws(() => savePack(ctx, { id: 'a', title: 'a\rb', skills: ['accessibility'] }), /pack title/);
+  assert.equal(savePack(ctx, { id: 'a'.repeat(64), title: 'x'.repeat(80), skills: ['accessibility'] }).title.length, 80);
+  assert.throws(() => savePack(ctx, { id: 'a'.repeat(65), skills: ['accessibility'] }), /pack id/);
+  assert.throws(() => importPack(ctx, 'null'), /^Error: not a BenchKeeper pack file$/);
+  assert.throws(() => importPack(ctx, JSON.stringify({ kind: 'benchkeeper-pack' })), /^Error: pack schemaVersion undefined, this app reads 1$/);
+  assert.throws(() => importPack(ctx, '{'), /^Error: pack file: /);
+});
+
+test('pack scopes: only stored scopes count, a damaged file reads as none, the write keeps other packs', () => {
+  const ctx = ctxAt();
+  assert.deepEqual(storedScopes(ctx), {});
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(scopeFile(ctx), '{');
+  assert.deepEqual(storedScopes(ctx), {});
+  writeFileSync(scopeFile(ctx), JSON.stringify({ scopes: { frontend: 'global', docs: 'projects', data: 'machine' } }));
+  assert.deepEqual(storedScopes(ctx), { frontend: 'global', docs: 'projects' });
+  assert.deepEqual(globalSkillPacks(ctx).map((p) => p.id), ['frontend']);
+  writeFileSync(scopeFile(ctx), JSON.stringify({ scopes: { ponytail: 'global' } }));
+  assert.deepEqual(globalSkillPacks(ctx), []);
+  const w = scopeWrite(ctx, 'docs', 'global');
+  assert.equal(w.kind, 'write');
+  assert.equal(w.path, scopeFile(ctx));
+  assert.deepEqual(JSON.parse(w.edit(readFileSync(scopeFile(ctx), 'utf8'))), { scopes: { ponytail: 'global', docs: 'global' }, schemaVersion: 1 });
+  assert.equal(scopeText('global'), 'all projects');
+  assert.equal(scopeText('projects'), 'selected projects');
+});
+
+test('overlap: shared words against the shorter text, stop words and short words left out', () => {
+  assert.equal(overlap('browser tests', 'browser tests with playwright and more words'), true);
+  assert.equal(overlap('browser tests code', 'browser other words here'), false);
+  assert.equal(overlap('browser tests', 'browser other'), true);
+  assert.equal(overlap('the repository and project', 'the repository and project'), false);
+  assert.equal(overlap('go go', 'go go'), false);
+  assert.equal(overlap('Browser', 'BROWSER'), true);
+  assert.equal(overlap('', 'browser'), false);
+  assert.equal(overlap(undefined, undefined), false);
 });
 
 test('warnings: overlapping descriptions, no limit on the count', () => {

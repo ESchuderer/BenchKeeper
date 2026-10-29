@@ -1279,6 +1279,8 @@ test.describe('views', () => {
     }
     await nav(page, 'Projects').click();
     await addFolder(page, dir);
+    // The Catalog reads the projects once as it opens: the project must be registered before that.
+    await expect(page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'sk-proj', exact: true })).toBeVisible();
     await nav(page, 'Catalog').click();
     const states = page.getByRole('table', { name: 'Skill states' });
     const mine = states.getByRole('row').filter({ hasText: 'sk-proj' });

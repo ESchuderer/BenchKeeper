@@ -32,3 +32,18 @@ test('maskStream: a block on one line, an END of another type, a BEGIN split acr
   assert.equal(feed(ecB.slice(0, 18), `${ecB.slice(18)}\nab`, `c\n${ecE} x\nok`), `${ecB}\n***\n${ecE} x\nok`);
   assert.equal(feed(`${pgpB}\nabc\n${pgpE}\n`), `${pgpB}\n***\n${pgpE}\n`);
 });
+
+test('maskStream: an unfinished line longer than the kept tail keeps its key block masked after the BEGIN is cut off', () => {
+  const run = (max, ...chunks) => chunks.reduce((s, c) => maskStream(s, c, max), { text: '', rest: '', end: null });
+  const [b, e] = ['BEGIN', 'END'].map((w) => `-----${w} RSA PRIVATE KEY-----`);
+  const s = run(64, `x ${b}`, 'A'.repeat(100), 'B'.repeat(100));
+  assert.ok(!s.rest.includes('BEGIN') && s.end === e);
+  assert.equal(shown(s), '***');
+  assert.equal(shown(run(64, `x ${b}`, 'A'.repeat(100), `${e} ok\n`)), `***${e} ok\n`);
+  // The BEGIN line sits across the cut: the cut moves behind it.
+  const across = run(16, `${'y'.repeat(20)}${b}`, 'C'.repeat(10));
+  assert.equal(across.end, e);
+  assert.equal(shown(across), '***');
+  // No key block: only the tail of the line stays.
+  assert.equal(shown(run(8, 'abcdefghijkl')), 'efghijkl');
+});

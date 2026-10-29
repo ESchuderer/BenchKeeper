@@ -41,8 +41,18 @@ function maskLine(s, line) {
 }
 export function maskStream(s, chunk, max = 65536) {
   const lines = (s.rest + chunk).split(/(?<=\n)/);
-  s.rest = lines.at(-1).endsWith('\n') ? '' : lines.pop().slice(-max);
+  let rest = lines.at(-1).endsWith('\n') ? '' : lines.pop();
   s.text = (s.text + lines.map((l) => maskLine(s, l)).join('')).slice(-max);
+  // An unfinished line longer than max loses its head: the head goes through maskLine first, so a BEGIN in it leaves
+  // s.end set for the kept tail. A BEGIN line across the cut moves the cut behind it.
+  let cut = rest.length - max;
+  if (cut > 0) {
+    const across = [...rest.matchAll(BEGIN)].find((m) => m.index < cut && m.index + m[0].length > cut);
+    if (across) cut = across.index + across[0].length;
+    maskLine(s, rest.slice(0, cut));
+    rest = rest.slice(cut);
+  }
+  s.rest = rest;
   return s;
 }
 export const shown = (s) => s.text + maskLine({ end: s.end }, s.rest);

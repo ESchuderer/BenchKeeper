@@ -173,7 +173,9 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
             return { path, existed: exists(path), hashBefore: hashPath(path), backup: exists(path) ? ctx.ledger.backupPath(run.id, `${run.entries.length}-${i}`, path) : null };
           });
           ctx.ledger.save(run);
-          for (const x of entry.snapshot) if (x.backup) { copy(x.path, x.backup); if (hashPath(x.backup) !== x.hashBefore) throw new Error(`backup of ${x.path} differs from the original`); }
+          try {
+            for (const x of entry.snapshot) if (x.backup) { copy(x.path, x.backup); if (hashPath(x.backup) !== x.hashBefore) throw new Error(`backup of ${x.path} differs from the original`); }
+          } catch (e) { delete entry.touched; throw e; }
         }
         ctx.ledger.save(run);
         // c.verify: a command that checks the code this one fetches (signatures); once per run for the same check.
@@ -210,8 +212,11 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
           // A failed backup stops the step before any write.
           if (c.kind === 'remove') move(path, entry.backup);
           else {
-            copy(path, entry.backup);
-            if (hashPath(entry.backup) !== entry.hashBefore) throw new Error(`backup of ${path} differs from the original`);
+            // Nothing was written yet: undo has nothing to put back.
+            try {
+              copy(path, entry.backup);
+              if (hashPath(entry.backup) !== entry.hashBefore) throw new Error(`backup of ${path} differs from the original`);
+            } catch (e) { delete entry.touched; throw e; }
           }
         }
         if (c.kind === 'write') {

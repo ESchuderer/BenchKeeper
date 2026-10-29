@@ -170,6 +170,22 @@ test('a failed backup stops the step before any write', { skip: process.getuid?.
   assert.equal(existsSync(join(c.home, 'later')), false);
 });
 
+test('a backup that fails or differs leaves the entry untouched, undo skips it', { skip: process.getuid?.() === 0 }, () => {
+  const c = context({ home: home() });
+  for (const f of ['copy', 'changed']) writeFileSync(join(c.home, f), 'mine');
+  // The edit runs after the file was hashed: it makes the copy throw (an unreadable file) or changes the file.
+  const unreadable = () => { rmSync(join(c.home, 'copy')); mkdirSync(join(c.home, 'copy/x'), { recursive: true }); writeFileSync(join(c.home, 'copy/x/f'), ''); chmodSync(join(c.home, 'copy/x/f'), 0o000); return 'theirs'; };
+  const changed = () => { writeFileSync(join(c.home, 'changed'), 'edited'); return 'theirs'; };
+  const run = apply([write(c, 'copy', null, { edit: unreadable }), write(c, 'changed', null, { edit: changed, step: 't' }), write(c, 'new', 'x', { step: 'u' })], c);
+  chmodSync(join(c.home, 'copy/x/f'), 0o600);
+  assert.deepEqual(run.entries.map((e) => [e.status, e.touched]), [['failed', undefined], ['failed', undefined], ['done', true]]);
+  assert.match(run.entries[1].error, /differs from the original/);
+  const u = undo(run.id, c);
+  assert.equal(u.status, 'done');
+  assert.deepEqual(u.entries.map((e) => e.path), [join(c.home, 'new')]);
+  assert.equal(existsSync(join(c.home, 'new')), false);
+});
+
 test('writes outside the roots are refused, also through a link', () => {
   const c = context({ home: home() });
   const outside = mkdtempSync(join(tmpdir(), 'bk-out-'));

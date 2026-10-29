@@ -31,16 +31,17 @@ const EDITS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 const chain = (command: string) => (/[;|&\n`]|\$\(/.test(command.replaceAll('&&', ' ')) ? [] : command.split('&&').map((part) => part.trim()))
 // Without its redirections (> log, 2>&1, &> log), which leave the exit code alone.
 const plain = (command: string) => command.replace(/\s*(?:&>>?|\d*>>?)\s*(?:&\d+|[^\s;&|'"]+)/g, '')
-// The script of one sh -c '<script>' (devcontainer exec ... sh -lc 'cd app && npm test'), else the command.
+// The script of one sh -c '<script>', alone or after a container exec (devcontainer exec ... sh -lc 'cd app && npm test'),
+// else the command: in echo sh -c 'npm test' the shell is an argument.
 function script(command: string) {
   const c = plain(command)
-  return plain(c.match(/^[^;&|`'"(]*?\b(?:ba)?sh -[a-z]*c (['"])([^'"]*)\1$/)?.[2] ?? c)
+  return plain(c.match(/^(?:\w+=\S+\s+)*(?:(?:devcontainer|docker|podman)(?: compose)? exec\s(?:[^;&|`'"(]*\s)?)?(?:\/(?:usr\/)?bin\/)?(?:ba)?sh -[a-z]*c (['"])([^'"]*)\1$/)?.[2] ?? c)
 }
 
 // The result of a check run, as the board reads a test run: a failed exit code fails, any other result passes. A compound
 // command, a failed chain or a background run has no result of its own (null). undefined leaves the last result.
 function outcome(check: typeof TEST, command: string, ran: { isError?: boolean; text?: string; backgroundTaskId?: unknown }) {
-  if (!check.any.test(command)) return undefined
+  if (!check.any.test(plain(command))) return undefined
   const parts = chain(script(command))
   // A chain passes when every part passed. It fails for the check only when the check is the whole command: in cd x && npm test
   // or false && npm test the failure may be another part's, and in npm test && false the test passed.

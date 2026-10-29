@@ -173,7 +173,7 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
     expect(await ui.find({ type: 'Text', text: /tests: not run / })).toBeDefined()
   }
   // Redirections, a runner before the command and one sh -c script are read as the command they run.
-  for (const command of ['npm test > test.log 2>&1', 'npm test &> test.log', 'npx vitest run', 'pnpm test', 'yarn jest', 'bunx vitest',
+  for (const command of ['npm test > test.log 2>&1', 'npm test>test.log', 'npm test &> test.log', 'npx vitest run', 'pnpm test', 'yarn jest', 'bunx vitest',
     'npm run test:unit', 'python -m pytest', 'uv run pytest', "devcontainer exec --workspace-folder . sh -lc 'cd app && npm test'",
     'sh -c "npm test 2>&1 > log"']) {
     outcome = { isError: true, text: 'Exit code 1' }
@@ -182,7 +182,7 @@ test('on: the band names the project, branch, last test run and Ponytail level; 
     await test(command)
     expect(await ui.find({ type: 'Text', text: /tests: passed/ })).toBeDefined()
   }
-  for (const command of ["sh -lc 'npm test | tail'", "ls; sh -c 'npm test'", 'npm test 2>&1 | tail']) {
+  for (const command of ["sh -lc 'npm test | tail'", "ls; sh -c 'npm test'", 'npm test 2>&1 | tail', "echo sh -c 'npm test'"]) {
     await test('node --test')
     await test(command)
     expect(await ui.find({ type: 'Text', text: /tests: not run / })).toBeDefined()

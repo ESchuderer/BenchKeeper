@@ -10,6 +10,9 @@ export const WINDOWS = [['fiveHour', '5-hour'], ['sevenDay', '7-day']];
 // rotate: per agent, off or handover (usage-gated handover to another account of the pool); off until the user turns it on.
 const DEFAULTS = { minimum: { fiveHour: 8, sevenDay: 3 }, autoPick: false, whenNone: 'stop', continueBelow: false, rotate: { claude: 'off', codex: 'off' } };
 export const ROTATE = ['off', 'handover'];
+// The agents rotation can be turned on for. Codex is left out for now: a stored codex handover counts as off and the flag is
+// refused. Adding 'codex' here turns its rotation back on.
+export const ROTATABLE = ['claude'];
 export const STATE_DIR = 'benchkeeper';
 export const HOOK_SOURCE = readFileSync(new URL('./usage-hook.mjs', import.meta.url), 'utf8');
 const FAILURE_HOURS = 24;
@@ -22,7 +25,8 @@ export const validLimits = (l) => l === undefined || (isObject(l) && validWindow
 export const validSettings = (s) => s === undefined || (isObject(s) && validLimits(s) && (s.autoPick === undefined || typeof s.autoPick === 'boolean') && (s.continueBelow === undefined || typeof s.continueBelow === 'boolean') && (s.whenNone === undefined || ['stop', 'wait'].includes(s.whenNone))
   && (s.rotate === undefined || (isObject(s.rotate) && Object.entries(s.rotate).every(([k, v]) => Object.hasOwn(DEFAULTS.rotate, k) && ROTATE.includes(v)))));
 
-export const settingsOf = (s) => ({ ...DEFAULTS, ...s, minimum: { ...DEFAULTS.minimum, ...s?.minimum }, rotate: { ...DEFAULTS.rotate, ...s?.rotate } });
+export const settingsOf = (s) => ({ ...DEFAULTS, ...s, minimum: { ...DEFAULTS.minimum, ...s?.minimum },
+  rotate: Object.fromEntries(Object.entries({ ...DEFAULTS.rotate, ...s?.rotate }).map(([k, v]) => [k, ROTATABLE.includes(k) ? v : 'off'])) });
 // The thresholds of one account: its own override, else the settings, else the defaults.
 export function limitsFor(settings, a) {
   const minimum = {}, warn = {};

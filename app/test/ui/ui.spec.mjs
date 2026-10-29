@@ -34,6 +34,8 @@ async function noAxe(page) {
     expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
   }
 }
+// A view is up once its CLI block shows; Agent settings has none, its count line shows instead.
+const ready = (page) => page.getByText('CLI', { exact: true }).or(page.getByText(/settings with a suggestion differ from it/));
 const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 
 test.describe.configure({ mode: 'serial' });
@@ -70,7 +72,7 @@ test.describe('views', () => {
     for (const scheme of ['light', 'dark']) {
       test(`no axe violations in ${view}, ${scheme} mode`, async ({ page }) => {
         await nav(page, view).click();
-        await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+        await expect(ready(page)).toBeVisible();
         await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
         const { violations } = await new AxeBuilder({ page }).analyze();
         expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
@@ -84,7 +86,7 @@ test.describe('views', () => {
       test(`no axe violations in ${view}, ${scheme} mode, phone width`, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.goto(`/#/${route}`);
-        await expect(page.getByText('CLI', { exact: true })).toBeVisible();
+        await expect(ready(page)).toBeVisible();
         await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
         const { violations } = await new AxeBuilder({ page }).analyze();
         expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
@@ -1759,6 +1761,7 @@ test.describe('views', () => {
   test('Agent settings: the list with its notes, a change as plan and diff, undo; advanced lists every key; no axe violations', async ({ page }) => {
     await nav(page, 'Agent settings').click();
     await expect(page.getByRole('heading', { level: 2, name: 'Agent settings' })).toBeVisible();
+    await page.getByRole('button', { name: /^Show settings files/ }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.claude/settings.json');
     // The fixture home holds the setup's advisor model: its row says what it is, and BenchKeeper's setup writes it too.
     const advisor = page.getByRole('row', { name: /advisorModel/ }).first();
@@ -1791,7 +1794,59 @@ test.describe('views', () => {
     await noAxe(page);
     // Codex: its own file and keys.
     await page.getByText('Codex', { exact: true }).click();
+    await page.getByRole('button', { name: /^Show settings files/ }).click();
     await expect(page.getByRole('table', { name: 'Settings files' })).toContainText('.codex/config.toml');
+  });
+
+  test('Agent settings: each row compares the user file with the suggestion, Use suggested and a note fix open the plan, hardening folds, a conflict stays; no axe violations', async ({ page }) => {
+    const conflict = { id: 'stub-conflict', level: 'warning', kind: 'conflict', message: 'A stubbed conflict.', default: 'The default.', risk: 'The risk.', fixChanges: 'What changes.', keys: ['model'], source: 'https://example.com/' };
+    const view = /\/api\/settings\?agent=claude$/;
+    await page.route(view, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      await route.fulfill({ response: r, json: { ...body, notes: [conflict, ...body.notes] } });
+    });
+    await nav(page, 'Agent settings').click();
+    await expect(page.getByText(/^\d+ of \d+ settings with a suggestion differ from it in the user file\.$/)).toBeVisible();
+    // The setup's retention differs from the suggestion to leave it unset; the update channel matches.
+    const row = (key) => page.getByRole('row').filter({ has: page.locator(`[id="setting-${key}"]`) });
+    await expect(row('cleanupPeriodDays')).toContainText('Differs from suggested');
+    await expect(row('cleanupPeriodDays')).toContainText('Suggested: leave unset.');
+    await expect(row('autoUpdatesChannel')).toContainText('Matches suggested.');
+    await expect(row('autoUpdatesChannel')).not.toContainText('Differs from suggested');
+    // The conflict stays in full with its three lines; hardening advice is one folded line.
+    const notes = page.getByRole('region', { name: 'Notes on the settings' });
+    for (const t of ['Conflicting settings. A stubbed conflict.', 'Default: The default.', 'Risk: The risk.', 'What the fix changes: What changes.']) await expect(notes).toContainText(t);
+    const fold = notes.getByRole('button', { name: /^Hardening advice \(\d+\)$/ });
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(notes.getByRole('button', { name: 'Dismiss, I accept this: sandbox-off' })).toHaveCount(0);
+    await noAxe(page);
+    // Only the differences.
+    await page.getByRole('switch', { name: 'Differs from suggested' }).check();
+    await expect(row('cleanupPeriodDays')).toBeVisible();
+    await expect(row('autoUpdatesChannel')).toHaveCount(0);
+    await page.getByLabel('Search settings').fill('no such setting');
+    await page.getByRole('button', { name: 'Clear search and filters' }).click();
+    await expect(page.getByRole('switch', { name: 'Differs from suggested' })).not.toBeChecked();
+    await expect(row('autoUpdatesChannel')).toBeVisible();
+    // Use suggested stages the value and opens its plan; the row then matches in the pending changes.
+    await page.getByRole('button', { name: 'Use suggested for sandbox.enabled' }).click();
+    const changes = page.getByRole('region', { name: 'Changes' });
+    await expect(changes).toContainText('sandbox.enabled');
+    await expect(changes.getByRole('heading', { name: 'Changes' })).toBeFocused();
+    await expect(row('sandbox.enabled')).toContainText('Matches suggested (in your changes).');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    // A hardening note's fix plans the suggestion of its setting; one without a suggested value goes to its setting.
+    await fold.click();
+    await notes.getByRole('button', { name: 'Fix, review the change: env-scrub-off' }).click();
+    await expect(changes).toContainText('"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+    await page.getByLabel('Search settings').fill('model');
+    await notes.getByRole('button', { name: 'Go to the setting: read-deny-credentials' }).click();
+    await expect(page.locator('[id="setting-permissions.deny"]')).toBeFocused();
+    await expect(page.getByLabel('Search settings')).toHaveValue('');
+    await noAxe(page);
+    await page.unroute(view);
   });
 
   test('Agent settings: Dismiss and Show again move a note between the lists, focus stays on the notes and the status says what happened', async ({ page }) => {

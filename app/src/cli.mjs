@@ -900,9 +900,9 @@ async function command(argv, { out, err, ask, ctx }) {
   }
   if (cmd === 'evals') {
     if (arg !== 'plan' && arg !== 'run') { out.write('evals needs plan, run, results or cases add\n'); return 2; }
-    if (arg === 'run' && process.env.CI) { out.write('evals run starts agent sessions on a subscription and does not run in CI\n'); return 2; }
     const agentsProblem = evalAgentsProblem(o.agents);
     if (agentsProblem) { out.write(`${agentsProblem}\n`); return 2; }
+    if (arg === 'run' && process.env.CI) { out.write('evals run starts agent sessions on a subscription and does not run in CI\n'); return 2; }
     const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
     const sessions = plan.reduce((n, p) => n + p.cases.length, 0);
     if (!plan.length) { out.write('every target is unchanged since its last result (--all runs them again)\n'); return 0; }
@@ -1292,9 +1292,9 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     return emit({ accounts }, accounts.some((a) => a.findings.some((f) => f.level === 'error')) ? 1 : 0);
   }
   if (cmd === 'evals' && ['plan', 'run'].includes(arg)) {
-    if (arg === 'run' && process.env.CI) return fail('evals run starts agent sessions on a subscription and does not run in CI');
     const agentsProblem = evalAgentsProblem(o.agents);
     if (agentsProblem) return fail(agentsProblem);
+    if (arg === 'run' && process.env.CI) return fail('evals run starts agent sessions on a subscription and does not run in CI');
     const plan = evalPlan(ctx, { agents: o.agents?.split(',') ?? ['claude'], model: o.model, all: o.all, only: o.target });
     // Case ids only: a query or expected text can quote a transcript.
     const doc = { plan: plan.map((p) => ({ target: p.target, agent: p.agent, model: p.model ?? null, cases: p.cases.map((c) => c.id), ...(p.project ? { project: p.project } : {}) })) };

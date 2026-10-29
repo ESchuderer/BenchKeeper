@@ -1,6 +1,7 @@
 import { Anchor, Badge, Button, Code, Group, List, Loader, Modal, Paper, Radio, Stack, Text, Title } from '@mantine/core';
 import { useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
+import { splitSource } from './fixsource.js';
 import { LEVEL_COLOR, fixAction, levelCounts } from './fix.jsx';
 import { CancelJob, Cli, SettingFactsOf, useJob } from './parts.jsx';
 import { Dot, Loading, Note, href, useAnnounce, useApi } from './shell.jsx';
@@ -35,16 +36,17 @@ const proposal = (f) => f.evidence.action && { dir: f.evidence.dir, title: f.mes
 function Card({ finding: f, busy, onTriage, onPlan }) {
   // The doctor's finding shape decides whether the setup can fix it, as in the Dashboard.
   const action = fixAction({ ...f.evidence, message: f.message, fix: f.fix });
-  const plan = proposal(f);
+  const plan = proposal(f), { text, source } = splitSource(f.fix);
   return (
     <Paper component="article" withBorder p="md" aria-labelledby={`finding-${f.key}`}>
       <Stack gap="sm">
         <Title order={4} size="h5" id={`finding-${f.key}`} tabIndex={-1} style={{ overflowWrap: 'anywhere' }}>{f.message}</Title>
         {f.settings && <SettingFactsOf settings={f.settings} />}
         <Evidence finding={f} />
-        {!((action || plan) && f.fix.startsWith('benchkeeper ')) && <Text size="sm">Fix: {f.fix}</Text>}
+        {!((action || plan) && f.fix.startsWith('benchkeeper ')) && <Text size="sm">Fix: {text}</Text>}
+        {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source} w="fit-content">Documentation</Anchor>}
         <Group gap="xs">
-          {action && <Button component="a" href={action[0]} size="xs">Apply</Button>}
+          {action && <Button component="a" href={action[0]} size="xs">{action[1]}</Button>}
           {plan && <Button size="xs" onClick={() => onPlan(plan)}>Plan</Button>}
           <Group gap="xs" ml="auto">
             <Button size="xs" variant="default" disabled={busy} onClick={() => onTriage(f, 'dismiss')}>Dismiss</Button>

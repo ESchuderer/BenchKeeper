@@ -1,8 +1,9 @@
 // Optional tier band (userConfig tierBand, off by default): a row with the project, its branch and Ponytail's level (when that
 // plugin is on), a row with the last test run, the last lint or type check and whether the tier's checks passed since the
 // last edit, a row with the tier line of the last answer and buttons for /benchkeeper:tier, the sessions board and the
-// doctor, and the session's override kept in the system prompt, so it outlasts compaction and resume. It reads the working
-// folder, git and one flag file of Ponytail; it writes nothing and sends nothing.
+// doctor, and the session's override kept in the system prompt and the plugin's store, so it outlasts compaction and resume.
+// It reads the working folder, git, one flag file of Ponytail and the commands and edits of the main loop; it writes only
+// that override to the plugin's store and sends nothing.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 

@@ -4,20 +4,15 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { openBrowser } from '../../src/server.mjs';
 import { TOKENS } from '../../src/tokens.mjs';
+import { nav, ready } from './views.mjs';
 
-const TOKEN = 'ui-test-token-0123456789';
 const BATCH = join(tmpdir(), 'bk-ui-batch-4410');
 const ONE = join(tmpdir(), 'bk-ui-one-4410');
 // While this file exists, the stubbed suggestion for duo and quatro waits (serve.mjs).
 const GATE = join(tmpdir(), 'bk-ui-gate-4410');
 // While this file exists, the stubbed automations runner answers (serve.mjs).
 const RUNNER = join(tmpdir(), 'bk-ui-runner-4410');
-// Sidebar label and route of every view, in sidebar order.
-const VIEWS = [['Dashboard', 'dashboard'], ['History', 'history'], ['Projects', 'projects'], ['Catalog', 'catalog'], ['Sessions', 'sessions'], ['Runs', 'runs'], ['Insights', 'insights'], ['Evals', 'evals'],
-  ['Global setup', 'agents'], ['Agent settings', 'agent-settings'], ['Rules', 'rules'], ['Extensions', 'extensions'], ['Accounts', 'accounts'], ['Automations', 'automations'], ['Preferences', 'settings']];
 // axe in both color schemes on the page as it is, after drawer and modal transitions.
 async function noAxe(page) {
   // The pointer rests away from the page: a hovered filled button has its hover color, which is not what is checked.
@@ -34,8 +29,6 @@ async function noAxe(page) {
     expect(violations.map((v) => `${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
   }
 }
-// A view is up once its CLI block shows; Agent settings has none, its count line shows instead.
-const ready = (page) => page.getByText('CLI', { exact: true }).or(page.getByText(/settings with a suggestion differ from it/));
 // A plan's diffs are folded: open each before reading one.
 const openDiffs = async (scope) => {
   const buttons = scope.getByRole('button', { name: /^Show file diff of / });
@@ -43,63 +36,19 @@ const openDiffs = async (scope) => {
   // An opened fold renames its button, so the first one left is always the next.
   for (let n = await buttons.count(); n > 0; n--) await buttons.first().click();
 };
-const nav = (page, view) => page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view });
 
+// Serial on one shared server: later tests read what earlier ones left there (registered and set-up projects, applied
+// plans, undone runs), so a test cannot run alone. Read-only checks of every view are in views-axe.spec.mjs.
 test.describe.configure({ mode: 'serial' });
-let cookie, key;
-
-test.beforeEach(async ({ page }) => {
-  // The URL token works once per server, so later tests reuse the cookie from the first. It comes through the file
-  // the app opens the browser with, so the cookie must survive that cross-site start.
-  if (cookie) return;
-  await page.goto(pathToFileURL(openBrowser(`http://127.0.0.1:4410/?token=${TOKEN}`, { open: () => {}, confined: () => false })).href);
-  await page.waitForURL('http://127.0.0.1:4410/');
-});
-test('the token becomes a cookie and an API key; both leave the address bar', async ({ page, context }) => {
-  await expect(page).toHaveURL('http://127.0.0.1:4410/');
-  [cookie] = await context.cookies();
-  key = await page.evaluate(() => localStorage.getItem('benchkeeper-key'));
-  expect(key).toMatch(/^[\w-]{43}$/);
-  expect(cookie).toMatchObject({ name: "bk_session_4410", httpOnly: true, sameSite: 'Strict' });
-  await expect(page.getByRole('heading', { level: 1, name: 'BenchKeeper' })).toBeVisible();
-});
 
 test.describe('views', () => {
   test.beforeEach(async ({ context, page }) => {
-    await context.addCookies([cookie]);
-    await context.addInitScript((k) => localStorage.setItem('benchkeeper-key', k), key);
     // Projects as a table unless a test picks Cards: the tests of the rows predate the cards.
     await context.addInitScript(() => { if (localStorage.getItem('bk-projects-layout') === null) localStorage.setItem('bk-projects-layout', 'table'); });
     await page.goto('/');
     // Shortcuts and the skip link exist once the app is up, behind the starting screen.
     await expect(page.getByRole('navigation', { name: 'Views' })).toBeVisible();
   });
-
-  for (const [view] of VIEWS) {
-    for (const scheme of ['light', 'dark']) {
-      test(`no axe violations in ${view}, ${scheme} mode`, async ({ page }) => {
-        await nav(page, view).click();
-        await expect(ready(page)).toBeVisible();
-        await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
-        const { violations } = await new AxeBuilder({ page }).analyze();
-        expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
-      });
-    }
-  }
-
-  // The same pass at 390 px, where the sidebar is a menu: reflow and link styling differ there.
-  for (const [view, route] of VIEWS) {
-    for (const scheme of ['light', 'dark']) {
-      test(`no axe violations in ${view}, ${scheme} mode, phone width`, async ({ page }) => {
-        await page.setViewportSize({ width: 390, height: 844 });
-        await page.goto(`/#/${route}`);
-        await expect(ready(page)).toBeVisible();
-        await page.evaluate((s) => document.documentElement.setAttribute('data-mantine-color-scheme', s), scheme);
-        const { violations } = await new AxeBuilder({ page }).analyze();
-        expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')} ${v.nodes[0].failureSummary}`)).toEqual([]);
-      });
-    }
-  }
 
   test('the board tokens are the app variables in both schemes; reduced motion removes the transitions', async ({ page }) => {
     for (const scheme of ['light', 'dark']) {

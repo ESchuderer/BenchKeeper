@@ -103,7 +103,7 @@ function FixSteps({ version, doctor, onClose, setBusy }) {
           <Loading state={global} label="global plan">{(plan) => (
             <Stack gap="sm">
               <Text size="sm">Rules, settings, plugins and skills for the installed agents. Removals stay off until you check them.</Text>
-              {select && <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} />}
+              {select && <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} scope="global" />}
             </Stack>
           )}</Loading>
         </Stepper.Step>

@@ -265,7 +265,7 @@ function ReviewSection({ item, patch }) {
 // Changes as ChangeList shows them, with each diff behind a button and its skill installs rehearsed.
 function PlanBody({ plan, select, setSelect }) {
   const prerun = usePrerun(plan);
-  return <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} collapsed />;
+  return <ChangeList plan={plan} select={select} setSelect={setSelect} prerun={prerun} />;
 }
 
 // A project's answers, editable in place: an edit builds that project's plan again, with its changes checked as by default.

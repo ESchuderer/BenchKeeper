@@ -277,7 +277,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
         {count > 0 && <Button variant="default" onClick={() => { clear(); rev.current++; setPlan(null); }}>Discard changes</Button>}
       </Group>
       {error && <Note color="red" title="Not planned">{error}</Note>}
-      {plan && <Section title="Changes" id="settings-changes"><Plan key={plan.planId} plan={plan} onDone={() => { clear(); onApplied(); }} /></Section>}
+      {plan && <Section title="Changes" id="settings-changes"><Plan key={plan.planId} plan={plan} why="You changed these values in Agent settings." scope={layer === 'user' ? 'global' : 'project'} onDone={() => { clear(); onApplied(); }} /></Section>}
     </Stack>
   );
 }

@@ -39,11 +39,16 @@ export function libraryWith(ctx) {
 // global, skill packs per project. ctx.packScopes (pack id to scope) stands in for the file in the preview of a scope change.
 export const PACK_SCOPES = ['global', 'projects'];
 export const scopeFile = (ctx) => join(ctx.config, 'pack-scopes.json');
+// The scopes the user chose, pack id to scope; a damaged file reads as none.
+export function storedScopes(ctx) {
+  try { return Object.fromEntries(Object.entries(JSON.parse(readText(scopeFile(ctx)) ?? '{}').scopes ?? {}).filter(([, s]) => PACK_SCOPES.includes(s))); } catch { return {}; }
+}
 export function packScope(ctx, pack) {
-  let stored = ctx.packScopes?.[pack.id];
-  if (!stored) try { stored = JSON.parse(readText(scopeFile(ctx)) ?? '{}').scopes?.[pack.id]; } catch { /* a damaged file reads as the defaults */ }
+  const stored = ctx.packScopes?.[pack.id] ?? storedScopes(ctx)[pack.id];
   return PACK_SCOPES.includes(stored) ? stored : pack.plugins ? 'global' : 'projects';
 }
+// Skill packs for all projects: the global plan copies their skills into the global skill folders.
+export const globalSkillPacks = (ctx, lib = libraryWith(ctx)) => lib.packs.filter((p) => !p.plugins && p.skills?.length && packScope(ctx, p) === 'global');
 export const scopeText = (scope) => (scope === 'global' ? 'all projects' : 'selected projects');
 // The plan change that records a scope: a write, so undo puts the previous file back.
 export const scopeWrite = (ctx, id, scope) => ({ kind: 'write', path: scopeFile(ctx), edit: (t) => mergeJson(t, [{ path: ['schemaVersion'], value: 1 }, { path: ['scopes', id], value: scope }]) });

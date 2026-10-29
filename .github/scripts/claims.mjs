@@ -18,12 +18,24 @@ const RESEARCH = 'https://github.com/ESchuderer/BenchKeeper-research/';
 
 const slug = (h) => h.trim().toLowerCase().replace(/[^a-z0-9 _-]/g, '').replace(/ /g, '-');
 // A generated block repeats facts.json, so a heading whose section holds nothing else cannot back a claim.
+// A section holds its subsections; lines in a code fence are no heading; a repeated heading gets -1, -2 like GitHub's anchors.
 const sections = (md) => {
   const out = new Map();
-  let key;
+  const seen = new Map();
+  let open = [];
+  let fence;
   for (const line of md.replace(/<!-- generated:(\w+) -->[\s\S]*?<!-- \/generated:\1 -->/g, '').split('\n')) {
-    if (/^#{1,6} /.test(line)) out.set((key = slug(line.replace(/^#+ /, ''))), '');
-    else if (key) out.set(key, out.get(key) + line.trim());
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (marker && (!fence || (marker[0] === fence[0] && marker.length >= fence.length))) fence = fence ? undefined : marker;
+    const heading = !fence && !marker && /^(#{1,6}) (.*)/.exec(line);
+    if (heading) {
+      const s = slug(heading[2]);
+      const n = seen.get(s) ?? 0;
+      seen.set(s, n + 1);
+      const key = n ? `${s}-${n}` : s;
+      out.set(key, '');
+      open = [...open.filter((h) => h.level < heading[1].length), { level: heading[1].length, key }];
+    } else for (const { key } of open) out.set(key, out.get(key) + line.trim());
   }
   return out;
 };

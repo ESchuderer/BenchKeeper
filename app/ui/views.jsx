@@ -391,9 +391,10 @@ export function ProjectList({ params, overview, refresh }) {
     setFound(list);
     setPick(list);
   });
-  // Update all pushes a branch and opens a pull request for each project whose setup is shared or still committed.
+  // Update all pushes a branch and opens a pull request for each project whose setup is shared or still committed and
+  // whose origin is on GitHub; any other such project gets a local branch only.
   const [confirmPrs, setConfirmPrs] = useState(null);
-  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && (p.share || p.committed)).length : 0);
+  const prsOf = (paths) => (push ? live.filter((p) => paths.includes(p.path) && (p.share || p.committed) && p.github).length : 0);
   const runUpdate = (paths) => act('update', async () => { setConfirmPrs(null); await updateProjects(paths, push, setProgress); reload(); })();
   const startUpdate = (paths) => (prsOf(paths) ? setConfirmPrs(paths) : runUpdate(paths));
   const prs = prsOf(confirmPrs ?? []);
@@ -475,7 +476,7 @@ export function ProjectList({ params, overview, refresh }) {
       <Modal opened={!!confirmPrs} onClose={() => setConfirmPrs(null)} withCloseButton={false} attributes={{ content: { 'aria-label': `Open up to ${plural(prs, 'pull request')}?` } }}>
         <Stack gap="sm">
           <Title order={2} size="h4">Open up to {plural(prs, 'pull request')}?</Title>
-          <Text size="sm">{plural(prs, 'project')} with a shared setup or a local one still committed get a branch pushed to origin and a pull request when origin is on GitHub (the second kind removes the committed setup). Projects with uncommitted changes are skipped.</Text>
+          <Text size="sm">{plural(prs, 'project')} on GitHub with a shared setup or a local one still committed get a branch pushed to origin and a pull request (the second kind removes the committed setup); without a GitHub origin the branch stays local. Projects with uncommitted changes are skipped.</Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setConfirmPrs(null)}>Cancel</Button>
             <Button leftSection={icon(IconRefresh)} onClick={() => runUpdate(confirmPrs)}>Update all and open up to {plural(prs, 'pull request')}</Button>

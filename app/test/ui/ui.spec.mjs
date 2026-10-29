@@ -654,6 +654,11 @@ test.describe('views', () => {
   });
 
   test('Projects: the drift board row, its plan, skill toggle and doctor, and Update all progress per project', async ({ page }) => {
+    // The fixture project has no origin; the list says it is on GitHub so Update all asks before the pull request.
+    await page.route(/\/api\/projects(\?|$)/, async (route) => {
+      const r = await route.fetch();
+      await route.fulfill({ response: r, json: (await r.json()).map((p) => ({ ...p, github: true })) });
+    });
     await nav(page, 'Projects').click();
     const row = page.getByRole('table', { name: 'Projects' }).getByRole('row').nth(1);
     await expect(row).toContainText('current, shared');
@@ -681,6 +686,28 @@ test.describe('views', () => {
     await ask.getByRole('button', { name: 'Update all and open up to 1 pull request' }).click();
     await expect(page.getByRole('progressbar', { name: 'Update all: 2 of 2 projects' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Update all results' })).toContainText(/stopped|current|committed/);
+  });
+
+  test('Projects: Update all counts a pull request only for a shared or committed project whose origin is on GitHub', async ({ page }) => {
+    const project = (name, extra) => ({ path: `/work/${name}`, setupVersion: '0.1.0', current: false, changes: [], repo: true, clean: true, ...extra });
+    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('local'), project('shared', { share: true, github: true }), project('no-github', { share: true }), project('committed', { committed: true })] }));
+    await nav(page, 'Projects').click();
+    await page.getByRole('button', { name: 'Update all', exact: true }).click();
+    const ask = page.getByRole('dialog', { name: 'Open up to 1 pull request?' });
+    await expect(ask.getByRole('button', { name: 'Update all and open up to 1 pull request' })).toBeVisible();
+    await ask.getByRole('button', { name: 'Cancel' }).click();
+    await expect(ask).toBeHidden();
+  });
+
+  test('Projects: Update all runs without asking when no shared project has a GitHub origin', async ({ page }) => {
+    const project = (name, extra) => ({ path: `/work/${name}`, setupVersion: '0.1.0', current: false, changes: [], repo: true, clean: true, ...extra });
+    await page.route(/\/api\/projects(\?|$)/, (route) => route.fulfill({ json: [project('no-github', { share: true })] }));
+    await page.route(/\/api\/update-all$/, (route) => route.fulfill({ json: [{ path: '/work/no-github', status: 'committed', branch: 'chore/agent-setup-0.2.0' }] }));
+    await nav(page, 'Projects').click();
+    const sent = page.waitForRequest((q) => q.url().endsWith('/api/update-all'));
+    await page.getByRole('button', { name: 'Update all', exact: true }).click();
+    expect((await sent).postDataJSON()).toEqual({ paths: ['/work/no-github'], push: true });
+    await expect(page.getByRole('dialog', { name: /pull request/ })).toHaveCount(0);
   });
 
   test('Projects: Choose folder fills the path from the dialog; scan offers the unregistered folder', async ({ page }) => {

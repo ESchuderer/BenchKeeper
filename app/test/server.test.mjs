@@ -15,6 +15,7 @@ import { api, openBrowser, pickFolder, rejectReason, startServer } from '../src/
 import { SKILLS_SPEC, globalPlan } from '../src/steps/global.mjs';
 import { projectPlan, recordCommand } from '../src/steps/project.mjs';
 import { status as projectStatus } from '../src/projects.mjs';
+import { dashboard } from '../src/dashboard.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
 const TMP = realpathSync(tmpdir());
 
@@ -535,6 +536,15 @@ test('dashboard: the numbers equal the inventory and the project status; one rea
   // Packs with a skill list only, the most skills first.
   assert.ok(d.catalog.every((x, i, all) => i === 0 || all[i - 1].skills >= x.skills));
   assert.ok(!d.catalog.some((x) => x.id === 'matt-pocock'));
+});
+
+test('dashboard: a skill pack for all projects is a global pack of Claude Code and Codex', () => {
+  const { ctx } = fixture();
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'pack-scopes.json'), JSON.stringify({ scopes: { docs: 'global' } }));
+  const d = dashboard(ctx, ['claude', 'codex'], []);
+  assert.deepEqual([d.global.packs.claude.filter((p) => p !== 'ponytail'), d.global.packs.codex], [['docs'], ['docs']]);
+  assert.deepEqual(d.coverage.packs.find((x) => x.id === 'docs').cells, { claude: 0, codex: 0 });
 });
 
 test('packs: save, export, import and remove; bad input is a 400', () => {

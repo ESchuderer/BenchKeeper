@@ -9,7 +9,7 @@ import { doctor } from '../src/doctor.mjs';
 import { removeTable, removeToml, setToml } from '../src/merge.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
-import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingFacts, settingsAgents, settingsChanges } from '../src/settings.mjs';
+import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, keyState, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingFacts, settingsAgents, settingsChanges } from '../src/settings.mjs';
 
 const SECRET = 'sk-value-not-for-output';
 const docs = JSON.parse(readFileSync(new URL('./fixtures/settings-docs.json', import.meta.url), 'utf8'));
@@ -161,6 +161,17 @@ test('a plan is a diff that never shows a secret, and undo restores the file', (
   assert.equal(JSON.parse(readFileSync(claudeUser(ctx), 'utf8')).env.DISABLE_ERROR_REPORTING, '1');
   assert.equal(undo(r.id, ctx).status, 'done');
   assert.equal(readFileSync(claudeUser(ctx), 'utf8'), before);
+});
+
+test('keyState: a settings change is new, changed, removed or current by its keys, whatever else the file holds', () => {
+  assert.equal(keyState('claude', ['model'], null, '{"model":"opus"}'), 'new');
+  assert.equal(keyState('claude', ['model'], '{"theme":"dark","model":"opus"}', '{"theme":"dark","model":"sonnet"}'), 'changed');
+  assert.equal(keyState('claude', ['model', 'theme'], '{"theme":"dark","model":"opus"}', '{"theme":"dark"}'), 'changed');
+  assert.equal(keyState('claude', ['model'], '{"model":"opus"}', '{}'), 'removed');
+  assert.equal(keyState('claude', ['model'], '{"model":"opus"}', '{"model":"opus","theme":"dark"}'), 'current');
+  assert.equal(keyState('claude', ['model'], '{ not json', '{"model":"opus"}'), 'new');
+  // A trusted Codex project is one key, its dotted path included.
+  assert.equal(keyState('codex', ['projects./p/a.b'], '[projects."/p/a.b"]\ntrust_level = "trusted"\n', ''), 'removed');
 });
 
 test('environment switches are set or removed, never 0 or false', () => {

@@ -954,13 +954,18 @@ test('the tier strip switch: off by default; on and off are plans in the Claude 
   writeFileSync(file, JSON.stringify({ pluginConfigs: { 'other@x': { options: { a: 1 } } } }));
   const band = () => routes['GET /api/tier-band']();
   assert.deepEqual(band(), { key: 'pluginConfigs.benchkeeper@benchkeeper.options.tierBand', on: false });
+  const keys = [];
   const set = async (on) => {
     const plan = routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { [band().key]: on } });
+    keys.push(plan.changes[0].keyState);
     return (await jobDone(routes, routes['POST /api/apply']({ planId: plan.planId }).job)).run;
   };
   await set(true);
   assert.equal(band().on, true);
   const off = await set(false);
+  // The plan says what it does to the key: the file around it is the user's.
+  assert.deepEqual(keys, ['new', 'changed']);
+  assert.equal(routes['POST /api/settings-plan']({ agent: 'claude', layer: 'user', edits: { [band().key]: null } }).changes[0].keyState, 'removed');
   assert.equal(band().on, false);
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).pluginConfigs, { 'other@x': { options: { a: 1 } }, 'benchkeeper@benchkeeper': { options: { tierBand: false } } });
   routes['POST /api/undo']({ run: off.id });

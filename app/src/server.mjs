@@ -40,7 +40,7 @@ import { catalog, evalResults, overview, runReport } from './reads.mjs';
 import { byRun, clearSessionCache, keepSessionsFor, scanSessions, sessionCache } from './sessions.mjs';
 import * as orca from './orca/index.mjs';
 import { focusOn, globalUntracked, projectSkills } from './skills.mjs';
-import { bundleEdits, isSettingsFile, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
+import { bundleEdits, isSettingsFile, keyState, listSettings, readSettings, redact, settingFacts, settingsAgents, settingsChanges, valuesOf } from './settings.mjs';
 import { levelFor } from './level.mjs';
 import { LEVELS, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest } from './steps/project.mjs';
@@ -87,9 +87,10 @@ export function pickFolder(ctx, platform = process.platform, env = process.env) 
   return { path: null, unavailable: true };
 }
 
-// Changes without their edit functions, with the item state the Dashboard groups by.
+// Changes without their edit functions, with the item state the Dashboard groups by and, for a settings merge, what it does to its keys.
 function serialize(changes, ctx) {
-  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, ...(c.diff && isSettingsFile(c.path) ? { diff: redact(c.diff) } : {}), prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null }));
+  return changes.map(({ edit, after, from, env, ...c }) => ({ ...c, ...(c.diff && isSettingsFile(c.path) ? { diff: redact(c.diff) } : {}), prerun: rehearsable(c), state: c.kind === 'write' && !from ? itemState(c.path, after, ctx) : c.destructive ? 'foreign' : null,
+    ...(c.settings && c.kind === 'write' && !from ? { keyState: keyState(c.settings.agent, c.settings.keys, readText(c.path), after) } : {}) }));
 }
 
 const named = (src, query, body) => (src instanceof URLSearchParams ? src.has(query) : body in src);

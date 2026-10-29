@@ -73,13 +73,15 @@ export function readSettings(ctx, agentId, { dir } = {}) {
 }
 
 const pathOf = (key) => key.split('.');
+// A Codex trusted project is one key under projects whose name is a path, dots and all.
+const keyPath = (agentId, key) => (agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key));
 const dig = (data, path) => path.reduce((o, k) => (o != null && typeof o === 'object' ? o[k] : undefined), data);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // Where each layer sets a key, highest precedence first; the first is the effective one.
 export function valuesOf(layers, agentId, key) {
   const order = agentSettings(agentId).precedence;
-  const path = agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key);
+  const path = keyPath(agentId, key);
   return layers.filter((l) => !l.error).map((l) => ({ layer: l.layer, path: l.path, value: dig(l.data, path) })).filter((x) => x.value !== undefined)
     .sort((a, b) => order.indexOf(a.layer) - order.indexOf(b.layer));
 }
@@ -128,7 +130,7 @@ const referenceRow = (key) => REFERENCE.find((r) => r.key === key);
 export function describeKey(agentId, key) {
   const listed = agentSettings(agentId).settings.find((s) => s.key === key);
   if (listed) return listed;
-  const path = agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key);
+  const path = keyPath(agentId, key);
   const node = schemaNode(agentId, path);
   const row = agentId === 'claude' ? referenceRow(key) : null;
   if (!node && !row) return null;
@@ -467,7 +469,7 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
     const bad = key.startsWith('projects.') ? null : hasMask(value) ? `${key}: the value holds the placeholder ${MASK} that stands for a hidden secret: edit the file by hand` : validate(agentId, def, value, layer);
     if (bad) { problems.push(bad); continue; }
     const stored = def.type === 'switch' && value === true ? '1' : value;
-    const path = agentId === 'codex' && key.startsWith('projects.') ? ['projects', key.slice(9)] : pathOf(key);
+    const path = keyPath(agentId, key);
     if (stored == null) { const parent = dig(after, path.slice(0, -1)); if (parent && typeof parent === 'object') delete parent[path.at(-1)]; } else {
       let o = after;
       for (const seg of path.slice(0, -1)) o = (o[seg] != null && typeof o[seg] === 'object') ? o[seg] : (o[seg] = {});
@@ -481,6 +483,15 @@ export function settingsChanges(ctx, agentId, { layer = 'user', dir, edits }) {
   for (const n of notes(agentId, [{ ...target, data: after }]).filter((x) => COUPLINGS.rules.find((r) => r.id === x.rule)?.refuse && x.keys.some((k) => written.includes(k)))) problems.push(n.message);
   if (problems.length) throw new Error(problems.join('; '));
   return changes;
+}
+
+// What a settings change does to its keys, from the file text before and after: new when none was set, removed when none
+// is left, current when none changes, changed otherwise. Text that does not parse counts as no keys.
+export function keyState(agentId, keys, before, after) {
+  const read = (t) => { try { return parseLayer(agentId, t ?? ''); } catch { return {}; } };
+  const [b, a] = [read(before), read(after)].map((d) => keys.map((k) => dig(d, keyPath(agentId, k))));
+  if (same(b, a)) return 'current';
+  return b.every((v) => v === undefined) ? 'new' : a.every((v) => v === undefined) ? 'removed' : 'changed';
 }
 
 // The three or two keys of a bundle ("less noise") as edits: switches set, Codex booleans false.

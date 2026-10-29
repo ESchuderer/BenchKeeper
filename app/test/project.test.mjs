@@ -526,6 +526,14 @@ test('a broken state file is reported, not thrown at listings', () => {
   assert.equal(tryState(r.dir), null);
 });
 
+test('only a missing state file means no saved setup: an unreadable one throws with its path', () => {
+  const r = repo();
+  assert.equal(readState(r.dir), null);
+  mkdirSync(join(r.dir, STATE), { recursive: true });
+  assert.throws(() => readState(r.dir), /state\.json: /);
+  assert.equal(tryState(r.dir), null);
+});
+
 test('the project block carries every rule that left the global file; bare skill names without plugin agents', () => {
   const before = read(new URL('./fixtures/rules-before-190.md', import.meta.url).pathname).split('\n').filter((l) => l.startsWith('- '));
   const global = read(join(contentDir, 'rules/global.md')).split('\n');

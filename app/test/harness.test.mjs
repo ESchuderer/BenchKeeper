@@ -138,6 +138,17 @@ test('evals plan lists the targets and starts no session, in CI too', async () =
   assert.equal(await main(['evals'], { out, ctx }), 2);
 });
 
+test('evals plan stops on a user eval set that does not parse and names its path', async () => {
+  const ctx = machine(stubAgent([]));
+  const file = join(ctx.config, 'evals', 'skill-x.json');
+  mkdirSync(join(ctx.config, 'evals'), { recursive: true });
+  writeFileSync(file, '{"kind":"benchkeeper-evals", "schemaVersion":1,');
+  await assert.rejects(main(['evals', 'plan', '--target', 'skill:workflow'], { ctx }), (e) => e.message.startsWith(`${file}: not JSON (`));
+  let json = '';
+  const code = await main(['evals', 'plan', '--target', 'skill:workflow', '--json'], { out: new Writable({ write(c, _, done) { json += c; done(); } }), err: new Writable({ write(_c, _e, done) { done(); } }), ctx });
+  assert.deepEqual([code, JSON.parse(json).error.startsWith(`${file}: not JSON (`)], [2, true]);
+});
+
 test('evals plan trims the agent names', async () => {
   const ctx = machine(stubAgent([]));
   let text = '';

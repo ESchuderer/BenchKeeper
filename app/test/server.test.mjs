@@ -587,6 +587,15 @@ test('profile import: a bad kind is a 400; register saves packs and projects, th
   assert.match(routes['GET /api/profile-export'](new URLSearchParams({ agents: 'claude' })).text, /"benchkeeper-profile"/);
 });
 
+test('profile import: a project that cannot be registered (the home folder) comes back as refused with the reason', () => {
+  const { ctx, routes } = fixture();
+  const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] }, projects: [{ path: ctx.home }] });
+  const r = routes['POST /api/profile-import']({ text, register: true });
+  assert.deepEqual(r.projects, []);
+  assert.equal(r.refused.length, 1);
+  assert.match(r.refused[0], /is the home folder or a parent of it/);
+});
+
 test('evals: results without details; broken lines are left out', () => {
   const { ctx, routes } = fixture();
   mkdirSync(join(ctx.config, 'evals'), { recursive: true });

@@ -1,0 +1,4 @@
+diff --git a/eslint.config.mjs b/eslint.config.old.txt
+similarity index 100%
+rename from eslint.config.mjs
+rename to eslint.config.old.txt

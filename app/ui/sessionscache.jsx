@@ -33,14 +33,14 @@ export function SessionsHistory() {
               <Button variant="default" loading={busy} disabled={!Number.isInteger(days) || days < 1} onClick={send({ keepDays: days }, 'Retention set.')}>Set days</Button>
             </Group>
           )}
-          <Group><Button variant="default" loading={busy} onClick={() => setAsking(true)}>Clear the sessions cache</Button></Group>
+          <Group><Button variant="default" loading={busy} onClick={() => { cache.reload(); setAsking(true); }}>Clear the sessions cache</Button></Group>
           <Modal opened={asking} onClose={() => setAsking(false)} withCloseButton={false} attributes={{ content: { 'aria-label': 'Clear the sessions cache?' } }}>
             <Stack gap="sm">
               <Title order={2} size="h4">Clear the sessions cache?</Title>
               <Text size="sm">{c.sessions} session {c.sessions === 1 ? 'summary goes' : 'summaries go'}. Those of transcripts the agent already deleted are gone for good; the next scan reads the others again.</Text>
               <Group justify="flex-end">
                 <Button variant="default" onClick={() => setAsking(false)}>Cancel</Button>
-                <Button onClick={() => { setAsking(false); void send({ clear: true }, 'Cache cleared.')(); }}>Clear the cache</Button>
+                <Button loading={cache.loading} onClick={() => { setAsking(false); void send({ clear: true }, 'Cache cleared.')(); }}>Clear the cache</Button>
               </Group>
             </Stack>
           </Modal>

@@ -547,7 +547,7 @@ function Profile({ overview, refresh }) {
       <Group>
         <Button leftSection={icon(IconDownload)} variant="default" disabled={!agents.length} onClick={run(async () => { const r = await api(`/api/profile-export?agents=${agents.join(',')}`); download('benchkeeper-profile.json', r.text); setSkipped(r.skipped); })}>Export profile</Button>
         <FileButton key={file?.name ?? 'none'} accept="application/json,.json"
-          onChange={run(async (f) => { setPlans(null); setFile(null); if (!f) return; const text = await f.text(); setFile({ name: f.name, text, ...(await api('/api/profile-import', { text })) }); })}>
+          onChange={run(async (f) => { setPlans(null); setFile(null); setSkipped([]); if (!f) return; const text = await f.text(); setFile({ name: f.name, text, ...(await api('/api/profile-import', { text })) }); })}>
           {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import profile</Button>}
         </FileButton>
       </Group>

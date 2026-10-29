@@ -1,6 +1,6 @@
 import { Anchor, Button, Code, Group, NumberInput, SegmentedControl, Select, Stack, Switch, Table, Text, TextInput } from '@mantine/core';
 import { IconArrowBackUp, IconListCheck } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from './api.js';
 import { Cli, Plan, Section, SettingFacts } from './parts.jsx';
 import { Loading, Note, href, icon, useApi } from './shell.jsx';
@@ -113,8 +113,9 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
-  // A plan holds the edits of its Review: a later edit drops it, so Apply never clears edits it did not write.
-  const setEdit = (key, v) => { put(key, v); setPlan(null); };
+  // A plan holds the edits of its Review: a later edit drops it, and a pending Review's answer for older edits is ignored, so Apply never clears edits it did not write.
+  const rev = useRef(0);
+  const setEdit = (key, v) => { put(key, v); rev.current++; setPlan(null); };
   const count = Object.keys(edits).length;
   const q = search.trim().toLowerCase();
   const match = (r) => (!q || `${r.key} ${r.summary ?? ''} ${r.sentence ?? ''}`.toLowerCase().includes(q)) && (!changed || r.changed);
@@ -123,7 +124,8 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
   const adv = (data.advanced ?? []).filter(match);
   const review = async (body) => {
     setBusy(true); setError(null); setPlan(null);
-    try { setPlan(await api('/api/settings-plan', { agent, layer, dir, ...body })); } catch (e) { setError(e.message); }
+    const asked = rev.current;
+    try { const p = await api('/api/settings-plan', { agent, layer, dir, ...body }); if (asked === rev.current) setPlan(p); } catch (e) { if (asked === rev.current) setError(e.message); }
     setBusy(false);
   };
   const dismiss = (id, dismissed) => { setError(null); api('/api/settings-dismiss', { id, dismissed }).then(onApplied, (e) => setError(e.message)); };
@@ -206,7 +208,7 @@ function Editor({ data, agent, layer, dir, edits, setEdit: put, clear, advanced,
       )}
       <Group>
         <Button leftSection={icon(IconListCheck)} loading={busy} disabled={!count} onClick={() => review({ edits })}>Review {count} change{count === 1 ? '' : 's'}</Button>
-        {count > 0 && <Button variant="default" onClick={() => { clear(); setPlan(null); }}>Discard changes</Button>}
+        {count > 0 && <Button variant="default" onClick={() => { clear(); rev.current++; setPlan(null); }}>Discard changes</Button>}
       </Group>
       {error && <Note color="red" title="Not planned">{error}</Note>}
       {plan && <Section title="Changes"><Plan key={plan.planId} plan={plan} onDone={() => { clear(); onApplied(); }} /></Section>}

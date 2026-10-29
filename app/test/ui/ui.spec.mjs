@@ -1567,6 +1567,30 @@ test.describe('views', () => {
     await expect(history).toContainText('0 sessions in the cache');
   });
 
+  test('Preferences: the Clear dialog reads the count again when it opens', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    const history = page.getByRole('region', { name: 'Sessions history' });
+    await expect(history).toContainText('sessions in the cache');
+    // Another tab scans meanwhile: the server now holds 7 summaries.
+    await page.route(/\/api\/sessions-cache$/, (r) => (r.request().method() === 'GET' ? r.fulfill({ json: { sessions: 7, keepDays: null } }) : r.continue()));
+    await history.getByRole('button', { name: 'Clear the sessions cache' }).click();
+    await expect(page.getByRole('dialog', { name: 'Clear the sessions cache?' })).toContainText('7 session summaries go');
+  });
+
+  test('Preferences: a profile import clears the export warnings', async ({ page }) => {
+    await nav(page, 'Preferences').click();
+    await page.route(/\/api\/profile-export/, async (r) => r.fulfill({ json: { ...(await (await r.fetch()).json()), skipped: ['an export warning'] } }));
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export profile' }).click();
+    const file = await download;
+    await expect(page.getByText('an export warning')).toBeVisible();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Import profile' }).click();
+    await (await chooser).setFiles(await file.path());
+    await expect(page.getByRole('region', { name: 'Profile contents' })).toContainText('Agents: claude');
+    await expect(page.getByText('an export warning')).toBeHidden();
+  });
+
   test('Preferences: profile export downloads a file; its import registers and shows the global plan', async ({ page }) => {
     await nav(page, 'Preferences').click();
     const download = page.waitForEvent('download');
@@ -1693,6 +1717,27 @@ test.describe('views', () => {
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
   });
 
+
+  test('Agent settings: a Review answered after a newer edit shows no plan for the older edits', async ({ page }) => {
+    await nav(page, 'Agent settings').click();
+    let release;
+    const held = new Promise((r) => { release = r; });
+    await page.route(/\/api\/settings-plan$/, async (r) => { await held; await r.continue(); });
+    await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('21');
+    const asked = page.waitForRequest(/\/api\/settings-plan$/);
+    await page.getByRole('button', { name: 'Review 1 change' }).click();
+    await asked;
+    await page.getByRole('switch', { name: 'env.DISABLE_TELEMETRY value' }).check();
+    const answered = page.waitForResponse(/\/api\/settings-plan$/);
+    release();
+    await answered;
+    await expect(page.getByRole('button', { name: 'Review 2 changes' })).toBeEnabled();
+    await expect(page.getByRole('region', { name: 'Changes' })).toBeHidden();
+    await page.unroute(/\/api\/settings-plan$/);
+    await page.getByRole('button', { name: 'Review 2 changes' }).click();
+    await expect(page.getByRole('region', { name: 'Changes' })).toContainText('"DISABLE_TELEMETRY": "1"');
+    await page.getByRole('button', { name: 'Discard changes' }).click();
+  });
 
   test('Rules: files with owner and load state, a switch as plan and undo, the text in a drawer, the budget; no axe violations', async ({ page }) => {
     await nav(page, 'Rules').click();

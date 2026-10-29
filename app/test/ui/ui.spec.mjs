@@ -1579,7 +1579,7 @@ test.describe('views', () => {
     const footer = changes.getByRole('group', { name: 'Selected changes' });
     await expect(footer).toContainText(/[1-9]\d* changes? selected/);
     const n = Number((await footer.textContent()).match(/(\d+) change/)[1]);
-    await changes.getByRole('button', { name: `Apply ${n} changes` }).click();
+    await changes.getByRole('button', { name: `Apply ${n} ${n === 1 ? 'change' : 'changes'}` }).click();
     // The result replaces the plan: the run report with each change, its undo, and a link to it in History.
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await expect(changes.getByRole('button', { name: 'Undo run' })).toBeEnabled();
@@ -1776,7 +1776,7 @@ test.describe('views', () => {
     // The hover color of the button under the pointer is lighter than the checked contrast.
     await page.mouse.move(0, 0);
     await noAxe(page);
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await changes.getByRole('button', { name: 'Undo run' }).click();
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
@@ -1928,7 +1928,7 @@ test.describe('views', () => {
     const changes = page.getByRole('region', { name: 'Changes' });
     await facts(about(changes, 'cleanupPeriodDays'));
     await noAxe(page);
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     // The doctor and Insights name the keys of a settings finding.
     await nav(page, 'Dashboard').click();
@@ -1948,7 +1948,7 @@ test.describe('views', () => {
     await nav(page, 'Agent settings').click();
     await page.getByRole('textbox', { name: 'cleanupPeriodDays value' }).fill('14');
     await page.getByRole('button', { name: 'Review 1 change' }).click();
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
   });
 
@@ -2046,7 +2046,7 @@ test.describe('views', () => {
     await page.keyboard.press('Enter');
     await expect(team).toContainText('Pending');
     await expect(changes.getByRole('checkbox', { name: 'Select all in Settings' })).toBeFocused();
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await expect(team).toContainText('off');
     await expect(team).toContainText('user settings');
@@ -2115,7 +2115,7 @@ test.describe('views', () => {
     const toggle = team.getByRole('switch', { name: /Load .*20-team\.md in Claude Code/ });
     await toggle.click({ force: true });
     const changes = page.getByRole('region', { name: 'Changes' });
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeVisible();
     const close = changes.getByRole('button', { name: 'Close' });
     await expect(close).toHaveAttribute('aria-disabled', 'true');
@@ -2198,7 +2198,7 @@ test.describe('views', () => {
     await expect(changes).toContainText('"// why": "kept"');
     await page.mouse.move(0, 0);
     await noAxe(page);
-    await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+    await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
     await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
     await changes.getByRole('button', { name: 'Undo run' }).click();
     await expect(page.getByRole('alert').filter({ hasText: /Undone|Undo failed/ })).toContainText(/changes undone/);
@@ -2303,7 +2303,7 @@ test.describe('views', () => {
       await page.getByRole('button', { name: 'Plan the new account' }).click();
       await expect(changes).toContainText(`Add claude account ${name}`);
       await expect(changes).toContainText('Why: You added this account in Accounts.');
-      await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+      await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await changes.getByRole('button', { name: 'Close' }).click();
     }
@@ -2331,7 +2331,7 @@ test.describe('views', () => {
     // Back to no account, as the other tests expect the machine.
     for (const card of [home, work]) {
       await card.getByRole('button', { name: /^Remove / }).click();
-      await changes.getByRole('button', { name: /^Apply 1 changes$/ }).click();
+      await changes.getByRole('button', { name: /^Apply 1 change$/ }).click();
       await expect(changes.getByRole('region', { name: /^Run / }).getByRole('article').first()).toBeVisible();
       await changes.getByRole('button', { name: 'Close' }).click();
     }
@@ -2341,8 +2341,12 @@ test.describe('views', () => {
   test('Preferences: the tier strip plan says the user asked for it', async ({ page }) => {
     await nav(page, 'Preferences').click();
     const views = page.getByRole('region', { name: 'Views and their cost' });
-    await views.getByRole('switch', { name: 'Terminal tier strip' }).click({ force: true });
+    await views.getByRole('switch', { name: 'Terminal tier strip: Off' }).click({ force: true });
     await expect(views).toContainText('Why: You turned the tier strip on in Preferences.');
+    // While the plan is open the switch shows the asked-for position as Pending; Close drops the plan.
+    await expect(views.getByRole('switch', { name: 'Terminal tier strip: Pending' })).toBeChecked();
+    await views.getByRole('region', { name: 'Changes' }).getByRole('button', { name: 'Close' }).click();
+    await expect(views.getByRole('switch', { name: 'Terminal tier strip: Off' })).not.toBeChecked();
   });
 
   test('Accounts: a late answer for the project chosen before is dropped; clearing the project clears a container card', async ({ page }) => {

@@ -1,8 +1,8 @@
-import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Switch, Table, Text, Textarea, Title } from '@mantine/core';
+import { Badge, Button, Code, Drawer, Group, List, Progress, Select, Stack, Table, Text, Textarea, Title } from '@mantine/core';
 import { IconEye, IconPencil, IconPlayerStop } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
-import { Cli, Plan, Section } from './parts.jsx';
+import { Cli, Plan, PlanClose, PlanSwitch, Section } from './parts.jsx';
 import { Dot, Loading, Note, icon, useApi } from './shell.jsx';
 
 const GLOBAL = 'global';
@@ -161,8 +161,7 @@ function Budget({ budget }) {
   );
 }
 
-// pending: the switch whose plan is open shows the requested position until the plan is applied, cancelled or closed;
-// flipping it back closes the plan (onClear).
+// pending: the open plan; its row's switch shows it (PlanSwitch).
 function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear, locked }) {
   const { busy, error, toggle } = useSwitch(dir, onPlan);
   if (!agent.rows.length) return <Text size="sm">No instruction file found.</Text>;
@@ -183,9 +182,8 @@ function Files({ agent, dir, limit, onPlan, onPreview, pending, onClear, locked 
                 <Table.Td miw={220}>
                   <Group gap="xs" wrap="nowrap" align="flex-start">
                     {r.switch.by
-                      ? <Switch aria-label={`Load ${r.shown} in ${agent.name}`} label={wait ? 'Pending' : r.load === 'off' ? 'Turn on' : 'On'} description={wait ? 'Apply or cancel in Changes below' : undefined}
-                        checked={wait ? pending.on : r.load !== 'off'} aria-disabled={off || undefined} style={off ? { opacity: 0.6 } : undefined}
-                        onChange={(e) => (off ? undefined : wait ? onClear() : toggle(agent.id, r, e.currentTarget.checked, agent.name))} />
+                      ? <PlanSwitch name={`Load ${r.shown} in ${agent.name}`} hideName on={r.load !== 'off'} pending={wait ? pending : null} off={off}
+                        onAsk={(on) => toggle(agent.id, r, on, agent.name)} onClear={onClear} />
                       : <Text size="sm">No switch: {r.switch.why}.</Text>}
                     <Button size="compact-xs" variant="default" leftSection={icon(IconEye)} aria-label={`Show text of ${r.shown}`} onClick={() => onPreview(r)}>Text</Button>
                   </Group>
@@ -240,7 +238,7 @@ export function Rules({ overview, params, refresh, project }) {
           <Plan key={pending.plan.planId} plan={pending.plan} why={`You turned the switch ${pending.on ? 'on' : 'off'} in Rules.`} scope={chosen ? 'project' : 'global'} onRunning={setRunning}
             onCancel={(done) => setPending((p) => ({ ...p, done }))} onDone={() => { setPending((p) => ({ ...p, done: true })); state.reload(); refresh(); }} />
           {/* Closing during an apply would drop the run's view and its reload. */}
-          <Group><Button variant="default" data-disabled={running || undefined} aria-disabled={running || undefined} onClick={() => !running && setPending(null)}>Close</Button></Group>
+          <Group><PlanClose running={running} onClose={() => setPending(null)} /></Group>
         </Section>
       )}
       <Preview key={preview?.path} row={preview} dir={chosen} onClose={() => setPreview(null)} onSaved={() => { state.reload(); refresh(); }} />

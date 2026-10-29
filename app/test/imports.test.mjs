@@ -38,6 +38,7 @@ test('imports: an import across a forbidden boundary, a cycle and the IDE name o
     'ui-imports': { 'ui/shell.jsx': "export { default } from '../src/projects.mjs';\n" },
     'no-circular': { 'src/projects.mjs': "import b from './board.mjs';\nexport default b;\n", 'src/board.mjs': "import p from './projects.mjs';\nexport default p;\n" },
     'orca-name-outside-module': { 'src/board.mjs': "export const hook = 'ORCA_ROOT';\n" },
+    'git-without-repo-env': { 'src/board.mjs': "export const w = (ctx) => ctx.run(['git', 'status'], { timeout: 1 });\n" },
   };
   const names = {
     'a URL': "export const u = 'https://github.com/stablyai/orca';\n",
@@ -57,6 +58,8 @@ test('imports: an import across a forbidden boundary, a cycle and the IDE name o
     assert.equal(r.code, 0, `${what}: ${r.out}`);
   }
   const ok = check({ ...CLEAN, 'src/board.mjs': "export const t = `non-${name.orca} ${1}`;\n" });
+  const git = check({ ...CLEAN, 'src/board.mjs': "export const w = (ctx, env) => ctx.run(['git', 'status'], {\n  env,\n});\n", 'src/git.mjs': "export const g = (ctx) => ctx.run(['git', 'status']);\n" });
+  assert.equal(git.code, 0, git.out);
   assert.equal(ok.code, 0, ok.out);
   for (const [what, text] of Object.entries(names)) {
     const r = check({ ...CLEAN, [what === 'a CommonJS file' ? 'src/board.cjs' : 'src/board.mjs']: text });

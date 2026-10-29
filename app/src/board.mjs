@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { readText, writeAtomic } from './fsx.mjs';
+import { repoEnv } from './git.mjs';
 import { MIN_SAMPLES } from './insights.mjs';
 import { canon, listProjects } from './projects.mjs';
 import { byRun } from './sessions.mjs';
@@ -920,7 +921,7 @@ export function keepDays(ctx) {
 // The app's registered projects, each with its other Git worktrees, where sessions on a branch often run.
 export function registeredPaths(ctx) {
   return listProjects(ctx).map(({ path }) => {
-    const r = ctx.run(['git', '-C', path, 'worktree', 'list', '--porcelain']);
+    const r = ctx.run(['git', '-C', path, 'worktree', 'list', '--porcelain'], { env: repoEnv() });
     return { path, worktrees: r.code === 0 ? r.stdout.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9)).filter((w) => canon(w) !== canon(path)) : [] };
   });
 }

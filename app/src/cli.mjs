@@ -106,7 +106,7 @@ Usage: benchkeeper <command> [options]
   evals plan|run [--agents a,b] [--model m] [--target t] [--all] [--yes]
                                     skill trigger evals with real agent sessions (subscription use, never in CI);
                                     only targets changed since their last result unless --all; plan lists the targets and
-                                    sessions and starts none, run asks first (--yes answers it)
+                                    sessions and starts none, run asks first (--yes answers it); --agents default: claude
   evals results                     the stored eval results: per target and agent the miss and false trigger rates
   verify [dir] [--project dir] [--agents a,b]
                                     deterministic checks: files match the ledger, expected plugins and skills,
@@ -287,16 +287,18 @@ Usage: benchkeeper <command> [options]
                                     to use and the file it came from (.benchkeeper/pins.json, then pins.local.json,
                                     then the session's own agent); an invalid file is refused with its rules, exit 1
 
---json (doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list,
-        show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get,
-        sessions board, list and cache, insights, profile export, knowledge show, accounts list and status,
-        evals plan, run and results, inventory, dashboard; apply, projects apply, add, remove, rename, relocate and
-        update, settings set, rules and packs enable|disable, skills update, undo)
+--json (doctor, verify, plan, history, history show, projects plan|list|status|scan|audit|advise,
+        automations list|show|diff|status|precheck, packs list|show|warnings, skills list|show|sources,
+        rules list|show|check, extensions list, settings list|get, sessions board|list, sessions cache show, insights,
+        profile export, knowledge show, accounts list|status, evals plan|results, inventory, dashboard;
+        apply, projects apply|add|remove|rename|relocate|update, settings set, rules enable|disable,
+        packs enable|disable|scope, skills update, automations install|update|remove, undo, evals run,
+        sessions cache set|clear)
                                     one JSON document on stdout, logs on stderr; exit 0 clean, 1 findings of
                                     level error, 2 usage or read failure; keys in app/README.md. A changing command
                                     that would ask needs --yes: without it exit 2 and nothing changes
 
-Agents: claude, codex, gemini, copilot (default: the installed ones). Packs: see plugins/benchkeeper/library/README.md.
+Agents: claude, codex, gemini, copilot (default: the installed ones; evals: claude). Packs: see plugins/benchkeeper/library/README.md.
 Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
 
 const OPTIONS = {

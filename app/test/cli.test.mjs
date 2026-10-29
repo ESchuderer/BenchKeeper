@@ -6,7 +6,7 @@ import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
-import { main } from '../src/cli.mjs';
+import { HELP, main } from '../src/cli.mjs';
 import { addProject } from '../src/projects.mjs';
 import { context } from '../src/runner.mjs';
 import { writeRunSessions, writeSessions } from './fixtures/sessions.mjs';
@@ -86,6 +86,18 @@ test('help and unknown commands', async () => {
   assert.equal(await c.exec(['--help']), 0);
   assert.match(c.text(), /Usage: benchkeeper/);
   assert.equal(await c.exec(['nope']), 2);
+});
+
+test('the help --json list names the commands the README marks with --json', () => {
+  // `projects plan|list` in the help stands for `projects plan` and `projects list`.
+  const help = HELP.slice(HELP.indexOf('--json (') + 8, HELP.indexOf(')', HELP.indexOf('--json ('))).split(/[,;]/).flatMap((item) => {
+    const words = item.trim().split(/\s+/), last = words.pop();
+    return last.split('|').map((w) => [...words, w].join(' '));
+  });
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const table = readme.slice(readme.indexOf('| Command | --json |')).split('\n\n')[0].split('\n').slice(2);
+  const marked = table.filter((row) => row.split(' | ')[1].startsWith('yes')).flatMap((row) => [...row.split(' | ')[0].matchAll(/`([^`]+)`/g)].map((m) => m[1]));
+  assert.deepEqual(help.toSorted(), marked.toSorted());
 });
 
 test('board writes the sessions page for this user only', async () => {

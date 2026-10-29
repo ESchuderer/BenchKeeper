@@ -53,6 +53,6 @@ test('skillFiles: SKILL.md of every agent folder, folders without one left out',
   }
   mkdirSync(join(dir, '.claude/skills/empty'));
   assert.deepEqual(skillFiles(dir).map((f) => [f.name, f.file.slice(dir.length + 1), f.text]), [
-    ['a', '.claude/skills/a/SKILL.md', 'A'], ['a', '.agents/skills/a/SKILL.md', 'A2'], ['b', '.github/skills/b/SKILL.md', 'B'], ['c', '.gemini/skills/c/SKILL.md', 'C'],
+    ['a', join('.claude/skills/a/SKILL.md'), 'A'], ['a', join('.agents/skills/a/SKILL.md'), 'A2'], ['b', join('.github/skills/b/SKILL.md'), 'B'], ['c', join('.gemini/skills/c/SKILL.md'), 'C'],
   ]);
 });

@@ -81,6 +81,16 @@ test('validation of keys from the pinned schema or the reference: scope, type an
   assert.equal(refused('claude', 'appendPlugins', 'x', 'project'), 'appendPlugins: this key is taken from the user file only');
   assert.equal(refused('claude', 'syncClaudeAiPlugins', true, 'project'), 'syncClaudeAiPlugins: this key is not taken from the project file');
   assert.equal(refused('claude', 'syncClaudeAiPlugins', true, 'local'), null);
+  // The scope holds for typed keys too, not only for json ones.
+  assert.equal(refused('claude', 'autoConnectIde', true, 'project'), 'autoConnectIde: lives in the .claude.json file of the home folder, which this editor does not touch');
+  assert.equal(refused('claude', 'axScreenReader', true), null);
+  assert.equal(refused('claude', 'axScreenReader', true, 'project'), 'axScreenReader: this key is taken from the user file only');
+  assert.equal(refused('claude', 'askUserQuestionTimeout', '5m'), null);
+  assert.equal(refused('claude', 'askUserQuestionTimeout', '5m', 'project'), 'askUserQuestionTimeout: this key is taken from the user file only');
+  assert.equal(refused('claude', 'skipDangerousModePermissionPrompt', true, 'local'), null);
+  assert.equal(refused('claude', 'skipDangerousModePermissionPrompt', true, 'project'), 'skipDangerousModePermissionPrompt: this key is not taken from the project file');
+  // Managed-only: no file the editor writes takes it.
+  for (const layer of ['user', 'project']) assert.equal(refused('claude', 'policyHelper.timeoutMs', 5000, layer), 'policyHelper.timeoutMs: managed settings only: read-only here', layer);
   assert.equal(refused('claude', 'permissions.allow', ['Read']), null);
   assert.equal(refused('claude', 'permissions.allow', 'Read'), 'permissions.allow: a value of type array');
   assert.equal(refused('claude', 'feedbackSurveyRate', '0.5'), 'feedbackSurveyRate: a number');

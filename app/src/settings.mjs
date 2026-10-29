@@ -160,6 +160,10 @@ const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v
 function validate(agentId, def, value, layer) {
   if (value == null) return null;
   const bad = (m) => `${def.key}: ${m}`;
+  // The reference's scope holds for every type: a key the target file is not read for is refused.
+  if (def.scope && SCOPE_NOTE[def.scope]) return bad(SCOPE_NOTE[def.scope]);
+  if ((def.scope === 'User' || def.scope === 'User or managed') && layer !== 'user') return bad('this key is taken from the user file only');
+  if (def.scope === 'User, local, or managed' && layer === 'project') return bad('this key is not taken from the project file');
   switch (def.type) {
     case 'switch':
       if (value !== true) return bad('an environment switch is set or removed, never 0 or false: use "set" or remove it');
@@ -187,9 +191,6 @@ function validate(agentId, def, value, layer) {
     case 'object': return bad('edit it in the file; the app shows it only');
     default: {
       // From the pinned schema or the reference: the schema's types, else anything.
-      if (def.advanced && (def.scope && SCOPE_NOTE[def.scope])) return bad(SCOPE_NOTE[def.scope]);
-      if (def.advanced && def.scope === 'User or managed' && layer !== 'user') return bad('this key is taken from the user file only');
-      if (def.advanced && def.scope === 'User, local, or managed' && layer === 'project') return bad('this key is not taken from the project file');
       if (def.values && !def.values.includes(value) && def.types?.every((t) => t === 'string')) return bad(`one of ${def.values.join(', ')}`);
       const ok = { string: 'string', boolean: 'boolean', integer: 'number', number: 'number', array: 'array', object: 'object' };
       if (def.types?.length && !def.types.some((t) => ok[t] === kind(value) && (t !== 'integer' || Number.isInteger(value)))) return bad(`a value of type ${def.types.join(' or ')}`);

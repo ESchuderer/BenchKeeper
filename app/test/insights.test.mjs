@@ -48,7 +48,9 @@ test('friction: a project from the sample threshold, with the failed sessions wi
   assert.equal(f.signal, 'friction');
   assert.deepEqual(f.evidence, { project: 'shop', sessions: 20, failed: 3, rate: 15, sessionIds: ['p0', 'p1', 'p2'] });
   assert.match(f.message, /^3 of 20 sessions in shop \(15%\)/);
-  assert.equal(insights({ sessions: project(MIN_SAMPLES, failing, 'C:\\work\\shop') }).findings[0].id, f.id, 'the folder name decides, not the path');
+  const other = insights({ sessions: project(MIN_SAMPLES, failing, '/clients/acme/shop') }).findings[0];
+  assert.equal(other.evidence.project, 'shop');
+  assert.notEqual(other.id, f.id, 'the path decides, not the folder name');
   assert.ok(!JSON.stringify(r).includes(SECRET));
   assert.ok(!JSON.stringify(r).includes('/work'));
 });
@@ -63,6 +65,10 @@ test('friction: nothing below the threshold, without a failed last run, for Orca
   assert.equal(insights({ sessions: [...mixed, ...project(1, failing)] }).findings[0].evidence.sessions, 20);
   const two = insights({ sessions: [...project(MIN_SAMPLES, failing), ...project(MIN_SAMPLES, failing, '/work/blog'), { id: 'x', project: null, tests: 'fail', prs: [] }] });
   assert.deepEqual(two.findings.map((f) => f.evidence.project).sort(), ['blog', 'shop']);
+  // Two projects with the same folder name are two findings, each with its own sessions.
+  const same = insights({ sessions: [...project(MIN_SAMPLES, failing), ...project(MIN_SAMPLES, () => ({}), '/clients/acme/shop').map((s, i) => ({ ...s, id: `q${i}`, tests: i ? 'pass' : 'fail' }))] }).findings;
+  assert.deepEqual(same.map((f) => [f.evidence.project, f.evidence.failed]).sort(), [['shop', 1], ['shop', 20]]);
+  assert.notEqual(same[0].id, same[1].id);
 });
 
 test('skill proposals: turn off what the project sessions did not use, add what a matched pack brings, update what is behind', () => {
